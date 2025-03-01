@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 type UnskewNoUVProps = {
   /** URL of the image we want to display */
@@ -18,7 +19,7 @@ type UnskewNoUVProps = {
    */
   dstPoints?: [number, number][];
 
-  /** The image’s full size, e.g. [3070, 4080]. */
+  /** The image's full size, e.g. [3070, 4080]. */
   imageSize?: [number, number];
 
   /**
@@ -36,7 +37,7 @@ type UnskewNoUVProps = {
  * 3) Computes a 3x3 homography from srcPoints -> dstPoints
  * 4) Embeds that 3x3 into a 4x4 matrix
  * 5) Applies that matrix to the entire geometry so the plane is physically
- *    “unskewed” in 3D space (no extra UV / tessellation).
+ *    "unskewed" in 3D space (no extra UV / tessellation).
  */
 export const UnskewThree: React.FC<UnskewNoUVProps> = ({
   imageUrl,
@@ -80,7 +81,23 @@ export const UnskewThree: React.FC<UnskewNoUVProps> = ({
     // Create the renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(canvasW, canvasH);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     containerRef.current.appendChild(renderer.domElement);
+
+    // Add OrbitControls
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableRotate = false; // Disable rotation since we only want pan and zoom
+    controls.mouseButtons = {
+      LEFT: THREE.MOUSE.PAN,
+      MIDDLE: THREE.MOUSE.DOLLY,
+      RIGHT: THREE.MOUSE.PAN
+    };
+    controls.enableDamping = true; // Add smooth damping effect
+    controls.dampingFactor = 0.25;
+
+    // Limit zoom
+    controls.minZoom = 1; // Can't zoom out beyond initial view
+    controls.maxZoom = 10; // Can zoom in up to 10x
 
     // ------ 2) PlaneGeometry covers [0..imgWidth] x [0..imgHeight] in local coords ------
     // So corner (0,0) is the top-left in local space, (imgWidth,imgHeight) is bottom-right.
@@ -102,6 +119,7 @@ export const UnskewThree: React.FC<UnskewNoUVProps> = ({
 
       texture.minFilter = THREE.LinearFilter;
       texture.magFilter = THREE.LinearFilter;
+      texture.colorSpace = THREE.SRGBColorSpace;
 
       const material = new THREE.MeshBasicMaterial({
         map: texture,
@@ -119,14 +137,22 @@ export const UnskewThree: React.FC<UnskewNoUVProps> = ({
       mesh.matrixAutoUpdate = false;
       mesh.matrix.fromArray(M);
 
-      // Render once
-      renderer.render(scene, camera);
+      // Set up animation loop instead of single render
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+      }
+
+      // Start animation loop
+      animate();
     });
 
     // Cleanup
     return () => {
       renderer.dispose();
       planeGeom.dispose();
+      controls.dispose(); // Clean up controls
       scene.clear();
     };
   }, [imageUrl, srcPoints, dstPoints, imageSize, renderSize]);
