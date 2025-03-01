@@ -1,12 +1,10 @@
-import { render } from 'preact';
+import { createRoot } from 'react-dom/client';
+import { useEffect } from 'react';
 
 import './style.css';
-import { useEffect } from 'preact/hooks';
-import { PulsingRectangle } from './PulsingRectangle';
-import  ImageUnskew  from './unkskew';
 import { UnskewThree } from './UnskewThree';
 import { CssUnskewedImage } from './CssUnskew';
-
+import CameraSetup from './setup/CameraSetup';
 
 function useMessageListener() {
   useEffect(() => {
@@ -25,22 +23,33 @@ function useMessageListener() {
       window.removeEventListener('message', handleMessage);
     };
   }, []);
-
 }
 
 export function App() {
   useMessageListener();
-	return (
-		<div>
+  return (
+    <div>
       Hello web-uiiiiommmiikk
+      <CameraSetup onSave={ev => console.log(ev)} initialUrl="http://hassio:1984/api/stream.mp4?src=cnccam&mp4=flac"/>
+      {/* <CameraSetupKonva onSave={() => {}}/> */}
       {/* <PulsingRectangle/> */}
       {/* <ImageUnskew imageSrc="./present-toolpath/table.jpg"/> */}
       <UnskewThree imageUrl="./present-toolpath/table.jpg"/>
       <CssUnskewedImage imageUrl="./present-toolpath/table.jpg"/>
-		</div>
-	);
+
+      Vid:
+      {/* <video id="video"
+           autoplay
+           width="640"
+           height="480"
+           controls
+           src="http://hassio:1984/api/stream.mp4?src=cnccam&mp4=flac"></video> */}
+    </div>
+  );
 }
 
-
-
-render(<App />, document.getElementById('app'));
+const container = document.getElementById('app');
+if (container) {
+  const root = createRoot(container);
+  root.render(<App />);
+}

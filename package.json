@@ -9,21 +9,24 @@
 	"dependencies": {
 		"@techstark/opencv-js": "^4.10.0-release.1",
 		"@types/mathjs": "^9.4.1",
+		"@use-gesture/react": "^10.3.1",
+		"konva": "^9.3.18",
 		"mathjs": "^14.2.1",
 		"ml-matrix": "^6.12.0",
-		"preact": "^10.25.3",
+		"react": "^18.3.1",
+		"react-dom": "^18.3.1",
+		"react-konva": "^18.2.10",
+		"react-zoom-pan-pinch": "^3.7.0",
 		"three": "^0.174.0"
 	},
 	"devDependencies": {
-		"@preact/preset-vite": "^2.9.3",
+		"@types/react": "^18.2.64",
+		"@types/react-dom": "^18.2.21",
 		"@types/three": "^0.173.0",
+		"@vitejs/plugin-react": "^4.2.1",
 		"eslint": "^8.57.1",
-		"eslint-config-preact": "^1.5.0",
 		"typescript": "^5.7.3",
 		"vite": "^6.0.4",
 		"vite-plugin-singlefile": "^2.1.0"
-	},
-	"eslintConfig": {
-		"extends": "preact"
 	}
 }
