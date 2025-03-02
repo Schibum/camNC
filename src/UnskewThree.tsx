@@ -4,11 +4,11 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { computeHomography, buildMatrix4FromHomography } from './math/perspectiveTransform';
 
 type UnskewNoUVProps = {
-  /** URL of the image we want to display */
-  imageUrl: string;
+  /** URL of the video we want to display */
+  videoUrl: string;
 
   /**
-   * The source corner coords (4 points) in the image
+   * The source corner coords (4 points) in the video
    * coordinate space, e.g. [ [x0,y0], [x1,y1], ... ].
    * Order: top-left, top-right, bottom-right, bottom-left.
    */
@@ -20,7 +20,7 @@ type UnskewNoUVProps = {
    */
   dstPoints?: [number, number][];
 
-  /** The image's full size, e.g. [3070, 4080]. */
+  /** The video's full size, e.g. [3070, 4080]. */
   imageSize?: [number, number];
 
   /**
@@ -33,15 +33,15 @@ type UnskewNoUVProps = {
 
 /**
  * A React + Three.js component that:
- * 1) Loads an image as a texture
- * 2) Creates a single PlaneGeometry covering [0..imgWidth] x [0..imgHeight]
+ * 1) Loads a video as a texture
+ * 2) Creates a single PlaneGeometry covering [0..videoWidth] x [0..videoHeight]
  * 3) Computes a 3x3 homography from srcPoints -> dstPoints
  * 4) Embeds that 3x3 into a 4x4 matrix
  * 5) Applies that matrix to the entire geometry so the plane is physically
  *    "unskewed" in 3D space (no extra UV / tessellation).
  */
 export const UnskewThree: React.FC<UnskewNoUVProps> = ({
-  imageUrl,
+  videoUrl,
   srcPoints = [
     [480, 700],    // top-left
     [1655, 950],   // top-right
@@ -57,7 +57,9 @@ export const UnskewThree: React.FC<UnskewNoUVProps> = ({
   imageSize = [3070, 4080],
   renderSize = [625, 1235]
 }) => {
+  console.log('videoUrl', videoUrl, srcPoints, dstPoints, imageSize, renderSize);
   const containerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -67,11 +69,16 @@ export const UnskewThree: React.FC<UnskewNoUVProps> = ({
     const [imgWidth, imgHeight] = imageSize;
     const [canvasW, canvasH] = renderSize;
 
+    // Create video element
+    const video = document.createElement('video');
+    video.crossOrigin = 'anonymous';
+    video.src = videoUrl;
+    video.muted = true;
+    video.playsInline = true;
+    videoRef.current = video;
+
     // ------ 1) Create Scene & OrthographicCamera ------
     const scene = new THREE.Scene();
-    // We'll just define an Ortho camera from (0,0) to (canvasW, canvasH).
-    // That way, if your dstPoints also lie in e.g. [0..625, 0..1235],
-    // you can see them in that region.
     const camera = new THREE.OrthographicCamera(
       0, canvasW,
       0, canvasH,
@@ -87,76 +94,75 @@ export const UnskewThree: React.FC<UnskewNoUVProps> = ({
 
     // Add OrbitControls
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableRotate = false; // Disable rotation since we only want pan and zoom
+    controls.enableRotate = false;
     controls.mouseButtons = {
       LEFT: THREE.MOUSE.PAN,
       MIDDLE: THREE.MOUSE.DOLLY,
       RIGHT: THREE.MOUSE.PAN
     };
-    controls.enableDamping = true; // Add smooth damping effect
+    controls.enableDamping = true;
     controls.dampingFactor = 0.25;
-
-    // Limit zoom
-    controls.minZoom = 1; // Can't zoom out beyond initial view
-    controls.maxZoom = 10; // Can zoom in up to 10x
+    controls.minZoom = 1;
+    controls.maxZoom = 10;
 
     // ------ 2) PlaneGeometry covers [0..imgWidth] x [0..imgHeight] in local coords ------
-    // So corner (0,0) is the top-left in local space, (imgWidth,imgHeight) is bottom-right.
-    // We'll do 1 segment, so there's only 2 triangles. No extra tesselation.
     const planeGeom = new THREE.PlaneGeometry(imgWidth, imgHeight, 1, 1);
-
-    // By default, PlaneGeometry is centered at (0,0). Let's shift it so the
-    // top-left is at local (0,0) instead, if we want:
-    // We can do that by translating the geometry's vertices:
     planeGeom.translate(imgWidth / 2, imgHeight / 2, 0);
-    // Actually, that puts the plane center at (imgWidth/2, imgHeight/2).
-    // Another approach: we create a custom geometry. For brevity, let's keep it
-    // standard plane, but note it starts centered. Not crucial.
 
-    // ------ 3) Create the Mesh with a basic texture ------
-    const textureLoader = new THREE.TextureLoader();
-    textureLoader.load(imageUrl, (texture) => {
-      texture.flipY = false;
+    // ------ 3) Create the Mesh with video texture ------
+    const videoTexture = new THREE.VideoTexture(video);
+    videoTexture.minFilter = THREE.LinearFilter;
+    videoTexture.magFilter = THREE.LinearFilter;
+    videoTexture.colorSpace = THREE.SRGBColorSpace;
+    videoTexture.flipY = false;
 
-      texture.minFilter = THREE.LinearFilter;
-      texture.magFilter = THREE.LinearFilter;
-      texture.colorSpace = THREE.SRGBColorSpace;
-
-      const material = new THREE.MeshBasicMaterial({
-        map: texture,
-        side: THREE.DoubleSide
-      });
-
-      const mesh = new THREE.Mesh(planeGeom, material);
-      scene.add(mesh);
-
-      // ------ 4) Compute the 3x3 homography & embed in a 4x4 matrix, apply it to the mesh ------
-      const H = computeHomography(srcPoints, dstPoints);
-      const M = buildMatrix4FromHomography(H);
-
-      // We can load it into mesh.matrix, then disable auto‐update:
-      mesh.matrixAutoUpdate = false;
-      mesh.matrix.fromArray(M);
-
-      // Set up animation loop instead of single render
-      function animate() {
-        requestAnimationFrame(animate);
-        controls.update();
-        renderer.render(scene, camera);
-      }
-
-      // Start animation loop
-      animate();
+    const material = new THREE.MeshBasicMaterial({
+      map: videoTexture,
+      side: THREE.DoubleSide
     });
+
+    const mesh = new THREE.Mesh(planeGeom, material);
+    scene.add(mesh);
+
+    // ------ 4) Compute the 3x3 homography & embed in a 4x4 matrix, apply it to the mesh ------
+    const H = computeHomography(srcPoints, dstPoints);
+    const M = buildMatrix4FromHomography(H);
+
+    mesh.matrixAutoUpdate = false;
+    mesh.matrix.fromArray(M);
+
+    // Start video playback
+    video.play().catch(console.error);
+
+    // Set up animation loop
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    // Start animation loop
+    animate();
 
     // Cleanup
     return () => {
+      video.pause();
+      video.src = '';
+      video.load();
       renderer.dispose();
       planeGeom.dispose();
-      controls.dispose(); // Clean up controls
+      material.dispose();
+      videoTexture.dispose();
+      controls.dispose();
       scene.clear();
     };
-  }, [imageUrl, srcPoints, dstPoints, imageSize, renderSize]);
+  }, [
+    videoUrl,
+    srcPoints,
+    dstPoints,
+    imageSize,
+    renderSize
+  ]);
 
   return <div ref={containerRef} />;
 };

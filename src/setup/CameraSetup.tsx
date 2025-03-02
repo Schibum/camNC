@@ -2,15 +2,18 @@ import React, { useState } from 'react';
 import { UrlEntryStep } from './components/UrlEntryStep';
 import { PointSelectionStep } from './components/PointSelectionStep';
 
-export interface Point {
-  x: number;
-  y: number;
+export type Point = [number, number];
+
+export interface CameraSetupResult {
+  url: string;
+  points: Point[];
+  dimensions: [number, number];  // [width, height]
 }
 
 interface CameraSetupProps {
   initialUrl?: string;
   initialPoints?: Point[];
-  onSave: (data: { url: string; points: Point[] }) => void;
+  onSave: (data: CameraSetupResult) => void;
 }
 
 enum SetupStep {
@@ -22,6 +25,7 @@ const CameraSetup = ({ initialUrl = '', initialPoints = [], onSave }: CameraSetu
   // Main state and step tracking
   const [url, setUrl] = useState(initialUrl);
   const [points, setPoints] = useState<Point[]>(initialPoints);
+  const [videoDimensions, setVideoDimensions] = useState<[number, number]>([0, 0]);
   const [currentStep, setCurrentStep] = useState(initialUrl ? SetupStep.POINT_SELECTION : SetupStep.URL_ENTRY);
 
   // Handlers for step transitions
@@ -32,13 +36,21 @@ const CameraSetup = ({ initialUrl = '', initialPoints = [], onSave }: CameraSetu
 
   const handlePointsConfirm = (selectedPoints: Point[]) => {
     if (onSave) {
-      onSave({ url, points: selectedPoints });
+      onSave({
+        url,
+        points: selectedPoints,
+        dimensions: videoDimensions
+      });
     }
   };
 
   // Reset to URL step
   const handleReset = () => {
     setCurrentStep(SetupStep.URL_ENTRY);
+  };
+
+  const handleVideoLoad = (width: number, height: number) => {
+    setVideoDimensions([width, height]);
   };
 
   // Show different steps based on current state
@@ -57,6 +69,7 @@ const CameraSetup = ({ initialUrl = '', initialPoints = [], onSave }: CameraSetu
           initialPoints={points}
           onSave={handlePointsConfirm}
           onReset={handleReset}
+          onVideoLoad={handleVideoLoad}
         />
       )}
     </div>

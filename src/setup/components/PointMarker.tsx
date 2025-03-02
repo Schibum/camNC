@@ -38,8 +38,8 @@ export const PointMarker: React.FC<PointMarkerProps> = ({
       onMouseDown={(e) => onMouseDown(index, e)}
       style={{
         position: 'absolute',
-        left: containerCoords.x - offset,
-        top: containerCoords.y - offset,
+        left: containerCoords[0] - offset,
+        top: containerCoords[1]- offset,
         width: markerSize,
         height: markerSize,
         cursor: 'grab',

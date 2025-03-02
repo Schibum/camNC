@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, ForwardedRef, forwardRef } from 'react';
+import React, { useRef, ForwardedRef, forwardRef, useReducer, useLayoutEffect, useEffect } from 'react';
 
 interface VideoPlayerProps {
   url: string;
@@ -8,18 +8,152 @@ interface VideoPlayerProps {
   style?: React.CSSProperties;
 }
 
+// Action types for the reducer
+type State = {
+  isLoading: boolean;
+  loadError: string | null;
+  isInitialized: boolean;
+};
+
+type Action =
+  | { type: 'LOADING' }
+  | { type: 'LOADED' }
+  | { type: 'ERROR', message: string }
+  | { type: 'RETRY' }
+  | { type: 'INITIALIZE' };
+
+// Define a stable reducer function outside the component
+const videoReducer = (state: State, action: Action): State => {
+  switch (action.type) {
+    case 'LOADING':
+      return { ...state, isLoading: true, loadError: null, isInitialized: true };
+    case 'LOADED':
+      return { ...state, isLoading: false };
+    case 'ERROR':
+      return { ...state, isLoading: false, loadError: action.message };
+    case 'RETRY':
+      return { ...state, isLoading: true, loadError: null };
+    case 'INITIALIZE':
+      if (state.isInitialized) return state;
+      return { ...state, isInitialized: true };
+    default:
+      return state;
+  }
+};
+
 // Component to encapsulate video loading, error handling, and display
 export const VideoPlayer = forwardRef((
   { url, onLoad, onError, style = {} }: VideoPlayerProps,
-  ref: ForwardedRef<HTMLVideoElement>
+  forwardedRef: ForwardedRef<HTMLVideoElement>
 ) => {
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const actualRef = (ref as React.RefObject<HTMLVideoElement>) || videoRef;
+  // Use reducer to handle state updates more predictably
+  const [state, dispatch] = useReducer(videoReducer, {
+    isLoading: true,
+    loadError: null,
+    isInitialized: false
+  });
 
-  // Loading spinner style
-  const spinnerStyle: React.CSSProperties = {
+  // Refs don't cause re-renders when updated
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const previousUrlRef = useRef<string>(url);
+  const hasCalledOnLoadRef = useRef<boolean>(false);
+
+  // Function to get the current video element
+  const getVideoElement = () => {
+    return forwardedRef && typeof forwardedRef === 'object' && forwardedRef.current
+      ? forwardedRef.current
+      : videoRef.current;
+  };
+
+  // Setup ref and initialization
+  useLayoutEffect(() => {
+
+    // Initialize on first render
+    dispatch({ type: 'INITIALIZE' });
+
+    // Handle ref forwarding
+    if (forwardedRef && typeof forwardedRef === 'object') {
+      forwardedRef.current = videoRef.current;
+    }
+  }, []);
+
+  // Handle URL changes
+  useLayoutEffect(() => {
+    if (previousUrlRef.current !== url) {
+      previousUrlRef.current = url;
+      dispatch({ type: 'LOADING' });
+      hasCalledOnLoadRef.current = false;
+    }
+  }, [url]);
+
+  // Handle video events
+  useLayoutEffect(() => {
+    // Video element may not be available immediately
+    const videoElement = getVideoElement();
+    if (!videoElement) return;
+
+    // Define stable event handlers using refs to avoid recreation
+    const handleVideoMetadata = () => {
+      if (!videoElement) return;
+
+      dispatch({ type: 'LOADED' });
+
+      // Call onLoad only once per URL change
+      if (!hasCalledOnLoadRef.current && onLoad) {
+        const { videoWidth, videoHeight } = videoElement;
+        onLoad({ width: videoWidth, height: videoHeight });
+        hasCalledOnLoadRef.current = true;
+      }
+    };
+
+    const handleVideoError = (e: Event) => {
+      const errorMessage = "Failed to load video. Please check the URL and try again.";
+      dispatch({ type: 'ERROR', message: errorMessage });
+
+      if (onError) {
+        onError(errorMessage);
+      }
+
+      console.error("Video loading error:", e);
+    };
+
+    // Add event listeners
+    videoElement.addEventListener('loadedmetadata', handleVideoMetadata);
+    videoElement.addEventListener('error', handleVideoError);
+
+    // Check if the video is already loaded
+    if (videoElement.videoWidth && !hasCalledOnLoadRef.current) {
+      handleVideoMetadata();
+    }
+
+    // Cleanup
+    return () => {
+      videoElement.removeEventListener('loadedmetadata', handleVideoMetadata);
+      videoElement.removeEventListener('error', handleVideoError);
+    };
+  }, [url, onLoad, onError]);
+
+  useEffect(() => {
+    return () => {
+      const videoElement = getVideoElement();
+      if (videoElement) {
+        videoElement.src = '';
+      }
+    };
+  }, []);
+  // Handler for retry button
+  const handleRetry = () => {
+    const videoElement = getVideoElement();
+    if (!videoElement) return;
+
+    dispatch({ type: 'RETRY' });
+    videoElement.load();
+  };
+
+  // Component styles
+  const containerStyle = { position: 'relative', width: '100%', height: '100%' } as const;
+  const videoStyle = { width: '100%', height: '100%', objectFit: 'contain', ...style } as const;
+  const spinnerStyle = {
     position: 'absolute',
     top: '50%',
     left: '50%',
@@ -27,10 +161,8 @@ export const VideoPlayer = forwardRef((
     zIndex: 10,
     color: 'white',
     textAlign: 'center'
-  };
-
-  // Error message style
-  const errorStyle: React.CSSProperties = {
+  } as const;
+  const errorStyle = {
     position: 'absolute',
     top: '50%',
     left: '50%',
@@ -42,75 +174,12 @@ export const VideoPlayer = forwardRef((
     padding: '20px',
     borderRadius: '8px',
     maxWidth: '80%'
-  };
-
-  // Track video dimensions when loaded
-  useEffect(() => {
-    const handleVideoMetadata = () => {
-      if (actualRef.current) {
-        const { videoWidth, videoHeight } = actualRef.current;
-        setIsLoading(false);
-
-        if (onLoad) {
-          onLoad({ width: videoWidth, height: videoHeight });
-        }
-      }
-    };
-
-    const handleVideoError = (e: Event) => {
-      setIsLoading(false);
-      const errorMessage = "Failed to load video. Please check the URL and try again.";
-      setLoadError(errorMessage);
-
-      if (onError) {
-        onError(errorMessage);
-      }
-
-      console.error("Video loading error:", e);
-    };
-
-    const videoElement = actualRef.current;
-    if (videoElement) {
-      // Reset states when url changes
-      setIsLoading(true);
-      setLoadError(null);
-
-      videoElement.addEventListener('loadedmetadata', handleVideoMetadata);
-      videoElement.addEventListener('error', handleVideoError);
-
-      // If video is already loaded, get dimensions immediately
-      if (videoElement.videoWidth) {
-        handleVideoMetadata();
-      }
-
-      return () => {
-        videoElement.removeEventListener('loadedmetadata', handleVideoMetadata);
-        videoElement.removeEventListener('error', handleVideoError);
-      };
-    }
-  }, [url, onLoad, onError, actualRef]);
-
-  // Function to retry loading the video
-  const handleRetry = () => {
-    if (actualRef.current) {
-      setIsLoading(true);
-      setLoadError(null);
-      actualRef.current.load();
-    }
-  };
-
-  // Final component styles
-  const videoStyle: React.CSSProperties = {
-    width: '100%',
-    height: '100%',
-    objectFit: 'contain',
-    ...style
-  };
+  } as const;
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+    <div style={containerStyle}>
       {/* Loading spinner */}
-      {isLoading && (
+      {state.isLoading && (
         <div style={spinnerStyle}>
           <div style={{
             width: '40px',
@@ -129,9 +198,9 @@ export const VideoPlayer = forwardRef((
       )}
 
       {/* Error message */}
-      {loadError && (
+      {state.loadError && (
         <div style={errorStyle}>
-          <p>{loadError}</p>
+          <p>{state.loadError}</p>
           <button
             onClick={handleRetry}
             style={{
@@ -150,7 +219,7 @@ export const VideoPlayer = forwardRef((
       )}
 
       <video
-        ref={actualRef}
+        ref={videoRef}
         src={url}
         style={videoStyle}
         autoPlay

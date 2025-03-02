@@ -11,13 +11,15 @@ interface PointSelectionStepProps {
   initialPoints: Point[];
   onSave: (points: Point[]) => void;
   onReset: () => void;
+  onVideoLoad?: (width: number, height: number) => void;
 }
 
 export const PointSelectionStep: React.FC<PointSelectionStepProps> = ({
   url,
   initialPoints = [],
   onSave,
-  onReset
+  onReset,
+  onVideoLoad
 }) => {
   const [points, setPoints] = useState<Point[]>(initialPoints);
   const [videoSize, setVideoSize] = useState({ width: 0, height: 0 });
@@ -153,14 +155,14 @@ export const PointSelectionStep: React.FC<PointSelectionStepProps> = ({
       const normalizedY = videoRelativeY / videoDisplayRect.height;
 
       // Map to source video dimensions (this makes bottom-right corner videoWidth x videoHeight)
-      return {
-        x: normalizedX * videoSize.width,
-        y: normalizedY * videoSize.height
-      };
+      return [
+        normalizedX * videoSize.width,
+        normalizedY * videoSize.height
+      ];
     }
 
     // Fallback
-    return { x, y };
+    return [x, y];
   };
 
   // Convert video coordinates to container coordinates for display
@@ -178,11 +180,11 @@ export const PointSelectionStep: React.FC<PointSelectionStepProps> = ({
       const x = videoDisplayRect.x + visibleX;
       const y = videoDisplayRect.y + visibleY;
 
-      return { x, y };
+      return [x, y];
     }
 
     // Fallback
-    return { x: videoX, y: videoY };
+    return [videoX, videoY];
   };
 
   // Start panning if clicking on background
@@ -217,10 +219,10 @@ export const PointSelectionStep: React.FC<PointSelectionStepProps> = ({
       const videoCoords = containerToVideoCoords(mouseX, mouseY);
 
       // Validate that coordinates are within video bounds
-      const boundedCoords = {
-        x: Math.max(0, Math.min(videoSize.width, videoCoords.x)),
-        y: Math.max(0, Math.min(videoSize.height, videoCoords.y))
-      };
+      const boundedCoords: Point = [
+        Math.max(0, Math.min(videoSize.width, videoCoords[0])),
+        Math.max(0, Math.min(videoSize.height, videoCoords[1]))
+      ];
 
       setPoints(prev => {
         const updated = [...prev];
@@ -253,10 +255,10 @@ export const PointSelectionStep: React.FC<PointSelectionStepProps> = ({
       const videoCoords = containerToVideoCoords(mouseX, mouseY);
 
       // Validate that coordinates are within video bounds
-      const boundedCoords = {
-        x: Math.max(0, Math.min(videoSize.width, videoCoords.x)),
-        y: Math.max(0, Math.min(videoSize.height, videoCoords.y))
-      };
+      const boundedCoords: Point = [
+        Math.max(0, Math.min(videoSize.width, videoCoords[0])),
+        Math.max(0, Math.min(videoSize.height, videoCoords[1]))
+      ];
 
       setPoints([...points, boundedCoords]);
     }
@@ -280,6 +282,9 @@ export const PointSelectionStep: React.FC<PointSelectionStepProps> = ({
   const handleVideoLoad = (dimensions: { width: number; height: number }) => {
     setVideoSize(dimensions);
     setIsLoading(false);
+    if (onVideoLoad) {
+      onVideoLoad(dimensions.width, dimensions.height);
+    }
   };
 
   const handleVideoError = (error: string) => {
@@ -355,8 +360,8 @@ export const PointSelectionStep: React.FC<PointSelectionStepProps> = ({
               <PointMarker
                 key={index}
                 index={index}
-                x={pt.x}
-                y={pt.y}
+                x={pt[0]}
+                y={pt[1]}
                 scale={scale}
                 videoToContainerCoords={videoToContainerCoords}
                 onMouseDown={handlePointMouseDown}

@@ -2,9 +2,8 @@ import { createRoot } from 'react-dom/client';
 import { useEffect } from 'react';
 
 import './style.css';
+import { VideoUnskew } from './VideoUnskew';
 import { UnskewThree } from './UnskewThree';
-import { CssUnskewedImage } from './CssUnskew';
-import CameraSetup from './setup/CameraSetup';
 
 function useMessageListener() {
   useEffect(() => {
@@ -29,21 +28,47 @@ export function App() {
   useMessageListener();
   return (
     <div>
-      Hello web-uiiiiommmiikk
-      <CameraSetup onSave={ev => console.log(ev)} initialUrl="http://hassio:1984/api/stream.mp4?src=cnccam&mp4=flac"/>
-      {/* <CameraSetupKonva onSave={() => {}}/> */}
-      {/* <PulsingRectangle/> */}
-      {/* <ImageUnskew imageSrc="./present-toolpath/table.jpg"/> */}
-      <UnskewThree imageUrl="./present-toolpath/table.jpg"/>
-      <CssUnskewedImage imageUrl="./present-toolpath/table.jpg"/>
+      <VideoUnskew initialUrl="http://hassio:1984/api/stream.mp4?src=cnccam&mp4=flac"
+      initialPoints={
+        [
+          [
+              733.4787760416667,
+              1160.5394042968749
+          ],
+          [
+              1932.412109375,
+              1070.939404296875
+          ],
+          [
+              2158.545442708333,
+              1664.0060709635416
+          ],
+          [
+              797.4787760416666,
+              1894.4060709635417
+          ]
+      ]
 
-      Vid:
-      {/* <video id="video"
-           autoplay
-           width="640"
-           height="480"
-           controls
-           src="http://hassio:1984/api/stream.mp4?src=cnccam&mp4=flac"></video> */}
+    }
+      />
+      {/* <UnskewThree videoUrl="http://hassio:1984/api/stream.mp4?src=cnccam&mp4=flac" imageSize={[2560, 1920]} srcPoints={[
+        [
+            840.1454427083332,
+            210.23637695312502
+        ],
+        [
+            1889.7454427083333,
+            214.50304361979167
+        ],
+        [
+            2474.278776041667,
+            1319.5697102864583
+        ],
+        [
+            703.612109375,
+            1272.636376953125
+        ]
+      ]}/> */}
     </div>
   );
 }
