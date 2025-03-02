@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { UrlEntryStep } from './components/UrlEntryStep';
-import { PointSelectionStep } from './components/PointSelectionStep';
+import { UrlEntryStep } from './UrlEntryStep';
+import { PointSelectionStep } from './PointSelectionStep';
 
 export type Point = [number, number];
 

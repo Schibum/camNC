@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Point } from '../CameraSetup';
+import { Point } from './CameraSetup';
 import { VideoPlayer } from './VideoPlayer';
 import { ActionButtons } from './ActionButtons';
 import { NextPointNotification } from './NextPointNotification';

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Point } from '../CameraSetup';
+import { Point } from './CameraSetup';
 
 interface PointMarkerProps {
   x: number;

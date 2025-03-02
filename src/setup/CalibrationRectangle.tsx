@@ -1,5 +1,5 @@
 import React from 'react';
-import { Point } from '../CameraSetup';
+import { Point } from './CameraSetup';
 
 interface CalibrationRectangleProps {
   points: Point[];
@@ -18,7 +18,7 @@ export const CalibrationRectangle: React.FC<CalibrationRectangleProps> = ({
   }
 
   // Map the points to screen coordinates
-  const screenPoints = points.map(point => videoToContainerCoords(point.x, point.y));
+  const screenPoints = points.map(point => videoToContainerCoords(point[0], point[1]));
 
   // Arrange points in rectangle order (top-left, top-right, bottom-right, bottom-left)
   const sortedPoints = arrangePointsInRectangleOrder(screenPoints);
@@ -37,17 +37,17 @@ function arrangePointsInRectangleOrder(points: Point[]): Point[] {
   const result = [...points];
 
   // Sort points by y-coordinate (top to bottom)
-  result.sort((a, b) => a.y - b.y);
+  result.sort((a, b) => a[1] - b[1]);
 
   // Get top two and bottom two points
   const topPoints = [result[0], result[1]];
   const bottomPoints = [result[2], result[3]];
 
   // Sort top points by x (left to right)
-  topPoints.sort((a, b) => a.x - b.x);
+  topPoints.sort((a, b) => a[0] - b[0]);
 
   // Sort bottom points by x (left to right)
-  bottomPoints.sort((a, b) => a.x - b.x);
+  bottomPoints.sort((a, b) => a[0] - b[0]);
 
   // Return in order: top-left, top-right, bottom-right, bottom-left
   return [
@@ -78,10 +78,10 @@ function drawRectangleLines(points: Point[], scale: number) {
     const nextPoint = points[(i + 1) % 4]; // Wrap around to first point
 
     // Calculate line position and dimensions
-    const left = Math.min(currentPoint.x, nextPoint.x);
-    const top = Math.min(currentPoint.y, nextPoint.y);
-    const width = Math.abs(nextPoint.x - currentPoint.x);
-    const height = Math.abs(nextPoint.y - currentPoint.y);
+    const left = Math.min(currentPoint[0], nextPoint[0]);
+    const top = Math.min(currentPoint[1], nextPoint[1]);
+    const width = Math.abs(nextPoint[0] - currentPoint[0]);
+    const height = Math.abs(nextPoint[1] - currentPoint[1]);
 
     let line;
 
@@ -120,15 +120,15 @@ function drawRectangleLines(points: Point[], scale: number) {
       // Diagonal line (should not happen in a rectangle, but just in case)
       // Using SVG for diagonal lines would be better, but this is a fallback
       const length = Math.sqrt(width * width + height * height);
-      const angle = Math.atan2(nextPoint.y - currentPoint.y, nextPoint.x - currentPoint.x) * 180 / Math.PI;
+      const angle = Math.atan2(nextPoint[1] - currentPoint[1], nextPoint[0] - currentPoint[0]) * 180 / Math.PI;
 
       line = (
         <div
           key={`line-${i}`}
           style={{
             ...lineStyle,
-            left: `${currentPoint.x}px`,
-            top: `${currentPoint.y}px`,
+            left: `${currentPoint[0]}px`,
+            top: `${currentPoint[1]}px`,
             width: `${length}px`,
             height: '0',
             borderTop: `${2/scale}px dashed #00FF00`,
