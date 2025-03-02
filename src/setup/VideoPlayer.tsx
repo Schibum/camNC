@@ -1,4 +1,5 @@
-import React, { useRef, ForwardedRef, forwardRef, useReducer, useLayoutEffect, useEffect } from 'react';
+import React, { useRef, ForwardedRef, forwardRef, useLayoutEffect, useEffect } from 'react';
+import { atom, useAtom } from 'jotai';
 
 interface VideoPlayerProps {
   url: string;
@@ -8,50 +9,21 @@ interface VideoPlayerProps {
   style?: React.CSSProperties;
 }
 
-// Action types for the reducer
-type State = {
-  isLoading: boolean;
-  loadError: string | null;
-  isInitialized: boolean;
-};
-
-type Action =
-  | { type: 'LOADING' }
-  | { type: 'LOADED' }
-  | { type: 'ERROR', message: string }
-  | { type: 'RETRY' }
-  | { type: 'INITIALIZE' };
-
-// Define a stable reducer function outside the component
-const videoReducer = (state: State, action: Action): State => {
-  switch (action.type) {
-    case 'LOADING':
-      return { ...state, isLoading: true, loadError: null, isInitialized: true };
-    case 'LOADED':
-      return { ...state, isLoading: false };
-    case 'ERROR':
-      return { ...state, isLoading: false, loadError: action.message };
-    case 'RETRY':
-      return { ...state, isLoading: true, loadError: null };
-    case 'INITIALIZE':
-      if (state.isInitialized) return state;
-      return { ...state, isInitialized: true };
-    default:
-      return state;
-  }
-};
+// Define atoms for video player state
+// Jotai atoms are writable by default
+const isLoadingAtom = atom(true);
+const loadErrorAtom = atom<string | null>(null as string | null);
+const isInitializedAtom = atom(false);
 
 // Component to encapsulate video loading, error handling, and display
 export const VideoPlayer = forwardRef((
   { url, onLoad, onError, style = {} }: VideoPlayerProps,
   forwardedRef: ForwardedRef<HTMLVideoElement>
 ) => {
-  // Use reducer to handle state updates more predictably
-  const [state, dispatch] = useReducer(videoReducer, {
-    isLoading: true,
-    loadError: null,
-    isInitialized: false
-  });
+  // Use atoms
+  const [isLoading, setIsLoading] = useAtom(isLoadingAtom);
+  const [loadError, setLoadError] = useAtom(loadErrorAtom);
+  const [isInitialized, setIsInitialized] = useAtom(isInitializedAtom);
 
   // Refs don't cause re-renders when updated
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -67,9 +39,10 @@ export const VideoPlayer = forwardRef((
 
   // Setup ref and initialization
   useLayoutEffect(() => {
-
     // Initialize on first render
-    dispatch({ type: 'INITIALIZE' });
+    if (!isInitialized) {
+      setIsInitialized(true);
+    }
 
     // Handle ref forwarding
     if (forwardedRef && typeof forwardedRef === 'object') {
@@ -81,7 +54,8 @@ export const VideoPlayer = forwardRef((
   useLayoutEffect(() => {
     if (previousUrlRef.current !== url) {
       previousUrlRef.current = url;
-      dispatch({ type: 'LOADING' });
+      setIsLoading(true);
+      setLoadError(null);
       hasCalledOnLoadRef.current = false;
     }
   }, [url]);
@@ -96,7 +70,7 @@ export const VideoPlayer = forwardRef((
     const handleVideoMetadata = () => {
       if (!videoElement) return;
 
-      dispatch({ type: 'LOADED' });
+      setIsLoading(false);
 
       // Call onLoad only once per URL change
       if (!hasCalledOnLoadRef.current && onLoad) {
@@ -108,7 +82,8 @@ export const VideoPlayer = forwardRef((
 
     const handleVideoError = (e: Event) => {
       const errorMessage = "Failed to load video. Please check the URL and try again.";
-      dispatch({ type: 'ERROR', message: errorMessage });
+      setIsLoading(false);
+      setLoadError(errorMessage);
 
       if (onError) {
         onError(errorMessage);
@@ -141,12 +116,14 @@ export const VideoPlayer = forwardRef((
       }
     };
   }, []);
+
   // Handler for retry button
   const handleRetry = () => {
     const videoElement = getVideoElement();
     if (!videoElement) return;
 
-    dispatch({ type: 'RETRY' });
+    setIsLoading(true);
+    setLoadError(null);
     videoElement.load();
   };
 
@@ -179,7 +156,7 @@ export const VideoPlayer = forwardRef((
   return (
     <div style={containerStyle}>
       {/* Loading spinner */}
-      {state.isLoading && (
+      {isLoading && (
         <div style={spinnerStyle}>
           <div style={{
             width: '40px',
@@ -198,9 +175,9 @@ export const VideoPlayer = forwardRef((
       )}
 
       {/* Error message */}
-      {state.loadError && (
+      {loadError && (
         <div style={errorStyle}>
-          <p>{state.loadError}</p>
+          <p>{loadError}</p>
           <button
             onClick={handleRetry}
             style={{

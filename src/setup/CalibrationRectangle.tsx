@@ -64,7 +64,8 @@ function drawRectangleLines(points: Point[], scale: number) {
   const lineStyle: React.CSSProperties = {
     position: 'absolute',
     backgroundColor: 'transparent',
-    border: 'none',
+    borderTop: 'none',
+    borderLeft: 'none',
     pointerEvents: 'none',
     zIndex: 5,
     transformOrigin: '0 0'

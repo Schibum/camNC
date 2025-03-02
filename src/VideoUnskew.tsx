@@ -22,7 +22,7 @@ export const VideoUnskew: React.FC<VideoUnskewProps> = ({ initialUrl, initialPoi
   };
 
   if (showSetup) {
-    return <CameraSetup initialUrl={initialUrl} initialPoints={initialPoints} onSave={handleSetupSave} />;
+    return <CameraSetup initialUrl={config?.url || initialUrl} initialPoints={config?.points || initialPoints} onSave={handleSetupSave} />;
   }
 
   if (!config) return null;
