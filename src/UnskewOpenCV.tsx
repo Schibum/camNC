@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import type { Mat, Size } from '@techstark/opencv-js';
+import type { Mat, Size, calibrateCameraRO } from '@techstark/opencv-js';
 
 declare const cv: {
   imread: (canvas: HTMLCanvasElement) => Mat;
@@ -19,7 +19,7 @@ export const waitForCv = async () => {
   while (!window.hasOwnProperty(cvGlobalVariable)) {
     await new Promise(resolve => {
       clearTimeout(timeout);
-      timeout = setTimeout(resolve, checkForCVIntervalMs);
+      timeout = window.setTimeout(resolve, checkForCVIntervalMs);
     });
   }
   if (timeout) {
@@ -33,6 +33,7 @@ interface ImageUnskewProps {
 
 const ImageUnskew: React.FC<ImageUnskewProps> = ({ imageSrc }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
 
   const applyPerspectiveTransform = (canvas: HTMLCanvasElement) => {
     const newWidth = 625;

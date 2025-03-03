@@ -1,34 +1,40 @@
-import React, { useState } from 'react';
-import { UrlEntryStep } from './UrlEntryStep';
-import { PointSelectionStep } from './PointSelectionStep';
-import { useAtom, useAtomValue } from 'jotai';
-import { cameraConfigAtom, IBox } from '../atoms';
 
-export type Point = [number, number];
+import { useState, useEffect } from "react"
+import { UrlEntryStep } from "./UrlEntryStep"
+import { PointSelectionStep } from "./PointSelectionStep"
+import { useAtom } from "jotai"
+import { cameraConfigAtom, type IBox } from "../atoms"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
+export type Point = [number, number]
 
 interface CameraSetupProps {
-  onSave: () => void;
-}
-
-enum SetupStep {
-  URL_ENTRY,
-  POINT_SELECTION
+  onSave: () => void
 }
 
 const CameraSetup = ({ onSave }: CameraSetupProps) => {
-  // Main state and step tracking
-  const [cameraConfig, setCameraConfig] = useAtom(cameraConfigAtom);
-  const [url, setUrl] = useState(cameraConfig?.url || '');
-  // const [points, setPoints] = useState<Point[]>(useAtomValue(machineBoundsInCam) || []);
-  const [videoDimensions, setVideoDimensions] = useState<[number, number]>([0, 0]);
-  const [currentStep, setCurrentStep] = useState(url ? SetupStep.POINT_SELECTION : SetupStep.URL_ENTRY);
+  // Main state and tab tracking
+  const [cameraConfig, setCameraConfig] = useAtom(cameraConfigAtom)
+  const [url, setUrl] = useState(cameraConfig?.url || "")
+  const [videoDimensions, setVideoDimensions] = useState<[number, number]>([0, 0])
+  const [activeTab, setActiveTab] = useState<string>("url-entry")
+  const [isPointSelectionEnabled, setIsPointSelectionEnabled] = useState(!!url)
 
-  // Handlers for step transitions
+  // Update tab state when URL changes
+  useEffect(() => {
+    if (url) {
+      setIsPointSelectionEnabled(true)
+    } else {
+      setIsPointSelectionEnabled(false)
+      setActiveTab("url-entry")
+    }
+  }, [url])
+
+  // Handlers for tab actions
   const handleUrlConfirm = (streamUrl: string) => {
-    setUrl(streamUrl);
-    setCurrentStep(SetupStep.POINT_SELECTION);
-  };
+    setUrl(streamUrl)
+    setActiveTab("point-selection")
+  }
 
   const handlePointsConfirm = (selectedPoints: IBox) => {
     setCameraConfig({
@@ -37,45 +43,54 @@ const CameraSetup = ({ onSave }: CameraSetupProps) => {
       dimensions: videoDimensions,
       // TODO: ask for those too
       machineBounds: [
-        [0, 0], [625, 1235]
-      ]
-    });
+        [0, 0],
+        [625, 1235],
+      ],
+    })
 
     if (onSave) {
       onSave()
     }
-  };
+  }
 
-  // Reset to URL step
+  // Reset to URL tab
   const handleReset = () => {
-    setCurrentStep(SetupStep.URL_ENTRY);
-  };
+    setActiveTab("url-entry")
+  }
 
   const handleVideoLoad = (width: number, height: number) => {
-    setVideoDimensions([width, height]);
-  };
+    setVideoDimensions([width, height])
+  }
 
-  // Show different steps based on current state
   return (
-    <div className="camera-setup-wizard" style={{ userSelect: 'none' }}>
-      {currentStep === SetupStep.URL_ENTRY && (
-        <UrlEntryStep
-          initialUrl={url}
-          onConfirm={handleUrlConfirm}
-        />
-      )}
+    <div className="camera-setup-wizard" style={{ userSelect: "none" }}>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="url-entry">Camera URL</TabsTrigger>
+          <TabsTrigger value="point-selection" disabled={!isPointSelectionEnabled}>
+            Machine Bounds
+          </TabsTrigger>
+        </TabsList>
 
-      {currentStep === SetupStep.POINT_SELECTION && (
-        <PointSelectionStep
-          url={url}
-          initialPoints={cameraConfig?.machineBoundsInCam || []}
-          onSave={handlePointsConfirm}
-          onReset={handleReset}
-          onVideoLoad={handleVideoLoad}
-        />
-      )}
+        <TabsContent value="url-entry" className="mt-4">
+          <UrlEntryStep initialUrl={url} onConfirm={handleUrlConfirm} />
+        </TabsContent>
+
+        <TabsContent value="point-selection" className="mt-4">
+          {url && (
+            <PointSelectionStep
+              url={url}
+              initialPoints={cameraConfig?.machineBoundsInCam || []}
+              onSave={handlePointsConfirm}
+              onReset={handleReset}
+              onVideoLoad={handleVideoLoad}
+            />
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
-  );
-};
+  )
+}
 
-export default CameraSetup;
+export default CameraSetup
+
