@@ -15,14 +15,16 @@ const cvGlobalVariable: string = "cv";
 const checkForCVIntervalMs: number = 200;
 
 export const waitForCv = async () => {
-  let timeout;
+  let timeout: number | undefined;
   while (!window.hasOwnProperty(cvGlobalVariable)) {
     await new Promise(resolve => {
       clearTimeout(timeout);
       timeout = setTimeout(resolve, checkForCVIntervalMs);
     });
   }
-  clearTimeout(timeout);
+  if (timeout) {
+    clearTimeout(timeout);
+  }
 }
 
 interface ImageUnskewProps {

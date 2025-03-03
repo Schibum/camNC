@@ -39,7 +39,7 @@ const createParallelogramGeometry = (width: number, height: number) => {
 };
 
 export function PulsingRectangle({ backgroundImage = 'present-toolpath/table.jpg' }) {
-  const mountRef = useRef(null);
+  const mountRef = useRef<HTMLDivElement>(null);
   const [coordinates, setCoordinates] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
@@ -56,7 +56,7 @@ export function PulsingRectangle({ backgroundImage = 'present-toolpath/table.jpg
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    mountRef.current.appendChild(renderer.domElement);
+    mountRef.current?.appendChild(renderer.domElement);
 
     // Initialize OrbitControls
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -134,12 +134,12 @@ export function PulsingRectangle({ backgroundImage = 'present-toolpath/table.jpg
 
       renderer.domElement.addEventListener('click', onClick);
 
-      // Update cleanup function to remove event listener
-      const originalCleanup = mountRef.current.__cleanup;
-      mountRef.current.__cleanup = () => {
-        originalCleanup?.();
-        renderer.domElement.removeEventListener('click', onClick);
-      };
+      // // Update cleanup function to remove event listener
+      // const originalCleanup = mountRef.current?.__cleanup;
+      // mountRef.current?.__cleanup = () => {
+      //   originalCleanup?.();
+      //   renderer.domElement.removeEventListener('click', onClick);
+      // };
     });
 
     const width = 200;
@@ -197,8 +197,8 @@ export function PulsingRectangle({ backgroundImage = 'present-toolpath/table.jpg
     return () => {
       window.removeEventListener('resize', handleResize);
       controls.dispose();
-      mountRef.current.__cleanup?.();
-      mountRef.current.removeChild(renderer.domElement);
+      // mountRef.current?.__cleanup?.();
+      mountRef.current?.removeChild(renderer.domElement);
       renderer.dispose();
       geometry.dispose();
       material.dispose();

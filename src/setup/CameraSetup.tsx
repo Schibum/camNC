@@ -1,19 +1,14 @@
 import React, { useState } from 'react';
 import { UrlEntryStep } from './UrlEntryStep';
 import { PointSelectionStep } from './PointSelectionStep';
+import { useAtom, useAtomValue } from 'jotai';
+import { cameraConfigAtom, IBox } from '../atoms';
 
 export type Point = [number, number];
 
-export interface CameraSetupResult {
-  url: string;
-  points: Point[];
-  dimensions: [number, number];  // [width, height]
-}
 
 interface CameraSetupProps {
-  initialUrl?: string;
-  initialPoints?: Point[];
-  onSave: (data: CameraSetupResult) => void;
+  onSave: () => void;
 }
 
 enum SetupStep {
@@ -21,12 +16,13 @@ enum SetupStep {
   POINT_SELECTION
 }
 
-const CameraSetup = ({ initialUrl = '', initialPoints = [], onSave }: CameraSetupProps) => {
+const CameraSetup = ({ onSave }: CameraSetupProps) => {
   // Main state and step tracking
-  const [url, setUrl] = useState(initialUrl);
-  const [points, setPoints] = useState<Point[]>(initialPoints);
+  const [cameraConfig, setCameraConfig] = useAtom(cameraConfigAtom);
+  const [url, setUrl] = useState(cameraConfig?.url || '');
+  // const [points, setPoints] = useState<Point[]>(useAtomValue(machineBoundsInCam) || []);
   const [videoDimensions, setVideoDimensions] = useState<[number, number]>([0, 0]);
-  const [currentStep, setCurrentStep] = useState(initialUrl ? SetupStep.POINT_SELECTION : SetupStep.URL_ENTRY);
+  const [currentStep, setCurrentStep] = useState(url ? SetupStep.POINT_SELECTION : SetupStep.URL_ENTRY);
 
   // Handlers for step transitions
   const handleUrlConfirm = (streamUrl: string) => {
@@ -34,13 +30,19 @@ const CameraSetup = ({ initialUrl = '', initialPoints = [], onSave }: CameraSetu
     setCurrentStep(SetupStep.POINT_SELECTION);
   };
 
-  const handlePointsConfirm = (selectedPoints: Point[]) => {
+  const handlePointsConfirm = (selectedPoints: IBox) => {
+    setCameraConfig({
+      url: url,
+      machineBoundsInCam: selectedPoints,
+      dimensions: videoDimensions,
+      // TODO: ask for those too
+      machineBounds: [
+        [0, 0], [625, 1235]
+      ]
+    });
+
     if (onSave) {
-      onSave({
-        url,
-        points: selectedPoints,
-        dimensions: videoDimensions
-      });
+      onSave()
     }
   };
 
@@ -55,7 +57,7 @@ const CameraSetup = ({ initialUrl = '', initialPoints = [], onSave }: CameraSetu
 
   // Show different steps based on current state
   return (
-    <div className="camera-setup-wizard" style={{userSelect: 'none'}}>
+    <div className="camera-setup-wizard" style={{ userSelect: 'none' }}>
       {currentStep === SetupStep.URL_ENTRY && (
         <UrlEntryStep
           initialUrl={url}
@@ -66,7 +68,7 @@ const CameraSetup = ({ initialUrl = '', initialPoints = [], onSave }: CameraSetu
       {currentStep === SetupStep.POINT_SELECTION && (
         <PointSelectionStep
           url={url}
-          initialPoints={points}
+          initialPoints={cameraConfig?.machineBoundsInCam || []}
           onSave={handlePointsConfirm}
           onReset={handleReset}
           onVideoLoad={handleVideoLoad}

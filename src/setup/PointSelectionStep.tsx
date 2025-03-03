@@ -5,11 +5,12 @@ import { ActionButtons } from './ActionButtons';
 import { NextPointNotification } from './NextPointNotification';
 import { CalibrationRectangle } from './CalibrationRectangle';
 import { PointMarker } from './PointMarker';
+import { IBox } from '../atoms';
 
 interface PointSelectionStepProps {
   url: string;
-  initialPoints: Point[];
-  onSave: (points: Point[]) => void;
+  initialPoints: IBox | [];
+  onSave: (points: IBox) => void;
   onReset: () => void;
   onVideoLoad?: (width: number, height: number) => void;
 }
@@ -272,9 +273,13 @@ export const PointSelectionStep: React.FC<PointSelectionStepProps> = ({
   };
 
   const handleSave = () => {
+    if (points.length !== 4) {
+      console.error('Points must be 4');
+      return;
+    }
     if (onSave) {
       // Points are already in source video coordinates, so no need to transform
-      onSave(points);
+      onSave(points as IBox);
     }
   };
 

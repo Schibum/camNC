@@ -1,7 +1,7 @@
 // ----- Utility: Solve 3x3 Homography from 4 correspondences -----
 export function computeHomography(
   src: [number, number][],
-  dst: [number, number][]): number[] {
+  dst: [number, number][] ): number[] {
   // We'll get the 9 entries: h00..h21, with h22=1
   const A: number[][] = [];
   const B: number[] = [];

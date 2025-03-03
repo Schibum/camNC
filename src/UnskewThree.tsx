@@ -2,34 +2,9 @@ import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { computeHomography, buildMatrix4FromHomography } from './math/perspectiveTransform';
+import { useAtomValue } from 'jotai';
+import { cameraConfigAtom, IBox } from './atoms';
 
-type UnskewNoUVProps = {
-  /** URL of the video we want to display */
-  videoUrl: string;
-
-  /**
-   * The source corner coords (4 points) in the video
-   * coordinate space, e.g. [ [x0,y0], [x1,y1], ... ].
-   * Order: top-left, top-right, bottom-right, bottom-left.
-   */
-  srcPoints?: [number, number][];
-
-  /**
-   * The destination coords (4 points) in the final space,
-   * same corner order. That might be e.g. [ [0,0],[625,0],[625,1235],[0,1235] ]
-   */
-  dstPoints?: [number, number][];
-
-  /** The video's full size, e.g. [3070, 4080]. */
-  imageSize?: [number, number];
-
-  /**
-   * The width and height of the final rendered canvas
-   * if you want it clipped or specifically sized.
-   * Default is [1000, 1000].
-   */
-  renderSize?: [number, number];
-};
 
 /**
  * A React + Three.js component that:
@@ -40,39 +15,42 @@ type UnskewNoUVProps = {
  * 5) Applies that matrix to the entire geometry so the plane is physically
  *    "unskewed" in 3D space (no extra UV / tessellation).
  */
-export const UnskewThree: React.FC<UnskewNoUVProps> = ({
-  videoUrl,
-  srcPoints = [
-    [480, 700],    // top-left
-    [1655, 950],   // top-right
-    [2173, 3251],  // bottom-right
-    [105, 3388]    // bottom-left
-  ],
-  dstPoints = [
-    [0, 0],        // top-left
-    [625, 0],      // top-right
-    [625, 1235],   // bottom-right
-    [0, 1235]      // bottom-left
-  ],
-  imageSize = [3070, 4080],
-  renderSize = [625, 1235]
+export const UnskewThree: React.FC<{}> = ({
+  // videoUrl,
+  // srcPoints = [
+  //   [480, 700],    // top-left
+  //   [1655, 950],   // top-right
+  //   [2173, 3251],  // bottom-right
+  //   [105, 3388]    // bottom-left
+  // ],
+  // dstPoints = [
+  //   [0, 0],        // top-left
+  //   [625, 0],      // top-right
+  //   [625, 1235],   // bottom-right
+  //   [0, 1235]      // bottom-left
+  // ],
+  // imageSize = [3070, 4080],
+  // renderSize = [625, 1235]
 }) => {
-  console.log('videoUrl', videoUrl, srcPoints, dstPoints, imageSize, renderSize);
+  const camConfig = useAtomValue(cameraConfigAtom);
+  if (!camConfig) throw new Error('Camera config not found');
+  // console.log('videoUrl', videoUrl, srcPoints, dstPoints, imageSize, renderSize);
   const containerRef = useRef<HTMLDivElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
     containerRef.current.innerHTML = '';
 
-    const [imgWidth, imgHeight] = imageSize;
+    const [imgWidth, imgHeight] = camConfig.dimensions;
+    const renderSize = [camConfig.machineBounds[1][0] - camConfig.machineBounds[0][0], camConfig.machineBounds[1][1] - camConfig.machineBounds[0][1]];
     const [canvasW, canvasH] = renderSize;
 
     // Create video element
     const video = document.createElement('video');
     video.crossOrigin = 'anonymous';
-    video.src = videoUrl;
+    video.src = camConfig.url;
     video.muted = true;
     video.playsInline = true;
     videoRef.current = video;
@@ -125,7 +103,10 @@ export const UnskewThree: React.FC<UnskewNoUVProps> = ({
     scene.add(mesh);
 
     // ------ 4) Compute the 3x3 homography & embed in a 4x4 matrix, apply it to the mesh ------
-    const H = computeHomography(srcPoints, dstPoints);
+
+    const mp = camConfig.machineBounds;
+    const dstPoints = [[mp[0][0], mp[0][1]], [mp[1][0], mp[0][1]], [mp[1][0], mp[1][1]], [mp[0][0], mp[1][1]]] as IBox;
+    const H = computeHomography(camConfig.machineBoundsInCam, dstPoints);
     const M = buildMatrix4FromHomography(H);
 
     mesh.matrixAutoUpdate = false;
@@ -157,11 +138,7 @@ export const UnskewThree: React.FC<UnskewNoUVProps> = ({
       scene.clear();
     };
   }, [
-    videoUrl,
-    srcPoints,
-    dstPoints,
-    imageSize,
-    renderSize
+    camConfig
   ]);
 
   return <div ref={containerRef} />;
