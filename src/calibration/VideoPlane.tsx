@@ -1,22 +1,20 @@
 import React, { useRef, useMemo, useEffect } from 'react';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-
 interface VideoPlaneProps {
   textureRef: React.MutableRefObject<THREE.Texture | null>;
-  videoRef: React.RefObject<HTMLVideoElement>;
+  videoWidth: number;
+  videoHeight: number;
 }
 
-const VideoPlane: React.FC<VideoPlaneProps> = ({ textureRef, videoRef }) => {
+const VideoPlane: React.FC<VideoPlaneProps> = ({ textureRef, videoWidth, videoHeight }) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const { size } = useThree();
 
   // Calculate proper aspect ratio based on the video dimensions
   const planeGeometry = useMemo(() => {
-    const video = videoRef.current;
-    if (!video) throw new Error('Video not found');
     const containerAspect = size.width / size.height;
-    const videoAspect = video.videoWidth / video.videoHeight;
+    const videoAspect = videoWidth / videoHeight;
 
     let planeWidth, planeHeight;
     if (containerAspect > videoAspect) {
@@ -30,7 +28,7 @@ const VideoPlane: React.FC<VideoPlaneProps> = ({ textureRef, videoRef }) => {
     }
 
     return new THREE.PlaneGeometry(planeWidth, planeHeight);
-  }, [videoRef, size]);
+  }, [videoWidth, videoHeight, size]);
 
   // Update texture when the video plays
   useEffect(() => {
