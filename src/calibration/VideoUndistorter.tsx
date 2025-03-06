@@ -164,7 +164,7 @@ const VideoUndistorter: React.FC<VideoUndistorterProps> = ({ videoPath, calibrat
         />
 
         {/* Three.js scene with React Three Fiber */}
-        {undistortedTextureRef.current && <Canvas
+        {undistortedTextureRef.current && videoRef.current && <Canvas
           camera={{
             position: [0, 0, 1.5],
             near: 0.1,
@@ -179,7 +179,8 @@ const VideoUndistorter: React.FC<VideoUndistorterProps> = ({ videoPath, calibrat
 
           <VideoPlane
             textureRef={undistortedTextureRef}
-            videoRef={videoRef}
+            videoWidth={videoRef.current.videoWidth}
+            videoHeight={videoRef.current.videoHeight}
           />
 
           <gridHelper

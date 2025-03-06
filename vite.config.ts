@@ -4,11 +4,14 @@ import { viteSingleFile } from "vite-plugin-singlefile";
 import checker from "vite-plugin-checker";
 import tailwindcss from '@tailwindcss/vite'
 import path from "path";
+import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
+
 
 
 // https://vitejs.dev/config/
 export default defineConfig(({ command, ...params }) => {
   let plugins: PluginOption[] = [
+    TanStackRouterVite({ target: 'react', autoCodeSplitting: true }),
     react(),
     tailwindcss(),
     checker({
@@ -26,7 +29,7 @@ export default defineConfig(({ command, ...params }) => {
         "@": path.resolve(__dirname, "./src"),
       },
     },
-    base: "/present-toolpath",
+    // base: "/present-toolpath",
   };
 });
 
