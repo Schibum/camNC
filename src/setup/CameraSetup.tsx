@@ -18,17 +18,7 @@ const CameraSetup = ({ onSave }: CameraSetupProps) => {
   const [url, setUrl] = useState(cameraConfig?.url || "")
   const [videoDimensions, setVideoDimensions] = useState<[number, number]>([0, 0])
   const [activeTab, setActiveTab] = useState<string>("url-entry")
-  const [isPointSelectionEnabled, setIsPointSelectionEnabled] = useState(!!url)
 
-  // Update tab state when URL changes
-  useEffect(() => {
-    if (url) {
-      setIsPointSelectionEnabled(true)
-    } else {
-      setIsPointSelectionEnabled(false)
-      setActiveTab("url-entry")
-    }
-  }, [url])
 
   // Handlers for tab actions
   const handleUrlConfirm = (streamUrl: string) => {
@@ -67,7 +57,7 @@ const CameraSetup = ({ onSave }: CameraSetupProps) => {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="url-entry">Camera URL</TabsTrigger>
-          <TabsTrigger value="point-selection" disabled={!isPointSelectionEnabled}>
+          <TabsTrigger value="point-selection" disabled={!url}>
             Machine Bounds
           </TabsTrigger>
         </TabsList>
