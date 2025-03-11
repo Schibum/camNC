@@ -29,10 +29,14 @@ const createParallelogramGeometry = (width: number, height: number) => {
 
   const geometry = new THREE.ShapeGeometry(shape);
   const uvs = new Float32Array([
-    0, 0,  // bottom-left
-    1, 0,  // bottom-right
-    1, 1,  // top-right
-    0, 1   // top-left
+    0,
+    0, // bottom-left
+    1,
+    0, // bottom-right
+    1,
+    1, // top-right
+    0,
+    1, // top-left
   ]);
   geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
   return geometry;
@@ -69,11 +73,11 @@ export function PulsingRectangle({ backgroundImage = 'present-toolpath/table.jpg
     controls.mouseButtons = {
       LEFT: THREE.MOUSE.PAN,
       MIDDLE: THREE.MOUSE.DOLLY,
-      RIGHT: THREE.MOUSE.PAN
+      RIGHT: THREE.MOUSE.PAN,
     };
     controls.touches = {
       ONE: THREE.TOUCH.PAN,
-      TWO: THREE.TOUCH.DOLLY_PAN
+      TWO: THREE.TOUCH.DOLLY_PAN,
     };
     controls.panSpeed = 1.5; // Adjust pan sensitivity
     controls.enablePan = true; // Explicitly enable panning
@@ -90,7 +94,7 @@ export function PulsingRectangle({ backgroundImage = 'present-toolpath/table.jpg
 
     // Add background image
     const textureLoader = new THREE.TextureLoader();
-    textureLoader.load(backgroundImage, (texture) => {
+    textureLoader.load(backgroundImage, texture => {
       const aspectRatio = texture.image.width / texture.image.height;
       const screenAspectRatio = window.innerWidth / window.innerHeight;
 
@@ -152,7 +156,9 @@ export function PulsingRectangle({ backgroundImage = 'present-toolpath/table.jpg
     const rectangle = new THREE.Mesh(geometry, material);
 
     // Create outline
-    const outlineGeometry = new THREE.ShapeGeometry(createRoundedRectShape(width + 10, height + 10, radius + 5));
+    const outlineGeometry = new THREE.ShapeGeometry(
+      createRoundedRectShape(width + 10, height + 10, radius + 5)
+    );
     const outlineMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
     const outline = new THREE.Mesh(outlineGeometry, outlineMaterial);
     outline.position.z = -0.1;
@@ -173,7 +179,7 @@ export function PulsingRectangle({ backgroundImage = 'present-toolpath/table.jpg
       rectangle.scale.set(newPulse, newPulse, 1);
 
       // Animate using standard coordinates
-      rectangle.position.x = -150 + (50 * Math.sin(clock.getElapsedTime() * 2.5));
+      rectangle.position.x = -150 + 50 * Math.sin(clock.getElapsedTime() * 2.5);
 
       rectangle.rotateZ(newPulse * 0.01);
       controls.update(); // Update controls in animation loop
@@ -207,18 +213,23 @@ export function PulsingRectangle({ backgroundImage = 'present-toolpath/table.jpg
 
   return (
     <>
-      <div ref={mountRef} style={{ width: '100vw', height: '100vh', position: 'fixed', top: '0', left: '0' }} />
+      <div
+        ref={mountRef}
+        style={{ width: '100vw', height: '100vh', position: 'fixed', top: '0', left: '0' }}
+      />
       {coordinates && (
-        <div style={{
-          position: 'fixed',
-          top: '20px',
-          left: '20px',
-          background: 'rgba(0, 0, 0, 0.7)',
-          color: 'white',
-          padding: '10px',
-          borderRadius: '5px',
-          fontFamily: 'monospace'
-        }}>
+        <div
+          style={{
+            position: 'fixed',
+            top: '20px',
+            left: '20px',
+            background: 'rgba(0, 0, 0, 0.7)',
+            color: 'white',
+            padding: '10px',
+            borderRadius: '5px',
+            fontFamily: 'monospace',
+          }}
+        >
           X: {coordinates.x}, Y: {coordinates.y}
         </div>
       )}

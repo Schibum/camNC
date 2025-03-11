@@ -1,7 +1,5 @@
 // ----- Utility: Solve 3x3 Homography from 4 correspondences -----
-export function computeHomography(
-  src: [number, number][],
-  dst: [number, number][] ): number[] {
+export function computeHomography(src: [number, number][], dst: [number, number][]): number[] {
   // We'll get the 9 entries: h00..h21, with h22=1
   const A: number[][] = [];
   const B: number[] = [];
@@ -80,15 +78,16 @@ export function buildMatrix4FromHomography(H: number[]) {
   //   m[ 3] m[ 7] m[11] m[15]
   //
   // => row i, column j => m[j*4 + i]
-  const h00 = H[0], h01 = H[1], h02 = H[2];
-  const h10 = H[3], h11 = H[4], h12 = H[5];
-  const h20 = H[6], h21 = H[7], h22 = H[8];
+  const h00 = H[0],
+    h01 = H[1],
+    h02 = H[2];
+  const h10 = H[3],
+    h11 = H[4],
+    h12 = H[5];
+  const h20 = H[6],
+    h21 = H[7],
+    h22 = H[8];
 
   // row-major:
-  return [
-    h00, h10, 0, h20,
-    h01, h11, 0, h21,
-    0, 0, 1, 0,
-    h02, h12, 0, h22
-  ];
+  return [h00, h10, 0, h20, h01, h11, 0, h21, 0, 0, 1, 0, h02, h12, 0, h22];
 }

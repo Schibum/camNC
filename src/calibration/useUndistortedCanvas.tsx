@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useLayoutEffect } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useAtomValue } from 'jotai';
 import { suspend } from 'suspend-react';
-import { CalibrationData, CameraUndistorter } from './undistort';
-import { useFrame, useThree } from '@react-three/fiber';
+import { CameraUndistorter } from './undistort';
+import { useFrame } from '@react-three/fiber';
 import { calibrationDataAtom, videoSrcAtom } from '../atoms';
 import * as THREE from 'three';
 import { waitForOpenCvGlobal } from './waitForOpenCvGlobal';

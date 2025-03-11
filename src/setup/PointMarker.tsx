@@ -16,7 +16,7 @@ export const PointMarker: React.FC<PointMarkerProps> = ({
   index,
   scale,
   videoToContainerCoords,
-  onMouseDown
+  onMouseDown,
 }) => {
   const markerSize = 16;
   const offset = markerSize / 2;
@@ -25,28 +25,23 @@ export const PointMarker: React.FC<PointMarkerProps> = ({
   const containerCoords = videoToContainerCoords(x, y);
 
   // Define point labels
-  const pointLabels = [
-    '1: (xmin, ymin)',
-    '2: (xmin, ymax)',
-    '3: (xmax, ymin)',
-    '4: (xmax, ymax)'
-  ];
+  const pointLabels = ['1: (xmin, ymin)', '2: (xmin, ymax)', '3: (xmax, ymin)', '4: (xmax, ymax)'];
 
   return (
     <div
       data-point-index={index}
-      onMouseDown={(e) => onMouseDown(index, e)}
+      onMouseDown={e => onMouseDown(index, e)}
       style={{
         position: 'absolute',
         left: containerCoords[0] - offset,
-        top: containerCoords[1]- offset,
+        top: containerCoords[1] - offset,
         width: markerSize,
         height: markerSize,
         cursor: 'grab',
         pointerEvents: 'all',
-        transform: `scale(${1/scale})`,
+        transform: `scale(${1 / scale})`,
         transformOrigin: '50% 50%',
-        zIndex: 10
+        zIndex: 10,
       }}
     >
       {/* Vertical line */}
@@ -58,7 +53,7 @@ export const PointMarker: React.FC<PointMarkerProps> = ({
           width: 1,
           height: '100%',
           backgroundColor: 'red',
-          transform: 'translateX(-50%)'
+          transform: 'translateX(-50%)',
         }}
       />
       {/* Horizontal line */}
@@ -70,7 +65,7 @@ export const PointMarker: React.FC<PointMarkerProps> = ({
           width: '100%',
           height: 1,
           backgroundColor: 'red',
-          transform: 'translateY(-50%)'
+          transform: 'translateY(-50%)',
         }}
       />
       {/* Point label */}
@@ -83,7 +78,7 @@ export const PointMarker: React.FC<PointMarkerProps> = ({
           fontSize: '14px',
           whiteSpace: 'nowrap',
           pointerEvents: 'none',
-          textShadow: '1px 1px 1px black'
+          textShadow: '1px 1px 1px black',
         }}
       >
         {pointLabels[index]} ({Math.round(x)}, {Math.round(y)})

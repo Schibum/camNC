@@ -36,20 +36,16 @@ export const UrlEntryStep: React.FC<UrlEntryStepProps> = ({ initialUrl = '', onC
             type="text"
             placeholder="Enter video stream URL"
             value={url}
-            onChange={(e) => setUrl(e.target.value)}
+            onChange={e => setUrl(e.target.value)}
             style={{
               width: '400px',
               padding: '8px',
               fontSize: '16px',
               borderRadius: '4px',
-              border: error ? '1px solid red' : '1px solid #ccc'
+              border: error ? '1px solid red' : '1px solid #ccc',
             }}
           />
-          {error && (
-            <div style={{ color: 'red', marginTop: '5px', fontSize: '14px' }}>
-              {error}
-            </div>
-          )}
+          {error && <div style={{ color: 'red', marginTop: '5px', fontSize: '14px' }}>{error}</div>}
         </div>
 
         <button
@@ -61,7 +57,7 @@ export const UrlEntryStep: React.FC<UrlEntryStepProps> = ({ initialUrl = '', onC
             border: 'none',
             borderRadius: '4px',
             cursor: 'pointer',
-            fontSize: '16px'
+            fontSize: '16px',
           }}
         >
           Continue to Point Selection

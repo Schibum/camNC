@@ -8,6 +8,7 @@ import { Matrix4, Vector3 } from 'three';
 import { UndistortedTexture } from '@/calibration/useUndistortedCanvas';
 import { cameraConfigAtom, IBox } from '../atoms';
 import { buildMatrix4FromHomography, computeHomography } from '../math/perspectiveTransform';
+import { UnskewedVideoMesh } from '@/calibration/UnskewTsl';
 
 export const Route = createFileRoute('/visualize')({
   component: VisualizeComponent,
@@ -73,16 +74,12 @@ function VisualizeComponent() {
         <Canvas
           orthographic
           camera={{
-            position: [0, 0, 10],
-            left: 0,
-            right: canvasW,
-            top: 0,
-            bottom: canvasH,
             near: -1000,
             far: 1000,
           }}
           gl={{ antialias: true, outputColorSpace: THREE.SRGBColorSpace }}
         >
+          <color attach="background" args={[0x1111ff]} />
           {videoElement && <Scene video={videoElement} camConfig={camConfig} />}
         </Canvas>
       </div>
@@ -96,10 +93,10 @@ function Scene({ video, camConfig }: SceneProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const planeRef = useRef<THREE.PlaneGeometry>(null);
 
-  // Translate plane geometry - equivalent to planeGeom.translate(imgWidth / 2, imgHeight / 2, 0);
   useEffect(() => {
     if (planeRef.current) {
-      planeRef.current.translate(imgWidth / 2, imgHeight / 2, 0);
+      // Remove this translation as we're now working in three.js coordinates
+      // planeRef.current.translate(imgWidth / 2, imgHeight / 2, 0);
     }
   }, [imgWidth, imgHeight]);
 
@@ -116,22 +113,29 @@ function Scene({ video, camConfig }: SceneProps) {
     ] as IBox;
     const H = computeHomography(camConfig.machineBoundsInCam, dstPoints);
     const M = new Matrix4().fromArray(buildMatrix4FromHomography(H));
+
+    // toCv transforms from three.js coords to image coords:
+    // - Translate origin from center to top-left
+    // - Flip y-axis (in image coords y increases downward)
     const toCv = new Matrix4()
       .makeTranslation(imgWidth / 2, imgHeight / 2, 0)
       .scale(new Vector3(1, -1, 1));
-    console.log('toCv', toCv);
+
+    // toThree transforms from image coords to three.js coords
     const toThree = toCv.clone().invert();
+
+    // Complete transformation: three.js -> image -> apply homography -> three.js
     const homographyThree = toThree.multiply(M).multiply(toCv);
 
-    // Apply matrix to mesh
+    // Apply matrix to mesh - using homographyThree instead of M
     meshRef.current.matrixAutoUpdate = false;
-    meshRef.current.matrix.copy(M);
+    meshRef.current.matrix.copy(homographyThree);
     meshRef.current.matrix.decompose(
       meshRef.current.position,
       meshRef.current.quaternion,
       meshRef.current.scale
     );
-  }, [camConfig]);
+  }, [camConfig, imgWidth, imgHeight]);
 
   // Create video texture
   const videoTexture = new THREE.VideoTexture(video);
@@ -155,12 +159,7 @@ function Scene({ video, camConfig }: SceneProps) {
         maxZoom={10}
       />
 
-      <mesh ref={meshRef}>
-        <planeGeometry ref={planeRef} args={[imgWidth, imgHeight, 1, 1]} attach="geometry" />
-        <meshBasicMaterial map={videoTexture} side={THREE.DoubleSide} attach="material">
-          <UndistortedTexture />
-        </meshBasicMaterial>
-      </mesh>
+      <UnskewedVideoMesh ref={meshRef} />
     </>
   );
 }

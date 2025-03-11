@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import type { Mat, Size, calibrateCameraRO } from '@techstark/opencv-js';
+import type { Mat, Size } from '@techstark/opencv-js';
 
 declare const cv: {
   imread: (canvas: HTMLCanvasElement) => Mat;
@@ -11,7 +11,7 @@ declare const cv: {
   Size: new (width: number, height: number) => Size;
   Mat: new () => Mat;
 };
-const cvGlobalVariable: string = "cv";
+const cvGlobalVariable: string = 'cv';
 const checkForCVIntervalMs: number = 200;
 
 export const waitForCv = async () => {
@@ -25,7 +25,7 @@ export const waitForCv = async () => {
   if (timeout) {
     clearTimeout(timeout);
   }
-}
+};
 
 interface ImageUnskewProps {
   imageSrc: string;
@@ -34,43 +34,45 @@ interface ImageUnskewProps {
 const ImageUnskew: React.FC<ImageUnskewProps> = ({ imageSrc }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-
   const applyPerspectiveTransform = (canvas: HTMLCanvasElement) => {
     const newWidth = 625;
     const newHeight = 1235;
 
     const srcCorners = [
-      480, 700,   // Top-left
-      1655, 950,  // Top-right
-      105, 3388,  // Bottom-left
-      2173, 3251, // Bottom-right
+      480,
+      700, // Top-left
+      1655,
+      950, // Top-right
+      105,
+      3388, // Bottom-left
+      2173,
+      3251, // Bottom-right
     ];
 
     const dstCorners = [
-      0, 0,           // Top-left
-      newWidth, 0,    // Top-right
-      0, newHeight,   // Bottom-left
-      newWidth, newHeight // Bottom-right
+      0,
+      0, // Top-left
+      newWidth,
+      0, // Top-right
+      0,
+      newHeight, // Bottom-left
+      newWidth,
+      newHeight, // Bottom-right
     ];
 
-    let src = cv.imread(canvas);
-    let srcMat = cv.matFromArray(4, 1, cv.CV_32FC2, srcCorners);
-    let dstMat = cv.matFromArray(4, 1, cv.CV_32FC2, dstCorners);
-    let transformMatrix = cv.getPerspectiveTransform(srcMat, dstMat);
-    console.log("transformMatrix", transformMatrix.data64F);
+    const src = cv.imread(canvas);
+    const srcMat = cv.matFromArray(4, 1, cv.CV_32FC2, srcCorners);
+    const dstMat = cv.matFromArray(4, 1, cv.CV_32FC2, dstCorners);
+    const transformMatrix = cv.getPerspectiveTransform(srcMat, dstMat);
+    console.log('transformMatrix', transformMatrix.data64F);
     const data = transformMatrix.data64F;
 
     console.log(`[${data[0]}, ${data[1]}, ${data[2]}]`);
     console.log(`[${data[3]}, ${data[4]}, ${data[5]}]`);
     console.log(`[${data[6]}, ${data[7]}, ${data[8]}]`);
-    let dst = new cv.Mat();
+    const dst = new cv.Mat();
 
-    cv.warpPerspective(
-      src,
-      dst,
-      transformMatrix,
-      new cv.Size(newWidth, newHeight)
-    );
+    cv.warpPerspective(src, dst, transformMatrix, new cv.Size(newWidth, newHeight));
 
     cv.imshow(canvas, dst);
 

@@ -1,4 +1,4 @@
-import React, { useRef, ForwardedRef, forwardRef, useLayoutEffect, useEffect, SyntheticEvent } from 'react';
+import React, { useRef, forwardRef, useLayoutEffect, SyntheticEvent } from 'react';
 import { atom, useAtom } from 'jotai';
 
 interface VideoPlayerProps {
@@ -16,9 +16,7 @@ const loadErrorAtom = atom<string | null>(null as string | null);
 const isInitializedAtom = atom(false);
 
 // Component to encapsulate video loading, error handling, and display
-export const VideoPlayer = forwardRef((
-  { url, onLoad, onError, style = {} }: VideoPlayerProps
-) => {
+export const VideoPlayer = forwardRef(({ url, onLoad, onError, style = {} }: VideoPlayerProps) => {
   // Use atoms
   const [isLoading, setIsLoading] = useAtom(isLoadingAtom);
   const [loadError, setLoadError] = useAtom(loadErrorAtom);
@@ -29,15 +27,12 @@ export const VideoPlayer = forwardRef((
   const previousUrlRef = useRef<string>(url);
   const hasCalledOnLoadRef = useRef<boolean>(false);
 
-
-
   // Setup ref and initialization
   useLayoutEffect(() => {
     // Initialize on first render
     if (!isInitialized) {
       setIsInitialized(true);
     }
-
   }, []);
 
   // Handle URL changes
@@ -52,34 +47,29 @@ export const VideoPlayer = forwardRef((
 
   // Handle video events
 
-    // Define stable event handlers using refs to avoid recreation
-    const handleVideoMetadata = (videoElement: HTMLVideoElement) => {
+  // Define stable event handlers using refs to avoid recreation
+  const handleVideoMetadata = (videoElement: HTMLVideoElement) => {
+    setIsLoading(false);
 
-      setIsLoading(false);
+    // Call onLoad only once per URL change
+    if (!hasCalledOnLoadRef.current && onLoad) {
+      const { videoWidth, videoHeight } = videoElement;
+      onLoad({ width: videoWidth, height: videoHeight });
+      hasCalledOnLoadRef.current = true;
+    }
+  };
 
-      // Call onLoad only once per URL change
-      if (!hasCalledOnLoadRef.current && onLoad) {
-        const { videoWidth, videoHeight } = videoElement;
-        onLoad({ width: videoWidth, height: videoHeight });
-        hasCalledOnLoadRef.current = true;
-      }
-    };
+  const handleVideoError = (e: SyntheticEvent<HTMLVideoElement>) => {
+    const errorMessage = 'Failed to load video. Please check the URL and try again.';
+    setIsLoading(false);
+    setLoadError(errorMessage);
 
-    const handleVideoError = (e: SyntheticEvent<HTMLVideoElement>) => {
-      const errorMessage = "Failed to load video. Please check the URL and try again.";
-      setIsLoading(false);
-      setLoadError(errorMessage);
+    if (onError) {
+      onError(errorMessage);
+    }
 
-      if (onError) {
-        onError(errorMessage);
-      }
-
-      console.error("Video loading error:", e);
-    };
-
-
-
-
+    console.error('Video loading error:', e);
+  };
 
   // Component styles
   const containerStyle = { position: 'relative', width: '100%', height: '100%' } as const;
@@ -91,7 +81,7 @@ export const VideoPlayer = forwardRef((
     transform: 'translate(-50%, -50%)',
     zIndex: 10,
     color: 'white',
-    textAlign: 'center'
+    textAlign: 'center',
   } as const;
   const errorStyle = {
     position: 'absolute',
@@ -104,7 +94,7 @@ export const VideoPlayer = forwardRef((
     background: 'rgba(255, 0, 0, 0.7)',
     padding: '20px',
     borderRadius: '8px',
-    maxWidth: '80%'
+    maxWidth: '80%',
   } as const;
 
   return (
@@ -112,15 +102,17 @@ export const VideoPlayer = forwardRef((
       {/* Loading spinner */}
       {isLoading && (
         <div style={spinnerStyle}>
-          <div style={{
-            width: '40px',
-            height: '40px',
-            margin: '0 auto',
-            border: '4px solid rgba(255, 255, 255, 0.3)',
-            borderRadius: '50%',
-            borderTop: '4px solid white',
-            animation: 'spin 1s linear infinite'
-          }}></div>
+          <div
+            style={{
+              width: '40px',
+              height: '40px',
+              margin: '0 auto',
+              border: '4px solid rgba(255, 255, 255, 0.3)',
+              borderRadius: '50%',
+              borderTop: '4px solid white',
+              animation: 'spin 1s linear infinite',
+            }}
+          ></div>
           <p style={{ marginTop: '10px' }}>Loading video...</p>
           <style>
             {`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}

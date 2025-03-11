@@ -1,12 +1,10 @@
-import { useRef,  useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import * as THREE from 'three';
 import { CalibrationData, CameraUndistorter } from './undistort';
 
-
-
 export function useUndistorter(
-  videoRef: React.RefObject<HTMLVideoElement|null>,
-  canvasRef: React.RefObject<HTMLCanvasElement|null>,
+  videoRef: React.RefObject<HTMLVideoElement | null>,
+  canvasRef: React.RefObject<HTMLCanvasElement | null>,
   calibrationData: CalibrationData
 ) {
   const undistorterRef = useRef<CameraUndistorter | null>(null);
@@ -28,7 +26,7 @@ export function useUndistorter(
         calibrationData,
         videoElement: videoRef.current,
         outputCanvas: canvasRef.current,
-        preferWebGPU: true
+        preferWebGPU: true,
       });
 
       // Initialize it

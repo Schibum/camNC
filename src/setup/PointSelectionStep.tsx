@@ -19,7 +19,7 @@ export const PointSelectionStep: React.FC<PointSelectionStepProps> = ({
   initialPoints = [],
   onSave,
   onReset,
-  onVideoLoad
+  onVideoLoad,
 }) => {
   const [points, setPoints] = useState<IPoint[]>(initialPoints);
   const [videoSize, setVideoSize] = useState({ width: 0, height: 0 });
@@ -70,9 +70,8 @@ export const PointSelectionStep: React.FC<PointSelectionStepProps> = ({
       x: offsetX,
       y: offsetY,
       width: displayWidth,
-      height: displayHeight
+      height: displayHeight,
     });
-
   };
 
   // Update video display rect when video or container size changes
@@ -110,7 +109,7 @@ export const PointSelectionStep: React.FC<PointSelectionStepProps> = ({
       // Adjust translation to center zoom around pointer
       const newTranslate = {
         x: mouseX - (mouseX - translate.x) * (newScale / scale),
-        y: mouseY - (mouseY - translate.y) * (newScale / scale)
+        y: mouseY - (mouseY - translate.y) * (newScale / scale),
       };
 
       setScale(newScale);
@@ -149,10 +148,7 @@ export const PointSelectionStep: React.FC<PointSelectionStepProps> = ({
       const normalizedY = videoRelativeY / videoDisplayRect.height;
 
       // Map to source video dimensions (this makes bottom-right corner videoWidth x videoHeight)
-      return [
-        normalizedX * videoSize.width,
-        normalizedY * videoSize.height
-      ];
+      return [normalizedX * videoSize.width, normalizedY * videoSize.height];
     }
 
     // Fallback
@@ -215,7 +211,7 @@ export const PointSelectionStep: React.FC<PointSelectionStepProps> = ({
       // Validate that coordinates are within video bounds
       const boundedCoords: IPoint = [
         Math.max(0, Math.min(videoSize.width, videoCoords[0])),
-        Math.max(0, Math.min(videoSize.height, videoCoords[1]))
+        Math.max(0, Math.min(videoSize.height, videoCoords[1])),
       ];
 
       setPoints(prev => {
@@ -251,7 +247,7 @@ export const PointSelectionStep: React.FC<PointSelectionStepProps> = ({
       // Validate that coordinates are within video bounds
       const boundedCoords: IPoint = [
         Math.max(0, Math.min(videoSize.width, videoCoords[0])),
-        Math.max(0, Math.min(videoSize.height, videoCoords[1]))
+        Math.max(0, Math.min(videoSize.height, videoCoords[1])),
       ];
 
       setPoints([...points, boundedCoords]);
@@ -302,7 +298,7 @@ export const PointSelectionStep: React.FC<PointSelectionStepProps> = ({
     width: '800px',
     height: '450px',
     backgroundColor: '#000',
-    cursor: draggingPointIndex !== null ? 'grabbing' : (isPanning ? 'grabbing' : 'default'),
+    cursor: draggingPointIndex !== null ? 'grabbing' : isPanning ? 'grabbing' : 'default',
   };
 
   const contentStyle: React.CSSProperties = {
@@ -313,21 +309,20 @@ export const PointSelectionStep: React.FC<PointSelectionStepProps> = ({
     top: 0,
     left: 0,
     width: '100%',
-    height: '100%'
+    height: '100%',
   };
 
   // Additional style for video container to reinforce the panning ability
   const videoWrapperStyle: React.CSSProperties = {
     width: '100%',
     height: '100%',
-    cursor: 'inherit'
+    cursor: 'inherit',
   };
 
   return (
     <div className="point-selection-step">
       <h2>Step 2: Select Reference Points</h2>
       <p>Click on the video to place 4 reference points. You can drag points to adjust them.</p>
-
 
       {/* Video container with pan and zoom */}
       <div style={{ position: 'relative' }}>
