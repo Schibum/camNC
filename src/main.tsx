@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { StrictMode } from 'react'
 import ReactDOM from 'react-dom/client'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { routeTree } from './routeTree.gen'
@@ -8,6 +8,7 @@ import './style.css';
 const router = createRouter({
   routeTree,
   defaultPreload: 'intent',
+  defaultPendingComponent: () => <div>Loading...</div>,
 })
 
 // Register things for typesafety
@@ -21,5 +22,9 @@ const rootElement = document.getElementById('app')!
 
 if (!rootElement.innerHTML) {
   const root = ReactDOM.createRoot(rootElement)
-  root.render(<RouterProvider router={router} />)
+  root.render(
+    <StrictMode>
+      <RouterProvider router={router}  />
+    </StrictMode>
+  )
 }

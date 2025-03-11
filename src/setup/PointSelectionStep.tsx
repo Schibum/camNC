@@ -23,7 +23,6 @@ export const PointSelectionStep: React.FC<PointSelectionStepProps> = ({
 }) => {
   const [points, setPoints] = useState<IPoint[]>(initialPoints);
   const [videoSize, setVideoSize] = useState({ width: 0, height: 0 });
-  const [visibleVideoSize, setVisibleVideoSize] = useState({ width: 0, height: 0 });
   const [videoDisplayRect, setVideoDisplayRect] = useState({ x: 0, y: 0, width: 0, height: 0 });
 
   // State for handling loading and errors but delegating rendering to VideoPlayer
@@ -32,7 +31,6 @@ export const PointSelectionStep: React.FC<PointSelectionStepProps> = ({
 
   // Refs and state for pan/zoom functionality
   const containerRef = useRef<HTMLDivElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [translate, setTranslate] = useState({ x: 0, y: 0 });
@@ -75,10 +73,6 @@ export const PointSelectionStep: React.FC<PointSelectionStepProps> = ({
       height: displayHeight
     });
 
-    setVisibleVideoSize({
-      width: displayWidth,
-      height: displayHeight
-    });
   };
 
   // Update video display rect when video or container size changes
@@ -352,7 +346,6 @@ export const PointSelectionStep: React.FC<PointSelectionStepProps> = ({
             <div ref={videoContainerRef} style={videoWrapperStyle}>
               {/* Use the VideoPlayer component */}
               <VideoPlayer
-                ref={videoRef}
                 url={url}
                 onLoad={handleVideoLoad}
                 onError={handleVideoError}

@@ -1,50 +1,32 @@
-import React, { useRef, useMemo, useEffect } from 'react';
-import { useThree } from '@react-three/fiber';
+import React, { useRef, useMemo, useEffect, Suspense } from 'react';
+import { useFrame, useThree} from '@react-three/fiber';
+import { Text } from '@react-three/drei';
 import * as THREE from 'three';
+import { useUndistortedCanvas, UndistortedTexture } from './useUndistortedCanvas';
+import useContain from './useContain';
+
 interface VideoPlaneProps {
-  textureRef: React.MutableRefObject<THREE.Texture | null>;
-  videoWidth: number;
-  videoHeight: number;
 }
 
-const VideoPlane: React.FC<VideoPlaneProps> = ({ textureRef, videoWidth, videoHeight }) => {
+const VideoPlane: React.FC<VideoPlaneProps> = () => {
+  const canvas = useUndistortedCanvas();
   const meshRef = useRef<THREE.Mesh>(null);
-  const { size } = useThree();
+  const { planeWidth, planeHeight } = useContain(canvas.width, canvas.height);
+  const camera = useThree().camera as THREE.OrthographicCamera;
+  console.log('camera', camera, [camera.left, camera.right, camera.top, camera.bottom]);
 
-  // Calculate proper aspect ratio based on the video dimensions
   const planeGeometry = useMemo(() => {
-    const containerAspect = size.width / size.height;
-    const videoAspect = videoWidth / videoHeight;
-
-    let planeWidth, planeHeight;
-    if (containerAspect > videoAspect) {
-      // Container is wider than video - fit to height
-      planeHeight = size.height;
-      planeWidth = planeHeight * videoAspect;
-    } else {
-      // Container is taller than video - fit to width
-      planeWidth = size.width;
-      planeHeight = planeWidth / videoAspect;
-    }
-
     return new THREE.PlaneGeometry(planeWidth, planeHeight);
-  }, [videoWidth, videoHeight, size]);
+  }, [planeWidth, planeHeight]);
 
-  // Update texture when the video plays
-  useEffect(() => {
-    const texture = textureRef.current;
-    if (texture) {
-      texture.minFilter = THREE.LinearFilter;
-      texture.magFilter = THREE.LinearFilter;
-    }
-  }, [textureRef]);
 
   return (
     <mesh ref={meshRef} geometry={planeGeometry}>
       <meshBasicMaterial
-        map={textureRef.current}
         side={THREE.DoubleSide}
-      />
+      >
+        <UndistortedTexture />
+      </meshBasicMaterial>
     </mesh>
   );
 };

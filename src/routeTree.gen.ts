@@ -12,19 +12,32 @@
 
 import { Route as rootRoute } from './routes/__root'
 import { Route as VisualizeImport } from './routes/visualize'
+import { Route as Undistort2Import } from './routes/undistort2'
+import { Route as UndistortImport } from './routes/undistort'
 import { Route as AboutImport } from './routes/about'
 import { Route as IndexImport } from './routes/index'
 import { Route as SetupIndexImport } from './routes/setup/index'
 import { Route as SetupUrlEntryImport } from './routes/setup.url-entry'
 import { Route as SetupSetupImport } from './routes/setup/setup'
 import { Route as SetupPointSelectionImport } from './routes/setup/point-selection'
-import { Route as SetupSetupPointSelectionImport } from './routes/setup/setup.point-selection'
 
 // Create/Update Routes
 
 const VisualizeRoute = VisualizeImport.update({
   id: '/visualize',
   path: '/visualize',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const Undistort2Route = Undistort2Import.update({
+  id: '/undistort2',
+  path: '/undistort2',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const UndistortRoute = UndistortImport.update({
+  id: '/undistort',
+  path: '/undistort',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -64,12 +77,6 @@ const SetupPointSelectionRoute = SetupPointSelectionImport.update({
   getParentRoute: () => rootRoute,
 } as any)
 
-const SetupSetupPointSelectionRoute = SetupSetupPointSelectionImport.update({
-  id: '/point-selection',
-  path: '/point-selection',
-  getParentRoute: () => SetupSetupRoute,
-} as any)
-
 // Populate the FileRoutesByPath interface
 
 declare module '@tanstack/react-router' {
@@ -86,6 +93,20 @@ declare module '@tanstack/react-router' {
       path: '/about'
       fullPath: '/about'
       preLoaderRoute: typeof AboutImport
+      parentRoute: typeof rootRoute
+    }
+    '/undistort': {
+      id: '/undistort'
+      path: '/undistort'
+      fullPath: '/undistort'
+      preLoaderRoute: typeof UndistortImport
+      parentRoute: typeof rootRoute
+    }
+    '/undistort2': {
+      id: '/undistort2'
+      path: '/undistort2'
+      fullPath: '/undistort2'
+      preLoaderRoute: typeof Undistort2Import
       parentRoute: typeof rootRoute
     }
     '/visualize': {
@@ -123,62 +144,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SetupIndexImport
       parentRoute: typeof rootRoute
     }
-    '/setup/setup/point-selection': {
-      id: '/setup/setup/point-selection'
-      path: '/point-selection'
-      fullPath: '/setup/setup/point-selection'
-      preLoaderRoute: typeof SetupSetupPointSelectionImport
-      parentRoute: typeof SetupSetupImport
-    }
   }
 }
 
 // Create and export the route tree
 
-interface SetupSetupRouteChildren {
-  SetupSetupPointSelectionRoute: typeof SetupSetupPointSelectionRoute
-}
-
-const SetupSetupRouteChildren: SetupSetupRouteChildren = {
-  SetupSetupPointSelectionRoute: SetupSetupPointSelectionRoute,
-}
-
-const SetupSetupRouteWithChildren = SetupSetupRoute._addFileChildren(
-  SetupSetupRouteChildren,
-)
-
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/undistort': typeof UndistortRoute
+  '/undistort2': typeof Undistort2Route
   '/visualize': typeof VisualizeRoute
   '/setup/point-selection': typeof SetupPointSelectionRoute
-  '/setup/setup': typeof SetupSetupRouteWithChildren
+  '/setup/setup': typeof SetupSetupRoute
   '/setup/url-entry': typeof SetupUrlEntryRoute
   '/setup': typeof SetupIndexRoute
-  '/setup/setup/point-selection': typeof SetupSetupPointSelectionRoute
 }
 
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/undistort': typeof UndistortRoute
+  '/undistort2': typeof Undistort2Route
   '/visualize': typeof VisualizeRoute
   '/setup/point-selection': typeof SetupPointSelectionRoute
-  '/setup/setup': typeof SetupSetupRouteWithChildren
+  '/setup/setup': typeof SetupSetupRoute
   '/setup/url-entry': typeof SetupUrlEntryRoute
   '/setup': typeof SetupIndexRoute
-  '/setup/setup/point-selection': typeof SetupSetupPointSelectionRoute
 }
 
 export interface FileRoutesById {
   __root__: typeof rootRoute
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/undistort': typeof UndistortRoute
+  '/undistort2': typeof Undistort2Route
   '/visualize': typeof VisualizeRoute
   '/setup/point-selection': typeof SetupPointSelectionRoute
-  '/setup/setup': typeof SetupSetupRouteWithChildren
+  '/setup/setup': typeof SetupSetupRoute
   '/setup/url-entry': typeof SetupUrlEntryRoute
   '/setup/': typeof SetupIndexRoute
-  '/setup/setup/point-selection': typeof SetupSetupPointSelectionRoute
 }
 
 export interface FileRouteTypes {
@@ -186,41 +191,46 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/about'
+    | '/undistort'
+    | '/undistort2'
     | '/visualize'
     | '/setup/point-selection'
     | '/setup/setup'
     | '/setup/url-entry'
     | '/setup'
-    | '/setup/setup/point-selection'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/about'
+    | '/undistort'
+    | '/undistort2'
     | '/visualize'
     | '/setup/point-selection'
     | '/setup/setup'
     | '/setup/url-entry'
     | '/setup'
-    | '/setup/setup/point-selection'
   id:
     | '__root__'
     | '/'
     | '/about'
+    | '/undistort'
+    | '/undistort2'
     | '/visualize'
     | '/setup/point-selection'
     | '/setup/setup'
     | '/setup/url-entry'
     | '/setup/'
-    | '/setup/setup/point-selection'
   fileRoutesById: FileRoutesById
 }
 
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
+  UndistortRoute: typeof UndistortRoute
+  Undistort2Route: typeof Undistort2Route
   VisualizeRoute: typeof VisualizeRoute
   SetupPointSelectionRoute: typeof SetupPointSelectionRoute
-  SetupSetupRoute: typeof SetupSetupRouteWithChildren
+  SetupSetupRoute: typeof SetupSetupRoute
   SetupUrlEntryRoute: typeof SetupUrlEntryRoute
   SetupIndexRoute: typeof SetupIndexRoute
 }
@@ -228,9 +238,11 @@ export interface RootRouteChildren {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
+  UndistortRoute: UndistortRoute,
+  Undistort2Route: Undistort2Route,
   VisualizeRoute: VisualizeRoute,
   SetupPointSelectionRoute: SetupPointSelectionRoute,
-  SetupSetupRoute: SetupSetupRouteWithChildren,
+  SetupSetupRoute: SetupSetupRoute,
   SetupUrlEntryRoute: SetupUrlEntryRoute,
   SetupIndexRoute: SetupIndexRoute,
 }
@@ -247,6 +259,8 @@ export const routeTree = rootRoute
       "children": [
         "/",
         "/about",
+        "/undistort",
+        "/undistort2",
         "/visualize",
         "/setup/point-selection",
         "/setup/setup",
@@ -260,6 +274,12 @@ export const routeTree = rootRoute
     "/about": {
       "filePath": "about.tsx"
     },
+    "/undistort": {
+      "filePath": "undistort.tsx"
+    },
+    "/undistort2": {
+      "filePath": "undistort2.tsx"
+    },
     "/visualize": {
       "filePath": "visualize.tsx"
     },
@@ -267,20 +287,13 @@ export const routeTree = rootRoute
       "filePath": "setup/point-selection.tsx"
     },
     "/setup/setup": {
-      "filePath": "setup/setup.tsx",
-      "children": [
-        "/setup/setup/point-selection"
-      ]
+      "filePath": "setup/setup.tsx"
     },
     "/setup/url-entry": {
       "filePath": "setup.url-entry.tsx"
     },
     "/setup/": {
       "filePath": "setup/index.tsx"
-    },
-    "/setup/setup/point-selection": {
-      "filePath": "setup/setup.point-selection.tsx",
-      "parent": "/setup/setup"
     }
   }
 }
