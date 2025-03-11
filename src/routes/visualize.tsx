@@ -1,16 +1,17 @@
-import * as React from 'react'
-import { useEffect, useRef, useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
-import * as THREE from 'three'
-import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { OrbitControls } from '@react-three/drei'
-import { computeHomography, buildMatrix4FromHomography } from '../math/perspectiveTransform'
-import { useAtomValue } from 'jotai'
-import { cameraConfigAtom, IBox } from '../atoms'
+import { OrbitControls } from '@react-three/drei';
+import { Canvas, useThree } from '@react-three/fiber';
+import { createFileRoute } from '@tanstack/react-router';
+import { useAtomValue } from 'jotai';
+import { useEffect, useRef, useState } from 'react';
+import * as THREE from 'three';
+import { Matrix4, Vector3 } from 'three';
+import { UndistortedTexture } from '@/calibration/useUndistortedCanvas';
+import { cameraConfigAtom, IBox } from '../atoms';
+import { buildMatrix4FromHomography, computeHomography } from '../math/perspectiveTransform';
 
 export const Route = createFileRoute('/visualize')({
   component: VisualizeComponent,
-})
+});
 
 // Add type for camConfig if needed
 interface SceneProps {
@@ -56,13 +57,19 @@ function VisualizeComponent() {
 
   const renderSize = [
     camConfig.machineBounds[1][0] - camConfig.machineBounds[0][0],
-    camConfig.machineBounds[1][1] - camConfig.machineBounds[0][1]
+    camConfig.machineBounds[1][1] - camConfig.machineBounds[0][1],
   ];
   const [canvasW, canvasH] = renderSize;
 
   return (
     <div className="p-2">
       <div style={{ width: canvasW, height: canvasH }}>
+        {/* <Canvas
+          gl={{ antialias: true, outputColorSpace: THREE.SRGBColorSpace }}
+        >
+          <OrthographicCamera makeDefault position={[0, 0, 1.5]} zoom={1} near={0.1} far={100}>
+            <color attach="background" args={[0x1111ff]} />
+          </OrthographicCamera> */}
         <Canvas
           orthographic
           camera={{
@@ -72,7 +79,7 @@ function VisualizeComponent() {
             top: 0,
             bottom: canvasH,
             near: -1000,
-            far: 1000
+            far: 1000,
           }}
           gl={{ antialias: true, outputColorSpace: THREE.SRGBColorSpace }}
         >
@@ -101,13 +108,24 @@ function Scene({ video, camConfig }: SceneProps) {
 
     // Compute homography and apply it
     const mp = camConfig.machineBounds;
-    const dstPoints = [[mp[0][0], mp[0][1]], [mp[1][0], mp[0][1]], [mp[1][0], mp[1][1]], [mp[0][0], mp[1][1]]] as IBox;
+    const dstPoints = [
+      [mp[0][0], mp[0][1]],
+      [mp[1][0], mp[0][1]],
+      [mp[1][0], mp[1][1]],
+      [mp[0][0], mp[1][1]],
+    ] as IBox;
     const H = computeHomography(camConfig.machineBoundsInCam, dstPoints);
-    const M = buildMatrix4FromHomography(H);
+    const M = new Matrix4().fromArray(buildMatrix4FromHomography(H));
+    const toCv = new Matrix4()
+      .makeTranslation(imgWidth / 2, imgHeight / 2, 0)
+      .scale(new Vector3(1, -1, 1));
+    console.log('toCv', toCv);
+    const toThree = toCv.clone().invert();
+    const homographyThree = toThree.multiply(M).multiply(toCv);
 
     // Apply matrix to mesh
     meshRef.current.matrixAutoUpdate = false;
-    meshRef.current.matrix.fromArray(M);
+    meshRef.current.matrix.copy(M);
     meshRef.current.matrix.decompose(
       meshRef.current.position,
       meshRef.current.quaternion,
@@ -129,25 +147,19 @@ function Scene({ video, camConfig }: SceneProps) {
         mouseButtons={{
           LEFT: THREE.MOUSE.PAN,
           MIDDLE: THREE.MOUSE.DOLLY,
-          RIGHT: THREE.MOUSE.PAN
+          RIGHT: THREE.MOUSE.PAN,
         }}
-        enableDamping={true}
+        enableDamping
         dampingFactor={0.25}
-        minZoom={1}
+        minZoom={0.5}
         maxZoom={10}
       />
 
       <mesh ref={meshRef}>
-        <planeGeometry
-          ref={planeRef}
-          args={[imgWidth, imgHeight, 1, 1]}
-          attach="geometry"
-        />
-        <meshBasicMaterial
-          map={videoTexture}
-          side={THREE.DoubleSide}
-          attach="material"
-        />
+        <planeGeometry ref={planeRef} args={[imgWidth, imgHeight, 1, 1]} attach="geometry" />
+        <meshBasicMaterial map={videoTexture} side={THREE.DoubleSide} attach="material">
+          <UndistortedTexture />
+        </meshBasicMaterial>
       </mesh>
     </>
   );

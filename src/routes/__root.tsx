@@ -1,10 +1,11 @@
-import * as React from 'react'
-import { Link, Outlet, createRootRoute } from '@tanstack/react-router'
-import { TanStackRouterDevtools } from '@tanstack/router-devtools'
+import * as React from 'react';
+import { Link, Outlet, createRootRoute } from '@tanstack/react-router';
+import { TanStackRouterDevtools } from '@tanstack/router-devtools';
+import { Suspense } from 'react';
 
 export const Route = createRootRoute({
   component: RootComponent,
-})
+});
 
 function RootComponent() {
   return (
@@ -43,10 +44,18 @@ function RootComponent() {
         >
           Visualize
         </Link>
+        <Link
+          to="/undistort2"
+          activeProps={{
+            className: 'font-bold',
+          }}
+        >
+          Undistort
+        </Link>
       </div>
       <hr />
       <Outlet />
-      <TanStackRouterDevtools position="bottom-right" />
+      {/* <TanStackRouterDevtools position="bottom-right" /> */}
     </>
-  )
+  );
 }

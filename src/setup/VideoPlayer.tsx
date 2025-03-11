@@ -1,4 +1,4 @@
-import React, { useRef, ForwardedRef, forwardRef, useLayoutEffect, useEffect } from 'react';
+import React, { useRef, ForwardedRef, forwardRef, useLayoutEffect, useEffect, SyntheticEvent } from 'react';
 import { atom, useAtom } from 'jotai';
 
 interface VideoPlayerProps {
@@ -17,8 +17,7 @@ const isInitializedAtom = atom(false);
 
 // Component to encapsulate video loading, error handling, and display
 export const VideoPlayer = forwardRef((
-  { url, onLoad, onError, style = {} }: VideoPlayerProps,
-  forwardedRef: ForwardedRef<HTMLVideoElement>
+  { url, onLoad, onError, style = {} }: VideoPlayerProps
 ) => {
   // Use atoms
   const [isLoading, setIsLoading] = useAtom(isLoadingAtom);
@@ -30,12 +29,7 @@ export const VideoPlayer = forwardRef((
   const previousUrlRef = useRef<string>(url);
   const hasCalledOnLoadRef = useRef<boolean>(false);
 
-  // Function to get the current video element
-  const getVideoElement = () => {
-    return forwardedRef && typeof forwardedRef === 'object' && forwardedRef.current
-      ? forwardedRef.current
-      : videoRef.current;
-  };
+
 
   // Setup ref and initialization
   useLayoutEffect(() => {
@@ -44,10 +38,6 @@ export const VideoPlayer = forwardRef((
       setIsInitialized(true);
     }
 
-    // Handle ref forwarding
-    if (forwardedRef && typeof forwardedRef === 'object') {
-      forwardedRef.current = videoRef.current;
-    }
   }, []);
 
   // Handle URL changes
@@ -61,14 +51,9 @@ export const VideoPlayer = forwardRef((
   }, [url]);
 
   // Handle video events
-  useLayoutEffect(() => {
-    // Video element may not be available immediately
-    const videoElement = getVideoElement();
-    if (!videoElement) return;
 
     // Define stable event handlers using refs to avoid recreation
-    const handleVideoMetadata = () => {
-      if (!videoElement) return;
+    const handleVideoMetadata = (videoElement: HTMLVideoElement) => {
 
       setIsLoading(false);
 
@@ -80,7 +65,7 @@ export const VideoPlayer = forwardRef((
       }
     };
 
-    const handleVideoError = (e: Event) => {
+    const handleVideoError = (e: SyntheticEvent<HTMLVideoElement>) => {
       const errorMessage = "Failed to load video. Please check the URL and try again.";
       setIsLoading(false);
       setLoadError(errorMessage);
@@ -92,40 +77,9 @@ export const VideoPlayer = forwardRef((
       console.error("Video loading error:", e);
     };
 
-    // Add event listeners
-    videoElement.addEventListener('loadedmetadata', handleVideoMetadata);
-    videoElement.addEventListener('error', handleVideoError);
 
-    // Check if the video is already loaded
-    if (videoElement.videoWidth && !hasCalledOnLoadRef.current) {
-      handleVideoMetadata();
-    }
 
-    // Cleanup
-    return () => {
-      videoElement.removeEventListener('loadedmetadata', handleVideoMetadata);
-      videoElement.removeEventListener('error', handleVideoError);
-    };
-  }, [url, onLoad, onError]);
 
-  useEffect(() => {
-    return () => {
-      const videoElement = getVideoElement();
-      if (videoElement) {
-        videoElement.src = '';
-      }
-    };
-  }, []);
-
-  // Handler for retry button
-  const handleRetry = () => {
-    const videoElement = getVideoElement();
-    if (!videoElement) return;
-
-    setIsLoading(true);
-    setLoadError(null);
-    videoElement.load();
-  };
 
   // Component styles
   const containerStyle = { position: 'relative', width: '100%', height: '100%' } as const;
@@ -178,20 +132,6 @@ export const VideoPlayer = forwardRef((
       {loadError && (
         <div style={errorStyle}>
           <p>{loadError}</p>
-          <button
-            onClick={handleRetry}
-            style={{
-              marginTop: '10px',
-              padding: '8px 16px',
-              backgroundColor: 'white',
-              color: 'black',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer'
-            }}
-          >
-            Retry
-          </button>
         </div>
       )}
 
@@ -199,6 +139,8 @@ export const VideoPlayer = forwardRef((
         ref={videoRef}
         src={url}
         style={videoStyle}
+        onLoadedMetadata={ev => handleVideoMetadata(ev.target as HTMLVideoElement)}
+        onError={ev => handleVideoError(ev)}
         autoPlay
         muted
         playsInline

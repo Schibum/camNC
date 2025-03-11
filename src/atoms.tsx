@@ -1,5 +1,5 @@
 import { atom, getDefaultStore } from "jotai";
-
+import { CalibrationData } from "./calibration/undistort";
 const atomWithLocalStorage = <T,>(key: string, initialValue: T) => {
   const getInitialValue = () => {
     const item = localStorage.getItem(key)
@@ -36,7 +36,33 @@ interface CameraConfig {
   machineBounds: [IPoint, IPoint];
 }
 
-export const cameraConfigAtom = atomWithLocalStorage<CameraConfig|null>('camConfig', null);
+
+// Calibration data
+const calibrationData = {
+  calibration_matrix: [
+    [2009.1973773408529, 0.0, 1390.5190016011748],
+    [0.0, 2017.1223458668746, 952.7108080446899],
+    [0.0, 0.0, 1.0]
+  ],
+  distortion_coefficients: [
+    [-0.3921598065400269, 0.23211488659159807, 0.0023824662841748097, -0.0004288390281597757, -0.09431940984729748]
+  ]
+};
+export const cameraConfigAtom = atomWithLocalStorage<CameraConfig | null>('camConfig', null);
+export const calibrationDataAtom = atom<CalibrationData>(calibrationData);
+
+export const videoSrcAtom = atom((get) => {
+  const cameraConfig = get(cameraConfigAtom);
+  if (cameraConfig) {
+    return cameraConfig.url;
+  }
+  return '';
+}, (get, set, update: string) => {
+  set(cameraConfigAtom, (cfg) => {
+    if (!cfg) throw new Error('Camera config not set');
+    return ({ ...cfg, url: update });
+  });
+});
 // export const camDimensions = atom<[number, number]>();
 // export const machineBoundsInCam = atomWithStorage<Box|undefined>('machineBoundsInCam', undefined)
 // // [xmin, ymin], [xmax, ymax]
