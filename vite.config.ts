@@ -1,10 +1,10 @@
-import { defineConfig, PluginOption } from "vite";
+import tailwindcss from '@tailwindcss/vite';
+import { TanStackRouterVite } from '@tanstack/router-plugin/vite';
 import react from "@vitejs/plugin-react";
-import { viteSingleFile } from "vite-plugin-singlefile";
-import checker from "vite-plugin-checker";
-import tailwindcss from '@tailwindcss/vite'
 import path from "path";
-import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
+import { defineConfig, PluginOption } from "vite";
+import checker from "vite-plugin-checker";
+import { viteSingleFile } from "vite-plugin-singlefile";
 
 
 

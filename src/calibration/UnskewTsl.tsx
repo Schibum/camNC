@@ -1,6 +1,6 @@
 import { calibrationDataAtom, videoSrcAtom } from '@/atoms';
 import { OrbitControls, Text, useVideoTexture } from '@react-three/drei';
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas } from '@react-three/fiber';
 import { useAtomValue } from 'jotai';
 import React, { useMemo, useRef } from 'react';
 import * as THREE from 'three';
@@ -92,11 +92,17 @@ async function calculateUndistortionMaps(
 }
 
 // UndistortMesh component using Three.js Shading
-const UndistortMesh: React.FC<{
-  videoTexture: THREE.VideoTexture;
-  calibrationData: CalibrationData;
-}> = ({ videoTexture, calibrationData }) => {
+const UndistortMesh = React.forwardRef<
+  THREE.Mesh,
+  {
+    videoTexture: THREE.VideoTexture;
+    calibrationData: CalibrationData;
+  }
+>(({ videoTexture, calibrationData }, ref) => {
   const meshRef = useRef<THREE.Mesh>(null);
+
+  // Merge refs - use the forwarded ref if available, otherwise use the internal one
+  const actualRef = (ref || meshRef) as React.RefObject<THREE.Mesh>;
 
   // Store video dimensions for calculations
   const videoDimensions = useMemo(() => {
@@ -199,7 +205,7 @@ const UndistortMesh: React.FC<{
   }, [videoDimensions, containSize]);
 
   return (
-    <mesh ref={meshRef} geometry={planeGeometry}>
+    <mesh ref={actualRef} geometry={planeGeometry}>
       <shaderMaterial
         fragmentShader={fragmentShader}
         vertexShader={vertexShader}
@@ -212,10 +218,13 @@ const UndistortMesh: React.FC<{
       />
     </mesh>
   );
-};
+});
+
+// Add display name for debugging
+UndistortMesh.displayName = 'UndistortMesh';
 
 // New UnskewedVideoMesh component to load video texture
-export function UnskewedVideoMesh() {
+export const UnskewedVideoMesh = React.forwardRef<THREE.Mesh>((props, ref) => {
   const calibrationData = useAtomValue(calibrationDataAtom);
   const videoSrc = useAtomValue(videoSrcAtom);
 
@@ -227,8 +236,11 @@ export function UnskewedVideoMesh() {
     start: true,
   });
 
-  return <UndistortMesh videoTexture={videoTexture} calibrationData={calibrationData} />;
-}
+  return <UndistortMesh ref={ref} videoTexture={videoTexture} calibrationData={calibrationData} />;
+});
+
+// Add display name for debugging
+UnskewedVideoMesh.displayName = 'UnskewedVideoMesh';
 
 // Main component
 const UnskewTsl: React.FC<UnskewTslProps> = ({ width = 800, height = 600 }) => {

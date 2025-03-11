@@ -11,7 +11,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
   onReset,
   onSave,
   canSave,
-  saveDisabled = false
+  saveDisabled = false,
 }) => {
   return (
     <div style={{ marginTop: '15px', display: 'flex', gap: '10px' }}>
@@ -23,7 +23,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
           color: 'white',
           border: 'none',
           borderRadius: '4px',
-          cursor: 'pointer'
+          cursor: 'pointer',
         }}
       >
         Back to URL Entry
@@ -39,7 +39,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: saveDisabled ? 'not-allowed' : 'pointer'
+            cursor: saveDisabled ? 'not-allowed' : 'pointer',
           }}
         >
           Save Calibration

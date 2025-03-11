@@ -50,7 +50,12 @@ declare global {
   interface GPURenderPassEncoder {
     setPipeline(pipeline: GPURenderPipeline): void;
     setBindGroup(index: number, bindGroup: GPUBindGroup): void;
-    draw(vertexCount: number, instanceCount?: number, firstVertex?: number, firstInstance?: number): void;
+    draw(
+      vertexCount: number,
+      instanceCount?: number,
+      firstVertex?: number,
+      firstInstance?: number
+    ): void;
     end(): void;
   }
 
@@ -142,7 +147,7 @@ export async function isWebGPUSupported(): Promise<boolean> {
     await adapter.requestDevice();
     return true;
   } catch (e) {
-    console.warn("WebGPU supported but failed to initialize:", e);
+    console.warn('WebGPU supported but failed to initialize:', e);
     return false;
   }
 }
@@ -163,7 +168,13 @@ export class CameraUndistorter {
   /**
    * Creates a new camera undistorter.
    */
-  constructor({ calibrationData, videoElement, outputCanvas, preferWebGPU = true, cv = null }: CameraUndistorterOptions) {
+  constructor({
+    calibrationData,
+    videoElement,
+    outputCanvas,
+    preferWebGPU = true,
+    cv = null,
+  }: CameraUndistorterOptions) {
     // Store parameters and initialize basic state
     this.calibrationData = calibrationData;
     this.videoElement = videoElement;
@@ -185,8 +196,10 @@ export class CameraUndistorter {
 
     try {
       // Configure output canvas dimensions to match video
-      if (this.outputCanvas.width !== this.videoElement.videoWidth ||
-          this.outputCanvas.height !== this.videoElement.videoHeight) {
+      if (
+        this.outputCanvas.width !== this.videoElement.videoWidth ||
+        this.outputCanvas.height !== this.videoElement.videoHeight
+      ) {
         this.outputCanvas.width = this.videoElement.videoWidth;
         this.outputCanvas.height = this.videoElement.videoHeight;
       }
@@ -259,7 +272,7 @@ export class CameraUndistorter {
     return {
       initialized: true,
       type: this._renderer!.type, // 'webgpu' or 'cpu'
-      ...this._renderer!.getInfo()
+      ...this._renderer!.getInfo(),
     };
   }
 }
@@ -326,7 +339,7 @@ async function initializeWebGPURenderer(
             // Write to output
             textureStore(outputTexture, vec2<i32>(coord), color);
           }
-        `
+        `,
       }),
       entryPoint: 'main',
     },
@@ -365,7 +378,7 @@ async function initializeWebGPURenderer(
         );
         return textureSample(tex, texSampler, texCoord);
       }
-    `
+    `,
   });
 
   const blitPipeline = device.createRenderPipeline({
@@ -392,22 +405,27 @@ async function initializeWebGPURenderer(
       const videoTexture = device.createTexture({
         size: [videoElement.videoWidth, videoElement.videoHeight],
         format: 'rgba8unorm',
-        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+        usage:
+          GPUTextureUsage.TEXTURE_BINDING |
+          GPUTextureUsage.COPY_DST |
+          GPUTextureUsage.RENDER_ATTACHMENT,
       });
 
       // Copy video frame to texture
-      device.queue.copyExternalImageToTexture(
-        { source: videoElement },
-        { texture: videoTexture },
-        [videoElement.videoWidth, videoElement.videoHeight]
-      );
+      device.queue.copyExternalImageToTexture({ source: videoElement }, { texture: videoTexture }, [
+        videoElement.videoWidth,
+        videoElement.videoHeight,
+      ]);
 
       // Create output texture
       const outputTexture = device.createTexture({
         size: [videoElement.videoWidth, videoElement.videoHeight],
         format: 'rgba8unorm',
-        usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT |
-              GPUTextureUsage.COPY_SRC | GPUTextureUsage.TEXTURE_BINDING,
+        usage:
+          GPUTextureUsage.STORAGE_BINDING |
+          GPUTextureUsage.RENDER_ATTACHMENT |
+          GPUTextureUsage.COPY_SRC |
+          GPUTextureUsage.TEXTURE_BINDING,
       });
 
       // Set up bind group for compute
@@ -445,18 +463,20 @@ async function initializeWebGPURenderer(
       // Render to canvas
       const canvasTexture = context.getCurrentTexture();
       const renderPassDescriptor = {
-        colorAttachments: [{
-          view: canvasTexture.createView(),
-          clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
-          loadOp: 'clear',
-          storeOp: 'store',
-        }],
+        colorAttachments: [
+          {
+            view: canvasTexture.createView(),
+            clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
+            loadOp: 'clear',
+            storeOp: 'store',
+          },
+        ],
       };
 
       const renderPass = commandEncoder.beginRenderPass(renderPassDescriptor);
       renderPass.setPipeline(blitPipeline);
       renderPass.setBindGroup(0, blitBindGroup);
-      renderPass.draw(6);  // 6 vertices for 2 triangles
+      renderPass.draw(6); // 6 vertices for 2 triangles
       renderPass.end();
 
       device.queue.submit([commandEncoder.finish()]);
@@ -477,9 +497,9 @@ async function initializeWebGPURenderer(
     getInfo() {
       return {
         format: canvasFormat,
-        renderer: 'WebGPU'
+        renderer: 'WebGPU',
       };
-    }
+    },
   };
 }
 
@@ -494,7 +514,12 @@ function initializeCPURenderer(
 ): Renderer {
   // Create OpenCV matrices and maps
   const cameraMatrix = cv.matFromArray(3, 3, cv.CV_64F, calibrationData.calibration_matrix.flat());
-  const distCoeffs = cv.matFromArray(1, 5, cv.CV_64F, calibrationData.distortion_coefficients.flat());
+  const distCoeffs = cv.matFromArray(
+    1,
+    5,
+    cv.CV_64F,
+    calibrationData.distortion_coefficients.flat()
+  );
 
   // Create destination matrices
   const src = new cv.Mat();
@@ -531,20 +556,10 @@ function initializeCPURenderer(
       const inputMat = cv.matFromImageData(imgData);
 
       // Apply undistortion
-      cv.remap(
-        inputMat,
-        dst,
-        map1,
-        map2,
-        cv.INTER_LINEAR
-      );
+      cv.remap(inputMat, dst, map1, map2, cv.INTER_LINEAR);
 
       // Convert back to canvas
-      const outputData = new ImageData(
-        new Uint8ClampedArray(dst.data),
-        dst.cols,
-        dst.rows
-      );
+      const outputData = new ImageData(new Uint8ClampedArray(dst.data), dst.cols, dst.rows);
       ctx.putImageData(outputData, 0, 0);
 
       // Clean up
@@ -564,9 +579,9 @@ function initializeCPURenderer(
 
     getInfo() {
       return {
-        renderer: 'CPU/OpenCV.js'
+        renderer: 'CPU/OpenCV.js',
       };
-    }
+    },
   };
 }
 
@@ -578,7 +593,7 @@ export async function createWebGPUMaps(
   width: number,
   height: number,
   device: any
-): Promise<{ mapXTexture: any, mapYTexture: any }> {
+): Promise<{ mapXTexture: any; mapYTexture: any }> {
   // Use OpenCV.js to calculate the maps temporarily
   // In a real implementation, this should be done directly in WebGPU
   // but for compatibility with existing code, we'll use OpenCV.js first
@@ -613,12 +628,8 @@ export async function createWebGPUMaps(
   );
 
   // Convert OpenCV.js maps to WebGPU textures
-  const mapXData = new Float32Array(mapX.data.buffer,
-                                    mapX.data.byteOffset,
-                                    mapX.rows * mapX.cols);
-  const mapYData = new Float32Array(mapY.data.buffer,
-                                    mapY.data.byteOffset,
-                                    mapY.rows * mapY.cols);
+  const mapXData = new Float32Array(mapX.data.buffer, mapX.data.byteOffset, mapX.rows * mapX.cols);
+  const mapYData = new Float32Array(mapY.data.buffer, mapY.data.byteOffset, mapY.rows * mapY.cols);
 
   // Create WebGPU textures for the maps
   const mapXTexture = device.createTexture({
@@ -634,19 +645,15 @@ export async function createWebGPUMaps(
   });
 
   // Copy data to textures
-  device.queue.writeTexture(
-    { texture: mapXTexture },
-    mapXData,
-    { bytesPerRow: width * 4 },
-    [width, height]
-  );
+  device.queue.writeTexture({ texture: mapXTexture }, mapXData, { bytesPerRow: width * 4 }, [
+    width,
+    height,
+  ]);
 
-  device.queue.writeTexture(
-    { texture: mapYTexture },
-    mapYData,
-    { bytesPerRow: width * 4 },
-    [width, height]
-  );
+  device.queue.writeTexture({ texture: mapYTexture }, mapYData, { bytesPerRow: width * 4 }, [
+    width,
+    height,
+  ]);
 
   // Clean up OpenCV resources
   cameraMatrix.delete();

@@ -41,29 +41,26 @@ interface CssUnskewProps {
 export const CssUnskewedImage: React.FC<CssUnskewProps> = ({
   imageUrl,
   srcPoints = [
-    [480, 700],    // top-left
-    [1655, 950],   // top-right
-    [2173, 3251],  // bottom-right
-    [105, 3388]    // bottom-left
+    [480, 700], // top-left
+    [1655, 950], // top-right
+    [2173, 3251], // bottom-right
+    [105, 3388], // bottom-left
   ],
   dstPoints = [
-    [0, 0],       // top-left
-    [625, 0],     // top-right
-    [625, 1235],  // bottom-right
-    [0, 1235]     // bottom-left
+    [0, 0], // top-left
+    [625, 0], // top-right
+    [625, 1235], // bottom-right
+    [0, 1235], // bottom-left
   ],
-  imageSize = [3070, 4080]
+  imageSize = [3070, 4080],
 }) => {
-  const [transformString, setTransformString] = useState<string>("none");
+  const [transformString, setTransformString] = useState<string>('none');
 
   useEffect(() => {
     // We’ll compute the homography H and build the matrix3d string once the
     // component mounts or props change.
 
-    function solveHomography(
-      src: [number, number][],
-      dst: [number, number][]
-    ): number[] {
+    function solveHomography(src: [number, number][], dst: [number, number][]): number[] {
       // Solve for 8 unknowns in the 3x3 (with h22 = 1)
       const A: number[][] = [];
       const B: number[] = [];
@@ -184,9 +181,15 @@ export const CssUnskewedImage: React.FC<CssUnskewProps> = ({
       //   d4 = m44 = h22
       //
       // So the array is:
-      const h00 = H[0], h01 = H[1], h02 = H[2];
-      const h10 = H[3], h11 = H[4], h12 = H[5];
-      const h20 = H[6], h21 = H[7], h22 = H[8];
+      const h00 = H[0],
+        h01 = H[1],
+        h02 = H[2];
+      const h10 = H[3],
+        h11 = H[4],
+        h12 = H[5];
+      const h20 = H[6],
+        h21 = H[7],
+        h22 = H[8];
 
       // Format them into the matrix3d(...) string
       return `matrix3d(
@@ -199,7 +202,7 @@ export const CssUnskewedImage: React.FC<CssUnskewProps> = ({
 
     // 1) compute 3x3 homography
     const H = solveHomography(srcPoints, dstPoints);
-    console.log('H css', H)
+    console.log('H css', H);
 
     // 2) build matrix3d() string
     const matStr = buildMatrix3dFromH(H);
@@ -217,8 +220,8 @@ export const CssUnskewedImage: React.FC<CssUnskewProps> = ({
     position: 'relative',
     width: '625px',
     height: '1235px',
-    overflow: 'hidden',    // ensures we only see the portion inside
-    border: '1px solid #ccc' // optional, just to visualize
+    overflow: 'hidden', // ensures we only see the portion inside
+    border: '1px solid #ccc', // optional, just to visualize
   };
 
   const imgStyle: React.CSSProperties = {
@@ -230,7 +233,7 @@ export const CssUnskewedImage: React.FC<CssUnskewProps> = ({
     // ensure the <img> is drawn at (width x height),
     // if the image isn't automatically that size:
     width,
-    height
+    height,
   };
 
   return (

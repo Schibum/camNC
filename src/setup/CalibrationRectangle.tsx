@@ -10,7 +10,7 @@ interface CalibrationRectangleProps {
 export const CalibrationRectangle: React.FC<CalibrationRectangleProps> = ({
   points,
   scale,
-  videoToContainerCoords
+  videoToContainerCoords,
 }) => {
   // Only render when all 4 points are selected
   if (points.length !== 4) {
@@ -51,10 +51,10 @@ function arrangePointsInRectangleOrder(points: IPoint[]): IPoint[] {
 
   // Return in order: top-left, top-right, bottom-right, bottom-left
   return [
-    topPoints[0],   // top-left
-    topPoints[1],   // top-right
+    topPoints[0], // top-left
+    topPoints[1], // top-right
     bottomPoints[1], // bottom-right
-    bottomPoints[0]  // bottom-left
+    bottomPoints[0], // bottom-left
   ];
 }
 
@@ -68,7 +68,7 @@ function drawRectangleLines(points: IPoint[], scale: number) {
     borderLeft: 'none',
     pointerEvents: 'none',
     zIndex: 5,
-    transformOrigin: '0 0'
+    transformOrigin: '0 0',
   };
 
   // Create lines connecting the points (4 sides of the rectangle)
@@ -98,7 +98,7 @@ function drawRectangleLines(points: IPoint[], scale: number) {
             top: `${top}px`,
             width: `${width}px`,
             height: '0',
-            borderTop: `${2/scale}px dashed #00FF00`,
+            borderTop: `${2 / scale}px dashed #00FF00`,
           }}
         />
       );
@@ -113,7 +113,7 @@ function drawRectangleLines(points: IPoint[], scale: number) {
             top: `${top}px`,
             width: '0',
             height: `${height}px`,
-            borderLeft: `${2/scale}px dashed #00FF00`,
+            borderLeft: `${2 / scale}px dashed #00FF00`,
           }}
         />
       );
@@ -121,7 +121,9 @@ function drawRectangleLines(points: IPoint[], scale: number) {
       // Diagonal line (should not happen in a rectangle, but just in case)
       // Using SVG for diagonal lines would be better, but this is a fallback
       const length = Math.sqrt(width * width + height * height);
-      const angle = Math.atan2(nextPoint[1] - currentPoint[1], nextPoint[0] - currentPoint[0]) * 180 / Math.PI;
+      const angle =
+        (Math.atan2(nextPoint[1] - currentPoint[1], nextPoint[0] - currentPoint[0]) * 180) /
+        Math.PI;
 
       line = (
         <div
@@ -132,7 +134,7 @@ function drawRectangleLines(points: IPoint[], scale: number) {
             top: `${currentPoint[1]}px`,
             width: `${length}px`,
             height: '0',
-            borderTop: `${2/scale}px dashed #00FF00`,
+            borderTop: `${2 / scale}px dashed #00FF00`,
             transform: `rotate(${angle}deg)`,
             transformOrigin: '0 0',
           }}

@@ -1,12 +1,10 @@
-import React, { useRef, useMemo, useEffect, Suspense } from 'react';
-import { useFrame, useThree} from '@react-three/fiber';
-import { Text } from '@react-three/drei';
+import React, { useRef, useMemo } from 'react';
+import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useUndistortedCanvas, UndistortedTexture } from './useUndistortedCanvas';
 import useContain from './useContain';
 
-interface VideoPlaneProps {
-}
+interface VideoPlaneProps {}
 
 const VideoPlane: React.FC<VideoPlaneProps> = () => {
   const canvas = useUndistortedCanvas();
@@ -19,12 +17,9 @@ const VideoPlane: React.FC<VideoPlaneProps> = () => {
     return new THREE.PlaneGeometry(planeWidth, planeHeight);
   }, [planeWidth, planeHeight]);
 
-
   return (
     <mesh ref={meshRef} geometry={planeGeometry}>
-      <meshBasicMaterial
-        side={THREE.DoubleSide}
-      >
+      <meshBasicMaterial side={THREE.DoubleSide}>
         <UndistortedTexture />
       </meshBasicMaterial>
     </mesh>

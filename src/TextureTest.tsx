@@ -13,13 +13,16 @@ export function TextureTest({ imageUrl }: TextureTestProps) {
 
     // Set up scene
     const scene = new THREE.Scene();
-    const [canvasWidth, canvasHeight] = [containerRef.current.clientWidth, containerRef.current.clientHeight];
+    const [canvasWidth, canvasHeight] = [
+      containerRef.current.clientWidth,
+      containerRef.current.clientHeight,
+    ];
 
     const camera = new THREE.OrthographicCamera(
-      0,              // left
-      1,    // right
-      0,              // top
-      -1,   // bottom
+      0, // left
+      1, // right
+      0, // top
+      -1, // bottom
       1,
       1000
     );
@@ -34,7 +37,7 @@ export function TextureTest({ imageUrl }: TextureTestProps) {
     const geometry = new THREE.PlaneGeometry(2, 2);
     const material = new THREE.MeshBasicMaterial({
       map: texture,
-      side: THREE.DoubleSide
+      side: THREE.DoubleSide,
     });
     const plane = new THREE.Mesh(geometry, material);
     scene.add(plane);
