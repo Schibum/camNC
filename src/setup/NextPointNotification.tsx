@@ -14,7 +14,7 @@ export const NextPointNotification: React.FC<NextPointNotificationProps> = ({
   }
 
   const getNextPointLabel = () => {
-    const nextLabels = ['1: (xmin, ymin)', '2: (xmin, ymax)', '3: (xmax, ymin)', '4: (xmax, ymax)'];
+    const nextLabels = ['1: (xmin, ymin)', '2: (xmin, ymax)', '3: (xmax, ymax)', '4: (xmax, ymin)'];
     return pointCount < 4 ? nextLabels[pointCount] : null;
   };
 

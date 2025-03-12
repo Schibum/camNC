@@ -1,5 +1,4 @@
 import { UnskewedVideoMesh } from '@/calibration/UnskewTsl';
-import { useViewportToWorldScale } from '@/calibration/scaleHooks';
 import { Draggable } from '@/scene/Draggable';
 import { Line } from '@react-three/drei';
 import { ThreeEvent } from '@react-three/fiber';
@@ -57,7 +56,6 @@ function PointsScene({
   const meshRef = useRef<THREE.Mesh>(null);
   const videoSize = useStore(state => state.cameraConfig.dimensions);
   const [isDragging, setIsDragging] = useState(false);
-  const videoToWorldScale = useViewportToWorldScale();
   // Handle placing a new point by clicking on the mesh
   const handlePlacePoint = ({ point, ...e }: ThreeEvent<MouseEvent>) => {
     if (points.length >= 4) return;
@@ -65,20 +63,16 @@ function PointsScene({
     // Stop event propagation
     e.stopPropagation();
 
-    const worldPoint = point.clone().divideScalar(videoToWorldScale);
     // Get intersection point on the mesh
-    console.log('intersectionPoint', worldPoint.x, worldPoint.y);
+    console.log('intersectionPoint', point.x, point.y);
 
-    setPoints([...points, [worldPoint.x, worldPoint.y]]);
+    setPoints([...points, [point.x, point.y]]);
   };
 
   // Convert from video coordinates to Three.js mesh coordinates
-  const videoToMeshCoords = useCallback(
-    (x: number, y: number): [number, number, number] => {
-      return [x * videoToWorldScale, y * videoToWorldScale, 0.01]; // Put points slightly in front of the mesh
-    },
-    [videoToWorldScale]
-  );
+  const videoToMeshCoords = useCallback((x: number, y: number): [number, number, number] => {
+    return [x, y, 0.01]; // Put points slightly in front of the mesh
+  }, []);
 
   // Create line points for the calibration rectangle
   const linePoints = useMemo(() => {
@@ -94,7 +88,7 @@ function PointsScene({
   const handlePointDragEnd = (index: number, position: THREE.Vector3) => {
     if (meshRef.current) {
       const newPoints = [...points];
-      newPoints[index] = [position.x / videoToWorldScale, position.y / videoToWorldScale];
+      newPoints[index] = [position.x, position.y];
       setPoints(newPoints);
     }
   };
@@ -131,7 +125,7 @@ function PointsScene({
             <Crosshair
               position={[0, 0, 0]}
               color={index % 2 === 0 ? '#4287f5' : '#f54242'}
-              size={7}
+              size={25}
             />
           </Draggable>
         );
@@ -146,7 +140,9 @@ function PointsScene({
 }
 
 export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) => {
-  const [points, setPoints] = useState<ITuple[]>([]);
+  const [points, setPoints] = useState<ITuple[]>(
+    useStore(state => state.cameraConfig.machineBoundsInCam)
+  );
   const setMachineBoundsInCam = useStore(state => state.setMachineBoundsInCam);
 
   // Handle saving points
@@ -158,6 +154,10 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
     console.log('points', points);
 
     setMachineBoundsInCam(points as IBox);
+  };
+
+  const handleReset = () => {
+    setPoints([]);
   };
 
   return (
@@ -182,20 +182,13 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
         >
           <PresentCanvas>
             <PointsScene points={points} setPoints={setPoints} />
-
-            <Draggable position={[0, 0, 0]}>
-              <mesh>
-                <boxGeometry args={[10, 10, 1]} />
-                <meshBasicMaterial color="red" />
-              </mesh>
-            </Draggable>
           </PresentCanvas>
         </div>
       </div>
 
       {/* Action buttons for reset and save */}
       <ActionButtons
-        onReset={() => null}
+        onReset={handleReset}
         onSave={handleSave}
         canSave={points.length === 4}
         saveDisabled={false}

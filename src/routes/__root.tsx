@@ -27,13 +27,21 @@ function RootComponent() {
           About
         </Link>{' '}
         <Link
-          to="/setup"
+          to="/setup/url-entry"
           activeProps={{
             className: 'font-bold',
           }}
         >
-          Setup
+          Camera URL
         </Link>{' '}
+        <Link
+          to="/setup/point-selection"
+          activeProps={{
+            className: 'font-bold',
+          }}
+        >
+          Machine Bounds
+        </Link>
         <Link
           to="/visualize"
           activeProps={{

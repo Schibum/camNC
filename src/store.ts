@@ -1,8 +1,10 @@
-import { useThree } from '@react-three/fiber';
 import { create } from 'zustand';
 import { combine, persist } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import { CalibrationData } from './calibration/undistort';
+import { buildMatrix4FromHomography } from './math/perspectiveTransform';
+import { computeHomography } from './math/perspectiveTransform';
+import { Matrix4 } from 'three';
 
 // Types from atoms.tsx
 export type ITuple = [number, number];
@@ -62,7 +64,7 @@ export const useStore = create(persist(immer(combine(
     cameraConfig: defaultCameraConfig,
     calibrationData: defaultCalibrationData,
   },
-  set =>({
+  set => ({
     setVideoDimensions: (dimensions: ITuple) => set(state => {
       state.cameraConfig.dimensions = dimensions;
     }),
@@ -89,3 +91,30 @@ export const useVideoDimensions = () => useStore(state => state.cameraConfig.dim
 export const useCameraConfig = () => useStore(state => state.cameraConfig);
 export const useCalibrationData = () => useStore(state => state.calibrationData);
 
+// Returns the usable size of the machine boundary in mm [xrange, yrange].
+// Computed as xmax - xmin, ymax - ymin.
+export function useMachineSize(): ITuple {
+  const bounds = useStore(state => state.cameraConfig.machineBounds);
+  return [bounds[1][0] - bounds[0][0], bounds[1][1] - bounds[0][1]];
+}
+
+/**
+ * Returns the homography matrix that maps video coordinates to machine coordinates.
+ * This is used to flatten the video to the machine plane.
+ */
+export function useVideoToMachineHomography() {
+  const machineBoundsInCam = useStore(state => state.cameraConfig.machineBoundsInCam);
+  const mp = useStore(state => state.cameraConfig.machineBounds);
+  const dstPoints = [
+    [mp[0][0], mp[0][1]], // xmin, ymin
+    [mp[0][0], mp[1][1]], // xmin, ymax
+    [mp[1][0], mp[1][1]], // xmax, ymax
+    [mp[1][0], mp[0][1]], // xmax, ymin
+  ] as IBox;
+  const H = computeHomography(machineBoundsInCam, dstPoints);
+  const M = new Matrix4().fromArray(buildMatrix4FromHomography(H));
+  return M;
+}
+
+// Transformation to scale machine bounds full-size ()
+function machineToViewTransform() {}

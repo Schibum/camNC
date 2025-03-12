@@ -26,7 +26,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
           cursor: 'pointer',
         }}
       >
-        Back to URL Entry
+        Reset
       </button>
 
       {canSave && (
