@@ -33,8 +33,8 @@ export function Draggable({
       onDrag: ({ xy: [x, y], event }) => {
         event.stopPropagation();
         // Compute normalized mouse coordinates (screen space)
-        const nx = (x / size.width) * 2 - 1;
-        const ny = (-y / size.height) * 2 + 1;
+        const nx = ((x - size.left) / size.width) * 2 - 1;
+        const ny = -((y - size.top) / size.height) * 2 + 1;
         // Unlike the mouse from useThree, this works offscreen
         mouse2D.set(nx, ny);
 

@@ -1,12 +1,12 @@
 import React from 'react';
-import { IPoint } from '../atoms';
+import { ITuple } from '../store';
 
 interface PointMarkerProps {
   x: number;
   y: number;
   index: number;
   scale: number;
-  videoToContainerCoords: (videoX: number, videoY: number) => IPoint;
+  videoToContainerCoords: (videoX: number, videoY: number) => ITuple;
   onMouseDown: (index: number, e: React.MouseEvent) => void;
 }
 

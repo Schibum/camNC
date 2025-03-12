@@ -3,8 +3,18 @@
   "singleQuote": true,
   "tabWidth": 2,
   "trailingComma": "es5",
-  "printWidth": 100,
+  "printWidth": 140,
   "arrowParens": "avoid",
   "bracketSpacing": true,
-  "endOfLine": "auto"
+  "endOfLine": "auto",
+  "bracketSameLine": true,
+  "embeddedLanguageFormatting": "auto",
+  "overrides": [
+    {
+      "files": "src/store.ts",
+      "options": {
+        "printWidth": 200
+      }
+    }
+  ]
 }

@@ -4,7 +4,7 @@ import { ActionButtons } from './ActionButtons';
 import { NextPointNotification } from './NextPointNotification';
 import { CalibrationRectangle } from './CalibrationRectangle';
 import { PointMarker } from './PointMarker';
-import { IBox, IPoint } from '../atoms';
+import { IBox, ITuple } from '../store';
 
 interface PointSelectionStepProps {
   url: string;
@@ -21,7 +21,7 @@ export const PointSelectionStep: React.FC<PointSelectionStepProps> = ({
   onReset,
   onVideoLoad,
 }) => {
-  const [points, setPoints] = useState<IPoint[]>(initialPoints);
+  const [points, setPoints] = useState<ITuple[]>(initialPoints);
   const [videoSize, setVideoSize] = useState({ width: 0, height: 0 });
   const [videoDisplayRect, setVideoDisplayRect] = useState({ x: 0, y: 0, width: 0, height: 0 });
 
@@ -132,7 +132,7 @@ export const PointSelectionStep: React.FC<PointSelectionStepProps> = ({
   }, [scale, translate]); // Re-add listener when scale or translate changes
 
   // Convert container coordinates to video coordinates based on visible video area
-  const containerToVideoCoords = (containerX: number, containerY: number): IPoint => {
+  const containerToVideoCoords = (containerX: number, containerY: number): ITuple => {
     // Get the coordinates in the transformed/scaled container space
     const x = (containerX - translate.x) / scale;
     const y = (containerY - translate.y) / scale;
@@ -156,7 +156,7 @@ export const PointSelectionStep: React.FC<PointSelectionStepProps> = ({
   };
 
   // Convert video coordinates to container coordinates for display
-  const videoToContainerCoords = (videoX: number, videoY: number): IPoint => {
+  const videoToContainerCoords = (videoX: number, videoY: number): ITuple => {
     if (videoDisplayRect.width && videoDisplayRect.height && videoSize.width && videoSize.height) {
       // Normalize to 0-1 range based on source video dimensions
       const normalizedX = videoX / videoSize.width;
@@ -209,7 +209,7 @@ export const PointSelectionStep: React.FC<PointSelectionStepProps> = ({
       const videoCoords = containerToVideoCoords(mouseX, mouseY);
 
       // Validate that coordinates are within video bounds
-      const boundedCoords: IPoint = [
+      const boundedCoords: ITuple = [
         Math.max(0, Math.min(videoSize.width, videoCoords[0])),
         Math.max(0, Math.min(videoSize.height, videoCoords[1])),
       ];
@@ -245,7 +245,7 @@ export const PointSelectionStep: React.FC<PointSelectionStepProps> = ({
       const videoCoords = containerToVideoCoords(mouseX, mouseY);
 
       // Validate that coordinates are within video bounds
-      const boundedCoords: IPoint = [
+      const boundedCoords: ITuple = [
         Math.max(0, Math.min(videoSize.width, videoCoords[0])),
         Math.max(0, Math.min(videoSize.height, videoCoords[1])),
       ];

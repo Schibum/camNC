@@ -1,10 +1,10 @@
 import React from 'react';
-import { IPoint } from '../atoms';
+import { ITuple } from '../store';
 
 interface CalibrationRectangleProps {
-  points: IPoint[];
+  points: ITuple[];
   scale: number;
-  videoToContainerCoords: (videoX: number, videoY: number) => IPoint;
+  videoToContainerCoords: (videoX: number, videoY: number) => ITuple;
 }
 
 export const CalibrationRectangle: React.FC<CalibrationRectangleProps> = ({
@@ -32,7 +32,7 @@ export const CalibrationRectangle: React.FC<CalibrationRectangleProps> = ({
 };
 
 // Helper function to arrange points in rectangle order
-function arrangePointsInRectangleOrder(points: IPoint[]): IPoint[] {
+function arrangePointsInRectangleOrder(points: ITuple[]): ITuple[] {
   // Clone points to avoid modifying the original array
   const result = [...points];
 
@@ -59,7 +59,7 @@ function arrangePointsInRectangleOrder(points: IPoint[]): IPoint[] {
 }
 
 // Draw rectangle lines connecting the points
-function drawRectangleLines(points: IPoint[], scale: number) {
+function drawRectangleLines(points: ITuple[], scale: number) {
   // Define style for lines
   const lineStyle: React.CSSProperties = {
     position: 'absolute',

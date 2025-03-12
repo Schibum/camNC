@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { useAtomValue } from 'jotai';
 import { suspend } from 'suspend-react';
 import { CameraUndistorter } from './undistort';
 import { useFrame } from '@react-three/fiber';
-import { calibrationDataAtom, videoSrcAtom } from '../atoms';
+import { useVideoSrc, useCalibrationData } from '../store';
 import * as THREE from 'three';
 import { waitForOpenCvGlobal } from './waitForOpenCvGlobal';
 
@@ -33,7 +32,7 @@ const useVideoFrame = (video: HTMLVideoElement, f?: VideoFrameRequestCallback) =
 };
 
 function useLoadedVideo() {
-  const videoSrc = useAtomValue(videoSrcAtom);
+  const videoSrc = useVideoSrc();
   const video = suspend(
     () =>
       new Promise<HTMLVideoElement>(resolve => {
@@ -56,7 +55,7 @@ function useLoadedVideo() {
 
 export function useUndistortedCanvas() {
   const video = useLoadedVideo();
-  const calibrationData = useAtomValue(calibrationDataAtom);
+  const calibrationData = useCalibrationData();
   // This is a global cache that is currently never disposed of.
   // We may want to move it to a state (async atom?)
   const [undistorter, canvas] = suspend(async () => {

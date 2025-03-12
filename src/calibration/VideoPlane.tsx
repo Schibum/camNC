@@ -2,7 +2,7 @@ import React, { useRef, useMemo } from 'react';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useUndistortedCanvas, UndistortedTexture } from './useUndistortedCanvas';
-import useContain from './useContain';
+import { useContain } from './scaleHooks';
 
 interface VideoPlaneProps {}
 

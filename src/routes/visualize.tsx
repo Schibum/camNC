@@ -1,14 +1,13 @@
+import { UnskewedVideoMesh } from '@/calibration/UnskewTsl';
 import { OrbitControls } from '@react-three/drei';
-import { Canvas, useThree } from '@react-three/fiber';
+import { useThree } from '@react-three/fiber';
 import { createFileRoute } from '@tanstack/react-router';
-import { useAtomValue } from 'jotai';
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { Matrix4, Vector3 } from 'three';
-import { UndistortedTexture } from '@/calibration/useUndistortedCanvas';
-import { cameraConfigAtom, IBox } from '../atoms';
 import { buildMatrix4FromHomography, computeHomography } from '../math/perspectiveTransform';
-import { UnskewedVideoMesh } from '@/calibration/UnskewTsl';
+import { useStore, type IBox } from '../store';
+import { PresentCanvas } from '@/scene/PresentCanvas';
 
 export const Route = createFileRoute('/visualize')({
   component: VisualizeComponent,
@@ -21,7 +20,7 @@ interface SceneProps {
 }
 
 function VisualizeComponent() {
-  const camConfig = useAtomValue(cameraConfigAtom);
+  const camConfig = useStore(state => state.cameraConfig);
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
 
   useEffect(() => {
@@ -65,23 +64,10 @@ function VisualizeComponent() {
   return (
     <div className="p-2">
       <div style={{ width: canvasW, height: canvasH }}>
-        {/* <Canvas
-          gl={{ antialias: true, outputColorSpace: THREE.SRGBColorSpace }}
-        >
-          <OrthographicCamera makeDefault position={[0, 0, 1.5]} zoom={1} near={0.1} far={100}>
-            <color attach="background" args={[0x1111ff]} />
-          </OrthographicCamera> */}
-        <Canvas
-          orthographic
-          camera={{
-            near: -1000,
-            far: 1000,
-          }}
-          gl={{ antialias: true, outputColorSpace: THREE.SRGBColorSpace }}
-        >
+        <PresentCanvas>
           <color attach="background" args={[0x1111ff]} />
           {videoElement && <Scene video={videoElement} camConfig={camConfig} />}
-        </Canvas>
+        </PresentCanvas>
       </div>
     </div>
   );
