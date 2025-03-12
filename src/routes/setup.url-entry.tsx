@@ -1,7 +1,6 @@
 import * as React from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useAtom } from 'jotai';
-import { videoSrcAtom } from '../atoms';
+import { useStore } from '../store';
 import { UrlEntryStep } from '../setup/UrlEntryStep';
 
 export const Route = createFileRoute('/setup/url-entry')({
@@ -10,7 +9,8 @@ export const Route = createFileRoute('/setup/url-entry')({
 
 function UrlEntryComponent() {
   const navigate = useNavigate();
-  const [videoSrc, setVideoSrc] = useAtom(videoSrcAtom);
+  const videoSrc = useStore(state => state.cameraConfig?.url || '');
+  const setVideoSrc = useStore(state => state.setVideoSrc);
 
   const handleUrlConfirm = (streamUrl: string) => {
     setVideoSrc(streamUrl);

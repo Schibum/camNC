@@ -1,12 +1,10 @@
-import { calibrationDataAtom, videoSrcAtom } from '@/atoms';
-import { OrbitControls, Text, useVideoTexture } from '@react-three/drei';
-import { Canvas } from '@react-three/fiber';
-import { useAtomValue } from 'jotai';
-import React, { useMemo, useRef } from 'react';
+import { useCalibrationData, useStore, useVideoSrc } from '@/store';
+import { useVideoTexture } from '@react-three/drei';
+import React, { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { CalibrationData } from './undistort';
 import { waitForOpenCvGlobal } from './waitForOpenCvGlobal';
-import useContain from './useContain';
+import { PresentCanvas } from '@/scene/PresentCanvas';
 
 interface UnskewTslProps {
   width?: number;
@@ -197,12 +195,10 @@ const UndistortMesh = React.forwardRef<
     }
   `;
 
-  const containSize = useContain(videoDimensions.width, videoDimensions.height);
-
   // Plane geometry with correct aspect ratio
   const planeGeometry = useMemo(() => {
-    return new THREE.PlaneGeometry(containSize.planeWidth, containSize.planeHeight);
-  }, [videoDimensions, containSize]);
+    return new THREE.PlaneGeometry(videoDimensions.width, videoDimensions.height);
+  }, [videoDimensions]);
 
   return (
     <mesh ref={actualRef} geometry={planeGeometry}>
@@ -225,9 +221,9 @@ UndistortMesh.displayName = 'UndistortMesh';
 
 // New UnskewedVideoMesh component to load video texture
 export const UnskewedVideoMesh = React.forwardRef<THREE.Mesh>((props, ref) => {
-  const calibrationData = useAtomValue(calibrationDataAtom);
-  const videoSrc = useAtomValue(videoSrcAtom);
-
+  const calibrationData = useCalibrationData();
+  const videoSrc = useVideoSrc();
+  const setVideoDimensions = useStore(state => state.setVideoDimensions);
   // Use drei's useVideoTexture hook to load video texture
   const videoTexture = useVideoTexture(videoSrc, {
     crossOrigin: 'anonymous',
@@ -235,6 +231,9 @@ export const UnskewedVideoMesh = React.forwardRef<THREE.Mesh>((props, ref) => {
     loop: true,
     start: true,
   });
+  useEffect(() => {
+    setVideoDimensions([videoTexture.image.videoWidth, videoTexture.image.videoHeight]);
+  }, [videoTexture.image.videoWidth, videoTexture.image.videoHeight, setVideoDimensions]);
 
   return <UndistortMesh ref={ref} videoTexture={videoTexture} calibrationData={calibrationData} />;
 });
@@ -245,7 +244,7 @@ UnskewedVideoMesh.displayName = 'UnskewedVideoMesh';
 // Main component
 const UnskewTsl: React.FC<UnskewTslProps> = ({ width = 800, height = 600 }) => {
   // Handle missing calibration data - calibrationData is now passed through UnskewedVideoMesh
-  const calibrationData = useAtomValue(calibrationDataAtom);
+  const calibrationData = useCalibrationData();
   if (
     !calibrationData ||
     !calibrationData.calibration_matrix ||
@@ -260,7 +259,7 @@ const UnskewTsl: React.FC<UnskewTslProps> = ({ width = 800, height = 600 }) => {
   }
 
   // Handle missing video source - videoSrc is now handled in UnskewedVideoMesh
-  const videoSrc = useAtomValue(videoSrcAtom);
+  const videoSrc = useVideoSrc();
   if (!videoSrc) {
     return (
       <div className="p-4 text-red-500 bg-red-50 border border-red-200 rounded">
@@ -272,55 +271,11 @@ const UnskewTsl: React.FC<UnskewTslProps> = ({ width = 800, height = 600 }) => {
 
   return (
     <div style={{ width, height }}>
-      <Canvas
-        orthographic
-        camera={{ near: -1000, far: 1000 }}
-        gl={{ antialias: true, outputColorSpace: THREE.SRGBColorSpace }}
-      >
-        <ErrorBoundary fallback={<FallbackContent />}>
-          <UnskewedVideoMesh />
-          <OrbitControls enableRotate={false} enablePan={true} enableZoom={true} />
-        </ErrorBoundary>
-      </Canvas>
+      <PresentCanvas>
+        <UnskewedVideoMesh />
+      </PresentCanvas>
     </div>
   );
 };
-
-// Error boundary component to catch errors in Three.js
-class ErrorBoundary extends React.Component<
-  { children: React.ReactNode; fallback: React.ReactNode },
-  { hasError: boolean }
-> {
-  constructor(props: { children: React.ReactNode; fallback: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error: any, errorInfo: any) {
-    console.error('Error in Three.js component:', error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return this.props.fallback;
-    }
-    return this.props.children;
-  }
-}
-
-// Fallback content for when the Three.js component errors
-const FallbackContent = () => (
-  <mesh>
-    <planeGeometry args={[2, 2]} />
-    <meshBasicMaterial color="red" />
-    <Text position={[0, 0, 0.1]} fontSize={0.1} color="white">
-      Error loading video texture
-    </Text>
-  </mesh>
-);
 
 export default UnskewTsl;
