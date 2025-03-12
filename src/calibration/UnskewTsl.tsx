@@ -1,6 +1,7 @@
 import { useCalibrationData, useStore, useVideoSrc } from '@/store';
 import { useVideoTexture } from '@react-three/drei';
 import React, { useEffect, useMemo, useRef } from 'react';
+import { type ThreeElements } from '@react-three/fiber';
 import * as THREE from 'three';
 import { CalibrationData } from './undistort';
 import { waitForOpenCvGlobal } from './waitForOpenCvGlobal';
@@ -95,8 +96,8 @@ const UndistortMesh = React.forwardRef<
   {
     videoTexture: THREE.VideoTexture;
     calibrationData: CalibrationData;
-  }
->(({ videoTexture, calibrationData }, ref) => {
+  } & ThreeElements['mesh']
+>(({ videoTexture, calibrationData, ...props }, ref) => {
   const meshRef = useRef<THREE.Mesh>(null);
 
   // Merge refs - use the forwarded ref if available, otherwise use the internal one
@@ -201,7 +202,7 @@ const UndistortMesh = React.forwardRef<
   }, [videoDimensions]);
 
   return (
-    <mesh ref={actualRef} geometry={planeGeometry}>
+    <mesh {...props} ref={actualRef} geometry={planeGeometry}>
       <shaderMaterial
         fragmentShader={fragmentShader}
         vertexShader={vertexShader}
@@ -220,23 +221,32 @@ const UndistortMesh = React.forwardRef<
 UndistortMesh.displayName = 'UndistortMesh';
 
 // New UnskewedVideoMesh component to load video texture
-export const UnskewedVideoMesh = React.forwardRef<THREE.Mesh>((props, ref) => {
-  const calibrationData = useCalibrationData();
-  const videoSrc = useVideoSrc();
-  const setVideoDimensions = useStore(state => state.setVideoDimensions);
-  // Use drei's useVideoTexture hook to load video texture
-  const videoTexture = useVideoTexture(videoSrc, {
-    crossOrigin: 'anonymous',
-    muted: true,
-    loop: true,
-    start: true,
-  });
-  useEffect(() => {
-    setVideoDimensions([videoTexture.image.videoWidth, videoTexture.image.videoHeight]);
-  }, [videoTexture.image.videoWidth, videoTexture.image.videoHeight, setVideoDimensions]);
+export const UnskewedVideoMesh = React.forwardRef<THREE.Mesh, ThreeElements['mesh']>(
+  (props, ref) => {
+    const calibrationData = useCalibrationData();
+    const videoSrc = useVideoSrc();
+    const setVideoDimensions = useStore(state => state.setVideoDimensions);
+    // Use drei's useVideoTexture hook to load video texture
+    const videoTexture = useVideoTexture(videoSrc, {
+      crossOrigin: 'anonymous',
+      muted: true,
+      loop: true,
+      start: true,
+    });
+    useEffect(() => {
+      setVideoDimensions([videoTexture.image.videoWidth, videoTexture.image.videoHeight]);
+    }, [videoTexture.image.videoWidth, videoTexture.image.videoHeight, setVideoDimensions]);
 
-  return <UndistortMesh ref={ref} videoTexture={videoTexture} calibrationData={calibrationData} />;
-});
+    return (
+      <UndistortMesh
+        {...props}
+        ref={ref}
+        videoTexture={videoTexture}
+        calibrationData={calibrationData}
+      />
+    );
+  }
+);
 
 // Add display name for debugging
 UnskewedVideoMesh.displayName = 'UnskewedVideoMesh';

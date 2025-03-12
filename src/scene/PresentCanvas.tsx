@@ -1,6 +1,7 @@
-import { useViewportToWorldScale } from '@/calibration/scaleHooks';
+import { useViewportToVideoScale, useViewPortToMachineScale } from '@/calibration/scaleHooks';
 import { OrbitControls, Text } from '@react-three/drei';
 import { Canvas, useThree } from '@react-three/fiber';
+import { useEffect } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import * as THREE from 'three';
 
@@ -17,11 +18,17 @@ const FallbackContent = ({ error }: { error: Error }) => (
   </mesh>
 );
 
-function DefaultControls() {
-  const minZoom = useViewportToWorldScale();
+type IWorldScale = 'video' | 'machine';
+
+function DefaultControls({ worldScale }: { worldScale: IWorldScale }) {
+  const minZoom = worldScale === 'video' ? useViewportToVideoScale() : useViewPortToMachineScale();
   const camera = useThree(state => state.camera);
-  camera.zoom = minZoom;
-  camera.updateProjectionMatrix();
+  useEffect(() => {
+    camera.zoom = minZoom;
+    camera.updateProjectionMatrix();
+    // only set initial zoom once
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <OrbitControls
@@ -34,7 +41,13 @@ function DefaultControls() {
   );
 }
 
-export const PresentCanvas = ({ children }: { children: React.ReactNode }) => {
+export const PresentCanvas = ({
+  worldScale = 'video',
+  children,
+}: {
+  worldScale?: IWorldScale;
+  children: React.ReactNode;
+}) => {
   return (
     <Canvas
       orthographic
@@ -42,7 +55,7 @@ export const PresentCanvas = ({ children }: { children: React.ReactNode }) => {
       gl={{ antialias: true, outputColorSpace: THREE.SRGBColorSpace }}
     >
       <color attach="background" args={[0x1111ff]} />
-      <DefaultControls />
+      <DefaultControls worldScale={worldScale} />
       <ErrorBoundary FallbackComponent={FallbackContent}>{children}</ErrorBoundary>
     </Canvas>
   );
