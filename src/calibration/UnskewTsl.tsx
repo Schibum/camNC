@@ -4,8 +4,8 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { type ThreeElements } from '@react-three/fiber';
 import * as THREE from 'three';
 import { CalibrationData } from './undistort';
-import { waitForOpenCvGlobal } from './waitForOpenCvGlobal';
 import { PresentCanvas } from '@/scene/PresentCanvas';
+import { initUndistortRectifyMapTyped, Matrix3x3 } from './rectifyMap';
 
 interface UnskewTslProps {
   width?: number;
@@ -24,68 +24,25 @@ async function calculateUndistortionMaps(
   width: number,
   height: number
 ): Promise<[Float32Array, Float32Array]> {
-  // Wait for OpenCV to be loaded
-  await waitForOpenCvGlobal();
-  const cv = (window as any).cv;
-
   // Extract camera matrix and distortion coefficients
   const { calibration_matrix, distortion_coefficients } = calibrationData;
 
-  // Create camera matrix
-  const cameraMatrix = cv.matFromArray(3, 3, cv.CV_64F, [
-    calibration_matrix[0][0],
-    calibration_matrix[0][1],
-    calibration_matrix[0][2],
-    calibration_matrix[1][0],
-    calibration_matrix[1][1],
-    calibration_matrix[1][2],
-    calibration_matrix[2][0],
-    calibration_matrix[2][1],
-    calibration_matrix[2][2],
-  ]);
+  const R: Matrix3x3 = [
+    [1, 0, 0],
+    [0, 1, 0],
+    [0, 0, 1],
+  ];
+  const startTime = performance.now();
 
-  // Create distortion coefficients
-  const distCoeffs = cv.matFromArray(1, 5, cv.CV_64F, [
-    distortion_coefficients[0][0],
-    distortion_coefficients[0][1],
-    distortion_coefficients[0][2],
-    distortion_coefficients[0][3],
-    distortion_coefficients[0][4] || 0,
-  ]);
-
-  // Create maps
-  const map1 = new cv.Mat();
-  const map2 = new cv.Mat();
-
-  // Initialize undistortion maps
-  cv.initUndistortRectifyMap(
-    cameraMatrix,
-    distCoeffs,
-    new cv.Mat(), // R - identity rotation
-    cameraMatrix,
-    new cv.Size(width, height),
-    cv.CV_32FC1,
-    map1,
-    map2
+  const { map1: mapXArray, map2: mapYArray } = initUndistortRectifyMapTyped(
+    calibration_matrix as Matrix3x3,
+    distortion_coefficients[0],
+    R,
+    calibration_matrix as Matrix3x3,
+    { width, height }
   );
-
-  // Convert OpenCV maps to Float32Arrays
-  const mapXArray = new Float32Array(width * height);
-  const mapYArray = new Float32Array(width * height);
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const index = y * width + x;
-      mapXArray[index] = map1.floatAt(y, x);
-      mapYArray[index] = map2.floatAt(y, x);
-    }
-  }
-
-  // Clean up OpenCV matrices
-  cameraMatrix.delete();
-  distCoeffs.delete();
-  map1.delete();
-  map2.delete();
+  const endTime = performance.now();
+  console.log(`Time taken to calculate undistortion maps: ${endTime - startTime} milliseconds`);
 
   return [mapXArray, mapYArray];
 }
