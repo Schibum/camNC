@@ -1,6 +1,11 @@
 import { UnskewedVideoMesh } from '@/calibration/UnskewTsl';
 import { createFileRoute } from '@tanstack/react-router';
-import { useMachineSize, useVideoToMachineHomography } from '../store';
+import {
+  useMachineSize,
+  useVideoToMachineHomography,
+  useToolDiameter,
+  useSetToolDiameter,
+} from '../store';
 import { PresentCanvas } from '@/scene/PresentCanvas';
 import { GCodeSelector } from '@/visualize/GCodeSelector';
 import { GCodeVisualizer } from '@/visualize/GCodeVisualizer';
@@ -27,6 +32,8 @@ function VisualizeComponent() {
   const [showRapidMoves, setShowRapidMoves] = useState(false);
   const [showCuttingMoves, setShowCuttingMoves] = useState(true);
   const [selectedGCode, setSelectedGCode] = useState<string>(gcodeOptions[1].gcode);
+  const toolDiameter = useToolDiameter();
+  const setToolDiameter = useSetToolDiameter();
 
   // Extract basic information from GCode
   const gcodeInfo = useMemo(() => {
@@ -91,6 +98,19 @@ function VisualizeComponent() {
                   className="h-4 w-4"
                 />
                 <span>Show Cutting Moves (G1/G2/G3)</span>
+              </label>
+
+              <label className="flex items-center space-x-2">
+                <span>Tool Diameter (mm):</span>
+                <input
+                  type="number"
+                  min="0.1"
+                  max="50"
+                  step="0.1"
+                  value={toolDiameter}
+                  onChange={e => setToolDiameter(parseFloat(e.target.value))}
+                  className="w-16 px-1 py-0 border rounded"
+                />
               </label>
             </>
           )}

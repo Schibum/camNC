@@ -6,7 +6,6 @@ interface ToolpathsProps {
     string,
     { rapid: THREE.ShapeGeometry[]; cutting: THREE.ShapeGeometry[] }
   >;
-  tools: Record<string, { diameter: number; color: string }>;
   zScaleFactor: number;
   getColorForZ: (zHeight: number) => THREE.Color;
   showRapidMoves: boolean;
@@ -15,7 +14,6 @@ interface ToolpathsProps {
 
 export const Toolpaths: React.FC<ToolpathsProps> = ({
   toolpathGeometries,
-  tools,
   zScaleFactor,
   getColorForZ,
   showRapidMoves,
@@ -25,7 +23,6 @@ export const Toolpaths: React.FC<ToolpathsProps> = ({
     <>
       {Object.entries(toolpathGeometries).map(([toolNumberStr, geometries]) => {
         const toolNumber = parseInt(toolNumberStr, 10);
-        const tool = tools[toolNumberStr] || { diameter: 6, color: 'white' };
 
         return (
           <group key={`tool-${toolNumber}`}>

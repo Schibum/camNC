@@ -29,34 +29,6 @@ export interface ParsedGCode {
 }
 
 /**
- * Extract tool information from GCode comments
- */
-export function extractToolsFromGCode(gcode: string): Record<string, Tool> {
-  const toolsRegex = /[;(]\s*T(\d+)\s+D=(\d+(\.\d+)?)/g;
-  const tools: Record<string, Tool> = {};
-  let match;
-
-  while ((match = toolsRegex.exec(gcode)) !== null) {
-    const toolNumber = match[1];
-    const diameter = parseFloat(match[2]);
-
-    tools[toolNumber] = {
-      number: parseInt(toolNumber, 10),
-      diameter,
-      // Assign different colors to different tools
-      color: `hsl(${(parseInt(toolNumber, 10) * 137) % 360}, 70%, 50%)`,
-    };
-  }
-
-  // Default tool if none found
-  if (Object.keys(tools).length === 0) {
-    tools['1'] = { number: 1, diameter: 6, color: 'hsl(0, 70%, 50%)' };
-  }
-
-  return tools;
-}
-
-/**
  * Parse GCode string into toolpath segments
  */
 export function parseGCode(gcode: string): ParsedGCode {
@@ -260,13 +232,19 @@ export function groupSegmentsByZ(segments: ToolpathSegment[]): Record<number, To
  */
 export function createToolpathGeometries(
   segmentsByTool: Record<number, { rapid: ToolpathSegment[]; cutting: ToolpathSegment[] }>,
-  tools: Record<string, Tool>
+  toolDiameter: number
 ): Record<string, { rapid: THREE.ShapeGeometry[]; cutting: THREE.ShapeGeometry[] }> {
   const result: Record<string, { rapid: THREE.ShapeGeometry[]; cutting: THREE.ShapeGeometry[] }> =
     {};
 
   Object.entries(segmentsByTool).forEach(([toolNumber, segments]) => {
-    const tool = tools[toolNumber] || { diameter: 6 };
+    // Create a tool with the diameter from the store
+    const tool = {
+      diameter: toolDiameter,
+      color: `hsl(${(parseInt(toolNumber, 10) * 137) % 360}, 70%, 50%)`,
+      number: parseInt(toolNumber, 10),
+    };
+
     const halfWidth = tool.diameter / 2;
 
     result[toolNumber] = {
