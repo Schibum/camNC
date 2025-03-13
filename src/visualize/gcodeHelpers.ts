@@ -233,3 +233,174 @@ export function groupSegmentsByTool(
 
   return result;
 }
+
+/**
+ * Group toolpath segments by z-height
+ */
+export function groupSegmentsByZ(segments: ToolpathSegment[]): Record<number, ToolpathSegment[]> {
+  const result: Record<number, ToolpathSegment[]> = {};
+
+  segments.forEach(segment => {
+    // Use the z-height of the starting point as the layer identifier
+    // Round to 3 decimal places to handle floating point imprecision
+    const zHeight = Math.round(segment.v1.z * 1000) / 1000;
+
+    if (!result[zHeight]) {
+      result[zHeight] = [];
+    }
+
+    result[zHeight].push(segment);
+  });
+
+  return result;
+}
+
+/**
+ * Create THREE.Shape geometries for toolpath segments
+ */
+export function createToolpathGeometries(
+  segmentsByTool: Record<number, { rapid: ToolpathSegment[]; cutting: ToolpathSegment[] }>,
+  tools: Record<string, Tool>
+): Record<string, { rapid: THREE.ShapeGeometry[]; cutting: THREE.ShapeGeometry[] }> {
+  const result: Record<string, { rapid: THREE.ShapeGeometry[]; cutting: THREE.ShapeGeometry[] }> =
+    {};
+
+  Object.entries(segmentsByTool).forEach(([toolNumber, segments]) => {
+    const tool = tools[toolNumber] || { diameter: 6 };
+    const halfWidth = tool.diameter / 2;
+
+    result[toolNumber] = {
+      rapid: [],
+      cutting: [],
+    };
+
+    // Process rapid movements by grouping them by z-height
+    const rapidByZ = groupSegmentsByZ(segments.rapid);
+    Object.entries(rapidByZ).forEach(([zHeight, zSegments]) => {
+      // For each segment in this z-height, create a separate shape
+      zSegments.forEach(segment => {
+        const points = generateArcPoints(segment, segment.isArc ? 16 : 2);
+
+        // Skip segments that are too short
+        if (points.length < 2) return;
+
+        // Create a shape for this path
+        const shape = new THREE.Shape();
+
+        // Calculate direction vector for the segment
+        const p1 = points[0];
+        const p2 = points[points.length - 1];
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const length = Math.sqrt(dx * dx + dy * dy);
+
+        if (length <= 0) return;
+
+        // Create a path with proper thickness
+        const perpX = -dy / length;
+        const perpY = dx / length;
+
+        // Start with a straight segment
+        const path = [];
+
+        // Add points along one side
+        for (let i = 0; i < points.length; i++) {
+          const p = points[i];
+          path.push(new THREE.Vector2(p.x + perpX * halfWidth, p.y + perpY * halfWidth));
+        }
+
+        // Go back along the other side
+        for (let i = points.length - 1; i >= 0; i--) {
+          const p = points[i];
+          path.push(new THREE.Vector2(p.x - perpX * halfWidth, p.y - perpY * halfWidth));
+        }
+
+        // Create the shape
+        shape.moveTo(path[0].x, path[0].y);
+        for (let i = 1; i < path.length; i++) {
+          shape.lineTo(path[i].x, path[i].y);
+        }
+        shape.closePath();
+
+        // Create the shape geometry and store z-height in userData
+        const geometry = new THREE.ShapeGeometry(shape);
+        geometry.userData = { zHeight: parseFloat(zHeight) };
+        result[toolNumber].rapid.push(geometry);
+      });
+    });
+
+    // Process cutting movements by grouping them by z-height
+    const cuttingByZ = groupSegmentsByZ(segments.cutting);
+    Object.entries(cuttingByZ).forEach(([zHeight, zSegments]) => {
+      // For each segment in this z-height, create a separate shape
+      zSegments.forEach(segment => {
+        const points = generateArcPoints(segment, segment.isArc ? 16 : 2);
+
+        // Skip segments that are too short
+        if (points.length < 2) return;
+
+        // Create a shape for this path
+        const shape = new THREE.Shape();
+
+        // Calculate direction and perpendicular vectors
+        const startIdx = 0;
+        const endIdx = points.length - 1;
+        const startPoint = points[startIdx];
+        const endPoint = points[endIdx];
+
+        // For arc segments, use more accurate direction calculation
+        const perpXs: number[] = [];
+        const perpYs: number[] = [];
+
+        // Calculate perpendicular vectors for each segment
+        for (let i = 0; i < points.length - 1; i++) {
+          const p1 = points[i];
+          const p2 = points[i + 1];
+          const dx = p2.x - p1.x;
+          const dy = p2.y - p1.y;
+          const len = Math.sqrt(dx * dx + dy * dy);
+
+          if (len > 0) {
+            perpXs.push(-dy / len);
+            perpYs.push(dx / len);
+          } else {
+            // If segment is too short, use previous perp vector or default
+            perpXs.push(perpXs.length > 0 ? perpXs[perpXs.length - 1] : 0);
+            perpYs.push(perpYs.length > 0 ? perpYs[perpYs.length - 1] : 1);
+          }
+        }
+
+        // For the last point, use the last perpendicular vector
+        perpXs.push(perpXs[perpXs.length - 1]);
+        perpYs.push(perpYs[perpYs.length - 1]);
+
+        // Create path - first along one side
+        const path = [];
+        for (let i = 0; i < points.length; i++) {
+          const p = points[i];
+          path.push(new THREE.Vector2(p.x + perpXs[i] * halfWidth, p.y + perpYs[i] * halfWidth));
+        }
+
+        // Then back along the other side
+        for (let i = points.length - 1; i >= 0; i--) {
+          const p = points[i];
+          path.push(new THREE.Vector2(p.x - perpXs[i] * halfWidth, p.y - perpYs[i] * halfWidth));
+        }
+
+        // Create the shape
+        shape.moveTo(path[0].x, path[0].y);
+        for (let i = 1; i < path.length; i++) {
+          shape.lineTo(path[i].x, path[i].y);
+        }
+        shape.closePath();
+
+        // Create the shape geometry and store z-height in userData
+        const geometry = new THREE.ShapeGeometry(shape);
+        geometry.userData = { zHeight: parseFloat(zHeight) };
+        result[toolNumber].cutting.push(geometry);
+      });
+    });
+  });
+
+  return result;
+}
