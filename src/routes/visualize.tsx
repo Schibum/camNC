@@ -2,6 +2,20 @@ import { UnskewedVideoMesh } from '@/calibration/UnskewTsl';
 import { createFileRoute } from '@tanstack/react-router';
 import { useMachineSize, useVideoToMachineHomography } from '../store';
 import { PresentCanvas } from '@/scene/PresentCanvas';
+import { GCodeSelector } from '@/visualize/GCodeSelector';
+import { GCodeVisualizer } from '@/visualize/GCodeVisualizer';
+import { useState, useMemo } from 'react';
+import { sampleGcode, bookShelf } from '@/test_data/gcode';
+
+interface GCodeOption {
+  name: string;
+  gcode: string;
+}
+
+const gcodeOptions: GCodeOption[] = [
+  { name: 'Sample GCode (Eichenbox)', gcode: sampleGcode },
+  { name: 'Book Shelf', gcode: bookShelf },
+];
 
 export const Route = createFileRoute('/visualize')({
   component: VisualizeComponent,
@@ -9,14 +23,94 @@ export const Route = createFileRoute('/visualize')({
 
 function VisualizeComponent() {
   const renderSize = useMachineSize();
-  // TODO: router away if no valid calibration config.
+  const [showGCode, setShowGCode] = useState(true);
+  const [selectedGCode, setSelectedGCode] = useState<string>(gcodeOptions[1].gcode);
+
+  // Extract basic information from GCode
+  const gcodeInfo = useMemo(() => {
+    const toolsMatch = selectedGCode.match(/[;(]\s*Tools Table:/);
+    const toolsSection = toolsMatch ? selectedGCode.substring(toolsMatch.index!) : '';
+    const tools = toolsSection.match(/[;(]\s*T\d+\s+D=[\d.]+/g) || [];
+
+    const rangesMatch = selectedGCode.match(/[;(]\s*Ranges Table:/);
+    const rangesSection = rangesMatch ? selectedGCode.substring(rangesMatch.index!) : '';
+    const ranges = {
+      x: rangesSection.match(/X:\s*Min=([\d.-]+)\s*Max=([\d.-]+)/),
+      y: rangesSection.match(/Y:\s*Min=([\d.-]+)\s*Max=([\d.-]+)/),
+      z: rangesSection.match(/Z:\s*Min=([\d.-]+)\s*Max=([\d.-]+)/),
+    };
+
+    return {
+      tools: tools.map(t => t.trim()),
+      size: {
+        x: ranges.x ? `${ranges.x[1]} to ${ranges.x[2]}` : 'Unknown',
+        y: ranges.y ? `${ranges.y[1]} to ${ranges.y[2]}` : 'Unknown',
+        z: ranges.z ? `${ranges.z[1]} to ${ranges.z[2]}` : 'Unknown',
+      },
+    };
+  }, [selectedGCode]);
+
+  const handleGCodeChange = (gcode: string) => {
+    setSelectedGCode(gcode);
+  };
 
   return (
     <div className="p-2">
+      <div className="mb-4 flex flex-col space-y-2">
+        {/* Toggle for GCode visibility */}
+        <label className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            checked={showGCode}
+            onChange={() => setShowGCode(!showGCode)}
+            className="h-4 w-4"
+          />
+          <span>Show GCode Toolpath</span>
+        </label>
+
+        {/* GCode selection and information panel */}
+        {showGCode && (
+          <div className="flex flex-col space-y-2">
+            <GCodeSelector onChange={handleGCodeChange} />
+
+            {/* GCode info panel */}
+            <div className="p-2 bg-gray-100 rounded-md text-xs">
+              <h3 className="font-bold mb-1">GCode Information:</h3>
+              <div className="grid grid-cols-2 gap-1">
+                <div>
+                  <span className="font-semibold">X Range:</span> {gcodeInfo.size.x}
+                </div>
+                <div>
+                  <span className="font-semibold">Y Range:</span> {gcodeInfo.size.y}
+                </div>
+                <div>
+                  <span className="font-semibold">Z Range:</span> {gcodeInfo.size.z}
+                </div>
+                <div>
+                  <span className="font-semibold">Tools:</span> {gcodeInfo.tools.length}
+                </div>
+              </div>
+              {gcodeInfo.tools.length > 0 && (
+                <div className="mt-1">
+                  <span className="font-semibold">Tool Info:</span>
+                  <ul className="list-disc pl-5 mt-1">
+                    {gcodeInfo.tools.map((tool, index) => (
+                      <li key={index}>{tool.replace(/[;(]/, '')}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 3D Canvas */}
       <div style={{ width: renderSize[0], height: renderSize[1] }}>
         <PresentCanvas worldScale="machine">
           <color attach="background" args={[0x1111ff]} />
           <UnskewedFlatVideoMesh />
+          {showGCode && <GCodeVisualizer gcode={selectedGCode} />}
         </PresentCanvas>
       </div>
     </div>
@@ -30,7 +124,7 @@ function UnskewedFlatVideoMesh() {
   const offsetY = machineSize[1] / 2;
 
   return (
-    <group position={[-offsetX, -offsetY, 0]}>
+    <group position={[-offsetX, -offsetY, -100]}>
       <UnskewedVideoMesh matrix={videoToMachineHomography} matrixAutoUpdate={false} />
     </group>
   );

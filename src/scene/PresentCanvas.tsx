@@ -32,7 +32,7 @@ function DefaultControls({ worldScale }: { worldScale: IWorldScale }) {
 
   return (
     <OrbitControls
-      enableRotate={false}
+      enableRotate={true}
       enablePan={true}
       enableZoom={true}
       minZoom={minZoom}
