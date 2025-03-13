@@ -21,7 +21,13 @@ const FallbackContent = ({ error }: { error: Error }) => (
 type IWorldScale = 'video' | 'machine';
 
 function DefaultControls({ worldScale }: { worldScale: IWorldScale }) {
-  const minZoom = worldScale === 'video' ? useViewportToVideoScale() : useViewPortToMachineScale();
+  // Call both hooks unconditionally
+  const videoScale = useViewportToVideoScale();
+  const machineScale = useViewPortToMachineScale();
+  // Then select which value to use
+  const minZoom = worldScale === 'video' ? videoScale : machineScale;
+  const zoomOutFactor = worldScale === 'video' ? 1 : 0.9;
+
   const camera = useThree(state => state.camera);
   useEffect(() => {
     camera.zoom = minZoom;
@@ -35,7 +41,7 @@ function DefaultControls({ worldScale }: { worldScale: IWorldScale }) {
       enableRotate={true}
       enablePan={true}
       enableZoom={true}
-      minZoom={minZoom}
+      minZoom={minZoom * zoomOutFactor}
       maxZoom={minZoom * maxZoomFactor}
     />
   );
@@ -52,8 +58,11 @@ export const PresentCanvas = ({
     <Canvas
       orthographic
       camera={{ near: -1000, far: 1000 }}
+      raycaster={{ near: -1000, far: 1000 }}
       gl={{ antialias: true, outputColorSpace: THREE.SRGBColorSpace }}
     >
+      <ambientLight intensity={1} />
+      {/* <directionalLight position={[10, 10, 10]} intensity={0.5} /> */}
       <color attach="background" args={[0x1111ff]} />
       <DefaultControls worldScale={worldScale} />
       <ErrorBoundary FallbackComponent={FallbackContent}>{children}</ErrorBoundary>

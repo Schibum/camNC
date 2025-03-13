@@ -24,6 +24,8 @@ export const Route = createFileRoute('/visualize')({
 function VisualizeComponent() {
   const renderSize = useMachineSize();
   const [showGCode, setShowGCode] = useState(true);
+  const [showRapidMoves, setShowRapidMoves] = useState(false);
+  const [showCuttingMoves, setShowCuttingMoves] = useState(true);
   const [selectedGCode, setSelectedGCode] = useState<string>(gcodeOptions[1].gcode);
 
   // Extract basic information from GCode
@@ -58,15 +60,41 @@ function VisualizeComponent() {
     <div className="p-2">
       <div className="mb-4 flex flex-col space-y-2">
         {/* Toggle for GCode visibility */}
-        <label className="flex items-center space-x-2">
-          <input
-            type="checkbox"
-            checked={showGCode}
-            onChange={() => setShowGCode(!showGCode)}
-            className="h-4 w-4"
-          />
-          <span>Show GCode Toolpath</span>
-        </label>
+        <div className="flex items-center space-x-4">
+          <label className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              checked={showGCode}
+              onChange={() => setShowGCode(!showGCode)}
+              className="h-4 w-4"
+            />
+            <span>Show GCode Toolpath</span>
+          </label>
+
+          {showGCode && (
+            <>
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={showRapidMoves}
+                  onChange={e => setShowRapidMoves(e.target.checked)}
+                  className="h-4 w-4"
+                />
+                <span>Show Rapid Moves (G0)</span>
+              </label>
+
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={showCuttingMoves}
+                  onChange={e => setShowCuttingMoves(e.target.checked)}
+                  className="h-4 w-4"
+                />
+                <span>Show Cutting Moves (G1/G2/G3)</span>
+              </label>
+            </>
+          )}
+        </div>
 
         {/* GCode selection and information panel */}
         {showGCode && (
@@ -110,7 +138,13 @@ function VisualizeComponent() {
         <PresentCanvas worldScale="machine">
           <color attach="background" args={[0x1111ff]} />
           <UnskewedFlatVideoMesh />
-          {showGCode && <GCodeVisualizer gcode={selectedGCode} />}
+          {showGCode && (
+            <GCodeVisualizer
+              gcode={selectedGCode}
+              showRapidMoves={showRapidMoves}
+              showCuttingMoves={showCuttingMoves}
+            />
+          )}
         </PresentCanvas>
       </div>
     </div>

@@ -19,6 +19,7 @@
 		"@webgpu/types": "^0.1.55",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
+		"colormap": "^2.3.2",
 		"gcode-toolpath": "^3.0.0",
 		"immer": "^10.1.1",
 		"jotai": "^2.12.1",
@@ -41,6 +42,7 @@
 	"devDependencies": {
 		"@tanstack/router-devtools": "^1.112.17",
 		"@tanstack/router-plugin": "^1.112.17",
+		"@types/colormap": "^2.3.4",
 		"@types/node": "^22.13.9",
 		"@types/react": "^19.0.10",
 		"@types/react-dom": "^19.0.4",
