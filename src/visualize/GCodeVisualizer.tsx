@@ -1,10 +1,10 @@
 import { useMachineSize } from '@/store';
 import React, { useMemo } from 'react';
-import { extractToolsFromGCode, parseGCode, groupSegmentsByTool } from './gcodeHelpers';
-import { useToolpathGeometries } from './useToolpathGeometries';
-import { useColorMapping } from './useColorMapping';
-import { Toolpaths } from './Toolpaths';
 import { ErrorMessage } from './ErrorMessage';
+import { groupSegmentsByTool, parseGCode } from './gcodeHelpers';
+import { Toolpaths } from './Toolpaths';
+import { useColorMapping } from './useColorMapping';
+import { useToolpathGeometries } from './useToolpathGeometries';
 
 interface GCodeVisualizerProps {
   gcode: string;
@@ -24,16 +24,16 @@ export const GCodeVisualizer: React.FC<GCodeVisualizerProps> = ({
   const offsetX = machineSize[0] / 2;
   const offsetY = machineSize[1] / 2;
 
-  // Use direct function calls with useMemo instead of wrapper hooks
-  const tools = useMemo(() => extractToolsFromGCode(gcode), [gcode]);
+  // Parse GCode to get toolpath segments
   const parsedGCode = useMemo(() => parseGCode(gcode), [gcode]);
+
   const segmentsByTool = useMemo(
     () => groupSegmentsByTool(parsedGCode.toolpathSegments),
     [parsedGCode.toolpathSegments]
   );
 
   // Generate geometries from parsed GCode
-  const { toolpathGeometries, cuttingZHeights } = useToolpathGeometries(segmentsByTool, tools);
+  const { toolpathGeometries, cuttingZHeights } = useToolpathGeometries(segmentsByTool);
 
   // Create color mapping function
   const { getColorForZ } = useColorMapping(cuttingZHeights);
@@ -44,7 +44,6 @@ export const GCodeVisualizer: React.FC<GCodeVisualizerProps> = ({
 
       <Toolpaths
         toolpathGeometries={toolpathGeometries}
-        tools={tools}
         zScaleFactor={zScaleFactor}
         getColorForZ={getColorForZ}
         showRapidMoves={showRapidMoves}

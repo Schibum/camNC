@@ -63,6 +63,7 @@ export const useStore = create(persist(immer(combine(
   {
     cameraConfig: defaultCameraConfig,
     calibrationData: defaultCalibrationData,
+    toolDiameter: 3.0, // Default tool diameter in mm
   },
   set => ({
     setVideoDimensions: (dimensions: ITuple) => set(state => {
@@ -77,10 +78,16 @@ export const useStore = create(persist(immer(combine(
     setCameraConfig: (config: CameraConfig) => set(state => {
       state.cameraConfig = config;
     }),
+    setToolDiameter: (diameter: number) => set(state => {
+      state.toolDiameter = diameter;
+    }),
   })
 )), {
   name: 'settings',
-  partialize: state => ({ cameraConfig: state.cameraConfig }),
+  partialize: state => ({
+    cameraConfig: state.cameraConfig,
+    toolDiameter: state.toolDiameter,
+  }),
 }));
 
 console.log('useStore', useStore.getState());
@@ -90,6 +97,10 @@ export const useVideoDimensions = () => useStore(state => state.cameraConfig.dim
 
 export const useCameraConfig = () => useStore(state => state.cameraConfig);
 export const useCalibrationData = () => useStore(state => state.calibrationData);
+
+// Access tool diameter from store
+export const useToolDiameter = () => useStore(state => state.toolDiameter);
+export const useSetToolDiameter = () => useStore(state => state.setToolDiameter);
 
 // Returns the usable size of the machine boundary in mm [xrange, yrange].
 // Computed as xmax - xmin, ymax - ymin.

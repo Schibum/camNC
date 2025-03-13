@@ -12,6 +12,7 @@ declare module 'gcode-toolpath' {
   }
 
   export interface GCodeToolpathOptions {
+    modal?: Modal;
     position?: Vector3D;
     addLine?: (modal: Modal, v1: Vector3D, v2: Vector3D) => void;
     addArcCurve?: (modal: Modal, v1: Vector3D, v2: Vector3D, v0: Vector3D) => void;

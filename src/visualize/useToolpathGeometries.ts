@@ -1,17 +1,20 @@
 import { useMemo } from 'react';
-import { createToolpathGeometries, ToolpathSegment, Tool } from './gcodeHelpers';
+import { useToolDiameter } from '@/store';
+import { createToolpathGeometries, ToolpathSegment } from './gcodeHelpers';
 
 /**
  * Hook to create geometries from parsed GCode segments
  */
 export function useToolpathGeometries(
-  segmentsByTool: Record<number, { rapid: ToolpathSegment[]; cutting: ToolpathSegment[] }>,
-  tools: Record<string, Tool>
+  segmentsByTool: Record<number, { rapid: ToolpathSegment[]; cutting: ToolpathSegment[] }>
 ) {
+  // Get tool diameter directly from store
+  const toolDiameter = useToolDiameter();
+
   // Create toolpath geometries for each tool and motion type
   const toolpathGeometries = useMemo(
-    () => createToolpathGeometries(segmentsByTool, tools),
-    [segmentsByTool, tools]
+    () => createToolpathGeometries(segmentsByTool, toolDiameter),
+    [segmentsByTool, toolDiameter]
   );
 
   // Get unique z-heights from the geometries for the legend
