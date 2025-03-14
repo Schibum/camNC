@@ -9,6 +9,7 @@ import {
 } from '../store';
 import { GCodeSelector } from '@/visualize/GCodeSelector';
 import { GCodeVisualizer } from '@/visualize/GCodeVisualizer';
+import { ZDepthLegend } from '@/visualize/ZDepthLegend';
 import { useState, useMemo, useEffect } from 'react';
 import { sampleGcode, bookShelf } from '@/test_data/gcode';
 import { PresentCanvas } from '@/scene/PresentCanvas';
@@ -127,33 +128,40 @@ function VisualizeComponent() {
           <div className="flex flex-col space-y-2">
             <GCodeSelector onChange={handleGCodeChange} />
 
-            {/* GCode info panel */}
-            <div className="p-2 bg-gray-100 rounded-md text-xs">
-              <h3 className="font-bold mb-1">GCode Information:</h3>
-              <div className="grid grid-cols-2 gap-1">
-                <div>
-                  <span className="font-semibold">X Range:</span> {gcodeInfo.size.x}
+            {/* GCode info panel with Z-Depth Legend side by side */}
+            <div className="flex gap-4 flex-wrap md:flex-nowrap">
+              <div className="p-2 bg-gray-100 rounded-md text-xs flex-1 min-w-[300px]">
+                <h3 className="font-bold mb-1">GCode Information:</h3>
+                <div className="grid grid-cols-2 gap-1">
+                  <div>
+                    <span className="font-semibold">X Range:</span> {gcodeInfo.size.x}
+                  </div>
+                  <div>
+                    <span className="font-semibold">Y Range:</span> {gcodeInfo.size.y}
+                  </div>
+                  <div>
+                    <span className="font-semibold">Z Range:</span> {gcodeInfo.size.z}
+                  </div>
+                  <div>
+                    <span className="font-semibold">Tools:</span> {gcodeInfo.tools.length}
+                  </div>
                 </div>
-                <div>
-                  <span className="font-semibold">Y Range:</span> {gcodeInfo.size.y}
-                </div>
-                <div>
-                  <span className="font-semibold">Z Range:</span> {gcodeInfo.size.z}
-                </div>
-                <div>
-                  <span className="font-semibold">Tools:</span> {gcodeInfo.tools.length}
-                </div>
+                {gcodeInfo.tools.length > 0 && (
+                  <div className="mt-1">
+                    <span className="font-semibold">Tool Info:</span>
+                    <ul className="list-disc pl-5 mt-1">
+                      {gcodeInfo.tools.map((tool, index) => (
+                        <li key={index}>{tool.replace(/[;(]/, '')}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
-              {gcodeInfo.tools.length > 0 && (
-                <div className="mt-1">
-                  <span className="font-semibold">Tool Info:</span>
-                  <ul className="list-disc pl-5 mt-1">
-                    {gcodeInfo.tools.map((tool, index) => (
-                      <li key={index}>{tool.replace(/[;(]/, '')}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+
+              {/* Z-Depth Legend */}
+              <div className="p-4 bg-gray-100 rounded-md flex-1 shadow-sm min-w-[350px]">
+                <ZDepthLegend />
+              </div>
             </div>
           </div>
         )}
