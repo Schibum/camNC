@@ -7,6 +7,7 @@ export class ParsedToolpath {
   // Index of the modal that corresponds to the path point (starting point of the segment)
   public modals: Modal[] = [];
   public numArcSegments = 8;
+  private bounds?: Box3;
 
   constructor() {}
 
@@ -27,10 +28,17 @@ export class ParsedToolpath {
     this.modals.push(...modals);
   }
 
-  getBounds() {
+  private updateBounds() {
     const box = new Box3();
     box.setFromPoints(this.pathPoints);
-    return box;
+    this.bounds = box;
+  }
+
+  getBounds() {
+    if (!this.bounds) {
+      this.updateBounds();
+    }
+    return this.bounds!;
   }
 }
 
