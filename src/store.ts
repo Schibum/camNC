@@ -1,10 +1,15 @@
 import { create } from 'zustand';
 import { combine, persist } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
-import { CalibrationData } from './calibration/undistort';
 import { buildMatrix4FromHomography } from './math/perspectiveTransform';
 import { computeHomography } from './math/perspectiveTransform';
 import { Matrix4 } from 'three';
+import { ParsedToolpath, parseGCode } from './visualize/gcodeHelpers';
+
+export interface CalibrationData {
+  calibration_matrix: number[][];
+  distortion_coefficients: number[][];
+}
 
 // Types from atoms.tsx
 export type ITuple = [number, number];
@@ -64,6 +69,7 @@ export const useStore = create(persist(immer(combine(
     cameraConfig: defaultCameraConfig,
     calibrationData: defaultCalibrationData,
     toolDiameter: 3.0, // Default tool diameter in mm
+    toolpath: null as ParsedToolpath | null,
   },
   set => ({
     setVideoDimensions: (dimensions: ITuple) => set(state => {
@@ -80,6 +86,10 @@ export const useStore = create(persist(immer(combine(
     }),
     setToolDiameter: (diameter: number) => set(state => {
       state.toolDiameter = diameter;
+    }),
+    // Update Toolpath from GCode
+    updateToolpath: (gcode: string) => set(state => {
+      state.toolpath = parseGCode(gcode);
     }),
   })
 )), {

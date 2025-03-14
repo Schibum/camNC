@@ -38,7 +38,7 @@ function DefaultControls({ worldScale }: { worldScale: IWorldScale }) {
 
   return (
     <OrbitControls
-      enableRotate={true}
+      enableRotate={false}
       enablePan={true}
       enableZoom={true}
       minZoom={minZoom * zoomOutFactor}
@@ -57,8 +57,8 @@ export const PresentCanvas = ({
   return (
     <Canvas
       orthographic
-      camera={{ near: -1000, far: 1000 }}
-      raycaster={{ near: -1000, far: 1000 }}
+      camera={{ near: -10000, far: 10000, position: [0, 0, 1000] }}
+      raycaster={{ near: -10000, far: 10000 }}
       gl={{ antialias: true, outputColorSpace: THREE.SRGBColorSpace }}
     >
       <ambientLight intensity={1} />

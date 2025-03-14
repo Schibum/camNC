@@ -5,12 +5,13 @@ import {
   useVideoToMachineHomography,
   useToolDiameter,
   useSetToolDiameter,
+  useStore,
 } from '../store';
-import { PresentCanvas } from '@/scene/PresentCanvas';
 import { GCodeSelector } from '@/visualize/GCodeSelector';
 import { GCodeVisualizer } from '@/visualize/GCodeVisualizer';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { sampleGcode, bookShelf } from '@/test_data/gcode';
+import { PresentCanvas } from '@/scene/PresentCanvas';
 
 interface GCodeOption {
   name: string;
@@ -34,6 +35,7 @@ function VisualizeComponent() {
   const [selectedGCode, setSelectedGCode] = useState<string>(gcodeOptions[1].gcode);
   const toolDiameter = useToolDiameter();
   const setToolDiameter = useSetToolDiameter();
+  const updateToolpath = useStore(s => s.updateToolpath);
 
   // Extract basic information from GCode
   const gcodeInfo = useMemo(() => {
@@ -58,6 +60,10 @@ function VisualizeComponent() {
       },
     };
   }, [selectedGCode]);
+
+  useEffect(() => {
+    updateToolpath(selectedGCode);
+  }, [selectedGCode, updateToolpath]);
 
   const handleGCodeChange = (gcode: string) => {
     setSelectedGCode(gcode);
@@ -154,17 +160,13 @@ function VisualizeComponent() {
       </div>
 
       {/* 3D Canvas */}
-      <div style={{ width: renderSize[0], height: renderSize[1] }}>
+      <div className="w-screen h-screen">
         <PresentCanvas worldScale="machine">
           <color attach="background" args={[0x1111ff]} />
-          <UnskewedFlatVideoMesh />
-          {showGCode && (
-            <GCodeVisualizer
-              gcode={selectedGCode}
-              showRapidMoves={showRapidMoves}
-              showCuttingMoves={showCuttingMoves}
-            />
-          )}
+          <group rotation={[0, 0, Math.PI / 2]}>
+            <UnskewedFlatVideoMesh />
+            {showGCode && <GCodeVisualizer />}
+          </group>
         </PresentCanvas>
       </div>
     </div>
