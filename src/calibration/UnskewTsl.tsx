@@ -1,9 +1,8 @@
-import { useCalibrationData, useStore, useVideoSrc } from '@/store';
+import { CalibrationData, useCalibrationData, useStore, useVideoSrc } from '@/store';
 import { useVideoTexture } from '@react-three/drei';
 import React, { useEffect, useMemo, useRef } from 'react';
 import { type ThreeElements } from '@react-three/fiber';
 import * as THREE from 'three';
-import { CalibrationData } from './undistort';
 import { PresentCanvas } from '@/scene/PresentCanvas';
 import { initUndistortRectifyMapTyped, Matrix3x3 } from './rectifyMap';
 

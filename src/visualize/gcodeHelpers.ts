@@ -1,5 +1,38 @@
 import GCodeToolpath, { Modal, Vector3D } from 'gcode-toolpath';
 import * as THREE from 'three';
+import { Vector3, Box3 } from 'three';
+
+export class ParsedToolpath {
+  public pathPoints: Vector3[] = [];
+  // Index of the modal that corresponds to the path point (starting point of the segment)
+  public modals: Modal[] = [];
+  public numArcSegments = 8;
+
+  constructor() {}
+
+  addLine(modal: Modal, start: Vector3, end: Vector3) {
+    if (this.pathPoints.length === 0) {
+      this.pathPoints.push(start);
+      this.modals.push(modal);
+    }
+    this.pathPoints.push(end);
+    this.modals.push(modal);
+  }
+
+  addArc(modal: Modal, start: Vector3, end: Vector3, center: Vector3) {
+    const isCounterClockwise = modal.motion === 'G3';
+    const points = generateArcPoints(start, end, center, isCounterClockwise, this.numArcSegments);
+    this.pathPoints.push(...points);
+    const modals = new Array(points.length).fill(modal);
+    this.modals.push(...modals);
+  }
+
+  getBounds() {
+    const box = new Box3();
+    box.setFromPoints(this.pathPoints);
+    return box;
+  }
+}
 
 export interface Tool {
   number: number;
@@ -7,32 +40,11 @@ export interface Tool {
   color: string;
 }
 
-export interface ToolpathSegment {
-  motion: string;
-  tool: number;
-  v1: Vector3D;
-  v2: Vector3D;
-  v0?: Vector3D; // For arc curves
-  isArc: boolean;
-}
-
-export interface GCodeBounds {
-  min: THREE.Vector2;
-  max: THREE.Vector2;
-  size: THREE.Vector2;
-}
-
-export interface ParsedGCode {
-  toolpathSegments: ToolpathSegment[];
-  bounds: GCodeBounds;
-  error?: string;
-}
-
 /**
  * Parse GCode string into toolpath segments
  */
-export function parseGCode(gcode: string): ParsedGCode {
-  const segments: ToolpathSegment[] = [];
+export function parseGCode(gcode: string): ParsedToolpath {
+  const parsed = new ParsedToolpath();
 
   try {
     // Create a new toolpath instance with callbacks
@@ -42,111 +54,49 @@ export function parseGCode(gcode: string): ParsedGCode {
 
       // Callback for line segments
       addLine: (modal: Modal, v1: Vector3D, v2: Vector3D) => {
-        segments.push({
-          motion: modal.motion || 'G0',
-          tool: modal.tool || 1,
-          v1: { ...v1 },
-          v2: { ...v2 },
-          isArc: false,
-        });
+        parsed.addLine(modal, new Vector3(v1.x, v1.y, v1.z), new Vector3(v2.x, v2.y, v2.z));
       },
 
       // Callback for arc segments
       addArcCurve: (modal: Modal, v1: Vector3D, v2: Vector3D, v0: Vector3D) => {
-        segments.push({
-          motion: modal.motion || 'G0',
-          tool: modal.tool || 1,
-          v1: { ...v1 },
-          v2: { ...v2 },
-          v0: { ...v0 },
-          isArc: true,
-        });
+        parsed.addArc(
+          modal,
+          new Vector3(v1.x, v1.y, v1.z),
+          new Vector3(v2.x, v2.y, v2.z),
+          new Vector3(v0.x, v0.y, v0.z)
+        );
       },
     });
 
-    // Load the GCODE string
     toolpath.loadFromStringSync(gcode);
-
-    // Calculate bounds
-    let minX = Infinity,
-      minY = Infinity,
-      maxX = -Infinity,
-      maxY = -Infinity;
-
-    segments.forEach(segment => {
-      // Check start point
-      minX = Math.min(minX, segment.v1.x);
-      maxX = Math.max(maxX, segment.v1.x);
-      minY = Math.min(minY, segment.v1.y);
-      maxY = Math.max(maxY, segment.v1.y);
-
-      // Check end point
-      minX = Math.min(minX, segment.v2.x);
-      maxX = Math.max(maxX, segment.v2.x);
-      minY = Math.min(minY, segment.v2.y);
-      maxY = Math.max(maxY, segment.v2.y);
-
-      // If it's an arc, also check the center point
-      if (segment.v0) {
-        minX = Math.min(minX, segment.v0.x);
-        maxX = Math.max(maxX, segment.v0.x);
-        minY = Math.min(minY, segment.v0.y);
-        maxY = Math.max(maxY, segment.v0.y);
-      }
-    });
-
-    // Add fallback if no segments were found or bounds couldn't be calculated
-    if (!isFinite(minX) || !isFinite(minY) || !isFinite(maxX) || !isFinite(maxY)) {
-      minX = -100;
-      minY = -100;
-      maxX = 100;
-      maxY = 100;
-    }
-
-    return {
-      toolpathSegments: segments,
-      bounds: {
-        min: new THREE.Vector2(minX, minY),
-        max: new THREE.Vector2(maxX, maxY),
-        size: new THREE.Vector2(maxX - minX, maxY - minY),
-      },
-    };
+    return parsed;
   } catch (error) {
     console.error('Error parsing GCode:', error);
-    return {
-      toolpathSegments: [],
-      bounds: {
-        min: new THREE.Vector2(-100, -100),
-        max: new THREE.Vector2(100, 100),
-        size: new THREE.Vector2(200, 200),
-      },
-      error: error instanceof Error ? error.message : 'Unknown error parsing GCode',
-    };
+    throw error;
   }
 }
 
 /**
  * Generate points for an arc curve
  */
-export function generateArcPoints(segment: ToolpathSegment, numPoints = 8): THREE.Vector3[] {
-  if (!segment.isArc || !segment.v0)
-    return [
-      new THREE.Vector3(segment.v1.x, segment.v1.y, segment.v1.z),
-      new THREE.Vector3(segment.v2.x, segment.v2.y, segment.v2.z),
-    ];
-
-  const { v0, v1, v2, motion } = segment;
+export function generateArcPoints(
+  start: Vector3,
+  end: Vector3,
+  center: Vector3,
+  isCounterClockwise: boolean,
+  numPoints = 8
+): Vector3[] {
   const points: THREE.Vector3[] = [];
 
   // Calculate radius
-  const radius = Math.sqrt(Math.pow(v1.x - v0.x, 2) + Math.pow(v1.y - v0.y, 2));
+  const radius = Math.sqrt(Math.pow(start.x - center.x, 2) + Math.pow(start.y - center.y, 2));
 
   // Calculate angles
-  const startAngle = Math.atan2(v1.y - v0.y, v1.x - v0.x);
-  const endAngle = Math.atan2(v2.y - v0.y, v2.x - v0.x);
+  const startAngle = Math.atan2(start.y - center.y, start.x - center.x);
+  const endAngle = Math.atan2(end.y - center.y, end.x - center.x);
 
-  // G2 is clockwise, G3 is counter-clockwise
-  const isCounterClockwise = motion === 'G3';
+  // // G2 is clockwise, G3 is counter-clockwise
+  // const isCounterClockwise = motion === 'G3';
 
   // Handle full circles
   let actualEndAngle = endAngle;
@@ -162,15 +112,15 @@ export function generateArcPoints(segment: ToolpathSegment, numPoints = 8): THRE
   }
 
   // Interpolate z-value
-  const zDiff = v2.z - v1.z;
+  const zDiff = end.z - start.z;
 
   // Generate points along the arc
   for (let i = 0; i <= numPoints; i++) {
     const t = i / numPoints;
     const angle = startAngle + (actualEndAngle - startAngle) * t;
-    const x = v0.x + radius * Math.cos(angle);
-    const y = v0.y + radius * Math.sin(angle);
-    const z = v1.z + zDiff * t;
+    const x = center.x + radius * Math.cos(angle);
+    const y = center.y + radius * Math.sin(angle);
+    const z = start.z + zDiff * t;
 
     points.push(new THREE.Vector3(x, y, z));
   }
@@ -179,185 +129,9 @@ export function generateArcPoints(segment: ToolpathSegment, numPoints = 8): THRE
 }
 
 /**
- * Group toolpath segments by tool and motion type
- */
-export function groupSegmentsByTool(
-  toolpathSegments: ToolpathSegment[]
-): Record<number, { rapid: ToolpathSegment[]; cutting: ToolpathSegment[] }> {
-  const result: Record<number, { rapid: ToolpathSegment[]; cutting: ToolpathSegment[] }> = {};
-
-  toolpathSegments.forEach(segment => {
-    const toolNumber = segment.tool;
-
-    if (!result[toolNumber]) {
-      result[toolNumber] = {
-        rapid: [],
-        cutting: [],
-      };
-    }
-
-    if (segment.motion === 'G0') {
-      result[toolNumber].rapid.push(segment);
-    } else {
-      result[toolNumber].cutting.push(segment);
-    }
-  });
-
-  return result;
-}
-
-/**
- * Group toolpath segments by z-height
- */
-export function groupSegmentsByZ(segments: ToolpathSegment[]): Record<number, ToolpathSegment[]> {
-  const result: Record<number, ToolpathSegment[]> = {};
-
-  segments.forEach(segment => {
-    // Use the z-height of the starting point as the layer identifier
-    // Round to 3 decimal places to handle floating point imprecision
-    const zHeight = Math.round(segment.v1.z * 1000) / 1000;
-
-    if (!result[zHeight]) {
-      result[zHeight] = [];
-    }
-
-    result[zHeight].push(segment);
-  });
-
-  return result;
-}
-
-/**
- * Checks if two points are equal within a given tolerance
- */
-function arePointsEqual(p1: Vector3D, p2: Vector3D, tolerance = 0.001): boolean {
-  return (
-    Math.abs(p1.x - p2.x) < tolerance &&
-    Math.abs(p1.y - p2.y) < tolerance &&
-    Math.abs(p1.z - p2.z) < tolerance
-  );
-}
-
-/**
- * Groups connected segments together to form continuous paths
- */
-function groupConnectedSegments(
-  segments: ToolpathSegment[],
-  tolerance = 0.001
-): ToolpathSegment[][] {
-  if (segments.length === 0) return [];
-
-  const paths: ToolpathSegment[][] = [];
-  let currentPath: ToolpathSegment[] = [segments[0]];
-
-  for (let i = 1; i < segments.length; i++) {
-    const prevSegment = currentPath[currentPath.length - 1];
-    const currentSegment = segments[i];
-
-    // Check if segments are connected (with tolerance)
-    if (arePointsEqual(prevSegment.v2, currentSegment.v1, tolerance)) {
-      currentPath.push(currentSegment);
-    } else {
-      // Start a new path
-      paths.push(currentPath);
-      currentPath = [currentSegment];
-    }
-  }
-
-  // Add the last path
-  if (currentPath.length > 0) {
-    paths.push(currentPath);
-  }
-
-  return paths;
-}
-
-/**
- * Create THREE.Shape geometries for toolpath segments
- */
-export function createToolpathGeometries(
-  segmentsByTool: Record<number, { rapid: ToolpathSegment[]; cutting: ToolpathSegment[] }>,
-  toolDiameter: number
-): Record<string, { rapid: THREE.ShapeGeometry[]; cutting: THREE.ShapeGeometry[] }> {
-  const result: Record<string, { rapid: THREE.ShapeGeometry[]; cutting: THREE.ShapeGeometry[] }> =
-    {};
-
-  Object.entries(segmentsByTool).forEach(([toolNumber, segments]) => {
-    // Create a tool with the diameter from the store
-    const tool = {
-      diameter: toolDiameter,
-      color: `hsl(${(parseInt(toolNumber, 10) * 137) % 360}, 70%, 50%)`,
-      number: parseInt(toolNumber, 10),
-    };
-
-    const halfWidth = tool.diameter / 2;
-
-    result[toolNumber] = {
-      rapid: [],
-      cutting: [],
-    };
-
-    // Process rapid movements
-    result[toolNumber].rapid = createGeometriesForSegments(segments.rapid, halfWidth);
-
-    // Process cutting movements
-    result[toolNumber].cutting = createGeometriesForSegments(segments.cutting, halfWidth);
-  });
-
-  return result;
-}
-
-/**
- * Creates shape geometries for a set of toolpath segments
- */
-function createGeometriesForSegments(
-  segments: ToolpathSegment[],
-  halfWidth: number
-): THREE.ShapeGeometry[] {
-  const geometries: THREE.ShapeGeometry[] = [];
-
-  // Group segments by z-height
-  const segmentsByZ = groupSegmentsByZ(segments);
-
-  Object.entries(segmentsByZ).forEach(([zHeight, zSegments]) => {
-    // Group connected segments to form continuous paths
-    const connectedPaths = groupConnectedSegments(zSegments);
-
-    // Process each connected path
-    connectedPaths.forEach(pathSegments => {
-      // Collect all points for the entire path
-      let allPoints: THREE.Vector3[] = [];
-
-      pathSegments.forEach(segment => {
-        const segmentPoints = generateArcPoints(segment, segment.isArc ? 16 : 2);
-
-        // If this is not the first segment, remove the first point to avoid duplication
-        if (allPoints.length > 0 && segmentPoints.length > 0) {
-          allPoints = allPoints.concat(segmentPoints.slice(1));
-        } else {
-          allPoints = allPoints.concat(segmentPoints);
-        }
-      });
-
-      // Skip paths that are too short
-      if (allPoints.length < 2) return;
-
-      const shape = createShapeForPath(allPoints, halfWidth);
-
-      // Create the shape geometry and store z-height in userData
-      const geometry = new THREE.ShapeGeometry(shape);
-      geometry.userData = { zHeight: parseFloat(zHeight) };
-      geometries.push(geometry);
-    });
-  });
-
-  return geometries;
-}
-
-/**
  * Creates a THREE.Shape for a path with given points and half-width
  */
-function createShapeForPath(points: THREE.Vector3[], halfWidth: number): THREE.Shape {
+export function createShapeForPath(points: THREE.Vector3[], halfWidth: number): THREE.Shape {
   const shape = new THREE.Shape();
 
   // Calculate perpendicular vectors for each point
