@@ -1,67 +1,23 @@
-import * as React from 'react';
-import { Link, Outlet, createRootRoute } from '@tanstack/react-router';
+import { AppRoot } from '@/components/app-root';
+import { SidebarProvider } from '@/components/ui/sidebar';
+import { Outlet, createRootRouteWithContext, useRouterState } from '@tanstack/react-router';
 
-export const Route = createRootRoute({
+interface IRouteContext {
+  customSidebar: boolean;
+}
+
+export const Route = createRootRouteWithContext<IRouteContext>()({
   component: RootComponent,
 });
 
 function RootComponent() {
+  const customSidebar = useRouterState({ select: s => s.matches }).some(
+    m => m.context.customSidebar
+  );
   return (
-    <>
-      <div className="p-2 flex gap-2 text-lg">
-        <Link
-          to="/"
-          activeProps={{
-            className: 'font-bold',
-          }}
-          activeOptions={{ exact: true }}
-        >
-          Home
-        </Link>{' '}
-        <Link
-          to="/about"
-          activeProps={{
-            className: 'font-bold',
-          }}
-        >
-          About
-        </Link>{' '}
-        <Link
-          to="/setup/url-entry"
-          activeProps={{
-            className: 'font-bold',
-          }}
-        >
-          Camera URL
-        </Link>{' '}
-        <Link
-          to="/setup/point-selection"
-          activeProps={{
-            className: 'font-bold',
-          }}
-        >
-          Machine Bounds
-        </Link>
-        <Link
-          to="/visualize"
-          activeProps={{
-            className: 'font-bold',
-          }}
-        >
-          Visualize
-        </Link>
-        <Link
-          to="/undistort2"
-          activeProps={{
-            className: 'font-bold',
-          }}
-        >
-          Undistort
-        </Link>
-      </div>
-      <hr />
-      <Outlet />
-      {/* <TanStackRouterDevtools position="bottom-right" /> */}
-    </>
+    <SidebarProvider>
+      {customSidebar && <Outlet />}
+      {!customSidebar && <AppRoot>{<Outlet />}</AppRoot>}
+    </SidebarProvider>
   );
 }

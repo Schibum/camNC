@@ -29,22 +29,24 @@ export const GCodeSelector: React.FC<GCodeSelectorProps> = ({ onChange }) => {
   };
 
   return (
-    <div className="flex items-center space-x-2 p-2 bg-gray-100 rounded-md">
-      <label htmlFor="gcode-select" className="text-sm font-medium">
-        Select GCode:
-      </label>
-      <select
-        id="gcode-select"
-        className="p-1 rounded-md border border-gray-300"
-        value={selectedGCode.name}
-        onChange={handleGCodeChange}
-      >
-        {gcodeOptions.map(option => (
-          <option key={option.name} value={option.name}>
-            {option.name}
-          </option>
-        ))}
-      </select>
-    </div>
+    <>
+      <div className="flex flex-col space-y-1  bg-gray-100 rounded-lg">
+        <label htmlFor="gcode-select" className="text-sm font-medium">
+          Select GCode:
+        </label>
+        <select
+          id="gcode-select"
+          className="p-1 rounded-md border border-gray-300"
+          value={selectedGCode.name}
+          onChange={handleGCodeChange}
+        >
+          {gcodeOptions.map(option => (
+            <option key={option.name} value={option.name}>
+              {option.name}
+            </option>
+          ))}
+        </select>
+      </div>
+    </>
   );
 };

@@ -8,7 +8,7 @@ import { Color, SRGBColorSpace, Vector2 } from 'three';
 
 const plasmamap = colormap({
   colormap: 'plasma',
-  nshades: 50,
+  nshades: 100,
   format: 'rgba',
   alpha: 1,
 }).map(c => new Color().setRGB(c[0] / 255, c[1] / 255, c[2] / 255, SRGBColorSpace));
@@ -32,16 +32,22 @@ function getZHeightColors(toolpath: ParsedToolpath) {
   return colors;
 }
 
+function getTimeColors(toolpath: ParsedToolpath) {
+  const colors = new Array(toolpath.pathPoints.length * 3);
+  for (let i = 0; i < toolpath.pathPoints.length; i++) {
+    const color = getPlasmaColor(i / toolpath.pathPoints.length);
+    colors[i * 3] = color.r;
+    colors[i * 3 + 1] = color.g;
+    colors[i * 3 + 2] = color.b;
+  }
+  return colors;
+}
+
 export const Toolpaths: React.FC = () => {
   const toolpath = useStore(s => s.toolpath);
   const toolDiameter = useToolDiameter();
   const viewport = useThree(s => s.viewport);
 
-  // const shape = useMemo(
-  //   () => createShapeForPath(toolpath?.pathPoints.slice(0, 100) || [], toolDiameter / 2),
-  //   [toolpath, toolDiameter]
-  // );
-  // console.log('shape', shape.getPoints().length);
   const line2 = useMemo(() => {
     if (!toolpath) return null;
     const geom = new LineGeometry();
@@ -51,6 +57,7 @@ export const Toolpaths: React.FC = () => {
     mat.worldUnits = true;
     mat.resolution = new Vector2(viewport.width, viewport.height);
     const colors = getZHeightColors(toolpath);
+    // const colors = getTimeColors(toolpath);
     geom.setColors(colors);
 
     const line = new Line2(geom, mat);

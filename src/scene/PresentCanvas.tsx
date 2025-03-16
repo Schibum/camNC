@@ -63,7 +63,6 @@ export const PresentCanvas = ({
     >
       <ambientLight intensity={1} />
       {/* <directionalLight position={[10, 10, 10]} intensity={0.5} /> */}
-      <color attach="background" args={[0x1111ff]} />
       <DefaultControls worldScale={worldScale} />
       <ErrorBoundary FallbackComponent={FallbackContent}>{children}</ErrorBoundary>
     </Canvas>
