@@ -1,19 +1,33 @@
 import { UnskewedVideoMesh } from '@/calibration/UnskewTsl';
+import { PresentCanvas } from '@/scene/PresentCanvas';
+import { bookShelf, sampleGcode } from '@/test_data/gcode';
+import { GCodeVisualizer } from '@/visualize/GCodeVisualizer';
 import { createFileRoute } from '@tanstack/react-router';
+import { useEffect, useMemo, useState } from 'react';
 import {
   useMachineSize,
-  useVideoToMachineHomography,
-  useToolDiameter,
   useSetToolDiameter,
   useStore,
+  useToolDiameter,
+  useVideoToMachineHomography,
 } from '../store';
+import { BoundsInfo } from '@/visualize/BoundsInfo';
 import { GCodeSelector } from '@/visualize/GCodeSelector';
-import { GCodeVisualizer } from '@/visualize/GCodeVisualizer';
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+} from '@/components/ui/breadcrumb';
+import {
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarTrigger,
+} from '@/components/ui/sidebar';
+import { Separator } from '@radix-ui/react-separator';
 import { ZDepthLegend } from '@/visualize/ZDepthLegend';
-import { useState, useMemo, useEffect } from 'react';
-import { sampleGcode, bookShelf } from '@/test_data/gcode';
-import { PresentCanvas } from '@/scene/PresentCanvas';
-
+import { AppRoot } from '@/components/app-root';
 interface GCodeOption {
   name: string;
   gcode: string;
@@ -26,16 +40,17 @@ const gcodeOptions: GCodeOption[] = [
 
 export const Route = createFileRoute('/visualize')({
   component: VisualizeComponent,
+  beforeLoad: () => {
+    return { customSidebar: true };
+  },
 });
 
-function VisualizeComponent() {
-  const renderSize = useMachineSize();
-  const [showGCode, setShowGCode] = useState(true);
-  const [showRapidMoves, setShowRapidMoves] = useState(false);
-  const [showCuttingMoves, setShowCuttingMoves] = useState(true);
-  const [selectedGCode, setSelectedGCode] = useState<string>(gcodeOptions[1].gcode);
+function SidebarExtraContent() {
   const toolDiameter = useToolDiameter();
   const setToolDiameter = useSetToolDiameter();
+
+  const [showGCode, setShowGCode] = useState(true);
+  const [selectedGCode, setSelectedGCode] = useState<string>(gcodeOptions[1].gcode);
   const updateToolpath = useStore(s => s.updateToolpath);
 
   // Extract basic information from GCode
@@ -44,21 +59,8 @@ function VisualizeComponent() {
     const toolsSection = toolsMatch ? selectedGCode.substring(toolsMatch.index!) : '';
     const tools = toolsSection.match(/[;(]\s*T\d+\s+D=[\d.]+/g) || [];
 
-    const rangesMatch = selectedGCode.match(/[;(]\s*Ranges Table:/);
-    const rangesSection = rangesMatch ? selectedGCode.substring(rangesMatch.index!) : '';
-    const ranges = {
-      x: rangesSection.match(/X:\s*Min=([\d.-]+)\s*Max=([\d.-]+)/),
-      y: rangesSection.match(/Y:\s*Min=([\d.-]+)\s*Max=([\d.-]+)/),
-      z: rangesSection.match(/Z:\s*Min=([\d.-]+)\s*Max=([\d.-]+)/),
-    };
-
     return {
       tools: tools.map(t => t.trim()),
-      size: {
-        x: ranges.x ? `${ranges.x[1]} to ${ranges.x[2]}` : 'Unknown',
-        y: ranges.y ? `${ranges.y[1]} to ${ranges.y[2]}` : 'Unknown',
-        z: ranges.z ? `${ranges.z[1]} to ${ranges.z[2]}` : 'Unknown',
-      },
     };
   }, [selectedGCode]);
 
@@ -71,11 +73,13 @@ function VisualizeComponent() {
   };
 
   return (
-    <div className="p-2">
-      <div className="mb-4 flex flex-col space-y-2">
-        {/* Toggle for GCode visibility */}
-        <div className="flex items-center space-x-4">
-          <label className="flex items-center space-x-2">
+    <SidebarGroup>
+      <SidebarGroupLabel>Visualization</SidebarGroupLabel>
+      <SidebarGroupContent>
+        <div className="flex flex-col space-y-2">
+          <GCodeSelector onChange={handleGCodeChange} />
+          {/* Toggle for GCode visibility */}
+          <label className="flex-col items-center space-x-2">
             <input
               type="checkbox"
               checked={showGCode}
@@ -84,29 +88,10 @@ function VisualizeComponent() {
             />
             <span>Show GCode Toolpath</span>
           </label>
+          <BoundsInfo />
 
-          {showGCode && (
+          {
             <>
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={showRapidMoves}
-                  onChange={e => setShowRapidMoves(e.target.checked)}
-                  className="h-4 w-4"
-                />
-                <span>Show Rapid Moves (G0)</span>
-              </label>
-
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={showCuttingMoves}
-                  onChange={e => setShowCuttingMoves(e.target.checked)}
-                  className="h-4 w-4"
-                />
-                <span>Show Cutting Moves (G1/G2/G3)</span>
-              </label>
-
               <label className="flex items-center space-x-2">
                 <span>Tool Diameter (mm):</span>
                 <input
@@ -120,64 +105,45 @@ function VisualizeComponent() {
                 />
               </label>
             </>
-          )}
+          }
+
+          {/* GCode selection and information panel */}
+          <ZDepthLegend />
         </div>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
+}
 
-        {/* GCode selection and information panel */}
-        {showGCode && (
-          <div className="flex flex-col space-y-2">
-            <GCodeSelector onChange={handleGCodeChange} />
-
-            {/* GCode info panel with Z-Depth Legend side by side */}
-            <div className="flex gap-4 flex-wrap md:flex-nowrap">
-              <div className="p-2 bg-gray-100 rounded-md text-xs flex-1 min-w-[300px]">
-                <h3 className="font-bold mb-1">GCode Information:</h3>
-                <div className="grid grid-cols-2 gap-1">
-                  <div>
-                    <span className="font-semibold">X Range:</span> {gcodeInfo.size.x}
-                  </div>
-                  <div>
-                    <span className="font-semibold">Y Range:</span> {gcodeInfo.size.y}
-                  </div>
-                  <div>
-                    <span className="font-semibold">Z Range:</span> {gcodeInfo.size.z}
-                  </div>
-                  <div>
-                    <span className="font-semibold">Tools:</span> {gcodeInfo.tools.length}
-                  </div>
-                </div>
-                {gcodeInfo.tools.length > 0 && (
-                  <div className="mt-1">
-                    <span className="font-semibold">Tool Info:</span>
-                    <ul className="list-disc pl-5 mt-1">
-                      {gcodeInfo.tools.map((tool, index) => (
-                        <li key={index}>{tool.replace(/[;(]/, '')}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-
-              {/* Z-Depth Legend */}
-              <div className="p-4 bg-gray-100 rounded-md flex-1 shadow-sm min-w-[350px]">
-                <ZDepthLegend />
-              </div>
-            </div>
+function VisualizeComponent() {
+  return (
+    <AppRoot extraSidebarContent={<SidebarExtraContent />}>
+      <div className="relative w-full h-full">
+        <header className="flex h-10 shrink-0 items-center gap-2 z-10 absolute bg-white/80 rounded-br-lg">
+          <div className="flex items-center gap-2 px-4">
+            <SidebarTrigger className="-ml-1" />
+            <Separator orientation="vertical" className="mr-2 h-4" />
+            <Breadcrumb>
+              <BreadcrumbList>
+                <BreadcrumbItem>
+                  <BreadcrumbPage>Data Fetching</BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
           </div>
-        )}
-      </div>
+        </header>
 
-      {/* 3D Canvas */}
-      <div className="w-screen h-screen">
-        <PresentCanvas worldScale="machine">
-          <color attach="background" args={[0x1111ff]} />
-          <group rotation={[0, 0, Math.PI / 2]}>
-            <UnskewedFlatVideoMesh />
-            {showGCode && <GCodeVisualizer />}
-          </group>
-        </PresentCanvas>
+        {/* 3D Canvas */}
+        <div className="w-full h-dvh absolute top-0 left-0">
+          <PresentCanvas worldScale="machine">
+            <group rotation={[0, 0, Math.PI / 2]}>
+              <UnskewedFlatVideoMesh />
+              {<GCodeVisualizer />}
+            </group>
+          </PresentCanvas>
+        </div>
       </div>
-    </div>
+    </AppRoot>
   );
 }
 

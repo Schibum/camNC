@@ -19,10 +19,12 @@ export function useViewportToVideoScale() {
 // Same as useViewportToVideoScale, but for the machine bounds instead of the video.
 export function useViewPortToMachineScale() {
   const size = useThree(state => state.size);
-  const machineSize = useMachineSize();
+  let [mw, mh] = useMachineSize();
+  // HACK: just flip to account for default rotate for now.
+  [mw, mh] = [mh, mw];
   const containerAspect = size.width / size.height;
-  const videoAspect = machineSize[0] / machineSize[1];
-  return containerAspect < videoAspect ? size.width / machineSize[0] : size.height / machineSize[1];
+  const videoAspect = mw / mh;
+  return containerAspect < videoAspect ? size.width / mw : size.height / mh;
 }
 
 export function useContain(videoWidth: number, videoHeight: number) {

@@ -9,6 +9,9 @@ const router = createRouter({
   routeTree,
   defaultPreload: 'intent',
   defaultPendingComponent: () => <div>Loading...</div>,
+  context: {
+    customSidebar: false,
+  },
 });
 
 // Register things for typesafety
