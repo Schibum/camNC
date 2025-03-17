@@ -1,7 +1,7 @@
 import { useViewportToVideoScale, useViewPortToMachineScale } from '@/calibration/scaleHooks';
 import { OrbitControls, Text } from '@react-three/drei';
-import { Canvas, useThree } from '@react-three/fiber';
-import { useEffect } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { useEffect, useMemo } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import * as THREE from 'three';
 
@@ -20,6 +20,13 @@ const FallbackContent = ({ error }: { error: Error }) => (
 
 type IWorldScale = 'video' | 'machine';
 
+function useDefaultCameraRotation(worldScale: IWorldScale) {
+  return useMemo(
+    () => new THREE.Euler(0, 0, worldScale === 'machine' ? -Math.PI / 2 : 0),
+    [worldScale]
+  );
+}
+
 function DefaultControls({ worldScale }: { worldScale: IWorldScale }) {
   // Call both hooks unconditionally
   const videoScale = useViewportToVideoScale();
@@ -29,8 +36,18 @@ function DefaultControls({ worldScale }: { worldScale: IWorldScale }) {
   const zoomOutFactor = worldScale === 'video' ? 1 : 0.9;
 
   const camera = useThree(state => state.camera);
+  const rotation = useDefaultCameraRotation(worldScale);
+
+  // Hack, override orbit controls camera rotation. It'll always set it back to
+  // the default rotation otherwise.
+  useFrame(() => {
+    camera.rotation.copy(rotation);
+  });
+
   useEffect(() => {
     camera.zoom = minZoom;
+    THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
+    camera.rotation.copy(rotation);
     camera.updateProjectionMatrix();
     // only set initial zoom once
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -38,6 +55,7 @@ function DefaultControls({ worldScale }: { worldScale: IWorldScale }) {
 
   return (
     <OrbitControls
+      makeDefault
       enableRotate={false}
       enablePan={true}
       enableZoom={true}
@@ -57,7 +75,11 @@ export const PresentCanvas = ({
   return (
     <Canvas
       orthographic
-      camera={{ near: -10000, far: 10000, position: [0, 0, 1000] }}
+      camera={{
+        near: -10000,
+        far: 10000,
+        position: [0, 0, 1000],
+      }}
       raycaster={{ near: -10000, far: 10000 }}
       gl={{ antialias: true, outputColorSpace: THREE.SRGBColorSpace }}
     >

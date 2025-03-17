@@ -1,10 +1,13 @@
 import colormap from 'colormap';
+import { useMachineSize } from '@/store';
 import React, { useMemo } from 'react';
 import { Line2, LineGeometry, LineMaterial } from 'three/addons';
 import { useStore, useToolDiameter } from '../store';
 import { ParsedToolpath } from './gcodeParsing';
 import { useThree } from '@react-three/fiber';
-import { Color, SRGBColorSpace, Vector2 } from 'three';
+import { Color, SRGBColorSpace, Vector2, Vector3 } from 'three';
+import { Draggable } from '@/scene/Draggable';
+import { Plane } from '@react-three/drei';
 
 const plasmamap = colormap({
   colormap: 'plasma',
@@ -47,6 +50,7 @@ export const Toolpaths: React.FC = () => {
   const toolpath = useStore(s => s.toolpath);
   const toolDiameter = useToolDiameter();
   const viewport = useThree(s => s.viewport);
+  const setIsToolpathSelected = useStore(s => s.setIsToolpathSelected);
 
   const line2 = useMemo(() => {
     if (!toolpath) return null;
@@ -68,11 +72,51 @@ export const Toolpaths: React.FC = () => {
   if (!line2) return null;
 
   return (
-    <group>
-      <>
-        {/* Render the toolpath as a line using react-three/fiber */}
+    <>
+      <group
+        name="toolpath"
+        onPointerMissed={e => e.type === 'click' && setIsToolpathSelected(false)}
+        onClick={e => (e.stopPropagation, setIsToolpathSelected(true))}
+      >
         <primitive object={line2} />
-      </>
-    </group>
+      </group>
+    </>
+  );
+};
+
+interface GCodeVisualizerProps {}
+
+export const GCodeVisualizer: React.FC<GCodeVisualizerProps> = () => {
+  const toolpath = useStore(s => s.toolpath);
+  const machineSize = useMachineSize();
+  const offsetX = machineSize[0] / 2;
+  const offsetY = machineSize[1] / 2;
+  const [boundingSize, boundingBox] = useMemo(() => {
+    const size = new Vector3();
+    const bounds = toolpath?.getBounds();
+    if (!bounds) return [null, null];
+    bounds.getSize(size);
+    return [size, bounds];
+  }, [toolpath]);
+
+  if (!boundingSize) return null;
+
+  console.log(boundingBox.min);
+  return (
+    <>
+      <Draggable>
+        <Plane
+          args={[boundingSize.x, boundingSize.y]}
+          position={[0, 0, 0.1]}
+          material-color="hotpink"
+          material-transparent={true}
+          material-opacity={0.5}
+        />
+
+        <group position={[-offsetX, -offsetY, 0.1]}>
+          <Toolpaths />
+        </group>
+      </Draggable>
+    </>
   );
 };
