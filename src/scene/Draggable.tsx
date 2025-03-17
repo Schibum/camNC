@@ -30,8 +30,9 @@ export function Draggable({
   );
   const bind = useGesture(
     {
-      onDrag: ({ xy: [x, y], event }) => {
+      onDrag: ({ xy: [x, y], event, tap }) => {
         event.stopPropagation();
+        if (tap) return;
         // Compute normalized mouse coordinates (screen space)
         const nx = ((x - size.left) / size.width) * 2 - 1;
         const ny = -((y - size.top) / size.height) * 2 + 1;

@@ -71,10 +71,14 @@ export const useStore = create(persist(immer(combine(
     calibrationData: defaultCalibrationData,
     toolDiameter: 3.0, // Default tool diameter in mm
     toolpath: null as ParsedToolpath | null,
+    isToolpathSelected: false,
   },
   set => ({
     setVideoDimensions: (dimensions: ITuple) => set(state => {
       state.cameraConfig.dimensions = dimensions;
+    }),
+    setIsToolpathSelected: (isSelected: boolean) => set(state => {
+      state.isToolpathSelected = isSelected;
     }),
     setVideoSrc: (src: string) => set(state => {
       state.cameraConfig.url = src;

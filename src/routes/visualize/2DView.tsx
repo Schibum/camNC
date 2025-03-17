@@ -1,8 +1,7 @@
 import { UnskewedVideoMesh } from '@/calibration/UnskewTsl';
 import { PresentCanvas } from '@/scene/PresentCanvas';
-import { GCodeVisualizer } from '@/visualize/GCodeVisualizer';
 import { createFileRoute } from '@tanstack/react-router';
-import { useMachineSize, useVideoToMachineHomography } from '../../store';
+import { useMachineSize, useVideoToMachineHomography, useStore } from '../../store';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -11,7 +10,9 @@ import {
 } from '@/components/ui/breadcrumb';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Separator } from '@radix-ui/react-separator';
-
+import { TransformControls } from '@react-three/drei';
+import { useThree } from '@react-three/fiber';
+import { GCodeVisualizer } from '@/visualize/Toolpaths';
 
 export const Route = createFileRoute('/visualize/2DView')({
   component: VisualizeComponent,
@@ -19,6 +20,15 @@ export const Route = createFileRoute('/visualize/2DView')({
     return { customSidebar: true };
   },
 });
+
+function TransformToolpath() {
+  const scene = useThree(state => state.scene);
+  const isSelected = useStore(s => s.isToolpathSelected);
+  if (!isSelected) return null;
+  console.log(scene.getObjectByName('toolpath'));
+  return <TransformControls showZ={false} object={scene.getObjectByName('toolpath')} />;
+}
+
 function VisualizeComponent() {
   return (
     <div className="relative w-full h-full">
@@ -39,10 +49,12 @@ function VisualizeComponent() {
       {/* 3D Canvas */}
       <div className="w-full h-dvh absolute top-0 left-0">
         <PresentCanvas worldScale="machine">
-          <group rotation={[0, 0, Math.PI / 2]}>
-            <UnskewedFlatVideoMesh />
-            {<GCodeVisualizer />}
-          </group>
+          {/* <group rotation={[0, 0, Math.PI / 2]}> */}
+          <UnskewedFlatVideoMesh />
+          <GCodeVisualizer />
+          {/* </group> */}
+
+          {/* <TransformToolpath /> */}
         </PresentCanvas>
       </div>
     </div>
