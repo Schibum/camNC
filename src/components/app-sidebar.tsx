@@ -49,7 +49,7 @@ const routes: NavRoute[] = [
   },
   {
     title: 'Visualize',
-    to: '/visualize',
+    to: '/visualize/2DView',
     icon: Eye,
   },
   {

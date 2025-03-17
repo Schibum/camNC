@@ -4,7 +4,8 @@ import { immer } from 'zustand/middleware/immer';
 import { buildMatrix4FromHomography } from './math/perspectiveTransform';
 import { computeHomography } from './math/perspectiveTransform';
 import { Matrix4 } from 'three';
-import { ParsedToolpath, parseGCode } from './visualize/gcodeHelpers';
+import { ParsedToolpath, parseGCode } from './visualize/gcodeParsing';
+import { parseToolInfo } from './visualize/guess-tools';
 
 export interface CalibrationData {
   calibration_matrix: number[][];
@@ -90,6 +91,11 @@ export const useStore = create(persist(immer(combine(
     // Update Toolpath from GCode
     updateToolpath: (gcode: string) => set(state => {
       state.toolpath = parseGCode(gcode);
+      const tools = parseToolInfo(gcode);
+      console.debug('guessed tools', tools);
+      if (tools.length > 0 && tools[0].isFlat) {
+        state.toolDiameter = tools[0].diameter;
+      }
     }),
   })
 )), {
