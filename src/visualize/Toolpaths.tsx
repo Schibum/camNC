@@ -2,7 +2,7 @@ import colormap from 'colormap';
 import React, { useMemo } from 'react';
 import { Line2, LineGeometry, LineMaterial } from 'three/addons';
 import { useStore, useToolDiameter } from '../store';
-import { ParsedToolpath } from './gcodeHelpers';
+import { ParsedToolpath } from './gcodeParsing';
 import { useThree } from '@react-three/fiber';
 import { Color, SRGBColorSpace, Vector2 } from 'three';
 
