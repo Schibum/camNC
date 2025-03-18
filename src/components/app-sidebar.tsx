@@ -72,8 +72,7 @@ function NavRoutes({ routes }: { routes: NavRoute[] }) {
                 activeProps={{
                   className: 'font-bold',
                 }}
-                activeOptions={{ exact: route.exact }}
-              >
+                activeOptions={{ exact: route.exact }}>
                 <route.icon className="size-4" />
                 <span>{route.title}</span>
               </Link>

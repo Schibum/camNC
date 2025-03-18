@@ -5,10 +5,10 @@ import { useEffect } from 'react';
 export function useMessageListener() {
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      console.log('Message received:', event.data);
       if (event.origin !== window.location.origin) {
         return;
       }
-      // console.log('Message received:', event.data);
     };
 
     // Add the message event listener

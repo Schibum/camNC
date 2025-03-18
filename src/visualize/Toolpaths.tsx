@@ -4,7 +4,7 @@ import React, { useMemo } from 'react';
 import { Line2, LineGeometry, LineMaterial } from 'three/addons';
 import { useStore, useToolDiameter } from '../store';
 import { ParsedToolpath } from './gcodeParsing';
-import { useThree } from '@react-three/fiber';
+import { ThreeEvent, useThree } from '@react-three/fiber';
 import { Color, SRGBColorSpace, Vector2, Vector3 } from 'three';
 import { Draggable } from '@/scene/Draggable';
 import { Edges, Plane, Line } from '@react-three/drei';
@@ -25,9 +25,7 @@ function getZHeightColors(toolpath: ParsedToolpath) {
   const boundingBox = toolpath.getBounds();
   const colors = new Array(toolpath.pathPoints.length * 3);
   for (let i = 0; i < toolpath.pathPoints.length; i++) {
-    const color = getPlasmaColor(
-      (toolpath.pathPoints[i].z - boundingBox.min.z) / (boundingBox.max.z - boundingBox.min.z)
-    );
+    const color = getPlasmaColor((toolpath.pathPoints[i].z - boundingBox.min.z) / (boundingBox.max.z - boundingBox.min.z));
 
     colors[i * 3] = color.r;
     colors[i * 3 + 1] = color.g;
@@ -100,21 +98,15 @@ function ToolpathBackgroundPlane() {
   }, [bounds]);
 
   if (!boundingSize || !bounds) return null;
-  console.log(lineThickness.get());
 
   return (
     <group>
       <AnimatedPlane
         args={[boundingSize.x, boundingSize.y]}
-        position={[
-          boundingSize.x / 2 + bounds.min.x,
-          boundingSize.y / 2 + bounds.min.y,
-          bounds.min.z,
-        ]}
+        position={[boundingSize.x / 2 + bounds.min.x, boundingSize.y / 2 + bounds.min.y, bounds.min.z]}
         material-color="white"
         material-transparent={true}
-        material-opacity={opacity}
-      >
+        material-opacity={opacity}>
         <Edges
           position={[0, 0, 0]}
           linewidth={1}
@@ -131,14 +123,25 @@ function ToolpathBackgroundPlane() {
   );
 }
 
+// Offset for positioning objects in zero machine coordinates.
+function useMachineCoordsOffset() {
+  const machineBounds = useStore(s => s.cameraConfig.machineBounds);
+  const machineSize = useMachineSize();
+  // TODO: this should add min bounds.
+  return new Vector3(-machineSize.x / 2 + machineBounds.min.x, -machineSize.y / 2 + machineBounds.min.y, 0);
+}
+
 interface GCodeVisualizerProps {}
 export const GCodeVisualizer: React.FC<GCodeVisualizerProps> = () => {
   const toolpath = useStore(s => s.toolpath);
-  const machineSize = useMachineSize();
-  const offsetX = machineSize[0] / 2;
-  const offsetY = machineSize[1] / 2;
+  const offset = useMachineCoordsOffset();
   const setIsToolpathSelected = useStore(s => s.setIsToolpathSelected);
   const setIsToolpathHovered = useStore(s => s.setIsToolpathHovered);
+  const setToolpathOffset = useStore(s => s.setToolpathOffset);
+
+  function onDragEnd(event: ThreeEvent<PointerEvent>) {
+    setToolpathOffset(event.eventObject.position);
+  }
 
   const boundingSize = useMemo(() => {
     const size = new Vector3();
@@ -152,15 +155,14 @@ export const GCodeVisualizer: React.FC<GCodeVisualizerProps> = () => {
 
   return (
     <>
-      <axesHelper args={[100]} position={[-offsetX, -offsetY, 0]} />
-      <Draggable>
+      <axesHelper args={[100]} position={offset} />
+      <Draggable onDragEnd={onDragEnd}>
         <group
-          position={[-offsetX, -offsetY, 0.1]}
+          position={offset}
           onPointerMissed={e => e.type === 'click' && setIsToolpathSelected(false)}
           onClick={e => (e.stopPropagation, setIsToolpathSelected(true))}
           onPointerEnter={() => setIsToolpathHovered(true)}
-          onPointerLeave={() => setIsToolpathHovered(false)}
-        >
+          onPointerLeave={() => setIsToolpathHovered(false)}>
           <Toolpaths />
           <ToolpathBackgroundPlane />
         </group>

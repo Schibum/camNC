@@ -2,12 +2,7 @@ import { UnskewedVideoMesh } from '@/calibration/UnskewTsl';
 import { PresentCanvas } from '@/scene/PresentCanvas';
 import { createFileRoute } from '@tanstack/react-router';
 import { useMachineSize, useVideoToMachineHomography, useStore } from '../../store';
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbPage,
-} from '@/components/ui/breadcrumb';
+import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage } from '@/components/ui/breadcrumb';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Separator } from '@radix-ui/react-separator';
 import { TransformControls } from '@react-three/drei';
@@ -63,9 +58,7 @@ function VisualizeComponent() {
 
 function UnskewedFlatVideoMesh() {
   const videoToMachineHomography = useVideoToMachineHomography();
-  const machineSize = useMachineSize();
-  const offsetX = machineSize[0] / 2;
-  const offsetY = machineSize[1] / 2;
+  const [offsetX, offsetY] = useMachineSize().divideScalar(2).toArray();
 
   return (
     <group position={[-offsetX, -offsetY, -100]}>

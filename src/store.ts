@@ -1,11 +1,12 @@
 import { create } from 'zustand';
-import { combine, persist } from 'zustand/middleware';
+import { combine, persist, PersistStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import { buildMatrix4FromHomography } from './math/perspectiveTransform';
 import { computeHomography } from './math/perspectiveTransform';
-import { Matrix4 } from 'three';
+import { Matrix4, Vector3, Box2, Vector2 } from 'three';
 import { ParsedToolpath, parseGCode } from './visualize/gcodeParsing';
 import { parseToolInfo } from './visualize/guess-tools';
+import superjson from 'superjson';
 
 export interface CalibrationData {
   calibration_matrix: number[][];
@@ -24,7 +25,7 @@ export interface CameraConfig {
   // Machine bounds in camera coordinates.
   machineBoundsInCam: IBox;
   // Machine bounds in pixels. (xmin, ymin), (xmax, ymax)
-  machineBounds: [ITuple, ITuple];
+  machineBounds: Box2;
 }
 
 // Default calibration data
@@ -34,12 +35,7 @@ const defaultCalibrationData: CalibrationData = {
     [0.0, 2017.1223458668746, 952.7108080446899],
     [0.0, 0.0, 1.0],
   ],
-  distortion_coefficients: [
-    [
-      -0.3921598065400269, 0.23211488659159807, 0.0023824662841748097, -0.0004288390281597757,
-      -0.09431940984729748,
-    ],
-  ],
+  distortion_coefficients: [[-0.3921598065400269, 0.23211488659159807, 0.0023824662841748097, -0.0004288390281597757, -0.09431940984729748]],
 };
 
 const defaultCameraConfig: CameraConfig = {
@@ -56,10 +52,44 @@ const defaultCameraConfig: CameraConfig = {
     [713.8957172275411, 1657.8738581807893],
   ],
   dimensions: [2560, 1920],
-  machineBounds: [
-    [0, 0],
-    [625, 1235],
-  ],
+  machineBounds: new Box2(new Vector2(0, 0), new Vector2(625, 1235)),
+};
+
+superjson.registerCustom<Box2, { min: number[]; max: number[] }>(
+  {
+    isApplicable: value => value instanceof Box2,
+    serialize: value => ({ min: value.min.toArray(), max: value.max.toArray() }),
+    deserialize: value => new Box2(new Vector2().fromArray(value.min), new Vector2().fromArray(value.max)),
+  },
+  'Box2'
+);
+superjson.registerCustom<Vector2, number[]>(
+  {
+    isApplicable: value => value instanceof Vector2,
+    serialize: value => value.toArray(),
+    deserialize: value => new Vector2().fromArray(value),
+  },
+  'Vector2'
+);
+superjson.registerCustom<Vector3, number[]>(
+  {
+    isApplicable: value => value instanceof Vector3,
+    serialize: value => value.toArray(),
+    deserialize: value => new Vector3().fromArray(value),
+  },
+  'Vector3'
+);
+
+const storage: PersistStorage<unknown> = {
+  getItem: name => {
+    const str = localStorage.getItem(name);
+    if (!str) return null;
+    return superjson.parse(str);
+  },
+  setItem: (name, value) => {
+    localStorage.setItem(name, superjson.stringify(value));
+  },
+  removeItem: name => localStorage.removeItem(name),
 };
 
 // Should we create slices? see https://github.com/pmndrs/zustand/discussions/2195#discussioncomment-7614103
@@ -72,11 +102,15 @@ export const useStore = create(persist(immer(combine(
     toolDiameter: 3.0, // Default tool diameter in mm
     toolpath: null as ParsedToolpath | null,
     isToolpathSelected: false,
-    isToolpathHovered: false
+    isToolpathHovered: false,
+    toolpathOffset: new Vector3(0, 0, 0),
   },
   set => ({
     setVideoDimensions: (dimensions: ITuple) => set(state => {
       state.cameraConfig.dimensions = dimensions;
+    }),
+    setToolpathOffset: (offset: Vector3) => set(state => {
+      state.toolpathOffset = offset;
     }),
     setIsToolpathSelected: (isSelected: boolean) => set(state => {
       state.isToolpathSelected = isSelected;
@@ -98,6 +132,7 @@ export const useStore = create(persist(immer(combine(
     }),
     // Update Toolpath from GCode
     updateToolpath: (gcode: string) => set(state => {
+
       state.toolpath = parseGCode(gcode);
       const tools = parseToolInfo(gcode);
       console.debug('guessed tools', tools);
@@ -108,6 +143,7 @@ export const useStore = create(persist(immer(combine(
   })
 )), {
   name: 'settings',
+  storage,
   partialize: state => ({
     cameraConfig: state.cameraConfig,
     toolDiameter: state.toolDiameter,
@@ -128,9 +164,9 @@ export const useSetToolDiameter = () => useStore(state => state.setToolDiameter)
 
 // Returns the usable size of the machine boundary in mm [xrange, yrange].
 // Computed as xmax - xmin, ymax - ymin.
-export function useMachineSize(): ITuple {
+export function useMachineSize() {
   const bounds = useStore(state => state.cameraConfig.machineBounds);
-  return [bounds[1][0] - bounds[0][0], bounds[1][1] - bounds[0][1]];
+  return bounds.getSize(new Vector2());
 }
 
 /**
@@ -141,10 +177,10 @@ export function useVideoToMachineHomography() {
   const machineBoundsInCam = useStore(state => state.cameraConfig.machineBoundsInCam);
   const mp = useStore(state => state.cameraConfig.machineBounds);
   const dstPoints = [
-    [mp[0][0], mp[0][1]], // xmin, ymin
-    [mp[0][0], mp[1][1]], // xmin, ymax
-    [mp[1][0], mp[1][1]], // xmax, ymax
-    [mp[1][0], mp[0][1]], // xmax, ymin
+    [mp.min.x, mp.min.y], // xmin, ymin
+    [mp.min.x, mp.max.y], // xmin, ymax
+    [mp.max.x, mp.max.y], // xmax, ymax
+    [mp.max.x, mp.min.y], // xmax, ymin
   ] as IBox;
   const H = computeHomography(machineBoundsInCam, dstPoints);
   const M = new Matrix4().fromArray(buildMatrix4FromHomography(H));
