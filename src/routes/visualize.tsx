@@ -1,4 +1,5 @@
 import { AppRoot } from '@/components/app-root';
+import { NavFluidnc } from '@/components/fluidnc/NavFluidnc';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SidebarGroup, SidebarGroupLabel, SidebarGroupContent } from '@/components/ui/sidebar';
@@ -47,35 +48,38 @@ function SidebarExtraContent() {
   };
 
   return (
-    <SidebarGroup>
-      <SidebarGroupLabel>Visualization</SidebarGroupLabel>
-      <SidebarGroupContent>
-        <div className="flex flex-col space-y-2">
-          <GCodeSelector onChange={handleGCodeChange} />
-          <FileSelector />
-          <BoundsInfo />
+    <>
+      <NavFluidnc />
+      <SidebarGroup>
+        <SidebarGroupLabel>Visualization</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <div className="flex flex-col space-y-2">
+            <GCodeSelector onChange={handleGCodeChange} />
+            <FileSelector />
+            <BoundsInfo />
 
-          {
-            <>
-              <div className="grid w-full max-w-sm items-center gap-1.5">
-                <Label htmlFor="email">Tool Diameter (mm)</Label>
-                <Input
-                  type="number"
-                  min="0.1"
-                  max="50"
-                  step="0.1"
-                  value={toolDiameter}
-                  onChange={e => setToolDiameter(parseFloat(e.target.value))}
-                />
-              </div>
-            </>
-          }
+            {
+              <>
+                <div className="grid w-full max-w-sm items-center gap-1.5">
+                  <Label htmlFor="email">Tool Diameter (mm)</Label>
+                  <Input
+                    type="number"
+                    min="0.1"
+                    max="50"
+                    step="0.1"
+                    value={toolDiameter}
+                    onChange={e => setToolDiameter(parseFloat(e.target.value))}
+                  />
+                </div>
+              </>
+            }
 
-          {/* GCode selection and information panel */}
-          <ZDepthLegend />
-        </div>
-      </SidebarGroupContent>
-    </SidebarGroup>
+            {/* GCode selection and information panel */}
+            <ZDepthLegend />
+          </div>
+        </SidebarGroupContent>
+      </SidebarGroup>
+    </>
   );
 }
 

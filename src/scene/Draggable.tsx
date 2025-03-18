@@ -2,20 +2,15 @@ import { useThree } from '@react-three/fiber';
 import { useGesture } from '@use-gesture/react';
 import React, { useMemo, useRef } from 'react';
 import * as THREE from 'three';
-
+import { ThreeEvent } from '@react-three/fiber';
 interface DraggableProps {
   children: React.ReactNode;
-  onDragStart?: (event: any) => void;
-  onDragEnd?: (event: any) => void;
+  onDragStart?: (event: ThreeEvent<PointerEvent>) => void;
+  onDragEnd?: (event: ThreeEvent<PointerEvent>) => void;
   [key: string]: any;
 }
 
-export function Draggable({
-  children,
-  onDragStart = undefined,
-  onDragEnd = undefined,
-  ...props
-}: DraggableProps) {
+export function Draggable({ children, onDragStart = undefined, onDragEnd = undefined, ...props }: DraggableProps) {
   const ref = useRef<THREE.Group>(null);
   const { raycaster, size, camera } = useThree();
   const { mouse2D, mouse3D, offset, normal, plane } = useMemo(
@@ -28,7 +23,7 @@ export function Draggable({
     }),
     []
   );
-  const bind = useGesture(
+  const bind = useGesture<{ drag: ThreeEvent<PointerEvent> }>(
     {
       onDrag: ({ xy: [x, y], event, tap }) => {
         event.stopPropagation();
@@ -54,7 +49,7 @@ export function Draggable({
         // Update the object position with the original offset
         ref.current?.position.copy(mouse3D).add(offset);
       },
-      onDragStart: ({ event }: { event: any }) => {
+      onDragStart: ({ event }) => {
         event.stopPropagation();
         const { eventObject, point } = event as any;
 
