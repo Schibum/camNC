@@ -11,6 +11,32 @@ interface UnskewTslProps {
   height?: number;
 }
 
+let lastCalibrationData: CalibrationData | null = null;
+let lastWidth: number | null = null;
+let lastHeight: number | null = null;
+let lastUndistortionMaps: [Float32Array, Float32Array] | null = null;
+
+// Same as calculateUndistortionMaps, but caches the most recent result globally
+function calculateUndistortionMapsCached(
+  calibrationData: CalibrationData,
+  width: number,
+  height: number
+): [Float32Array, Float32Array] {
+  if (
+    calibrationData === lastCalibrationData &&
+    width === lastWidth &&
+    height === lastHeight &&
+    lastUndistortionMaps
+  ) {
+    return lastUndistortionMaps;
+  }
+  lastCalibrationData = calibrationData;
+  lastWidth = width;
+  lastHeight = height;
+  lastUndistortionMaps = calculateUndistortionMaps(calibrationData, width, height);
+  return lastUndistortionMaps;
+}
+
 /**
  * Calculate the undistortion maps from OpenCV camera parameters
  * @param calibrationData Camera calibration data with intrinsic matrix and distortion coefficients
@@ -18,11 +44,11 @@ interface UnskewTslProps {
  * @param height Image height
  * @returns {Float32Array[]} Arrays for X and Y undistortion maps
  */
-async function calculateUndistortionMaps(
+function calculateUndistortionMaps(
   calibrationData: CalibrationData,
   width: number,
   height: number
-): Promise<[Float32Array, Float32Array]> {
+): [Float32Array, Float32Array] {
   // Extract camera matrix and distortion coefficients
   const { calibration_matrix, distortion_coefficients } = calibrationData;
 
@@ -92,17 +118,11 @@ const UndistortMesh = React.forwardRef<
     );
 
     // Calculate maps asynchronously and update textures when ready
-    calculateUndistortionMaps(calibrationData, width, height)
-      .then(([mapX, mapY]) => {
-        placeholderX.image.data = mapX;
-        placeholderY.image.data = mapY;
-        placeholderX.needsUpdate = true;
-        placeholderY.needsUpdate = true;
-        console.log('Undistortion maps calculated successfully');
-      })
-      .catch(err => {
-        console.error('Error calculating undistortion maps:', err);
-      });
+    const [mapX, mapY] = calculateUndistortionMapsCached(calibrationData, width, height);
+    placeholderX.image.data = mapX;
+    placeholderY.image.data = mapY;
+    placeholderX.needsUpdate = true;
+    placeholderY.needsUpdate = true;
 
     return [placeholderX, placeholderY];
   }, [videoDimensions, calibrationData]);
