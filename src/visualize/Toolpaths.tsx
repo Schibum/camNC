@@ -7,7 +7,8 @@ import { ParsedToolpath } from './gcodeParsing';
 import { useThree } from '@react-three/fiber';
 import { Color, SRGBColorSpace, Vector2, Vector3 } from 'three';
 import { Draggable } from '@/scene/Draggable';
-import { Plane } from '@react-three/drei';
+import { Edges, Plane, Line } from '@react-three/drei';
+import { useSpring, animated } from '@react-spring/three';
 
 const plasmamap = colormap({
   colormap: 'plasma',
@@ -50,13 +51,16 @@ export const Toolpaths: React.FC = () => {
   const toolpath = useStore(s => s.toolpath);
   const toolDiameter = useToolDiameter();
   const viewport = useThree(s => s.viewport);
-  const setIsToolpathSelected = useStore(s => s.setIsToolpathSelected);
 
   const line2 = useMemo(() => {
     if (!toolpath) return null;
     const geom = new LineGeometry();
     geom.setPositions(toolpath.pathPoints.flatMap(p => [p.x, p.y, -p.z]));
-    const mat = new LineMaterial({ color: 0xffffff, vertexColors: true, alphaToCoverage: false });
+    const mat = new LineMaterial({
+      color: 0xffffff,
+      vertexColors: true,
+      alphaToCoverage: false,
+    });
     mat.linewidth = toolDiameter;
     mat.worldUnits = true;
     mat.resolution = new Vector2(viewport.width, viewport.height);
@@ -73,48 +77,92 @@ export const Toolpaths: React.FC = () => {
 
   return (
     <>
-      <group
-        name="toolpath"
-        onPointerMissed={e => e.type === 'click' && setIsToolpathSelected(false)}
-        onClick={e => (e.stopPropagation, setIsToolpathSelected(true))}
-      >
-        <primitive object={line2} />
-      </group>
+      <primitive object={line2} />
     </>
   );
 };
 
-interface GCodeVisualizerProps {}
+const AnimatedPlane = animated(Plane);
+const AnimatedEdges = animated(Edges);
+const AnimatedLine = animated(Line);
 
+function ToolpathBackgroundPlane() {
+  const isToolpathHovered = useStore(s => s.isToolpathHovered);
+  const toolpath = useStore(s => s.toolpath);
+  const { opacity } = useSpring({ opacity: isToolpathHovered ? 0.5 : 0.1 });
+  const { lineThickness } = useSpring({ lineThickness: isToolpathHovered ? 10 : 1 });
+  const bounds = toolpath?.getBounds();
+  const boundingSize = useMemo(() => {
+    if (!bounds) return null;
+    const size = new Vector3();
+    bounds.getSize(size);
+    return size;
+  }, [bounds]);
+
+  if (!boundingSize || !bounds) return null;
+  console.log(lineThickness.get());
+
+  return (
+    <group>
+      <AnimatedPlane
+        args={[boundingSize.x, boundingSize.y]}
+        position={[
+          boundingSize.x / 2 + bounds.min.x,
+          boundingSize.y / 2 + bounds.min.y,
+          bounds.min.z,
+        ]}
+        material-color="white"
+        material-transparent={true}
+        material-opacity={opacity}
+      >
+        <Edges
+          position={[0, 0, 0]}
+          linewidth={1}
+          color="white"
+          depthTest={false}
+          renderOrder={100}
+          dashed
+          dashSize={10}
+          gapSize={10}
+          visible={isToolpathHovered}
+        />
+      </AnimatedPlane>
+    </group>
+  );
+}
+
+interface GCodeVisualizerProps {}
 export const GCodeVisualizer: React.FC<GCodeVisualizerProps> = () => {
   const toolpath = useStore(s => s.toolpath);
   const machineSize = useMachineSize();
   const offsetX = machineSize[0] / 2;
   const offsetY = machineSize[1] / 2;
-  const [boundingSize, boundingBox] = useMemo(() => {
+  const setIsToolpathSelected = useStore(s => s.setIsToolpathSelected);
+  const setIsToolpathHovered = useStore(s => s.setIsToolpathHovered);
+
+  const boundingSize = useMemo(() => {
     const size = new Vector3();
     const bounds = toolpath?.getBounds();
-    if (!bounds) return [null, null];
+    if (!bounds) return null;
     bounds.getSize(size);
-    return [size, bounds];
+    return size;
   }, [toolpath]);
 
   if (!boundingSize) return null;
 
-  console.log(boundingBox.min);
   return (
     <>
+      <axesHelper args={[100]} position={[-offsetX, -offsetY, 0]} />
       <Draggable>
-        <Plane
-          args={[boundingSize.x, boundingSize.y]}
-          position={[0, 0, 0.1]}
-          material-color="hotpink"
-          material-transparent={true}
-          material-opacity={0.5}
-        />
-
-        <group position={[-offsetX, -offsetY, 0.1]}>
+        <group
+          position={[-offsetX, -offsetY, 0.1]}
+          onPointerMissed={e => e.type === 'click' && setIsToolpathSelected(false)}
+          onClick={e => (e.stopPropagation, setIsToolpathSelected(true))}
+          onPointerEnter={() => setIsToolpathHovered(true)}
+          onPointerLeave={() => setIsToolpathHovered(false)}
+        >
           <Toolpaths />
+          <ToolpathBackgroundPlane />
         </group>
       </Draggable>
     </>

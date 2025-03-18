@@ -42,6 +42,7 @@ function DefaultControls({ worldScale }: { worldScale: IWorldScale }) {
   // the default rotation otherwise.
   useFrame(() => {
     camera.rotation.copy(rotation);
+    // camera.lookAt(1000, 1000, 0);
   });
 
   useEffect(() => {
