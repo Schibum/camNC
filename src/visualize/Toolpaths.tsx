@@ -1,14 +1,14 @@
-import colormap from 'colormap';
+import { Draggable } from '@/scene/Draggable';
 import { useMachineSize } from '@/store';
+import { animated, useSpring } from '@react-spring/three';
+import { Edges, Line, Plane } from '@react-three/drei';
+import { ThreeEvent, useThree } from '@react-three/fiber';
+import colormap from 'colormap';
 import React, { useMemo } from 'react';
+import { Color, SRGBColorSpace, Vector2, Vector3 } from 'three';
 import { Line2, LineGeometry, LineMaterial } from 'three/addons';
 import { useStore, useToolDiameter } from '../store';
 import { ParsedToolpath } from './gcodeParsing';
-import { ThreeEvent, useThree } from '@react-three/fiber';
-import { Color, SRGBColorSpace, Vector2, Vector3 } from 'three';
-import { Draggable } from '@/scene/Draggable';
-import { Edges, Plane, Line } from '@react-three/drei';
-import { useSpring, animated } from '@react-spring/three';
 
 const plasmamap = colormap({
   colormap: 'plasma',
@@ -81,14 +81,11 @@ export const Toolpaths: React.FC = () => {
 };
 
 const AnimatedPlane = animated(Plane);
-const AnimatedEdges = animated(Edges);
-const AnimatedLine = animated(Line);
 
 function ToolpathBackgroundPlane() {
   const isToolpathHovered = useStore(s => s.isToolpathHovered);
   const toolpath = useStore(s => s.toolpath);
   const { opacity } = useSpring({ opacity: isToolpathHovered ? 0.5 : 0.1 });
-  const { lineThickness } = useSpring({ lineThickness: isToolpathHovered ? 10 : 1 });
   const bounds = toolpath?.getBounds();
   const boundingSize = useMemo(() => {
     if (!bounds) return null;
@@ -131,6 +128,33 @@ function useMachineCoordsOffset() {
   return new Vector3(-machineSize.x / 2 + machineBounds.min.x, -machineSize.y / 2 + machineBounds.min.y, 0);
 }
 
+function UseableMachineSpaceOutline() {
+  const machineBounds = useStore(s => s.cameraConfig.machineBounds);
+  const offset = useMachineCoordsOffset();
+  const corners = useMemo(() => {
+    return [
+      [machineBounds.min.x, machineBounds.min.y],
+      [machineBounds.min.x, machineBounds.max.y],
+      [machineBounds.max.x, machineBounds.max.y],
+      [machineBounds.max.x, machineBounds.min.y],
+      [machineBounds.min.x, machineBounds.min.y],
+    ] as [number, number][];
+  }, [machineBounds]);
+  return (
+    <Line
+      depthTest={false}
+      renderOrder={1000}
+      points={corners}
+      position={offset}
+      color="#0cd20c"
+      linewidth={1}
+      dashed
+      dashSize={5}
+      gapSize={5}
+    />
+  );
+}
+
 interface GCodeVisualizerProps {}
 export const GCodeVisualizer: React.FC<GCodeVisualizerProps> = () => {
   const toolpath = useStore(s => s.toolpath);
@@ -138,6 +162,7 @@ export const GCodeVisualizer: React.FC<GCodeVisualizerProps> = () => {
   const setIsToolpathSelected = useStore(s => s.setIsToolpathSelected);
   const setIsToolpathHovered = useStore(s => s.setIsToolpathHovered);
   const setToolpathOffset = useStore(s => s.setToolpathOffset);
+  const isToolpathHovered = useStore(s => s.isToolpathHovered);
 
   function onDragEnd(event: ThreeEvent<PointerEvent>) {
     setToolpathOffset(event.eventObject.position);
@@ -155,7 +180,8 @@ export const GCodeVisualizer: React.FC<GCodeVisualizerProps> = () => {
 
   return (
     <>
-      <axesHelper args={[100]} position={offset} />
+      <axesHelper args={[100]} position={offset} position-z={1000} />
+      <UseableMachineSpaceOutline />
       <Draggable onDragEnd={onDragEnd}>
         <group
           position={offset}
@@ -163,6 +189,7 @@ export const GCodeVisualizer: React.FC<GCodeVisualizerProps> = () => {
           onClick={e => (e.stopPropagation, setIsToolpathSelected(true))}
           onPointerEnter={() => setIsToolpathHovered(true)}
           onPointerLeave={() => setIsToolpathHovered(false)}>
+          <axesHelper args={[50]} visible={isToolpathHovered} position-z={boundingSize.z} />
           <Toolpaths />
           <ToolpathBackgroundPlane />
         </group>

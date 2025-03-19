@@ -17,17 +17,8 @@ let lastHeight: number | null = null;
 let lastUndistortionMaps: [Float32Array, Float32Array] | null = null;
 
 // Same as calculateUndistortionMaps, but caches the most recent result globally
-function calculateUndistortionMapsCached(
-  calibrationData: CalibrationData,
-  width: number,
-  height: number
-): [Float32Array, Float32Array] {
-  if (
-    calibrationData === lastCalibrationData &&
-    width === lastWidth &&
-    height === lastHeight &&
-    lastUndistortionMaps
-  ) {
+function calculateUndistortionMapsCached(calibrationData: CalibrationData, width: number, height: number): [Float32Array, Float32Array] {
+  if (calibrationData === lastCalibrationData && width === lastWidth && height === lastHeight && lastUndistortionMaps) {
     return lastUndistortionMaps;
   }
   lastCalibrationData = calibrationData;
@@ -44,11 +35,7 @@ function calculateUndistortionMapsCached(
  * @param height Image height
  * @returns {Float32Array[]} Arrays for X and Y undistortion maps
  */
-function calculateUndistortionMaps(
-  calibrationData: CalibrationData,
-  width: number,
-  height: number
-): [Float32Array, Float32Array] {
+function calculateUndistortionMaps(calibrationData: CalibrationData, width: number, height: number): [Float32Array, Float32Array] {
   // Extract camera matrix and distortion coefficients
   const { calibration_matrix, distortion_coefficients } = calibrationData;
 
@@ -101,21 +88,9 @@ const UndistortMesh = React.forwardRef<
     const { width, height } = videoDimensions;
 
     // Create placeholder textures
-    const placeholderX = new THREE.DataTexture(
-      new Float32Array(width * height),
-      width,
-      height,
-      THREE.RedFormat,
-      THREE.FloatType
-    );
+    const placeholderX = new THREE.DataTexture(new Float32Array(width * height), width, height, THREE.RedFormat, THREE.FloatType);
 
-    const placeholderY = new THREE.DataTexture(
-      new Float32Array(width * height),
-      width,
-      height,
-      THREE.RedFormat,
-      THREE.FloatType
-    );
+    const placeholderY = new THREE.DataTexture(new Float32Array(width * height), width, height, THREE.RedFormat, THREE.FloatType);
 
     // Calculate maps asynchronously and update textures when ready
     const [mapX, mapY] = calculateUndistortionMapsCached(calibrationData, width, height);
@@ -197,32 +172,23 @@ const UndistortMesh = React.forwardRef<
 UndistortMesh.displayName = 'UndistortMesh';
 
 // New UnskewedVideoMesh component to load video texture
-export const UnskewedVideoMesh = React.forwardRef<THREE.Mesh, ThreeElements['mesh']>(
-  (props, ref) => {
-    const calibrationData = useCalibrationData();
-    const videoSrc = useVideoSrc();
-    const setVideoDimensions = useStore(state => state.setVideoDimensions);
-    // Use drei's useVideoTexture hook to load video texture
-    const videoTexture = useVideoTexture(videoSrc, {
-      crossOrigin: 'anonymous',
-      muted: true,
-      loop: true,
-      start: true,
-    });
-    useEffect(() => {
-      setVideoDimensions([videoTexture.image.videoWidth, videoTexture.image.videoHeight]);
-    }, [videoTexture.image.videoWidth, videoTexture.image.videoHeight, setVideoDimensions]);
+export const UnskewedVideoMesh = React.forwardRef<THREE.Mesh, ThreeElements['mesh']>((props, ref) => {
+  const calibrationData = useCalibrationData();
+  const videoSrc = useVideoSrc();
+  const setVideoDimensions = useStore(state => state.setVideoDimensions);
+  // Use drei's useVideoTexture hook to load video texture
+  const videoTexture = useVideoTexture(videoSrc, {
+    crossOrigin: 'anonymous',
+    muted: true,
+    loop: true,
+    start: true,
+  });
+  useEffect(() => {
+    setVideoDimensions([videoTexture.image.videoWidth, videoTexture.image.videoHeight]);
+  }, [videoTexture.image.videoWidth, videoTexture.image.videoHeight, setVideoDimensions]);
 
-    return (
-      <UndistortMesh
-        {...props}
-        ref={ref}
-        videoTexture={videoTexture}
-        calibrationData={calibrationData}
-      />
-    );
-  }
-);
+  return <UndistortMesh {...props} ref={ref} videoTexture={videoTexture} calibrationData={calibrationData} />;
+});
 
 // Add display name for debugging
 UnskewedVideoMesh.displayName = 'UnskewedVideoMesh';
@@ -231,11 +197,7 @@ UnskewedVideoMesh.displayName = 'UnskewedVideoMesh';
 const UnskewTsl: React.FC<UnskewTslProps> = ({ width = 800, height = 600 }) => {
   // Handle missing calibration data - calibrationData is now passed through UnskewedVideoMesh
   const calibrationData = useCalibrationData();
-  if (
-    !calibrationData ||
-    !calibrationData.calibration_matrix ||
-    !calibrationData.distortion_coefficients
-  ) {
+  if (!calibrationData || !calibrationData.calibration_matrix || !calibrationData.distortion_coefficients) {
     return (
       <div className="p-4 text-yellow-500 bg-yellow-50 border border-yellow-200 rounded">
         <p>Missing or invalid calibration data</p>

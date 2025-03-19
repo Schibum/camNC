@@ -7,6 +7,7 @@ import { Matrix4, Vector3, Box2, Vector2 } from 'three';
 import { ParsedToolpath, parseGCode } from './visualize/gcodeParsing';
 import { parseToolInfo } from './visualize/guess-tools';
 import superjson from 'superjson';
+import { immerable } from 'immer';
 
 export interface CalibrationData {
   calibration_matrix: number[][];
@@ -92,6 +93,8 @@ const storage: PersistStorage<unknown> = {
   removeItem: name => localStorage.removeItem(name),
 };
 
+(Box2 as any)[immerable] = true;
+(Vector2 as any)[immerable] = true;
 // Should we create slices? see https://github.com/pmndrs/zustand/discussions/2195#discussioncomment-7614103
 
 // prettier-ignore
@@ -112,6 +115,23 @@ export const useStore = create(persist(immer(combine(
     setToolpathOffset: (offset: Vector3) => set(state => {
       state.toolpathOffset = offset;
     }),
+    setMachineBounds: (bounds: Box2) => set(state => {
+      state.cameraConfig.machineBounds = bounds;
+    }),
+    machineBoundsSetters: {
+      setXMin: (xMin: number) => set(state => {
+        state.cameraConfig.machineBounds.min.x = xMin;
+      }),
+      setXMax: (xMax: number) => set(state => {
+        state.cameraConfig.machineBounds.max.x = xMax;
+      }),
+      setYMin: (yMin: number) => set(state => {
+        state.cameraConfig.machineBounds.min.y = yMin;
+      }),
+      setYMax: (yMax: number) => set(state => {
+        state.cameraConfig.machineBounds.max.y = yMax;
+      }),
+    },
     setIsToolpathSelected: (isSelected: boolean) => set(state => {
       state.isToolpathSelected = isSelected;
     }),
@@ -132,7 +152,7 @@ export const useStore = create(persist(immer(combine(
     }),
     // Update Toolpath from GCode
     updateToolpath: (gcode: string) => set(state => {
-
+      console.log('updateToolpath');
       state.toolpath = parseGCode(gcode);
       const tools = parseToolInfo(gcode);
       console.debug('guessed tools', tools);
@@ -184,8 +204,8 @@ export function useVideoToMachineHomography() {
   ] as IBox;
   const H = computeHomography(machineBoundsInCam, dstPoints);
   const M = new Matrix4().fromArray(buildMatrix4FromHomography(H));
-  return M;
+  // return M;
+  // Add min offset back, since we computed using min values.
+  const translate = new Matrix4().makeTranslation(mp.min.x, mp.min.y, 0);
+  return translate.multiply(M);
 }
-
-// Transformation to scale machine bounds full-size ()
-function machineToViewTransform() {}

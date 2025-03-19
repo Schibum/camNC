@@ -8,10 +8,9 @@ import { bookShelf, sampleGcode } from '@/test_data/gcode';
 import { BoundsInfo } from '@/visualize/BoundsInfo';
 import { FileSelector } from '@/visualize/FileSelector';
 import { GCodeSelector } from '@/visualize/GCodeSelector';
-import { parseToolInfo } from '@/visualize/guess-tools';
 import { ZDepthLegend } from '@/visualize/ZDepthLegend';
 import { createFileRoute, Outlet } from '@tanstack/react-router';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 
 export const Route = createFileRoute('/visualize')({
   component: RouteComponent,
@@ -32,12 +31,6 @@ function SidebarExtraContent() {
 
   const [selectedGCode, setSelectedGCode] = useState<string>(gcodeOptions[1].gcode);
   const updateToolpath = useStore(s => s.updateToolpath);
-
-  // Extract basic information from GCode
-  const tools = useMemo(() => {
-    return parseToolInfo(selectedGCode);
-  }, [selectedGCode]);
-  console.log(tools);
 
   useEffect(() => {
     updateToolpath(selectedGCode);
