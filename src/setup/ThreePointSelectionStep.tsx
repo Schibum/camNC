@@ -1,15 +1,32 @@
 import { UnskewedVideoMesh } from '@/calibration/UnskewTsl';
+import { PageHeader } from '@/components/ui/page-header';
 import { Draggable } from '@/scene/Draggable';
-import { Line } from '@react-three/drei';
+import { PresentCanvas } from '@/scene/PresentCanvas';
+import { Line, Text } from '@react-three/drei';
 import { ThreeEvent } from '@react-three/fiber';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { IBox, ITuple, useStore } from '../store';
-import { ActionButtons } from './ActionButtons';
-import { NextPointNotification } from './NextPointNotification';
-import { PresentCanvas } from '@/scene/PresentCanvas';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface PointSelectionStepProps {}
+
+const kPointLabels = ['1: (xmin, ymin)', '2: (xmin, ymax)', '3: (xmax, ymax)', '4: (xmax, ymin)'];
+
+const NextPointHint: React.FC<{ pointCount: number }> = ({ pointCount }) => {
+  if (pointCount >= 4) {
+    return null;
+  }
+
+  const getNextPointLabel = () => {
+    return pointCount < 4 ? kPointLabels[pointCount] : null;
+  };
+
+  return <div>Select position of {getNextPointLabel()}</div>;
+};
 
 // A crosshair component to show at each point
 const Crosshair: React.FC<{
@@ -46,13 +63,7 @@ const Crosshair: React.FC<{
 };
 
 // Component to render and interact with points
-function PointsScene({
-  points,
-  setPoints,
-}: {
-  points: ITuple[];
-  setPoints: (points: ITuple[]) => void;
-}) {
+function PointsScene({ points, setPoints }: { points: ITuple[]; setPoints: (points: ITuple[]) => void }) {
   const meshRef = useRef<THREE.Mesh>(null);
   const videoSize = useStore(state => state.cameraConfig.dimensions);
   const [isDragging, setIsDragging] = useState(false);
@@ -62,9 +73,6 @@ function PointsScene({
 
     // Stop event propagation
     e.stopPropagation();
-
-    // Get intersection point on the mesh
-    console.log('intersectionPoint', point.x, point.y);
 
     setPoints([...points, [point.x, point.y]]);
   };
@@ -120,29 +128,63 @@ function PointsScene({
               event.eventObject.getWorldPosition(worldPosition);
               handlePointDragEnd(index, worldPosition);
               setIsDragging(false);
-            }}
-          >
-            <Crosshair
-              position={[0, 0, 0]}
-              color={index % 2 === 0 ? '#4287f5' : '#f54242'}
-              size={25}
-            />
+            }}>
+            <Crosshair position={[0, 0, 0]} color={index % 2 === 0 ? '#4287f5' : '#f54242'} size={25} />
+            <Text
+              fontSize={40}
+              color="white"
+              outlineColor="black"
+              outlineWidth={1}
+              outlineBlur={1}
+              anchorX="center"
+              anchorY="middle"
+              position={[0, 50, 0]}>
+              {kPointLabels[index]}
+            </Text>
           </Draggable>
         );
       })}
 
       {/* Draw connection lines between points */}
-      {points.length === 4 && !isDragging && (
-        <Line points={linePoints} color="yellow" lineWidth={2} />
-      )}
+      {points.length === 4 && !isDragging && <Line points={linePoints} color="yellow" lineWidth={2} />}
     </>
   );
 }
 
-export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) => {
-  const [points, setPoints] = useState<ITuple[]>(
-    useStore(state => state.cameraConfig.machineBoundsInCam)
+function InputWithLabel({ label, value, onChange }: { label: string; value: number; onChange?: (value: number) => void }) {
+  return (
+    <div className="grid w-full items-center gap-1.5">
+      <Label htmlFor={label}>{label}</Label>
+      <Input type="number" id={label} value={value} onChange={e => onChange?.(Number(e.target.value))} />
+    </div>
   );
+}
+
+function MachineBoundsInput() {
+  const bounds = useStore(state => state.cameraConfig.machineBounds);
+  const setters = useStore(state => state.machineBoundsSetters);
+
+  return (
+    <Card className="m-2 @container">
+      <CardHeader>
+        <CardTitle>Useable Machine Space</CardTitle>
+        <CardDescription>Pulloff distances and max limits</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 @xs:grid-cols-2 gap-2">
+          <InputWithLabel label="xmin" value={bounds.min.x} onChange={value => setters.setXMin(value)} />
+          <InputWithLabel label="xmax" value={bounds.max.x} onChange={value => setters.setXMax(value)} />
+
+          <InputWithLabel label="ymin" value={bounds.min.y} onChange={value => setters.setYMin(value)} />
+          <InputWithLabel label="ymax" value={bounds.max.y} onChange={value => setters.setYMax(value)} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) => {
+  const [points, setPoints] = useState<ITuple[]>(useStore(state => state.cameraConfig.machineBoundsInCam));
   const setMachineBoundsInCam = useStore(state => state.setMachineBoundsInCam);
 
   // Handle saving points
@@ -161,38 +203,26 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
   };
 
   return (
-    <div className="point-selection-step">
-      <h2>Step 2: Select Reference Points</h2>
-      <p>
-        Click on the video to place 4 reference points. You can drag crosshairs to adjust positions.
-      </p>
+    <div className="w-full h-dvh flex flex-col gap-1 overflow-hidden">
+      <PageHeader title="Machine Bounds" />
+      <MachineBoundsInput />
 
-      {/* Notification about which point to select next */}
-      <div style={{ position: 'relative' }}>
-        <NextPointNotification pointCount={points.length} />
-
-        {/* Canvas container */}
-        <div
-          style={{
-            position: 'relative',
-            width: '800px',
-            height: '450px',
-            backgroundColor: '#000',
-          }}
-        >
-          <PresentCanvas>
-            <PointsScene points={points} setPoints={setPoints} />
-          </PresentCanvas>
-        </div>
+      <div className="flex-1 overflow-hidden">
+        <PresentCanvas>
+          <PointsScene points={points} setPoints={setPoints} />
+        </PresentCanvas>
       </div>
 
-      {/* Action buttons for reset and save */}
-      <ActionButtons
-        onReset={handleReset}
-        onSave={handleSave}
-        canSave={points.length === 4}
-        saveDisabled={false}
-      />
+      <div className="gap-2 flex p-2 justify-end">
+        {/* Action buttons for reset and save */}
+        <Button variant="secondary" onClick={handleReset}>
+          Reset
+        </Button>
+        <Button onClick={handleSave} disabled={points.length !== 4}>
+          Save
+        </Button>
+        <NextPointHint pointCount={points.length} />
+      </div>
     </div>
   );
 };

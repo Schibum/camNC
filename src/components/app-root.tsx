@@ -1,4 +1,3 @@
-import { useMessageListener } from '@/useMessageListener';
 import { AppSidebar } from './app-sidebar';
 export function AppRoot({
   children,
@@ -7,7 +6,6 @@ export function AppRoot({
   children: React.ReactNode;
   extraSidebarContent?: React.ReactNode;
 }) {
-  useMessageListener();
   return (
     <>
       <AppSidebar extraContent={extraContent} />
