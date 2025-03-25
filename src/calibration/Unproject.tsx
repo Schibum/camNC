@@ -1,67 +1,10 @@
+import { PresentCanvas } from '@/scene/PresentCanvas';
 import { CalibrationData, useCalibrationData, useStore, useVideoSrc } from '@/store';
 import { useVideoTexture } from '@react-three/drei';
-import React, { useEffect, useMemo, useRef } from 'react';
 import { type ThreeElements } from '@react-three/fiber';
+import React, { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { PresentCanvas } from '@/scene/PresentCanvas';
-import { initUndistortRectifyMapTyped, Matrix3x3 } from './rectifyMap';
-
-interface UnskewTslProps {
-  width?: number;
-  height?: number;
-}
-
-let lastCalibrationData: CalibrationData | null = null;
-let lastWidth: number | null = null;
-let lastHeight: number | null = null;
-let lastUndistortionMaps: [Float32Array, Float32Array] | null = null;
-
-// Same as calculateUndistortionMaps, but caches the most recent result globally
-export function calculateUndistortionMapsCached(
-  calibrationData: CalibrationData,
-  width: number,
-  height: number
-): [Float32Array, Float32Array] {
-  if (calibrationData === lastCalibrationData && width === lastWidth && height === lastHeight && lastUndistortionMaps) {
-    return lastUndistortionMaps;
-  }
-  lastCalibrationData = calibrationData;
-  lastWidth = width;
-  lastHeight = height;
-  lastUndistortionMaps = calculateUndistortionMaps(calibrationData, width, height);
-  return lastUndistortionMaps;
-}
-
-/**
- * Calculate the undistortion maps from OpenCV camera parameters
- * @param calibrationData Camera calibration data with intrinsic matrix and distortion coefficients
- * @param width Image width
- * @param height Image height
- * @returns {Float32Array[]} Arrays for X and Y undistortion maps
- */
-function calculateUndistortionMaps(calibrationData: CalibrationData, width: number, height: number): [Float32Array, Float32Array] {
-  // Extract camera matrix and distortion coefficients
-  const { calibration_matrix, distortion_coefficients, new_camera_matrix } = calibrationData;
-
-  const R: Matrix3x3 = [
-    [1, 0, 0],
-    [0, 1, 0],
-    [0, 0, 1],
-  ];
-  const startTime = performance.now();
-
-  const { map1: mapXArray, map2: mapYArray } = initUndistortRectifyMapTyped(
-    calibration_matrix as Matrix3x3,
-    distortion_coefficients[0],
-    R,
-    new_camera_matrix as Matrix3x3,
-    { width, height }
-  );
-  const endTime = performance.now();
-  console.log(`Time taken to calculate undistortion maps: ${endTime - startTime} milliseconds`);
-
-  return [mapXArray, mapYArray];
-}
+import { calculateUndistortionMapsCached } from './UnskewTsl';
 
 // UndistortMesh component using Three.js Shading
 const UndistortMesh = React.forwardRef<
@@ -71,6 +14,13 @@ const UndistortMesh = React.forwardRef<
     calibrationData: CalibrationData;
   } & ThreeElements['mesh']
 >(({ videoTexture, calibrationData, ...props }, ref) => {
+  const R = [
+    [-0.97566293, 0.21532301, 0.04144691],
+    [0.11512022, 0.66386443, -0.73893934],
+    [-0.18662577, -0.71618435, -0.67249595],
+  ];
+  const t = [94.45499514, -537.61861834, 1674.35779694];
+
   const meshRef = useRef<THREE.Mesh>(null);
 
   // Merge refs - use the forwarded ref if available, otherwise use the internal one
@@ -176,7 +126,7 @@ const UndistortMesh = React.forwardRef<
 UndistortMesh.displayName = 'UndistortMesh';
 
 // New UnskewedVideoMesh component to load video texture
-export const UnskewedVideoMesh = React.forwardRef<THREE.Mesh, ThreeElements['mesh']>((props, ref) => {
+export const UnprojectVideoMesh = React.forwardRef<THREE.Mesh, ThreeElements['mesh']>((props, ref) => {
   const calibrationData = useCalibrationData();
   const videoSrc = useVideoSrc();
   const setVideoDimensions = useStore(state => state.setVideoDimensions);
@@ -195,10 +145,9 @@ export const UnskewedVideoMesh = React.forwardRef<THREE.Mesh, ThreeElements['mes
 });
 
 // Add display name for debugging
-UnskewedVideoMesh.displayName = 'UnskewedVideoMesh';
+UnprojectVideoMesh.displayName = 'UnprojectVideoMesh';
 
-// Main component
-const UnskewTsl: React.FC<UnskewTslProps> = ({ width = 800, height = 600 }) => {
+export function UnprojectTsl() {
   // Handle missing calibration data - calibrationData is now passed through UnskewedVideoMesh
   const calibrationData = useCalibrationData();
   // Handle missing video source - videoSrc is now handled in UnskewedVideoMesh
@@ -208,12 +157,8 @@ const UnskewTsl: React.FC<UnskewTslProps> = ({ width = 800, height = 600 }) => {
   }
 
   return (
-    <div style={{ width, height }}>
-      <PresentCanvas>
-        <UnskewedVideoMesh />
-      </PresentCanvas>
-    </div>
+    <PresentCanvas>
+      <UnprojectVideoMesh />
+    </PresentCanvas>
   );
-};
-
-export default UnskewTsl;
+}

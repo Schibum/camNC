@@ -11,6 +11,7 @@ import { immerable } from 'immer';
 
 export interface CalibrationData {
   calibration_matrix: number[][];
+  new_camera_matrix: number[][];
   distortion_coefficients: number[][];
 }
 
@@ -34,6 +35,11 @@ const defaultCalibrationData: CalibrationData = {
   calibration_matrix: [
     [2009.1973773408529, 0.0, 1390.5190016011748],
     [0.0, 2017.1223458668746, 952.7108080446899],
+    [0.0, 0.0, 1.0],
+  ],
+  new_camera_matrix: [
+    [1576.70915, 0.0, 1481.05363],
+    [0.0, 1717.4288, 969.448282],
     [0.0, 0.0, 1.0],
   ],
   distortion_coefficients: [[-0.3921598065400269, 0.23211488659159807, 0.0023824662841748097, -0.0004288390281597757, -0.09431940984729748]],
