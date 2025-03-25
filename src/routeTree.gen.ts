@@ -12,6 +12,7 @@
 
 import { Route as rootRoute } from './routes/__root'
 import { Route as VisualizeImport } from './routes/visualize'
+import { Route as UnprojectImport } from './routes/unproject'
 import { Route as Undistort2Import } from './routes/undistort2'
 import { Route as HomeImport } from './routes/home'
 import { Route as AboutImport } from './routes/about'
@@ -27,6 +28,12 @@ import { Route as SetupPointSelectionImport } from './routes/setup/point-selecti
 const VisualizeRoute = VisualizeImport.update({
   id: '/visualize',
   path: '/visualize',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const UnprojectRoute = UnprojectImport.update({
+  id: '/unproject',
+  path: '/unproject',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -116,6 +123,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Undistort2Import
       parentRoute: typeof rootRoute
     }
+    '/unproject': {
+      id: '/unproject'
+      path: '/unproject'
+      fullPath: '/unproject'
+      preLoaderRoute: typeof UnprojectImport
+      parentRoute: typeof rootRoute
+    }
     '/visualize': {
       id: '/visualize'
       path: '/visualize'
@@ -180,6 +194,7 @@ export interface FileRoutesByFullPath {
   '/about': typeof AboutRoute
   '/home': typeof HomeRoute
   '/undistort2': typeof Undistort2Route
+  '/unproject': typeof UnprojectRoute
   '/visualize': typeof VisualizeRouteWithChildren
   '/setup/point-selection': typeof SetupPointSelectionRoute
   '/setup/setup': typeof SetupSetupRoute
@@ -193,6 +208,7 @@ export interface FileRoutesByTo {
   '/about': typeof AboutRoute
   '/home': typeof HomeRoute
   '/undistort2': typeof Undistort2Route
+  '/unproject': typeof UnprojectRoute
   '/visualize': typeof VisualizeRouteWithChildren
   '/setup/point-selection': typeof SetupPointSelectionRoute
   '/setup/setup': typeof SetupSetupRoute
@@ -207,6 +223,7 @@ export interface FileRoutesById {
   '/about': typeof AboutRoute
   '/home': typeof HomeRoute
   '/undistort2': typeof Undistort2Route
+  '/unproject': typeof UnprojectRoute
   '/visualize': typeof VisualizeRouteWithChildren
   '/setup/point-selection': typeof SetupPointSelectionRoute
   '/setup/setup': typeof SetupSetupRoute
@@ -222,6 +239,7 @@ export interface FileRouteTypes {
     | '/about'
     | '/home'
     | '/undistort2'
+    | '/unproject'
     | '/visualize'
     | '/setup/point-selection'
     | '/setup/setup'
@@ -234,6 +252,7 @@ export interface FileRouteTypes {
     | '/about'
     | '/home'
     | '/undistort2'
+    | '/unproject'
     | '/visualize'
     | '/setup/point-selection'
     | '/setup/setup'
@@ -246,6 +265,7 @@ export interface FileRouteTypes {
     | '/about'
     | '/home'
     | '/undistort2'
+    | '/unproject'
     | '/visualize'
     | '/setup/point-selection'
     | '/setup/setup'
@@ -260,6 +280,7 @@ export interface RootRouteChildren {
   AboutRoute: typeof AboutRoute
   HomeRoute: typeof HomeRoute
   Undistort2Route: typeof Undistort2Route
+  UnprojectRoute: typeof UnprojectRoute
   VisualizeRoute: typeof VisualizeRouteWithChildren
   SetupPointSelectionRoute: typeof SetupPointSelectionRoute
   SetupSetupRoute: typeof SetupSetupRoute
@@ -272,6 +293,7 @@ const rootRouteChildren: RootRouteChildren = {
   AboutRoute: AboutRoute,
   HomeRoute: HomeRoute,
   Undistort2Route: Undistort2Route,
+  UnprojectRoute: UnprojectRoute,
   VisualizeRoute: VisualizeRouteWithChildren,
   SetupPointSelectionRoute: SetupPointSelectionRoute,
   SetupSetupRoute: SetupSetupRoute,
@@ -293,6 +315,7 @@ export const routeTree = rootRoute
         "/about",
         "/home",
         "/undistort2",
+        "/unproject",
         "/visualize",
         "/setup/point-selection",
         "/setup/setup",
@@ -311,6 +334,9 @@ export const routeTree = rootRoute
     },
     "/undistort2": {
       "filePath": "undistort2.tsx"
+    },
+    "/unproject": {
+      "filePath": "unproject.tsx"
     },
     "/visualize": {
       "filePath": "visualize.tsx",
