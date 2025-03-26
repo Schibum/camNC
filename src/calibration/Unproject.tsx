@@ -1,123 +1,147 @@
 import { PresentCanvas } from '@/scene/PresentCanvas';
-import { CalibrationData, useCalibrationData, useStore, useVideoSrc } from '@/store';
+import { CalibrationData, useCalibrationData, useMachineSize, useNewCameraMatrix, useStore, useVideoSrc } from '@/store';
 import { useVideoTexture } from '@react-three/drei';
 import { type ThreeElements } from '@react-three/fiber';
 import React, { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { calculateUndistortionMapsCached } from './UnskewTsl';
 
-// UndistortMesh component using Three.js Shading
 const UndistortMesh = React.forwardRef<
   THREE.Mesh,
   {
     videoTexture: THREE.VideoTexture;
     calibrationData: CalibrationData;
+    // Object height (Z offset in world units, e.g. mm) to be applied
+    objectHeight?: number;
   } & ThreeElements['mesh']
->(({ videoTexture, calibrationData, ...props }, ref) => {
-  const R = [
-    [-0.97566293, 0.21532301, 0.04144691],
-    [0.11512022, 0.66386443, -0.73893934],
-    [-0.18662577, -0.71618435, -0.67249595],
-  ];
-  const t = [94.45499514, -537.61861834, 1674.35779694];
+>(({ videoTexture, calibrationData, objectHeight = 0.0, ...props }, ref) => {
+  // These are your extrinsics (rotation and translation) from world to camera space.
+  // prettier-ignore
+  const R = new THREE.Matrix3().set(
+    -0.97566293, 0.21532301, 0.04144691,
+    0.11512022, 0.66386443, -0.73893934,
+    -0.18662577, -0.71618435, -0.67249595,
+  );
+  // R.copy(new Matrix3().identity());
+  const t = new THREE.Vector3(94.45499514, -537.61861834, 1674.35779694);
+
+  // Get your intrinsic matrix via your custom hook.
+  const K = useNewCameraMatrix();
+  const machineSize = useMachineSize();
 
   const meshRef = useRef<THREE.Mesh>(null);
-
-  // Merge refs - use the forwarded ref if available, otherwise use the internal one
   const actualRef = (ref || meshRef) as React.RefObject<THREE.Mesh>;
 
-  // Store video dimensions for calculations
+  // Get video dimensions from the texture
   const videoDimensions = useMemo(() => {
     if (videoTexture && videoTexture.image) {
       return {
-        width: videoTexture.image.videoWidth as number,
-        height: videoTexture.image.videoHeight as number,
+        width: videoTexture.image.videoWidth || 1280,
+        height: videoTexture.image.videoHeight || 720,
       };
     }
-    return { width: 1280, height: 720 }; // Default fallback dimensions
+    return { width: 1280, height: 720 };
   }, [videoTexture]);
 
-  // Calculate undistortion maps once
+  // Precompute the undistortion maps (as textures).
   const [mapXTexture, mapYTexture] = useMemo(() => {
     const { width, height } = videoDimensions;
-
-    // Create placeholder textures
     const placeholderX = new THREE.DataTexture(new Float32Array(width * height), width, height, THREE.RedFormat, THREE.FloatType);
-
     const placeholderY = new THREE.DataTexture(new Float32Array(width * height), width, height, THREE.RedFormat, THREE.FloatType);
-
-    // Calculate maps asynchronously and update textures when ready
     const [mapX, mapY] = calculateUndistortionMapsCached(calibrationData, width, height);
     placeholderX.image.data = mapX;
     placeholderY.image.data = mapY;
     placeholderX.needsUpdate = true;
     placeholderY.needsUpdate = true;
-
     return [placeholderX, placeholderY];
   }, [videoDimensions, calibrationData]);
 
-  // Basic GLSL shader for undistortion
+  // Vertex shader: compute a world position from the vertex position.
+  // Here we assume the plane is created with PlaneGeometry(width, height)
+  // which by default is centered at (0,0) (i.e. spanning -width/2 .. width/2).
+  // We pass that world position (in pixel units) as a varying to the fragment shader.
   const vertexShader = /* glsl */ `
+    uniform vec2 resolution;
     varying vec2 vUv;
-
+    varying vec2 worldPos;
     void main() {
       vUv = uv;
+      // For a centered plane, position.xy is already in a coordinate space that spans -resolution/2..resolution/2.
+      // If your geometry is not centered, adjust accordingly.
+      // worldPos = position.xy;
+      vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+      worldPos = worldPosition.xy;
       gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     }
   `;
 
+  // Fragment shader: use the worldPos from the vertex shader,
+  // then compute the corresponding pixel in the camera image via intrinsics/extrinsics,
+  // and finally use the undistortion maps to sample the video texture.
   const fragmentShader = /* glsl */ `
-    // Basic GLSL fragment shader for undistortion
     uniform sampler2D videoTexture;
     uniform sampler2D mapXTexture;
     uniform sampler2D mapYTexture;
     uniform vec2 resolution;
-
+    uniform mat3 K;
+    uniform mat3 R;
+    uniform vec3 t;
+    uniform float objectHeight;
     varying vec2 vUv;
-
+    varying vec2 worldPos;
     void main() {
-      // Get the normalized (0-1) coordinates
-      vec2 uv = vUv;
+      // Build a 3D point from the world position (which is in pixel units) and the given objectHeight.
+      vec3 worldPoint = vec3(worldPos, objectHeight);
+      // Transform world point into camera space.
+      vec3 pCam = R * worldPoint + t;
 
-      // Get the remapped coordinates from the map textures
-      float mapX = texture2D(mapXTexture, uv).r;
-      float mapY = texture2D(mapYTexture, uv).r;
+      // Project into the camera image plane using the intrinsic matrix.
+      vec3 pImage = K * pCam;
+      vec2 idealUV = pImage.xy / pImage.z;
+      // idealUV is in pixel coordinates for the undistorted image.
+      // Normalize to [0,1] using the resolution.
+      vec2 undistortedUV = idealUV / resolution;
+      // Use the undistortion maps to recover the distorted image coordinate.
+      float mapX = texture2D(mapXTexture, undistortedUV).r;
+      float mapY = texture2D(mapYTexture, undistortedUV).r;
+      vec2 remappedUV = vec2(mapX, mapY) / resolution;
+      // Only sample if the remapped UVs are within bounds.
+      vec4 color = vec4(0.0);
+      if(remappedUV.x >= 0.0 && remappedUV.x <= 1.0 &&
+         remappedUV.y >= 0.0 && remappedUV.y <= 1.0) {
+        // color = texture2D(videoTexture, remappedUV);
+        color = texture2D(videoTexture, vec2( remappedUV.x, 1.0 - remappedUV.y));
 
-      // Convert to normalized UV coordinates
-      vec2 remappedUv = vec2(
-        mapX / resolution.x,
-        mapY / resolution.y
-      );
-
-      // Sample the video texture at the remapped coordinates
-      // Check if coordinates are within the valid range (0-1)
-      vec4 color = vec4(0.0, 0.0, 0.0, 1.0);
-      if (remappedUv.x >= 0.0 && remappedUv.x <= 1.0 &&
-          remappedUv.y >= 0.0 && remappedUv.y <= 1.0) {
-        color = texture2D(videoTexture, remappedUv);
       }
-
+      // color = vec4(worldPos.xy/100.0, 0, 1.0);
       gl_FragColor = color;
     }
   `;
 
-  // Plane geometry with correct aspect ratio
+  // Create a centered plane geometry matching the video dimensions.
   const planeGeometry = useMemo(() => {
-    return new THREE.PlaneGeometry(videoDimensions.width, videoDimensions.height);
-  }, [videoDimensions]);
+    // PlaneGeometry(width, height) is centered at (0,0) by default.
+    return new THREE.PlaneGeometry(machineSize.x + 500, machineSize.y + 500);
+  }, [machineSize]);
+
+  // Set up all shader uniforms.
+  const uniforms = useMemo(
+    () => ({
+      videoTexture: { value: videoTexture },
+      mapXTexture: { value: mapXTexture },
+      mapYTexture: { value: mapYTexture },
+      resolution: { value: new THREE.Vector2(videoDimensions.width, videoDimensions.height) },
+      K: { value: K },
+      R: { value: R },
+      t: { value: t },
+      objectHeight: { value: objectHeight },
+    }),
+    [videoTexture, mapXTexture, mapYTexture, videoDimensions, K, objectHeight]
+  );
 
   return (
     <mesh {...props} ref={actualRef} geometry={planeGeometry}>
-      <shaderMaterial
-        fragmentShader={fragmentShader}
-        vertexShader={vertexShader}
-        uniforms={{
-          videoTexture: { value: videoTexture },
-          mapXTexture: { value: mapXTexture },
-          mapYTexture: { value: mapYTexture },
-          resolution: { value: new THREE.Vector2(videoDimensions.width, videoDimensions.height) },
-        }}
-      />
+      <shaderMaterial vertexShader={vertexShader} fragmentShader={fragmentShader} uniforms={uniforms} />
     </mesh>
   );
 });
@@ -137,6 +161,7 @@ export const UnprojectVideoMesh = React.forwardRef<THREE.Mesh, ThreeElements['me
     loop: true,
     start: true,
   });
+  // videoTexture.flipY = false;
   useEffect(() => {
     setVideoDimensions([videoTexture.image.videoWidth, videoTexture.image.videoHeight]);
   }, [videoTexture.image.videoWidth, videoTexture.image.videoHeight, setVideoDimensions]);
@@ -156,9 +181,17 @@ export function UnprojectTsl() {
     throw new Error('Missing calibration data or video source');
   }
 
+  const offset = useMachineSize().divideScalar(2);
+  const machineSize = useMachineSize();
+  const gridSize = Math.max(machineSize.x, machineSize.y);
+
   return (
-    <PresentCanvas>
-      <UnprojectVideoMesh />
+    <PresentCanvas worldScale="video">
+      <axesHelper args={[1000]} position={[0, 0, 11]} />
+      <group position={[offset.x, offset.y, 0]}>
+        <gridHelper args={[gridSize, gridSize / 50]} position={[0, 0, 10]} rotation={[Math.PI / 2, 0, 0]} />
+        <UnprojectVideoMesh />
+      </group>
     </PresentCanvas>
   );
 }
