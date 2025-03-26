@@ -125,7 +125,8 @@ function useMachineCoordsOffset() {
   const machineBounds = useStore(s => s.cameraConfig.machineBounds);
   const machineSize = useMachineSize();
   // TODO: this should add min bounds.
-  return new Vector3(-machineSize.x / 2 + machineBounds.min.x, -machineSize.y / 2 + machineBounds.min.y, 0);
+  return new Vector3(machineBounds.min.x, machineBounds.min.y, 0);
+  // return new Vector3(-machineSize.x / 2 + machineBounds.min.x, -machineSize.y / 2 + machineBounds.min.y, 0);
 }
 
 function UseableMachineSpaceOutline() {

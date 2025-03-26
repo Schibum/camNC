@@ -1,4 +1,5 @@
 import { useViewportToVideoScale, useViewPortToMachineScale } from '@/calibration/scaleHooks';
+import { useMachineSize } from '@/store';
 import { OrbitControls, Text } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo } from 'react';
@@ -28,12 +29,19 @@ function DefaultControls({ worldScale }: { worldScale: IWorldScale }) {
   // Call both hooks unconditionally
   const videoScale = useViewportToVideoScale();
   const machineScale = useViewPortToMachineScale();
+  const machineSize = useMachineSize();
   // Then select which value to use
   const minZoom = worldScale === 'video' ? videoScale : machineScale;
   const zoomOutFactor = worldScale === 'video' ? 1 : 0.9;
 
   const camera = useThree(state => state.camera);
   const rotation = useDefaultCameraRotation(worldScale);
+
+  useEffect(() => {
+    if (worldScale === 'machine') {
+      camera.position.set(machineSize.x / 2, machineSize.y / 2, 1000);
+    }
+  }, [camera, machineSize, worldScale]);
 
   // Hack, override orbit controls camera rotation. It'll always set it back to
   // the default rotation otherwise.

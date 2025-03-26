@@ -4,6 +4,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { useMachineSize, useVideoToMachineHomography } from '../../store';
 import { GCodeVisualizer } from '@/visualize/Toolpaths';
 import { PageHeader } from '@/components/ui/page-header';
+import { UnprojectVideoMesh } from '@/calibration/UnProject';
 
 export const Route = createFileRoute('/visualize/2DView')({
   component: VisualizeComponent,
@@ -21,7 +22,7 @@ function VisualizeComponent() {
       <div className="w-full h-dvh absolute top-0 left-0">
         <PresentCanvas worldScale="machine">
           {/* <group rotation={[0, 0, Math.PI / 2]}> */}
-          <UnskewedFlatVideoMesh />
+          <UnprojectVideoMesh />
           <GCodeVisualizer />
           {/* </group> */}
 
@@ -37,7 +38,7 @@ function UnskewedFlatVideoMesh() {
   const [offsetX, offsetY] = useMachineSize().divideScalar(2).toArray();
 
   return (
-    <group position={[-offsetX, -offsetY, -100]}>
+    <group position={[0, 0, -100]}>
       <UnskewedVideoMesh matrix={videoToMachineHomography} matrixAutoUpdate={false} />
     </group>
   );
