@@ -1,9 +1,7 @@
+import { Matrix3 } from 'three';
+
 // Define a 3x3 matrix type.
-export type Matrix3x3 = [
-  [number, number, number],
-  [number, number, number],
-  [number, number, number],
-];
+export type Matrix3x3 = [[number, number, number], [number, number, number], [number, number, number]];
 
 // Define an interface for image size.
 export interface Size {
@@ -36,7 +34,7 @@ export function initUndistortRectifyMapTyped(
   cameraMatrix: Matrix3x3,
   distCoeffs: number[],
   R: Matrix3x3,
-  newCameraMatrix: Matrix3x3,
+  newCameraMatrix: Matrix3,
   size: Size
 ): UndistortResult {
   const { width, height } = size;
@@ -44,10 +42,10 @@ export function initUndistortRectifyMapTyped(
   const map2 = new Float32Array(width * height);
 
   // Precompute parameters from newCameraMatrix.
-  const fx_new = newCameraMatrix[0][0],
-    cx_new = newCameraMatrix[0][2],
-    fy_new = newCameraMatrix[1][1],
-    cy_new = newCameraMatrix[1][2];
+  const fx_new = newCameraMatrix.elements[0],
+    cx_new = newCameraMatrix.elements[6],
+    fy_new = newCameraMatrix.elements[4],
+    cy_new = newCameraMatrix.elements[7];
 
   // Precompute parameters from the original cameraMatrix.
   const fx = cameraMatrix[0][0],

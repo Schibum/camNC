@@ -54,7 +54,7 @@ function calculateUndistortionMaps(calibrationData: CalibrationData, width: numb
     calibration_matrix as Matrix3x3,
     distortion_coefficients[0],
     R,
-    new_camera_matrix as Matrix3x3,
+    new_camera_matrix,
     { width, height }
   );
   const endTime = performance.now();

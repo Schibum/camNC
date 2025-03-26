@@ -21,10 +21,7 @@ const FallbackContent = ({ error }: { error: Error }) => (
 type IWorldScale = 'video' | 'machine';
 
 function useDefaultCameraRotation(worldScale: IWorldScale) {
-  return useMemo(
-    () => new THREE.Euler(0, 0, worldScale === 'machine' ? -Math.PI / 2 : 0),
-    [worldScale]
-  );
+  return useMemo(() => new THREE.Euler(0, 0, worldScale === 'machine' ? -Math.PI / 2 : 0), [worldScale]);
 }
 
 function DefaultControls({ worldScale }: { worldScale: IWorldScale }) {
@@ -66,13 +63,7 @@ function DefaultControls({ worldScale }: { worldScale: IWorldScale }) {
   );
 }
 
-export const PresentCanvas = ({
-  worldScale = 'video',
-  children,
-}: {
-  worldScale?: IWorldScale;
-  children: React.ReactNode;
-}) => {
+export const PresentCanvas = ({ worldScale = 'video', children }: { worldScale?: IWorldScale; children: React.ReactNode }) => {
   return (
     <Canvas
       orthographic
@@ -82,8 +73,7 @@ export const PresentCanvas = ({
         position: [0, 0, 1000],
       }}
       raycaster={{ near: -10000, far: 10000 }}
-      gl={{ antialias: true, outputColorSpace: THREE.SRGBColorSpace }}
-    >
+      gl={{ antialias: true, outputColorSpace: THREE.SRGBColorSpace }}>
       <ambientLight intensity={1} />
       {/* <directionalLight position={[10, 10, 10]} intensity={0.5} /> */}
       <DefaultControls worldScale={worldScale} />

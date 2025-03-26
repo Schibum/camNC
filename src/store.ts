@@ -3,7 +3,7 @@ import { combine, persist, PersistStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import { buildMatrix4FromHomography } from './math/perspectiveTransform';
 import { computeHomography } from './math/perspectiveTransform';
-import { Matrix4, Vector3, Box2, Vector2 } from 'three';
+import { Matrix4, Vector3, Box2, Vector2, Matrix3 } from 'three';
 import { ParsedToolpath, parseGCode } from './visualize/gcodeParsing';
 import { parseToolInfo } from './visualize/guess-tools';
 import superjson from 'superjson';
@@ -11,7 +11,7 @@ import { immerable } from 'immer';
 
 export interface CalibrationData {
   calibration_matrix: number[][];
-  new_camera_matrix: number[][];
+  new_camera_matrix: Matrix3;
   distortion_coefficients: number[][];
 }
 
@@ -37,11 +37,12 @@ const defaultCalibrationData: CalibrationData = {
     [0.0, 2017.1223458668746, 952.7108080446899],
     [0.0, 0.0, 1.0],
   ],
-  new_camera_matrix: [
-    [1576.70915, 0.0, 1481.05363],
-    [0.0, 1717.4288, 969.448282],
-    [0.0, 0.0, 1.0],
-  ],
+  // prettier-ignore
+  new_camera_matrix: new Matrix3().set(
+    1576.70915, 0.0, 1481.05363,
+    0.0, 1717.4288, 969.448282,
+    0.0, 0.0, 1.0,
+  ),
   distortion_coefficients: [[-0.3921598065400269, 0.23211488659159807, 0.0023824662841748097, -0.0004288390281597757, -0.09431940984729748]],
 };
 
@@ -183,6 +184,7 @@ export const useVideoDimensions = () => useStore(state => state.cameraConfig.dim
 
 export const useCameraConfig = () => useStore(state => state.cameraConfig);
 export const useCalibrationData = () => useStore(state => state.calibrationData);
+export const useNewCameraMatrix = () => useStore(state => state.calibrationData.new_camera_matrix);
 
 // Access tool diameter from store
 export const useToolDiameter = () => useStore(state => state.toolDiameter);
