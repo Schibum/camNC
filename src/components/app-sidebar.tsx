@@ -57,6 +57,11 @@ const routes: NavRoute[] = [
     to: '/undistort2',
     icon: Settings2,
   },
+  {
+    title: 'Unproject',
+    to: '/unproject',
+    icon: Eye,
+  },
 ];
 
 function NavRoutes({ routes }: { routes: NavRoute[] }) {
