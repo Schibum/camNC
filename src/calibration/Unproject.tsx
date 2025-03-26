@@ -69,7 +69,8 @@ const UndistortMesh = React.forwardRef<
       // For a centered plane, position.xy is already in a coordinate space that spans -resolution/2..resolution/2.
       // If your geometry is not centered, adjust accordingly.
       // worldPos = position.xy;
-      vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+      // vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+      vec4 worldPosition = vec4(position, 1.0);
       worldPos = worldPosition.xy;
       gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     }
@@ -89,6 +90,26 @@ const UndistortMesh = React.forwardRef<
     uniform float objectHeight;
     varying vec2 vUv;
     varying vec2 worldPos;
+
+    // Use the undistortion maps to recover the distorted image coordinate, elliminating lens distortion.
+    vec2 remapTextureUv(vec2 uv) {
+      float mapX = texture2D(mapXTexture, uv).r;
+      float mapY = texture2D(mapYTexture, uv).r;
+      return vec2(mapX, mapY) / resolution;
+    }
+
+    vec4 sampleRemappedTexture(vec2 uv) {
+      vec2 remappedUV = remapTextureUv(uv);
+      vec4 color = vec4(0.0);
+      // Only sample if the remapped UVs are within bounds.
+      if(remappedUV.x >= 0.0 && remappedUV.x <= 1.0 &&
+         remappedUV.y >= 0.0 && remappedUV.y <= 1.0) {
+        // Flip Y (assuming default case texture.flipY = true)
+        color = texture2D(videoTexture, vec2( remappedUV.x, 1.0 - remappedUV.y));
+      }
+      return color;
+    }
+
     void main() {
       // Build a 3D point from the world position (which is in pixel units) and the given objectHeight.
       vec3 worldPoint = vec3(worldPos, objectHeight);
@@ -102,26 +123,17 @@ const UndistortMesh = React.forwardRef<
       // Normalize to [0,1] using the resolution.
       vec2 undistortedUV = idealUV / resolution;
       // Use the undistortion maps to recover the distorted image coordinate.
-      float mapX = texture2D(mapXTexture, undistortedUV).r;
-      float mapY = texture2D(mapYTexture, undistortedUV).r;
-      vec2 remappedUV = vec2(mapX, mapY) / resolution;
-      // Only sample if the remapped UVs are within bounds.
-      vec4 color = vec4(0.0);
-      if(remappedUV.x >= 0.0 && remappedUV.x <= 1.0 &&
-         remappedUV.y >= 0.0 && remappedUV.y <= 1.0) {
-        // color = texture2D(videoTexture, remappedUV);
-        color = texture2D(videoTexture, vec2( remappedUV.x, 1.0 - remappedUV.y));
-
-      }
-      // color = vec4(worldPos.xy/100.0, 0, 1.0);
-      gl_FragColor = color;
+      gl_FragColor = sampleRemappedTexture(undistortedUV);
     }
   `;
 
+  const overSize = 50;
   // Create a centered plane geometry matching the video dimensions.
   const planeGeometry = useMemo(() => {
     // PlaneGeometry(width, height) is centered at (0,0) by default.
-    return new THREE.PlaneGeometry(machineSize.x + 500, machineSize.y + 500);
+    const plane = new THREE.PlaneGeometry(machineSize.x + overSize, machineSize.y + overSize);
+    plane.translate(machineSize.x / 2, machineSize.y / 2, 0);
+    return plane;
   }, [machineSize]);
 
   // Set up all shader uniforms.
@@ -138,6 +150,12 @@ const UndistortMesh = React.forwardRef<
     }),
     [videoTexture, mapXTexture, mapYTexture, videoDimensions, K, objectHeight]
   );
+
+  // useFrame(() => {
+  //   uniforms.objectHeight.value += 0.1;
+  //   console.log(uniforms.objectHeight.value);
+  //   // videoTexture.needsUpdate = true;
+  // });
 
   return (
     <mesh {...props} ref={actualRef} geometry={planeGeometry}>
@@ -186,10 +204,11 @@ export function UnprojectTsl() {
   const gridSize = Math.max(machineSize.x, machineSize.y);
 
   return (
-    <PresentCanvas worldScale="video">
-      <axesHelper args={[1000]} position={[0, 0, 11]} />
-      <group position={[offset.x, offset.y, 0]}>
-        <gridHelper args={[gridSize, gridSize / 50]} position={[0, 0, 10]} rotation={[Math.PI / 2, 0, 0]} />
+    <PresentCanvas worldScale="machine">
+      {/* <axesHelper args={[1000]} position={[0, 0, 11]} /> */}
+      <group position={[-offset.x, -offset.y, 0]}>
+        <gridHelper args={[gridSize, gridSize / 50]} position={[gridSize / 2, gridSize / 2, 10]} rotation={[Math.PI / 2, 0, 0]} />
+        <axesHelper args={[1000]} position={[0, 0, 11]} />
         <UnprojectVideoMesh />
       </group>
     </PresentCanvas>
