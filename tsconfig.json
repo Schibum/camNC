@@ -19,6 +19,8 @@
     },
     // "lib": ["ESNext", "DOM"],
     // "types": []
+    "types": ["@vitest/browser/providers/playwright"],
+
   },
   "include": [
     "node_modules/vite/client.d.ts",
