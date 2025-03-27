@@ -15,6 +15,12 @@ export interface CalibrationData {
   distortion_coefficients: number[][];
 }
 
+// World (machine coords) to physical camera transform
+export interface CameraExtrinsics {
+  R: Matrix3;
+  t: Vector3;
+}
+
 // Types from atoms.tsx
 export type ITuple = [number, number];
 export type IBox = [ITuple, ITuple, ITuple, ITuple];
@@ -63,6 +69,12 @@ const defaultCameraConfig: CameraConfig = {
   machineBounds: new Box2(new Vector2(0, 0), new Vector2(625, 1235)),
 };
 
+const defaultExtrinsicParameters: CameraExtrinsics = {
+  R: new Matrix3().set(-0.97566293, 0.21532301, 0.04144691, 0.11512022, 0.66386443, -0.73893934, -0.18662577, -0.71618435, -0.67249595),
+  // R.copy(new Matrix3().identity());
+  t: new Vector3(94.45499514, -537.61861834, 1674.35779694),
+};
+
 superjson.registerCustom<Box2, { min: number[]; max: number[] }>(
   {
     isApplicable: value => value instanceof Box2,
@@ -109,6 +121,7 @@ export const useStore = create(persist(immer(combine(
   {
     cameraConfig: defaultCameraConfig,
     calibrationData: defaultCalibrationData,
+    cameraExtrinsics: defaultExtrinsicParameters,
     toolDiameter: 3.0, // Default tool diameter in mm
     toolpath: null as ParsedToolpath | null,
     isToolpathSelected: false,
@@ -145,6 +158,9 @@ export const useStore = create(persist(immer(combine(
     setIsToolpathHovered: (isHovered: boolean) => set(state => {
       state.isToolpathHovered = isHovered;
     }),
+    setCameraExtrinsics: (extrinsics: CameraExtrinsics) => set(state => {
+      state.cameraExtrinsics = extrinsics;
+    }),
     setVideoSrc: (src: string) => set(state => {
       state.cameraConfig.url = src;
     }),
@@ -176,8 +192,6 @@ export const useStore = create(persist(immer(combine(
     toolDiameter: state.toolDiameter,
   }),
 }));
-
-console.log('useStore', useStore.getState());
 
 export const useVideoSrc = () => useStore(state => state.cameraConfig.url);
 export const useVideoDimensions = () => useStore(state => state.cameraConfig.dimensions);
@@ -217,3 +231,6 @@ export function useVideoToMachineHomography() {
   const translate = new Matrix4().makeTranslation(mp.min.x, mp.min.y, 0);
   return translate.multiply(M);
 }
+
+export const useCameraExtrinsics = () => useStore(state => state.cameraExtrinsics);
+export const useSetCameraExtrinsics = () => useStore(state => state.setCameraExtrinsics);
