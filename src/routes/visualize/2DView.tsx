@@ -5,7 +5,6 @@ import { useMachineSize, useVideoToMachineHomography } from '../../store';
 import { GCodeVisualizer } from '@/visualize/Toolpaths';
 import { PageHeader } from '@/components/ui/page-header';
 import { UnprojectVideoMesh } from '@/calibration/Unproject';
-import { useComputeP3P } from '@/calibration/solveP3P';
 import { use } from 'react';
 import { ensureOpenCvIsLoaded } from '@/lib/loadOpenCv';
 
@@ -17,8 +16,6 @@ export const Route = createFileRoute('/visualize/2DView')({
 });
 
 function VisualizeComponent() {
-  use(ensureOpenCvIsLoaded());
-  console.log('p3p', useComputeP3P());
   return (
     <div className="relative w-full h-full">
       <PageHeader title="2D Toolpath Visualization" className="absolute" />

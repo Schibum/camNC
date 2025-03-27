@@ -62,6 +62,7 @@ function DefaultControls({ worldScale }: { worldScale: IWorldScale }) {
   return (
     <OrbitControls
       makeDefault
+      dampingFactor={0.25}
       enableRotate={false}
       enablePan={true}
       enableZoom={true}
