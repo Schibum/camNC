@@ -4,7 +4,7 @@ import { Draggable } from '@/scene/Draggable';
 import { PresentCanvas } from '@/scene/PresentCanvas';
 import { Line, Text } from '@react-three/drei';
 import { ThreeEvent } from '@react-three/fiber';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import { IBox, ITuple, useStore } from '../store';
 import { Button } from '@/components/ui/button';
@@ -64,7 +64,6 @@ const Crosshair: React.FC<{
 
 // Component to render and interact with points
 function PointsScene({ points, setPoints }: { points: ITuple[]; setPoints: (points: ITuple[]) => void }) {
-  const meshRef = useRef<THREE.Mesh>(null);
   const videoSize = useStore(state => state.cameraConfig.dimensions);
   const [isDragging, setIsDragging] = useState(false);
   // Handle placing a new point by clicking on the mesh
@@ -94,18 +93,22 @@ function PointsScene({ points, setPoints }: { points: ITuple[]; setPoints: (poin
 
   // Handle point drag end
   const handlePointDragEnd = (index: number, position: THREE.Vector3) => {
-    if (meshRef.current) {
-      const newPoints = [...points];
-      newPoints[index] = [position.x, position.y];
-      setPoints(newPoints);
-    }
+    console.log('handlePointDragEnd', index, position);
+
+    const x = position.x + videoSize[0] / 2;
+    // Convert Y from [height/2, -height/2] to [0, height]
+    const y = videoSize[1] / 2 - position.y;
+    console.log('img pos', x, y, videoSize);
+    const newPoints = [...points];
+    newPoints[index] = [position.x, position.y];
+    setPoints(newPoints);
   };
 
   // Render the UnskewedVideoMesh and the points
   return (
     <>
       {/* Use primitive to properly attach the ref and event handlers */}
-      <UnskewedVideoMesh ref={meshRef} />
+      <UnskewedVideoMesh />
 
       {/* Add a transparent plane overtop for click handling */}
       <mesh position={[0, 0, 0.005]} onClick={handlePlacePoint}>

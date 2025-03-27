@@ -1,8 +1,8 @@
 import { IBox, ITuple, useStore } from '@/store';
 import { use } from 'react';
-import { Box2, Matrix3 } from 'three';
+import { Box2, Matrix3, Vector2 } from 'three';
 import { cv2, ensureOpenCvIsLoaded } from '../lib/loadOpenCv';
-import { cvToMatrix3, cvToVector3, matrix3ToCV } from '../lib/three-cv';
+import { cvToMatrix3, cvToVector2, cvToVector3, matrix3ToCV } from '../lib/three-cv';
 
 export function useComputeP3P() {
   const machineBoundsInCam = useStore(state => state.cameraConfig.machineBoundsInCam);
@@ -22,6 +22,7 @@ export function useComputeP3P() {
   };
 
   const machineBoundsInImageCoords = convertToImageCoords(machineBoundsInCam);
+  console.log('machineBoundsInImageCoords', machineBoundsInImageCoords);
 
   return () => computeP3P(dimensions, mp, machineBoundsInImageCoords, calibrationData.new_camera_matrix);
 }
@@ -66,12 +67,26 @@ export function computeP3P(dimensions: ITuple, mp: Box2, machineBoundsInCam: IBo
   const tvec = new cv2.Mat();
 
   // Call solvePnP using the AP3P flag
-  const success = cv2.solvePnP(objectPoints, imagePoints, cameraMatrix, distCoeffs, rvec, tvec, false, cv2.SOLVEPNP_AP3P);
+  const success = cv2.solvePnP(
+    objectPoints,
+    imagePoints,
+    cameraMatrix,
+    distCoeffs,
+    rvec,
+    tvec,
+    false,
+    // cv2.SOLVEPNP_AP3P
+    cv2.SOLVEPNP_IPPE
+  );
 
   if (!success) {
     throw new Error('solvePnP failed to find a valid pose.');
   }
 
+  const reprojectedPoints = new cv2.Mat();
+  cv2.projectPoints(objectPoints, rvec, tvec, cameraMatrix, distCoeffs, reprojectedPoints);
+  const reprojectionError = computeReprojectionError(reprojectedPoints, machineBoundsInCam);
+  console.log('reprojectionError', reprojectionError);
   // Convert rotation vector to rotation matrix
   const R = new cv2.Mat();
   cv2.Rodrigues(rvec, R);
@@ -86,4 +101,14 @@ export function computeP3P(dimensions: ITuple, mp: Box2, machineBoundsInCam: IBo
   R.delete();
 
   return { R: threeR, t: threeT };
+}
+
+function computeReprojectionError(reprojectedPoints: cv2.Mat, machineBoundsInCam: IBox) {
+  let error = 0;
+  for (let i = 0; i < reprojectedPoints.rows; i++) {
+    const reprojectedPoint = cvToVector2(reprojectedPoints.row(i));
+    const machinePoint = new Vector2(machineBoundsInCam[i][0], machineBoundsInCam[i][1]);
+    error += reprojectedPoint.distanceTo(machinePoint);
+  }
+  return error / reprojectedPoints.rows;
 }

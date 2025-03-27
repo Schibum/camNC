@@ -4,7 +4,6 @@ import { IBox, ITuple } from '@/store';
 import _cv from '@techstark/opencv-js';
 import { Box2, Matrix3, Vector2, Vector3 } from 'three';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { prettyPrintThree } from '../lib/prettyPrintThree';
 import { computeP3P } from './solveP3P';
 
 // Avoid dynamic import of ensureOpenCvIsLoaded
@@ -17,7 +16,7 @@ describe('computeP3P', () => {
   });
 
   it('should stub cv', async () => {
-    expect(cv2.Mat).toBe(_cv.Mat)
+    expect(cv2.Mat).toBe(_cv.Mat);
   });
 
   it('should compute P3P solution with valid inputs', () => {
@@ -38,9 +37,16 @@ describe('computeP3P', () => {
 
     const camMatrix = new Matrix3().set(
       // prettier-ignore
-      1576.70915, 0.0, 1481.05363,
-      0.0, 1717.4288, 969.448282,
-      0.0, 0.0, 1.0);
+      1576.70915,
+      0.0,
+      1481.05363,
+      0.0,
+      1717.4288,
+      969.448282,
+      0.0,
+      0.0,
+      1.0
+    );
 
     // Call the function
     const result = computeP3P(dimensions, mp, machineBoundsInCam, camMatrix);
@@ -55,7 +61,7 @@ describe('computeP3P', () => {
 
 function computeReprojectionError(R: Matrix3, t: Vector3, camMatrix: Matrix3, objectPoints: _cv.Mat, machineBoundsInCam: IBox) {
   const Rcv = matrix3ToCV(R);
-  let rvec = new cv2.Mat();
+  const rvec = new cv2.Mat();
   cv2.Rodrigues(Rcv, rvec);
   const tvec = vector3ToCV(t);
   const distCoeffs = cv2.Mat.zeros(5, 1, cv2.CV_32F);
@@ -72,4 +78,3 @@ function computeReprojectionError(R: Matrix3, t: Vector3, camMatrix: Matrix3, ob
   reprojectedPoints.delete();
   return error;
 }
-
