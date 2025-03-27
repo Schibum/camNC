@@ -1,9 +1,9 @@
 import { IBox, ITuple, useStore } from '@/store';
-import { Box2, Matrix3, Vector3 } from 'three';
-import { cv2 } from '../lib/loadOpenCv';
-import { prettyPrintCv } from '../lib/prettyPrintCv';
+import { use } from 'react';
+import { Box2, Matrix3 } from 'three';
+import { cv2, ensureOpenCvIsLoaded } from '../lib/loadOpenCv';
 import { cvToMatrix3, cvToVector3, matrix3ToCV } from '../lib/three-cv';
-import { prettyPrintThree } from '@/lib/prettyPrintThree';
+
 export function useComputeP3P() {
   const machineBoundsInCam = useStore(state => state.cameraConfig.machineBoundsInCam);
   const mp = useStore(state => state.cameraConfig.machineBounds);
@@ -23,7 +23,18 @@ export function useComputeP3P() {
 
   const machineBoundsInImageCoords = convertToImageCoords(machineBoundsInCam);
 
-  return computeP3P(dimensions, mp, machineBoundsInImageCoords, calibrationData.new_camera_matrix);
+  return () => computeP3P(dimensions, mp, machineBoundsInImageCoords, calibrationData.new_camera_matrix);
+}
+
+export function useUpdateCameraExtrinsics() {
+  use(ensureOpenCvIsLoaded());
+  const compute = useComputeP3P();
+  const setCameraExtrinsics = useStore(state => state.setCameraExtrinsics);
+  return () => {
+    const { R, t } = compute();
+    console.log('updated camera extrinsics', R, t);
+    setCameraExtrinsics({ R, t });
+  };
 }
 
 export function computeP3P(dimensions: ITuple, mp: Box2, machineBoundsInCam: IBox, newCamMatrix: Matrix3) {
@@ -74,5 +85,5 @@ export function computeP3P(dimensions: ITuple, mp: Box2, machineBoundsInCam: IBo
   tvec.delete();
   R.delete();
 
-  return { R: threeR, t: threeT};
+  return { R: threeR, t: threeT };
 }

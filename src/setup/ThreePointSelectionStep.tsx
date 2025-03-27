@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-
+import { useUpdateCameraExtrinsics } from '@/calibration/solveP3P';
 interface PointSelectionStepProps {}
 
 const kPointLabels = ['1: (xmin, ymin)', '2: (xmin, ymax)', '3: (xmax, ymax)', '4: (xmax, ymin)'];
@@ -186,6 +186,7 @@ function MachineBoundsInput() {
 export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) => {
   const [points, setPoints] = useState<ITuple[]>(useStore(state => state.cameraConfig.machineBoundsInCam));
   const setMachineBoundsInCam = useStore(state => state.setMachineBoundsInCam);
+  const updateCameraExtrinsics = useUpdateCameraExtrinsics();
 
   // Handle saving points
   const handleSave = () => {
@@ -196,6 +197,7 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
     console.log('points', points);
 
     setMachineBoundsInCam(points as IBox);
+    updateCameraExtrinsics();
   };
 
   const handleReset = () => {
