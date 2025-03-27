@@ -100,7 +100,6 @@ export function CameraShaderMaterial() {
     [videoTexture, mapXTexture, mapYTexture, videoDimensions, K, R, t]
   );
 
-
   return <shaderMaterial vertexShader={vertexShader} fragmentShader={fragmentShader} uniforms={uniforms} />;
 } /**
  * Precompute the undistortion maps (as textures).

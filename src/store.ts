@@ -190,6 +190,7 @@ export const useStore = create(persist(immer(combine(
   partialize: state => ({
     cameraConfig: state.cameraConfig,
     toolDiameter: state.toolDiameter,
+    cameraExtrinsics: state.cameraExtrinsics,
   }),
 }));
 

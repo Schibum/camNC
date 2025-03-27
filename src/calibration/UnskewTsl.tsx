@@ -1,10 +1,11 @@
-import { CalibrationData, useCalibrationData, useStore, useVideoSrc } from '@/store';
-import { useVideoTexture } from '@react-three/drei';
-import React, { useEffect, useMemo, useRef } from 'react';
+import { CalibrationData, useCalibrationData, useVideoSrc, useVideoDimensions } from '@/store';
+import React, { useMemo } from 'react';
 import { type ThreeElements } from '@react-three/fiber';
 import * as THREE from 'three';
 import { PresentCanvas } from '@/scene/PresentCanvas';
 import { initUndistortRectifyMapTyped, Matrix3x3 } from './rectifyMap';
+import { useUnmapTextures } from './CameraShaderMaterial';
+import { useCameraTexture } from './useCameraTexture';
 
 interface UnskewTslProps {
   width?: number;
@@ -64,47 +65,11 @@ function calculateUndistortionMaps(calibrationData: CalibrationData, width: numb
 }
 
 // UndistortMesh component using Three.js Shading
-const UndistortMesh = React.forwardRef<
-  THREE.Mesh,
-  {
-    videoTexture: THREE.VideoTexture;
-    calibrationData: CalibrationData;
-  } & ThreeElements['mesh']
->(({ videoTexture, calibrationData, ...props }, ref) => {
-  const meshRef = useRef<THREE.Mesh>(null);
+export function UnskewedVideoMesh({ ...props }: ThreeElements['mesh']) {
+  const videoDimensions = useVideoDimensions();
+  const videoTexture = useCameraTexture();
 
-  // Merge refs - use the forwarded ref if available, otherwise use the internal one
-  const actualRef = (ref || meshRef) as React.RefObject<THREE.Mesh>;
-
-  // Store video dimensions for calculations
-  const videoDimensions = useMemo(() => {
-    if (videoTexture && videoTexture.image) {
-      return {
-        width: videoTexture.image.videoWidth as number,
-        height: videoTexture.image.videoHeight as number,
-      };
-    }
-    return { width: 1280, height: 720 }; // Default fallback dimensions
-  }, [videoTexture]);
-
-  // Calculate undistortion maps once
-  const [mapXTexture, mapYTexture] = useMemo(() => {
-    const { width, height } = videoDimensions;
-
-    // Create placeholder textures
-    const placeholderX = new THREE.DataTexture(new Float32Array(width * height), width, height, THREE.RedFormat, THREE.FloatType);
-
-    const placeholderY = new THREE.DataTexture(new Float32Array(width * height), width, height, THREE.RedFormat, THREE.FloatType);
-
-    // Calculate maps asynchronously and update textures when ready
-    const [mapX, mapY] = calculateUndistortionMapsCached(calibrationData, width, height);
-    placeholderX.image.data = mapX;
-    placeholderY.image.data = mapY;
-    placeholderX.needsUpdate = true;
-    placeholderY.needsUpdate = true;
-
-    return [placeholderX, placeholderY];
-  }, [videoDimensions, calibrationData]);
+  const [mapXTexture, mapYTexture] = useUnmapTextures();
 
   // Basic GLSL shader for undistortion
   const vertexShader = /* glsl */ `
@@ -130,8 +95,8 @@ const UndistortMesh = React.forwardRef<
       vec2 uv = vUv;
 
       // Get the remapped coordinates from the map textures
-      float mapX = texture2D(mapXTexture, uv).r;
-      float mapY = texture2D(mapYTexture, uv).r;
+      float mapX = texture2D(mapXTexture, vec2(uv.x, 1.0 - uv.y)).r;
+      float mapY = texture2D(mapYTexture, vec2(uv.x, 1.0 - uv.y)).r;
 
       // Convert to normalized UV coordinates
       vec2 remappedUv = vec2(
@@ -144,7 +109,7 @@ const UndistortMesh = React.forwardRef<
       vec4 color = vec4(0.0, 0.0, 0.0, 1.0);
       if (remappedUv.x >= 0.0 && remappedUv.x <= 1.0 &&
           remappedUv.y >= 0.0 && remappedUv.y <= 1.0) {
-        color = texture2D(videoTexture, remappedUv);
+        color = texture2D(videoTexture, vec2( remappedUv.x, 1.0 - remappedUv.y));
       }
 
       gl_FragColor = color;
@@ -153,11 +118,11 @@ const UndistortMesh = React.forwardRef<
 
   // Plane geometry with correct aspect ratio
   const planeGeometry = useMemo(() => {
-    return new THREE.PlaneGeometry(videoDimensions.width, videoDimensions.height);
+    return new THREE.PlaneGeometry(videoDimensions[0], videoDimensions[1]);
   }, [videoDimensions]);
 
   return (
-    <mesh {...props} ref={actualRef} geometry={planeGeometry}>
+    <mesh {...props} geometry={planeGeometry}>
       <shaderMaterial
         fragmentShader={fragmentShader}
         vertexShader={vertexShader}
@@ -165,34 +130,12 @@ const UndistortMesh = React.forwardRef<
           videoTexture: { value: videoTexture },
           mapXTexture: { value: mapXTexture },
           mapYTexture: { value: mapYTexture },
-          resolution: { value: new THREE.Vector2(videoDimensions.width, videoDimensions.height) },
+          resolution: { value: new THREE.Vector2(videoDimensions[0], videoDimensions[1]) },
         }}
       />
     </mesh>
   );
-});
-
-// Add display name for debugging
-UndistortMesh.displayName = 'UndistortMesh';
-
-// New UnskewedVideoMesh component to load video texture
-export const UnskewedVideoMesh = React.forwardRef<THREE.Mesh, ThreeElements['mesh']>((props, ref) => {
-  const calibrationData = useCalibrationData();
-  const videoSrc = useVideoSrc();
-  const setVideoDimensions = useStore(state => state.setVideoDimensions);
-  // Use drei's useVideoTexture hook to load video texture
-  const videoTexture = useVideoTexture(videoSrc, {
-    crossOrigin: 'anonymous',
-    muted: true,
-    loop: true,
-    start: true,
-  });
-  useEffect(() => {
-    setVideoDimensions([videoTexture.image.videoWidth, videoTexture.image.videoHeight]);
-  }, [videoTexture.image.videoWidth, videoTexture.image.videoHeight, setVideoDimensions]);
-
-  return <UndistortMesh {...props} ref={ref} videoTexture={videoTexture} calibrationData={calibrationData} />;
-});
+}
 
 // Add display name for debugging
 UnskewedVideoMesh.displayName = 'UnskewedVideoMesh';
