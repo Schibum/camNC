@@ -1,5 +1,4 @@
 import { Draggable } from '@/scene/Draggable';
-import { useMachineSize } from '@/store';
 import { animated, useSpring } from '@react-spring/three';
 import { Edges, Line, Plane } from '@react-three/drei';
 import { ThreeEvent, useThree } from '@react-three/fiber';
@@ -120,18 +119,8 @@ function ToolpathBackgroundPlane() {
   );
 }
 
-// Offset for positioning objects in zero machine coordinates.
-function useMachineCoordsOffset() {
-  const machineBounds = useStore(s => s.cameraConfig.machineBounds);
-  const machineSize = useMachineSize();
-  // TODO: this should add min bounds.
-  return new Vector3(machineBounds.min.x, machineBounds.min.y, 0);
-  // return new Vector3(-machineSize.x / 2 + machineBounds.min.x, -machineSize.y / 2 + machineBounds.min.y, 0);
-}
-
 function UseableMachineSpaceOutline() {
   const machineBounds = useStore(s => s.cameraConfig.machineBounds);
-  const offset = useMachineCoordsOffset();
   const corners = useMemo(() => {
     return [
       [machineBounds.min.x, machineBounds.min.y],
@@ -141,25 +130,12 @@ function UseableMachineSpaceOutline() {
       [machineBounds.min.x, machineBounds.min.y],
     ] as [number, number][];
   }, [machineBounds]);
-  return (
-    <Line
-      depthTest={false}
-      renderOrder={1000}
-      points={corners}
-      position={offset}
-      color="#0cd20c"
-      linewidth={1}
-      dashed
-      dashSize={5}
-      gapSize={5}
-    />
-  );
+  return <Line depthTest={false} renderOrder={1000} points={corners} color="#0cd20c" linewidth={1} dashed dashSize={5} gapSize={5} />;
 }
 
 interface GCodeVisualizerProps {}
 export const GCodeVisualizer: React.FC<GCodeVisualizerProps> = () => {
   const toolpath = useStore(s => s.toolpath);
-  const offset = useMachineCoordsOffset();
   const setIsToolpathSelected = useStore(s => s.setIsToolpathSelected);
   const setIsToolpathHovered = useStore(s => s.setIsToolpathHovered);
   const setToolpathOffset = useStore(s => s.setToolpathOffset);
@@ -181,11 +157,11 @@ export const GCodeVisualizer: React.FC<GCodeVisualizerProps> = () => {
 
   return (
     <>
-      <axesHelper args={[100]} position={offset} position-z={1000} />
+      <axesHelper args={[100]} position-z={1000} />
       <UseableMachineSpaceOutline />
       <Draggable onDragEnd={onDragEnd}>
         <group
-          position={offset}
+          // position={offset}
           position-z={200}
           onPointerMissed={e => e.type === 'click' && setIsToolpathSelected(false)}
           onClick={e => (e.stopPropagation, setIsToolpathSelected(true))}
