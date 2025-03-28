@@ -8,10 +8,9 @@ import React, { useCallback, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import { IBox, ITuple, useStore } from '../store';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useUpdateCameraExtrinsics } from '@/calibration/solveP3P';
+import { MachineBoundsInput } from './MachineBoundsDialog';
+
 interface PointSelectionStepProps {}
 
 const kPointLabels = ['1: (xmin, ymin)', '2: (xmin, ymax)', '3: (xmax, ymax)', '4: (xmax, ymin)'];
@@ -154,38 +153,6 @@ function PointsScene({ points, setPoints }: { points: ITuple[]; setPoints: (poin
   );
 }
 
-function InputWithLabel({ label, value, onChange }: { label: string; value: number; onChange?: (value: number) => void }) {
-  return (
-    <div className="grid w-full items-center gap-1.5">
-      <Label htmlFor={label}>{label}</Label>
-      <Input type="number" id={label} value={value} onChange={e => onChange?.(Number(e.target.value))} />
-    </div>
-  );
-}
-
-function MachineBoundsInput() {
-  const bounds = useStore(state => state.cameraConfig.machineBounds);
-  const setters = useStore(state => state.machineBoundsSetters);
-
-  return (
-    <Card className="m-2 @container">
-      <CardHeader>
-        <CardTitle>Useable Machine Space</CardTitle>
-        <CardDescription>Pulloff distances and max limits</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 @xs:grid-cols-2 gap-2">
-          <InputWithLabel label="xmin" value={bounds.min.x} onChange={value => setters.setXMin(value)} />
-          <InputWithLabel label="xmax" value={bounds.max.x} onChange={value => setters.setXMax(value)} />
-
-          <InputWithLabel label="ymin" value={bounds.min.y} onChange={value => setters.setYMin(value)} />
-          <InputWithLabel label="ymax" value={bounds.max.y} onChange={value => setters.setYMax(value)} />
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) => {
   const [points, setPoints] = useState<ITuple[]>(useStore(state => state.cameraConfig.machineBoundsInCam));
   const setMachineBoundsInCam = useStore(state => state.setMachineBoundsInCam);
@@ -209,8 +176,7 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
 
   return (
     <div className="w-full h-dvh flex flex-col gap-1 overflow-hidden">
-      <PageHeader title="Machine Bounds" />
-      <MachineBoundsInput />
+      <PageHeader title="Machine Bounds" className="absolute" />
 
       <div className="flex-1 overflow-hidden">
         <PresentCanvas>
@@ -218,7 +184,8 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
         </PresentCanvas>
       </div>
 
-      <div className="gap-2 flex p-2 justify-end">
+      <div className="absolute bottom-4 right-4 flex items-center justify-end gap-2 p-2 bg-white/80 rounded-lg shadow-sm">
+        <MachineBoundsInput />
         {/* Action buttons for reset and save */}
         <Button variant="secondary" onClick={handleReset}>
           Reset

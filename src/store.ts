@@ -8,6 +8,7 @@ import { ParsedToolpath, parseGCode } from './visualize/gcodeParsing';
 import { parseToolInfo } from './visualize/guess-tools';
 import superjson from 'superjson';
 import { immerable } from 'immer';
+import { devtools } from 'zustand/middleware';
 
 export interface CalibrationData {
   calibration_matrix: number[][];
@@ -117,7 +118,7 @@ const storage: PersistStorage<unknown> = {
 // Should we create slices? see https://github.com/pmndrs/zustand/discussions/2195#discussioncomment-7614103
 
 // prettier-ignore
-export const useStore = create(persist(immer(combine(
+export const useStore = create(devtools(persist(immer(combine(
   {
     cameraConfig: defaultCameraConfig,
     calibrationData: defaultCalibrationData,
@@ -127,6 +128,7 @@ export const useStore = create(persist(immer(combine(
     isToolpathSelected: false,
     isToolpathHovered: false,
     toolpathOffset: new Vector3(0, 0, 0),
+    stockHeight: 0,
   },
   set => ({
     setVideoDimensions: (dimensions: ITuple) => set(state => {
@@ -173,6 +175,9 @@ export const useStore = create(persist(immer(combine(
     setToolDiameter: (diameter: number) => set(state => {
       state.toolDiameter = diameter;
     }),
+    setStockHeight: (height: number) => set(state => {
+      state.stockHeight = height;
+    }),
     // Update Toolpath from GCode
     updateToolpath: (gcode: string) => set(state => {
       console.log('updateToolpath');
@@ -192,7 +197,7 @@ export const useStore = create(persist(immer(combine(
     toolDiameter: state.toolDiameter,
     cameraExtrinsics: state.cameraExtrinsics,
   }),
-}));
+})));
 
 export const useVideoSrc = () => useStore(state => state.cameraConfig.url);
 export const useVideoDimensions = () => useStore(state => state.cameraConfig.dimensions);
