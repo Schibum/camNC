@@ -49,7 +49,7 @@ describe('computeP3P', () => {
     );
 
     // Call the function
-    const result = computeP3P(dimensions, mp, machineBoundsInCam, camMatrix);
+    const result = computeP3P(mp, machineBoundsInCam, camMatrix);
 
     const objectPoints = cv2.matFromArray(4, 3, cv2.CV_32F, [0, 0, 0, 0, mp.max.y, 0, mp.max.x, mp.max.y, 0, mp.max.x, 0, 0]);
 

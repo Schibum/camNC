@@ -1,15 +1,12 @@
-import { IBox, ITuple, useStore } from '@/store';
+import { IBox, useStore } from '@/store';
 import { use } from 'react';
 import { Box2, Matrix3, Vector2 } from 'three';
 import { cv2, ensureOpenCvIsLoaded } from '../lib/loadOpenCv';
-import { cvToMatrix3, cvToVector2, cvToVector3, matrix3ToCV } from '../lib/three-cv';
+import { cvToMatrix3, cvToVector2, cvToVector3, matrix3ToCV, vector3ToCV } from '../lib/three-cv';
 
-export function useComputeP3P() {
+function useMachineBoundsInImageCoords() {
   const machineBoundsInCam = useStore(state => state.cameraConfig.machineBoundsInCam);
-  const mp = useStore(state => state.cameraConfig.machineBounds);
-  const calibrationData = useStore(state => state.calibrationData);
   const dimensions = useStore(state => state.cameraConfig.dimensions);
-  // Convert machineBoundsInCam from three.js coordinates to regular image coordinates
   const convertToImageCoords = (bounds: IBox): IBox => {
     // In three.js, Y is up, but in image coordinates, Y is down
     // Also need to account for the origin being at the center in three.js vs top-left in image coordinates
@@ -21,10 +18,23 @@ export function useComputeP3P() {
     ]) as IBox;
   };
 
-  const machineBoundsInImageCoords = convertToImageCoords(machineBoundsInCam);
+  return convertToImageCoords(machineBoundsInCam);
+}
+function useConvertImageToThree() {
+  const dimensions = useStore(state => state.cameraConfig.dimensions);
+  const convertToThreeCoords = (bounds: Vector2): Vector2 => {
+    return new Vector2(bounds.x - dimensions[0] / 2, dimensions[1] / 2 - bounds.y);
+  };
+  return convertToThreeCoords;
+}
+
+export function useComputeP3P() {
+  const mp = useStore(state => state.cameraConfig.machineBounds);
+  const calibrationData = useStore(state => state.calibrationData);
+  const machineBoundsInImageCoords = useMachineBoundsInImageCoords();
   console.log('machineBoundsInImageCoords', machineBoundsInImageCoords);
 
-  return () => computeP3P(dimensions, mp, machineBoundsInImageCoords, calibrationData.new_camera_matrix);
+  return () => computeP3P(mp, machineBoundsInImageCoords, calibrationData.new_camera_matrix);
 }
 
 export function useUpdateCameraExtrinsics() {
@@ -38,7 +48,31 @@ export function useUpdateCameraExtrinsics() {
   };
 }
 
-export function computeP3P(dimensions: ITuple, mp: Box2, machineBoundsInCam: IBox, newCamMatrix: Matrix3) {
+export function useReprojectedMachineBounds() {
+  const convertToThree = useConvertImageToThree();
+  const cameraMatrix = matrix3ToCV(useStore(state => state.calibrationData.new_camera_matrix));
+  const { R, t } = useStore(state => state.cameraExtrinsics);
+  const Rcv = matrix3ToCV(R);
+  const tcv = vector3ToCV(t);
+  const distCoeffs = cv2.Mat.zeros(1, 5, cv2.CV_64F);
+  const reprojectedPoints = new cv2.Mat();
+  const objectPoints = machineBoundsToCv(useStore(state => state.cameraConfig.machineBounds));
+  cv2.projectPoints(objectPoints, Rcv, tcv, cameraMatrix, distCoeffs, reprojectedPoints);
+  const pointsThree = [];
+  for (let i = 0; i < reprojectedPoints.rows; i++) {
+    const reprojectedPoint = cvToVector2(reprojectedPoints.row(i));
+    pointsThree.push(convertToThree(reprojectedPoint));
+  }
+  objectPoints.delete();
+  reprojectedPoints.delete();
+  distCoeffs.delete();
+  Rcv.delete();
+  tcv.delete();
+  return pointsThree;
+}
+
+// Return 3d machine bound points as 3d CV Mat
+function machineBoundsToCv(mp: Box2) {
   // Create 3D object points (assuming z=0)
   // prettier-ignore
   const objectPoints = cv2.matFromArray(4, 3, cv2.CV_64F, [
@@ -47,8 +81,11 @@ export function computeP3P(dimensions: ITuple, mp: Box2, machineBoundsInCam: IBo
     mp.max.x, mp.max.y, 0,
     mp.max.x, mp.min.y, 0,
   ]);
+  return objectPoints;
+}
 
-  // Create 2D image points from machineBoundsInCam, converting to image coordinates
+export function computeP3P(mp: Box2, machineBoundsInCam: IBox, newCamMatrix: Matrix3) {
+  const objectPoints = machineBoundsToCv(mp);
   // prettier-ignore
   const imagePoints = cv2.matFromArray(4, 2, cv2.CV_64F, [
     machineBoundsInCam[0][0], machineBoundsInCam[0][1],
@@ -76,7 +113,8 @@ export function computeP3P(dimensions: ITuple, mp: Box2, machineBoundsInCam: IBo
     tvec,
     false,
     // cv2.SOLVEPNP_AP3P
-    cv2.SOLVEPNP_IPPE
+    // cv2.SOLVEPNP_IPPE
+    (cv2 as any).SOLVEPNP_SQPNP
   );
 
   if (!success) {
@@ -99,6 +137,9 @@ export function computeP3P(dimensions: ITuple, mp: Box2, machineBoundsInCam: IBo
   rvec.delete();
   tvec.delete();
   R.delete();
+
+  // threeR.set(0.04977487, 0.99875775, -0.00232803, 0.99862155, -0.04972894, 0.01679364, 0.01665701, -0.00316072, -0.99985627);
+  // threeT.set(-679.60095678, -273.72803363, 1258.42778199);
 
   return { R: threeR, t: threeT };
 }
