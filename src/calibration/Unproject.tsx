@@ -1,7 +1,7 @@
 import { PresentCanvas } from '@/scene/PresentCanvas';
 import { useCalibrationData, useMachineSize, useVideoSrc } from '@/store';
 import { type ThreeElements } from '@react-three/fiber';
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo } from 'react';
 import * as THREE from 'three';
 import { CameraShaderMaterial } from './CameraShaderMaterial';
 
@@ -13,9 +13,6 @@ export const UnprojectVideoMesh = React.forwardRef<
 >(({ overSize = 50, ...props }, ref) => {
   const machineSize = useMachineSize();
 
-  const meshRef = useRef<THREE.Mesh>(null);
-  const actualRef = (ref || meshRef) as React.RefObject<THREE.Mesh>;
-
   // Create a centered plane geometry matching the video dimensions.
   const planeGeometry = useMemo(() => {
     // PlaneGeometry(width, height) is centered at (0,0) by default.
@@ -24,15 +21,8 @@ export const UnprojectVideoMesh = React.forwardRef<
     return plane;
   }, [machineSize, overSize]);
 
-  // useFrame(() => {
-  //   if (actualRef.current) {
-  //     actualRef.current.position.z += 0.1;
-  //     console.log(actualRef.current.position.z);
-  //   }
-  // });
-
   return (
-    <mesh {...props} ref={actualRef} geometry={planeGeometry}>
+    <mesh ref={ref} geometry={planeGeometry} {...props}>
       <CameraShaderMaterial />
     </mesh>
   );

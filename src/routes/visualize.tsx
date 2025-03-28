@@ -1,9 +1,8 @@
 import { AppRoot } from '@/components/app-root';
 import { NavFluidnc } from '@/components/fluidnc/NavFluidnc';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { InputWithLabel } from '@/components/ui/InputWithLabel';
 import { SidebarGroup, SidebarGroupLabel, SidebarGroupContent } from '@/components/ui/sidebar';
-import { useSetToolDiameter, useStore, useToolDiameter } from '@/store';
+import { useStore, useToolDiameter, useSetToolDiameter } from '@/store';
 import { bookShelf, sampleGcode } from '@/test_data/gcode';
 import { BoundsInfo } from '@/visualize/BoundsInfo';
 import { FileSelector } from '@/visualize/FileSelector';
@@ -15,6 +14,12 @@ import { useState, useEffect } from 'react';
 export const Route = createFileRoute('/visualize')({
   component: RouteComponent,
 });
+
+function StockHeightInput() {
+  const stockHeight = useStore(s => s.stockHeight);
+  const setStockHeight = useStore(s => s.setStockHeight);
+  return <InputWithLabel label="Stock Height (mm)" value={stockHeight} onChange={setStockHeight} />;
+}
 
 interface GCodeOption {
   name: string;
@@ -29,7 +34,7 @@ function SidebarExtraContent() {
   const toolDiameter = useToolDiameter();
   const setToolDiameter = useSetToolDiameter();
 
-  const [selectedGCode, setSelectedGCode] = useState<string>(gcodeOptions[1].gcode);
+  const [selectedGCode, setSelectedGCode] = useState<string>(gcodeOptions[0].gcode);
   const updateToolpath = useStore(s => s.updateToolpath);
 
   useEffect(() => {
@@ -49,26 +54,10 @@ function SidebarExtraContent() {
           <div className="flex flex-col space-y-2">
             <GCodeSelector onChange={handleGCodeChange} />
             <FileSelector />
-            <BoundsInfo />
-
-            {
-              <>
-                <div className="grid w-full max-w-sm items-center gap-1.5">
-                  <Label htmlFor="email">Tool Diameter (mm)</Label>
-                  <Input
-                    type="number"
-                    min="0.1"
-                    max="50"
-                    step="0.1"
-                    value={toolDiameter}
-                    onChange={e => setToolDiameter(parseFloat(e.target.value))}
-                  />
-                </div>
-              </>
-            }
-
-            {/* GCode selection and information panel */}
+            <StockHeightInput />
+            <InputWithLabel label="Tool Diameter (mm)" value={toolDiameter} onChange={setToolDiameter} />
             <ZDepthLegend />
+            <BoundsInfo />
           </div>
         </SidebarGroupContent>
       </SidebarGroup>

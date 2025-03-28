@@ -186,6 +186,7 @@ export const GCodeVisualizer: React.FC<GCodeVisualizerProps> = () => {
       <Draggable onDragEnd={onDragEnd}>
         <group
           position={offset}
+          position-z={200}
           onPointerMissed={e => e.type === 'click' && setIsToolpathSelected(false)}
           onClick={e => (e.stopPropagation, setIsToolpathSelected(true))}
           onPointerEnter={() => setIsToolpathHovered(true)}

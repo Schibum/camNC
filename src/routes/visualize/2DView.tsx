@@ -1,12 +1,10 @@
 import { UnskewedVideoMesh } from '@/calibration/UnskewTsl';
 import { PresentCanvas } from '@/scene/PresentCanvas';
 import { createFileRoute } from '@tanstack/react-router';
-import { useMachineSize, useVideoToMachineHomography } from '../../store';
+import { useMachineSize, useVideoToMachineHomography, useStore } from '../../store';
 import { GCodeVisualizer } from '@/visualize/Toolpaths';
 import { PageHeader } from '@/components/ui/page-header';
 import { UnprojectVideoMesh } from '@/calibration/Unproject';
-import { use } from 'react';
-import { ensureOpenCvIsLoaded } from '@/lib/loadOpenCv';
 
 export const Route = createFileRoute('/visualize/2DView')({
   component: VisualizeComponent,
@@ -14,6 +12,11 @@ export const Route = createFileRoute('/visualize/2DView')({
     return { customSidebar: true };
   },
 });
+
+function UnprojectVideoMeshWithStockHeight() {
+  const stockHeight = useStore(s => s.stockHeight);
+  return <UnprojectVideoMesh position-z={stockHeight} />;
+}
 
 function VisualizeComponent() {
   return (
@@ -24,7 +27,7 @@ function VisualizeComponent() {
       <div className="w-full h-dvh absolute top-0 left-0">
         <PresentCanvas worldScale="machine">
           {/* <group rotation={[0, 0, Math.PI / 2]}> */}
-          <UnprojectVideoMesh />
+          <UnprojectVideoMeshWithStockHeight />
           <GCodeVisualizer />
           {/* </group> */}
 
