@@ -1,10 +1,14 @@
-import { UnskewedVideoMesh } from '@/calibration/UnskewTsl';
-import { PresentCanvas } from '@/scene/PresentCanvas';
-import { createFileRoute } from '@tanstack/react-router';
-import { useMachineSize, useVideoToMachineHomography, useStore } from '../../store';
-import { GCodeVisualizer } from '@/visualize/Toolpaths';
-import { PageHeader } from '@/components/ui/page-header';
 import { UnprojectVideoMesh } from '@/calibration/Unproject';
+import { UnskewedVideoMesh } from '@/calibration/UnskewTsl';
+import { PageHeader } from '@/components/ui/page-header';
+import { PresentCanvas } from '@/scene/PresentCanvas';
+import { GCodeVisualizer } from '@/visualize/Toolpaths';
+import { ThreeElements, ThreeEvent } from '@react-three/fiber';
+import { createFileRoute } from '@tanstack/react-router';
+import React from 'react';
+import * as THREE from 'three';
+import { useMachineSize, useStore, useVideoToMachineHomography } from '../../store';
+import { setWorkspaceXYZero } from '@/lib/cnc-api';
 
 export const Route = createFileRoute('/visualize/2DView')({
   component: VisualizeComponent,
@@ -13,12 +17,19 @@ export const Route = createFileRoute('/visualize/2DView')({
   },
 });
 
-function UnprojectVideoMeshWithStockHeight() {
+const UnprojectVideoMeshWithStockHeight = React.forwardRef<THREE.Mesh, ThreeElements['mesh']>(({ ...props }, ref) => {
   const stockHeight = useStore(s => s.stockHeight);
-  return <UnprojectVideoMesh position-z={stockHeight} />;
-}
+  return <UnprojectVideoMesh ref={ref} position-z={stockHeight} {...props} />;
+});
+UnprojectVideoMeshWithStockHeight.displayName = 'UnprojectVideoMeshWithStockHeight';
 
 function VisualizeComponent() {
+  function onDbClick(event: ThreeEvent<MouseEvent>) {
+    console.log('onDbClick', event.unprojectedPoint);
+    const point = event.unprojectedPoint;
+    setWorkspaceXYZero(point.x, point.y);
+  }
+
   return (
     <div className="relative w-full h-full">
       <PageHeader title="2D Toolpath Visualization" className="absolute" />
@@ -27,7 +38,7 @@ function VisualizeComponent() {
       <div className="w-full h-dvh absolute top-0 left-0">
         <PresentCanvas worldScale="machine">
           {/* <group rotation={[0, 0, Math.PI / 2]}> */}
-          <UnprojectVideoMeshWithStockHeight />
+          <UnprojectVideoMeshWithStockHeight onDoubleClick={onDbClick} />
           <GCodeVisualizer />
           {/* </group> */}
 

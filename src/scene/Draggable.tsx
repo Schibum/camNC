@@ -10,9 +10,15 @@ interface DraggableProps {
   [key: string]: any;
 }
 
+// Hack: ignore events that are used for orbitControl panning
+function isOrbitPan(event: ThreeEvent<PointerEvent>) {
+  return event.shiftKey || event.ctrlKey || event.metaKey;
+}
+
 export function Draggable({ children, onDragStart = undefined, onDragEnd = undefined, ...props }: DraggableProps) {
   const ref = useRef<THREE.Group>(null);
   const { raycaster, size, camera } = useThree();
+  const isDragging = useRef(false);
   const { mouse2D, mouse3D, offset, normal, plane } = useMemo(
     () => ({
       mouse2D: new THREE.Vector2(), // Normalized 2D screen space mouse coords
@@ -26,8 +32,9 @@ export function Draggable({ children, onDragStart = undefined, onDragEnd = undef
   const bind = useGesture<{ drag: ThreeEvent<PointerEvent> }>(
     {
       onDrag: ({ xy: [x, y], event, tap }) => {
+        if (tap || !isDragging.current) return;
+        // Compute normalized mouse coordinates (screen space)
         event.stopPropagation();
-        if (tap) return;
         // Compute normalized mouse coordinates (screen space)
         const nx = ((x - size.left) / size.width) * 2 - 1;
         const ny = -((y - size.top) / size.height) * 2 + 1;
@@ -50,7 +57,9 @@ export function Draggable({ children, onDragStart = undefined, onDragEnd = undef
         ref.current?.position.copy(mouse3D).add(offset);
       },
       onDragStart: ({ event }) => {
+        if (isOrbitPan(event)) return;
         event.stopPropagation();
+        isDragging.current = true;
         const { eventObject, point } = event as any;
 
         // Save the offset of click point from object origin
@@ -64,6 +73,7 @@ export function Draggable({ children, onDragStart = undefined, onDragEnd = undef
       },
       onDragEnd: ({ event }) => {
         event.stopPropagation();
+        isDragging.current = false;
         if (onDragEnd) onDragEnd(event);
       },
       // onClick: (ev) => {

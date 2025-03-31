@@ -14,7 +14,6 @@ import { Route as rootRoute } from './routes/__root'
 import { Route as VisualizeImport } from './routes/visualize'
 import { Route as UnprojectImport } from './routes/unproject'
 import { Route as Undistort2Import } from './routes/undistort2'
-import { Route as HomeImport } from './routes/home'
 import { Route as AboutImport } from './routes/about'
 import { Route as IndexImport } from './routes/index'
 import { Route as SetupIndexImport } from './routes/setup/index'
@@ -40,12 +39,6 @@ const UnprojectRoute = UnprojectImport.update({
 const Undistort2Route = Undistort2Import.update({
   id: '/undistort2',
   path: '/undistort2',
-  getParentRoute: () => rootRoute,
-} as any)
-
-const HomeRoute = HomeImport.update({
-  id: '/home',
-  path: '/home',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -107,13 +100,6 @@ declare module '@tanstack/react-router' {
       path: '/about'
       fullPath: '/about'
       preLoaderRoute: typeof AboutImport
-      parentRoute: typeof rootRoute
-    }
-    '/home': {
-      id: '/home'
-      path: '/home'
-      fullPath: '/home'
-      preLoaderRoute: typeof HomeImport
       parentRoute: typeof rootRoute
     }
     '/undistort2': {
@@ -192,7 +178,6 @@ const VisualizeRouteWithChildren = VisualizeRoute._addFileChildren(
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/home': typeof HomeRoute
   '/undistort2': typeof Undistort2Route
   '/unproject': typeof UnprojectRoute
   '/visualize': typeof VisualizeRouteWithChildren
@@ -206,7 +191,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/home': typeof HomeRoute
   '/undistort2': typeof Undistort2Route
   '/unproject': typeof UnprojectRoute
   '/visualize': typeof VisualizeRouteWithChildren
@@ -221,7 +205,6 @@ export interface FileRoutesById {
   __root__: typeof rootRoute
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/home': typeof HomeRoute
   '/undistort2': typeof Undistort2Route
   '/unproject': typeof UnprojectRoute
   '/visualize': typeof VisualizeRouteWithChildren
@@ -237,7 +220,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/about'
-    | '/home'
     | '/undistort2'
     | '/unproject'
     | '/visualize'
@@ -250,7 +232,6 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/about'
-    | '/home'
     | '/undistort2'
     | '/unproject'
     | '/visualize'
@@ -263,7 +244,6 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/about'
-    | '/home'
     | '/undistort2'
     | '/unproject'
     | '/visualize'
@@ -278,7 +258,6 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
-  HomeRoute: typeof HomeRoute
   Undistort2Route: typeof Undistort2Route
   UnprojectRoute: typeof UnprojectRoute
   VisualizeRoute: typeof VisualizeRouteWithChildren
@@ -291,7 +270,6 @@ export interface RootRouteChildren {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
-  HomeRoute: HomeRoute,
   Undistort2Route: Undistort2Route,
   UnprojectRoute: UnprojectRoute,
   VisualizeRoute: VisualizeRouteWithChildren,
@@ -313,7 +291,6 @@ export const routeTree = rootRoute
       "children": [
         "/",
         "/about",
-        "/home",
         "/undistort2",
         "/unproject",
         "/visualize",
@@ -328,9 +305,6 @@ export const routeTree = rootRoute
     },
     "/about": {
       "filePath": "about.tsx"
-    },
-    "/home": {
-      "filePath": "home.tsx"
     },
     "/undistort2": {
       "filePath": "undistort2.tsx"

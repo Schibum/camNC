@@ -8,6 +8,7 @@ import { Color, SRGBColorSpace, Vector2, Vector3 } from 'three';
 import { Line2, LineGeometry, LineMaterial } from 'three/addons';
 import { useStore, useToolDiameter } from '../store';
 import { ParsedToolpath } from './gcodeParsing';
+import { LineAxesHelper } from './LineAxesHelper';
 
 const plasmamap = colormap({
   colormap: 'plasma',
@@ -157,19 +158,18 @@ export const GCodeVisualizer: React.FC<GCodeVisualizerProps> = () => {
 
   return (
     <>
-      <axesHelper args={[100]} position-z={1000} />
+      <LineAxesHelper size={100} position-z={1000} />
       <UseableMachineSpaceOutline />
       <Draggable onDragEnd={onDragEnd}>
         <group
-          // position={offset}
           position-z={200}
           onPointerMissed={e => e.type === 'click' && setIsToolpathSelected(false)}
           onClick={e => (e.stopPropagation, setIsToolpathSelected(true))}
           onPointerEnter={() => setIsToolpathHovered(true)}
           onPointerLeave={() => setIsToolpathHovered(false)}>
-          <axesHelper args={[50]} visible={isToolpathHovered} position-z={boundingSize.z} />
           <Toolpaths />
           <ToolpathBackgroundPlane />
+          <LineAxesHelper size={50} position-z={150} visible={isToolpathHovered} />
         </group>
       </Draggable>
     </>
