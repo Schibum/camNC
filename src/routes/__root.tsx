@@ -11,11 +11,9 @@ export const Route = createRootRouteWithContext<IRouteContext>()({
 });
 
 function RootComponent() {
-  const customSidebar = useRouterState({ select: s => s.matches }).some(
-    m => m.context.customSidebar
-  );
+  const customSidebar = useRouterState({ select: s => s.matches }).some(m => m.context.customSidebar);
   return (
-    <SidebarProvider>
+    <SidebarProvider defaultOpen={false}>
       {customSidebar && <Outlet />}
       {!customSidebar && <AppRoot>{<Outlet />}</AppRoot>}
     </SidebarProvider>

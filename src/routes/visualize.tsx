@@ -55,7 +55,7 @@ function SidebarExtraContent() {
             <GCodeSelector onChange={handleGCodeChange} />
             <FileSelector />
             <StockHeightInput />
-            <InputWithLabel label="Tool Diameter (mm)" value={toolDiameter} onChange={setToolDiameter} />
+            <InputWithLabel label="Tool Diameter (mm)" value={toolDiameter} onChange={setToolDiameter} min={0.1} />
             <ZDepthLegend />
             <BoundsInfo />
           </div>

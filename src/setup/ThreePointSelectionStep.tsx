@@ -8,10 +8,26 @@ import React, { useCallback, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import { IBox, ITuple, useStore } from '../store';
 import { Button } from '@/components/ui/button';
-import { useUpdateCameraExtrinsics } from '@/calibration/solveP3P';
+import { useUpdateCameraExtrinsics, useReprojectedMachineBounds } from '@/calibration/solveP3P';
 import { MachineBoundsInput } from './MachineBoundsDialog';
 
 interface PointSelectionStepProps {}
+
+function ReprojectedMachineBounds() {
+  const reprojectedPoints = useReprojectedMachineBounds();
+  return (
+    <>
+      {reprojectedPoints.map((point, index) => {
+        return (
+          <mesh key={index} position={[point.x, point.y, 0.1]}>
+            <ringGeometry args={[3, 4, 16]} />
+            <meshBasicMaterial color="hotpink" wireframe={false} side={THREE.DoubleSide} />
+          </mesh>
+        );
+      })}
+    </>
+  );
+}
 
 const kPointLabels = ['1: (xmin, ymin)', '2: (xmin, ymax)', '3: (xmax, ymax)', '4: (xmax, ymin)'];
 
@@ -149,6 +165,8 @@ function PointsScene({ points, setPoints }: { points: ITuple[]; setPoints: (poin
 
       {/* Draw connection lines between points */}
       {points.length === 4 && !isDragging && <Line points={linePoints} color="yellow" lineWidth={2} />}
+
+      {points.length === 4 && !isDragging && <ReprojectedMachineBounds />}
     </>
   );
 }
@@ -185,6 +203,7 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
       </div>
 
       <div className="absolute bottom-4 right-4 flex items-center justify-end gap-2 p-2 bg-white/80 rounded-lg shadow-sm">
+        <NextPointHint pointCount={points.length} />
         <MachineBoundsInput />
         {/* Action buttons for reset and save */}
         <Button variant="secondary" onClick={handleReset}>
@@ -193,7 +212,6 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
         <Button onClick={handleSave} disabled={points.length !== 4}>
           Save
         </Button>
-        <NextPointHint pointCount={points.length} />
       </div>
     </div>
   );

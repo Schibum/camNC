@@ -137,6 +137,9 @@ importers:
       three:
         specifier: ^0.174.0
         version: 0.174.0
+      three-stdlib:
+        specifier: ^2.35.14
+        version: 2.35.14(three@0.174.0)
       vite-tsconfig-paths:
         specifier: ^5.1.4
         version: 5.1.4(typescript@5.8.2)(vite@6.2.3(@types/node@22.13.13)(jiti@2.4.2)(lightningcss@1.29.2)(tsx@4.19.3))
