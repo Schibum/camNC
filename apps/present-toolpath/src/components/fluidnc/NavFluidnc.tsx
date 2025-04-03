@@ -1,7 +1,6 @@
 import { SidebarGroup, SidebarGroupLabel } from '@/components/ui/sidebar';
-import { FluidncApi } from '@/lib/fluidnc-api';
 import { SetZeroButton } from './SetZeroButton';
-const api = new FluidncApi();
+
 export function NavFluidnc() {
   return (
     <SidebarGroup className="group-data-[collapsible=icon]:hidden">

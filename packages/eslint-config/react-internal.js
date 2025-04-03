@@ -9,7 +9,7 @@ import { config as baseConfig } from "./base.js";
 /**
  * A custom ESLint configuration for libraries that use React.
  *
- * @type {import("eslint").Linter.Config[]} */
+* @type {import("eslint").Linter.Config[]} */
 export const config = [
   ...baseConfig,
   js.configs.recommended,
@@ -34,6 +34,7 @@ export const config = [
       ...pluginReactHooks.configs.recommended.rules,
       // React scope no longer necessary with new JSX transform.
       "react/react-in-jsx-scope": "off",
+      "react/no-unknown-property": "off",
     },
   },
 ];
