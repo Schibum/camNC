@@ -47,7 +47,7 @@ export function UnprojectTsl() {
     <PresentCanvas worldScale="machine">
       {/* <axesHelper args={[1000]} position={[0, 0, 11]} /> */}
       <group>
-        <gridHelper args={[gridSize, gridSize / 50]} position={[gridSize / 2, gridSize / 2, 10]} rotation={[Math.PI / 2, 0, 0]} />
+        <gridHelper args={[gridSize, gridSize / 25]} position={[gridSize / 2, gridSize / 2, 10]} rotation={[Math.PI / 2, 0, 0]} />
         <axesHelper args={[1000]} position={[0, 0, 11]} />
         <UnprojectVideoMesh />
       </group>
