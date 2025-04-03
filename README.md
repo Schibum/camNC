@@ -1,49 +1,84 @@
-# Camera Calibration with ChArUco Board
+# Turborepo starter
 
-This web application allows you to calibrate a camera using a ChArUco board pattern. It uses OpenCV.js for computer vision tasks.
+This Turborepo starter is maintained by the Turborepo core team.
 
-## Getting Started
+## Using this example
 
-1. Print a ChArUco board pattern (you can generate one using OpenCV or find premade patterns online)
-2. Open `calibrate.html` in a web browser that supports WebRTC (Chrome, Firefox, Edge)
-3. Allow camera access when prompted
+Run the following command:
 
-## How to Use
+```sh
+npx create-turbo@latest
+```
 
-1. Configure the ChArUco board parameters to match your printed board:
-   - Squares in X/Y direction: Number of squares in each dimension
-   - Square Length: Physical size of each square in meters
-   - Marker Length: Physical size of each ArUco marker in meters
-   - Dictionary: The ArUco dictionary used for the markers
+## What's inside?
 
-2. Click "Start Camera" to begin the calibration process
+This Turborepo includes the following packages/apps:
 
-3. Position the ChArUco board in different orientations in front of the camera
-   - For best results, try to cover different areas of the camera frame
-   - Tilt the board in different angles relative to the camera
-   - Make sure the board is fully visible in the frame
+### Apps and Packages
 
-4. Press "c" or click the "Capture Frame" button when the board is detected properly
-   - At least 4 frames are needed for calibration
-   - 10-20 frames from different angles will improve accuracy
+- `docs`: a [Next.js](https://nextjs.org/) app
+- `web`: another [Next.js](https://nextjs.org/) app
+- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
+- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
+- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
 
-5. Once you have captured enough frames, press "ESC" or click "Calibrate" to calculate the camera parameters
+Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
 
-6. Review the calibration results:
-   - Camera Matrix: Internal parameters of the camera
-   - Distortion Coefficients: Parameters describing lens distortion
-   - Reprojection Error: A measure of calibration accuracy (lower is better)
+### Utilities
 
-7. Click "Download Parameters" to save the calibration data as a JSON file for later use
+This Turborepo has some additional tools already setup for you:
 
-## Troubleshooting
+- [TypeScript](https://www.typescriptlang.org/) for static type checking
+- [ESLint](https://eslint.org/) for code linting
+- [Prettier](https://prettier.io) for code formatting
 
-- If corners are not being detected, ensure good lighting and that the board is clearly visible
-- If calibration results are poor (high reprojection error), try capturing more frames from varied angles
-- The web application requires a modern browser with WebRTC support to access the camera
+### Build
 
-## Requirements
+To build all apps and packages, run the following command:
 
-- Modern web browser with JavaScript enabled
-- Camera access permissions
-- Printed ChArUco board pattern
+```
+cd my-turborepo
+pnpm build
+```
+
+### Develop
+
+To develop all apps and packages, run the following command:
+
+```
+cd my-turborepo
+pnpm dev
+```
+
+### Remote Caching
+
+> [!TIP]
+> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
+
+Turborepo can use a technique known as [Remote Caching](https://turbo.build/repo/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
+
+By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
+
+```
+cd my-turborepo
+npx turbo login
+```
+
+This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
+
+Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
+
+```
+npx turbo link
+```
+
+## Useful Links
+
+Learn more about the power of Turborepo:
+
+- [Tasks](https://turbo.build/repo/docs/core-concepts/monorepos/running-tasks)
+- [Caching](https://turbo.build/repo/docs/core-concepts/caching)
+- [Remote Caching](https://turbo.build/repo/docs/core-concepts/remote-caching)
+- [Filtering](https://turbo.build/repo/docs/core-concepts/monorepos/filtering)
+- [Configuration Options](https://turbo.build/repo/docs/reference/configuration)
+- [CLI Usage](https://turbo.build/repo/docs/reference/command-line-reference)
