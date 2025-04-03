@@ -140,3 +140,5 @@ export const VideoPlayer = forwardRef(({ url, onLoad, onError, style = {} }: Vid
     </div>
   );
 });
+
+VideoPlayer.displayName = 'VideoPlayer';

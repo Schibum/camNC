@@ -1,0 +1,42 @@
+/* Reset and base styles handled by Tailwind preflight */
+
+@import "tailwindcss";
+
+/* Fix for mobile viewport height issues */
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+:root {
+  --primary-color: #007bff;
+  --success-color: #28a745;
+  --warning-color: #ffc107;
+  --danger-color: #dc3545;
+  --light-color: #f8f9fa;
+  --dark-color: #343a40;
+  --background-color: #f5f5f5;
+  --overlay-bg: rgba(0, 0, 0, 0.7);
+}
+
+/* Keep animation defined in CSS for now */
+.recent-capture.animate-in {
+  animation: capture-animation 0.5s ease-out;
+}
+
+@keyframes capture-animation {
+  0% {
+    opacity: 0;
+    transform: translate(calc(50vw - 30px), calc(50vh - 30px)) scale(0.1);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+}
+
+/* Remove App.css import if its contents are also migrated or no longer needed */
+/* @import './App.css'; */
