@@ -84,7 +84,7 @@ export class FluidncApi {
         if (typeof data === 'string') {
           try {
             data = JSON.parse(data);
-          } catch (e) {
+          } catch {
             // Leave as string if JSON parsing fails.
           }
         }

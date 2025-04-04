@@ -25,5 +25,11 @@ export default defineConfig(({ command, ...params }) => {
   if (command !== 'serve') plugins.push(viteSingleFile());
   return {
     plugins,
+    server: {
+      headers: {
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Embedder-Policy': 'require-corp',
+      }
+    }
   };
 });
