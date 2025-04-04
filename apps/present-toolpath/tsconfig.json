@@ -4,8 +4,8 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "noEmit": true,
-    "allowJs": true,
-    "checkJs": true,
+    "allowJs": false,
+    // "checkJs": true,
     "strict": true,
     /* React Config */
     "jsx": "react-jsx",
@@ -29,7 +29,7 @@
     "next-env.d.ts",
     "next.config.js",
     ".next/types/**/*.ts"
-  ],
+, "src/lib/ld2.js"  ],
   "exclude": [
     "node_modules"
   ]

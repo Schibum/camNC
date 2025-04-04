@@ -1,5 +1,5 @@
 import { Matrix3 } from 'three';
-import { cv2 } from '@/lib/loadOpenCv';
+import { cv2 } from '@wbcnc/load-opencv';
 
 // Define a 3x3 matrix type
 export type Matrix3x3 = [[number, number, number], [number, number, number], [number, number, number]];

@@ -1,7 +1,7 @@
 import { IBox, useStore } from '@/store';
 import { use } from 'react';
 import { Box2, Matrix3, Vector2 } from 'three';
-import { cv2, ensureOpenCvIsLoaded } from '../lib/loadOpenCv';
+import { cv2, ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { cvToMatrix3, cvToVector2, cvToVector3, matrix3ToCV, vector3ToCV } from '../lib/three-cv';
 
 function useMachineBoundsInImageCoords() {

@@ -1,5 +1,5 @@
 import { Matrix3, Vector2, Vector3 } from 'three';
-import { cv2 } from './loadOpenCv';
+import { cv2 } from '@wbcnc/load-opencv';
 
 /**
  * Converts a Three.js Matrix3 to an OpenCV Mat.

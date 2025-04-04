@@ -1,5 +1,5 @@
 {
-  "name": "present-toolpath",
+  "name": "present-toolpath-apps",
   "private": true,
   "scripts": {
     "build": "turbo run build",

@@ -147,6 +147,9 @@ importers:
       '@vitest/browser':
         specifier: ^3.1.1
         version: 3.1.1(playwright@1.51.1)(vite@6.2.5(@types/node@22.14.0)(jiti@2.4.2)(lightningcss@1.29.2)(tsx@4.19.3))(vitest@3.1.1)
+      '@wbcnc/load-opencv':
+        specifier: workspace:*
+        version: link:../../packages/load-opencv
       '@webgpu/types':
         specifier: ^0.1.60
         version: 0.1.60
@@ -402,6 +405,12 @@ importers:
       typescript-eslint:
         specifier: ^8.29.0
         version: 8.29.0(eslint@9.23.0(jiti@2.4.2))(typescript@5.8.2)
+
+  packages/load-opencv:
+    dependencies:
+      '@techstark/opencv-js':
+        specifier: 4.10.0-release.1
+        version: 4.10.0-release.1
 
   packages/typescript-config: {}
 

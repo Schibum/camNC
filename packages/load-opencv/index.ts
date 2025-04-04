@@ -1,5 +1,4 @@
-// eslint-disable-next-line unused-imports/no-unused-imports
-import type cv from '@techstark/opencv-js';
+import type * as cv from '@techstark/opencv-js'
 
 const win = window as any;
 async function loadOpenCv() {
@@ -7,7 +6,7 @@ async function loadOpenCv() {
   win.cv = _cv;
 }
 
-let _ensureOpenCvIsLoadedPromise: Promise<void>;
+ let _ensureOpenCvIsLoadedPromise: Promise<void>;
 
 // Always return the same promise object to allow passing it to react use()
 export function ensureOpenCvIsLoaded() {
@@ -19,22 +18,24 @@ export function ensureOpenCvIsLoaded() {
 }
 
 // Npm import does not work well with vite, so load it globally and just use types
-async function _ensureOpenCvIsLoaded(): Promise<void> {
+async function _ensureOpenCvIsLoaded() {
   if (win.cv) return;
   await loadOpenCv();
 }
 
-// eslint-disable-next-line @typescript-eslint/no-namespace
+// Hack until we've a better way to re-export namespace.
 export namespace cv2 {
+  export type AdaptiveThresholdTypes = cv.AdaptiveThresholdTypes;
   export type Mat = cv.Mat;
   export type Point = cv.Point;
   export type Size = cv.Size;
   export type Rect = cv.Rect;
   export type Scalar = cv.Scalar;
   // ... add other commonly used types as needed
+
+  // export type * from '@techstark/opencv-js'
 }
 
-// export const cv2 = win.cv as typeof cv;
 export const cv2 = new Proxy(
   {},
   {
@@ -46,4 +47,3 @@ export const cv2 = new Proxy(
     },
   }
 ) as typeof cv;
-

@@ -169,7 +169,7 @@ export function prettyPrintCv(obj: any, precision: number = 4): string {
 // Example usage:
 /*
 import cv from '@techstark/opencv-js';
-import { ensureOpenCvIsLoaded } from '@/lib/loadOpenCv';
+import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 
 // Ensure OpenCV is loaded
 await ensureOpenCvIsLoaded();

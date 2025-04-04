@@ -1,4 +1,4 @@
-import { cv2, ensureOpenCvIsLoaded } from '@/lib/loadOpenCv';
+import { cv2, ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { cvToVector2, matrix3ToCV, vector3ToCV } from '@/lib/three-cv';
 import { IBox, ITuple } from '@/store';
 import _cv from '@techstark/opencv-js';
