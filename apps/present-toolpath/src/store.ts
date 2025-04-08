@@ -1,14 +1,12 @@
+import { immerable } from 'immer';
+import superjson from 'superjson';
+import { Box2, Matrix3, Matrix4, Vector2, Vector3 } from 'three';
 import { create } from 'zustand';
-import { combine, persist, PersistStorage } from 'zustand/middleware';
+import { combine, devtools, persist, PersistStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
-import { buildMatrix4FromHomography } from './math/perspectiveTransform';
-import { computeHomography } from './math/perspectiveTransform';
-import { Matrix4, Vector3, Box2, Vector2, Matrix3 } from 'three';
+import { buildMatrix4FromHomography, computeHomography } from './math/perspectiveTransform';
 import { ParsedToolpath, parseGCode } from './visualize/gcodeParsing';
 import { parseToolInfo } from './visualize/guess-tools';
-import superjson from 'superjson';
-import { immerable } from 'immer';
-import { devtools } from 'zustand/middleware';
 
 export interface CalibrationData {
   calibration_matrix: number[][];
@@ -40,21 +38,9 @@ export interface CameraConfig {
 // Default calibration data
 const defaultCalibrationData: CalibrationData = {
   calibration_matrix: [
-      [
-        2603.1886705430834,
-        0,
-        1379.8366938339807
-      ],
-      [
-        0,
-        2604.6310069784477,
-        1003.6132669610694
-      ],
-      [
-        0,
-        0,
-        1
-      ]
+    [2603.1886705430834, 0, 1379.8366938339807],
+    [0, 2604.6310069784477, 1003.6132669610694],
+    [0, 0, 1],
   ],
   // prettier-ignore
   new_camera_matrix: new Matrix3().set(
@@ -68,13 +54,7 @@ const defaultCalibrationData: CalibrationData = {
     0,
     1
   ),
-  distortion_coefficients: [[
-      -0.3829847540404848,
-      0.22402397713785682,
-      -0.00102448788321063,
-      0.0005674913681331104,
-      -0.09251835726272765
-    ]],
+  distortion_coefficients: [[-0.3829847540404848, 0.22402397713785682, -0.00102448788321063, 0.0005674913681331104, -0.09251835726272765]],
 };
 
 const defaultCameraConfig: CameraConfig = {
@@ -153,6 +133,7 @@ export const useStore = create(devtools(persist(immer(combine(
     isToolpathHovered: false,
     toolpathOffset: new Vector3(0, 0, 0),
     stockHeight: 0,
+    showStillFrame: false,
   },
   set => ({
     setVideoDimensions: (dimensions: ITuple) => set(state => {
@@ -163,6 +144,9 @@ export const useStore = create(devtools(persist(immer(combine(
     }),
     setMachineBounds: (bounds: Box2) => set(state => {
       state.cameraConfig.machineBounds = bounds;
+    }),
+    setShowStillFrame: (show: boolean) => set(state => {
+      state.showStillFrame = show;
     }),
     machineBoundsSetters: {
       setXMin: (xMin: number) => set(state => {
@@ -264,3 +248,6 @@ export function useVideoToMachineHomography() {
 
 export const useCameraExtrinsics = () => useStore(state => state.cameraExtrinsics);
 export const useSetCameraExtrinsics = () => useStore(state => state.setCameraExtrinsics);
+
+export const useShowStillFrame = () => useStore(state => state.showStillFrame);
+export const useSetShowStillFrame = () => useStore(state => state.setShowStillFrame);

@@ -17,6 +17,7 @@ import { Route as Undistort2Import } from './routes/undistort2'
 import { Route as AboutImport } from './routes/about'
 import { Route as IndexImport } from './routes/index'
 import { Route as SetupIndexImport } from './routes/setup/index'
+import { Route as VisualizeVisualizeCommandsImport } from './routes/visualize/VisualizeCommands'
 import { Route as Visualize2DViewImport } from './routes/visualize/2DView'
 import { Route as SetupUrlEntryImport } from './routes/setup.url-entry'
 import { Route as SetupSetupImport } from './routes/setup/setup'
@@ -59,6 +60,14 @@ const SetupIndexRoute = SetupIndexImport.update({
   path: '/setup/',
   getParentRoute: () => rootRoute,
 } as any)
+
+const VisualizeVisualizeCommandsRoute = VisualizeVisualizeCommandsImport.update(
+  {
+    id: '/VisualizeCommands',
+    path: '/VisualizeCommands',
+    getParentRoute: () => VisualizeRoute,
+  } as any,
+)
 
 const Visualize2DViewRoute = Visualize2DViewImport.update({
   id: '/2DView',
@@ -151,6 +160,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Visualize2DViewImport
       parentRoute: typeof VisualizeImport
     }
+    '/visualize/VisualizeCommands': {
+      id: '/visualize/VisualizeCommands'
+      path: '/VisualizeCommands'
+      fullPath: '/visualize/VisualizeCommands'
+      preLoaderRoute: typeof VisualizeVisualizeCommandsImport
+      parentRoute: typeof VisualizeImport
+    }
     '/setup/': {
       id: '/setup/'
       path: '/setup'
@@ -165,10 +181,12 @@ declare module '@tanstack/react-router' {
 
 interface VisualizeRouteChildren {
   Visualize2DViewRoute: typeof Visualize2DViewRoute
+  VisualizeVisualizeCommandsRoute: typeof VisualizeVisualizeCommandsRoute
 }
 
 const VisualizeRouteChildren: VisualizeRouteChildren = {
   Visualize2DViewRoute: Visualize2DViewRoute,
+  VisualizeVisualizeCommandsRoute: VisualizeVisualizeCommandsRoute,
 }
 
 const VisualizeRouteWithChildren = VisualizeRoute._addFileChildren(
@@ -185,6 +203,7 @@ export interface FileRoutesByFullPath {
   '/setup/setup': typeof SetupSetupRoute
   '/setup/url-entry': typeof SetupUrlEntryRoute
   '/visualize/2DView': typeof Visualize2DViewRoute
+  '/visualize/VisualizeCommands': typeof VisualizeVisualizeCommandsRoute
   '/setup': typeof SetupIndexRoute
 }
 
@@ -198,6 +217,7 @@ export interface FileRoutesByTo {
   '/setup/setup': typeof SetupSetupRoute
   '/setup/url-entry': typeof SetupUrlEntryRoute
   '/visualize/2DView': typeof Visualize2DViewRoute
+  '/visualize/VisualizeCommands': typeof VisualizeVisualizeCommandsRoute
   '/setup': typeof SetupIndexRoute
 }
 
@@ -212,6 +232,7 @@ export interface FileRoutesById {
   '/setup/setup': typeof SetupSetupRoute
   '/setup/url-entry': typeof SetupUrlEntryRoute
   '/visualize/2DView': typeof Visualize2DViewRoute
+  '/visualize/VisualizeCommands': typeof VisualizeVisualizeCommandsRoute
   '/setup/': typeof SetupIndexRoute
 }
 
@@ -227,6 +248,7 @@ export interface FileRouteTypes {
     | '/setup/setup'
     | '/setup/url-entry'
     | '/visualize/2DView'
+    | '/visualize/VisualizeCommands'
     | '/setup'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -239,6 +261,7 @@ export interface FileRouteTypes {
     | '/setup/setup'
     | '/setup/url-entry'
     | '/visualize/2DView'
+    | '/visualize/VisualizeCommands'
     | '/setup'
   id:
     | '__root__'
@@ -251,6 +274,7 @@ export interface FileRouteTypes {
     | '/setup/setup'
     | '/setup/url-entry'
     | '/visualize/2DView'
+    | '/visualize/VisualizeCommands'
     | '/setup/'
   fileRoutesById: FileRoutesById
 }
@@ -315,7 +339,8 @@ export const routeTree = rootRoute
     "/visualize": {
       "filePath": "visualize.tsx",
       "children": [
-        "/visualize/2DView"
+        "/visualize/2DView",
+        "/visualize/VisualizeCommands"
       ]
     },
     "/setup/point-selection": {
@@ -329,6 +354,10 @@ export const routeTree = rootRoute
     },
     "/visualize/2DView": {
       "filePath": "visualize/2DView.tsx",
+      "parent": "/visualize"
+    },
+    "/visualize/VisualizeCommands": {
+      "filePath": "visualize/VisualizeCommands.tsx",
       "parent": "/visualize"
     },
     "/setup/": {

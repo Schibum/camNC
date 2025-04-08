@@ -3,7 +3,7 @@ import { Separator } from '@radix-ui/react-separator';
 import { SidebarTrigger } from './sidebar';
 import { cn } from '@/lib/utils';
 
-export function PageHeader({ title, className }: { title: string; className?: string }) {
+export function PageHeader({ title, className, children }: { title: string; className?: string; children?: React.ReactNode }) {
   return (
     <header className={cn('flex h-10 shrink-0 items-center gap-2 z-10 bg-white/80 rounded-br-lg', className)}>
       <div className="flex items-center gap-2 px-4">
@@ -17,6 +17,7 @@ export function PageHeader({ title, className }: { title: string; className?: st
           </BreadcrumbList>
         </Breadcrumb>
       </div>
+      {children}
     </header>
   );
 }
