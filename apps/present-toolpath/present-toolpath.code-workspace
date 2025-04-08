@@ -1,0 +1,14 @@
+{
+	"folders": [
+    {
+      "path": "."
+    },
+    {
+      "path": "../ESP3D-WEBUI"
+    },
+    {
+      "path": "../calibrate-cam"
+    }
+  ],
+  "settings": {}
+}

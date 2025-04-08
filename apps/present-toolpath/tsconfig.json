@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "allowJs": false,
+    // "checkJs": true,
+    "strict": true,
+    /* React Config */
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ]
+    },
+    // "lib": ["ESNext", "DOM"],
+    // "types": []
+    "types": [
+      "@vitest/browser/providers/playwright"
+    ],
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "next-env.d.ts",
+    "next.config.js",
+    ".next/types/**/*.ts",
+    "../../packages/ui/src/components/input.tsx",
+    "../../packages/ui/src/components/InputWithLabel.tsx"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
