@@ -19,17 +19,19 @@
     },
     // "lib": ["ESNext", "DOM"],
     // "types": []
-    "types": ["@vitest/browser/providers/playwright"],
-
+    "types": [
+      "@vitest/browser/providers/playwright"
+    ],
   },
-
   "include": [
     "**/*.ts",
     "**/*.tsx",
     "next-env.d.ts",
     "next.config.js",
-    ".next/types/**/*.ts"
-, "src/lib/ld2.js"  ],
+    ".next/types/**/*.ts",
+    "../../packages/ui/src/components/input.tsx",
+    "../../packages/ui/src/components/InputWithLabel.tsx"
+  ],
   "exclude": [
     "node_modules"
   ]

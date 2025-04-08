@@ -3,7 +3,7 @@ import { TanStackRouterVite } from '@tanstack/router-plugin/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig, PluginOption } from 'vite';
 import checker from 'vite-plugin-checker';
-import { viteSingleFile } from 'vite-plugin-singlefile';
+// import { viteSingleFile } from 'vite-plugin-singlefile';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import tsconfigPaths from 'vite-tsconfig-paths';
 
@@ -22,7 +22,7 @@ export default defineConfig(({ command, ...params }) => {
       // },
     }),
   ];
-  if (command !== 'serve') plugins.push(viteSingleFile());
+  // if (command !== 'serve') plugins.push(viteSingleFile());
   return {
     plugins,
     server: {

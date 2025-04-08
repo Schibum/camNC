@@ -1,7 +1,7 @@
-import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { InputWithLabel } from '@/components/ui/InputWithLabel';
 import { useStore } from '@/store';
+import { InputWithLabel } from '@wbcnc/ui/components/InputWithLabel';
+import { Button } from '@wbcnc/ui/components/button';
 import { Settings2 } from 'lucide-react';
 
 export function MachineBoundsInput() {

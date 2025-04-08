@@ -1,5 +1,5 @@
 {
-  "name": "@repo/present-toolpath",
+  "name": "@wbcnc/present-toolpath",
   "private": true,
   "type": "module",
   "scripts": {
@@ -64,6 +64,9 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@wbcnc/eslint-config": "workspace:*",
+    "@wbcnc/typescript-config": "workspace:*",
+    "@wbcnc/ui": "workspace:*",
     "@tanstack/router-devtools": "^1.114.34",
     "@tanstack/router-plugin": "^1.114.34",
     "@testing-library/dom": "^10.4.0",

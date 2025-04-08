@@ -1,15 +1,15 @@
 import { AppRoot } from '@/components/app-root';
 import { NavFluidnc } from '@/components/fluidnc/NavFluidnc';
-import { InputWithLabel } from '@/components/ui/InputWithLabel';
-import { SidebarGroup, SidebarGroupLabel, SidebarGroupContent } from '@/components/ui/sidebar';
-import { useStore, useToolDiameter, useSetToolDiameter } from '@/store';
+import { SidebarGroup, SidebarGroupContent, SidebarGroupLabel } from '@/components/ui/sidebar';
+import { useSetToolDiameter, useStore, useToolDiameter } from '@/store';
 import { bookShelf, sampleGcode } from '@/test_data/gcode';
 import { BoundsInfo } from '@/visualize/BoundsInfo';
 import { FileSelector } from '@/visualize/FileSelector';
 import { GCodeSelector } from '@/visualize/GCodeSelector';
 import { ZDepthLegend } from '@/visualize/ZDepthLegend';
 import { createFileRoute, Outlet } from '@tanstack/react-router';
-import { useState, useEffect } from 'react';
+import { InputWithLabel } from '@wbcnc/ui/components/InputWithLabel';
+import { useEffect, useState } from 'react';
 
 export const Route = createFileRoute('/visualize')({
   component: RouteComponent,
