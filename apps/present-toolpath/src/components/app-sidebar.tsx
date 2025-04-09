@@ -1,19 +1,19 @@
-import * as React from 'react';
 import { Link } from '@tanstack/react-router';
-import { Camera, Home, Info, Route, Settings2, Grid, Eye } from 'lucide-react';
+import { Camera, Eye, Grid, Home, Info, Route, Settings2 } from 'lucide-react';
+import * as React from 'react';
 
+import { NavUser } from '@/components/nav-user';
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarGroup,
-  SidebarGroupLabel,
-} from '@/components/ui/sidebar';
-import { NavUser } from '@/components/nav-user';
+} from '@wbcnc/ui/components/sidebar';
 
 // Remove or comment out the mock data
 // const data = {...}

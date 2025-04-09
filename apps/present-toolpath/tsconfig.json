@@ -29,8 +29,6 @@
     "next-env.d.ts",
     "next.config.js",
     ".next/types/**/*.ts",
-    "../../packages/ui/src/components/input.tsx",
-    "../../packages/ui/src/components/InputWithLabel.tsx"
   ],
   "exclude": [
     "node_modules"

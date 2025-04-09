@@ -1,5 +1,5 @@
 import { useStore } from '@/store';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@wbcnc/ui/components/card';
 
 export function BoundsInfo() {
   const bounds = useStore(s => s.toolpath?.getBounds());

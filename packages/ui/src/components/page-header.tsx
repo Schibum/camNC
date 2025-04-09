@@ -1,7 +1,7 @@
-import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage } from './breadcrumb';
 import { Separator } from '@radix-ui/react-separator';
+import { cn } from '@wbcnc/ui/lib/utils';
+import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage } from './breadcrumb';
 import { SidebarTrigger } from './sidebar';
-import { cn } from '@/lib/utils';
 
 export function PageHeader({ title, className, children }: { title: string; className?: string; children?: React.ReactNode }) {
   return (

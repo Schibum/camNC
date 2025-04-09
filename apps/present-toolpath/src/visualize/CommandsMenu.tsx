@@ -1,13 +1,14 @@
 import { useSetShowStillFrame, useShowStillFrame } from '@/store';
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from '@wbcnc/ui/components/command';
-import { Kbd } from '@wbcnc/ui/components/kbd';
+import { allowCmdOnMac, Kbd } from '@wbcnc/ui/components/kbd';
 import { Calculator, Pause, Play, Smile } from 'lucide-react';
 import React from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 
 export function CommandsMenu() {
   const [open, setOpen] = React.useState(false)
-  useHotkeys('ctrl+j, meta+j', () => setOpen(true))
+  const shortcut = allowCmdOnMac('ctrl+j');
+  useHotkeys(shortcut, () => setOpen(true))
   const showStillFrame = useShowStillFrame()
   const setShowStillFrame = useSetShowStillFrame()
   function toggleShowStillFrame() {
@@ -18,7 +19,7 @@ export function CommandsMenu() {
   return (
     <>
       <p className="text-sm text-muted-foreground">
-        Press <Kbd modifiers="ctrl" k="j" />
+        Press <Kbd shortcut={shortcut} />
       </p>
       <CommandDialog open={open} onOpenChange={setOpen}>
         <CommandInput placeholder="Type a command or search..." />

@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@wbcnc/ui/components/dialog';
 import { useStore } from '@/store';
 import { InputWithLabel } from '@wbcnc/ui/components/InputWithLabel';
 import { Button } from '@wbcnc/ui/components/button';

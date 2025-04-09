@@ -1,5 +1,5 @@
 import { UnprojectTsl } from '@/calibration/Unproject';
-import { PageHeader } from '@/components/ui/page-header';
+import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { createFileRoute } from '@tanstack/react-router';
 import { Button } from '@wbcnc/ui/components/button';
 

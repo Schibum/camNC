@@ -1,6 +1,6 @@
 import { LoaderCircle, LucideProps } from 'lucide-react';
 
-import { cn } from '@/lib/utils';
+import { cn } from '@wbcnc/ui/lib/utils';
 
 export interface IProps extends LucideProps {
   className?: string;

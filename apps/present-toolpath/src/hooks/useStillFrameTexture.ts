@@ -114,6 +114,7 @@ export function useStillFrameTexture() {
 
   const update = useCallback(async () => {
     ctx.drawImage(camTexture.image, 0, 0);
+    texture.needsUpdate = true;
     const imageData = await averageVideoFrames(camTexture.image, 25);
     ctx.putImageData(imageData, 0, 0);
     texture.needsUpdate = true;

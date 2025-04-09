@@ -1,6 +1,6 @@
 import { AppRoot } from '@/components/app-root';
 import { NavFluidnc } from '@/components/fluidnc/NavFluidnc';
-import { SidebarGroup, SidebarGroupContent, SidebarGroupLabel } from '@/components/ui/sidebar';
+import { SidebarGroup, SidebarGroupContent, SidebarGroupLabel } from '@wbcnc/ui/components/sidebar';
 import { useSetToolDiameter, useStore, useToolDiameter } from '@/store';
 import { bookShelf, sampleGcode } from '@/test_data/gcode';
 import { BoundsInfo } from '@/visualize/BoundsInfo';

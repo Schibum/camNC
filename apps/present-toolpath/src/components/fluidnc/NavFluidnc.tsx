@@ -1,4 +1,4 @@
-import { SidebarGroup, SidebarGroupLabel } from '@/components/ui/sidebar';
+import { SidebarGroup, SidebarGroupLabel } from '@wbcnc/ui/components/sidebar';
 import { SetZeroButton } from './SetZeroButton';
 
 export function NavFluidnc() {

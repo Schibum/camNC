@@ -1,12 +1,12 @@
 import { UnprojectVideoMesh } from '@/calibration/Unproject';
 import { UnskewedVideoMesh } from '@/calibration/UnskewTsl';
-import { PageHeader } from '@/components/ui/page-header';
 import { setWorkspaceXYZero } from '@/lib/cnc-api';
 import { PresentCanvas } from '@/scene/PresentCanvas';
-import { CommandsMenu } from '@/visualize/CommandsMenu';
 import { GCodeVisualizer } from '@/visualize/Toolpaths';
+import { VisualizeToolbar } from '@/visualize/VisualizeToolbar';
 import { ThreeElements, ThreeEvent } from '@react-three/fiber';
 import { createFileRoute } from '@tanstack/react-router';
+import { PageHeader } from '@wbcnc/ui/components/page-header';
 import React from 'react';
 import * as THREE from 'three';
 import { useMachineSize, useStore, useVideoToMachineHomography } from '../../store';
@@ -34,7 +34,7 @@ function VisualizeComponent() {
   return (
     <div className="relative w-full h-full">
       <PageHeader title="2D Toolpath Visualization" className="absolute pr-2">
-        <CommandsMenu />
+        <VisualizeToolbar />
       </PageHeader>
       {/* 3D Canvas */}
       <div className="w-full h-dvh absolute top-0 left-0">

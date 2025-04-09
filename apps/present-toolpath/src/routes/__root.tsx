@@ -1,5 +1,6 @@
 import { AppRoot } from '@/components/app-root';
-import { SidebarProvider } from '@/components/ui/sidebar';
+import { SidebarProvider } from '@wbcnc/ui/components/sidebar';
+import { TooltipProvider } from '@wbcnc/ui/components/tooltip';
 import { Outlet, createRootRouteWithContext, useRouterState } from '@tanstack/react-router';
 
 interface IRouteContext {
@@ -13,9 +14,11 @@ export const Route = createRootRouteWithContext<IRouteContext>()({
 function RootComponent() {
   const customSidebar = useRouterState({ select: s => s.matches }).some(m => m.context.customSidebar);
   return (
-    <SidebarProvider defaultOpen={false}>
-      {customSidebar && <Outlet />}
-      {!customSidebar && <AppRoot>{<Outlet />}</AppRoot>}
-    </SidebarProvider>
+    <TooltipProvider>
+      <SidebarProvider defaultOpen={false}>
+        {customSidebar && <Outlet />}
+        {!customSidebar && <AppRoot>{<Outlet />}</AppRoot>}
+      </SidebarProvider>
+    </TooltipProvider>
   );
 }

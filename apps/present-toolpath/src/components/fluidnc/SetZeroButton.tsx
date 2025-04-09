@@ -1,9 +1,9 @@
 import { setWorkspaceXYZero } from '@/lib/cnc-api';
-import { useState } from 'react';
-import { Button } from '../ui/button';
-import { CircleOff } from 'lucide-react';
-import { LoadingSpinner } from '../ui/loading-spinner';
 import { useStore } from '@/store';
+import { Button } from '@wbcnc/ui/components/button';
+import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
+import { CircleOff } from 'lucide-react';
+import { useState } from 'react';
 
 export function SetZeroButton() {
   const [isLoading, setIsLoading] = useState(false);
