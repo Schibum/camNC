@@ -1,9 +1,11 @@
+import { useStillFrameTexture } from '@/hooks/useStillFrameTexture';
 import { PresentCanvas } from '@/scene/PresentCanvas';
-import { useCalibrationData, useMachineSize, useVideoSrc } from '@/store';
+import { useCalibrationData, useMachineSize, useShowStillFrame, useVideoSrc } from '@/store';
 import { type ThreeElements } from '@react-three/fiber';
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { CameraShaderMaterial } from './CameraShaderMaterial';
+import { useCameraTexture } from './useCameraTexture';
 
 export const UnprojectVideoMesh = React.forwardRef<
   THREE.Mesh,
@@ -12,6 +14,13 @@ export const UnprojectVideoMesh = React.forwardRef<
   } & ThreeElements['mesh']
 >(({ overSize = 50, ...props }, ref) => {
   const machineSize = useMachineSize();
+  const useStillFrame = useShowStillFrame();
+  const [stillFrameTexture, updateStillFrameTexture] = useStillFrameTexture();
+  const videoTexture = useCameraTexture();
+
+  useEffect(() => {
+    if (useStillFrame) updateStillFrameTexture();
+  }, [updateStillFrameTexture, useStillFrame]);
 
   // Create a centered plane geometry matching the video dimensions.
   const planeGeometry = useMemo(() => {
@@ -23,7 +32,11 @@ export const UnprojectVideoMesh = React.forwardRef<
 
   return (
     <mesh ref={ref} geometry={planeGeometry} {...props}>
-      <CameraShaderMaterial />
+      {useStillFrame ? (
+        <CameraShaderMaterial key="stillFrame" texture={stillFrameTexture} />
+      ) : (
+        <CameraShaderMaterial key="video" texture={videoTexture} />
+      )}
     </mesh>
   );
 });

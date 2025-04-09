@@ -10,6 +10,10 @@ export function CommandsMenu() {
   useHotkeys('ctrl+j, meta+j', () => setOpen(true))
   const showStillFrame = useShowStillFrame()
   const setShowStillFrame = useSetShowStillFrame()
+  function toggleShowStillFrame() {
+    setShowStillFrame(!showStillFrame);
+    setOpen(false);
+  }
 
   return (
     <>
@@ -21,13 +25,13 @@ export function CommandsMenu() {
         <CommandList>
           <CommandEmpty>No results found.</CommandEmpty>
           <CommandGroup heading="Suggestions">
-            {showStillFrame ? (
-              <CommandItem onSelect={() => setShowStillFrame(false)}>
+            {!showStillFrame ? (
+              <CommandItem onSelect={toggleShowStillFrame}>
                 <Pause />
                 <span>Pause Video</span>
               </CommandItem>
             ) : (
-              <CommandItem onSelect={() => setShowStillFrame(true)}>
+              <CommandItem onSelect={toggleShowStillFrame}>
                 <Play />
                 <span>Play Video</span>
               </CommandItem>

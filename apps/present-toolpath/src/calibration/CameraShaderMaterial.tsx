@@ -1,13 +1,10 @@
 import { useCalibrationData, useCameraExtrinsics, useNewCameraMatrix, useVideoDimensions } from '@/store';
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import * as THREE from 'three';
-import { useCameraTexture } from './useCameraTexture';
 import { calculateUndistortionMapsCached } from './UnskewTsl';
 
-export function CameraShaderMaterial() {
-  const videoTexture = useCameraTexture();
+export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
   // These are your extrinsics (rotation and translation) from world to camera space.
-  // prettier-ignore
   const { R, t } = useCameraExtrinsics();
   // Get your intrinsic matrix via your custom hook.
   const K = useNewCameraMatrix();
@@ -47,7 +44,6 @@ export function CameraShaderMaterial() {
     uniform mat3 K;
     uniform mat3 R;
     uniform vec3 t;
-    uniform float objectHeight;
     varying vec2 vUv;
     varying vec3 worldPos;
 
@@ -88,16 +84,15 @@ export function CameraShaderMaterial() {
   // Set up all shader uniforms.
   const uniforms = useMemo(
     () => ({
-      videoTexture: { value: videoTexture },
+      videoTexture: { value: texture },
       mapXTexture: { value: mapXTexture },
       mapYTexture: { value: mapYTexture },
       resolution: { value: new THREE.Vector2(videoDimensions[0], videoDimensions[1]) },
       K: { value: K },
       R: { value: R },
       t: { value: t },
-      objectHeight: { value: 0 },
     }),
-    [videoTexture, mapXTexture, mapYTexture, videoDimensions, K, R, t]
+    [texture, mapXTexture, mapYTexture, videoDimensions, K, R, t]
   );
 
   return <shaderMaterial vertexShader={vertexShader} fragmentShader={fragmentShader} uniforms={uniforms} />;
@@ -121,3 +116,4 @@ export function useUnmapTextures(): [THREE.DataTexture, THREE.DataTexture] {
     return [placeholderX, placeholderY];
   }, [videoDimensions, calibrationData]);
 }
+

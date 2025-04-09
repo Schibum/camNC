@@ -1,4 +1,4 @@
-import { useVideoSrc, useStore } from '@/store';
+import { useStore, useVideoSrc } from '@/store';
 import { useVideoTexture } from '@react-three/drei';
 import { useEffect } from 'react';
 
