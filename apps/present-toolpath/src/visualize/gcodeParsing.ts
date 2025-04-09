@@ -1,12 +1,12 @@
 import GCodeToolpath, { Modal, Vector3D } from 'gcode-toolpath';
 import * as THREE from 'three';
-import { Vector3, Box3 } from 'three';
+import { Box3, Vector3 } from 'three';
 
 export class ParsedToolpath {
   public pathPoints: Vector3[] = [];
   // Index of the modal that corresponds to the path point (starting point of the segment)
   public modals: Modal[] = [];
-  public numArcSegments = 8;
+  public numArcSegments = 30;
   private bounds?: Box3;
 
   constructor() {}
@@ -22,7 +22,7 @@ export class ParsedToolpath {
 
   addArc(modal: Modal, start: Vector3, end: Vector3, center: Vector3) {
     const isCounterClockwise = modal.motion === 'G3';
-    const points = generateArcPoints(start, end, center, isCounterClockwise, this.numArcSegments);
+    const points = generateArcPoints(start, end, center, isCounterClockwise, modal.plane, this.numArcSegments);
     this.pathPoints.push(...points);
     const modals = new Array(points.length).fill(modal);
     this.modals.push(...modals);
@@ -67,12 +67,7 @@ export function parseGCode(gcode: string): ParsedToolpath {
 
       // Callback for arc segments
       addArcCurve: (modal: Modal, v1: Vector3D, v2: Vector3D, v0: Vector3D) => {
-        parsed.addArc(
-          modal,
-          new Vector3(v1.x, v1.y, v1.z),
-          new Vector3(v2.x, v2.y, v2.z),
-          new Vector3(v0.x, v0.y, v0.z)
-        );
+        parsed.addArc(modal, new Vector3(v1.x, v1.y, v1.z), new Vector3(v2.x, v2.y, v2.z), new Vector3(v0.x, v0.y, v0.z));
       },
     });
 
@@ -84,53 +79,56 @@ export function parseGCode(gcode: string): ParsedToolpath {
   }
 }
 
-/**
- * Generate points for an arc curve
- */
+type GPlane = 'G17' | 'G18' | 'G19';
+
 export function generateArcPoints(
-  start: Vector3,
-  end: Vector3,
-  center: Vector3,
+  start: Vector3, // v1 — transformed to XY plane
+  end: Vector3, // v2 — transformed to XY plane
+  center: Vector3, // v0 — transformed to XY plane
   isCounterClockwise: boolean,
-  numPoints = 8
+  plane: GPlane = 'G17',
+  numPoints = 30
 ): Vector3[] {
-  const points: THREE.Vector3[] = [];
+  const points: Vector3[] = [];
 
-  // Calculate radius
-  const radius = Math.sqrt(Math.pow(start.x - center.x, 2) + Math.pow(start.y - center.y, 2));
-
-  // Calculate angles
+  const radius = Math.hypot(start.x - center.x, start.y - center.y);
   const startAngle = Math.atan2(start.y - center.y, start.x - center.x);
-  const endAngle = Math.atan2(end.y - center.y, end.x - center.x);
+  let endAngle = Math.atan2(end.y - center.y, end.x - center.x);
 
-  // // G2 is clockwise, G3 is counter-clockwise
-  // const isCounterClockwise = motion === 'G3';
-
-  // Handle full circles
-  let actualEndAngle = endAngle;
-  if (Math.abs(startAngle - endAngle) < 0.01) {
-    actualEndAngle = startAngle + (isCounterClockwise ? 2 * Math.PI : -2 * Math.PI);
+  // Handle full-circle case
+  if (Math.abs(startAngle - endAngle) < 0.0001) {
+    endAngle += isCounterClockwise ? 2 * Math.PI : -2 * Math.PI;
   }
 
-  // Ensure proper direction
-  if (isCounterClockwise && actualEndAngle < startAngle) {
-    actualEndAngle += 2 * Math.PI;
-  } else if (!isCounterClockwise && actualEndAngle > startAngle) {
-    actualEndAngle -= 2 * Math.PI;
+  // Adjust for direction
+  if (isCounterClockwise && endAngle < startAngle) {
+    endAngle += 2 * Math.PI;
+  } else if (!isCounterClockwise && endAngle > startAngle) {
+    endAngle -= 2 * Math.PI;
   }
 
-  // Interpolate z-value
-  const zDiff = end.z - start.z;
-
-  // Generate points along the arc
   for (let i = 0; i <= numPoints; i++) {
     const t = i / numPoints;
-    const angle = startAngle + (actualEndAngle - startAngle) * t;
+    const angle = startAngle + (endAngle - startAngle) * t;
+
     const x = center.x + radius * Math.cos(angle);
     const y = center.y + radius * Math.sin(angle);
-    const z = start.z + zDiff * t;
+    const z = start.z + (end.z - start.z) * t;
 
-    points.push(new THREE.Vector3(x, y, z));
+    let vertex: Vector3;
+
+    // Reproject from arc-in-XY-plane back to 3D space
+    if (plane === 'G17') {
+      vertex = new Vector3(x, y, z);
+    } else if (plane === 'G18') {
+      vertex = new Vector3(y, z, x); // XZ plane
+    } else if (plane === 'G19') {
+      vertex = new Vector3(z, x, y); // YZ plane
+    } else {
+      throw new Error(`Unsupported plane: ${plane}`);
+    }
+
+    points.push(vertex);
   }
 
   return points;
@@ -155,13 +153,7 @@ export function createShapeForPath(points: THREE.Vector3[], halfWidth: number): 
   addRightSidePath(outlinePath, points, perpXs, perpYs, halfWidth);
 
   // Add end cap (half circle)
-  addEndCap(
-    outlinePath,
-    points[points.length - 1],
-    perpXs[points.length - 1],
-    perpYs[points.length - 1],
-    halfWidth
-  );
+  addEndCap(outlinePath, points[points.length - 1], perpXs[points.length - 1], perpYs[points.length - 1], halfWidth);
 
   // Add the left side of the path with rounded joints (going backwards)
   addLeftSidePath(outlinePath, points, perpXs, perpYs, halfWidth);
@@ -213,13 +205,7 @@ function calculatePerpendicularVectors(points: THREE.Vector3[]): {
 /**
  * Adds a start cap (half circle) to the path
  */
-function addStartCap(
-  path: THREE.Path,
-  point: THREE.Vector3,
-  perpX: number,
-  perpY: number,
-  halfWidth: number
-): void {
+function addStartCap(path: THREE.Path, point: THREE.Vector3, perpX: number, perpY: number, halfWidth: number): void {
   const startCapCenter = new THREE.Vector2(point.x, point.y);
   const startCapStart = new THREE.Vector2(point.x + perpX * halfWidth, point.y + perpY * halfWidth);
   const startAngle = Math.atan2(perpY, perpX);
@@ -228,26 +214,13 @@ function addStartCap(
   path.moveTo(startCapStart.x, startCapStart.y);
 
   // Add half-circle for the start cap
-  path.absarc(
-    startCapCenter.x,
-    startCapCenter.y,
-    halfWidth,
-    startAngle,
-    startAngle + Math.PI,
-    false
-  );
+  path.absarc(startCapCenter.x, startCapCenter.y, halfWidth, startAngle, startAngle + Math.PI, false);
 }
 
 /**
  * Adds an end cap (half circle) to the path
  */
-function addEndCap(
-  path: THREE.Path,
-  point: THREE.Vector3,
-  perpX: number,
-  perpY: number,
-  halfWidth: number
-): void {
+function addEndCap(path: THREE.Path, point: THREE.Vector3, perpX: number, perpY: number, halfWidth: number): void {
   const endAngle = Math.atan2(-perpY, -perpX);
 
   path.absarc(point.x, point.y, halfWidth, endAngle, endAngle + Math.PI, false);
@@ -256,13 +229,7 @@ function addEndCap(
 /**
  * Adds the right side of the path with rounded joints
  */
-function addRightSidePath(
-  path: THREE.Path,
-  points: THREE.Vector3[],
-  perpXs: number[],
-  perpYs: number[],
-  halfWidth: number
-): void {
+function addRightSidePath(path: THREE.Path, points: THREE.Vector3[], perpXs: number[], perpYs: number[], halfWidth: number): void {
   for (let i = 1; i < points.length; i++) {
     const currPoint = points[i];
     const prevPerpX = -perpXs[i - 1];
@@ -305,13 +272,7 @@ function addRightSidePath(
 /**
  * Adds the left side of the path with rounded joints (going backwards)
  */
-function addLeftSidePath(
-  path: THREE.Path,
-  points: THREE.Vector3[],
-  perpXs: number[],
-  perpYs: number[],
-  halfWidth: number
-): void {
+function addLeftSidePath(path: THREE.Path, points: THREE.Vector3[], perpXs: number[], perpYs: number[], halfWidth: number): void {
   for (let i = points.length - 2; i >= 0; i--) {
     const currPoint = points[i];
     const prevPerpX = perpXs[i + 1];
