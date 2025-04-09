@@ -1,7 +1,7 @@
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@wbcnc/ui/components/dialog';
 import { useStore } from '@/store';
-import { InputWithLabel } from '@wbcnc/ui/components/InputWithLabel';
+import { NumberInputWithLabel } from '@wbcnc/ui/components/NumberInputWithLabel';
 import { Button } from '@wbcnc/ui/components/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@wbcnc/ui/components/dialog';
 import { Settings2 } from 'lucide-react';
 
 export function MachineBoundsInput() {
@@ -22,11 +22,11 @@ export function MachineBoundsInput() {
           <DialogDescription>Pulloff distances and max limits</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-1 @xs:grid-cols-2 gap-2">
-          <InputWithLabel label="xmin" value={bounds.min.x} onChange={value => setters.setXMin(value)} />
-          <InputWithLabel label="xmax" value={bounds.max.x} onChange={value => setters.setXMax(value)} />
+          <NumberInputWithLabel label="xmin" value={bounds.min.x} onValueChange={value => value && setters.setXMin(value)} />
+          <NumberInputWithLabel label="xmax" value={bounds.max.x} onValueChange={value => value && setters.setXMax(value)} />
 
-          <InputWithLabel label="ymin" value={bounds.min.y} onChange={value => setters.setYMin(value)} />
-          <InputWithLabel label="ymax" value={bounds.max.y} onChange={value => setters.setYMax(value)} />
+          <NumberInputWithLabel label="ymin" value={bounds.min.y} onValueChange={value => value && setters.setYMin(value)} />
+          <NumberInputWithLabel label="ymax" value={bounds.max.y} onValueChange={value => value && setters.setYMax(value)} />
         </div>
       </DialogContent>
     </Dialog>

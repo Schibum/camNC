@@ -1,8 +1,19 @@
 import { useSetShowStillFrame, useShowStillFrame, useStore } from '@/store';
 import { Button } from '@wbcnc/ui/components/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@wbcnc/ui/components/dialog';
 import { allowCmdOnMac, Kbd } from '@wbcnc/ui/components/kbd';
+import { NumberInputWithLabel } from '@wbcnc/ui/components/NumberInputWithLabel';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@wbcnc/ui/components/tooltip';
 import { Diameter, FolderOpen, MonitorPause, MonitorPlay, PencilRuler } from 'lucide-react';
+import { useState } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { CommandsMenu } from './CommandsMenu';
 
@@ -18,7 +29,7 @@ function TooltipIconButton({
   onClick: () => void;
 }) {
   shortcut = allowCmdOnMac(shortcut ?? '');
-  useHotkeys(shortcut, onClick);
+  useHotkeys(shortcut, onClick, { preventDefault: true });
 
   return (
     <Tooltip>
@@ -78,7 +89,7 @@ function OpenFileButton() {
     };
     input.click();
   }
-  return <TooltipIconButton label="Open File" icon={<FolderOpen />} shortcut="ctrl+shift+o" onClick={chooseFile} />;
+  return <TooltipIconButton label="Open File" icon={<FolderOpen />} shortcut="o" onClick={chooseFile} />;
 }
 
 function ToolDiameterButton() {
@@ -91,24 +102,66 @@ function ToolDiameterButton() {
           <Diameter /> <span className="text-xs text-muted-foreground">{toolDiameter}mm</span>
         </>
       }
-      shortcut="ctrl+shift+t"
+      shortcut="t"
       onClick={() => {}}
     />
   );
 }
 
-function StockHeightButton() {
+function StockHeightDialogButton() {
+  const stockHeight = useStore(s => s.stockHeight);
+  const [open, setOpen] = useState(false);
+  const setStockHeight = useStore(s => s.setStockHeight);
+  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setOpen(false);
+  };
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <StockHeightButton onClick={() => setOpen(true)} />
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <form onSubmit={onSubmit} className="space-y-4">
+          <DialogHeader>
+            <DialogTitle>Stock Height</DialogTitle>
+            <DialogDescription>
+              Adjust the height of the stock. This accounts for camera perspective on the top of the stock.
+              <br />
+              Note: only objects at the given height will have video pixels matching the machine coordinates.
+            </DialogDescription>
+          </DialogHeader>
+
+          <NumberInputWithLabel
+            decimalScale={2}
+            min={0}
+            label="Stock Height"
+            value={stockHeight}
+            suffix="mm"
+            step={0.1}
+            onValueChange={value => value && setStockHeight(value)}
+          />
+          <DialogFooter>
+            <Button type="button">OK</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function StockHeightButton({ onClick }: { onClick: () => void }) {
   const stockHeight = useStore(s => s.stockHeight);
   return (
     <TooltipIconButton
+      onClick={onClick}
       label="Stock Height"
       icon={
         <>
           <PencilRuler /> <span className="text-xs text-muted-foreground">{stockHeight}mm</span>
         </>
       }
-      shortcut="ctrl+shift+h"
-      onClick={() => {}}
+      shortcut="h"
     />
   );
 }
@@ -119,7 +172,7 @@ export function VisualizeToolbar() {
       <OpenFileButton />
       <PlayPauseButton />
       <ToolDiameterButton />
-      <StockHeightButton />
+      <StockHeightDialogButton />
       <CommandsMenu />
     </div>
   );

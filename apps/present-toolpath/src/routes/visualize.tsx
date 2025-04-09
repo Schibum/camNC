@@ -1,6 +1,5 @@
 import { AppRoot } from '@/components/app-root';
 import { NavFluidnc } from '@/components/fluidnc/NavFluidnc';
-import { SidebarGroup, SidebarGroupContent, SidebarGroupLabel } from '@wbcnc/ui/components/sidebar';
 import { useSetToolDiameter, useStore, useToolDiameter } from '@/store';
 import { bookShelf, sampleGcode } from '@/test_data/gcode';
 import { BoundsInfo } from '@/visualize/BoundsInfo';
@@ -8,7 +7,8 @@ import { FileSelector } from '@/visualize/FileSelector';
 import { GCodeSelector } from '@/visualize/GCodeSelector';
 import { ZDepthLegend } from '@/visualize/ZDepthLegend';
 import { createFileRoute, Outlet } from '@tanstack/react-router';
-import { InputWithLabel } from '@wbcnc/ui/components/InputWithLabel';
+import { NumberInputWithLabel } from '@wbcnc/ui/components/NumberInputWithLabel';
+import { SidebarGroup, SidebarGroupContent, SidebarGroupLabel } from '@wbcnc/ui/components/sidebar';
 import { useEffect, useState } from 'react';
 
 export const Route = createFileRoute('/visualize')({
@@ -18,7 +18,7 @@ export const Route = createFileRoute('/visualize')({
 function StockHeightInput() {
   const stockHeight = useStore(s => s.stockHeight);
   const setStockHeight = useStore(s => s.setStockHeight);
-  return <InputWithLabel label="Stock Height (mm)" value={stockHeight} onChange={setStockHeight} />;
+  return <NumberInputWithLabel label="Stock Height (mm)" value={stockHeight} onValueChange={value => value && setStockHeight(value)} />;
 }
 
 interface GCodeOption {
@@ -55,7 +55,12 @@ function SidebarExtraContent() {
             <GCodeSelector onChange={handleGCodeChange} />
             <FileSelector />
             <StockHeightInput />
-            <InputWithLabel label="Tool Diameter (mm)" value={toolDiameter} onChange={setToolDiameter} min={0.1} />
+            <NumberInputWithLabel
+              label="Tool Diameter (mm)"
+              value={toolDiameter}
+              onValueChange={value => value && setToolDiameter(value)}
+              min={0.1}
+            />
             <ZDepthLegend />
             <BoundsInfo />
           </div>
