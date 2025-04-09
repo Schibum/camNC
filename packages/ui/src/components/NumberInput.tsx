@@ -1,7 +1,5 @@
-import { ChevronDown, ChevronUp } from "lucide-react";
 import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import { NumericFormat, NumericFormatProps } from "react-number-format";
-import { Button } from "./button";
 import { Input } from "./input";
 
 export interface NumberInputProps
@@ -63,26 +61,26 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
       );
     }, [stepper, min]);
 
-    useEffect(() => {
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if (
-          document.activeElement ===
-          (combinedRef as React.RefObject<HTMLInputElement>).current
-        ) {
-          if (e.key === "ArrowUp") {
-            handleIncrement();
-          } else if (e.key === "ArrowDown") {
-            handleDecrement();
-          }
-        }
-      };
+    // useEffect(() => {
+    //   const handleKeyDown = (e: KeyboardEvent) => {
+    //     if (
+    //       document.activeElement ===
+    //       (combinedRef as React.RefObject<HTMLInputElement>).current
+    //     ) {
+    //       if (e.key === "ArrowUp") {
+    //         handleIncrement();
+    //       } else if (e.key === "ArrowDown") {
+    //         handleDecrement();
+    //       }
+    //     }
+    //   };
 
-      window.addEventListener("keydown", handleKeyDown);
+    //   window.addEventListener("keydown", handleKeyDown);
 
-      return () => {
-        window.removeEventListener("keydown", handleKeyDown);
-      };
-    }, [handleIncrement, handleDecrement, combinedRef]);
+    //   return () => {
+    //     window.removeEventListener("keydown", handleKeyDown);
+    //   };
+    // }, [handleIncrement, handleDecrement, combinedRef]);
 
     useEffect(() => {
       if (controlledValue !== undefined) {
@@ -138,7 +136,7 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
           {...props}
         />
 
-        <div className="flex flex-col">
+        {/* <div className="flex flex-col">
           <Button
             aria-label="Increase value"
             className="px-2 h-5 rounded-l-none rounded-br-none border-input border-l-0 border-b-[0.5px] focus-visible:relative"
@@ -157,7 +155,7 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
           >
             <ChevronDown size={15} />
           </Button>
-        </div>
+        </div> */}
       </div>
     );
   }

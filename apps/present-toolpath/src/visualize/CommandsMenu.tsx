@@ -1,16 +1,25 @@
 import { useSetShowStillFrame, useShowStillFrame } from '@/store';
-import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from '@wbcnc/ui/components/command';
+import {
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+  CommandShortcut,
+} from '@wbcnc/ui/components/command';
 import { allowCmdOnMac, Kbd } from '@wbcnc/ui/components/kbd';
 import { Calculator, Pause, Play, Smile } from 'lucide-react';
 import React from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 
 export function CommandsMenu() {
-  const [open, setOpen] = React.useState(false)
+  const [open, setOpen] = React.useState(false);
   const shortcut = allowCmdOnMac('ctrl+j');
-  useHotkeys(shortcut, () => setOpen(true))
-  const showStillFrame = useShowStillFrame()
-  const setShowStillFrame = useSetShowStillFrame()
+  useHotkeys(shortcut, () => setOpen(true));
+  const showStillFrame = useShowStillFrame();
+  const setShowStillFrame = useSetShowStillFrame();
   function toggleShowStillFrame() {
     setShowStillFrame(!showStillFrame);
     setOpen(false);
@@ -30,11 +39,13 @@ export function CommandsMenu() {
               <CommandItem onSelect={toggleShowStillFrame}>
                 <Pause />
                 <span>Pause Video</span>
+                <CommandShortcut>Space</CommandShortcut>
               </CommandItem>
             ) : (
               <CommandItem onSelect={toggleShowStillFrame}>
                 <Play />
                 <span>Play Video</span>
+                <CommandShortcut>Space</CommandShortcut>
               </CommandItem>
             )}
             <CommandItem>
@@ -47,9 +58,8 @@ export function CommandsMenu() {
             </CommandItem>
           </CommandGroup>
           <CommandSeparator />
-
         </CommandList>
       </CommandDialog>
     </>
-  )
+  );
 }

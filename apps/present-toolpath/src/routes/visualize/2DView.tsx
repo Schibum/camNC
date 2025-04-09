@@ -13,9 +13,6 @@ import { useMachineSize, useStore, useVideoToMachineHomography } from '../../sto
 
 export const Route = createFileRoute('/visualize/2DView')({
   component: VisualizeComponent,
-  beforeLoad: () => {
-    return { customSidebar: true };
-  },
 });
 
 const UnprojectVideoMeshWithStockHeight = React.forwardRef<THREE.Mesh, ThreeElements['mesh']>(({ ...props }, ref) => {
@@ -33,9 +30,10 @@ function VisualizeComponent() {
 
   return (
     <div className="relative w-full h-full">
-      <PageHeader title="2D Toolpath Visualization" className="absolute pr-2">
+      <PageHeader title="2D Toolpath Visualization" className="absolute pr-2 flex-wrap h-auto p-1">
         <VisualizeToolbar />
       </PageHeader>
+
       {/* 3D Canvas */}
       <div className="w-full h-dvh absolute top-0 left-0">
         <PresentCanvas worldScale="machine">

@@ -11,7 +11,6 @@
 // Import Routes
 
 import { Route as rootRoute } from './routes/__root'
-import { Route as VisualizeImport } from './routes/visualize'
 import { Route as UnprojectImport } from './routes/unproject'
 import { Route as Undistort2Import } from './routes/undistort2'
 import { Route as AboutImport } from './routes/about'
@@ -24,12 +23,6 @@ import { Route as SetupSetupImport } from './routes/setup/setup'
 import { Route as SetupPointSelectionImport } from './routes/setup/point-selection'
 
 // Create/Update Routes
-
-const VisualizeRoute = VisualizeImport.update({
-  id: '/visualize',
-  path: '/visualize',
-  getParentRoute: () => rootRoute,
-} as any)
 
 const UnprojectRoute = UnprojectImport.update({
   id: '/unproject',
@@ -63,16 +56,16 @@ const SetupIndexRoute = SetupIndexImport.update({
 
 const VisualizeVisualizeCommandsRoute = VisualizeVisualizeCommandsImport.update(
   {
-    id: '/VisualizeCommands',
-    path: '/VisualizeCommands',
-    getParentRoute: () => VisualizeRoute,
+    id: '/visualize/VisualizeCommands',
+    path: '/visualize/VisualizeCommands',
+    getParentRoute: () => rootRoute,
   } as any,
 )
 
 const Visualize2DViewRoute = Visualize2DViewImport.update({
-  id: '/2DView',
-  path: '/2DView',
-  getParentRoute: () => VisualizeRoute,
+  id: '/visualize/2DView',
+  path: '/visualize/2DView',
+  getParentRoute: () => rootRoute,
 } as any)
 
 const SetupUrlEntryRoute = SetupUrlEntryImport.update({
@@ -125,13 +118,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UnprojectImport
       parentRoute: typeof rootRoute
     }
-    '/visualize': {
-      id: '/visualize'
-      path: '/visualize'
-      fullPath: '/visualize'
-      preLoaderRoute: typeof VisualizeImport
-      parentRoute: typeof rootRoute
-    }
     '/setup/point-selection': {
       id: '/setup/point-selection'
       path: '/setup/point-selection'
@@ -155,17 +141,17 @@ declare module '@tanstack/react-router' {
     }
     '/visualize/2DView': {
       id: '/visualize/2DView'
-      path: '/2DView'
+      path: '/visualize/2DView'
       fullPath: '/visualize/2DView'
       preLoaderRoute: typeof Visualize2DViewImport
-      parentRoute: typeof VisualizeImport
+      parentRoute: typeof rootRoute
     }
     '/visualize/VisualizeCommands': {
       id: '/visualize/VisualizeCommands'
-      path: '/VisualizeCommands'
+      path: '/visualize/VisualizeCommands'
       fullPath: '/visualize/VisualizeCommands'
       preLoaderRoute: typeof VisualizeVisualizeCommandsImport
-      parentRoute: typeof VisualizeImport
+      parentRoute: typeof rootRoute
     }
     '/setup/': {
       id: '/setup/'
@@ -179,26 +165,11 @@ declare module '@tanstack/react-router' {
 
 // Create and export the route tree
 
-interface VisualizeRouteChildren {
-  Visualize2DViewRoute: typeof Visualize2DViewRoute
-  VisualizeVisualizeCommandsRoute: typeof VisualizeVisualizeCommandsRoute
-}
-
-const VisualizeRouteChildren: VisualizeRouteChildren = {
-  Visualize2DViewRoute: Visualize2DViewRoute,
-  VisualizeVisualizeCommandsRoute: VisualizeVisualizeCommandsRoute,
-}
-
-const VisualizeRouteWithChildren = VisualizeRoute._addFileChildren(
-  VisualizeRouteChildren,
-)
-
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/undistort2': typeof Undistort2Route
   '/unproject': typeof UnprojectRoute
-  '/visualize': typeof VisualizeRouteWithChildren
   '/setup/point-selection': typeof SetupPointSelectionRoute
   '/setup/setup': typeof SetupSetupRoute
   '/setup/url-entry': typeof SetupUrlEntryRoute
@@ -212,7 +183,6 @@ export interface FileRoutesByTo {
   '/about': typeof AboutRoute
   '/undistort2': typeof Undistort2Route
   '/unproject': typeof UnprojectRoute
-  '/visualize': typeof VisualizeRouteWithChildren
   '/setup/point-selection': typeof SetupPointSelectionRoute
   '/setup/setup': typeof SetupSetupRoute
   '/setup/url-entry': typeof SetupUrlEntryRoute
@@ -227,7 +197,6 @@ export interface FileRoutesById {
   '/about': typeof AboutRoute
   '/undistort2': typeof Undistort2Route
   '/unproject': typeof UnprojectRoute
-  '/visualize': typeof VisualizeRouteWithChildren
   '/setup/point-selection': typeof SetupPointSelectionRoute
   '/setup/setup': typeof SetupSetupRoute
   '/setup/url-entry': typeof SetupUrlEntryRoute
@@ -243,7 +212,6 @@ export interface FileRouteTypes {
     | '/about'
     | '/undistort2'
     | '/unproject'
-    | '/visualize'
     | '/setup/point-selection'
     | '/setup/setup'
     | '/setup/url-entry'
@@ -256,7 +224,6 @@ export interface FileRouteTypes {
     | '/about'
     | '/undistort2'
     | '/unproject'
-    | '/visualize'
     | '/setup/point-selection'
     | '/setup/setup'
     | '/setup/url-entry'
@@ -269,7 +236,6 @@ export interface FileRouteTypes {
     | '/about'
     | '/undistort2'
     | '/unproject'
-    | '/visualize'
     | '/setup/point-selection'
     | '/setup/setup'
     | '/setup/url-entry'
@@ -284,10 +250,11 @@ export interface RootRouteChildren {
   AboutRoute: typeof AboutRoute
   Undistort2Route: typeof Undistort2Route
   UnprojectRoute: typeof UnprojectRoute
-  VisualizeRoute: typeof VisualizeRouteWithChildren
   SetupPointSelectionRoute: typeof SetupPointSelectionRoute
   SetupSetupRoute: typeof SetupSetupRoute
   SetupUrlEntryRoute: typeof SetupUrlEntryRoute
+  Visualize2DViewRoute: typeof Visualize2DViewRoute
+  VisualizeVisualizeCommandsRoute: typeof VisualizeVisualizeCommandsRoute
   SetupIndexRoute: typeof SetupIndexRoute
 }
 
@@ -296,10 +263,11 @@ const rootRouteChildren: RootRouteChildren = {
   AboutRoute: AboutRoute,
   Undistort2Route: Undistort2Route,
   UnprojectRoute: UnprojectRoute,
-  VisualizeRoute: VisualizeRouteWithChildren,
   SetupPointSelectionRoute: SetupPointSelectionRoute,
   SetupSetupRoute: SetupSetupRoute,
   SetupUrlEntryRoute: SetupUrlEntryRoute,
+  Visualize2DViewRoute: Visualize2DViewRoute,
+  VisualizeVisualizeCommandsRoute: VisualizeVisualizeCommandsRoute,
   SetupIndexRoute: SetupIndexRoute,
 }
 
@@ -317,10 +285,11 @@ export const routeTree = rootRoute
         "/about",
         "/undistort2",
         "/unproject",
-        "/visualize",
         "/setup/point-selection",
         "/setup/setup",
         "/setup/url-entry",
+        "/visualize/2DView",
+        "/visualize/VisualizeCommands",
         "/setup/"
       ]
     },
@@ -336,13 +305,6 @@ export const routeTree = rootRoute
     "/unproject": {
       "filePath": "unproject.tsx"
     },
-    "/visualize": {
-      "filePath": "visualize.tsx",
-      "children": [
-        "/visualize/2DView",
-        "/visualize/VisualizeCommands"
-      ]
-    },
     "/setup/point-selection": {
       "filePath": "setup/point-selection.tsx"
     },
@@ -353,12 +315,10 @@ export const routeTree = rootRoute
       "filePath": "setup.url-entry.tsx"
     },
     "/visualize/2DView": {
-      "filePath": "visualize/2DView.tsx",
-      "parent": "/visualize"
+      "filePath": "visualize/2DView.tsx"
     },
     "/visualize/VisualizeCommands": {
-      "filePath": "visualize/VisualizeCommands.tsx",
-      "parent": "/visualize"
+      "filePath": "visualize/VisualizeCommands.tsx"
     },
     "/setup/": {
       "filePath": "setup/index.tsx"

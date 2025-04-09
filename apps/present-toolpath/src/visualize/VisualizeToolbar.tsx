@@ -11,12 +11,14 @@ import {
 } from '@wbcnc/ui/components/dialog';
 import { allowCmdOnMac, Kbd } from '@wbcnc/ui/components/kbd';
 import { NumberInputWithLabel } from '@wbcnc/ui/components/NumberInputWithLabel';
+import { Popover, PopoverContent, PopoverTrigger } from '@wbcnc/ui/components/popover';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@wbcnc/ui/components/tooltip';
-import { Diameter, FolderOpen, MonitorPause, MonitorPlay, PencilRuler } from 'lucide-react';
+import { Diameter, FolderOpen, Info, MonitorPause, MonitorPlay, Palette, PencilRuler } from 'lucide-react';
 import { useState } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
+import { BoundsInfo } from './BoundsInfo';
 import { CommandsMenu } from './CommandsMenu';
-
+import { ZDepthLegend } from './ZDepthLegend';
 function TooltipIconButton({
   label,
   icon,
@@ -92,7 +94,7 @@ function OpenFileButton() {
   return <TooltipIconButton label="Open File" icon={<FolderOpen />} shortcut="o" onClick={chooseFile} />;
 }
 
-function ToolDiameterButton() {
+function ToolDiameterButton({ onClick }: { onClick: () => void }) {
   const toolDiameter = useStore(s => s.toolDiameter);
   return (
     <TooltipIconButton
@@ -103,7 +105,7 @@ function ToolDiameterButton() {
         </>
       }
       shortcut="t"
-      onClick={() => {}}
+      onClick={onClick}
     />
   );
 }
@@ -142,7 +144,44 @@ function StockHeightDialogButton() {
             onValueChange={value => value && setStockHeight(value)}
           />
           <DialogFooter>
-            <Button type="button">OK</Button>
+            <Button type="submit">OK</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ToolDiameterDialogButton() {
+  const toolDiameter = useStore(s => s.toolDiameter);
+  const [open, setOpen] = useState(false);
+  const setToolDiameter = useStore(s => s.setToolDiameter);
+  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setOpen(false);
+  };
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <ToolDiameterButton onClick={() => setOpen(true)} />
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <form onSubmit={onSubmit} className="space-y-4">
+          <DialogHeader>
+            <DialogTitle>Tool Diameter</DialogTitle>
+            <DialogDescription>Adjust the diameter of the tool.</DialogDescription>
+          </DialogHeader>
+          <NumberInputWithLabel
+            decimalScale={2}
+            min={0}
+            label="Tool Diameter"
+            value={toolDiameter}
+            suffix="mm"
+            step={0.1}
+            onValueChange={value => value && setToolDiameter(value)}
+          />
+          <DialogFooter>
+            <Button type="submit">OK</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -166,13 +205,47 @@ function StockHeightButton({ onClick }: { onClick: () => void }) {
   );
 }
 
+function ColorLegendButton() {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <div>
+          <TooltipIconButton label="Color Legend" icon={<Palette />} shortcut="c" onClick={() => setOpen(true)} />
+        </div>
+      </PopoverTrigger>
+      <PopoverContent>
+        <ZDepthLegend />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function BoundsInfoButton() {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <div>
+          <TooltipIconButton label="Bounds Info" icon={<Info />} shortcut="i" onClick={() => setOpen(true)} />
+        </div>
+      </PopoverTrigger>
+      <PopoverContent>
+        <BoundsInfo />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export function VisualizeToolbar() {
   return (
-    <div className="flex gap-2 items-center">
+    <div className="flex gap-0 items-center pl-2">
       <OpenFileButton />
       <PlayPauseButton />
-      <ToolDiameterButton />
+      <ToolDiameterDialogButton />
       <StockHeightDialogButton />
+      <ColorLegendButton />
+      <BoundsInfoButton />
       <CommandsMenu />
     </div>
   );

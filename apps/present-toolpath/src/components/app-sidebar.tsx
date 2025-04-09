@@ -2,11 +2,9 @@ import { Link } from '@tanstack/react-router';
 import { Camera, Eye, Grid, Home, Info, Route, Settings2 } from 'lucide-react';
 import * as React from 'react';
 
-import { NavUser } from '@/components/nav-user';
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupLabel,
   SidebarHeader,
@@ -89,11 +87,9 @@ function NavRoutes({ routes }: { routes: NavRoute[] }) {
   );
 }
 
-type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
-  extraContent?: React.ReactNode;
-};
+type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {};
 
-export function AppSidebar({ extraContent, ...props }: AppSidebarProps) {
+export function AppSidebar({ ...props }: AppSidebarProps) {
   return (
     <Sidebar variant="floating" {...props}>
       <SidebarHeader>
@@ -115,11 +111,7 @@ export function AppSidebar({ extraContent, ...props }: AppSidebarProps) {
       </SidebarHeader>
       <SidebarContent>
         <NavRoutes routes={routes} />
-        {extraContent}
       </SidebarContent>
-      <SidebarFooter>
-        <NavUser user={{ name: 'User', email: 'user@example.com', avatar: '/avatars/user.jpg' }} />
-      </SidebarFooter>
     </Sidebar>
   );
 }

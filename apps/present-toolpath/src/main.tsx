@@ -1,6 +1,6 @@
-import React, { StrictMode } from 'react';
+import { RouterProvider, createRouter } from '@tanstack/react-router';
+import { StrictMode } from 'react';
 import ReactDOM from 'react-dom/client';
-import { RouterProvider, createRouter, ActiveLinkOptions } from '@tanstack/react-router';
 import { routeTree } from './routeTree.gen';
 import './style.css';
 
@@ -9,9 +9,6 @@ const router = createRouter({
   routeTree,
   defaultPreload: 'intent',
   defaultPendingComponent: () => <div>Loading...</div>,
-  context: {
-    customSidebar: false,
-  },
 });
 
 // Register things for typesafety
