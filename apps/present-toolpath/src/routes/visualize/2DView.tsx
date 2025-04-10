@@ -1,6 +1,5 @@
 import { UnprojectVideoMesh } from '@/calibration/Unproject';
-import { UnskewedVideoMesh } from '@/calibration/UnskewTsl';
-import { setWorkspaceXYZero } from '@/lib/cnc-api';
+import { jogToMachineCoordinates } from '@/lib/cnc-api';
 import { PresentCanvas } from '@/scene/PresentCanvas';
 import { GCodeVisualizer } from '@/visualize/Toolpaths';
 import { VisualizeToolbar } from '@/visualize/VisualizeToolbar';
@@ -9,7 +8,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
 import React from 'react';
 import * as THREE from 'three';
-import { useMachineSize, useStore, useVideoToMachineHomography } from '../../store';
+import { useStore } from '../../store';
 
 export const Route = createFileRoute('/visualize/2DView')({
   component: VisualizeComponent,
@@ -25,7 +24,7 @@ function VisualizeComponent() {
   function onDbClick(event: ThreeEvent<MouseEvent>) {
     console.log('onDbClick', event.unprojectedPoint);
     const point = event.unprojectedPoint;
-    setWorkspaceXYZero(point.x, point.y);
+    jogToMachineCoordinates(point.x, point.y);
   }
 
   return (
@@ -46,16 +45,5 @@ function VisualizeComponent() {
         </PresentCanvas>
       </div>
     </div>
-  );
-}
-
-function UnskewedFlatVideoMesh() {
-  const videoToMachineHomography = useVideoToMachineHomography();
-  const [offsetX, offsetY] = useMachineSize().divideScalar(2).toArray();
-
-  return (
-    <group position={[0, 0, -100]}>
-      <UnskewedVideoMesh matrix={videoToMachineHomography} matrixAutoUpdate={false} />
-    </group>
   );
 }

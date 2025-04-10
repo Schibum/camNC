@@ -12,6 +12,7 @@
 
 import { Route as rootRoute } from './routes/__root'
 import { Route as Go2webrtcImport } from './routes/go2webrtc'
+import { Route as CameraCalibrationImport } from './routes/camera-calibration'
 
 // Create/Update Routes
 
@@ -21,10 +22,23 @@ const Go2webrtcRoute = Go2webrtcImport.update({
   getParentRoute: () => rootRoute,
 } as any)
 
+const CameraCalibrationRoute = CameraCalibrationImport.update({
+  id: '/camera-calibration',
+  path: '/camera-calibration',
+  getParentRoute: () => rootRoute,
+} as any)
+
 // Populate the FileRoutesByPath interface
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/camera-calibration': {
+      id: '/camera-calibration'
+      path: '/camera-calibration'
+      fullPath: '/camera-calibration'
+      preLoaderRoute: typeof CameraCalibrationImport
+      parentRoute: typeof rootRoute
+    }
     '/go2webrtc': {
       id: '/go2webrtc'
       path: '/go2webrtc'
@@ -38,32 +52,37 @@ declare module '@tanstack/react-router' {
 // Create and export the route tree
 
 export interface FileRoutesByFullPath {
+  '/camera-calibration': typeof CameraCalibrationRoute
   '/go2webrtc': typeof Go2webrtcRoute
 }
 
 export interface FileRoutesByTo {
+  '/camera-calibration': typeof CameraCalibrationRoute
   '/go2webrtc': typeof Go2webrtcRoute
 }
 
 export interface FileRoutesById {
   __root__: typeof rootRoute
+  '/camera-calibration': typeof CameraCalibrationRoute
   '/go2webrtc': typeof Go2webrtcRoute
 }
 
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/go2webrtc'
+  fullPaths: '/camera-calibration' | '/go2webrtc'
   fileRoutesByTo: FileRoutesByTo
-  to: '/go2webrtc'
-  id: '__root__' | '/go2webrtc'
+  to: '/camera-calibration' | '/go2webrtc'
+  id: '__root__' | '/camera-calibration' | '/go2webrtc'
   fileRoutesById: FileRoutesById
 }
 
 export interface RootRouteChildren {
+  CameraCalibrationRoute: typeof CameraCalibrationRoute
   Go2webrtcRoute: typeof Go2webrtcRoute
 }
 
 const rootRouteChildren: RootRouteChildren = {
+  CameraCalibrationRoute: CameraCalibrationRoute,
   Go2webrtcRoute: Go2webrtcRoute,
 }
 
@@ -77,8 +96,12 @@ export const routeTree = rootRoute
     "__root__": {
       "filePath": "__root.tsx",
       "children": [
+        "/camera-calibration",
         "/go2webrtc"
       ]
+    },
+    "/camera-calibration": {
+      "filePath": "camera-calibration.tsx"
     },
     "/go2webrtc": {
       "filePath": "go2webrtc.tsx"

@@ -1,18 +1,18 @@
-import tailwindcss from '@tailwindcss/vite';
-import { TanStackRouterVite } from '@tanstack/router-plugin/vite';
-import react from '@vitejs/plugin-react';
-import { defineConfig, PluginOption } from 'vite';
-import checker from 'vite-plugin-checker';
+import tailwindcss from "@tailwindcss/vite";
+import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
+import react from "@vitejs/plugin-react";
+import { defineConfig, PluginOption } from "vite";
+import checker from "vite-plugin-checker";
 // import { viteSingleFile } from 'vite-plugin-singlefile';
 // import { nodePolyfills } from 'vite-plugin-node-polyfills';
-// import tsconfigPaths from 'vite-tsconfig-paths';
+import tsconfigPaths from "vite-tsconfig-paths";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ command, ...params }) => {
   const plugins: PluginOption[] = [
-    TanStackRouterVite({ target: 'react', autoCodeSplitting: true }),
+    TanStackRouterVite({ target: "react", autoCodeSplitting: true }),
     react(),
-    // tsconfigPaths(),
+    tsconfigPaths(),
     tailwindcss(),
     // nodePolyfills(),
     checker({
@@ -27,9 +27,9 @@ export default defineConfig(({ command, ...params }) => {
     plugins,
     server: {
       headers: {
-        'Cross-Origin-Opener-Policy': 'same-origin',
-        'Cross-Origin-Embedder-Policy': 'require-corp',
-      }
-    }
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp",
+      },
+    },
   };
 });

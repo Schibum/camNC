@@ -12,12 +12,16 @@
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
     "@tanstack/router-plugin": "^1.114.34",
+    "@wbcnc/camera-calibration": "workspace:*",
     "@wbcnc/go2webrtc": "workspace:*",
+    "@wbcnc/load-opencv": "workspace:*",
     "@wbcnc/ui": "workspace:*",
+    "lucide-react": "^0.487.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.55.0",
     "vite-plugin-checker": "^0.9.1",
+    "vite-tsconfig-paths": "^5.1.4",
     "zod": "^3.24.2"
   },
   "devDependencies": {

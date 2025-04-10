@@ -8,3 +8,7 @@ const fluidncApi = new FluidncApi();
 export function setWorkspaceXYZero(x: number, y: number) {
   return fluidncApi.cmd(`G10 L2 P0 X${x} Y${y}\n G0 X0 Y0`);
 }
+
+export function jogToMachineCoordinates(x: number, y: number) {
+  return fluidncApi.cmd(`G53 G0 X${x} Y${y}`);
+}
