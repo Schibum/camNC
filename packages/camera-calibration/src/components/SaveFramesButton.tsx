@@ -1,5 +1,6 @@
 import { Button } from "@wbcnc/ui/components/button";
 import * as zip from "@zip.js/zip.js";
+import { Save } from "lucide-react";
 import { useState } from "react";
 import { useCalibrationStore } from "../store/calibrationStore";
 
@@ -101,6 +102,7 @@ export const SaveFramesButton = () => {
         disabled={isSaving || capturedFrames.length === 0}
         variant="secondary"
       >
+        <Save />
         {isSaving ? "Saving..." : "Save Frames"}
       </Button>
       {error && <p className="text-red-500 text-xs mt-1">{error}</p>}

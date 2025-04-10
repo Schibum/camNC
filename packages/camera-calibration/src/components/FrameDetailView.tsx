@@ -1,5 +1,5 @@
 import { Button } from "@wbcnc/ui/components/button";
-import { X } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { useEffect } from "react";
 import { CapturedFrame } from "../lib/calibrationTypes";
 import { ImageWithCornersOverlay } from "./ImageWithCornersOverlay";
@@ -49,8 +49,16 @@ export const FrameDetailView: React.FC<FrameDetailViewProps> = ({
 
   return (
     <div className="absolute inset-0 bg-black/95 z-20 overflow-y-auto text-white p-5">
-      <div className="flex justify-between items-center mb-5">
-        <h3 className="text-xl font-semibold">Frame Details</h3>
+      <div className="flex items-center mb-5 gap-4">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onClose}
+          title="Close Detail View"
+        >
+          <ArrowLeft />
+        </Button>
+        <h3 className="text-xl font-semibold flex-1">Frame Details</h3>
         <div className="flex items-center gap-4">
           <Button
             variant="destructive"
@@ -59,13 +67,6 @@ export const FrameDetailView: React.FC<FrameDetailViewProps> = ({
           >
             Delete
           </Button>
-          <button
-            className="bg-transparent cursor-pointer text-gray-300 hover:text-white transition-colors p-2"
-            onClick={onClose}
-            title="Close Detail View"
-          >
-            <X className="size-5" />
-          </button>
         </div>
       </div>
       <div className="flex flex-col gap-4">

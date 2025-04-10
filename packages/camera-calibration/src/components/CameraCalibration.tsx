@@ -1,11 +1,11 @@
-import { useEffect } from 'react';
-import { CameraView } from './CameraView';
-import { CaptureButton } from './CaptureButton';
-import { RecentCapturePreview } from './RecentCapturePreview';
-import { GalleryView } from './GalleryView';
-import { useCalibrationStore } from '../store/calibrationStore';
-import { CalibrationResult, PatternSize } from '../lib/calibrationTypes';
-import { InstructionOverlay } from './InstructionOverlay';
+import { useEffect } from "react";
+import { CalibrationResult, PatternSize } from "../lib/calibrationTypes";
+import { useCalibrationStore } from "../store/calibrationStore";
+import { CameraView } from "./CameraView";
+import { CaptureButton } from "./CaptureButton";
+import { GalleryView } from "./GalleryView";
+import { InstructionOverlay } from "./InstructionOverlay";
+import { RecentCapturePreview } from "./RecentCapturePreview";
 
 interface CameraCalibrationProps {
   src?: MediaStream | string;
@@ -19,9 +19,9 @@ interface CameraCalibrationProps {
 
 // Simple Loading Component (or replace with your preferred spinner)
 const LoadingIndicator = () => (
-    <div className="flex justify-center items-center h-full min-h-[200px] text-white">
-        Loading Camera...
-    </div>
+  <div className="flex justify-center items-center h-full min-h-[200px] text-white">
+    Loading Camera...
+  </div>
 );
 
 export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
@@ -55,26 +55,38 @@ export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
       similarityThreshold,
       autoCapture,
     });
-  }, [initializeSettings, patternSize, squareSize, stabilityThreshold, similarityThreshold, autoCapture]);
+  }, [
+    initializeSettings,
+    patternSize,
+    squareSize,
+    stabilityThreshold,
+    similarityThreshold,
+    autoCapture,
+  ]);
 
   useEffect(() => {
     let isMounted = true;
 
     const setupCamera = async () => {
       if (!src) {
-        console.log('[CameraCalibration] No src provided. Ensuring cleanup.');
+        console.log("[CameraCalibration] No src provided. Ensuring cleanup.");
         stopCamera();
         return;
       }
 
       try {
-        console.log('[CameraCalibration] Valid src provided. Calling store.startCamera.');
+        console.log(
+          "[CameraCalibration] Valid src provided. Calling store.startCamera."
+        );
         await startCamera(src);
         if (isMounted) {
-             console.log('[CameraCalibration] Store finished startCamera.');
+          console.log("[CameraCalibration] Store finished startCamera.");
         }
       } catch (storeError) {
-        console.error('[CameraCalibration] Store failed to start camera with provided src:', storeError);
+        console.error(
+          "[CameraCalibration] Store failed to start camera with provided src:",
+          storeError
+        );
       }
     };
 
@@ -82,7 +94,9 @@ export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
 
     return () => {
       isMounted = false;
-      console.log('[CameraCalibration] Cleanup: Calling store.stopCamera (element cleanup).');
+      console.log(
+        "[CameraCalibration] Cleanup: Calling store.stopCamera (element cleanup)."
+      );
       stopCamera();
     };
   }, [src, startCamera, stopCamera]);
@@ -103,7 +117,7 @@ export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
             <InstructionOverlay similarityThreshold={similarityThreshold} />
 
             <>
-              <CaptureButton  disabled={!isStreaming} />
+              <CaptureButton disabled={!isStreaming} />
               <RecentCapturePreview />
             </>
           </div>
@@ -111,7 +125,10 @@ export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
           <LoadingIndicator />
         )
       ) : (
-        <GalleryView onClose={() => setShowGallery(false)} />
+        <GalleryView
+          onClose={() => setShowGallery(false)}
+          isOpen={showGallery}
+        />
       )}
     </div>
   );

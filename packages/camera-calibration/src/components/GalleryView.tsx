@@ -4,7 +4,13 @@ import {
   useTransition,
 } from "@react-spring/web"; // Import config and SpringValue
 import { Button } from "@wbcnc/ui/components/button";
-import { Trash, X } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@wbcnc/ui/components/dialog"; // Added Dialog imports
+import { Trash } from "lucide-react";
 import type { CSSProperties } from "react"; // Import CSSProperties for style typing
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CapturedFrame } from "../lib/calibrationTypes";
@@ -16,6 +22,7 @@ import { SaveFramesButton } from "./SaveFramesButton"; // Import the new button 
 
 interface GalleryViewProps {
   onClose: () => void;
+  isOpen: boolean; // Add isOpen prop
 }
 
 interface GalleryItemProps {
@@ -61,7 +68,10 @@ const GalleryItem: React.FC<GalleryItemProps> = ({
 
 const AnimatedDiv = animated("div");
 
-export const GalleryView: React.FC<GalleryViewProps> = ({ onClose }) => {
+export const GalleryView: React.FC<GalleryViewProps> = ({
+  onClose,
+  isOpen,
+}) => {
   const { capturedFrames, deleteFrame, runCalibration, calibrationResult } =
     useCalibrationStore();
   const [selectedFrameId, setSelectedFrameId] = useState<string | null>(null);
@@ -166,74 +176,78 @@ export const GalleryView: React.FC<GalleryViewProps> = ({ onClose }) => {
 
   return (
     <div className="gallery-view absolute inset-0 bg-black/95 z-20 p-5 overflow-y-auto text-white flex flex-col">
-      {/* Only render Gallery content if no frame is selected */}
-      {!selectedFrameId && (
-        <>
-          <div className="gallery-header flex justify-between items-center mb-5 flex-shrink-0">
-            <h2 className="text-xl font-semibold">Captured Frames</h2>
-            <div className="gallery-actions flex gap-4">
-              <SaveFramesButton />
-              <Button
-                onClick={runCalibration}
-                disabled={capturedFrames.filter((f) => f.imageBlob).length < 3}
-              >
-                Calibrate
-              </Button>
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="w-screen h-screen max-w-none max-h-none sm:max-w-none sm:max-h-none rounded-none border-none p-0 flex flex-col bg-black/95">
+          <div className="relative flex flex-col flex-grow overflow-hidden text-white">
+            {!selectedFrameId && (
+              <>
+                <DialogHeader className="p-5 mb-5 flex-shrink-0 mr-10">
+                  <div className="flex justify-between items-center">
+                    <DialogTitle className="text-xl font-semibold">
+                      Captured Frames
+                    </DialogTitle>
+                    <div className="flex gap-4">
+                      <SaveFramesButton />
+                      <Button
+                        onClick={runCalibration}
+                        disabled={
+                          capturedFrames.filter((f) => f.imageBlob).length < 3
+                        }
+                      >
+                        Calibrate
+                      </Button>
+                    </div>
+                  </div>
+                </DialogHeader>
 
-              <button
-                onClick={onClose}
-                className="close-button bg-transparent text-white text-2xl cursor-pointer p-2"
-              >
-                <X className="size-5" />
-              </button>
-            </div>
-          </div>
+                <div className="px-5 flex-grow overflow-y-auto">
+                  {calibrationResult && <CalibrationResultDisplay />}
 
-          {calibrationResult && <CalibrationResultDisplay />}
-
-          {/* Gallery Grid - Updated to handle proper aspect ratio preservation */}
-          <div className="gallery-grid grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4 overflow-y-auto">
-            {capturedFrames.map((frame) => (
-              <GalleryItem
-                key={frame.id}
-                frame={frame}
-                onSelect={handleFrameSelect}
-                onDelete={handleFrameDelete}
-              />
-            ))}
-            {capturedFrames.length === 0 && (
-              <div className="empty-gallery text-center mt-10 italic text-gray-400 col-span-full">
-                No frames captured yet.
-              </div>
+                  <div className="gallery-grid grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4 overflow-y-auto">
+                    {capturedFrames.map((frame) => (
+                      <GalleryItem
+                        key={frame.id}
+                        frame={frame}
+                        onSelect={handleFrameSelect}
+                        onDelete={handleFrameDelete}
+                      />
+                    ))}
+                    {capturedFrames.length === 0 && (
+                      <div className="empty-gallery text-center mt-10 italic text-gray-400 col-span-full">
+                        No frames captured yet.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
             )}
-          </div>
-        </>
-      )}
 
-      {/* Animated Frame Detail View - Rendered at the root level of the padded container */}
-      {transitions((style: CSSProperties, item: CapturedFrame | null) => {
-        return item ? (
-          // Position absolutely within the GalleryView's padding box
-          <AnimatedDiv
-            style={{
-              ...style,
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              zIndex: 30,
-            }}
-          >
-            <FrameDetailView
-              frame={item}
-              onClose={handleDetailClose}
-              onNavigate={handleNavigate}
-              onDelete={handleDetailDelete}
-            />
-          </AnimatedDiv>
-        ) : null;
-      })}
+            {transitions((style: CSSProperties, item: CapturedFrame | null) => {
+              return item ? (
+                <AnimatedDiv
+                  style={{
+                    ...style,
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    zIndex: 30,
+                    backgroundColor: "hsl(var(--background))",
+                  }}
+                >
+                  <FrameDetailView
+                    frame={item}
+                    onClose={handleDetailClose}
+                    onNavigate={handleNavigate}
+                    onDelete={handleDetailDelete}
+                  />
+                </AnimatedDiv>
+              ) : null;
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
