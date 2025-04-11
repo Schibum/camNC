@@ -107,8 +107,12 @@ export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
     }
   }, [calibrationResult, onCalibrationDone]);
 
+  if (!window.cv) {
+    throw new Error("OpenCV is not loaded");
+  }
+
   return (
-    <div className="camera-calibration relative w-full h-full overflow-hidden bg-black">
+    <div className="camera-calibration relative w-full h-full overflow-hidden bg-black dark">
       {!showGallery ? (
         isFullyReady ? (
           <div className="camera-view-container relative w-full h-full flex items-center justify-center">

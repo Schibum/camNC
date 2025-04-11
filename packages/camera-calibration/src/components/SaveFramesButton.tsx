@@ -103,7 +103,7 @@ export const SaveFramesButton = () => {
         variant="secondary"
       >
         <Save />
-        {isSaving ? "Saving..." : "Save Frames"}
+        {isSaving ? "Saving..." : "Export"}
       </Button>
       {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
     </div>

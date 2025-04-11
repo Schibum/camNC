@@ -1,7 +1,8 @@
 import { Link } from '@tanstack/react-router';
-import { Camera, Eye, Grid, Home, Info, Route, Settings2 } from 'lucide-react';
+import { Camera, Eye, Grid, Route, Settings2 } from 'lucide-react';
 import * as React from 'react';
 
+import { useLocation } from '@tanstack/react-router';
 import {
   Sidebar,
   SidebarContent,
@@ -11,7 +12,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from '@wbcnc/ui/components/sidebar';
+import { useEffect } from 'react';
 
 // Remove or comment out the mock data
 // const data = {...}
@@ -25,28 +28,7 @@ type NavRoute = {
 
 const routes: NavRoute[] = [
   {
-    title: 'Home',
-    to: '/',
-    icon: Home,
-    exact: true,
-  },
-  {
-    title: 'About',
-    to: '/about',
-    icon: Info,
-  },
-  {
-    title: 'Camera URL',
-    to: '/setup/url-entry',
-    icon: Camera,
-  },
-  {
-    title: 'Machine Bounds',
-    to: '/setup/point-selection',
-    icon: Grid,
-  },
-  {
-    title: 'Visualize',
+    title: 'Top View',
     to: '/visualize/2DView',
     icon: Eye,
   },
@@ -62,10 +44,28 @@ const routes: NavRoute[] = [
   },
 ];
 
-function NavRoutes({ routes }: { routes: NavRoute[] }) {
+const settingsRoutes: NavRoute[] = [
+  {
+    title: 'Camera URL',
+    to: '/setup/url-entry',
+    icon: Camera,
+  },
+  {
+    title: 'Camera Calibration',
+    to: '/setup/camera-calibration',
+    icon: Camera,
+  },
+  {
+    title: 'Machine Bounds',
+    to: '/setup/point-selection',
+    icon: Grid,
+  },
+];
+
+function NavRoutes({ routes, label }: { routes: NavRoute[]; label: string }) {
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+      <SidebarGroupLabel>{label}</SidebarGroupLabel>
       <SidebarMenu>
         {routes.map(route => (
           <SidebarMenuItem key={route.to}>
@@ -90,6 +90,12 @@ function NavRoutes({ routes }: { routes: NavRoute[] }) {
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {};
 
 export function AppSidebar({ ...props }: AppSidebarProps) {
+  const location = useLocation({ select: l => l.pathname });
+  const { setOpenMobile: setOpen } = useSidebar();
+  // Auto-close the sidebar when the location changes
+  useEffect(() => {
+    setOpen(false);
+  }, [location, setOpen]);
   return (
     <Sidebar variant="floating" {...props}>
       <SidebarHeader>
@@ -110,7 +116,8 @@ export function AppSidebar({ ...props }: AppSidebarProps) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavRoutes routes={routes} />
+        <NavRoutes routes={routes} label="Views" />
+        <NavRoutes routes={settingsRoutes} label="Settings" />
       </SidebarContent>
     </Sidebar>
   );

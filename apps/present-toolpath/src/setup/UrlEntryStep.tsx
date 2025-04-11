@@ -1,3 +1,5 @@
+import { Button } from '@wbcnc/ui/components/button';
+import { ArrowRight } from 'lucide-react';
 import React, { useState } from 'react';
 
 interface UrlEntryStepProps {
@@ -48,20 +50,10 @@ export const UrlEntryStep: React.FC<UrlEntryStepProps> = ({ initialUrl = '', onC
           {error && <div style={{ color: 'red', marginTop: '5px', fontSize: '14px' }}>{error}</div>}
         </div>
 
-        <button
-          type="submit"
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#4CAF50',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '16px',
-          }}
-        >
-          Continue to Point Selection
-        </button>
+        <Button type="submit">
+          <ArrowRight className="size-4" />
+          Continue to Camera Calibration
+        </Button>
       </form>
     </div>
   );

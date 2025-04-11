@@ -177,7 +177,7 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
   return (
     <div className="gallery-view absolute inset-0 bg-black/95 z-20 p-5 overflow-y-auto text-white flex flex-col">
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="w-screen h-screen max-w-none max-h-none sm:max-w-none sm:max-h-none rounded-none border-none p-0 flex flex-col bg-black/95">
+        <DialogContent className="w-screen h-screen max-w-none max-h-none sm:max-w-none sm:max-h-none rounded-none border-none p-0 flex flex-col bg-black/95 dark text-white">
           <div className="relative flex flex-col flex-grow overflow-hidden text-white">
             {!selectedFrameId && (
               <>

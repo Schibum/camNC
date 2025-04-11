@@ -1,8 +1,20 @@
-import { create } from 'zustand';
-import { v4 as uuidv4 } from 'uuid';
-import { CapturedFrame, CalibrationResult, Corner, CornerMetrics, PatternSize } from '../lib/calibrationTypes';
-import { calculateCornerMetrics, calculateMovement, calculateSimilarityScore, calibrateCamera } from '../lib/calibrationCore';
-import { createImageBlob } from '../lib/imageUtils';
+import { toast } from "@wbcnc/ui/components/sonner";
+import { v4 as uuidv4 } from "uuid";
+import { create } from "zustand";
+import {
+  calculateCornerMetrics,
+  calculateMovement,
+  calculateSimilarityScore,
+  calibrateCamera,
+} from "../lib/calibrationCore";
+import {
+  CalibrationResult,
+  CapturedFrame,
+  Corner,
+  CornerMetrics,
+  PatternSize,
+} from "../lib/calibrationTypes";
+import { createImageBlob } from "../lib/imageUtils";
 
 // Smoothing factor for FPS calculation (lower value = smoother)
 const FPS_SMOOTHING_FACTOR = 0.8;
@@ -77,8 +89,12 @@ interface CalibrationState {
 
 // Helper to promisify canvas.toBlob
 // Export this helper so it can be used externally
-export function getCanvasBlob(canvas: HTMLCanvasElement, type?: string, quality?: any): Promise<Blob | null> {
-  return new Promise(resolve => canvas.toBlob(resolve, type, quality));
+export function getCanvasBlob(
+  canvas: HTMLCanvasElement,
+  type?: string,
+  quality?: any
+): Promise<Blob | null> {
+  return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
 }
 
 export const useCalibrationStore = create<CalibrationState>((set, get) => {
@@ -117,10 +133,16 @@ export const useCalibrationStore = create<CalibrationState>((set, get) => {
       set((state) => ({
         patternSize: settings.patternSize ?? state.patternSize,
         squareSize: settings.squareSize ?? state.squareSize,
-        stabilityDurationThreshold: settings.stabilityDurationThreshold ?? state.stabilityDurationThreshold,
-        maxRelativeMovementForStability: settings.maxRelativeMovementForStability ?? state.maxRelativeMovementForStability,
-        similarityThreshold: settings.similarityThreshold ?? state.similarityThreshold,
-        isAutoCaptureEnabled: settings.autoCapture ?? state.isAutoCaptureEnabled,
+        stabilityDurationThreshold:
+          settings.stabilityDurationThreshold ??
+          state.stabilityDurationThreshold,
+        maxRelativeMovementForStability:
+          settings.maxRelativeMovementForStability ??
+          state.maxRelativeMovementForStability,
+        similarityThreshold:
+          settings.similarityThreshold ?? state.similarityThreshold,
+        isAutoCaptureEnabled:
+          settings.autoCapture ?? state.isAutoCaptureEnabled,
         wasStableAndUnique: false,
         currentStableDuration: 0,
       }));
@@ -131,51 +153,69 @@ export const useCalibrationStore = create<CalibrationState>((set, get) => {
       get().stopCamera();
 
       try {
-        const element = document.createElement('video');
+        const element = document.createElement("video");
         element.autoplay = true;
         element.playsInline = true;
         element.muted = true;
 
         const handleMetadataLoaded = () => {
-          console.log('[Store] Video metadata loaded:', element.videoWidth, element.videoHeight);
+          console.log(
+            "[Store] Video metadata loaded:",
+            element.videoWidth,
+            element.videoHeight
+          );
           if (element.videoWidth > 0 && element.videoHeight > 0) {
             // needed by opencv VideoCapture
             element.width = element.videoWidth;
             element.height = element.videoHeight;
-            set({ frameWidth: element.videoWidth, frameHeight: element.videoHeight });
+            set({
+              frameWidth: element.videoWidth,
+              frameHeight: element.videoHeight,
+            });
           } else {
-            console.warn('[Store] Metadata loaded but dimensions invalid on detached element.');
+            console.warn(
+              "[Store] Metadata loaded but dimensions invalid on detached element."
+            );
           }
-          element.removeEventListener('loadedmetadata', handleMetadataLoaded);
+          element.removeEventListener("loadedmetadata", handleMetadataLoaded);
         };
 
-        element.addEventListener('loadedmetadata', handleMetadataLoaded);
+        element.addEventListener("loadedmetadata", handleMetadataLoaded);
 
         // Use the provided source based on its type
-        if (typeof source === 'string') {
+        if (typeof source === "string") {
           // Handle URL string
           element.src = source;
-          element.crossOrigin = 'anonymous';
-          console.log('[Store] Assigned provided URL to video element:', source);
+          element.crossOrigin = "anonymous";
+          console.log(
+            "[Store] Assigned provided URL to video element:",
+            source
+          );
         } else if (source instanceof MediaStream) {
           // Handle MediaStream
           if (!source.active || source.getVideoTracks().length === 0) {
-            console.error('[Store] startCamera received an invalid or inactive stream.');
+            console.error(
+              "[Store] startCamera received an invalid or inactive stream."
+            );
             set({ stream: null, videoElement: null, isStreaming: false });
-            return Promise.reject(new Error("Invalid MediaStream provided to startCamera"));
+            return Promise.reject(
+              new Error("Invalid MediaStream provided to startCamera")
+            );
           }
           element.srcObject = source;
-          console.log('[Store] Assigned provided stream to video element.');
+          console.log("[Store] Assigned provided stream to video element.");
         } else {
           // Handle invalid source
-          console.error('[Store] startCamera received an invalid source type.');
+          console.error("[Store] startCamera received an invalid source type.");
           set({ stream: null, videoElement: null, isStreaming: false });
-          return Promise.reject(new Error("Invalid source type provided to startCamera"));
+          return Promise.reject(
+            new Error("Invalid source type provided to startCamera")
+          );
         }
 
         await element.play();
 
-        console.log('[Store] Video element is playing.');
+        console.log("[Store] Video element is playing.");
         set({
           stream: source instanceof MediaStream ? source : null,
           videoElement: element,
@@ -187,12 +227,16 @@ export const useCalibrationStore = create<CalibrationState>((set, get) => {
         });
         // Reset FPS timer on start
         get().resetDetectionFps();
-
       } catch (error) {
-        console.error('[Store] Error setting up/playing video element:', error);
+        console.error("[Store] Error setting up/playing video element:", error);
         // Clean up element listener if play fails
         const element = get().videoElement;
-        element?.removeEventListener('loadedmetadata', (e: any) => e?.target?.removeEventListener('loadedmetadata', (e as any)?.target?._listenerRef)); // Attempt cleanup
+        element?.removeEventListener("loadedmetadata", (e: any) =>
+          e?.target?.removeEventListener(
+            "loadedmetadata",
+            (e as any)?.target?._listenerRef
+          )
+        ); // Attempt cleanup
         set({
           stream: null,
           videoElement: null,
@@ -208,10 +252,10 @@ export const useCalibrationStore = create<CalibrationState>((set, get) => {
 
     stopCamera: () => {
       const { videoElement } = get();
-      console.log('[Store] Stopping camera element management...');
+      console.log("[Store] Stopping camera element management...");
 
       if (videoElement) {
-        console.log('[Store] Cleaning up detached video element.');
+        console.log("[Store] Cleaning up detached video element.");
         videoElement.pause();
         videoElement.srcObject = null;
         // remove listeners if needed
@@ -264,19 +308,36 @@ export const useCalibrationStore = create<CalibrationState>((set, get) => {
       get().calculateFrameMetrics(corners, now);
 
       // Read updated state after metrics calculation
-      const { isAutoCaptureEnabled, wasStableAndUnique, isCapturePending, currentStableDuration, stabilityDurationThreshold, uniquenessPercentage, similarityThreshold } = get();
+      const {
+        isAutoCaptureEnabled,
+        wasStableAndUnique,
+        isCapturePending,
+        currentStableDuration,
+        stabilityDurationThreshold,
+        uniquenessPercentage,
+        similarityThreshold,
+      } = get();
 
       // --- Auto-Capture Logic (back in updateCorners) ---
       // Trigger capture on the *rising edge* of stable+unique AND if no capture is already pending
-      if (isAutoCaptureEnabled && wasStableAndUnique && !wasStableAndUniqueBeforeUpdate && !isCapturePending) {
-        console.log(`[Store:updateCorners] Auto-capture triggered (Stable Duration: ${currentStableDuration.toFixed(2)}s >= ${stabilityDurationThreshold}s, Unique: ${uniquenessPercentage.toFixed(1)}% >= ${similarityThreshold}%).`);
+      if (
+        isAutoCaptureEnabled &&
+        wasStableAndUnique &&
+        !wasStableAndUniqueBeforeUpdate &&
+        !isCapturePending
+      ) {
+        console.log(
+          `[Store:updateCorners] Auto-capture triggered (Stable Duration: ${currentStableDuration.toFixed(2)}s >= ${stabilityDurationThreshold}s, Unique: ${uniquenessPercentage.toFixed(1)}% >= ${similarityThreshold}%).`
+        );
         set({ isCapturePending: true }); // Set pending flag immediately
         // Run capture asynchronously, don't await here to avoid blocking updates
-        get().captureFrame().catch(error => {
-          console.error("[Store:updateCorners] Auto-capture failed:", error);
-          // Important: Reset pending flag on *any* capture failure
-          set({ isCapturePending: false, currentStableDuration: 0 }); // Reset here
-        });
+        get()
+          .captureFrame()
+          .catch((error) => {
+            console.error("[Store:updateCorners] Auto-capture failed:", error);
+            // Important: Reset pending flag on *any* capture failure
+            set({ isCapturePending: false, currentStableDuration: 0 }); // Reset here
+          });
       }
     },
 
@@ -284,21 +345,26 @@ export const useCalibrationStore = create<CalibrationState>((set, get) => {
       const { currentCorners, currentFrameImageData } = get();
 
       if (!currentCorners) {
-        const errMsg = '[captureFrame] No chessboard detected for capture';
-        console.warn(errMsg);
+        toast.warning("No chessboard detected to capture", {
+          id: "no-chessboard-detected",
+        });
         set({ isCapturePending: false, currentStableDuration: 0 });
-        return Promise.reject(new Error(errMsg));
+        return;
       }
 
       if (!currentFrameImageData) {
-        const errMsg = '[captureFrame] No ImageData available for capture';
+        const errMsg = "[captureFrame] No ImageData available for capture";
         console.error(errMsg);
         set({ isCapturePending: false, currentStableDuration: 0 });
         return Promise.reject(new Error(errMsg));
       }
 
       // Removed try...catch block here. Errors from createImageBlob will propagate.
-      const imageBlob = await createImageBlob(currentFrameImageData, 'image/jpeg', 1.0);
+      const imageBlob = await createImageBlob(
+        currentFrameImageData,
+        "image/jpeg",
+        1.0
+      );
 
       const frameId = uuidv4();
       const frame: CapturedFrame = {
@@ -308,7 +374,9 @@ export const useCalibrationStore = create<CalibrationState>((set, get) => {
         timestamp: Date.now(),
       };
 
-      console.log(`[captureFrame] ${forceCapture ? 'Forced' : 'Auto'} capture successful for frame ${frameId}.`);
+      console.log(
+        `[captureFrame] ${forceCapture ? "Forced" : "Auto"} capture successful for frame ${frameId}.`
+      );
 
       // Reset state on successful capture
       set((state) => ({
@@ -332,11 +400,17 @@ export const useCalibrationStore = create<CalibrationState>((set, get) => {
     },
 
     runCalibration: () => {
-      const { capturedFrames, patternSize, frameWidth, frameHeight, squareSize } = get();
+      const {
+        capturedFrames,
+        patternSize,
+        frameWidth,
+        frameHeight,
+        squareSize,
+      } = get();
 
-      const validFrames = capturedFrames.filter(f => f.imageBlob);
+      const validFrames = capturedFrames.filter((f) => f.imageBlob);
       if (validFrames.length < 3) {
-        const errMsg = 'At least 3 valid frames required for calibration';
+        const errMsg = "At least 3 valid frames required for calibration";
         console.error(errMsg);
         // Throw error instead of returning silently
         throw new Error(errMsg);
@@ -383,7 +457,9 @@ export const useCalibrationStore = create<CalibrationState>((set, get) => {
 
       if (lastFrameProcessedTime > 0 && deltaTime > 0) {
         const currentRawFps = 1000 / deltaTime;
-        smoothedFps = FPS_SMOOTHING_FACTOR * currentRawFps + (1 - FPS_SMOOTHING_FACTOR) * smoothedFps;
+        smoothedFps =
+          FPS_SMOOTHING_FACTOR * currentRawFps +
+          (1 - FPS_SMOOTHING_FACTOR) * smoothedFps;
       }
       // Use set directly here as it's part of the store actions
       set({ detectionFps: smoothedFps, lastFrameProcessedTime: now });
@@ -419,9 +495,10 @@ export const useCalibrationStore = create<CalibrationState>((set, get) => {
       const newHistory = [...movementHistory, movement];
       if (newHistory.length > 10) newHistory.shift(); // Keep last 10 movements
 
-      const avgMovement = newHistory.length > 0
-        ? newHistory.reduce((sum, val) => sum + val, 0) / newHistory.length
-        : Infinity;
+      const avgMovement =
+        newHistory.length > 0
+          ? newHistory.reduce((sum, val) => sum + val, 0) / newHistory.length
+          : Infinity;
 
       // Normalization & Instantaneous Stability Check
       let normalizedAvgMovement = Infinity;
@@ -429,11 +506,21 @@ export const useCalibrationStore = create<CalibrationState>((set, get) => {
       let isInstantaneouslyStable = false;
 
       if (frameWidth > 0 && frameHeight > 0) {
-        const imageDiagonal = Math.sqrt(frameWidth * frameWidth + frameHeight * frameHeight);
+        const imageDiagonal = Math.sqrt(
+          frameWidth * frameWidth + frameHeight * frameHeight
+        );
         if (imageDiagonal > 0) {
           normalizedAvgMovement = avgMovement / imageDiagonal;
-          isInstantaneouslyStable = normalizedAvgMovement <= maxRelativeMovementForStability;
-          stabilityPct = Math.min(100, Math.max(0, (1 - normalizedAvgMovement / maxRelativeMovementForStability) * 100));
+          isInstantaneouslyStable =
+            normalizedAvgMovement <= maxRelativeMovementForStability;
+          stabilityPct = Math.min(
+            100,
+            Math.max(
+              0,
+              (1 - normalizedAvgMovement / maxRelativeMovementForStability) *
+                100
+            )
+          );
         }
       } else {
         // Cannot calculate stability without frame dimensions
@@ -453,7 +540,12 @@ export const useCalibrationStore = create<CalibrationState>((set, get) => {
       const isStable = newStableDuration >= stabilityDurationThreshold;
 
       // Uniqueness
-      const uniqueness = calculateSimilarityScore(corners, capturedFrames, frameWidth, frameHeight);
+      const uniqueness = calculateSimilarityScore(
+        corners,
+        capturedFrames,
+        frameWidth,
+        frameHeight
+      );
       const uniquenessPct = uniqueness * 100;
       const isUnique = uniquenessPct >= similarityThreshold;
 

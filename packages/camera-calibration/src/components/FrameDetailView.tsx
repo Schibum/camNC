@@ -75,10 +75,6 @@ export const FrameDetailView: React.FC<FrameDetailViewProps> = ({
           corners={frame.corners}
           className="w-full h-auto max-h-[70vh] object-contain"
         />
-        <div className="bg-white/10 p-4 rounded-lg space-y-2">
-          <div>Captured at: {new Date(frame.timestamp).toLocaleString()}</div>
-          <div>Corner points: {frame.corners.length}</div>
-        </div>
       </div>
     </div>
   );

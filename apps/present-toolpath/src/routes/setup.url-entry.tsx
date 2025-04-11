@@ -1,7 +1,7 @@
-import * as React from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useStore } from '../store';
+import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { UrlEntryStep } from '../setup/UrlEntryStep';
+import { useStore } from '../store';
 
 export const Route = createFileRoute('/setup/url-entry')({
   component: UrlEntryComponent,
@@ -14,12 +14,15 @@ function UrlEntryComponent() {
 
   const handleUrlConfirm = (streamUrl: string) => {
     setVideoSrc(streamUrl);
-    navigate({ to: '/setup/point-selection' as any });
+    navigate({ to: '/setup/camera-calibration' as any });
   };
 
   return (
-    <div className="mt-4">
-      <UrlEntryStep initialUrl={videoSrc} onConfirm={handleUrlConfirm} />
+    <div className="w-full h-full">
+      <PageHeader title="Top View (Orthographic)" />
+      <div className="m-4">
+        <UrlEntryStep initialUrl={videoSrc} onConfirm={handleUrlConfirm} />
+      </div>
     </div>
   );
 }

@@ -29,7 +29,7 @@ function VisualizeComponent() {
 
   return (
     <div className="relative w-full h-full">
-      <PageHeader title="2D Toolpath Visualization" className="absolute pr-2 flex-wrap h-auto p-1">
+      <PageHeader title="Top View (Orthographic)" className="absolute pr-2 flex-wrap h-auto p-1">
         <VisualizeToolbar />
       </PageHeader>
 

@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react';
-import { useCalibrationStore } from '../store/calibrationStore';
-import { CornerFinderWorkerManager } from '../utils/workerManager';
+import { useEffect, useRef } from "react";
+import { useCalibrationStore } from "../store/calibrationStore";
+import { CornerFinderWorkerManager } from "../utils/workerManager";
 
 // Smoothing factor moved to store
 // const FPS_SMOOTHING_FACTOR = 0.1;
@@ -43,17 +43,19 @@ export function useVideoProcessing() {
     // --- Initialization & Processing Loop ---
     // Initialize resources
     if (!captureCanvasCtxRef.current) {
-      console.log('[useVideoProcessing] Initializing VideoCapture.');
-      const canvas = document.createElement('canvas');
+      console.log("[useVideoProcessing] Initializing VideoCapture.");
+      const canvas = document.createElement("canvas");
       canvas.width = store.frameWidth;
       canvas.height = store.frameHeight;
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      if (!ctx) throw new Error('Failed to create canvas context.');
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx) throw new Error("Failed to create canvas context.");
       captureCanvasCtxRef.current = ctx;
     }
 
     if (!captureCanvasCtxRef.current || !workerManagerRef.current) {
-      console.error('[useVideoProcessing] Core resources not initialized correctly.');
+      console.error(
+        "[useVideoProcessing] Core resources not initialized correctly."
+      );
       return;
     }
 
@@ -69,14 +71,21 @@ export function useVideoProcessing() {
       } = useCalibrationStore.getState();
       const captureCtx = captureCanvasCtxRef.current;
 
-      if (!isStreaming || !videoElement || !captureCtx || !workerManagerRef.current) {
+      if (
+        !isStreaming ||
+        !videoElement ||
+        !captureCtx ||
+        !workerManagerRef.current
+      ) {
         animationFrameId.current = null;
         return;
       }
 
       try {
         if (videoElement.readyState < videoElement.HAVE_CURRENT_DATA) {
-          console.log('[useVideoProcessing] Waiting for detached video data...');
+          console.log(
+            "[useVideoProcessing] Waiting for detached video data..."
+          );
           // Don't schedule next frame here, wait for data
           animationFrameId.current = requestAnimationFrame(processFrame);
           return;
@@ -92,21 +101,34 @@ export function useVideoProcessing() {
         const imgData = captureCtx.getImageData(0, 0, frameWidth, frameHeight);
 
         // Send frame to worker for processing
-        const result = await workerManagerRef.current.processFrame(imgData, patternSize.width, patternSize.height);
+        const result = await workerManagerRef.current.processFrame(
+          imgData,
+          patternSize.width,
+          patternSize.height
+        );
         const cornerData = result.corners;
         if (cornerData) {
           // only needed if detected. Alternative would be always copying to worker.
-          const imgDataCpy = captureCtx.getImageData(0, 0, frameWidth, frameHeight);
+          const imgDataCpy = captureCtx.getImageData(
+            0,
+            0,
+            frameWidth,
+            frameHeight
+          );
           updateCorners(cornerData, imgDataCpy);
         } else {
           clearCorners();
         }
       } catch (error: any) {
-        console.error('[useVideoProcessing] Error reading/posting frame:', error);
+        console.error(
+          "[useVideoProcessing] Error reading/posting frame:",
+          error
+        );
         clearCorners();
       } finally {
         // Schedule next frame only after current processing is done
-        if (useCalibrationStore.getState().isStreaming) { // Check again in case it was stopped
+        if (useCalibrationStore.getState().isStreaming) {
+          // Check again in case it was stopped
           animationFrameId.current = requestAnimationFrame(processFrame);
         }
       }

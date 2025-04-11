@@ -136,6 +136,9 @@ export const useStore = create(devtools(persist(immer(combine(
     showStillFrame: false,
   },
   set => ({
+    setCalibrationData: (data: CalibrationData) => set(state => {
+      state.calibrationData = data;
+    }),
     setVideoDimensions: (dimensions: ITuple) => set(state => {
       state.cameraConfig.dimensions = dimensions;
     }),
