@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { Camera, Eye, Grid, Route, Settings2 } from 'lucide-react';
+import { Camera, Eye, Grid, Grid2x2, Route, Settings2 } from 'lucide-react';
 import * as React from 'react';
 
 import { useLocation } from '@tanstack/react-router';
@@ -30,7 +30,7 @@ const routes: NavRoute[] = [
   {
     title: 'Top View',
     to: '/visualize/2DView',
-    icon: Eye,
+    icon: Grid2x2,
   },
   {
     title: 'Undistort',
