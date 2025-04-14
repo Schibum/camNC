@@ -1,6 +1,8 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { Button } from '@wbcnc/ui/components/button';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
-import { UrlEntryStep } from '../setup/UrlEntryStep';
+import { ArrowRight } from 'lucide-react';
+import { VideoSourceSelection } from '../setup/VideoSourceSelection';
 import { useStore } from '../store';
 
 export const Route = createFileRoute('/setup/url-entry')({
@@ -19,9 +21,16 @@ function UrlEntryComponent() {
 
   return (
     <div className="w-full h-full">
-      <PageHeader title="Top View (Orthographic)" />
-      <div className="m-4">
-        <UrlEntryStep initialUrl={videoSrc} onConfirm={handleUrlConfirm} />
+      <PageHeader title="Camera Source" />
+      <div className="flex justify-center p-1 flex-row">
+        <div className="max-w-xl gap-4 flex flex-1 flex-col">
+          {/* <UrlEntryStep initialUrl={videoSrc} onConfirm={handleUrlConfirm} /> */}
+          <VideoSourceSelection />
+          <Button type="submit" className="w-full" onClick={() => handleUrlConfirm(videoSrc)}>
+            <ArrowRight className="size-4" />
+            Continue to Camera Calibration
+          </Button>
+        </div>
       </div>
     </div>
   );
