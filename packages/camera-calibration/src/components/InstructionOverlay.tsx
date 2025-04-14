@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useCalibrationStore } from '../store/calibrationStore';
+import React, { useEffect, useState } from "react";
+import { useCalibrationStore } from "../store/calibrationStore";
 
 interface InstructionOverlayProps {
   // Pass the similarity threshold configured in the parent
@@ -21,9 +21,11 @@ interface InstructionOverlayProps {
 //     zIndex: 10,
 // };
 
-export const InstructionOverlay: React.FC<InstructionOverlayProps> = ({ similarityThreshold }) => {
-  // Local state for the message
-  const [message, setMessage] = useState<string | null>(null);
+export const InstructionOverlay: React.FC<InstructionOverlayProps> = ({
+  similarityThreshold,
+}) => {
+  // Local state for the message - changed type to React.ReactNode
+  const [message, setMessage] = useState<React.ReactNode>(null);
 
   // Get relevant state from the store
   const {
@@ -49,31 +51,43 @@ export const InstructionOverlay: React.FC<InstructionOverlayProps> = ({ similari
 
     // Check for pattern size validity
     if (!patternSize) {
-      setMessage('Waiting for pattern size...');
       return;
     }
 
     // Check if corners are detected
     if (!currentCorners) {
-      const msg = `Show ${patternSize.width}x${patternSize.height} chessboard to camera`;
-      setMessage(msg);
+      // Construct the message with the link around the dimensions
+      setMessage(
+        <>
+          Show{" "}
+          <a
+            href="https://chessboard-camera-calibration.vercel.app/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-400 underline"
+          >
+            {`${patternSize.width}x${patternSize.height} chessboard`}
+          </a>{" "}
+          to camera
+        </>
+      );
       return;
     }
 
     // --- If corners ARE detected, check uniqueness/stability ---
     // Use threshold from props or default
-    const simThresh = typeof similarityThreshold === 'number' ? similarityThreshold : 15;
+    const simThresh =
+      typeof similarityThreshold === "number" ? similarityThreshold : 15;
     // Stability threshold for message
     const stabThreshPercent = 90;
 
     if (uniquenessPercentage < simThresh) {
-      setMessage('Move chessboard to new location');
+      setMessage("Move chessboard to new location");
     } else if (stabilityPercentage < stabThreshPercent) {
-      setMessage('Hold still');
+      setMessage("Hold still");
     } else {
       setMessage(null); // Clear message if ready for capture
     }
-
   }, [
     isAutoCaptureEnabled,
     isFullyReady,

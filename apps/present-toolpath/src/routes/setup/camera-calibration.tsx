@@ -1,3 +1,4 @@
+import { prettyPrintThree } from '@/lib/prettyPrintThree';
 import { createFileRoute } from '@tanstack/react-router';
 import { CalibrationResult, CameraCalibration } from '@wbcnc/camera-calibration';
 import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
@@ -30,6 +31,7 @@ function CodeJson({ obj }: { obj: any }) {
   return <CodeBlock>{JSON.stringify(obj, null, 2)}</CodeBlock>;
 }
 
+// TODO(manu): updates this to prettyPrint once store uses three.js types
 function CalibrationDataDisplay() {
   const calibrationData = useStore(state => state.calibrationData);
   if (!calibrationData) return null;
@@ -38,6 +40,8 @@ function CalibrationDataDisplay() {
     <div className="flex flex-col gap-2 flex-1 overflow-scroll">
       <div className="text-sm font-medium">Camera Matrix:</div>
       <CodeJson obj={cameraMatrix} />
+      <div className="text-sm font-medium">New Camera Matrix:</div>
+      <CodeBlock>{prettyPrintThree(calibrationData.new_camera_matrix)}</CodeBlock>
       <div className="text-sm font-medium">Distortion Coefficients:</div>
       <CodeJson obj={calibrationData.distortion_coefficients} />
     </div>

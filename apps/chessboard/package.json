@@ -1,0 +1,13 @@
+{
+  "name": "@wbcnc/chessboard",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {},
+  "devDependencies": {
+    "serve": "^14.0.1"
+  },
+  "scripts": {
+    "dev": "serve",
+    "deploy": "vercel --prod"
+  }
+}
