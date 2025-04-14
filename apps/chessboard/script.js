@@ -2,6 +2,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const chessboardContainer = document.getElementById("chessboard-container");
   const printButton = document.getElementById("print-button");
   const fullscreenButton = document.getElementById("fullscreen-button");
+  // 9x6 internal corners = 10x7 squares
   const cols = 10;
   const rows = 7;
   let wakeLock = null;

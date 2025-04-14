@@ -3,6 +3,7 @@ import {
   config as springConfig,
   useTransition,
 } from "@react-spring/web"; // Import config and SpringValue
+import { CalibrationResult } from "@wbcnc/camera-calibration";
 import { Button } from "@wbcnc/ui/components/button";
 import {
   Dialog,
@@ -23,6 +24,7 @@ import { SaveFramesButton } from "./SaveFramesButton"; // Import the new button 
 interface GalleryViewProps {
   onClose: () => void;
   isOpen: boolean; // Add isOpen prop
+  onCalibrationConfirmed?: (result: CalibrationResult) => void;
 }
 
 interface GalleryItemProps {
@@ -68,12 +70,30 @@ const GalleryItem: React.FC<GalleryItemProps> = ({
 
 const AnimatedDiv = animated("div");
 
+function ConfirmCalibrationButton({
+  onCalibrationConfirmed,
+}: {
+  onCalibrationConfirmed?: (result: CalibrationResult) => void;
+}) {
+  const calibrationResult = useCalibrationStore((s) => s.calibrationResult);
+  if (!calibrationResult || !onCalibrationConfirmed) return null;
+  return (
+    <Button onClick={() => onCalibrationConfirmed(calibrationResult)}>
+      Use this calibration
+    </Button>
+  );
+}
+
 export const GalleryView: React.FC<GalleryViewProps> = ({
   onClose,
   isOpen,
+  onCalibrationConfirmed,
 }) => {
-  const { capturedFrames, deleteFrame, runCalibration, calibrationResult } =
-    useCalibrationStore();
+  const capturedFrames = useCalibrationStore((s) => s.capturedFrames);
+  const deleteFrame = useCalibrationStore((s) => s.deleteFrame);
+  const runCalibration = useCalibrationStore((s) => s.runCalibration);
+  const calibrationResult = useCalibrationStore((s) => s.calibrationResult);
+
   const [selectedFrameId, setSelectedFrameId] = useState<string | null>(null);
   const prevSelectedIdRef = useRef<string | null>(null);
   const directionRef = useRef(0); // Ref to store direction for leave animation
@@ -182,26 +202,37 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
             {!selectedFrameId && (
               <>
                 <DialogHeader className="p-5 mb-5 flex-shrink-0 mr-10">
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center flex-wrap gap-2">
                     <DialogTitle className="text-xl font-semibold">
                       Captured Frames
                     </DialogTitle>
-                    <div className="flex gap-4">
+                    <div className="flex gap-4 flex-wrap">
                       <SaveFramesButton />
                       <Button
                         onClick={runCalibration}
+                        variant={calibrationResult ? "secondary" : "default"}
                         disabled={
                           capturedFrames.filter((f) => f.imageBlob).length < 3
                         }
                       >
                         Calibrate
                       </Button>
+                      <ConfirmCalibrationButton
+                        onCalibrationConfirmed={onCalibrationConfirmed}
+                      />
                     </div>
                   </div>
                 </DialogHeader>
 
                 <div className="px-5 flex-grow overflow-y-auto">
                   {calibrationResult && <CalibrationResultDisplay />}
+
+                  {capturedFrames.length < 10 && (
+                    <div className="text-yellow-400 text-sm m-1">
+                      Please capture at least 10 frames for accurate
+                      calibration.
+                    </div>
+                  )}
 
                   <div className="gallery-grid grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4 overflow-y-auto">
                     {capturedFrames.map((frame) => (

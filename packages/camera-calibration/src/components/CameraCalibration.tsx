@@ -9,7 +9,7 @@ import { RecentCapturePreview } from "./RecentCapturePreview";
 
 interface CameraCalibrationProps {
   src?: MediaStream | string;
-  onCalibrationDone?: (result: CalibrationResult) => void;
+  onCalibrationConfirmed?: (result: CalibrationResult) => void;
   autoCapture?: boolean;
   patternSize?: PatternSize;
   squareSize?: number;
@@ -26,7 +26,7 @@ const LoadingIndicator = () => (
 
 export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
   src,
-  onCalibrationDone,
+  onCalibrationConfirmed,
   autoCapture = true,
   patternSize,
   squareSize,
@@ -101,12 +101,6 @@ export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
     };
   }, [src, startCamera, stopCamera]);
 
-  useEffect(() => {
-    if (calibrationResult && onCalibrationDone) {
-      onCalibrationDone(calibrationResult);
-    }
-  }, [calibrationResult, onCalibrationDone]);
-
   if (!window.cv) {
     throw new Error("OpenCV is not loaded");
   }
@@ -131,6 +125,7 @@ export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
       ) : (
         <GalleryView
           onClose={() => setShowGallery(false)}
+          onCalibrationConfirmed={onCalibrationConfirmed}
           isOpen={showGallery}
         />
       )}
