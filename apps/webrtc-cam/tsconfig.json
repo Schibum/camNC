@@ -1,0 +1,37 @@
+{
+  "extends": "@wbcnc/typescript-config/base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./*"
+      ],
+      // "@wbcnc/ui/*": [
+      //   "../../packages/ui/src/*"
+      // ],
+      // "@wbcnc/camera-calibration": [
+      //   "../../packages/camera-calibration/index.ts"
+      // ],
+    },
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    "skipLibCheck": true,
+    "noEmit": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    // "checkJs": true,
+    /* React Config */
+    // "lib": ["ESNext", "DOM"],
+    // "types": []
+  },
+  "include": [
+    "next-env.d.ts",
+    "next.config.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

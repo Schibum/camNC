@@ -336,7 +336,7 @@ function App() {
         <div className="flex-grow pb-[env(safe-area-inset-bottom)] overflow-hidden">
           <CameraCalibration
             src={videoSource}
-            onCalibrationDone={handleCalibrationDone}
+            onCalibrationConfirmed={handleCalibrationDone}
             autoCapture={true}
             patternSize={{ width: 9, height: 6 }}
             // stabilityThreshold={10}

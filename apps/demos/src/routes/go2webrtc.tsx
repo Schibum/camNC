@@ -5,7 +5,7 @@ export const Route = createFileRoute("/go2webrtc")({
 });
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { connect } from "@wbcnc/go2webrtc";
+import { connect } from "@wbcnc/go2webrtc/client";
 import { Button } from "@wbcnc/ui/components/button";
 import {
   Form,
