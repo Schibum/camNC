@@ -157,7 +157,7 @@ async function createPeerConnection(
  */
 function getOffer(
   pc: RTCPeerConnection,
-  timeout: number = 5000
+  timeout: number = 3000
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     pc.addEventListener("icegatheringstatechange", () => {
