@@ -7,6 +7,7 @@ export type ServerStatus =
   | "connected_tracker"
   | "waiting_offer"
   | "received_offer"
+  | "creating_media_stream"
   | "creating_peer_connection"
   | "creating_answer"
   | "sending_answer"
@@ -18,6 +19,7 @@ export type ServerStatus =
 export interface ServerOptions {
   share: string;
   pwd: string;
+  streamFactory: () => Promise<MediaStream>;
   tracker?: string;
   onStatusUpdate?: (status: ServerStatus, details?: string) => void;
   iceServers?: RTCIceServer[];
@@ -85,7 +87,7 @@ async function calculateInfoHash(share: string): Promise<string> {
 }
 
 export class PersistentWebRTCServer {
-  private stream: MediaStream;
+  private stream: MediaStream | null = null;
   private options: Required<ServerOptions>;
   private trackerWs: WebSocket | null = null;
   private peerConnections: Map<string, RTCPeerConnection> = new Map();
@@ -105,8 +107,7 @@ export class PersistentWebRTCServer {
   private static readonly DEFAULT_TRACKER_RECONNECT_MAX_DELAY = 30000;
   private static readonly DEFAULT_TRACKER_ANNOUNCE_INTERVAL = 60000;
 
-  constructor(stream: MediaStream, options: ServerOptions) {
-    this.stream = stream;
+  constructor(options: ServerOptions) {
     this.options = {
       tracker: options.tracker ?? PersistentWebRTCServer.DEFAULT_TRACKER,
       onStatusUpdate: options.onStatusUpdate ?? (() => {}),
@@ -190,6 +191,13 @@ export class PersistentWebRTCServer {
     });
     this.peerConnections.clear();
     console.log("All peer connections closed.");
+
+    if (this.stream) {
+      console.log("Stopping media stream tracks...");
+      this.stream.getTracks().forEach((track) => track.stop());
+      this.stream = null;
+      console.log("Media stream tracks stopped.");
+    }
 
     this._setStatus("idle");
   }
@@ -372,6 +380,19 @@ export class PersistentWebRTCServer {
   private async processOffer(msg: TrackerOfferMessage): Promise<void> {
     const { offer, offer_id, peer_id: remotePeerId } = msg;
 
+    if (!this.stream) {
+      try {
+        this._setStatus("creating_media_stream");
+        console.log("First peer connection attempt, creating media stream...");
+        this.stream = await this.options.streamFactory();
+        console.log("Media stream created successfully.");
+      } catch (error) {
+        console.error("Failed to create media stream:", error);
+        this._setStatus("error", "Failed to create media stream");
+        return;
+      }
+    }
+
     if (this.peerConnections.has(remotePeerId)) {
       console.log(
         `Cleaning up existing connection for reconnecting peer ${remotePeerId}`
@@ -399,9 +420,10 @@ export class PersistentWebRTCServer {
 
       this._setupPeerConnectionListeners(pc, remotePeerId);
 
-      this.stream.getTracks().forEach((track) => {
+      const currentStream = this.stream!;
+      currentStream.getTracks().forEach((track) => {
         if (pc) {
-          pc.addTrack(track, this.stream);
+          pc.addTrack(track, currentStream);
         }
       });
 
@@ -529,6 +551,15 @@ export class PersistentWebRTCServer {
 
       this.peerConnections.delete(remotePeerId);
       console.log(`Connection for peer ${remotePeerId} removed.`);
+
+      if (this.peerConnections.size === 0 && this.stream && this.isRunning) {
+        console.log(
+          "Last peer disconnected, stopping and disposing media stream..."
+        );
+        this.stream.getTracks().forEach((track) => track.stop());
+        this.stream = null;
+        console.log("Media stream disposed.");
+      }
 
       if (
         this.peerConnections.size === 0 &&

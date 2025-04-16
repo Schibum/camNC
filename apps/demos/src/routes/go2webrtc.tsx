@@ -5,7 +5,7 @@ export const Route = createFileRoute("/go2webrtc")({
 });
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { connect } from "@wbcnc/go2webrtc/client";
+import { CodecName, connect } from "@wbcnc/go2webrtc/client";
 import { Button } from "@wbcnc/ui/components/button";
 import {
   Form,
@@ -17,8 +17,15 @@ import {
   FormMessage,
 } from "@wbcnc/ui/components/form";
 import { Input } from "@wbcnc/ui/components/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@wbcnc/ui/components/select";
 import { toast } from "@wbcnc/ui/components/sonner";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -39,6 +46,7 @@ const formSchema = z.object({
       message: "Invalid format. Expected: webtorrent:?share=...&pwd=...",
     }
   ),
+  preferredCodec: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -66,7 +74,7 @@ function parseConnectionString(connectionString: string): ParsedValues | null {
 export function ConnectForm({
   onConnect,
 }: {
-  onConnect: (values: ParsedValues) => void;
+  onConnect: (values: ParsedValues, preferredCodec?: string) => void;
 }) {
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -78,7 +86,7 @@ export function ConnectForm({
   function onSubmit(values: FormValues) {
     const parsed = parseConnectionString(values.connectionString);
     if (parsed) {
-      onConnect(parsed);
+      onConnect(parsed, values.preferredCodec);
     } else {
       // Should not happen due to zod validation, but good practice
       console.error(
@@ -112,6 +120,29 @@ export function ConnectForm({
             </FormItem>
           )}
         />
+        <FormField
+          control={form.control}
+          name="preferredCodec"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Preferred Codec</FormLabel>
+              <FormControl>
+                <Select onValueChange={field.onChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a codec" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="H264">H264</SelectItem>
+                    <SelectItem value="VP8">VP8</SelectItem>
+                    <SelectItem value="VP9">VP9</SelectItem>
+                    <SelectItem value="AV1">AV1</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
         <Button type="submit">Connect</Button>
       </form>
     </Form>
@@ -121,8 +152,13 @@ export function ConnectForm({
 function RouteComponent() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isOverlayVisible, setIsOverlayVisible] = useState(true);
+  const [videoResolution, setVideoResolution] = useState<{
+    width: number;
+    height: number;
+  }>({ width: 0, height: 0 });
+  const [codecInfo, setCodecInfo] = useState<string | null>(null);
 
-  const onConnect = async (values: ParsedValues) => {
+  const onConnect = async (values: ParsedValues, preferredCodec?: string) => {
     console.log("connecting", values);
     try {
       const stream = await connect({
@@ -136,6 +172,10 @@ function RouteComponent() {
             id: "status-toast",
           });
         },
+        onCodecInfo(codec) {
+          setCodecInfo(codec);
+        },
+        preferredCodec: preferredCodec as CodecName,
       });
       console.log("got stream", stream, videoRef.current);
       if (videoRef.current) {
@@ -147,6 +187,23 @@ function RouteComponent() {
       console.error("error", error);
     }
   };
+
+  useEffect(() => {
+    if (videoRef.current) {
+      const vid = videoRef.current;
+      if (vid.videoWidth && vid.videoHeight) {
+        setVideoResolution({ width: vid.videoWidth, height: vid.videoHeight });
+      } else {
+        vid.addEventListener("loadedmetadata", () => {
+          setVideoResolution({
+            width: vid.videoWidth,
+            height: vid.videoHeight,
+          });
+        });
+      }
+    }
+  }, []);
+
   return (
     <div className="relative min-h-screen overflow-hidden">
       {isOverlayVisible && (
@@ -165,6 +222,10 @@ function RouteComponent() {
           </div>
         </div>
       )}
+      <div className="absolute top-0 left-0 z-20 text-sm text-muted-foreground">
+        {videoResolution.width}x{videoResolution.height}
+        {codecInfo && <span>Codec: {codecInfo}</span>}
+      </div>
 
       <div
         className={`fixed inset-0 z-0 ${!isOverlayVisible ? "cursor-pointer" : ""}`}

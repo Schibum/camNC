@@ -17,13 +17,21 @@ export interface StatusUpdate {
   status: ConnectionStatus;
 }
 
+export type CodecName = "H264" | "VP8" | "VP9" | "AV1";
+
 export interface ConnectOptions {
   share: string;
   pwd: string;
   media?: string; // only "video" is expected
   tracker?: string;
+  preferredCodec?: CodecName;
   onStatusUpdate?: (status: ConnectionStatus) => void;
+  onCodecInfo?: (codec: string) => void;
 }
+
+// The order of preference for codecs mime types.
+const kPreferredCodecs = ["video/H264", "video/VP8", "video/VP9", "video/AV1"];
+// const kPreferredCodecs = ["video/AV1", "video/VP8", "video/H264"];
 
 /**
  * Connect to a remote WebRTC source.
@@ -34,7 +42,6 @@ export async function connect(options: ConnectOptions): Promise<MediaStream> {
   const {
     share,
     pwd,
-    media = "video",
     tracker = "wss://tracker.openwebtorrent.com/",
     onStatusUpdate,
   } = options;
@@ -53,8 +60,10 @@ export async function connect(options: ConnectOptions): Promise<MediaStream> {
 
     reportStatus("creating_peer_connection");
     // Create an RTCPeerConnection and set up a MediaStream from its received tracks.
-    const { pc, stream } = await createPeerConnection(media);
-
+    const { pc, stream } = await createPeerConnection();
+    if (options.preferredCodec) {
+      setCodecPreferences(pc, `video/${options.preferredCodec}`);
+    }
     reportStatus("creating_offer");
     // Generate an offer (waiting for ICE gathering to complete or timing out).
     const offerSdp = await getOffer(pc, 5000);
@@ -101,6 +110,9 @@ export async function connect(options: ConnectOptions): Promise<MediaStream> {
 
           ws.close();
           reportStatus("connected");
+          pollCodecInfo(pc).then((info) => {
+            if (options.onCodecInfo && info) options.onCodecInfo(info);
+          });
           resolve(stream);
         } catch (error) {
           const errorMessage =
@@ -124,30 +136,75 @@ export async function connect(options: ConnectOptions): Promise<MediaStream> {
   }
 }
 
+/** Quick and dirty debug print of codec info used by the peer connection. */
+async function pollCodecInfo(pc: RTCPeerConnection): Promise<string | null> {
+  function getCodec(stats: RTCStatsReport) {
+    for (let val of stats.values()) {
+      if (val.type === "codec") return val;
+    }
+    return null;
+  }
+  for (let i = 0; i < 10; i++) {
+    await new Promise((r) => setTimeout(r, 500));
+    const stats = await pc.getStats();
+    const codec = getCodec(stats);
+    if (codec) {
+      console.log("codec used", codec);
+      return codec.mimeType;
+    }
+  }
+  return null;
+}
+
 /* -- Internal Helper Functions -- */
 
 /**
  * Creates an RTCPeerConnection and builds a MediaStream from the received video track.
  * @param media A string that indicates what media to receive. Only "video" is supported.
  */
-async function createPeerConnection(
-  media: string
-): Promise<{ pc: RTCPeerConnection; stream: MediaStream }> {
+async function createPeerConnection(): Promise<{
+  pc: RTCPeerConnection;
+  stream: MediaStream;
+}> {
   const pc = new RTCPeerConnection({
     iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
   });
   const localTracks: MediaStreamTrack[] = [];
 
-  // Only add transceiver for receiving video.
-  if (media.includes("video")) {
-    const transceiver = pc.addTransceiver("video", { direction: "recvonly" });
-    if (transceiver.receiver.track) {
-      localTracks.push(transceiver.receiver.track);
-    }
+  const transceiver = pc.addTransceiver("video", { direction: "recvonly" });
+  if (transceiver.receiver.track) {
+    localTracks.push(transceiver.receiver.track);
   }
-
   const stream = new MediaStream(localTracks);
   return { pc, stream };
+}
+
+function setCodecPreferences(
+  pc: RTCPeerConnection,
+  preferredCodecMime?: string
+) {
+  function sortByMimeTypes(codecs: RTCRtpCodec[], preferredOrder: string[]) {
+    return codecs.sort((a, b) => {
+      const indexA = preferredOrder.indexOf(a.mimeType);
+      const indexB = preferredOrder.indexOf(b.mimeType);
+      const orderA = indexA >= 0 ? indexA : Number.MAX_VALUE;
+      const orderB = indexB >= 0 ? indexB : Number.MAX_VALUE;
+      return orderA - orderB;
+    });
+  }
+  const supportedCodecs = RTCRtpReceiver.getCapabilities("video")?.codecs;
+  if (!supportedCodecs) return;
+  let order = kPreferredCodecs;
+  if (preferredCodecMime) {
+    order = [
+      preferredCodecMime,
+      ...kPreferredCodecs.filter((c) => c !== preferredCodecMime),
+    ];
+  }
+  const sortedCodecs = sortByMimeTypes(supportedCodecs, order);
+  const transceiver = pc.getTransceivers()[0];
+  if (!transceiver) return;
+  transceiver.setCodecPreferences(sortedCodecs);
 }
 
 /**

@@ -1,39 +1,38 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { PersistentWebRTCServer } from "@wbcnc/go2webrtc/server";
-import { useEffect } from "react";
+import { PersistentWebRTCServer, ServerStatus } from "@wbcnc/go2webrtc/server";
+import { useEffect, useState } from "react";
 
 export const Route = createFileRoute("/serve-webrtc")({
   component: RouteComponent,
 });
 
-function useWebRTCServer() {
+function useWebRTCServer(
+  onStatusUpdate: (status: ServerStatus, details?: string) => void
+) {
   useEffect(() => {
     let server: PersistentWebRTCServer | null = null;
-    let stream: MediaStream | null = null;
-    let isMounted = true; // Flag to track mounted state
 
     async function start() {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: false,
-        });
+        const streamFactory = async () => {
+          console.log("Stream factory called, requesting user media...");
+          const createdStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              width: { ideal: 4032 },
+              height: { ideal: 2268 },
+              facingMode: "environment",
+            },
+            audio: false,
+          });
+          console.log("User media stream obtained.");
+          return createdStream;
+        };
 
-        // Check if component is still mounted after getting the stream
-        if (!isMounted) {
-          console.log(
-            "Component unmounted after getUserMedia, stopping stream."
-          );
-          stream.getTracks().forEach((track) => track.stop());
-          return;
-        }
-
-        server = new PersistentWebRTCServer(stream, {
+        server = new PersistentWebRTCServer({
           share: "test",
           pwd: "test",
-          onStatusUpdate: (status) => {
-            console.log("Server status:", status);
-          },
+          streamFactory: streamFactory,
+          onStatusUpdate: onStatusUpdate,
         });
         await server.start();
         console.log("WebRTC Server started");
@@ -47,25 +46,39 @@ function useWebRTCServer() {
 
     // Cleanup function
     return () => {
-      console.log("Cleaning up WebRTC server and stream...");
-      isMounted = false; // Set flag to false on cleanup
+      console.log("Cleaning up WebRTC server...");
 
       if (server) {
         server.stop();
         console.log("WebRTC Server stopped.");
       }
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
-        console.log("Media stream stopped.");
-      }
       server = null;
-      stream = null;
     };
   }, []); // Empty dependency array ensures this runs only once on mount and cleanup on unmount
 }
 
-function RouteComponent() {
-  useWebRTCServer(); // Use the custom hook
+function useWakeLock() {
+  useEffect(() => {
+    let wakeLock: WakeLockSentinel | null = null;
+    navigator.wakeLock.request("screen").then((wl) => {
+      console.log("got wake lock");
+      wakeLock = wl;
+      wakeLock.addEventListener("release", () => {
+        console.log("Screen Wake Lock was released.");
+        wakeLock = null; // Reset wakeLock variable when released
+      });
+    });
+    return () => {
+      if (wakeLock) {
+        wakeLock.release();
+      }
+    };
+  }, []);
+}
 
-  return <div>Hello "/serve-webrtc"! Streaming...</div>;
+function RouteComponent() {
+  const [status, setStatus] = useState<ServerStatus>("idle");
+  useWebRTCServer(setStatus); // Use the custom hook
+  useWakeLock();
+  return <div>Hello {status}</div>;
 }

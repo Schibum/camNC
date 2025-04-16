@@ -26,6 +26,10 @@ export default defineConfig(({ command, ...params }) => {
   return {
     plugins,
     server: {
+      allowedHosts: [
+        "localhost",
+        "ff59-2001-16b8-ba8e-8500-b996-64a-7ab4-edec.ngrok-free.app",
+      ],
       headers: {
         "Cross-Origin-Opener-Policy": "same-origin",
         "Cross-Origin-Embedder-Policy": "require-corp",
