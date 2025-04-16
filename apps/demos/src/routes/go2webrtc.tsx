@@ -177,6 +177,16 @@ function RouteComponent() {
         },
         preferredCodec: preferredCodec as CodecName,
       });
+      const videoTrack = stream.getVideoTracks()[0];
+      videoTrack?.addEventListener("unmute", () => {
+        const settings = videoTrack?.getSettings();
+        console.log("video track settings", settings);
+        if (!settings || !settings.width || !settings.height) return;
+        setVideoResolution({
+          width: settings.width,
+          height: settings.height,
+        });
+      });
       console.log("got stream", stream, videoRef.current);
       if (videoRef.current) {
         const vid = videoRef.current;
@@ -193,14 +203,13 @@ function RouteComponent() {
       const vid = videoRef.current;
       if (vid.videoWidth && vid.videoHeight) {
         setVideoResolution({ width: vid.videoWidth, height: vid.videoHeight });
-      } else {
-        vid.addEventListener("loadedmetadata", () => {
-          setVideoResolution({
-            width: vid.videoWidth,
-            height: vid.videoHeight,
-          });
-        });
       }
+      vid.addEventListener("loadedmetadata", () => {
+        setVideoResolution({
+          width: vid.videoWidth,
+          height: vid.videoHeight,
+        });
+      });
     }
   }, []);
 
@@ -222,7 +231,7 @@ function RouteComponent() {
           </div>
         </div>
       )}
-      <div className="absolute top-0 left-0 z-20 text-sm text-muted-foreground">
+      <div className="absolute top-0 left-0 z-20 text-sm text-muted-foreground bg-background/50 rounded-br-lg p-2">
         {videoResolution.width}x{videoResolution.height}
         {codecInfo && <span>Codec: {codecInfo}</span>}
       </div>

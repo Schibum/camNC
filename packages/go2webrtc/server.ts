@@ -1,27 +1,11 @@
 import { cipher, CryptoHelper } from "./cipher";
 
-export type ServerStatus =
-  | "idle"
-  | "preparing"
-  | "connecting_tracker"
-  | "connected_tracker"
-  | "waiting_offer"
-  | "received_offer"
-  | "creating_media_stream"
-  | "creating_peer_connection"
-  | "creating_answer"
-  | "sending_answer"
-  | "peer_connected"
-  | "peer_disconnected"
-  | "peer_failed"
-  | "error";
-
 export interface ServerOptions {
   share: string;
   pwd: string;
   streamFactory: () => Promise<MediaStream>;
   tracker?: string;
-  onStatusUpdate?: (status: ServerStatus, details?: string) => void;
+  onStatusUpdate?: (status: string) => void;
   iceServers?: RTCIceServer[];
   iceGatheringTimeout?: number;
   trackerReconnectMinDelay?: number;
@@ -132,8 +116,8 @@ export class PersistentWebRTCServer {
     this._setStatus("idle");
   }
 
-  private _setStatus(status: ServerStatus, details?: string) {
-    this.options.onStatusUpdate(status, details ?? status);
+  private _setStatus(status: string, details?: string) {
+    this.options.onStatusUpdate(status + (details ? `: ${details}` : ""));
   }
 
   private _generatePeerId(): string {

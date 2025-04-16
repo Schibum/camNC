@@ -66,7 +66,7 @@ export async function connect(options: ConnectOptions): Promise<MediaStream> {
     }
     reportStatus("creating_offer");
     // Generate an offer (waiting for ICE gathering to complete or timing out).
-    const offerSdp = await getOffer(pc, 5000);
+    const offerSdp = await getOffer(pc);
     const encryptedOffer = await cryptoHelper.encrypt(offerSdp);
 
     reportStatus("connecting_tracker");
@@ -210,29 +210,139 @@ function setCodecPreferences(
 /**
  * Creates an offer for the RTCPeerConnection and returns the SDP.
  * @param pc The RTCPeerConnection instance.
- * @param timeout Timeout (in ms) after which to resolve with the current offer.
+ * @param timeoutMs Timeout (in ms) after which to resolve with the current offer.
  */
-function getOffer(
+async function getOffer(
   pc: RTCPeerConnection,
-  timeout: number = 3000
+  timeoutMs: number = 5000,
+  debounceMs = 500
 ): Promise<string> {
+  try {
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    console.log("Local description set, waiting for ICE...");
+
+    // Wait for ICE using the updated helper function
+    // Hack, just wait for 500ms in a debounced way to speed up the process.
+    await waitForDebouncedIce(pc, debounceMs, timeoutMs); // 500ms debounce on *any* candidate
+
+    console.log("ICE gathering finished or debounced.");
+
+    if (pc.localDescription) {
+      return pc.localDescription.sdp;
+    } else {
+      throw new Error(
+        "Failed to generate offer: No local description found after ICE process."
+      );
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("Error in getOffer:", message);
+    throw new Error(`Failed to get offer: ${message}`);
+  }
+}
+
+/**
+ * Waits for ICE gathering to stabilize or complete, applying a debounce.
+ * Resolves when either ICE gathering is complete, or 500ms have passed
+ * since the *last* non-null ICE candidate was received.
+ * Rejects on overall timeout or errors during gathering.
+ *
+ * @param pc The RTCPeerConnection instance.
+ * @param debounceMs The debounce time in milliseconds.
+ * @param overallTimeoutMs The maximum time to wait for ICE gathering.
+ * @returns A promise that resolves when conditions are met, or rejects on timeout/error.
+ */
+function waitForDebouncedIce(
+  pc: RTCPeerConnection,
+  debounceMs: number,
+  overallTimeoutMs: number
+): Promise<void> {
   return new Promise((resolve, reject) => {
-    pc.addEventListener("icegatheringstatechange", () => {
-      if (pc.iceGatheringState === "complete" && pc.localDescription) {
-        resolve(pc.localDescription.sdp);
-      }
-    });
+    let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
+    let overallTimeout: ReturnType<typeof setTimeout> | null = null;
+    let hasSeenSrflxOrRelay = false; // Track if we've seen the first relevant candidate
 
-    pc.createOffer()
-      .then((offer) => pc.setLocalDescription(offer))
-      .catch((err) => reject(new Error("Failed to create offer: " + err)));
+    const cleanup = () => {
+      pc.removeEventListener("icecandidate", handleIceCandidate);
+      pc.removeEventListener(
+        "icegatheringstatechange",
+        handleIceGatheringStateChange
+      );
+      if (debounceTimeout) clearTimeout(debounceTimeout);
+      if (overallTimeout) clearTimeout(overallTimeout);
+    };
 
-    setTimeout(() => {
-      if (pc.localDescription) {
-        resolve(pc.localDescription.sdp);
-      } else {
-        reject(new Error("Failed to generate offer within timeout."));
+    const handleIceCandidate = (e: RTCPeerConnectionIceEvent) => {
+      console.log("icecandidate", e.candidate?.type, e.candidate?.address);
+      // Note: The debounce logic is now handled conditionally below
+
+      // Check if this is the first srflx or relay candidate
+      if (
+        !hasSeenSrflxOrRelay &&
+        e.candidate &&
+        typeof e.candidate.type === "string" &&
+        ["srflx", "relay"].includes(e.candidate.type)
+      ) {
+        console.log(
+          "First srflx/relay candidate seen. Starting debounce mechanism."
+        );
+        hasSeenSrflxOrRelay = true;
       }
-    }, timeout);
+
+      // Only run the debounce logic if we've seen the first relevant candidate AND the current candidate is non-null
+      if (hasSeenSrflxOrRelay && e.candidate) {
+        // Clear any existing debounce timer
+        if (debounceTimeout) {
+          clearTimeout(debounceTimeout);
+        }
+        // Start a new debounce timer
+        debounceTimeout = setTimeout(() => {
+          console.log(`ICE debounced after ${debounceMs}ms (helper).`);
+          cleanup();
+          resolve(); // Resolve after debounce period without new candidates
+        }, debounceMs);
+      } else if (!e.candidate) {
+        // Null candidate signifies the end marker, but we rely on 'complete' state.
+        console.log(
+          "Null candidate received (helper), end of candidates marker."
+        );
+      }
+    };
+
+    const handleIceGatheringStateChange = () => {
+      console.log("icegatheringstatechange (helper)", pc.iceGatheringState);
+      if (pc.iceGatheringState === "complete") {
+        if (debounceTimeout) {
+          clearTimeout(debounceTimeout); // Don't need debounce if already complete
+          debounceTimeout = null;
+        }
+        console.log("ICE gathering complete (helper).");
+        cleanup();
+        resolve(); // Resolve immediately on completion
+      }
+    };
+
+    // Add the listeners
+    pc.addEventListener("icecandidate", handleIceCandidate);
+    pc.addEventListener(
+      "icegatheringstatechange",
+      handleIceGatheringStateChange
+    );
+
+    // Overall timeout
+    overallTimeout = setTimeout(() => {
+      console.warn("ICE gathering timed out (helper).");
+      cleanup();
+      // Resolve even on timeout, letting the caller (getOffer) check pc.localDescription.
+      resolve();
+    }, overallTimeoutMs);
+
+    // Initial check in case gathering is already complete
+    if (pc.iceGatheringState === "complete") {
+      console.log("ICE already complete on helper start.");
+      cleanup();
+      resolve();
+    }
   });
 }
