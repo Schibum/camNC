@@ -77,6 +77,46 @@ export function ServeWebtorrentQR({ webtorrent }: { webtorrent: string }) {
   return <SVG text={`${SERVE_URL}?share=${share}&pwd=${pwd}`} />;
 }
 
+// Hack, poll for video resolution changes.
+function useVideoResolution(
+  videoRef: React.RefObject<HTMLVideoElement | null>
+) {
+  const [videoResolution, setVideoResolution] = useState<{
+    width: number;
+    height: number;
+  }>({ width: 0, height: 0 });
+
+  useEffect(() => {
+    if (!videoRef.current) return;
+
+    const updateResolution = () => {
+      if (videoRef.current) {
+        setVideoResolution({
+          width: videoRef.current.videoWidth,
+          height: videoRef.current.videoHeight,
+        });
+      }
+    };
+
+    // Initial check
+    updateResolution();
+
+    // Set up event listener for when video metadata is loaded
+    const video = videoRef.current;
+    video.addEventListener("loadedmetadata", updateResolution);
+
+    // Poll for resolution changes
+    const intervalId = setInterval(updateResolution, 1000);
+
+    return () => {
+      video.removeEventListener("loadedmetadata", updateResolution);
+      clearInterval(intervalId);
+    };
+  }, [videoRef]);
+
+  return videoResolution;
+}
+
 export function ConnectForm({
   onConnect,
 }: {
@@ -172,11 +212,8 @@ export function ConnectForm({
 function RouteComponent() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isOverlayVisible, setIsOverlayVisible] = useState(true);
-  const [videoResolution, setVideoResolution] = useState<{
-    width: number;
-    height: number;
-  }>({ width: 0, height: 0 });
   const [codecInfo, setCodecInfo] = useState<string | null>(null);
+  const videoResolution = useVideoResolution(videoRef);
 
   const onConnect = async (values: ParsedValues, preferredCodec?: string) => {
     console.log("connecting", values);
@@ -201,11 +238,6 @@ function RouteComponent() {
       videoTrack?.addEventListener("unmute", () => {
         const settings = videoTrack?.getSettings();
         console.log("video track settings", settings);
-        if (!settings || !settings.width || !settings.height) return;
-        setVideoResolution({
-          width: settings.width,
-          height: settings.height,
-        });
       });
       console.log("got stream", stream, videoRef.current);
       if (videoRef.current) {
@@ -217,21 +249,6 @@ function RouteComponent() {
       console.error("error", error);
     }
   };
-
-  useEffect(() => {
-    if (videoRef.current) {
-      const vid = videoRef.current;
-      if (vid.videoWidth && vid.videoHeight) {
-        setVideoResolution({ width: vid.videoWidth, height: vid.videoHeight });
-      }
-      vid.addEventListener("loadedmetadata", () => {
-        setVideoResolution({
-          width: vid.videoWidth,
-          height: vid.videoHeight,
-        });
-      });
-    }
-  }, []);
 
   return (
     <div className="relative min-h-screen overflow-hidden">
