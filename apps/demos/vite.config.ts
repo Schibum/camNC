@@ -24,6 +24,10 @@ export default defineConfig(({ command, ...params }) => {
   ];
   // if (command !== 'serve') plugins.push(viteSingleFile());
   return {
+    build: {
+      // needed for next-qrcode
+      commonjsOptions: { transformMixedEsModules: true },
+    },
     plugins,
     server: {
       allowedHosts: [

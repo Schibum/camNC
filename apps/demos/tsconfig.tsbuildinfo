@@ -1,0 +1,1 @@
+{"root":["./vite.config.ts","./src/routetree.gen.ts","./src/vite-env.d.ts","./src/main.tsx","./src/routes/__root.tsx","./src/routes/camera-calibration.tsx","./src/routes/go2webrtc.tsx","./src/routes/serve-webrtc.tsx"],"version":"5.8.3"}

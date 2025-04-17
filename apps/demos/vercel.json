@@ -16,7 +16,7 @@
     }
   ],
   "installCommand": "pnpm install",
-  "buildCommand": "pnpm build",
+  "buildCommand": "turbo build",
   "rewrites": [
     {
       "source": "/(.*)",
