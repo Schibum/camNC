@@ -1,6 +1,10 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createFileRoute } from "@tanstack/react-router";
 import { CodecName, connect } from "@wbcnc/go2webrtc/client";
+import {
+  genRandomWebtorrent,
+  parseConnectionString,
+} from "@wbcnc/go2webrtc/url-helpers";
 import { Button } from "@wbcnc/ui/components/button";
 import {
   Form,
@@ -52,42 +56,7 @@ const formSchema = z.object({
 });
 
 type FormValues = z.infer<typeof formSchema>;
-type ParsedValues = { shareName: string; password: string };
-
-function parseConnectionString(connectionString: string): ParsedValues | null {
-  try {
-    if (!connectionString.startsWith("webtorrent:?")) {
-      return null;
-    }
-    const params = new URLSearchParams(
-      connectionString.substring("webtorrent:?".length)
-    );
-    const shareName = params.get("share");
-    const password = params.get("pwd");
-    if (shareName && password) {
-      return { shareName, password };
-    }
-    return null;
-  } catch (e) {
-    return null;
-  }
-}
-
-function ServeQRCode({ webtorrent }: { webtorrent: string }) {
-  const parsed = parseConnectionString(webtorrent);
-  const { SVG } = useQRCode();
-  if (!parsed) {
-    return null;
-  }
-  const { shareName, password } = parsed;
-  return <SVG text={`${SERVE_URL}?share=${shareName}&pwd=${password}`} />;
-}
-
-function genRandomWebtorrent() {
-  const share = Math.random().toString(36).substring(2, 15);
-  const pwd = Math.random().toString(36).substring(2, 15);
-  return `webtorrent:?share=${share}&pwd=${pwd}`;
-}
+type ParsedValues = { share: string; pwd: string };
 
 function getDefaultTorrent() {
   let torrent = localStorage.webtorrent;
@@ -96,6 +65,16 @@ function getDefaultTorrent() {
     localStorage.webtorrent = torrent;
   }
   return torrent;
+}
+
+export function ServeWebtorrentQR({ webtorrent }: { webtorrent: string }) {
+  const parsed = parseConnectionString(webtorrent);
+  const { SVG } = useQRCode();
+  if (!parsed) {
+    return null;
+  }
+  const { share, pwd } = parsed;
+  return <SVG text={`${SERVE_URL}?share=${share}&pwd=${pwd}`} />;
 }
 
 export function ConnectForm({
@@ -184,7 +163,7 @@ export function ConnectForm({
             Random
           </Button>
         </div>
-        <ServeQRCode webtorrent={form.watch("connectionString")} />
+        <ServeWebtorrentQR webtorrent={form.watch("connectionString")} />
       </form>
     </Form>
   );
@@ -203,8 +182,8 @@ function RouteComponent() {
     console.log("connecting", values);
     try {
       const stream = await connect({
-        share: values.shareName,
-        pwd: values.password,
+        share: values.share,
+        pwd: values.pwd,
         onStatusUpdate(update) {
           console.log("status update", update);
           toast.info("Status", {
