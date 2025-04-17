@@ -2,9 +2,8 @@
   "name": "@wbcnc/chessboard",
   "version": "1.0.0",
   "private": true,
-  "dependencies": {},
   "devDependencies": {
-    "serve": "^14.0.1"
+    "serve": "^14.2.4"
   },
   "scripts": {
     "dev": "serve",

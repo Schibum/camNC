@@ -116,4 +116,3 @@ export function useUnmapTextures(): [THREE.DataTexture, THREE.DataTexture] {
     return [placeholderX, placeholderY];
   }, [videoDimensions, calibrationData]);
 }
-
