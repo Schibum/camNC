@@ -11,13 +11,13 @@
 // Import Routes
 
 import { Route as rootRoute } from './routes/__root'
-import { Route as IndexImport } from './routes/index'
+import { Route as WebtorrentImport } from './routes/webtorrent'
 
 // Create/Update Routes
 
-const IndexRoute = IndexImport.update({
-  id: '/',
-  path: '/',
+const WebtorrentRoute = WebtorrentImport.update({
+  id: '/webtorrent',
+  path: '/webtorrent',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -25,11 +25,11 @@ const IndexRoute = IndexImport.update({
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexImport
+    '/webtorrent': {
+      id: '/webtorrent'
+      path: '/webtorrent'
+      fullPath: '/webtorrent'
+      preLoaderRoute: typeof WebtorrentImport
       parentRoute: typeof rootRoute
     }
   }
@@ -38,33 +38,33 @@ declare module '@tanstack/react-router' {
 // Create and export the route tree
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
+  '/webtorrent': typeof WebtorrentRoute
 }
 
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
+  '/webtorrent': typeof WebtorrentRoute
 }
 
 export interface FileRoutesById {
   __root__: typeof rootRoute
-  '/': typeof IndexRoute
+  '/webtorrent': typeof WebtorrentRoute
 }
 
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/webtorrent'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/webtorrent'
+  id: '__root__' | '/webtorrent'
   fileRoutesById: FileRoutesById
 }
 
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
+  WebtorrentRoute: typeof WebtorrentRoute
 }
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
+  WebtorrentRoute: WebtorrentRoute,
 }
 
 export const routeTree = rootRoute
@@ -77,11 +77,11 @@ export const routeTree = rootRoute
     "__root__": {
       "filePath": "__root.tsx",
       "children": [
-        "/"
+        "/webtorrent"
       ]
     },
-    "/": {
-      "filePath": "index.tsx"
+    "/webtorrent": {
+      "filePath": "webtorrent.tsx"
     }
   }
 }

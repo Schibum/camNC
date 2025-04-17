@@ -29,7 +29,7 @@ export const Route = createFileRoute("/go2webrtc")({
   component: RouteComponent,
 });
 
-const SERVE_URL = "https://present-toolpath-webrtc-cam.vercel.app/";
+const SERVE_URL = "https://present-toolpath-webrtc-cam.vercel.app/webtorrent";
 
 const formSchema = z.object({
   connectionString: z.string().refine(
