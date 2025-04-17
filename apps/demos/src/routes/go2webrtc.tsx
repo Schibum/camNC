@@ -125,8 +125,6 @@ export function ConnectForm({
         "Invalid connection string passed submit validation:",
         values.connectionString
       );
-      // Optionally set a form error
-      // form.setError("connectionString", { type: "manual", message: "Invalid format." });
     }
   }
 
@@ -145,6 +143,7 @@ export function ConnectForm({
               <FormControl>
                 <Input placeholder="webtorrent:?share=...&pwd=..." {...field} />
               </FormControl>
+
               <FormDescription>
                 Paste the full connection string.
               </FormDescription>
@@ -285,7 +284,7 @@ function RouteComponent() {
         <video
           ref={videoRef}
           controls
-          className="w-screen h-screen object-cover"
+          className="w-screen h-screen object-contain"
         />
       </div>
     </div>
