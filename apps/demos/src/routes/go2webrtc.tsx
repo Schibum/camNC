@@ -1,10 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-
-export const Route = createFileRoute("/go2webrtc")({
-  component: RouteComponent,
-});
-
 import { zodResolver } from "@hookform/resolvers/zod";
+import { createFileRoute } from "@tanstack/react-router";
 import { CodecName, connect } from "@wbcnc/go2webrtc/client";
 import { Button } from "@wbcnc/ui/components/button";
 import {
@@ -29,6 +24,12 @@ import { useQRCode } from "next-qrcode";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+
+export const Route = createFileRoute("/go2webrtc")({
+  component: RouteComponent,
+});
+
+const SERVE_URL = "https://present-toolpath-webrtc-cam.vercel.app/";
 
 const formSchema = z.object({
   connectionString: z.string().refine(
@@ -79,7 +80,22 @@ function ServeQRCode({ webtorrent }: { webtorrent: string }) {
     return null;
   }
   const { shareName, password } = parsed;
-  return <SVG text={`webtorrent:?share=${shareName}&pwd=${password}`} />;
+  return <SVG text={`${SERVE_URL}?share=${shareName}&pwd=${password}`} />;
+}
+
+function genRandomWebtorrent() {
+  const share = Math.random().toString(36).substring(2, 15);
+  const pwd = Math.random().toString(36).substring(2, 15);
+  return `webtorrent:?share=${share}&pwd=${pwd}`;
+}
+
+function getDefaultTorrent() {
+  let torrent = localStorage.webtorrent;
+  if (!torrent) {
+    torrent = genRandomWebtorrent();
+    localStorage.webtorrent = torrent;
+  }
+  return torrent;
 }
 
 export function ConnectForm({
@@ -90,11 +106,16 @@ export function ConnectForm({
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      connectionString: "",
+      connectionString: getDefaultTorrent(),
     },
   });
 
+  function onNewRandomTorrent() {
+    form.setValue("connectionString", genRandomWebtorrent());
+  }
+
   function onSubmit(values: FormValues) {
+    localStorage.webtorrent = values.connectionString;
     const parsed = parseConnectionString(values.connectionString);
     if (parsed) {
       onConnect(parsed, values.preferredCodec);
@@ -154,8 +175,17 @@ export function ConnectForm({
             </FormItem>
           )}
         />
-        <Button type="submit">Connect</Button>
-        <ServeQRCode webtorrent={form.getValues().connectionString} />
+        <div className="flex gap-2">
+          <Button type="submit">Connect</Button>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onNewRandomTorrent}
+          >
+            Random
+          </Button>
+        </div>
+        <ServeQRCode webtorrent={form.watch("connectionString")} />
       </form>
     </Form>
   );
