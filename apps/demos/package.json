@@ -12,11 +12,13 @@
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
     "@tanstack/router-plugin": "^1.116.1",
+    "@tanstack/zod-adapter": "^1.116.0",
     "@wbcnc/camera-calibration": "workspace:*",
     "@wbcnc/go2webrtc": "workspace:*",
     "@wbcnc/load-opencv": "workspace:*",
     "@wbcnc/ui": "workspace:*",
     "lucide-react": "^0.488.0",
+    "next-qrcode": "^2.5.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-hook-form": "^7.55.0",

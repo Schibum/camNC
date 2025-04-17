@@ -1,10 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { zodValidator } from "@tanstack/zod-adapter";
 import { PersistentWebRTCServer, ServerOptions } from "@wbcnc/go2webrtc/server";
 import { useWakeLock } from "@wbcnc/ui/hooks/use-wakelook";
 import { useEffect, useState } from "react";
+import { z } from "zod";
+
+const searchSchema = z.object({
+  share: z.string().catch("test"),
+  pwd: z.string().catch("test"),
+});
 
 export const Route = createFileRoute("/serve-webrtc")({
   component: RouteComponent,
+  validateSearch: zodValidator(searchSchema),
 });
 
 const streamFactory = async () => {
@@ -39,10 +47,11 @@ function useWebRTCServer(options: ServerOptions) {
 }
 
 function RouteComponent() {
+  const { share, pwd } = Route.useSearch();
   const [status, setStatus] = useState<string>("idle");
   useWebRTCServer({
-    share: "test",
-    pwd: "test",
+    share,
+    pwd,
     streamFactory: streamFactory,
     onStatusUpdate: (status) => setStatus(status),
   }); // Use the custom hook

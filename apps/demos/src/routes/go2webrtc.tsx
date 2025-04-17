@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@wbcnc/ui/components/select";
 import { toast } from "@wbcnc/ui/components/sonner";
+import { useQRCode } from "next-qrcode";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -69,6 +70,16 @@ function parseConnectionString(connectionString: string): ParsedValues | null {
   } catch (e) {
     return null;
   }
+}
+
+function ServeQRCode({ webtorrent }: { webtorrent: string }) {
+  const parsed = parseConnectionString(webtorrent);
+  const { SVG } = useQRCode();
+  if (!parsed) {
+    return null;
+  }
+  const { shareName, password } = parsed;
+  return <SVG text={`webtorrent:?share=${shareName}&pwd=${password}`} />;
 }
 
 export function ConnectForm({
@@ -144,6 +155,7 @@ export function ConnectForm({
           )}
         />
         <Button type="submit">Connect</Button>
+        <ServeQRCode webtorrent={form.getValues().connectionString} />
       </form>
     </Form>
   );
