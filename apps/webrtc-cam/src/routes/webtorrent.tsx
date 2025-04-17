@@ -1,8 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { zodValidator } from "@tanstack/zod-adapter";
 import { PersistentWebRTCServer, ServerOptions } from "@wbcnc/go2webrtc/server";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@wbcnc/ui/components/alert";
 import { Button } from "@wbcnc/ui/components/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@wbcnc/ui/components/card";
 import { useWakeLock } from "@wbcnc/ui/hooks/use-wakelook";
+import { AlertTriangle } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { z } from "zod";
@@ -77,19 +89,42 @@ function RtcServer({ share, pwd }: { share: string; pwd: string }) {
   const cameraName = useCameraName();
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-2">
-        Serving Camera via Webtorrent/WebRTC
-      </h1>
-      <p>Camera: {cameraName}</p>
-      <p>Wake Lock: {wakeLock ? "active" : "inactive"}</p>
-      <p>Connection Status: {status}</p>
-      {!wakeLock && (
-        <Button onClick={requestWakeLock}>Request Wake Lock</Button>
-      )}
-      {/* <p>Share: {share}</p>
-      <p>Pwd: {pwd}</p> */}
-    </div>
+    <Card className="w-full max-w-md mx-auto mt-10">
+      <CardHeader>
+        <CardTitle className="text-2xl font-bold text-center">
+          WebRTC Camera Stream
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p>
+          <span className="font-semibold">Camera:</span> {cameraName}
+        </p>
+        <p>
+          <span className="font-semibold">Connection Status:</span> {status}
+        </p>
+
+        {!wakeLock ? (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Wake Lock Inactive</AlertTitle>
+            <AlertDescription>
+              To prevent the screen from turning off during streaming, please
+              activate the wake lock.
+              <Button onClick={requestWakeLock} className="mt-2">
+                Request Wake Lock
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <p>
+            <span className="font-semibold">Wake Lock:</span> Active
+          </p>
+        )}
+
+        {/* <p>Share: {share}</p>
+            <p>Pwd: {pwd}</p> */}
+      </CardContent>
+    </Card>
   );
 }
 
