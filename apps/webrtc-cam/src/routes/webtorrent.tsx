@@ -66,7 +66,7 @@ function useCameraName() {
 
 function RtcServer({ share, pwd }: { share: string; pwd: string }) {
   const [status, setStatus] = useState<string>("idle");
-  useWakeLock();
+  const wakeLock = useWakeLock();
   useWebRTCServer({
     share,
     pwd,
@@ -81,7 +81,8 @@ function RtcServer({ share, pwd }: { share: string; pwd: string }) {
         Serving Camera via Webtorrent/WebRTC
       </h1>
       <p>Camera: {cameraName}</p>
-      <p>Status: {status}</p>
+      <p>Wake Lock: {wakeLock ? "active" : "inactive"}</p>
+      <p>Connection Status: {status}</p>
       {/* <p>Share: {share}</p>
       <p>Pwd: {pwd}</p> */}
     </div>
