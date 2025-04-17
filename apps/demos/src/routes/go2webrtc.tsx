@@ -74,7 +74,12 @@ export function ServeWebtorrentQR({ webtorrent }: { webtorrent: string }) {
     return null;
   }
   const { share, pwd } = parsed;
-  return <SVG text={`${SERVE_URL}?share=${share}&pwd=${pwd}`} />;
+  const params = new URLSearchParams({
+    share,
+    pwd,
+  });
+  const url = `${SERVE_URL}?${params.toString()}`;
+  return <SVG text={url} />;
 }
 
 // Hack, poll for video resolution changes.

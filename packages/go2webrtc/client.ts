@@ -110,6 +110,9 @@ export async function connect(options: ConnectOptions): Promise<MediaStream> {
 
           ws.close();
           reportStatus("connected");
+          pc.addEventListener("connectionstatechange", () => {
+            console.log("connectionstatechange", pc.connectionState);
+          });
           pollCodecInfo(pc).then((info) => {
             if (options.onCodecInfo && info) options.onCodecInfo(info);
           });

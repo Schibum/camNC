@@ -186,6 +186,9 @@ importers:
       '@wbcnc/camera-calibration':
         specifier: workspace:*
         version: link:../../packages/camera-calibration
+      '@wbcnc/go2webrtc':
+        specifier: workspace:*
+        version: link:../../packages/go2webrtc
       '@wbcnc/load-opencv':
         specifier: workspace:*
         version: link:../../packages/load-opencv

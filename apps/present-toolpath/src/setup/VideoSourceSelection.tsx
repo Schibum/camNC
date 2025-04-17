@@ -1,3 +1,4 @@
+import { generatePassword, genRandomWebtorrent, parseConnectionString } from '@wbcnc/go2webrtc/url-helpers';
 import { Button } from '@wbcnc/ui/components/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@wbcnc/ui/components/card';
 import { InputWithLabel } from '@wbcnc/ui/components/InputWithLabel';
@@ -9,14 +10,7 @@ import { useQRCode } from 'next-qrcode';
 import { useEffect, useRef, useState } from 'react';
 import { stringify } from 'yaml';
 
-function generatePassword(length: number = 16) {
-  const characterSet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_-+=';
-  const randomValues = new Uint8Array(length);
-  crypto.getRandomValues(randomValues);
-  return Array.from(randomValues)
-    .map(byte => characterSet[byte % characterSet.length])
-    .join('');
-}
+const SERVE_URL = 'https://present-toolpath-webrtc-cam.vercel.app/webtorrent';
 
 function Rtc2TGoTab() {
   const [shareName, setShareName] = useState<string>('');
@@ -199,8 +193,27 @@ function WebcamTab() {
   );
 }
 
+function ServeWebtorrentQR({ webtorrent }: { webtorrent: string }) {
+  const { SVG } = useQRCode();
+  const parsed = parseConnectionString(webtorrent);
+  if (!parsed) {
+    return null;
+  }
+  const params = new URLSearchParams({
+    share: parsed.share,
+    pwd: parsed.pwd,
+  });
+  const url = `${SERVE_URL}?${params.toString()}`;
+  return <SVG text={url} />;
+}
+
 function PhoneTab() {
   const { SVG } = useQRCode();
+  const [webtorrent, setWebtorrent] = useState<string>('');
+  useEffect(() => {
+    setWebtorrent(genRandomWebtorrent());
+  }, []);
+
   return (
     <Card>
       <CardHeader>
@@ -209,7 +222,7 @@ function PhoneTab() {
       </CardHeader>
       <CardContent>
         <div className="w-[200px] h-[200px]">
-          <SVG text="https://webrtc.github.io/samples/src/content/getusermedia/gum-scanning-qr-code/" />
+          <ServeWebtorrentQR webtorrent={webtorrent} />
         </div>
       </CardContent>
     </Card>

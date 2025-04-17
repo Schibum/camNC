@@ -20,11 +20,25 @@ export function parseConnectionString(
 }
 
 export function buildWebtorrentUrl(shareName: string, password: string) {
-  return `webtorrent:?share=${shareName}&pwd=${password}`;
+  let params = new URLSearchParams({
+    share: shareName,
+    pwd: password,
+  });
+  return `webtorrent:?${params.toString()}`;
 }
 
 export function genRandomWebtorrent() {
-  const share = Math.random().toString(36).substring(2, 15);
-  const pwd = Math.random().toString(36).substring(2, 15);
+  const share = generatePassword(16);
+  const pwd = generatePassword(16);
   return buildWebtorrentUrl(share, pwd);
+}
+
+export function generatePassword(length: number = 16) {
+  const characterSet =
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.~";
+  const randomValues = new Uint8Array(length);
+  crypto.getRandomValues(randomValues);
+  return Array.from(randomValues)
+    .map((byte) => characterSet[byte % characterSet.length])
+    .join("");
 }
