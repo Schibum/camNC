@@ -1,9 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 export function useWakeLock() {
   const [wakeLock, setWakeLock] = useState<WakeLockSentinel | null>(null);
-  useEffect(() => {
-    // let wakeLock: WakeLockSentinel | null = null;
+  const requestWakeLock = useCallback(() => {
     navigator.wakeLock.request("screen").then((wl) => {
       console.log("got wake lock");
       setWakeLock(wl);
@@ -18,5 +17,8 @@ export function useWakeLock() {
       }
     };
   }, []);
-  return wakeLock;
+  useEffect(() => {
+    requestWakeLock();
+  }, [requestWakeLock]);
+  return { wakeLock, requestWakeLock };
 }

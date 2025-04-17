@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { zodValidator } from "@tanstack/zod-adapter";
 import { PersistentWebRTCServer, ServerOptions } from "@wbcnc/go2webrtc/server";
+import { Button } from "@wbcnc/ui/components/button";
 import { useWakeLock } from "@wbcnc/ui/hooks/use-wakelook";
 import { useEffect, useState } from "react";
 
@@ -66,7 +67,7 @@ function useCameraName() {
 
 function RtcServer({ share, pwd }: { share: string; pwd: string }) {
   const [status, setStatus] = useState<string>("idle");
-  const wakeLock = useWakeLock();
+  const { wakeLock, requestWakeLock } = useWakeLock();
   useWebRTCServer({
     share,
     pwd,
@@ -83,6 +84,9 @@ function RtcServer({ share, pwd }: { share: string; pwd: string }) {
       <p>Camera: {cameraName}</p>
       <p>Wake Lock: {wakeLock ? "active" : "inactive"}</p>
       <p>Connection Status: {status}</p>
+      {!wakeLock && (
+        <Button onClick={requestWakeLock}>Request Wake Lock</Button>
+      )}
       {/* <p>Share: {share}</p>
       <p>Pwd: {pwd}</p> */}
     </div>
