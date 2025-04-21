@@ -12,6 +12,9 @@
   "packageManager": "pnpm@10.7.0",
   "dependencies": {
     "@techstark/opencv-js": "4.10.0-release.1",
+    "@types/react": "^19.1.2",
+    "react": "^19.1.0",
+    "trystero": "^0.21.3",
     "vitest": "^3.1.1"
   }
 }

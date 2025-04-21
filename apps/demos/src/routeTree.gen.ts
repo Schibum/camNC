@@ -12,6 +12,8 @@
 
 import { Route as rootRoute } from './routes/__root'
 import { Route as ServeWebrtcImport } from './routes/serve-webrtc'
+import { Route as ServeTrysteroImport } from './routes/serve-trystero'
+import { Route as PlayTrysteroImport } from './routes/play-trystero'
 import { Route as Go2webrtcImport } from './routes/go2webrtc'
 import { Route as CameraCalibrationImport } from './routes/camera-calibration'
 
@@ -20,6 +22,18 @@ import { Route as CameraCalibrationImport } from './routes/camera-calibration'
 const ServeWebrtcRoute = ServeWebrtcImport.update({
   id: '/serve-webrtc',
   path: '/serve-webrtc',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const ServeTrysteroRoute = ServeTrysteroImport.update({
+  id: '/serve-trystero',
+  path: '/serve-trystero',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const PlayTrysteroRoute = PlayTrysteroImport.update({
+  id: '/play-trystero',
+  path: '/play-trystero',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -53,6 +67,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Go2webrtcImport
       parentRoute: typeof rootRoute
     }
+    '/play-trystero': {
+      id: '/play-trystero'
+      path: '/play-trystero'
+      fullPath: '/play-trystero'
+      preLoaderRoute: typeof PlayTrysteroImport
+      parentRoute: typeof rootRoute
+    }
+    '/serve-trystero': {
+      id: '/serve-trystero'
+      path: '/serve-trystero'
+      fullPath: '/serve-trystero'
+      preLoaderRoute: typeof ServeTrysteroImport
+      parentRoute: typeof rootRoute
+    }
     '/serve-webrtc': {
       id: '/serve-webrtc'
       path: '/serve-webrtc'
@@ -68,12 +96,16 @@ declare module '@tanstack/react-router' {
 export interface FileRoutesByFullPath {
   '/camera-calibration': typeof CameraCalibrationRoute
   '/go2webrtc': typeof Go2webrtcRoute
+  '/play-trystero': typeof PlayTrysteroRoute
+  '/serve-trystero': typeof ServeTrysteroRoute
   '/serve-webrtc': typeof ServeWebrtcRoute
 }
 
 export interface FileRoutesByTo {
   '/camera-calibration': typeof CameraCalibrationRoute
   '/go2webrtc': typeof Go2webrtcRoute
+  '/play-trystero': typeof PlayTrysteroRoute
+  '/serve-trystero': typeof ServeTrysteroRoute
   '/serve-webrtc': typeof ServeWebrtcRoute
 }
 
@@ -81,27 +113,49 @@ export interface FileRoutesById {
   __root__: typeof rootRoute
   '/camera-calibration': typeof CameraCalibrationRoute
   '/go2webrtc': typeof Go2webrtcRoute
+  '/play-trystero': typeof PlayTrysteroRoute
+  '/serve-trystero': typeof ServeTrysteroRoute
   '/serve-webrtc': typeof ServeWebrtcRoute
 }
 
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/camera-calibration' | '/go2webrtc' | '/serve-webrtc'
+  fullPaths:
+    | '/camera-calibration'
+    | '/go2webrtc'
+    | '/play-trystero'
+    | '/serve-trystero'
+    | '/serve-webrtc'
   fileRoutesByTo: FileRoutesByTo
-  to: '/camera-calibration' | '/go2webrtc' | '/serve-webrtc'
-  id: '__root__' | '/camera-calibration' | '/go2webrtc' | '/serve-webrtc'
+  to:
+    | '/camera-calibration'
+    | '/go2webrtc'
+    | '/play-trystero'
+    | '/serve-trystero'
+    | '/serve-webrtc'
+  id:
+    | '__root__'
+    | '/camera-calibration'
+    | '/go2webrtc'
+    | '/play-trystero'
+    | '/serve-trystero'
+    | '/serve-webrtc'
   fileRoutesById: FileRoutesById
 }
 
 export interface RootRouteChildren {
   CameraCalibrationRoute: typeof CameraCalibrationRoute
   Go2webrtcRoute: typeof Go2webrtcRoute
+  PlayTrysteroRoute: typeof PlayTrysteroRoute
+  ServeTrysteroRoute: typeof ServeTrysteroRoute
   ServeWebrtcRoute: typeof ServeWebrtcRoute
 }
 
 const rootRouteChildren: RootRouteChildren = {
   CameraCalibrationRoute: CameraCalibrationRoute,
   Go2webrtcRoute: Go2webrtcRoute,
+  PlayTrysteroRoute: PlayTrysteroRoute,
+  ServeTrysteroRoute: ServeTrysteroRoute,
   ServeWebrtcRoute: ServeWebrtcRoute,
 }
 
@@ -117,6 +171,8 @@ export const routeTree = rootRoute
       "children": [
         "/camera-calibration",
         "/go2webrtc",
+        "/play-trystero",
+        "/serve-trystero",
         "/serve-webrtc"
       ]
     },
@@ -125,6 +181,12 @@ export const routeTree = rootRoute
     },
     "/go2webrtc": {
       "filePath": "go2webrtc.tsx"
+    },
+    "/play-trystero": {
+      "filePath": "play-trystero.tsx"
+    },
+    "/serve-trystero": {
+      "filePath": "serve-trystero.tsx"
     },
     "/serve-webrtc": {
       "filePath": "serve-webrtc.tsx"
