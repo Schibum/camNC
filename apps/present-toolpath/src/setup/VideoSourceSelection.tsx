@@ -1,10 +1,11 @@
-import { generatePassword, genRandomWebtorrent, parseConnectionString } from '@wbcnc/go2webrtc/url-helpers';
+import { buildWebtorrentUrl, generatePassword, genRandomWebtorrent, parseConnectionString } from '@wbcnc/go2webrtc/url-helpers';
 import { Button } from '@wbcnc/ui/components/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@wbcnc/ui/components/card';
 import { InputWithLabel } from '@wbcnc/ui/components/InputWithLabel';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wbcnc/ui/components/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@wbcnc/ui/components/tabs';
 import { Textarea } from '@wbcnc/ui/components/textarea';
+import { atom, Provider, useAtom } from 'jotai';
 import { ExternalLink } from 'lucide-react';
 import { useQRCode } from 'next-qrcode';
 import { useEffect, useRef, useState } from 'react';
@@ -12,9 +13,33 @@ import { stringify } from 'yaml';
 
 const SERVE_URL = 'https://present-toolpath-webrtc-cam.vercel.app/webtorrent';
 
+const sourceTypeAtom = atom<string>('rtc2go');
+
+const shareNameAtom = atom<string>('');
+const passwordAtom = atom<string>('');
+const phoneTorrentAtom = atom<string>(genRandomWebtorrent());
+const urlAtom = atom<string>('');
+const webcamDeviceIdAtom = atom<string | undefined>(undefined);
+
+const combinedUrlAtom = atom<string>(get => {
+  const sourceType = get(sourceTypeAtom);
+  switch (sourceType) {
+    case 'webcam':
+      return `webcam:${get(webcamDeviceIdAtom)}`;
+    case 'phone':
+      return get(phoneTorrentAtom);
+    case 'rtc2go':
+      return buildWebtorrentUrl(get(shareNameAtom), get(passwordAtom));
+    case 'url':
+      return get(urlAtom);
+    default:
+      throw new Error(`Unknown source type: ${sourceType}`);
+  }
+});
+
 function Rtc2TGoTab() {
-  const [shareName, setShareName] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
+  const [shareName, setShareName] = useAtom(shareNameAtom);
+  const [password, setPassword] = useAtom(passwordAtom);
   // const [tracker, setTracker] = useState('wss://tracker.openwebtorrent.com');
 
   function onGenerateRandom() {
@@ -140,7 +165,7 @@ function WebcamPreview({ deviceId }: WebcamPreviewProps) {
 
 function WebcamTab() {
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string | undefined>(undefined);
+  const [selectedDeviceId, setSelectedDeviceId] = useAtom(webcamDeviceIdAtom);
 
   // Get initial list of devices
   useEffect(() => {
@@ -160,7 +185,7 @@ function WebcamTab() {
       }
     }
     getDevices();
-  }, [selectedDeviceId]); // Rerun if selectedDeviceId was initially undefined and gets set
+  }, [selectedDeviceId, setSelectedDeviceId]); // Rerun if selectedDeviceId was initially undefined and gets set
 
   return (
     <Card>
@@ -208,11 +233,7 @@ function ServeWebtorrentQR({ webtorrent }: { webtorrent: string }) {
 }
 
 function PhoneTab() {
-  const { SVG } = useQRCode();
-  const [webtorrent, setWebtorrent] = useState<string>('');
-  useEffect(() => {
-    setWebtorrent(genRandomWebtorrent());
-  }, []);
+  const [webtorrent] = useAtom(phoneTorrentAtom);
 
   return (
     <Card>
@@ -230,7 +251,7 @@ function PhoneTab() {
 }
 
 function UrlTab() {
-  const [url, setUrl] = useState<string>('');
+  const [url, setUrl] = useAtom(urlAtom);
   return (
     <Card>
       <CardHeader>
@@ -244,27 +265,46 @@ function UrlTab() {
   );
 }
 
+function DebugType() {
+  const [sourceType] = useAtom(sourceTypeAtom);
+  console.log('sourceType', sourceType);
+  const [combinedUrl] = useAtom(combinedUrlAtom);
+  return <div>{combinedUrl}</div>;
+}
+
+export function VideoSourceTabs() {
+  const [sourceType, setSourceType] = useAtom(sourceTypeAtom);
+  return (
+    <>
+      <Tabs className="w-full" value={sourceType} onValueChange={setSourceType}>
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="webcam">Webcam</TabsTrigger>
+          <TabsTrigger value="phone">Phone</TabsTrigger>
+          <TabsTrigger value="rtc2go">IP Camera</TabsTrigger>
+          <TabsTrigger value="url">URL</TabsTrigger>
+        </TabsList>
+        <TabsContent value="webcam">
+          <WebcamTab />
+        </TabsContent>
+        <TabsContent value="phone">
+          <PhoneTab />
+        </TabsContent>
+        <TabsContent value="rtc2go">
+          <Rtc2TGoTab />
+        </TabsContent>
+        <TabsContent value="url">
+          <UrlTab />
+        </TabsContent>
+      </Tabs>
+      <DebugType />
+    </>
+  );
+}
+
 export function VideoSourceSelection() {
   return (
-    <Tabs defaultValue="rtc2go" className="w-full">
-      <TabsList className="grid w-full grid-cols-4">
-        <TabsTrigger value="webcam">Webcam</TabsTrigger>
-        <TabsTrigger value="phone">Phone</TabsTrigger>
-        <TabsTrigger value="rtc2go">IP Camera</TabsTrigger>
-        <TabsTrigger value="url">URL</TabsTrigger>
-      </TabsList>
-      <TabsContent value="webcam">
-        <WebcamTab />
-      </TabsContent>
-      <TabsContent value="phone">
-        <PhoneTab />
-      </TabsContent>
-      <TabsContent value="rtc2go">
-        <Rtc2TGoTab />
-      </TabsContent>
-      <TabsContent value="url">
-        <UrlTab />
-      </TabsContent>
-    </Tabs>
+    <Provider>
+      <VideoSourceTabs />
+    </Provider>
   );
 }
