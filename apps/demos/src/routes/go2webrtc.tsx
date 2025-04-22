@@ -204,7 +204,11 @@ export function ConnectForm({
     localStorage.go2webrtcConnectionString = values.connectionString;
     const parsed = parseConnectionString(values.connectionString);
     if (parsed) {
-      onConnect(parsed, values.method, values.preferredCodec);
+      onConnect(
+        parsed,
+        values.method,
+        values.preferredCodec === "auto" ? undefined : values.preferredCodec
+      );
     } else {
       console.error(
         "Invalid connection string passed submit validation:",
@@ -302,9 +306,7 @@ export function ConnectForm({
                     <SelectValue placeholder="Codec (Optional) " />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={undefined as unknown as string}>
-                      Auto
-                    </SelectItem>
+                    <SelectItem value="auto">Auto</SelectItem>
                     <SelectItem value="H264">H264</SelectItem>
                     <SelectItem value="VP8">VP8</SelectItem>
                     <SelectItem value="VP9">VP9</SelectItem>
