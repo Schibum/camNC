@@ -42,7 +42,6 @@ export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
     frameHeight,
     showGallery,
     setShowGallery,
-    calibrationResult,
   } = useCalibrationStore();
 
   const isFullyReady = isStreaming && frameWidth > 0 && frameHeight > 0;

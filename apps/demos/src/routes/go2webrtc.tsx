@@ -23,7 +23,7 @@ import {
 } from "@wbcnc/ui/components/select";
 import { toast } from "@wbcnc/ui/components/sonner";
 import { useQRCode } from "next-qrcode";
-import { useEffect, useRef, useState } from "react";
+import { RefObject, useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -36,45 +36,17 @@ const SERVE_URL_WEBTORRENT =
 const SERVE_URL_TRYSTERO =
   "https://present-toolpath-webrtc-cam.vercel.app/webrtc-custom";
 
-const formSchema = z
-  .object({
-    method: z.enum(["webtorrent", "webrtc+custom"]).optional(),
-    // .default("webtorrent"),
-    connectionString: z.string(),
-    preferredCodec: z.string().optional(),
-  })
-  .refine(
-    (data) => {
-      const prefix =
-        data.method === "webtorrent" ? "webtorrent:?" : "webrtc+custom://?";
-      if (!data.connectionString.startsWith(prefix)) return false;
-      try {
-        const params = new URLSearchParams(
-          data.connectionString.substring(prefix.length)
-        );
-        return params.has("share") && params.has("pwd");
-      } catch (e) {
-        return false;
-      }
-    },
-    {
-      message: "Invalid format. Expected: [method]?[share=...&pwd=...]",
-      path: ["connectionString"],
-    }
-  );
-
-type FormValues = z.infer<typeof formSchema>;
 type ParsedValues = { share: string; pwd: string };
 
-function parseConnectionString(connectionString: string): ParsedValues | null {
+function parseConnectionString(raw: string): ParsedValues | null {
   const webtorrentPrefix = "webtorrent:?";
   const trysteroPrefix = "webrtc+custom://?";
   let paramsString = "";
 
-  if (connectionString.startsWith(webtorrentPrefix)) {
-    paramsString = connectionString.substring(webtorrentPrefix.length);
-  } else if (connectionString.startsWith(trysteroPrefix)) {
-    paramsString = connectionString.substring(trysteroPrefix.length);
+  if (raw.startsWith(webtorrentPrefix)) {
+    paramsString = raw.slice(webtorrentPrefix.length);
+  } else if (raw.startsWith(trysteroPrefix)) {
+    paramsString = raw.slice(trysteroPrefix.length);
   } else {
     return null;
   }
@@ -83,26 +55,133 @@ function parseConnectionString(connectionString: string): ParsedValues | null {
     const params = new URLSearchParams(paramsString);
     const share = params.get("share");
     const pwd = params.get("pwd");
-
-    if (share && pwd) {
-      return { share, pwd };
-    }
-    return null;
-  } catch (e) {
-    console.error("Failed to parse connection string params:", e);
+    return share && pwd ? { share, pwd } : null;
+  } catch {
     return null;
   }
 }
 
+const connectionStringSchema = z
+  .string()
+  .refine((v) => parseConnectionString(v) !== null, {
+    message: "Invalid format. Expected: [prefix]?share=...&pwd=...",
+  });
+
+const formSchema = z.object({
+  method: z.enum(["webtorrent", "webrtc+custom"]).optional(),
+  // .default("webrtc+custom"),
+  connectionString: connectionStringSchema,
+  preferredCodec: z.string().optional(),
+});
+
+type FormValues = z.infer<typeof formSchema>;
+
+function useWebRTCStreaming(videoRef: RefObject<HTMLVideoElement | null>) {
+  const disconnectRef = useRef<() => Promise<void>>(undefined);
+  const [codecInfo, setCodecInfo] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      disconnectRef.current?.();
+    };
+  }, []);
+
+  const connectStream = useCallback(
+    async (
+      values: ParsedValues,
+      method: FormValues["method"],
+      preferredCodec?: string
+    ) => {
+      console.log(`connecting using ${method}`, values);
+
+      await disconnectRef.current?.();
+      disconnectRef.current = undefined;
+      setCodecInfo(null);
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+
+      const handleStream = (stream: MediaStream) => {
+        if (videoRef.current) {
+          const vid = videoRef.current;
+          vid.srcObject = stream;
+          vid.play().catch((e) => console.error("Video play failed:", e));
+
+          const videoTrack = stream.getVideoTracks()[0];
+          videoTrack?.addEventListener("unmute", () => {
+            const settings = videoTrack.getSettings();
+            console.log("video track settings", settings);
+          });
+        }
+      };
+
+      if (method === "webtorrent") {
+        try {
+          const stream = await connect({
+            share: values.share,
+            pwd: values.pwd,
+            onStatusUpdate(update) {
+              toast.info("Status", {
+                description: update,
+                duration: update === "connected" ? 3000 : Infinity,
+                id: "status-toast",
+              });
+            },
+            onCodecInfo(codec) {
+              setCodecInfo(codec);
+            },
+            preferredCodec: preferredCodec as CodecName | undefined,
+          });
+          handleStream(stream);
+        } catch (error) {
+          console.error("webtorrent connection error", error);
+          toast.error("Connection Failed", { description: String(error) });
+        }
+      } else {
+        /* webrtc+custom */
+        try {
+          const clientApi = createClient(
+            {
+              share: values.share,
+              pwd: values.pwd,
+              onStateChange: (state) => {
+                toast.info("Status", {
+                  description: `Trystero: ${state}`,
+                  duration: state === "streaming" ? 3000 : Infinity,
+                  id: "status-toast",
+                });
+              },
+            },
+            { onStream: handleStream }
+          ).connect();
+
+          setCodecInfo("");
+          disconnectRef.current = clientApi.disconnect;
+        } catch (error) {
+          console.error("trystero connection error", error);
+          toast.error("Connection Failed", { description: String(error) });
+        }
+      }
+    },
+    [videoRef]
+  );
+
+  return { connectStream, codecInfo };
+}
+
+/* ------------------------------------------------------------------ */
+
 function getDefaultTorrent() {
-  let connectionString = localStorage.go2webrtcConnectionString;
+  if (typeof window === "undefined") return ""; // SSR guard
+  let connectionString = (localStorage as any).go2webrtcConnectionString;
   if (
     !connectionString ||
     (!connectionString.startsWith("webtorrent:?") &&
       !connectionString.startsWith("webrtc+custom://?"))
   ) {
     connectionString = genRandomWebtorrent();
-    localStorage.go2webrtcConnectionString = connectionString;
+    (localStorage as any).go2webrtcConnectionString = connectionString;
   }
   return connectionString;
 }
@@ -116,32 +195,26 @@ export function ConnectionQR({
 }) {
   const parsed = parseConnectionString(connectionString);
   const { SVG } = useQRCode();
-  if (!parsed) {
-    return null;
-  }
+  if (!parsed) return null;
+
   const { share, pwd } = parsed;
-  const params = new URLSearchParams({
-    share,
-    pwd,
-  });
+  const params = new URLSearchParams({ share, pwd });
   const baseUrl =
     method === "webtorrent" ? SERVE_URL_WEBTORRENT : SERVE_URL_TRYSTERO;
   const url = `${baseUrl}?${params.toString()}`;
   return <SVG text={url} />;
 }
 
-function useVideoResolution(
-  videoRef: React.RefObject<HTMLVideoElement | null>
-) {
-  const [videoResolution, setVideoResolution] = useState<{
-    width: number;
-    height: number;
-  }>({ width: 0, height: 0 });
+function useVideoResolution(videoRef: RefObject<HTMLVideoElement | null>) {
+  const [videoResolution, setVideoResolution] = useState({
+    width: 0,
+    height: 0,
+  });
 
   useEffect(() => {
     if (!videoRef.current) return;
 
-    const updateResolution = () => {
+    const update = () => {
       if (videoRef.current) {
         setVideoResolution({
           width: videoRef.current.videoWidth,
@@ -150,16 +223,14 @@ function useVideoResolution(
       }
     };
 
-    updateResolution();
-
+    update();
     const video = videoRef.current;
-    video.addEventListener("loadedmetadata", updateResolution);
-
-    const intervalId = setInterval(updateResolution, 1000);
+    video.addEventListener("loadedmetadata", update);
+    const id = setInterval(update, 1000);
 
     return () => {
-      video.removeEventListener("loadedmetadata", updateResolution);
-      clearInterval(intervalId);
+      video.removeEventListener("loadedmetadata", update);
+      clearInterval(id);
     };
   }, [videoRef]);
 
@@ -179,29 +250,21 @@ export function ConnectForm({
     resolver: zodResolver(formSchema),
     defaultValues: {
       connectionString: getDefaultTorrent(),
-      // preferredCodec: undefined,
       method: "webrtc+custom",
-      // ...(getDefaultTorrent().startsWith("webrtc+custom://?") && {
-      //   method: "webrtc+custom" as const,
-      // }),
     },
   });
 
   const currentMethod = form.watch("method");
 
   function onNewRandomTorrent() {
-    const webtorrentBase = genRandomWebtorrent().substring(
-      "webtorrent:?".length
-    );
-    const newTorrent =
-      currentMethod === "webtorrent"
-        ? `webtorrent:?${webtorrentBase}`
-        : `webrtc+custom://?${webtorrentBase}`;
-    form.setValue("connectionString", newTorrent);
+    const base = genRandomWebtorrent().slice("webtorrent:?".length);
+    const prefix =
+      currentMethod === "webtorrent" ? "webtorrent:?" : "webrtc+custom://?";
+    form.setValue("connectionString", `${prefix}${base}`);
   }
 
   function onSubmit(values: FormValues) {
-    localStorage.go2webrtcConnectionString = values.connectionString;
+    (localStorage as any).go2webrtcConnectionString = values.connectionString;
     const parsed = parseConnectionString(values.connectionString);
     if (parsed) {
       onConnect(
@@ -209,19 +272,15 @@ export function ConnectForm({
         values.method,
         values.preferredCodec === "auto" ? undefined : values.preferredCodec
       );
-    } else {
-      console.error(
-        "Invalid connection string passed submit validation:",
-        values.connectionString
-      );
     }
   }
 
-  const connectionStringPlaceholder =
+  const placeholder =
     currentMethod === "webtorrent"
       ? "webtorrent:?share=...&pwd=..."
       : "webrtc+custom://?share=...&pwd=...";
-  const connectionStringDescription =
+
+  const description =
     currentMethod === "webtorrent"
       ? "Paste the full webtorrent connection string."
       : "Paste the full webrtc+custom connection string.";
@@ -240,19 +299,17 @@ export function ConnectForm({
               <FormLabel>Connection Method</FormLabel>
               <FormControl>
                 <Select
+                  value={field.value}
                   onValueChange={(value: string) => {
                     field.onChange(value);
-                    const currentVal = form.getValues("connectionString");
-                    const parsed = parseConnectionString(currentVal);
+                    const current = form.getValues("connectionString");
+                    const parsed = parseConnectionString(current);
                     if (parsed) {
                       const newPrefix =
                         value === "webtorrent"
                           ? "webtorrent:?"
                           : "webrtc+custom://?";
-                      const params = new URLSearchParams({
-                        share: parsed.share,
-                        pwd: parsed.pwd,
-                      }).toString();
+                      const params = new URLSearchParams(parsed).toString();
                       form.setValue(
                         "connectionString",
                         `${newPrefix}${params}`
@@ -261,7 +318,6 @@ export function ConnectForm({
                       form.setValue("connectionString", "");
                     }
                   }}
-                  value={field.value}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select a method" />
@@ -276,6 +332,7 @@ export function ConnectForm({
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="connectionString"
@@ -283,14 +340,14 @@ export function ConnectForm({
             <FormItem>
               <FormLabel>Connection String</FormLabel>
               <FormControl>
-                <Input placeholder={connectionStringPlaceholder} {...field} />
+                <Input placeholder={placeholder} {...field} />
               </FormControl>
-
-              <FormDescription>{connectionStringDescription}</FormDescription>
+              <FormDescription>{description}</FormDescription>
               <FormMessage />
             </FormItem>
           )}
         />
+
         <FormField
           control={form.control}
           name="preferredCodec"
@@ -303,7 +360,7 @@ export function ConnectForm({
                   defaultValue={field.value}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Codec (Optional) " />
+                    <SelectValue placeholder="Codec (Optional)" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="auto">Auto</SelectItem>
@@ -318,19 +375,21 @@ export function ConnectForm({
             </FormItem>
           )}
         />
+
         <div className="flex gap-2">
           <Button type="submit">Connect</Button>
           <Button
-            type="button"
             variant="secondary"
+            type="button"
             onClick={onNewRandomTorrent}
           >
             Random
           </Button>
         </div>
+
         <ConnectionQR
           method={currentMethod}
-          connectionString={form.watch("connectionString")}
+          connectionString={form.watch("connectionString") || ""}
         />
       </form>
     </Form>
@@ -340,95 +399,9 @@ export function ConnectForm({
 function RouteComponent() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isOverlayVisible, setIsOverlayVisible] = useState(true);
-  const [codecInfo, setCodecInfo] = useState<string | null>(null);
   const videoResolution = useVideoResolution(videoRef);
-  const trysteroDisconnectRef = useRef<(() => Promise<void>) | null>(null);
 
-  useEffect(() => {
-    return () => {
-      trysteroDisconnectRef.current?.();
-    };
-  }, []);
-
-  const onConnect = async (
-    values: ParsedValues,
-    method: FormValues["method"],
-    preferredCodec?: string
-  ) => {
-    console.log(`connecting using ${method}`, values);
-
-    await trysteroDisconnectRef.current?.();
-    trysteroDisconnectRef.current = null;
-    setCodecInfo(null);
-
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-
-    const handleStream = (stream: MediaStream) => {
-      console.log("got stream", stream, videoRef.current);
-      if (videoRef.current) {
-        const vid = videoRef.current;
-        vid.srcObject = stream;
-        vid.play().catch((e) => console.error("Video play failed:", e));
-
-        const videoTrack = stream.getVideoTracks()[0];
-        videoTrack?.addEventListener("unmute", () => {
-          const settings = videoTrack?.getSettings();
-          console.log("video track settings", settings);
-        });
-      }
-    };
-
-    if (method === "webtorrent") {
-      try {
-        const stream = await connect({
-          share: values.share,
-          pwd: values.pwd,
-          onStatusUpdate(update) {
-            console.log("status update", update);
-            toast.info("Status", {
-              description: update,
-              duration: update === "connected" ? 3000 : Infinity,
-              id: "status-toast",
-            });
-          },
-          onCodecInfo(codec) {
-            setCodecInfo(codec);
-          },
-          preferredCodec: preferredCodec as CodecName | undefined,
-        });
-        handleStream(stream);
-      } catch (error) {
-        console.error("webtorrent connection error", error);
-        toast.error("Connection Failed", { description: String(error) });
-      }
-    } else if (method === "webrtc+custom") {
-      try {
-        const clientApi = createClient(
-          {
-            share: values.share,
-            pwd: values.pwd,
-            onStateChange: (state) => {
-              console.log("Trystero client state:", state);
-              toast.info("Status", {
-                description: `Trystero: ${state}`,
-                duration: state === "streaming" ? 3000 : Infinity,
-                id: "status-toast",
-              });
-            },
-          },
-          { onStream: handleStream }
-        ).connect();
-        setCodecInfo("");
-
-        trysteroDisconnectRef.current = clientApi.disconnect;
-      } catch (error) {
-        console.error("trystero connection error", error);
-        toast.error("Connection Failed", { description: String(error) });
-      }
-    }
-  };
+  const { connectStream, codecInfo } = useWebRTCStreaming(videoRef);
 
   return (
     <div className="relative min-h-screen overflow-hidden">
@@ -444,10 +417,11 @@ function RouteComponent() {
           </Button>
           <div className="space-y-6">
             <h1 className="text-2xl font-semibold">Go2RTC WebRTC Demo</h1>
-            <ConnectForm onConnect={onConnect} />
+            <ConnectForm onConnect={connectStream} />
           </div>
         </div>
       )}
+
       <div className="absolute top-0 left-0 z-20 text-xs text-muted-foreground bg-background/50 rounded-br-lg p-2 flex flex-col items-start">
         <span>
           {videoResolution.width}x{videoResolution.height}
