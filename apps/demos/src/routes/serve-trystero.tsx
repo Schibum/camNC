@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { zodValidator } from "@tanstack/zod-adapter";
+import { useTrysteroServer } from "@wbcnc/go2webrtc/trystero";
 import { useWakeLock } from "@wbcnc/ui/hooks/use-wakelook";
 import { z } from "zod";
-import { useTrysteroServer } from "../../../../packages/go2webrtc/trystero-server";
 
 const searchSchema = z.object({
   share: z.string().catch("test"),
@@ -36,11 +36,11 @@ const streamFactory = async () => {
 function RouteComponent() {
   const { share, pwd } = Route.useSearch();
   console.log("share", share, "pwd", pwd);
-  useTrysteroServer({
+  const { serverState } = useTrysteroServer({
     share,
     pwd,
     streamFactory: streamFactory,
   });
   useWakeLock();
-  return <div>Hello</div>;
+  return <div>Server state: {serverState}</div>;
 }

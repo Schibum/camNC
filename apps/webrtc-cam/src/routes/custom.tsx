@@ -1,8 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { zodValidator } from "@tanstack/zod-adapter";
-import { PersistentWebRTCServer, ServerOptions } from "@wbcnc/go2webrtc/server";
-import { useEffect, useState } from "react";
-
+import { useTrysteroServer } from "@wbcnc/go2webrtc/trystero";
 import { z } from "zod";
 import { ServerCard } from "../server-card";
 import { streamFactory } from "../utils";
@@ -12,32 +10,19 @@ const searchSchema = z.object({
   pwd: z.string().min(10).catch(""),
 });
 
-export const Route = createFileRoute("/webtorrent")({
+export const Route = createFileRoute("/custom")({
   component: RouteComponent,
   validateSearch: zodValidator(searchSchema),
 });
-function useWebRTCServer(options: ServerOptions) {
-  useEffect(() => {
-    const server = new PersistentWebRTCServer(options);
-    server.start();
-    // Cleanup function
-    return () => {
-      server.stop();
-      console.log("WebRTC Server stopped.");
-    };
-  }, []); // Empty dependency array ensures this runs only once on mount and cleanup on unmount
-}
 
 function RtcServer({ share, pwd }: { share: string; pwd: string }) {
-  const [status, setStatus] = useState<string>("idle");
-  useWebRTCServer({
+  const { serverState } = useTrysteroServer({
     share,
     pwd,
     streamFactory: streamFactory,
-    onStatusUpdate: (status) => setStatus(status),
   });
 
-  return <ServerCard status={status} />;
+  return <ServerCard status={serverState} />;
 }
 
 function RouteComponent() {
