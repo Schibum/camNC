@@ -10,7 +10,7 @@ const searchSchema = z.object({
   pwd: z.string().min(10).catch(""),
 });
 
-export const Route = createFileRoute("/custom")({
+export const Route = createFileRoute("/webrtc-custom")({
   component: RouteComponent,
   validateSearch: zodValidator(searchSchema),
 });

@@ -12,7 +12,7 @@
 
 import { Route as rootRoute } from './routes/__root'
 import { Route as WebtorrentImport } from './routes/webtorrent'
-import { Route as CustomImport } from './routes/custom'
+import { Route as WebrtcCustomImport } from './routes/webrtc-custom'
 
 // Create/Update Routes
 
@@ -22,9 +22,9 @@ const WebtorrentRoute = WebtorrentImport.update({
   getParentRoute: () => rootRoute,
 } as any)
 
-const CustomRoute = CustomImport.update({
-  id: '/custom',
-  path: '/custom',
+const WebrtcCustomRoute = WebrtcCustomImport.update({
+  id: '/webrtc-custom',
+  path: '/webrtc-custom',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -32,11 +32,11 @@ const CustomRoute = CustomImport.update({
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/custom': {
-      id: '/custom'
-      path: '/custom'
-      fullPath: '/custom'
-      preLoaderRoute: typeof CustomImport
+    '/webrtc-custom': {
+      id: '/webrtc-custom'
+      path: '/webrtc-custom'
+      fullPath: '/webrtc-custom'
+      preLoaderRoute: typeof WebrtcCustomImport
       parentRoute: typeof rootRoute
     }
     '/webtorrent': {
@@ -52,37 +52,37 @@ declare module '@tanstack/react-router' {
 // Create and export the route tree
 
 export interface FileRoutesByFullPath {
-  '/custom': typeof CustomRoute
+  '/webrtc-custom': typeof WebrtcCustomRoute
   '/webtorrent': typeof WebtorrentRoute
 }
 
 export interface FileRoutesByTo {
-  '/custom': typeof CustomRoute
+  '/webrtc-custom': typeof WebrtcCustomRoute
   '/webtorrent': typeof WebtorrentRoute
 }
 
 export interface FileRoutesById {
   __root__: typeof rootRoute
-  '/custom': typeof CustomRoute
+  '/webrtc-custom': typeof WebrtcCustomRoute
   '/webtorrent': typeof WebtorrentRoute
 }
 
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/custom' | '/webtorrent'
+  fullPaths: '/webrtc-custom' | '/webtorrent'
   fileRoutesByTo: FileRoutesByTo
-  to: '/custom' | '/webtorrent'
-  id: '__root__' | '/custom' | '/webtorrent'
+  to: '/webrtc-custom' | '/webtorrent'
+  id: '__root__' | '/webrtc-custom' | '/webtorrent'
   fileRoutesById: FileRoutesById
 }
 
 export interface RootRouteChildren {
-  CustomRoute: typeof CustomRoute
+  WebrtcCustomRoute: typeof WebrtcCustomRoute
   WebtorrentRoute: typeof WebtorrentRoute
 }
 
 const rootRouteChildren: RootRouteChildren = {
-  CustomRoute: CustomRoute,
+  WebrtcCustomRoute: WebrtcCustomRoute,
   WebtorrentRoute: WebtorrentRoute,
 }
 
@@ -96,12 +96,12 @@ export const routeTree = rootRoute
     "__root__": {
       "filePath": "__root.tsx",
       "children": [
-        "/custom",
+        "/webrtc-custom",
         "/webtorrent"
       ]
     },
-    "/custom": {
-      "filePath": "custom.tsx"
+    "/webrtc-custom": {
+      "filePath": "webrtc-custom.tsx"
     },
     "/webtorrent": {
       "filePath": "webtorrent.tsx"
