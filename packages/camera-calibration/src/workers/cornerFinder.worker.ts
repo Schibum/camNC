@@ -1,6 +1,8 @@
-import { convertCorners } from '../lib/calibrationCore';
-import type { CornerFinderWorkerInput, CornerFinderWorkerOutput } from './types';
-
+import { convertCorners } from "../lib/calibrationCore";
+import type {
+  CornerFinderWorkerInput,
+  CornerFinderWorkerOutput,
+} from "./types";
 
 // Import OpenCV.js from the same location as the main thread
 // importScripts('/opencv.js');
@@ -17,7 +19,7 @@ class CornerFinderWorker {
   }
 
   async init(): Promise<boolean> {
-    console.log('[CornerFinderWorker] Initializing...');
+    console.log("[CornerFinderWorker] Initializing...");
     if (this.isOpencvInitialized) {
       return true;
     }
@@ -43,29 +45,50 @@ class CornerFinderWorker {
   }
 
   private async loadOpenCV(): Promise<boolean> {
-    cv = await (await import(/* @vite-ignore */ location.origin + '/opencv_js.js')).default();
+    cv = await (
+      await import(/* @vite-ignore */ location.origin + "/opencv_js.js")
+    ).default();
     return true;
   }
 
-  async processFrame(input: CornerFinderWorkerInput): Promise<CornerFinderWorkerOutput> {
+  async processFrame(
+    input: CornerFinderWorkerInput
+  ): Promise<CornerFinderWorkerOutput> {
     if (!this.isOpencvInitialized) {
       const initialized = await this.init();
       if (!initialized) {
-        return { type: 'error', messageId: input.messageId, message: 'OpenCV failed to load in worker.' };
+        return {
+          type: "error",
+          messageId: input.messageId,
+          message: "OpenCV failed to load in worker.",
+        };
       }
     }
 
     if (this.isProcessing) {
       console.warn("[CornerFinderWorker] Already processing, skipping frame.");
-      return { type: 'error', messageId: input.messageId, message: 'Worker is busy.' };
+      return {
+        type: "error",
+        messageId: input.messageId,
+        message: "Worker is busy.",
+      };
     }
 
     this.isProcessing = true;
 
-    const { messageId, imageData, width, height, patternWidth, patternHeight } = input;
-    const imgData = new ImageData(new Uint8ClampedArray(imageData), width, height);
+    const { messageId, imageData, width, height, patternWidth, patternHeight } =
+      input;
+    const imgData = new ImageData(
+      new Uint8ClampedArray(imageData),
+      width,
+      height
+    );
 
-    let output: CornerFinderWorkerOutput = { type: 'error', messageId, message: 'Unknown error' };
+    let output: CornerFinderWorkerOutput = {
+      type: "error",
+      messageId,
+      message: "Unknown error",
+    };
     let srcMat: any = null;
     let grayMat: any = null;
     let cornersMat: any = null;
@@ -91,30 +114,37 @@ class CornerFinderWorker {
       cornersMat = new cv.Mat();
 
       // Find chessboard corners
-      const found = cv.findChessboardCorners(grayMat, patternSizeCv, cornersMat);
+      const found = cv.findChessboardCorners(
+        grayMat,
+        patternSizeCv,
+        cornersMat,
+        cv.CALIB_CB_ADAPTIVE_THRESH +
+          cv.CALIB_CB_NORMALIZE_IMAGE +
+          cv.CALIB_CB_FAST_CHECK
+      );
       // If corners are found, refine them with cornerSubPix for better accuracy
 
-
-
       if (found) {
-
-
         // Refine corner locations with subpixel accuracy
-        cv.cornerSubPix(grayMat, cornersMat, this.winSize, this.zeroZone, this.criteria);
-
+        cv.cornerSubPix(
+          grayMat,
+          cornersMat,
+          this.winSize,
+          this.zeroZone,
+          this.criteria
+        );
 
         // Get corner data as Float32Array
         const corners = convertCorners(cornersMat);
-        output = { type: 'cornersFound', messageId, corners };
+        output = { type: "cornersFound", messageId, corners };
       } else {
-        output = { type: 'cornersFound', messageId, corners: null };
+        output = { type: "cornersFound", messageId, corners: null };
       }
-
     } catch (error: any) {
       output = {
-        type: 'error',
+        type: "error",
         messageId,
-        message: error.message || 'Unknown worker error during processing'
+        message: error.message || "Unknown worker error during processing",
       };
     } finally {
       // Clean up OpenCV Mats

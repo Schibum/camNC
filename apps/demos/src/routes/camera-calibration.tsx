@@ -227,26 +227,10 @@ function App() {
   useEffect(() => {
     const getWebcamStream = async () => {
       try {
-        // First request basic access to get devices
-        await navigator.mediaDevices.getUserMedia({ video: true });
-
-        // Then enumerate devices to find the best camera
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoInputs = devices.filter(
-          (device) => device.kind === "videoinput"
-        );
-
-        if (videoInputs.length === 0) {
-          throw new Error("No video input devices found");
-        }
-
-        // Prefer rear camera on mobile
         const isMobile =
           /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
             navigator.userAgent
           );
-
-        const selectedDevice = videoInputs[0]; // Default to first camera
 
         // Set resolution based on device type
         const videoConstraints: MediaTrackConstraints = isMobile
@@ -259,9 +243,6 @@ function App() {
               height: { ideal: 2160 },
             };
         videoConstraints.facingMode = "environment";
-        if (selectedDevice) {
-          videoConstraints.deviceId = { exact: selectedDevice.deviceId };
-        }
 
         const stream = await navigator.mediaDevices.getUserMedia({
           video: videoConstraints,
