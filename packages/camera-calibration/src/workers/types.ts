@@ -1,7 +1,7 @@
-import { Corner } from '../lib/calibrationTypes';
+import { Corner } from "../lib/calibrationTypes";
 
 export interface CornerFinderWorkerInput {
-  type: 'processFrame';
+  type: "processFrame";
   messageId: string;
   width: number;
   height: number;
@@ -10,16 +10,21 @@ export interface CornerFinderWorkerInput {
   patternHeight: number;
 }
 
-export interface CornerFinderWorkerOutputSuccess {
-  type: 'cornersFound';
+export interface CornerFinderWorkerOutput {
+  type: "cornersFound";
   messageId: string;
   corners: Corner[] | null;
 }
 
+// Note: With Comlink, errors are thrown directly rather than returned as part of the response
+// This interface is kept for backward compatibility with existing code that might expect it
 export interface CornerFinderWorkerOutputError {
-  type: 'error';
+  type: "error";
   messageId: string;
   message: string;
 }
 
-export type CornerFinderWorkerOutput = CornerFinderWorkerOutputSuccess | CornerFinderWorkerOutputError;
+// This type is kept for backward compatibility
+export type CornerFinderWorkerOutputLegacy =
+  | CornerFinderWorkerOutput
+  | CornerFinderWorkerOutputError;

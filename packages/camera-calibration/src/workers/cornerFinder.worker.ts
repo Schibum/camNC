@@ -1,11 +1,10 @@
+import * as Comlink from "comlink";
 import { convertCorners } from "../lib/calibrationCore";
 import type {
   CornerFinderWorkerInput,
   CornerFinderWorkerOutput,
 } from "./types";
 
-// Import OpenCV.js from the same location as the main thread
-// importScripts('/opencv.js');
 let cv: any;
 
 class CornerFinderWorker {
@@ -14,6 +13,7 @@ class CornerFinderWorker {
   private criteria: any;
   private winSize: any;
   private zeroZone: any;
+
   constructor() {
     // No initialization in constructor
   }
@@ -57,21 +57,13 @@ class CornerFinderWorker {
     if (!this.isOpencvInitialized) {
       const initialized = await this.init();
       if (!initialized) {
-        return {
-          type: "error",
-          messageId: input.messageId,
-          message: "OpenCV failed to load in worker.",
-        };
+        throw new Error("OpenCV failed to load in worker.");
       }
     }
 
     if (this.isProcessing) {
       console.warn("[CornerFinderWorker] Already processing, skipping frame.");
-      return {
-        type: "error",
-        messageId: input.messageId,
-        message: "Worker is busy.",
-      };
+      throw new Error("Worker is busy.");
     }
 
     this.isProcessing = true;
@@ -84,11 +76,6 @@ class CornerFinderWorker {
       height
     );
 
-    let output: CornerFinderWorkerOutput = {
-      type: "error",
-      messageId,
-      message: "Unknown error",
-    };
     let srcMat: any = null;
     let grayMat: any = null;
     let cornersMat: any = null;
@@ -122,8 +109,8 @@ class CornerFinderWorker {
           cv.CALIB_CB_NORMALIZE_IMAGE +
           cv.CALIB_CB_FAST_CHECK
       );
-      // If corners are found, refine them with cornerSubPix for better accuracy
 
+      // If corners are found, refine them with cornerSubPix for better accuracy
       if (found) {
         // Refine corner locations with subpixel accuracy
         cv.cornerSubPix(
@@ -136,16 +123,10 @@ class CornerFinderWorker {
 
         // Get corner data as Float32Array
         const corners = convertCorners(cornersMat);
-        output = { type: "cornersFound", messageId, corners };
+        return { type: "cornersFound", messageId, corners };
       } else {
-        output = { type: "cornersFound", messageId, corners: null };
+        return { type: "cornersFound", messageId, corners: null };
       }
-    } catch (error: any) {
-      output = {
-        type: "error",
-        messageId,
-        message: error.message || "Unknown worker error during processing",
-      };
     } finally {
       // Clean up OpenCV Mats
       if (srcMat) srcMat.delete();
@@ -154,19 +135,14 @@ class CornerFinderWorker {
 
       this.isProcessing = false;
     }
-    return output;
   }
 }
 
 // Create an instance of the worker
 const worker = new CornerFinderWorker();
 
-// Handle messages from the main thread
-self.onmessage = async (event: MessageEvent<CornerFinderWorkerInput>) => {
-  const result = await worker.processFrame(event.data);
-  // const transferList = result.type === 'cornersFound' && result.corners ? [result.corners.buffer] : [];
-  self.postMessage(result); //, { transfer: transferList });
-};
+// Expose the worker instance to the main thread using Comlink
+Comlink.expose(worker);
 
 // Handle errors
 self.onerror = (error) => {

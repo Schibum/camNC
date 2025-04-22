@@ -488,6 +488,9 @@ importers:
       '@zip.js/zip.js':
         specifier: ^2.7.60
         version: 2.7.60
+      comlink:
+        specifier: ^4.4.2
+        version: 4.4.2
       immer:
         specifier: ^10.1.1
         version: 10.1.1
@@ -3261,6 +3264,9 @@ packages:
 
   colormap@2.3.2:
     resolution: {integrity: sha512-jDOjaoEEmA9AgA11B/jCSAvYE95r3wRoAyTf3LEHGiUVlNHJaL1mRkf5AyLSpQBVGfTEPwGEqCIzL+kgr2WgNA==}
+
+  comlink@4.4.2:
+    resolution: {integrity: sha512-OxGdvBmJuNKSCMO4NTl1L47VRp6xn2wG4F/2hYzB6tiCb709otOxtEYCSvK80PtjODfXXZu8ds+Nw5kVCjqd2g==}
 
   commander@10.0.1:
     resolution: {integrity: sha512-y4Mg2tXshplEbSGzx7amzPwKKOCGuoSRP/CjEdwwk0FOGlUbq6lKuoyDZTNZkmxHdJtp54hdfY/JUrdL7Xfdug==}
@@ -9648,6 +9654,8 @@ snapshots:
   colormap@2.3.2:
     dependencies:
       lerp: 1.0.3
+
+  comlink@4.4.2: {}
 
   commander@10.0.1: {}
 
