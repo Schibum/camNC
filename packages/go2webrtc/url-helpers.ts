@@ -1,36 +1,90 @@
+const rtcSchemas = ["webtorrent:", "webrtc:"] as const;
+export type RtcSchema = (typeof rtcSchemas)[number];
+
+export interface WebrtcConnectionParams {
+  type: "webrtc";
+  share: string;
+  pwd: string;
+}
+
+export interface WebtorrentConnectionParams {
+  type: "webtorrent";
+  share: string;
+  pwd: string;
+}
+
+export interface UrlConnectionParams {
+  type: "url";
+  url: string;
+}
+
+export interface WebcastConnectionParams {
+  type: "webcam";
+  deviceId: string;
+  idealWidth?: number;
+  idealHeight?: number;
+}
+
+export type RtcConnectionParams =
+  | WebrtcConnectionParams
+  | WebtorrentConnectionParams
+  | UrlConnectionParams
+  | WebcastConnectionParams;
+
 export function parseConnectionString(
   connectionString: string
-): { share: string; pwd: string } | null {
-  try {
-    if (!connectionString.startsWith("webtorrent:?")) {
-      return null;
-    }
-    const params = new URLSearchParams(
-      connectionString.substring("webtorrent:?".length)
-    );
-    const share = params.get("share");
-    const pwd = params.get("pwd");
-    if (share && pwd) {
-      return { share, pwd };
-    }
-    return null;
-  } catch (e) {
-    return null;
+): RtcConnectionParams {
+  const url = new URL(connectionString);
+  let params = url.searchParams;
+  switch (url.protocol) {
+    case "webrtc:":
+    case "webtorrent:":
+      const share = params.get("share");
+      const pwd = params.get("pwd");
+      if (share && pwd) {
+        return {
+          share,
+          pwd,
+          type: url.protocol === "webrtc:" ? "webrtc" : "webtorrent",
+        };
+      }
+      throw new Error("missing share or pwd");
+    case "webcam:":
+      const deviceId = params.get("deviceId");
+      const width = params.get("width");
+      const height = params.get("height");
+      if (deviceId) {
+        return {
+          type: "webcam",
+          deviceId,
+          idealWidth: width ? parseInt(width) : undefined,
+          idealHeight: height ? parseInt(height) : undefined,
+        };
+      }
+      throw new Error("missing deviceId");
+    case "https:":
+      return { type: "url", url: connectionString };
+    default:
+      throw new Error("unsupported protocol");
   }
 }
 
-export function buildWebtorrentUrl(shareName: string, password: string) {
+export function buildRtcConnectionUrl({
+  share,
+  pwd,
+  type,
+}: WebrtcConnectionParams | WebtorrentConnectionParams) {
   let params = new URLSearchParams({
-    share: shareName,
-    pwd: password,
+    share,
+    pwd,
   });
-  return `webtorrent:?${params.toString()}`;
+  return `${type}:?${params.toString()}`;
 }
 
 export function genRandomWebtorrent() {
   const share = generatePassword(16);
   const pwd = generatePassword(16);
-  return buildWebtorrentUrl(share, pwd);
+  return buildRtcConnectionUrl({ share, pwd, type: "webtorrent" });
 }
 
 export function generatePassword(length: number = 16) {

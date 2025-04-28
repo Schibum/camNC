@@ -16,6 +16,8 @@ import {
 } from "../lib/calibrationTypes";
 import { createImageBlob } from "../lib/imageUtils";
 
+// TODO(manu): refactor this generated code.
+
 // Smoothing factor for FPS calculation (lower value = smoother)
 const FPS_SMOOTHING_FACTOR = 0.8;
 // Default stability duration threshold in seconds

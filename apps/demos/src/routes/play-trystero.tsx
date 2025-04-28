@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useTrysteroClient } from "@wbcnc/go2webrtc/trystero";
+import { ClientState, useTrysteroClient } from "@wbcnc/go2webrtc/trystero";
 import { LoadingSpinner } from "@wbcnc/ui/components/loading-spinner";
-import { useCallback, useRef } from "react";
+import { useEffect, useRef } from "react";
 
 export const Route = createFileRoute("/play-trystero")({
   component: RouteComponent,
@@ -9,10 +9,20 @@ export const Route = createFileRoute("/play-trystero")({
 
 function RouteComponent() {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const onStream = useCallback((stream: MediaStream) => {
-    if (videoRef.current) {
+  const { clientState, stream } = useTrysteroClient({
+    share: "test",
+    pwd: "test",
+  });
+
+  // Connect the stream to the video element when it's available
+  useEffect(() => {
+    if (videoRef.current && stream) {
       videoRef.current.srcObject = stream;
-      videoRef.current.play();
+      videoRef.current
+        .play()
+        .catch((err) => console.error("Failed to play video:", err));
+
+      // Set up event listeners for debugging
       stream.addEventListener("removetrack", () => {
         console.log("track removed");
       });
@@ -25,13 +35,9 @@ function RouteComponent() {
         });
       });
     }
-  }, []);
-  const { serverPeerId, clientState } = useTrysteroClient(onStream, {
-    share: "test",
-    pwd: "test",
-  });
+  }, [stream]);
 
-  const isConnecting = clientState === "connecting";
+  const isConnecting = clientState === ClientState.CONNECTING;
 
   return (
     <div className="relative min-h-screen overflow-hidden">
@@ -42,7 +48,6 @@ function RouteComponent() {
         </div>
       )}
       <div className="absolute bottom-0 left-0 right-0 p-4">
-        <p>Server peer ID: {serverPeerId}</p>
         <p>Client state: {clientState}</p>
       </div>
     </div>

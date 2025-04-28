@@ -38,7 +38,9 @@ const kPreferredCodecs = ["video/H264", "video/VP8", "video/VP9", "video/AV1"];
  * @param options Object containing share, pwd, an optional media string (only "video" supported), and tracker URL.
  * @returns A Promise that resolves with a MediaStream containing the received video.
  */
-export async function connect(options: ConnectOptions): Promise<MediaStream> {
+export async function connect(
+  options: ConnectOptions
+): Promise<{ stream: MediaStream; pc: RTCPeerConnection }> {
   const {
     share,
     pwd,
@@ -116,7 +118,7 @@ export async function connect(options: ConnectOptions): Promise<MediaStream> {
           pollCodecInfo(pc).then((info) => {
             if (options.onCodecInfo && info) options.onCodecInfo(info);
           });
-          resolve(stream);
+          resolve({ stream, pc });
         } catch (error) {
           const errorMessage =
             "Error during WebSocket message processing: " +

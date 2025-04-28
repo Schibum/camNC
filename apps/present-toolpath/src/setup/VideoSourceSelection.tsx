@@ -1,4 +1,4 @@
-import { buildWebtorrentUrl, generatePassword, genRandomWebtorrent, parseConnectionString } from '@wbcnc/go2webrtc/url-helpers';
+import { buildRtcConnectionUrl, generatePassword, genRandomWebtorrent, parseConnectionString } from '@wbcnc/go2webrtc/url-helpers';
 import { Button } from '@wbcnc/ui/components/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@wbcnc/ui/components/card';
 import { InputWithLabel } from '@wbcnc/ui/components/InputWithLabel';
@@ -29,7 +29,7 @@ const combinedUrlAtom = atom<string>(get => {
     case 'phone':
       return get(phoneTorrentAtom);
     case 'rtc2go':
-      return buildWebtorrentUrl(get(shareNameAtom), get(passwordAtom));
+      return buildRtcConnectionUrl(get(shareNameAtom), get(passwordAtom));
     case 'url':
       return get(urlAtom);
     default:

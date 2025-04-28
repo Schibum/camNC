@@ -118,7 +118,7 @@ function useWebRTCStreaming(videoRef: RefObject<HTMLVideoElement | null>) {
 
       if (method === "webtorrent") {
         try {
-          const stream = await connect({
+          const { stream } = await connect({
             share: values.share,
             pwd: values.pwd,
             onStatusUpdate(update) {
@@ -141,23 +141,23 @@ function useWebRTCStreaming(videoRef: RefObject<HTMLVideoElement | null>) {
       } else {
         /* webrtc+custom */
         try {
-          const clientApi = createClient(
-            {
-              share: values.share,
-              pwd: values.pwd,
-              onStateChange: (state) => {
-                toast.info("Status", {
-                  description: `Trystero: ${state}`,
-                  duration: state === "streaming" ? 3000 : Infinity,
-                  id: "status-toast",
-                });
-              },
+          const client = createClient({
+            share: values.share,
+            pwd: values.pwd,
+            onStateChange: (state) => {
+              toast.info("Status", {
+                description: `Trystero: ${state}`,
+                duration: state === "streaming" ? 3000 : Infinity,
+                id: "status-toast",
+              });
             },
-            { onStream: handleStream }
-          ).connect();
+          });
 
+          disconnectRef.current = client.disconnect;
+
+          const stream = await client.connect();
+          handleStream(stream);
           setCodecInfo("");
-          disconnectRef.current = clientApi.disconnect;
         } catch (error) {
           console.error("trystero connection error", error);
           toast.error("Connection Failed", { description: String(error) });
