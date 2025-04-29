@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { connect as connectTorrent } from "./client";
 import { createClient } from "./trystero";
 import {
@@ -146,4 +147,31 @@ export async function videoSource(url: string): Promise<VideoSource> {
     default:
       throw new Error("Unsupported protocol");
   }
+}
+
+export function useVideoSource(url: string) {
+  const [vidSrc, setVidSrc] = useState<VideoSource | null>(null);
+
+  useEffect(() => {
+    console.log("useVideoSource", url);
+    let hasDisposed = false;
+    setVidSrc(null);
+    videoSource(url)
+      .catch(() => null)
+      .then((src) => {
+        if (hasDisposed) {
+          src?.dispose();
+          return;
+        }
+        console.log("useVideoSource", src);
+        setVidSrc(src);
+      });
+    return () => {
+      hasDisposed = true;
+      if (vidSrc) {
+        vidSrc.dispose();
+      }
+    };
+  }, [url]);
+  return vidSrc;
 }

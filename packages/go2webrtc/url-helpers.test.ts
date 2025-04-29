@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildRtcConnectionUrl, parseConnectionString } from "./url-helpers";
+import { buildConnectionUrl, parseConnectionString } from "./url-helpers";
 
 describe("url-helpers", () => {
   describe("parseConnectionString", () => {
@@ -53,12 +53,20 @@ describe("url-helpers", () => {
   });
   describe("buildConnectionUrl", () => {
     it("should build webtorrent urls", () => {
-      const url = buildRtcConnectionUrl({
+      const url = buildConnectionUrl({
         share: "test",
         pwd: "test",
         type: "webtorrent",
       });
       expect(url).toEqual("webtorrent:?share=test&pwd=test");
+    });
+    it("should build webcam urls", () => {
+      const url = buildConnectionUrl({
+        type: "webcam",
+        idealWidth: 1024,
+        deviceId: "123",
+      });
+      expect(url).toEqual("webcam:?deviceId=123&width=1024");
     });
   });
 });

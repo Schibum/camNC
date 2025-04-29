@@ -69,7 +69,22 @@ export function parseConnectionString(
   }
 }
 
-export function buildRtcConnectionUrl({
+export function buildConnectionUrl(params: RtcConnectionParams) {
+  switch (params.type) {
+    case "webrtc":
+      return buildRtcConnectionUrl(params);
+    case "webtorrent":
+      return buildRtcConnectionUrl(params);
+    case "webcam":
+      return buildWebcamConnectionUrl(params);
+    case "url":
+      return params.url;
+    default:
+      throw new Error("unsupported connection type");
+  }
+}
+
+function buildRtcConnectionUrl({
   share,
   pwd,
   type,
@@ -81,10 +96,29 @@ export function buildRtcConnectionUrl({
   return `${type}:?${params.toString()}`;
 }
 
+function buildWebcamConnectionUrl({
+  deviceId,
+  idealWidth,
+  idealHeight,
+}: WebcastConnectionParams) {
+  let params = new URLSearchParams({
+    deviceId,
+    ...(idealWidth ? { width: idealWidth.toString() } : {}),
+    ...(idealHeight ? { height: idealHeight.toString() } : {}),
+  });
+  return `webcam:?${params.toString()}`;
+}
+
 export function genRandomWebtorrent() {
   const share = generatePassword(16);
   const pwd = generatePassword(16);
   return buildRtcConnectionUrl({ share, pwd, type: "webtorrent" });
+}
+
+export function genRandomWebrtc() {
+  const share = generatePassword(16);
+  const pwd = generatePassword(16);
+  return buildRtcConnectionUrl({ share, pwd, type: "webrtc" });
 }
 
 export function generatePassword(length: number = 16) {

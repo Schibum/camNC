@@ -1,4 +1,5 @@
-import { buildRtcConnectionUrl, generatePassword, genRandomWebtorrent, parseConnectionString } from '@wbcnc/go2webrtc/url-helpers';
+import { buildConnectionUrl, generatePassword, genRandomWebrtc, parseConnectionString } from '@wbcnc/go2webrtc/url-helpers';
+import { useVideoSource } from '@wbcnc/go2webrtc/video-source';
 import { Button } from '@wbcnc/ui/components/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@wbcnc/ui/components/card';
 import { InputWithLabel } from '@wbcnc/ui/components/InputWithLabel';
@@ -11,27 +12,30 @@ import { useQRCode } from 'next-qrcode';
 import { useEffect, useRef, useState } from 'react';
 import { stringify } from 'yaml';
 
-const SERVE_URL = 'https://present-toolpath-webrtc-cam.vercel.app/webtorrent';
+const SERVE_URL = 'https://present-toolpath-webrtc-cam.vercel.app/webrtc-custom';
 
 const sourceTypeAtom = atom<string>('rtc2go');
 
 const shareNameAtom = atom<string>('');
 const passwordAtom = atom<string>('');
-const phoneTorrentAtom = atom<string>(genRandomWebtorrent());
+const phoneTorrentAtom = atom<string>(genRandomWebrtc());
 const urlAtom = atom<string>('');
 const webcamDeviceIdAtom = atom<string | undefined>(undefined);
 
 const combinedUrlAtom = atom<string>(get => {
   const sourceType = get(sourceTypeAtom);
   switch (sourceType) {
-    case 'webcam':
-      return `webcam:${get(webcamDeviceIdAtom)}`;
+    case 'webcam': {
+      const deviceId = get(webcamDeviceIdAtom);
+      if (!deviceId) return '';
+      return buildConnectionUrl({ type: 'webcam', deviceId });
+    }
     case 'phone':
       return get(phoneTorrentAtom);
     case 'rtc2go':
-      return buildRtcConnectionUrl(get(shareNameAtom), get(passwordAtom));
+      return buildConnectionUrl({ type: 'webtorrent', share: get(shareNameAtom), pwd: get(passwordAtom) });
     case 'url':
-      return get(urlAtom);
+      return buildConnectionUrl({ type: 'url', url: get(urlAtom) });
     default:
       throw new Error(`Unknown source type: ${sourceType}`);
   }
@@ -218,10 +222,10 @@ function WebcamTab() {
   );
 }
 
-function ServeWebtorrentQR({ webtorrent }: { webtorrent: string }) {
+function ServeWebrtcQR({ webtorrent }: { webtorrent: string }) {
   const { SVG } = useQRCode();
   const parsed = parseConnectionString(webtorrent);
-  if (!parsed) {
+  if (parsed.type !== 'webrtc') {
     return null;
   }
   const params = new URLSearchParams({
@@ -243,7 +247,7 @@ function PhoneTab() {
       </CardHeader>
       <CardContent>
         <div className="w-[200px] h-[200px]">
-          <ServeWebtorrentQR webtorrent={webtorrent} />
+          <ServeWebrtcQR webtorrent={webtorrent} />
         </div>
       </CardContent>
     </Card>
@@ -259,7 +263,7 @@ function UrlTab() {
         <CardDescription>Enter the URL of the video stream you want to use. Only https URLs are supported.</CardDescription>
       </CardHeader>
       <CardContent>
-        <InputWithLabel label="Stream URL" value={url} onChange={e => setUrl(e.target.value)} />
+        <InputWithLabel type="url" label="Stream URL" value={url} onChange={e => setUrl(e.target.value)} />
       </CardContent>
     </Card>
   );
@@ -270,6 +274,27 @@ function DebugType() {
   console.log('sourceType', sourceType);
   const [combinedUrl] = useAtom(combinedUrlAtom);
   return <div>{combinedUrl}</div>;
+}
+
+function DebugPreview() {
+  const [combinedUrl] = useAtom(combinedUrlAtom);
+  const vidSrc = useVideoSource(combinedUrl);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    if (!vidSrc || !videoRef.current) return;
+    console.log('vidSrc updating', vidSrc.src);
+    if (vidSrc.src instanceof MediaStream) {
+      videoRef.current.srcObject = vidSrc.src;
+    } else {
+      videoRef.current.src = vidSrc.src;
+    }
+  }, [vidSrc]);
+  if (!vidSrc) return null;
+  return (
+    <div>
+      <video crossOrigin="anonymous" autoPlay playsInline muted className="h-full w-full object-cover" ref={videoRef} />
+    </div>
+  );
 }
 
 export function VideoSourceTabs() {
@@ -297,6 +322,7 @@ export function VideoSourceTabs() {
         </TabsContent>
       </Tabs>
       <DebugType />
+      <DebugPreview />
     </>
   );
 }

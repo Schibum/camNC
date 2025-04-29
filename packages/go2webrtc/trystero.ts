@@ -284,6 +284,7 @@ export const createClient = (options: ClientOptions) => {
 
     disconnect: async (): Promise<void> => {
       return clientSerializer(async () => {
+        console.log("disconnecting client");
         if (!room) return;
         options.onStateChange?.(ClientState.DISCONNECTED);
         await room.leave();
