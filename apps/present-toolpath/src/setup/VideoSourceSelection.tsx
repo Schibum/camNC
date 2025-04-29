@@ -216,7 +216,7 @@ function WebcamTab() {
             No webcams found or permission denied. Please ensure your webcam is connected and permissions are granted.
           </div>
         )}
-        <WebcamPreview deviceId={selectedDeviceId} />
+        {/* <WebcamPreview deviceId={selectedDeviceId} /> */}
       </CardContent>
     </Card>
   );
@@ -282,11 +282,11 @@ function DebugPreview() {
   const videoRef = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     if (!vidSrc || !videoRef.current) return;
-    console.log('vidSrc updating', vidSrc.src);
-    if (vidSrc.src instanceof MediaStream) {
-      videoRef.current.srcObject = vidSrc.src;
+    console.log('vidSrc updating', vidSrc);
+    if (vidSrc instanceof MediaStream) {
+      videoRef.current.srcObject = vidSrc;
     } else {
-      videoRef.current.src = vidSrc.src;
+      videoRef.current.src = vidSrc;
     }
   }, [vidSrc]);
   if (!vidSrc) return null;

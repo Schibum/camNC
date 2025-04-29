@@ -15,14 +15,17 @@ export interface VideoDimensions {
   height: number;
 }
 
+interface ConnectedInfo {
+  maxResolution?: VideoDimensions;
+  src: string | MediaStream;
+}
+
 export interface VideoSource {
   // type: RtcConnectionParams["type"];
   params: RtcConnectionParams;
   // Max dimensions of the video source. Actual resolution may be dynamically
   // lower with webrtc depending on the connection and browser.
-  maxResolution?: VideoDimensions;
-  // The source of the video. This is a string URL for url sources or a MediaStream.
-  src: string | MediaStream;
+  connectedPromise: Promise<ConnectedInfo>;
   // Dispose of the video source. Close the stream or connection.
   dispose: () => Promise<void>;
 }
@@ -39,10 +42,10 @@ async function withTimeout<T>(
   ]);
 }
 
-async function webtorrentVideoSource(
+function webtorrentVideoSource(
   params: WebtorrentConnectionParams
-): Promise<VideoSource> {
-  const { stream, pc } = await connectTorrent({
+): VideoSource {
+  let connectPromise = connectTorrent({
     share: params.share,
     pwd: params.pwd,
     onStatusUpdate(status) {
@@ -54,20 +57,23 @@ async function webtorrentVideoSource(
   });
 
   async function dispose() {
-    stream.getTracks().forEach((track) => track.stop());
-    pc.close();
+    try {
+      const { stream, pc } = await connectPromise;
+      stream.getTracks().forEach((track) => track.stop());
+      pc.close();
+    } catch (error) {}
   }
 
   return {
-    src: stream,
+    connectedPromise: connectPromise.then(({ stream }) => ({
+      src: stream,
+    })),
     params,
     dispose,
   };
 }
 
-async function webrtcVideoSource(
-  params: WebrtcConnectionParams
-): Promise<VideoSource> {
+function webrtcVideoSource(params: WebrtcConnectionParams): VideoSource {
   const client = createClient({
     share: params.share,
     pwd: params.pwd,
@@ -76,64 +82,65 @@ async function webrtcVideoSource(
     },
   });
 
-  try {
-    const stream = await client.connect();
+  let streamPromise = client.connect();
 
-    return {
+  return {
+    connectedPromise: streamPromise.then((stream) => ({
       src: stream,
-      params,
-      dispose: async () => {
-        stream.getTracks().forEach((track) => track.stop());
-        await client.disconnect();
-      },
-    };
-  } catch (error) {
-    await client.disconnect();
-    throw error;
-  }
+    })),
+    params,
+    dispose: async () => {
+      await client.disconnect();
+    },
+  };
 }
 
-function urlVideoSource(params: UrlConnectionParams) {
+function urlVideoSource(params: UrlConnectionParams): VideoSource {
   return {
-    src: params.url,
+    connectedPromise: Promise.resolve({ src: params.url }),
     params,
     dispose: async () => {},
   };
 }
 
-async function webcamVideoSource(
-  params: WebcastConnectionParams
-): Promise<VideoSource> {
-  // TODO: implement
-  const stream = await navigator.mediaDevices.getUserMedia({
-    video: {
-      deviceId: params.deviceId,
-      ...(params.idealWidth && { width: { ideal: params.idealWidth } }),
-      ...(params.idealHeight && { height: { ideal: params.idealHeight } }),
-    },
-  });
-  const videoTrack = stream.getVideoTracks()[0];
-  let maxResolution: VideoDimensions | undefined;
-  let width = videoTrack.getSettings().width;
-  let height = videoTrack.getSettings().height;
-  if (width && height) {
-    maxResolution = { width, height };
+function webcamVideoSource(params: WebcastConnectionParams): VideoSource {
+  async function connect() {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        deviceId: params.deviceId,
+        ...(params.idealWidth && { width: { ideal: params.idealWidth } }),
+        ...(params.idealHeight && { height: { ideal: params.idealHeight } }),
+      },
+    });
+    const videoTrack = stream.getVideoTracks()[0];
+    let maxResolution: VideoDimensions | undefined;
+    let width = videoTrack.getSettings().width;
+    let height = videoTrack.getSettings().height;
+    if (width && height) {
+      maxResolution = { width, height };
+    }
+    return { src: stream, maxResolution };
   }
+
+  let connectedPromise = connect();
+
   async function dispose() {
-    stream.getTracks().forEach((track) => track.stop());
+    try {
+      const { src } = await connectedPromise;
+      src.getTracks().forEach((track) => track.stop());
+    } catch (error) {}
   }
 
   return {
-    src: stream,
+    connectedPromise,
     params,
-    maxResolution,
     dispose,
   };
 }
 
 // Proxy function to use the same webrtcVideoSource for both 'webrtc' and 'trystero' types
 // This avoids needing to modify the RtcConnectionParams type in url-helpers.ts
-export async function videoSource(url: string): Promise<VideoSource> {
+export function videoSource(url: string): VideoSource {
   const rtcParams = parseConnectionString(url);
   switch (rtcParams.type) {
     case "webtorrent":
@@ -150,27 +157,24 @@ export async function videoSource(url: string): Promise<VideoSource> {
 }
 
 export function useVideoSource(url: string) {
-  const [vidSrc, setVidSrc] = useState<VideoSource | null>(null);
+  const [vidSrc, setVidSrc] = useState<MediaStream | string | null>(null);
 
   useEffect(() => {
     console.log("useVideoSource", url);
-    let hasDisposed = false;
     setVidSrc(null);
-    videoSource(url)
-      .catch(() => null)
-      .then((src) => {
-        if (hasDisposed) {
-          src?.dispose();
-          return;
-        }
-        console.log("useVideoSource", src);
-        setVidSrc(src);
-      });
+    let vidSrc: VideoSource;
+    try {
+      vidSrc = videoSource(url);
+    } catch (error) {
+      return;
+    }
+    vidSrc.connectedPromise.then(({ src }) => {
+      console.log("useVideoSource", src);
+      setVidSrc(src);
+    });
+
     return () => {
-      hasDisposed = true;
-      if (vidSrc) {
-        vidSrc.dispose();
-      }
+      vidSrc.dispose();
     };
   }, [url]);
   return vidSrc;

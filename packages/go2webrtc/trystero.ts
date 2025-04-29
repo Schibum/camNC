@@ -111,75 +111,76 @@ export const createServer = (options: ServerOptions) => {
 
   return {
     connect: async (): Promise<void> => {
-      return serverSerializer(async () => {
+      await serverSerializer(async () => {
         joinTs = Date.now();
         room = createConnection(options);
-        options.onStateChange?.(ServerState.IDLE);
-
-        const cleanupStream = () => {
-          if (streamCache) {
-            streamCache.getTracks().forEach((track) => track.stop());
-            streamCache = null;
-          }
-        };
-
-        const cleanupIfEmpty = () => {
-          if (room && Object.keys(room.getPeers()).length === 0) {
-            console.log("No peers left, cleaning up...");
-            cleanupStream();
-          }
-        };
-
-        // Setup actions
-        const [sendRole, onRole] = room.makeAction<{
-          role: string;
-          ts: number;
-        }>("role");
-        const [_, onGetStream] = room.makeAction<null>("getStream");
-
-        // Handle stream requests
-        onGetStream(async (__, peerId) => {
-          if (!room) return;
-
-          if (!options.multipleStreams && streamCache) {
-            room.removeStream(streamCache);
-          }
-
-          const result = await getStream(options, streamCache, streamPromise);
-          streamCache = result.stream;
-          streamPromise = result.streamPromise;
-
-          room.addStream(streamCache, peerId);
-          options.onStateChange?.(ServerState.STREAMING);
-        });
-
-        // Handle role announcements
-        onRole(({ role, ts }, peerId) => {
-          if (role === "server" && ts > joinTs && room) {
-            console.log("There is a newer server, leaving...");
-            options.onStateChange?.(ServerState.DISCONNECTED);
-            room.leave();
-            cleanupStream();
-          }
-        });
-
-        // Announce server role when peers join
-        room.onPeerJoin((peerId) => {
-          if (room) {
-            sendRole({ role: "server", ts: joinTs }, peerId);
-          }
-        });
-
-        // Clean up when peers leave
-        room.onPeerLeave((peerId) => {
-          cleanupIfEmpty();
-          if (!streamCache) {
-            options.onStateChange?.(ServerState.IDLE);
-          }
-        });
-
-        console.log(`Server started with peer ID ${selfId}`);
       });
+      if (!room) return;
+      options.onStateChange?.(ServerState.IDLE);
+
+      const cleanupStream = () => {
+        if (streamCache) {
+          streamCache.getTracks().forEach((track) => track.stop());
+          streamCache = null;
+        }
+      };
+
+      const cleanupIfEmpty = () => {
+        if (room && Object.keys(room.getPeers()).length === 0) {
+          console.log("No peers left, cleaning up...");
+          cleanupStream();
+        }
+      };
+
+      // Setup actions
+      const [sendRole, onRole] = room.makeAction<{
+        role: string;
+        ts: number;
+      }>("role");
+      const [_, onGetStream] = room.makeAction<null>("getStream");
+
+      // Handle stream requests
+      onGetStream(async (__, peerId) => {
+        if (!room) return;
+
+        if (!options.multipleStreams && streamCache) {
+          room.removeStream(streamCache);
+        }
+
+        const result = await getStream(options, streamCache, streamPromise);
+        streamCache = result.stream;
+        streamPromise = result.streamPromise;
+
+        room.addStream(streamCache, peerId);
+        options.onStateChange?.(ServerState.STREAMING);
+      });
+
+      // Handle role announcements
+      onRole(({ role, ts }, peerId) => {
+        if (role === "server" && ts > joinTs && room) {
+          console.log("There is a newer server, leaving...");
+          options.onStateChange?.(ServerState.DISCONNECTED);
+          room.leave();
+          cleanupStream();
+        }
+      });
+
+      // Announce server role when peers join
+      room.onPeerJoin((peerId) => {
+        if (room) {
+          sendRole({ role: "server", ts: joinTs }, peerId);
+        }
+      });
+
+      // Clean up when peers leave
+      room.onPeerLeave((peerId) => {
+        cleanupIfEmpty();
+        if (!streamCache) {
+          options.onStateChange?.(ServerState.IDLE);
+        }
+      });
+
+      console.log(`Server started with peer ID ${selfId}`);
     },
 
     disconnect: async (): Promise<void> => {
@@ -207,78 +208,75 @@ export const createClient = (options: ClientOptions) => {
 
   return {
     connect: async (): Promise<MediaStream> => {
-      return clientSerializer(async () => {
+      await clientSerializer(async () => {
         room = createConnection(options);
-        const joinTs = Date.now();
-        let serverPeerId: string | null = null;
-        options.onStateChange?.(ClientState.CONNECTING);
+      });
+      const joinTs = Date.now();
+      let serverPeerId: string | null = null;
+      options.onStateChange?.(ClientState.CONNECTING);
 
-        // Create a single stable stream that will be returned and updated
-        const outputStream = new MediaStream();
+      // Create a single stable stream that will be returned and updated
+      const outputStream = new MediaStream();
 
-        return new Promise<MediaStream>((resolve) => {
-          let resolved = false;
+      return new Promise<MediaStream>((resolve) => {
+        let resolved = false;
 
-          if (!room) {
-            throw new Error("Room connection failed");
+        if (!room) {
+          throw new Error("Room connection failed");
+        }
+
+        // Setup actions
+        const [sendRole, onRole] = room.makeAction<{
+          role: string;
+          ts: number;
+        }>("role");
+        const [sendGetStream, _] = room.makeAction<null>("getStream");
+
+        // Handle role announcements
+        onRole(({ role }, peerId) => {
+          if (role === "server") {
+            console.log("client: got server", peerId);
+            serverPeerId = peerId;
+            options.onStateChange?.(ClientState.CONNECTED);
+            sendGetStream(null, peerId);
           }
-
-          // Setup actions
-          const [sendRole, onRole] = room.makeAction<{
-            role: string;
-            ts: number;
-          }>("role");
-          const [sendGetStream, _] = room.makeAction<null>("getStream");
-
-          // Handle role announcements
-          onRole(({ role }, peerId) => {
-            if (role === "server") {
-              serverPeerId = peerId;
-              options.onStateChange?.(ClientState.CONNECTED);
-              if (room) {
-                sendGetStream(null, peerId);
-              }
-            }
-          });
-
-          // Announce client role when peers join
-          room.onPeerJoin((peerId) => {
-            if (room) {
-              sendRole({ role: "client", ts: joinTs }, peerId);
-            }
-          });
-
-          // Handle peer leaving
-          room.onPeerLeave((peerId) => {
-            if (peerId === serverPeerId) {
-              serverPeerId = null;
-              options.onStateChange?.(ClientState.CONNECTING);
-            }
-          });
-
-          // Handle incoming streams
-          room.onPeerStream((incomingStream) => {
-            // Remove existing tracks
-            outputStream
-              .getTracks()
-              .forEach((track) => outputStream.removeTrack(track));
-
-            // Add new tracks from incoming stream
-            incomingStream
-              .getTracks()
-              .forEach((track) => outputStream.addTrack(track));
-
-            options.onStateChange?.(ClientState.STREAMING);
-
-            // Only resolve the first time to return the stable stream
-            if (!resolved) {
-              resolved = true;
-              resolve(outputStream);
-            }
-          });
-
-          console.log(`Client started with peer ID ${selfId}`);
         });
+
+        // Announce client role when peers join
+        room.onPeerJoin((peerId) => {
+          sendRole({ role: "client", ts: joinTs }, peerId);
+        });
+
+        // Handle peer leaving
+        room.onPeerLeave((peerId) => {
+          if (peerId === serverPeerId) {
+            serverPeerId = null;
+            options.onStateChange?.(ClientState.CONNECTING);
+          }
+        });
+
+        // Handle incoming streams
+        room.onPeerStream((incomingStream) => {
+          // Remove existing tracks
+          outputStream
+            .getTracks()
+            .forEach((track) => outputStream.removeTrack(track));
+
+          // Add new tracks from incoming stream
+          incomingStream
+            .getTracks()
+            .forEach((track) => outputStream.addTrack(track));
+
+          options.onStateChange?.(ClientState.STREAMING);
+
+          // Only resolve the first time to return the stable stream
+          if (!resolved) {
+            resolved = true;
+            resolve(outputStream);
+          }
+        });
+
+        console.log(`Client started with peer ID ${selfId}`);
       });
     },
 
