@@ -1,16 +1,32 @@
-import { buildConnectionUrl, generatePassword, genRandomWebrtc, parseConnectionString } from '@wbcnc/go2webrtc/url-helpers';
+import { AtomsHydrator } from '@/lib/AtomsHydrator';
+import { zodResolver } from '@hookform/resolvers/zod';
+import {
+  buildConnectionUrl,
+  generatePassword,
+  genRandomWebrtc,
+  RtcConnectionParams,
+  UrlConnectionParams,
+  WebcastConnectionParams,
+  WebrtcConnectionParams,
+  WebtorrentConnectionParams,
+} from '@wbcnc/go2webrtc/url-helpers';
 import { useVideoSource } from '@wbcnc/go2webrtc/video-source';
 import { Button } from '@wbcnc/ui/components/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@wbcnc/ui/components/card';
-import { InputWithLabel } from '@wbcnc/ui/components/InputWithLabel';
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@wbcnc/ui/components/form';
+import { Input } from '@wbcnc/ui/components/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wbcnc/ui/components/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@wbcnc/ui/components/tabs';
 import { Textarea } from '@wbcnc/ui/components/textarea';
-import { atom, Provider, useAtom } from 'jotai';
+import { atom, Provider, useAtom, useAtomValue } from 'jotai';
+import { atomWithStorage } from 'jotai/utils';
 import { ExternalLink } from 'lucide-react';
 import { useQRCode } from 'next-qrcode';
 import { useEffect, useRef, useState } from 'react';
+
+import { useForm, UseFormReturn } from 'react-hook-form';
 import { stringify } from 'yaml';
+import { z } from 'zod';
 
 const SERVE_URL = 'https://present-toolpath-webrtc-cam.vercel.app/webrtc-custom';
 
@@ -18,9 +34,35 @@ const sourceTypeAtom = atom<string>('rtc2go');
 
 const shareNameAtom = atom<string>('');
 const passwordAtom = atom<string>('');
-const phoneTorrentAtom = atom<string>(genRandomWebrtc());
+const phoneConnectUrl = atomWithStorage<string>('phoneConnectUrl', genRandomWebrtc(), undefined, {
+  getOnInit: true,
+});
 const urlAtom = atom<string>('');
 const webcamDeviceIdAtom = atom<string | undefined>(undefined);
+
+const connectionParamsAtom = atom<RtcConnectionParams>({ type: 'webcam', deviceId: '' });
+const connectionTypeAtom = atom(
+  get => get(connectionParamsAtom).type,
+  (get, set, update: RtcConnectionParams['type']) => {
+    switch (update) {
+      case 'webtorrent':
+        set(connectionParamsAtom, { type: 'webtorrent', share: '', pwd: '' });
+        break;
+      case 'url':
+        set(connectionParamsAtom, { type: 'url', url: '' });
+        break;
+      case 'webcam':
+        set(connectionParamsAtom, { type: 'webcam', deviceId: '' });
+        break;
+      case 'webrtc':
+        set(connectionParamsAtom, { type: 'webrtc', share: '', pwd: '' });
+        break;
+      default:
+        throw new Error();
+    }
+  }
+);
+const connectionUrlAtom = atom(get => buildConnectionUrl(get(connectionParamsAtom)));
 
 const combinedUrlAtom = atom<string>(get => {
   const sourceType = get(sourceTypeAtom);
@@ -31,7 +73,7 @@ const combinedUrlAtom = atom<string>(get => {
       return buildConnectionUrl({ type: 'webcam', deviceId });
     }
     case 'phone':
-      return get(phoneTorrentAtom);
+      return get(phoneConnectUrl);
     case 'rtc2go':
       return buildConnectionUrl({ type: 'webtorrent', share: get(shareNameAtom), pwd: get(passwordAtom) });
     case 'url':
@@ -41,31 +83,64 @@ const combinedUrlAtom = atom<string>(get => {
   }
 });
 
-function Rtc2TGoTab() {
-  const [shareName, setShareName] = useAtom(shareNameAtom);
-  const [password, setPassword] = useAtom(passwordAtom);
-  // const [tracker, setTracker] = useState('wss://tracker.openwebtorrent.com');
+const go2rtcSchema = z.object({
+  share: z.string().min(10),
+  pwd: z.string().min(10),
+  type: z.literal('webtorrent'),
+});
 
-  function onGenerateRandom() {
-    setShareName(crypto.randomUUID());
-    setPassword(generatePassword());
-  }
-
+function Rtc2GoConfigTextarea({ form }: { form: UseFormReturn<z.infer<typeof go2rtcSchema>> }) {
+  const { watch } = form;
+  const share = watch('share');
+  const pwd = watch('pwd');
   function getGo2rtcConfig() {
-    if (!shareName || !password) {
+    if (!share || !pwd) {
       return '';
     }
     return stringify({
       webtorrent: {
         shares: {
-          [shareName]: {
-            pwd: password,
+          [share]: {
+            pwd: pwd,
             src: 'your-stream-name-from-streams-section',
           },
         },
       },
     });
   }
+  if (!share || !pwd) {
+    return null;
+  }
+
+  return (
+    <div className="grid w-full items-center gap-1.5">
+      <div className="text-sm text-muted-foreground">Your go2rtc config should include the following:</div>
+      <Textarea readOnly className="h-36" value={getGo2rtcConfig()} />
+    </div>
+  );
+}
+
+function Go2RtcTab({
+  defaults,
+  onSubmit,
+}: {
+  defaults: WebtorrentConnectionParams;
+  onSubmit: (params: WebtorrentConnectionParams) => void;
+}) {
+  // const [params, setParams] = useAtom(connectionParamsAtom);
+  // if (params.type !== 'webtorrent') throw new Error();
+  const form = useForm<z.infer<typeof go2rtcSchema>>({
+    resolver: zodResolver(go2rtcSchema),
+    defaultValues: defaults,
+  });
+
+  // const [tracker, setTracker] = useState('wss://tracker.openwebtorrent.com');
+
+  function onGenerateRandom() {
+    form.setValue('share', crypto.randomUUID());
+    form.setValue('pwd', generatePassword());
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -79,19 +154,45 @@ function Rtc2TGoTab() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
-        <InputWithLabel label="Share Name" value={shareName} onChange={e => setShareName(e.target.value)} />
-        <InputWithLabel label="Password" value={password} onChange={e => setPassword(e.target.value)} />
-        {/* <InputWithLabel label="Tracker" value={tracker} onChange={e => setTracker(e.target.value)} type="url" /> */}
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            <FormField
+              control={form.control}
+              name="share"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Share Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="globally unique string" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="pwd"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Password</FormLabel>
+                  <FormControl>
+                    <Input placeholder="password" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-        {shareName && password && (
-          <div className="grid w-full items-center gap-1.5">
-            <div className="text-sm text-muted-foreground">Your go2rtc config should include the following:</div>
-            <Textarea readOnly className="h-36" value={getGo2rtcConfig()} />
-          </div>
-        )}
-        <Button onClick={onGenerateRandom} variant="secondary">
-          Generate Random
-        </Button>
+            <Rtc2GoConfigTextarea form={form} />
+            <div className="flex gap-2">
+              <Button type="submit">Submit</Button>
+              <Button onClick={onGenerateRandom} variant="secondary">
+                Generate Random
+              </Button>
+            </div>
+          </form>
+        </Form>
+        {/* <InputWithLabel label="Tracker" value={tracker} onChange={e => setTracker(e.target.value)} type="url" /> */}
       </CardContent>
     </Card>
   );
@@ -167,9 +268,9 @@ function WebcamPreview({ deviceId }: WebcamPreviewProps) {
   );
 }
 
-function WebcamTab() {
+function WebcamTab({ defaults }: { defaults: WebcastConnectionParams }) {
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
-  const [selectedDeviceId, setSelectedDeviceId] = useAtom(webcamDeviceIdAtom);
+  const [selectedDeviceId, setSelectedDeviceId] = useState(defaults.deviceId);
 
   // Get initial list of devices
   useEffect(() => {
@@ -222,23 +323,18 @@ function WebcamTab() {
   );
 }
 
-function ServeWebrtcQR({ webtorrent }: { webtorrent: string }) {
+function ServeWebrtcQR({ params }: { params: WebrtcConnectionParams }) {
   const { SVG } = useQRCode();
-  const parsed = parseConnectionString(webtorrent);
-  if (parsed.type !== 'webrtc') {
-    return null;
-  }
-  const params = new URLSearchParams({
-    share: parsed.share,
-    pwd: parsed.pwd,
+
+  const searchParams = new URLSearchParams({
+    share: params.share,
+    pwd: params.pwd,
   });
-  const url = `${SERVE_URL}?${params.toString()}`;
+  const url = `${SERVE_URL}?${searchParams.toString()}`;
   return <SVG text={url} />;
 }
 
-function PhoneTab() {
-  const [webtorrent] = useAtom(phoneTorrentAtom);
-
+function PhoneTab({ defaults, onSubmit }: { defaults: WebrtcConnectionParams; onSubmit: (params: WebrtcConnectionParams) => void }) {
   return (
     <Card>
       <CardHeader>
@@ -247,33 +343,59 @@ function PhoneTab() {
       </CardHeader>
       <CardContent>
         <div className="w-[200px] h-[200px]">
-          <ServeWebrtcQR webtorrent={webtorrent} />
+          <ServeWebrtcQR params={defaults} />
         </div>
       </CardContent>
     </Card>
   );
 }
 
-function UrlTab() {
-  const [url, setUrl] = useAtom(urlAtom);
+const urlSchema = z.object({
+  url: z.string().url(),
+  type: z.literal('url'),
+});
+
+function UrlTab({ defaults, onSubmit }: { defaults: UrlConnectionParams; onSubmit: (params: UrlConnectionParams) => void }) {
+  const form = useForm<z.infer<typeof urlSchema>>({
+    resolver: zodResolver(urlSchema),
+    defaultValues: defaults,
+  });
   return (
     <Card>
       <CardHeader>
         <CardTitle>Video Stream URL</CardTitle>
-        <CardDescription>Enter the URL of the video stream you want to use. Only https URLs are supported.</CardDescription>
+        <CardDescription>Mainly intended for dev/testing purposes.</CardDescription>
       </CardHeader>
       <CardContent>
-        <InputWithLabel type="url" label="Stream URL" value={url} onChange={e => setUrl(e.target.value)} />
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            <FormField
+              control={form.control}
+              name="url"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Stream URL</FormLabel>
+                  <FormControl>
+                    <Input placeholder="https://example.com/stream.mp4" {...field} />
+                  </FormControl>
+                  <FormDescription>URL of the video stream you want to use. Only https URLs are supported.</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <Button type="submit">Submit</Button>
+          </form>
+        </Form>
+
+        {/* <InputWithLabel type="url" label="Stream URL" value={url} onChange={e => setUrl(e.target.value)} /> */}
       </CardContent>
     </Card>
   );
 }
 
 function DebugType() {
-  const [sourceType] = useAtom(sourceTypeAtom);
-  console.log('sourceType', sourceType);
-  const [combinedUrl] = useAtom(combinedUrlAtom);
-  return <div>{combinedUrl}</div>;
+  const [connectionUrl] = useAtom(connectionUrlAtom);
+  return <div>{connectionUrl}</div>;
 }
 
 function DebugPreview() {
@@ -297,28 +419,39 @@ function DebugPreview() {
   );
 }
 
+const stableWebrtcDefaults = { type: 'webrtc' as const, share: generatePassword(15), pwd: generatePassword(15) };
+
 export function VideoSourceTabs() {
-  const [sourceType, setSourceType] = useAtom(sourceTypeAtom);
+  const [sourceType, setSourceType] = useState<string>(useAtomValue(connectionTypeAtom));
+  const [defaults] = useAtom(connectionParamsAtom);
+  function onSubmit(params: RtcConnectionParams) {
+    console.log('submit', params);
+  }
+  const urlDefaults = defaults.type === 'url' ? defaults : { type: 'url' as const, url: '' };
+  const webtorrentDefaults: WebtorrentConnectionParams =
+    defaults.type === 'webtorrent' ? defaults : { type: 'webtorrent' as const, share: '', pwd: '' };
+  const webrtcDefaults: WebrtcConnectionParams = defaults.type === 'webrtc' ? defaults : stableWebrtcDefaults;
+  const webcamDefaults: WebcastConnectionParams = defaults.type === 'webcam' ? defaults : { type: 'webcam' as const, deviceId: '' };
   return (
     <>
       <Tabs className="w-full" value={sourceType} onValueChange={setSourceType}>
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="webcam">Webcam</TabsTrigger>
-          <TabsTrigger value="phone">Phone</TabsTrigger>
-          <TabsTrigger value="rtc2go">IP Camera</TabsTrigger>
+          <TabsTrigger value="webrtc">Phone</TabsTrigger>
+          <TabsTrigger value="webtorrent">IP Camera</TabsTrigger>
           <TabsTrigger value="url">URL</TabsTrigger>
         </TabsList>
         <TabsContent value="webcam">
-          <WebcamTab />
+          <WebcamTab defaults={webcamDefaults} />
         </TabsContent>
-        <TabsContent value="phone">
-          <PhoneTab />
+        <TabsContent value="webrtc">
+          <PhoneTab defaults={webrtcDefaults} onSubmit={onSubmit} />
         </TabsContent>
-        <TabsContent value="rtc2go">
-          <Rtc2TGoTab />
+        <TabsContent value="webtorrent">
+          <Go2RtcTab defaults={webtorrentDefaults} onSubmit={onSubmit} />
         </TabsContent>
         <TabsContent value="url">
-          <UrlTab />
+          <UrlTab defaults={urlDefaults} onSubmit={onSubmit} />
         </TabsContent>
       </Tabs>
       <DebugType />
@@ -330,7 +463,9 @@ export function VideoSourceTabs() {
 export function VideoSourceSelection() {
   return (
     <Provider>
-      <VideoSourceTabs />
+      <AtomsHydrator atomValues={[[connectionParamsAtom, { type: 'url', url: 'https://hello.com/stream.mp4' }]]}>
+        <VideoSourceTabs />
+      </AtomsHydrator>
     </Provider>
   );
 }

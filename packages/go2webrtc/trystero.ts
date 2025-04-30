@@ -68,7 +68,7 @@ const createConnection = (options: TrysteroOptions): Room => {
   const config = {
     appId,
     supabaseKey,
-    // password: options.pwd (commented out in original)
+    password: options.pwd,
   };
 
   return joinRoom(config, options.share);
@@ -167,13 +167,13 @@ export const createServer = (options: ServerOptions) => {
 
       // Announce server role when peers join
       room.onPeerJoin((peerId) => {
-        if (room) {
-          sendRole({ role: "server", ts: joinTs }, peerId);
-        }
+        console.log("server: peer joined", peerId);
+        sendRole({ role: "server", ts: joinTs }, peerId);
       });
 
       // Clean up when peers leave
       room.onPeerLeave((peerId) => {
+        console.log("server: peer left", peerId);
         cleanupIfEmpty();
         if (!streamCache) {
           options.onStateChange?.(ServerState.IDLE);
@@ -209,6 +209,7 @@ export const createClient = (options: ClientOptions) => {
   return {
     connect: async (): Promise<MediaStream> => {
       await clientSerializer(async () => {
+        console.log("client: creating connection");
         room = createConnection(options);
       });
       const joinTs = Date.now();
@@ -244,11 +245,13 @@ export const createClient = (options: ClientOptions) => {
 
         // Announce client role when peers join
         room.onPeerJoin((peerId) => {
+          console.log("client: peer joined", peerId);
           sendRole({ role: "client", ts: joinTs }, peerId);
         });
 
         // Handle peer leaving
         room.onPeerLeave((peerId) => {
+          console.log("client: peer left", peerId);
           if (peerId === serverPeerId) {
             serverPeerId = null;
             options.onStateChange?.(ClientState.CONNECTING);
@@ -288,6 +291,7 @@ export const createClient = (options: ClientOptions) => {
         await room.leave();
         // Hack: wait for disconnect to complete - above await resolves too early.
         await wait(100);
+        console.log("client: disconnected");
         room = null;
       });
     },
