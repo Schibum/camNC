@@ -92,7 +92,7 @@ export class CornerFinderWorkerManager {
       const message: CornerFinderWorkerInput = {
         type: "processFrame",
         messageId,
-        imageData: imageData.data.buffer,
+        imageData: imageData.data.buffer as ArrayBuffer,
         width: imageData.width,
         height: imageData.height,
         patternWidth,

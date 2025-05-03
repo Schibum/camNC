@@ -17,8 +17,11 @@
         "./src/*"
       ]
     },
-    // "lib": ["ESNext", "DOM"],
-    // "types": []
+    "lib": [
+      "ESNext",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "types": [
       "@vitest/browser/providers/playwright"
     ],
