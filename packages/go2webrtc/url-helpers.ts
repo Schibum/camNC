@@ -63,6 +63,7 @@ export function parseConnectionString(
       }
       throw new Error("missing deviceId");
     case "https:":
+    case "http:":
       return { type: "url", url: connectionString };
     default:
       throw new Error("unsupported protocol");

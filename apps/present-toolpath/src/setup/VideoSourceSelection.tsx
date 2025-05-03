@@ -11,9 +11,10 @@ import {
   WebrtcConnectionParams,
   WebtorrentConnectionParams,
 } from '@wbcnc/go2webrtc/url-helpers';
-import { useVideoSource, VideoSource, videoSource } from '@wbcnc/go2webrtc/video-source';
+import { useVideoSource } from '@wbcnc/go2webrtc/video-source';
 import { Button } from '@wbcnc/ui/components/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@wbcnc/ui/components/card';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@wbcnc/ui/components/dialog';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@wbcnc/ui/components/form';
 import { Input } from '@wbcnc/ui/components/input';
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
@@ -94,10 +95,10 @@ function Rtc2GoConfigTextarea({ form }: { form: UseFormReturn<z.infer<typeof go2
 
 function Go2RtcTab({
   defaults,
-  onSubmit,
+  onConnect,
 }: {
   defaults: WebtorrentConnectionParams;
-  onSubmit: (params: WebtorrentConnectionParams) => void;
+  onConnect: (params: WebtorrentConnectionParams) => void;
 }) {
   // const [params, setParams] = useAtom(connectionParamsAtom);
   // if (params.type !== 'webtorrent') throw new Error();
@@ -108,7 +109,8 @@ function Go2RtcTab({
 
   // const [tracker, setTracker] = useState('wss://tracker.openwebtorrent.com');
 
-  function onGenerateRandom() {
+  function onGenerateRandom(ev: React.MouseEvent<HTMLButtonElement>) {
+    ev.preventDefault();
     form.setValue('share', crypto.randomUUID());
     form.setValue('pwd', generatePassword());
   }
@@ -127,7 +129,7 @@ function Go2RtcTab({
       </CardHeader>
       <CardContent className="space-y-2">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+          <form onSubmit={form.handleSubmit(onConnect)} className="space-y-8">
             <FormField
               control={form.control}
               name="share"
@@ -219,7 +221,7 @@ function WebcamTab({ defaults, onSubmit }: { defaults: WebcamConnectionParams; o
             No webcams found or permission denied. Please ensure your webcam is connected and permissions are granted.
           </div>
         )}
-        <VideoPreview connectionUrl={buildConnectionUrl({ type: 'webcam', deviceId: selectedDeviceId })} />
+        {selectedDeviceId && <VideoPreview connectionUrl={buildConnectionUrl({ type: 'webcam', deviceId: selectedDeviceId })} />}
         <Button onClick={() => onSubmit({ type: 'webcam', deviceId: selectedDeviceId })}>Confirm</Button>
       </CardContent>
     </Card>
@@ -237,23 +239,10 @@ function ServeWebrtcQR({ params }: { params: WebrtcConnectionParams }) {
   return <SVG text={url} />;
 }
 
-function PhoneTab({ defaults, onSubmit }: { defaults: WebrtcConnectionParams; onSubmit: (params: WebrtcConnectionParams) => void }) {
-  const [hasClickedConnect, setHasClickedConnect] = useState(false);
-  const sourceRef = useRef<VideoSource | null>(null);
-  const [src, setSrc] = useState<MediaStream | string | null>(null);
-
+function PhoneTab({ defaults, onConnect }: { defaults: WebrtcConnectionParams; onConnect: (params: WebrtcConnectionParams) => void }) {
   function connect() {
-    setHasClickedConnect(true);
-    sourceRef.current = videoSource(buildConnectionUrl({ type: 'webrtc', share: defaults.share, pwd: defaults.pwd }));
-    sourceRef.current.connectedPromise.then(info => {
-      setSrc(info.src);
-    });
+    onConnect(defaults);
   }
-  useEffect(() => {
-    return () => {
-      sourceRef.current?.dispose();
-    };
-  }, []);
 
   return (
     <Card>
@@ -268,11 +257,8 @@ function PhoneTab({ defaults, onSubmit }: { defaults: WebrtcConnectionParams; on
         <div className="flex flex-col gap-4">
           <div className="text-sm text-muted-foreground">Scan the QR code with the phone to use as a camera, then click Connect.</div>
           <div>
-            <Button onClick={connect} disabled={hasClickedConnect}>
-              Connect {hasClickedConnect && !src && <LoadingSpinner className="size-4 inline-block" />}
-            </Button>
+            <Button onClick={connect}>Connect</Button>
           </div>
-          {hasClickedConnect && src && <MediaSourceVideo src={src} />}
         </div>
       </CardContent>
     </Card>
@@ -284,7 +270,7 @@ const urlSchema = z.object({
   type: z.literal('url'),
 });
 
-function UrlTab({ defaults, onSubmit }: { defaults: UrlConnectionParams; onSubmit: (params: UrlConnectionParams) => void }) {
+function UrlTab({ defaults, onConnect }: { defaults: UrlConnectionParams; onConnect: (params: UrlConnectionParams) => void }) {
   const form = useForm<z.infer<typeof urlSchema>>({
     resolver: zodResolver(urlSchema),
     defaultValues: defaults,
@@ -297,7 +283,7 @@ function UrlTab({ defaults, onSubmit }: { defaults: UrlConnectionParams; onSubmi
       </CardHeader>
       <CardContent>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+          <form onSubmit={form.handleSubmit(onConnect)} className="space-y-8">
             <FormField
               control={form.control}
               name="url"
@@ -322,11 +308,11 @@ function UrlTab({ defaults, onSubmit }: { defaults: UrlConnectionParams; onSubmi
   );
 }
 
-function VideoPreview({ connectionUrl }: { connectionUrl: string }) {
+function VideoPreview({ connectionUrl, ...props }: { connectionUrl: string } & Omit<React.VideoHTMLAttributes<HTMLVideoElement>, 'src'>) {
   const { src } = useVideoSource(connectionUrl);
 
-  if (!src) return <LoadingSpinner />;
-  return <MediaSourceVideo src={src} />;
+  if (!src) return <LoadingSpinner className="size-20" />;
+  return <MediaSourceVideo src={src} {...props} />;
 }
 
 function MediaSourceVideo({ src, ...props }: { src: string | MediaStream } & Omit<React.VideoHTMLAttributes<HTMLVideoElement>, 'src'>) {
@@ -345,7 +331,7 @@ function MediaSourceVideo({ src, ...props }: { src: string | MediaStream } & Omi
       autoPlay
       playsInline
       muted
-      className="h-auto w-fit-content object-contain max-w-sm max-h-[300px] rounded-md"
+      className="h-auto w-fit-content object-contain rounded-md"
       {...props}
       ref={videoRef}
     />
@@ -365,18 +351,80 @@ function getStableWebrtcDefaults() {
   return parsed as WebrtcConnectionParams;
 }
 
+function ConnectDialog({ params, onConfirm, onCancel }: { params: RtcConnectionParams; onConfirm: () => void; onCancel: () => void }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [hasError, setHasError] = useState(false);
+  const [slowWarning, setSlowWarning] = useState(false);
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setSlowWarning(true);
+    }, 10000);
+    return () => clearTimeout(timeout);
+  }, []);
+
+  function onPlaying() {
+    setIsPlaying(true);
+    setSlowWarning(false);
+  }
+  return (
+    <Dialog
+      open={true}
+      onOpenChange={v => {
+        if (!v) {
+          onCancel();
+        }
+      }}>
+      <DialogContent className="max-w-none max-h-none sm:max-w-none sm:max-h-none w-full h-full md:w-[90%] md:h-[90%] flex flex-col">
+        <DialogTitle>Connecting...</DialogTitle>
+        <DialogDescription>
+          {hasError && <div className="text-red-500">Failed to connect.</div>}
+          {slowWarning && <div className="text-red-500">This is taking longer than expected. Something might be wrong.</div>}
+          {!hasError && !slowWarning && <div>Please wait while we connect to the video source.</div>}
+        </DialogDescription>
+        <div className="flex justify-center items-center flex-grow overflow-hidden">
+          <VideoPreview
+            className="max-w-full max-h-full"
+            connectionUrl={buildConnectionUrl(params)}
+            onPlaying={onPlaying}
+            onError={() => setHasError(true)}
+          />
+        </div>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="secondary">Cancel</Button>
+          </DialogClose>
+          <DialogClose asChild>
+            <Button disabled={!isPlaying} onClick={onConfirm}>
+              Confirm Video Source
+            </Button>
+          </DialogClose>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function VideoSourceTabs() {
   const [sourceType, setSourceType] = useState<string>(useAtomValue(connectionTypeAtom));
   const [defaults, setConnectionParams] = useAtom(connectionParamsAtom);
+  const [connectParams, setConnectParams] = useState<RtcConnectionParams | null>(null);
+
   function onSubmit(params: RtcConnectionParams) {
+    setConnectParams(null);
     console.log('submit', params);
     setConnectionParams(params);
   }
+
+  function onConnect(params: RtcConnectionParams) {
+    setConnectParams(params);
+  }
+
   const urlDefaults = defaults.type === 'url' ? defaults : { type: 'url' as const, url: '' };
   const webtorrentDefaults: WebtorrentConnectionParams =
     defaults.type === 'webtorrent' ? defaults : { type: 'webtorrent' as const, share: '', pwd: '' };
   const webrtcDefaults: WebrtcConnectionParams = defaults.type === 'webrtc' ? defaults : getStableWebrtcDefaults();
   const webcamDefaults: WebcamConnectionParams = defaults.type === 'webcam' ? defaults : { type: 'webcam' as const, deviceId: '' };
+
   return (
     <>
       <Tabs className="w-full" value={sourceType} onValueChange={setSourceType}>
@@ -390,15 +438,18 @@ export function VideoSourceTabs() {
           <WebcamTab defaults={webcamDefaults} onSubmit={onSubmit} />
         </TabsContent>
         <TabsContent value="webrtc">
-          <PhoneTab defaults={webrtcDefaults} onSubmit={onSubmit} />
+          <PhoneTab defaults={webrtcDefaults} onConnect={onConnect} />
         </TabsContent>
         <TabsContent value="webtorrent">
-          <Go2RtcTab defaults={webtorrentDefaults} onSubmit={onSubmit} />
+          <Go2RtcTab defaults={webtorrentDefaults} onConnect={onConnect} />
         </TabsContent>
         <TabsContent value="url">
-          <UrlTab defaults={urlDefaults} onSubmit={onSubmit} />
+          <UrlTab defaults={urlDefaults} onConnect={onConnect} />
         </TabsContent>
       </Tabs>
+      {connectParams && (
+        <ConnectDialog params={connectParams} onConfirm={() => onSubmit(connectParams)} onCancel={() => setConnectParams(null)} />
+      )}
     </>
   );
 }

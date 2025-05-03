@@ -167,10 +167,11 @@ export function useVideoSource(url: string) {
     try {
       vidSrc = videoSource(url);
     } catch (error) {
+      console.error("useVideoSource error", error);
       return;
     }
     vidSrc.connectedPromise.then(({ src }) => {
-      console.log("useVideoSource", src);
+      console.log("useVideoSource connected", src);
       setVidSrc(src);
     });
     source.current = vidSrc;
