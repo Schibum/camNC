@@ -175,7 +175,7 @@ function WebcamTab({ defaults, onSubmit }: { defaults: WebcamConnectionParams; o
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState(defaults.deviceId);
 
-  // Get initial list of devices
+  // Get initial list of devices once on mount
   useEffect(() => {
     async function getDevices() {
       try {
@@ -184,16 +184,20 @@ function WebcamTab({ defaults, onSubmit }: { defaults: WebcamConnectionParams; o
         const allDevices = await navigator.mediaDevices.enumerateDevices();
         const videoDevices = allDevices.filter(device => device.kind === 'videoinput');
         setDevices(videoDevices);
-        if (videoDevices.length > 0 && !selectedDeviceId) {
-          setSelectedDeviceId(videoDevices[0].deviceId);
-        }
         tempStream.getTracks().forEach(track => track.stop()); // Stop the temporary stream
       } catch (err) {
         console.error('Error enumerating devices:', err);
       }
     }
     getDevices();
-  }, [selectedDeviceId, setSelectedDeviceId]); // Rerun if selectedDeviceId was initially undefined and gets set
+  }, []);
+
+  // Automatically pick first device if none selected
+  useEffect(() => {
+    if (devices.length > 0 && !selectedDeviceId) {
+      setSelectedDeviceId(devices[0].deviceId);
+    }
+  }, [devices, selectedDeviceId]);
 
   return (
     <Card>
@@ -221,7 +225,9 @@ function WebcamTab({ defaults, onSubmit }: { defaults: WebcamConnectionParams; o
           </div>
         )}
         {selectedDeviceId && <VideoPreview connectionUrl={buildConnectionUrl({ type: 'webcam', deviceId: selectedDeviceId })} />}
-        <Button onClick={() => onSubmit({ type: 'webcam', deviceId: selectedDeviceId })}>Confirm</Button>
+        <Button disabled={!selectedDeviceId} onClick={() => onSubmit({ type: 'webcam', deviceId: selectedDeviceId })}>
+          Confirm
+        </Button>
       </CardContent>
     </Card>
   );

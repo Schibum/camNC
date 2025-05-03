@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { Button } from '@wbcnc/ui/components/button';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { ArrowRight } from 'lucide-react';
-import { VideoSourceSelection } from '../setup/VideoSourceSelection';
+import { VideoSourceSelection } from '../setup/video-source-selection/VideoSourceSelection';
 import { useStore } from '../store';
 
 export const Route = createFileRoute('/setup/url-entry')({
