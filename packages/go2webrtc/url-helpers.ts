@@ -18,7 +18,7 @@ export interface UrlConnectionParams {
   url: string;
 }
 
-export interface WebcastConnectionParams {
+export interface WebcamConnectionParams {
   type: "webcam";
   deviceId: string;
   idealWidth?: number;
@@ -29,7 +29,7 @@ export type RtcConnectionParams =
   | WebrtcConnectionParams
   | WebtorrentConnectionParams
   | UrlConnectionParams
-  | WebcastConnectionParams;
+  | WebcamConnectionParams;
 
 export function parseConnectionString(
   connectionString: string
@@ -100,7 +100,7 @@ function buildWebcamConnectionUrl({
   deviceId,
   idealWidth,
   idealHeight,
-}: WebcastConnectionParams) {
+}: WebcamConnectionParams) {
   let params = new URLSearchParams({
     deviceId,
     ...(idealWidth ? { width: idealWidth.toString() } : {}),

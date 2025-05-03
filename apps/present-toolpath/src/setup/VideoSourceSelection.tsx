@@ -4,41 +4,32 @@ import {
   buildConnectionUrl,
   generatePassword,
   genRandomWebrtc,
+  parseConnectionString,
   RtcConnectionParams,
   UrlConnectionParams,
-  WebcastConnectionParams,
+  WebcamConnectionParams,
   WebrtcConnectionParams,
   WebtorrentConnectionParams,
 } from '@wbcnc/go2webrtc/url-helpers';
-import { useVideoSource } from '@wbcnc/go2webrtc/video-source';
+import { useVideoSource, VideoSource, videoSource } from '@wbcnc/go2webrtc/video-source';
 import { Button } from '@wbcnc/ui/components/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@wbcnc/ui/components/card';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@wbcnc/ui/components/form';
 import { Input } from '@wbcnc/ui/components/input';
+import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wbcnc/ui/components/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@wbcnc/ui/components/tabs';
 import { Textarea } from '@wbcnc/ui/components/textarea';
 import { atom, Provider, useAtom, useAtomValue } from 'jotai';
-import { atomWithStorage } from 'jotai/utils';
 import { ExternalLink } from 'lucide-react';
 import { useQRCode } from 'next-qrcode';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { useForm, UseFormReturn } from 'react-hook-form';
 import { stringify } from 'yaml';
 import { z } from 'zod';
 
 const SERVE_URL = 'https://present-toolpath-webrtc-cam.vercel.app/webrtc-custom';
-
-const sourceTypeAtom = atom<string>('rtc2go');
-
-const shareNameAtom = atom<string>('');
-const passwordAtom = atom<string>('');
-const phoneConnectUrl = atomWithStorage<string>('phoneConnectUrl', genRandomWebrtc(), undefined, {
-  getOnInit: true,
-});
-const urlAtom = atom<string>('');
-const webcamDeviceIdAtom = atom<string | undefined>(undefined);
 
 const connectionParamsAtom = atom<RtcConnectionParams>({ type: 'webcam', deviceId: '' });
 const connectionTypeAtom = atom(
@@ -63,25 +54,6 @@ const connectionTypeAtom = atom(
   }
 );
 const connectionUrlAtom = atom(get => buildConnectionUrl(get(connectionParamsAtom)));
-
-const combinedUrlAtom = atom<string>(get => {
-  const sourceType = get(sourceTypeAtom);
-  switch (sourceType) {
-    case 'webcam': {
-      const deviceId = get(webcamDeviceIdAtom);
-      if (!deviceId) return '';
-      return buildConnectionUrl({ type: 'webcam', deviceId });
-    }
-    case 'phone':
-      return get(phoneConnectUrl);
-    case 'rtc2go':
-      return buildConnectionUrl({ type: 'webtorrent', share: get(shareNameAtom), pwd: get(passwordAtom) });
-    case 'url':
-      return buildConnectionUrl({ type: 'url', url: get(urlAtom) });
-    default:
-      throw new Error(`Unknown source type: ${sourceType}`);
-  }
-});
 
 const go2rtcSchema = z.object({
   share: z.string().min(10),
@@ -198,77 +170,7 @@ function Go2RtcTab({
   );
 }
 
-interface WebcamPreviewProps {
-  deviceId: string | undefined;
-}
-
-function WebcamPreview({ deviceId }: WebcamPreviewProps) {
-  const [stream, setStream] = useState<MediaStream | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  // Start/stop stream when selected device changes
-  useEffect(() => {
-    if (!deviceId) {
-      // Clear stream if deviceId becomes undefined
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-        setStream(null);
-      }
-      return;
-    }
-
-    let currentStream: MediaStream;
-    async function startStream() {
-      try {
-        // Stop previous stream if any
-        if (stream) {
-          stream.getTracks().forEach(track => track.stop());
-        }
-        currentStream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: deviceId } } });
-        setStream(currentStream);
-      } catch (err) {
-        console.error('Error starting video stream:', err);
-        setStream(null); // Clear stream on error
-      }
-    }
-
-    startStream();
-
-    // Cleanup: stop the stream when the component unmounts or deviceId changes
-    return () => {
-      if (currentStream) {
-        currentStream.getTracks().forEach(track => track.stop());
-      }
-      // Don't setStream(null) here if the component is unmounting
-      // The stream will be stopped, but setting state might cause issues
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deviceId]); // Dependency array includes deviceId
-
-  // Attach stream to video element
-  useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.srcObject = stream;
-    }
-  }, [stream]);
-
-  if (!deviceId || !stream) {
-    // Optionally, show a placeholder or loading state
-    return (
-      <div className="mt-4 flex aspect-video w-full items-center justify-center rounded-md border bg-muted text-muted-foreground">
-        {deviceId ? 'Loading preview...' : 'No device selected'}
-      </div>
-    );
-  }
-
-  return (
-    <div className="mt-4 aspect-video max-w-sm overflow-hidden rounded-md border bg-muted">
-      <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-cover" />
-    </div>
-  );
-}
-
-function WebcamTab({ defaults }: { defaults: WebcastConnectionParams }) {
+function WebcamTab({ defaults, onSubmit }: { defaults: WebcamConnectionParams; onSubmit: (params: WebcamConnectionParams) => void }) {
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState(defaults.deviceId);
 
@@ -317,7 +219,8 @@ function WebcamTab({ defaults }: { defaults: WebcastConnectionParams }) {
             No webcams found or permission denied. Please ensure your webcam is connected and permissions are granted.
           </div>
         )}
-        {/* <WebcamPreview deviceId={selectedDeviceId} /> */}
+        <VideoPreview connectionUrl={buildConnectionUrl({ type: 'webcam', deviceId: selectedDeviceId })} />
+        <Button onClick={() => onSubmit({ type: 'webcam', deviceId: selectedDeviceId })}>Confirm</Button>
       </CardContent>
     </Card>
   );
@@ -335,6 +238,23 @@ function ServeWebrtcQR({ params }: { params: WebrtcConnectionParams }) {
 }
 
 function PhoneTab({ defaults, onSubmit }: { defaults: WebrtcConnectionParams; onSubmit: (params: WebrtcConnectionParams) => void }) {
+  const [hasClickedConnect, setHasClickedConnect] = useState(false);
+  const sourceRef = useRef<VideoSource | null>(null);
+  const [src, setSrc] = useState<MediaStream | string | null>(null);
+
+  function connect() {
+    setHasClickedConnect(true);
+    sourceRef.current = videoSource(buildConnectionUrl({ type: 'webrtc', share: defaults.share, pwd: defaults.pwd }));
+    sourceRef.current.connectedPromise.then(info => {
+      setSrc(info.src);
+    });
+  }
+  useEffect(() => {
+    return () => {
+      sourceRef.current?.dispose();
+    };
+  }, []);
+
   return (
     <Card>
       <CardHeader>
@@ -344,6 +264,15 @@ function PhoneTab({ defaults, onSubmit }: { defaults: WebrtcConnectionParams; on
       <CardContent>
         <div className="w-[200px] h-[200px]">
           <ServeWebrtcQR params={defaults} />
+        </div>
+        <div className="flex flex-col gap-4">
+          <div className="text-sm text-muted-foreground">Scan the QR code with the phone to use as a camera, then click Connect.</div>
+          <div>
+            <Button onClick={connect} disabled={hasClickedConnect}>
+              Connect {hasClickedConnect && !src && <LoadingSpinner className="size-4 inline-block" />}
+            </Button>
+          </div>
+          {hasClickedConnect && src && <MediaSourceVideo src={src} />}
         </div>
       </CardContent>
     </Card>
@@ -393,45 +322,61 @@ function UrlTab({ defaults, onSubmit }: { defaults: UrlConnectionParams; onSubmi
   );
 }
 
-function DebugType() {
-  const [connectionUrl] = useAtom(connectionUrlAtom);
-  return <div>{connectionUrl}</div>;
+function VideoPreview({ connectionUrl }: { connectionUrl: string }) {
+  const { src } = useVideoSource(connectionUrl);
+
+  if (!src) return <LoadingSpinner />;
+  return <MediaSourceVideo src={src} />;
 }
 
-function DebugPreview() {
-  const [combinedUrl] = useAtom(combinedUrlAtom);
-  const vidSrc = useVideoSource(combinedUrl);
+function MediaSourceVideo({ src, ...props }: { src: string | MediaStream } & Omit<React.VideoHTMLAttributes<HTMLVideoElement>, 'src'>) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  useEffect(() => {
-    if (!vidSrc || !videoRef.current) return;
-    console.log('vidSrc updating', vidSrc);
-    if (vidSrc instanceof MediaStream) {
-      videoRef.current.srcObject = vidSrc;
+  useLayoutEffect(() => {
+    if (!src || !videoRef.current) return;
+    if (src instanceof MediaStream) {
+      videoRef.current.srcObject = src;
     } else {
-      videoRef.current.src = vidSrc;
+      videoRef.current.src = src;
     }
-  }, [vidSrc]);
-  if (!vidSrc) return null;
+  }, [src]);
   return (
-    <div>
-      <video crossOrigin="anonymous" autoPlay playsInline muted className="h-full w-full object-cover" ref={videoRef} />
-    </div>
+    <video
+      crossOrigin="anonymous"
+      autoPlay
+      playsInline
+      muted
+      className="h-auto w-fit-content object-contain max-w-sm max-h-[300px] rounded-md"
+      {...props}
+      ref={videoRef}
+    />
   );
 }
 
-const stableWebrtcDefaults = { type: 'webrtc' as const, share: generatePassword(15), pwd: generatePassword(15) };
+function getStableWebrtcDefaults() {
+  let url = localStorage.getItem('webrtcDefaults');
+  if (!url) {
+    url = genRandomWebrtc();
+    localStorage.setItem('webrtcDefaults', url);
+  }
+  const parsed = parseConnectionString(url);
+  if (parsed.type !== 'webrtc') {
+    throw new Error('Invalid webrtc defaults');
+  }
+  return parsed as WebrtcConnectionParams;
+}
 
 export function VideoSourceTabs() {
   const [sourceType, setSourceType] = useState<string>(useAtomValue(connectionTypeAtom));
-  const [defaults] = useAtom(connectionParamsAtom);
+  const [defaults, setConnectionParams] = useAtom(connectionParamsAtom);
   function onSubmit(params: RtcConnectionParams) {
     console.log('submit', params);
+    setConnectionParams(params);
   }
   const urlDefaults = defaults.type === 'url' ? defaults : { type: 'url' as const, url: '' };
   const webtorrentDefaults: WebtorrentConnectionParams =
     defaults.type === 'webtorrent' ? defaults : { type: 'webtorrent' as const, share: '', pwd: '' };
-  const webrtcDefaults: WebrtcConnectionParams = defaults.type === 'webrtc' ? defaults : stableWebrtcDefaults;
-  const webcamDefaults: WebcastConnectionParams = defaults.type === 'webcam' ? defaults : { type: 'webcam' as const, deviceId: '' };
+  const webrtcDefaults: WebrtcConnectionParams = defaults.type === 'webrtc' ? defaults : getStableWebrtcDefaults();
+  const webcamDefaults: WebcamConnectionParams = defaults.type === 'webcam' ? defaults : { type: 'webcam' as const, deviceId: '' };
   return (
     <>
       <Tabs className="w-full" value={sourceType} onValueChange={setSourceType}>
@@ -442,7 +387,7 @@ export function VideoSourceTabs() {
           <TabsTrigger value="url">URL</TabsTrigger>
         </TabsList>
         <TabsContent value="webcam">
-          <WebcamTab defaults={webcamDefaults} />
+          <WebcamTab defaults={webcamDefaults} onSubmit={onSubmit} />
         </TabsContent>
         <TabsContent value="webrtc">
           <PhoneTab defaults={webrtcDefaults} onSubmit={onSubmit} />
@@ -454,8 +399,6 @@ export function VideoSourceTabs() {
           <UrlTab defaults={urlDefaults} onSubmit={onSubmit} />
         </TabsContent>
       </Tabs>
-      <DebugType />
-      <DebugPreview />
     </>
   );
 }

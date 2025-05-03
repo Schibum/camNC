@@ -1,0 +1,34 @@
+diff --git a/src/index.d.ts b/src/index.d.ts
+index 62004ca6eb0f26c9eadbef5952179fcd0eee0efd..cb73e628de77cdedce0b5686962f83ce63ef43e1 100644
+--- a/src/index.d.ts
++++ b/src/index.d.ts
+@@ -103,4 +103,5 @@ declare module 'trystero' {
+   ): Room
+ 
+   export const selfId: string
++  export const updateSelfId: () => void;
+ }
+diff --git a/src/supabase.js b/src/supabase.js
+index d35a8e5fa52e09bf340a112887e03220fee2dfd9..3dbb64cbb404ee01823cc455c02b4e5ce469f02c 100644
+--- a/src/supabase.js
++++ b/src/supabase.js
+@@ -74,3 +74,4 @@ export const joinRoom = strategy({
+ })
+ 
+ export {selfId} from './utils.js'
++export {updateSelfId} from './utils.js'
+diff --git a/src/utils.js b/src/utils.js
+index 7c90e038517a3077c8dd6f793da08607cad2c4ed..e2df1652a92c81559915dfca05b6f8343ae4068f 100644
+--- a/src/utils.js
++++ b/src/utils.js
+@@ -9,7 +9,9 @@ const charSet = '0123456789AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz'
+ export const genId = n =>
+   alloc(n, () => charSet[floor(random() * charSet.length)]).join('')
+ 
+-export const selfId = genId(20)
++export let selfId = genId(20)
++
++export const updateSelfId = () => selfId = genId(20);
+ 
+ export const all = Promise.all.bind(Promise)
+ 

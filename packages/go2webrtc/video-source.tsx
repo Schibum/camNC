@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { connect as connectTorrent } from "./client";
 import { createClient } from "./trystero";
 import {
   parseConnectionString,
   RtcConnectionParams,
   UrlConnectionParams,
-  WebcastConnectionParams,
+  WebcamConnectionParams,
   WebrtcConnectionParams,
   WebtorrentConnectionParams,
 } from "./url-helpers";
@@ -103,7 +103,7 @@ function urlVideoSource(params: UrlConnectionParams): VideoSource {
   };
 }
 
-function webcamVideoSource(params: WebcastConnectionParams): VideoSource {
+function webcamVideoSource(params: WebcamConnectionParams): VideoSource {
   async function connect() {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: {
@@ -157,7 +157,8 @@ export function videoSource(url: string): VideoSource {
 }
 
 export function useVideoSource(url: string) {
-  const [vidSrc, setVidSrc] = useState<MediaStream | string | null>(null);
+  const [src, setVidSrc] = useState<MediaStream | string | null>(null);
+  const source = useRef<VideoSource | null>(null);
 
   useEffect(() => {
     console.log("useVideoSource", url);
@@ -172,10 +173,11 @@ export function useVideoSource(url: string) {
       console.log("useVideoSource", src);
       setVidSrc(src);
     });
-
+    source.current = vidSrc;
     return () => {
       vidSrc.dispose();
+      source.current = null;
     };
   }, [url]);
-  return vidSrc;
+  return { src, source };
 }

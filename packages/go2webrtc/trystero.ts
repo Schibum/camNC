@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { joinRoom, Room, selfId } from "trystero/supabase";
+import { joinRoom, Room, selfId, updateSelfId } from "trystero/supabase";
 
 const appId = "https://jcjdafitddtarffkicpz.supabase.co";
 const supabaseKey =
@@ -210,6 +210,7 @@ export const createClient = (options: ClientOptions) => {
     connect: async (): Promise<MediaStream> => {
       await clientSerializer(async () => {
         console.log("client: creating connection");
+        updateSelfId();
         room = createConnection(options);
       });
       const joinTs = Date.now();

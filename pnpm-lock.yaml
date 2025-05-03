@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  trystero:
+    hash: 415b96fa4b5a30186e72b1e876166f656a86054a0ff8daaa0b9182c46e6cac1c
+    path: patches/trystero.patch
+
 importers:
 
   .:
@@ -621,7 +626,7 @@ importers:
         version: 19.1.0
       trystero:
         specifier: ^0.21.3
-        version: 0.21.3(@libp2p/interface@1.7.0)(@multiformats/multiaddr@12.4.0)
+        version: 0.21.3(patch_hash=415b96fa4b5a30186e72b1e876166f656a86054a0ff8daaa0b9182c46e6cac1c)(@libp2p/interface@1.7.0)(@multiformats/multiaddr@12.4.0)
       vitest:
         specifier: ^3.1.1
         version: 3.1.1(@types/node@22.14.1)(@vitest/browser@3.1.1)(@vitest/ui@3.1.1)(jiti@2.4.2)(jsdom@26.1.0)(lightningcss@1.29.2)(tsx@4.19.3)(yaml@2.7.1)
@@ -13082,7 +13087,7 @@ snapshots:
 
   troika-worker-utils@0.52.0: {}
 
-  trystero@0.21.3(@libp2p/interface@1.7.0)(@multiformats/multiaddr@12.4.0):
+  trystero@0.21.3(patch_hash=415b96fa4b5a30186e72b1e876166f656a86054a0ff8daaa0b9182c46e6cac1c)(@libp2p/interface@1.7.0)(@multiformats/multiaddr@12.4.0):
     dependencies:
       '@noble/curves': 1.8.2
       '@supabase/supabase-js': 2.49.4
