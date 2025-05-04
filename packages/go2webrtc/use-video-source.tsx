@@ -11,34 +11,10 @@ interface CachedEntry {
 
 const cache = new Map<string, CachedEntry>();
 
-export function acquireVideoSource(url: string): VideoSource {
-  let entry = cache.get(url);
-
-  if (!entry) {
-    entry = { vs: videoSource(url), refs: 0 };
-    cache.set(url, entry);
-  }
-
-  // If a dispose timer is running, cancel it — we're using the source again
-  if (entry.timer) {
-    clearTimeout(entry.timer);
-    entry.timer = undefined;
-  }
-
-  entry.refs += 1;
-  return entry.vs;
-}
-
-export function releaseVideoSource(url: string): void {
-  const entry = cache.get(url);
-  if (!entry) return;
-
-  entry.refs -= 1;
-
+// Schedule disposal when entry is idle (refs=0) after the grace period.
+function scheduleIdleDispose(url: string, entry: CachedEntry) {
   if (entry.refs === 0 && !entry.timer) {
-    //  Schedule the real cleanup after the grace period
     entry.timer = setTimeout(async () => {
-      // If nobody grabbed it during the wait, dispose it
       const stillEntry = cache.get(url);
       if (stillEntry && stillEntry.refs === 0) {
         await stillEntry.vs.dispose().catch(console.error);
@@ -48,18 +24,50 @@ export function releaseVideoSource(url: string): void {
   }
 }
 
-export function useVideoSource(url: string) {
-  // Acquire and retain the shared VideoSource for this URL
-  const vs = useMemo(() => acquireVideoSource(url), [url]);
+/**
+ * Get or create the shared VideoSource for the given URL.
+ */
+export function getVideoSource(url: string): VideoSource {
+  let entry = cache.get(url);
+  if (!entry) {
+    entry = { vs: videoSource(url), refs: 0 };
+    cache.set(url, entry);
+  }
+  return entry.vs;
+}
 
-  // Release reference when unmounting or URL changes
+export function acquireVideoSource(url: string): VideoSource {
+  const vs = getVideoSource(url);
+  const entry = cache.get(url)!;
+  // Cancel pending disposal if any
+  if (entry.timer) {
+    clearTimeout(entry.timer);
+    entry.timer = undefined;
+  }
+  entry.refs += 1;
+  return vs;
+}
+
+export function releaseVideoSource(url: string): void {
+  const entry = cache.get(url);
+  if (!entry) return;
+  entry.refs -= 1;
+  scheduleIdleDispose(url, entry);
+}
+
+export function useVideoSource(url: string) {
+  // Create the shared VideoSource (no ref count change yet)
+  const vs = useMemo(() => getVideoSource(url), [url]);
+
+  // Actually acquire on mount and release on unmount or URL change
   useEffect(() => {
+    acquireVideoSource(url);
     return () => {
       releaseVideoSource(url);
     };
   }, [url]);
 
-  // Suspend React render until connectedPromise resolves or rejects
+  // Suspend render until the source is connected
   const connectedInfo = use(vs.connectedPromise);
 
   return {
