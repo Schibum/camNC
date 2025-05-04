@@ -1,25 +1,26 @@
-import { useEffect } from 'react';
-import { useCalibrationStore } from '../store/calibrationStore';
+import { useEffect } from "react";
+import { useCalibrationStore } from "../store/calibrationStore";
 
 interface CaptureButtonProps {
   disabled?: boolean;
 }
 
 export const CaptureButton: React.FC<CaptureButtonProps> = ({
-  disabled = false}) => {
-  const { captureFrame } = useCalibrationStore();
+  disabled = false,
+}) => {
+  const captureFrame = useCalibrationStore((state) => state.captureFrame);
 
   // Handle spacebar key press
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && !disabled) {
+      if (e.code === "Space" && !disabled) {
         e.preventDefault();
         captureFrame(true);
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [disabled]);
 
   return (

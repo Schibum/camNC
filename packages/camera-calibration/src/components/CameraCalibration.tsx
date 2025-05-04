@@ -33,16 +33,19 @@ export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
   stabilityThreshold,
   similarityThreshold,
 }) => {
-  const {
-    initializeSettings,
-    startCamera,
-    stopCamera,
-    isStreaming,
-    frameWidth,
-    frameHeight,
-    showGallery,
-    setShowGallery,
-  } = useCalibrationStore();
+  // Select actions (references are generally stable)
+  const initializeSettings = useCalibrationStore(
+    (state) => state.initializeSettings
+  );
+  const startCamera = useCalibrationStore((state) => state.startCamera);
+  const stopCamera = useCalibrationStore((state) => state.stopCamera);
+  const setShowGallery = useCalibrationStore((state) => state.setShowGallery);
+
+  // Select state primitives individually
+  const isStreaming = useCalibrationStore((state) => state.isStreaming);
+  const frameWidth = useCalibrationStore((state) => state.frameWidth);
+  const frameHeight = useCalibrationStore((state) => state.frameHeight);
+  const showGallery = useCalibrationStore((state) => state.showGallery);
 
   const isFullyReady = isStreaming && frameWidth > 0 && frameHeight > 0;
 

@@ -27,17 +27,21 @@ export const InstructionOverlay: React.FC<InstructionOverlayProps> = ({
   // Local state for the message - changed type to React.ReactNode
   const [message, setMessage] = useState<React.ReactNode>(null);
 
-  // Get relevant state from the store
-  const {
-    isAutoCaptureEnabled,
-    isStreaming,
-    frameWidth,
-    frameHeight,
-    currentCorners,
-    patternSize,
-    stabilityPercentage,
-    uniquenessPercentage,
-  } = useCalibrationStore();
+  // Select needed state individually
+  const isAutoCaptureEnabled = useCalibrationStore(
+    (state) => state.isAutoCaptureEnabled
+  );
+  const isStreaming = useCalibrationStore((state) => state.isStreaming);
+  const frameWidth = useCalibrationStore((state) => state.frameWidth);
+  const frameHeight = useCalibrationStore((state) => state.frameHeight);
+  const currentCorners = useCalibrationStore((state) => state.currentCorners);
+  const patternSize = useCalibrationStore((state) => state.patternSize);
+  const stabilityPercentage = useCalibrationStore(
+    (state) => state.stabilityPercentage
+  );
+  const uniquenessPercentage = useCalibrationStore(
+    (state) => state.uniquenessPercentage
+  );
 
   // Determine overall readiness (same logic as in CameraCalibration)
   const isFullyReady = isStreaming && frameWidth > 0 && frameHeight > 0;

@@ -103,20 +103,6 @@ type CalibrationState = CameraSlice &
   SettingsSlice &
   CalibrationResultSlice;
 
-// --- Helper Functions ---
-
-// Helper to promisify canvas.toBlob
-// Export this helper so it can be used externally
-/* // Removed getCanvasBlob - moved to imageUtils.ts
-export function getCanvasBlob(
-  canvas: HTMLCanvasElement,
-  type?: string,
-  quality?: any
-): Promise<Blob | null> {
-  return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
-}
-*/
-
 // --- Slice Creators ---
 
 const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (

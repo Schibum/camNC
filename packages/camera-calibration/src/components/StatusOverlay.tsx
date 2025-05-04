@@ -1,5 +1,27 @@
 import React from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useCalibrationStore } from "../store/calibrationStore";
+
+/**
+ * Custom hook to select calibration processing metrics from the store.
+ * Provides stability, uniqueness, FPS, and related state.
+ */
+export function useCalibrationMetrics() {
+  // Select multiple values. Without useShallow, the component using this hook
+  // will re-render if any of these selected values change.
+  const metrics = useCalibrationStore(
+    useShallow((state) => ({
+      stabilityPercentage: state.stabilityPercentage,
+      uniquenessPercentage: state.uniquenessPercentage,
+      detectionFps: state.detectionFps,
+      currentStableDuration: state.currentStableDuration,
+      stabilityDurationThreshold: state.stabilityDurationThreshold,
+      similarityThreshold: state.similarityThreshold,
+    }))
+  );
+
+  return metrics;
+}
 
 export const StatusOverlay: React.FC = () => {
   const {
@@ -9,7 +31,7 @@ export const StatusOverlay: React.FC = () => {
     similarityThreshold,
     currentStableDuration,
     detectionFps,
-  } = useCalibrationStore();
+  } = useCalibrationMetrics();
 
   const isStableForCapture =
     currentStableDuration >= stabilityDurationThreshold;
