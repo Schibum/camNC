@@ -43,7 +43,7 @@
     "@wbcnc/eslint-config": "workspace:*",
     "@wbcnc/typescript-config": "workspace:*",
     "tailwindcss": "^4.1.4",
-    "typescript": "^5.8.3"
+    "typescript": "^5.4.5"
   },
   "main": "./src/index.ts",
   "exports": {
