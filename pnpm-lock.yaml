@@ -621,6 +621,9 @@ importers:
       '@types/react':
         specifier: ^19.1.2
         version: 19.1.2
+      jotai:
+        specifier: ^2.12.3
+        version: 2.12.3(@types/react@19.1.2)(react@19.1.0)
       react:
         specifier: ^19.1.0
         version: 19.1.0

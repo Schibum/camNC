@@ -1,5 +1,5 @@
-import { AtomsHydrator } from '@/lib/AtomsHydrator';
 import {
+  buildConnectionUrl,
   genRandomWebrtc,
   parseConnectionString,
   RtcConnectionParams,
@@ -8,8 +8,8 @@ import {
   WebtorrentConnectionParams,
 } from '@wbcnc/go2webrtc/url-helpers';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@wbcnc/ui/components/tabs';
-import { atom, Provider, useAtom, useAtomValue } from 'jotai';
-import { useState } from 'react';
+import { atom } from 'jotai';
+import { useMemo, useState } from 'react';
 
 import { ConnectDialog } from './ConnectDialog';
 import { Go2RtcTab } from './Go2RtcTab';
@@ -18,27 +18,6 @@ import { UrlTab } from './UrlTab';
 import { WebcamTab } from './WebcamTab';
 
 const connectionParamsAtom = atom<RtcConnectionParams>({ type: 'webcam', deviceId: '' });
-const connectionTypeAtom = atom(
-  get => get(connectionParamsAtom).type,
-  (get, set, update: RtcConnectionParams['type']) => {
-    switch (update) {
-      case 'webtorrent':
-        set(connectionParamsAtom, { type: 'webtorrent', share: '', pwd: '' });
-        break;
-      case 'url':
-        set(connectionParamsAtom, { type: 'url', url: '' });
-        break;
-      case 'webcam':
-        set(connectionParamsAtom, { type: 'webcam', deviceId: '' });
-        break;
-      case 'webrtc':
-        set(connectionParamsAtom, { type: 'webrtc', share: '', pwd: '' });
-        break;
-      default:
-        throw new Error();
-    }
-  }
-);
 
 function getStableWebrtcDefaults() {
   let url = localStorage.getItem('webrtcDefaults');
@@ -52,15 +31,17 @@ function getStableWebrtcDefaults() {
   }
   return parsed as WebrtcConnectionParams;
 }
-export function VideoSourceTabs() {
-  const [sourceType, setSourceType] = useState<string>(useAtomValue(connectionTypeAtom));
-  const [defaults, setConnectionParams] = useAtom(connectionParamsAtom);
+
+export function VideoSourceTabs({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const defaults = useMemo(() => parseConnectionString(value), [value]);
+
+  const [sourceType, setSourceType] = useState<string>(defaults.type);
   const [connectParams, setConnectParams] = useState<RtcConnectionParams | null>(null);
 
   function onSubmit(params: RtcConnectionParams) {
     setConnectParams(null);
     console.log('submit', params);
-    setConnectionParams(params);
+    onChange(buildConnectionUrl(params));
   }
 
   function onConnect(params: RtcConnectionParams) {
@@ -103,11 +84,5 @@ export function VideoSourceTabs() {
 }
 
 export function VideoSourceSelection() {
-  return (
-    <Provider>
-      <AtomsHydrator atomValues={[[connectionParamsAtom, { type: 'url', url: 'https://hello.com/stream.mp4' }]]}>
-        <VideoSourceTabs />
-      </AtomsHydrator>
-    </Provider>
-  );
+  return <VideoSourceTabs value="https://hello.com/stream.mp4" onChange={() => {}} />;
 }

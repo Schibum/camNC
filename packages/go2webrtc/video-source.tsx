@@ -1,13 +1,12 @@
-import { useEffect, useRef, useState } from "react";
 import { connect as connectTorrent } from "./client";
 import { createClient } from "./trystero";
 import {
-  parseConnectionString,
   RtcConnectionParams,
   UrlConnectionParams,
   WebcamConnectionParams,
   WebrtcConnectionParams,
   WebtorrentConnectionParams,
+  parseConnectionString,
 } from "./url-helpers";
 
 export interface VideoDimensions {
@@ -15,7 +14,7 @@ export interface VideoDimensions {
   height: number;
 }
 
-interface ConnectedInfo {
+export interface ConnectedInfo {
   maxResolution?: VideoDimensions;
   src: string | MediaStream;
 }
@@ -154,31 +153,4 @@ export function videoSource(url: string): VideoSource {
     default:
       throw new Error("Unsupported protocol");
   }
-}
-
-export function useVideoSource(url: string) {
-  const [src, setVidSrc] = useState<MediaStream | string | null>(null);
-  const source = useRef<VideoSource | null>(null);
-
-  useEffect(() => {
-    console.log("useVideoSource", url);
-    setVidSrc(null);
-    let vidSrc: VideoSource;
-    try {
-      vidSrc = videoSource(url);
-    } catch (error) {
-      console.error("useVideoSource error", error);
-      return;
-    }
-    vidSrc.connectedPromise.then(({ src }) => {
-      console.log("useVideoSource connected", src);
-      setVidSrc(src);
-    });
-    source.current = vidSrc;
-    return () => {
-      vidSrc.dispose();
-      source.current = null;
-    };
-  }, [url]);
-  return { src, source };
 }

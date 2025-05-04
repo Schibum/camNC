@@ -6,21 +6,6 @@ interface InstructionOverlayProps {
   similarityThreshold?: number;
 }
 
-// Styling for the message (can be moved to CSS)
-// const instructionStyle: React.CSSProperties = {
-//     position: 'absolute',
-//     bottom: '120px', // Adjust as needed
-//     left: '50%',
-//     transform: 'translateX(-50%)',
-//     backgroundColor: 'rgba(0, 0, 0, 0.6)',
-//     color: 'white',
-//     padding: '5px 15px',
-//     borderRadius: '15px',
-//     fontSize: '1.5em',
-//     textAlign: 'center',
-//     zIndex: 10,
-// };
-
 export const InstructionOverlay: React.FC<InstructionOverlayProps> = ({
   similarityThreshold,
 }) => {

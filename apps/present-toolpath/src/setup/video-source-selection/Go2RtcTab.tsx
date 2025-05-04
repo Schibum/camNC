@@ -111,7 +111,7 @@ export function Go2RtcTab({
 
             <Rtc2GoConfigTextarea form={form} />
             <div className="flex gap-2">
-              <Button type="submit">Submit</Button>
+              <Button type="submit">Connect</Button>
               <Button onClick={onGenerateRandom} variant="secondary">
                 Generate Random
               </Button>

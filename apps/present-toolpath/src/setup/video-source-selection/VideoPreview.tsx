@@ -1,16 +1,28 @@
-import { useVideoSource } from '@wbcnc/go2webrtc/video-source';
+import { useVideoSource } from '@wbcnc/go2webrtc/use-video-source';
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
-import { useLayoutEffect, useRef } from 'react';
+import { Suspense, useLayoutEffect, useRef } from 'react';
 
+// Public component: wraps inner preview in Suspense
 export function VideoPreview({
   connectionUrl,
   ...props
 }: { connectionUrl: string } & Omit<React.VideoHTMLAttributes<HTMLVideoElement>, 'src'>) {
-  const { src } = useVideoSource(connectionUrl);
+  return (
+    <Suspense fallback={<LoadingSpinner className="size-20" />}>
+      <VideoPreviewInner connectionUrl={connectionUrl} {...props} />
+    </Suspense>
+  );
+}
 
-  if (!src) return <LoadingSpinner className="size-20" />;
+// Inner component that actually calls the hook (must be inside Suspense)
+function VideoPreviewInner({
+  connectionUrl,
+  ...props
+}: { connectionUrl: string } & Omit<React.VideoHTMLAttributes<HTMLVideoElement>, 'src'>) {
+  const { src } = useVideoSource(connectionUrl);
   return <MediaSourceVideo src={src} {...props} />;
 }
+
 function MediaSourceVideo({ src, ...props }: { src: string | MediaStream } & Omit<React.VideoHTMLAttributes<HTMLVideoElement>, 'src'>) {
   const videoRef = useRef<HTMLVideoElement>(null);
   useLayoutEffect(() => {
