@@ -155,7 +155,7 @@ function useWebRTCStreaming(videoRef: RefObject<HTMLVideoElement | null>) {
 
           disconnectRef.current = client.disconnect;
 
-          const stream = await client.connect();
+          const { stream } = await client.connect();
           handleStream(stream);
           setCodecInfo("");
         } catch (error) {
