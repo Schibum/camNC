@@ -1,8 +1,9 @@
 import { buildConnectionUrl, RtcConnectionParams } from '@wbcnc/go2webrtc/url-helpers';
+import { VideoDimensions } from '@wbcnc/go2webrtc/video-source';
 import { Button } from '@wbcnc/ui/components/button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@wbcnc/ui/components/dialog';
 import { useEffect, useRef, useState } from 'react';
-import { VideoPreview } from './VideoPreview';
+import { VideoPreview, VideoPreviewRef } from './VideoPreview';
 
 // Show a warning if the connection takes longer than 10 seconds
 const kSlowConnectionWarningTimeout = 10000;
@@ -13,12 +14,13 @@ export function ConnectDialog({
   onCancel,
 }: {
   params: RtcConnectionParams;
-  onConfirm: () => void;
+  onConfirm: (maxResolution?: VideoDimensions) => void;
   onCancel: () => void;
 }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [slowWarning, setSlowWarning] = useState(false);
+  const videoPreviewRef = useRef<VideoPreviewRef>(null);
   const timeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -65,6 +67,7 @@ export function ConnectDialog({
         </DialogDescription>
         <div className="flex justify-center items-center flex-grow overflow-hidden">
           <VideoPreview
+            ref={videoPreviewRef}
             className="max-w-full max-h-full object-contain rounded-md"
             connectionUrl={buildConnectionUrl(params)}
             onPlaying={onPlaying}
@@ -76,7 +79,7 @@ export function ConnectDialog({
             <Button variant="secondary">Cancel</Button>
           </DialogClose>
           <DialogClose asChild>
-            <Button disabled={!isPlaying} onClick={onConfirm}>
+            <Button disabled={!isPlaying} onClick={() => onConfirm(videoPreviewRef.current?.maxResolution)}>
               Confirm Video Source
             </Button>
           </DialogClose>

@@ -1,27 +1,37 @@
 import { useVideoSource } from '@wbcnc/go2webrtc/use-video-source';
+import { VideoDimensions } from '@wbcnc/go2webrtc/video-source';
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
-import { Suspense, useLayoutEffect, useRef } from 'react';
+import { Suspense, forwardRef, useImperativeHandle, useLayoutEffect, useRef } from 'react';
 
-// Public component: wraps inner preview in Suspense
-export function VideoPreview({
-  connectionUrl,
-  ...props
-}: { connectionUrl: string } & Omit<React.VideoHTMLAttributes<HTMLVideoElement>, 'src'>) {
+export interface VideoPreviewRef {
+  maxResolution?: VideoDimensions;
+}
+
+export type VideoPreviewProps = {
+  connectionUrl: string;
+} & Omit<React.VideoHTMLAttributes<HTMLVideoElement>, 'src'>;
+
+export const VideoPreview = forwardRef<VideoPreviewRef, VideoPreviewProps>(function VideoPreview({ connectionUrl, ...props }, ref) {
   return (
     <Suspense fallback={<LoadingSpinner className="size-20" />}>
-      <VideoPreviewInner connectionUrl={connectionUrl} {...props} />
+      <VideoPreviewInner ref={ref} connectionUrl={connectionUrl} {...props} />
     </Suspense>
   );
+});
+
+interface VideoPreviewInnerProps extends Omit<React.VideoHTMLAttributes<HTMLVideoElement>, 'src'> {
+  connectionUrl: string;
 }
 
-// Inner component that actually calls the hook (must be inside Suspense)
-function VideoPreviewInner({
-  connectionUrl,
-  ...props
-}: { connectionUrl: string } & Omit<React.VideoHTMLAttributes<HTMLVideoElement>, 'src'>) {
-  const { src } = useVideoSource(connectionUrl);
+const VideoPreviewInner = forwardRef<VideoPreviewRef, VideoPreviewInnerProps>(function VideoPreviewInner({ connectionUrl, ...props }, ref) {
+  const { src, maxResolution } = useVideoSource(connectionUrl);
+
+  useImperativeHandle(ref, () => ({
+    maxResolution,
+  }));
+
   return <MediaSourceVideo src={src} {...props} />;
-}
+});
 
 function MediaSourceVideo({ src, ...props }: { src: string | MediaStream } & Omit<React.VideoHTMLAttributes<HTMLVideoElement>, 'src'>) {
   const videoRef = useRef<HTMLVideoElement>(null);

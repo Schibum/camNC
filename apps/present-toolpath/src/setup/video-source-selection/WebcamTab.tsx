@@ -1,30 +1,35 @@
 import { buildConnectionUrl, WebcamConnectionParams } from '@wbcnc/go2webrtc/url-helpers';
+import { VideoDimensions } from '@wbcnc/go2webrtc/video-source';
 import { Button } from '@wbcnc/ui/components/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@wbcnc/ui/components/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wbcnc/ui/components/select';
-import { useEffect, useState } from 'react';
-import { VideoPreview } from './VideoPreview';
+import { useEffect, useRef, useState } from 'react';
+import { VideoPreview, VideoPreviewRef } from './VideoPreview';
 
 export function WebcamTab({
   defaults,
   onSubmit,
 }: {
   defaults: WebcamConnectionParams;
-  onSubmit: (params: WebcamConnectionParams) => void;
+  onSubmit: (params: WebcamConnectionParams, maxResolution?: VideoDimensions) => void;
 }) {
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState(defaults.deviceId);
+  const videoPreviewRef = useRef<VideoPreviewRef>(null);
 
   // Get initial list of devices once on mount
   useEffect(() => {
     async function getDevices() {
       try {
         // Temporarily request permission to ensure all devices are listed, then stop the stream immediately
-        const tempStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        const tempStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: defaults.idealWidth }, height: { ideal: defaults.idealHeight } },
+          audio: false,
+        });
+        tempStream.getTracks().forEach(track => track.stop()); // Stop the temporary stream
         const allDevices = await navigator.mediaDevices.enumerateDevices();
         const videoDevices = allDevices.filter(device => device.kind === 'videoinput');
         setDevices(videoDevices);
-        tempStream.getTracks().forEach(track => track.stop()); // Stop the temporary stream
       } catch (err) {
         console.error('Error enumerating devices:', err);
       }
@@ -38,6 +43,14 @@ export function WebcamTab({
       setSelectedDeviceId(devices[0].deviceId);
     }
   }, [devices, selectedDeviceId]);
+
+  function getParams() {
+    return {
+      type: 'webcam',
+      deviceId: selectedDeviceId,
+      ...(defaults.idealWidth && defaults.idealHeight ? { idealWidth: defaults.idealWidth, idealHeight: defaults.idealHeight } : {}),
+    } as const;
+  }
 
   return (
     <Card>
@@ -64,8 +77,8 @@ export function WebcamTab({
             No webcams found or permission denied. Please ensure your webcam is connected and permissions are granted.
           </div>
         )}
-        {selectedDeviceId && <VideoPreview connectionUrl={buildConnectionUrl({ type: 'webcam', deviceId: selectedDeviceId })} />}
-        <Button disabled={!selectedDeviceId} onClick={() => onSubmit({ type: 'webcam', deviceId: selectedDeviceId })}>
+        {selectedDeviceId && <VideoPreview connectionUrl={buildConnectionUrl(getParams())} ref={videoPreviewRef} />}
+        <Button disabled={!selectedDeviceId} onClick={() => onSubmit(getParams(), videoPreviewRef.current?.maxResolution)}>
           Confirm
         </Button>
       </CardContent>

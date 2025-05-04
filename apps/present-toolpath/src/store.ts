@@ -2,7 +2,7 @@ import { immerable } from 'immer';
 import superjson from 'superjson';
 import { Box2, Matrix3, Matrix4, Vector2, Vector3 } from 'three';
 import { create } from 'zustand';
-import { combine, devtools, persist, PersistStorage } from 'zustand/middleware';
+import { PersistStorage, combine, devtools, persist } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import { buildMatrix4FromHomography, computeHomography } from './math/perspectiveTransform';
 import { ParsedToolpath, parseGCode } from './visualize/gcodeParsing';

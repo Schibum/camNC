@@ -8,16 +8,14 @@ import {
   WebtorrentConnectionParams,
 } from '@wbcnc/go2webrtc/url-helpers';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@wbcnc/ui/components/tabs';
-import { atom } from 'jotai';
 import { useMemo, useState } from 'react';
 
+import { VideoDimensions } from '@wbcnc/go2webrtc/video-source';
 import { ConnectDialog } from './ConnectDialog';
 import { Go2RtcTab } from './Go2RtcTab';
 import { PhoneTab } from './PhoneTab';
 import { UrlTab } from './UrlTab';
 import { WebcamTab } from './WebcamTab';
-
-const connectionParamsAtom = atom<RtcConnectionParams>({ type: 'webcam', deviceId: '' });
 
 function getStableWebrtcDefaults() {
   let url = localStorage.getItem('webrtcDefaults');
@@ -38,9 +36,9 @@ export function VideoSourceTabs({ value, onChange }: { value: string; onChange: 
   const [sourceType, setSourceType] = useState<string>(defaults.type);
   const [connectParams, setConnectParams] = useState<RtcConnectionParams | null>(null);
 
-  function onSubmit(params: RtcConnectionParams) {
+  function onSubmit(params: RtcConnectionParams, maxResolution?: VideoDimensions) {
     setConnectParams(null);
-    console.log('submit', params);
+    console.log('submit', params, maxResolution);
     onChange(buildConnectionUrl(params));
   }
 
@@ -52,7 +50,8 @@ export function VideoSourceTabs({ value, onChange }: { value: string; onChange: 
   const webtorrentDefaults: WebtorrentConnectionParams =
     defaults.type === 'webtorrent' ? defaults : { type: 'webtorrent' as const, share: '', pwd: '' };
   const webrtcDefaults: WebrtcConnectionParams = defaults.type === 'webrtc' ? defaults : getStableWebrtcDefaults();
-  const webcamDefaults: WebcamConnectionParams = defaults.type === 'webcam' ? defaults : { type: 'webcam' as const, deviceId: '' };
+  const webcamDefaults: WebcamConnectionParams =
+    defaults.type === 'webcam' ? defaults : { type: 'webcam' as const, deviceId: '', idealWidth: 4096, idealHeight: 2160 };
 
   return (
     <>
@@ -77,7 +76,11 @@ export function VideoSourceTabs({ value, onChange }: { value: string; onChange: 
         </TabsContent>
       </Tabs>
       {connectParams && (
-        <ConnectDialog params={connectParams} onConfirm={() => onSubmit(connectParams)} onCancel={() => setConnectParams(null)} />
+        <ConnectDialog
+          params={connectParams}
+          onConfirm={maxResolution => onSubmit(connectParams, maxResolution)}
+          onCancel={() => setConnectParams(null)}
+        />
       )}
     </>
   );
