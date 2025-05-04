@@ -84,8 +84,9 @@ function webrtcVideoSource(params: WebrtcConnectionParams): VideoSource {
   let streamPromise = client.connect();
 
   return {
-    connectedPromise: streamPromise.then((stream) => ({
+    connectedPromise: streamPromise.then(({ stream, maxResolution }) => ({
       src: stream,
+      maxResolution,
     })),
     params,
     dispose: async () => {

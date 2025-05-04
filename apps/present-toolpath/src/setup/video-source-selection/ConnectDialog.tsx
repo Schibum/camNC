@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { VideoPreview, VideoPreviewRef } from './VideoPreview';
 
 // Show a warning if the connection takes longer than 10 seconds
-const kSlowConnectionWarningTimeout = 10000;
+const kSlowConnectionWarningTimeout = 10_000;
 
 export function ConnectDialog({
   params,

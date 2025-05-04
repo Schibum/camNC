@@ -35,6 +35,11 @@ export interface ClientOptions extends TrysteroOptions {
   onStateChange?: (state: ClientState) => void;
 }
 
+export interface IResolution {
+  width: number;
+  height: number;
+}
+
 /**
  * Creates a serializer that ensures async operations run sequentially
  * by chaining them one after another.
@@ -55,23 +60,41 @@ function createSerializer() {
   };
 }
 
-// Module-scoped serializers
-const clientSerializer = createSerializer();
-const serverSerializer = createSerializer();
-
-// --- Pure functions for connection management (non-React) ---
+const serializer = createSerializer();
 
 /**
  * Creates a room connection
  */
-const createConnection = (options: TrysteroOptions): Room => {
+const createConnection = (options: TrysteroOptions) => {
   const config = {
     appId,
     supabaseKey,
     password: options.pwd,
   };
 
-  return joinRoom(config, options.share);
+  console.log("joining room " + options.share);
+  updateSelfId();
+  const room = joinRoom(config, options.share);
+
+  const [sendRole, onRole] = room.makeAction<{
+    role: string;
+    ts: number;
+  }>("role");
+  const [sendGetStream, onGetStream] = room.makeAction<null>("getStream");
+  const [sendMaxResolution, onMaxResolution] = room.makeAction<{
+    width: number;
+    height: number;
+  }>("maxRes");
+
+  return {
+    room,
+    sendRole,
+    onRole,
+    sendGetStream,
+    onGetStream,
+    sendMaxResolution,
+    onMaxResolution,
+  };
 };
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -100,21 +123,33 @@ const getStream = async (
   return { stream: await newPromise, streamPromise: null };
 };
 
+function getMaxResolution(stream: MediaStream) {
+  const track = stream.getVideoTracks()[0];
+  if (!track) throw new Error("No video track found");
+  let width = track.getSettings().width;
+  let height = track.getSettings().height;
+  if (!width || !height) throw new Error("No width or height found");
+  return { width, height };
+}
+
 /**
  * Creates a stream server that can be shared with clients
  */
 export const createServer = (options: ServerOptions) => {
-  let room: Room | null = null;
+  let _room: Room | null = null;
   let streamCache: MediaStream | null = null;
   let streamPromise: Promise<MediaStream> | null = null;
   let joinTs: number = 0;
 
   return {
     connect: async (): Promise<void> => {
-      await serverSerializer(async () => {
-        joinTs = Date.now();
-        room = createConnection(options);
-      });
+      joinTs = Date.now();
+      let { room, sendRole, onRole, onGetStream, sendMaxResolution } =
+        await serializer(async () => {
+          const con = createConnection(options);
+          _room = con.room;
+          return con;
+        });
       if (!room) return;
       options.onStateChange?.(ServerState.IDLE);
 
@@ -132,13 +167,6 @@ export const createServer = (options: ServerOptions) => {
         }
       };
 
-      // Setup actions
-      const [sendRole, onRole] = room.makeAction<{
-        role: string;
-        ts: number;
-      }>("role");
-      const [_, onGetStream] = room.makeAction<null>("getStream");
-
       // Handle stream requests
       onGetStream(async (__, peerId) => {
         if (!room) return;
@@ -152,6 +180,7 @@ export const createServer = (options: ServerOptions) => {
         streamPromise = result.streamPromise;
 
         room.addStream(streamCache, peerId);
+        sendMaxResolution(getMaxResolution(streamCache), peerId);
         options.onStateChange?.(ServerState.STREAMING);
       });
 
@@ -184,35 +213,46 @@ export const createServer = (options: ServerOptions) => {
     },
 
     disconnect: async (): Promise<void> => {
-      return serverSerializer(async () => {
-        if (!room) return;
+      return serializer(async () => {
+        console.log("disconnecting server");
+        if (!_room) return;
         options.onStateChange?.(ServerState.DISCONNECTED);
-        await room.leave();
+        await _room.leave();
         // Hack: wait for disconnect to complete - above await resolves too early.
         await wait(100);
         if (streamCache) {
           streamCache.getTracks().forEach((track) => track.stop());
           streamCache = null;
         }
-        room = null;
+        console.log("server: disconnected");
+        _room = null;
       });
     },
   };
 };
 
+export interface IConnectResult {
+  stream: MediaStream;
+  maxResolution: IResolution;
+}
+
 /**
  * Creates a stream client that can receive streams from the server
  */
 export const createClient = (options: ClientOptions) => {
-  let room: Room | null = null;
+  let _room: Room | null = null;
 
   return {
-    connect: async (): Promise<MediaStream> => {
-      await clientSerializer(async () => {
-        console.log("client: creating connection");
-        updateSelfId();
-        room = createConnection(options);
-      });
+    connect: async (): Promise<IConnectResult> => {
+      const { room, sendRole, onRole, sendGetStream, onMaxResolution } =
+        // Hack: trystero may return a room that is being destroyed if we leave and
+        // then re-join the same without waiting for leave to complete. So serialize
+        // join and leave.
+        await serializer(async () => {
+          const con = createConnection(options);
+          _room = con.room;
+          return con;
+        });
       const joinTs = Date.now();
       let serverPeerId: string | null = null;
       options.onStateChange?.(ClientState.CONNECTING);
@@ -220,44 +260,35 @@ export const createClient = (options: ClientOptions) => {
       // Create a single stable stream that will be returned and updated
       const outputStream = new MediaStream();
 
-      return new Promise<MediaStream>((resolve) => {
-        let resolved = false;
+      // Handle role announcements
+      onRole(({ role }, peerId) => {
+        if (role === "server") {
+          console.log("client: got server", peerId);
+          serverPeerId = peerId;
+          options.onStateChange?.(ClientState.CONNECTED);
+          sendGetStream(null, peerId);
+        }
+      });
 
+      // Announce client role when peers join
+      room.onPeerJoin((peerId) => {
+        console.log("client: peer joined", peerId);
+        sendRole({ role: "client", ts: joinTs }, peerId);
+      });
+
+      // Handle peer leaving
+      room.onPeerLeave((peerId) => {
+        console.log("client: peer left", peerId);
+        if (peerId === serverPeerId) {
+          serverPeerId = null;
+          options.onStateChange?.(ClientState.CONNECTING);
+        }
+      });
+
+      let streamPromise = new Promise<MediaStream>((resolve) => {
         if (!room) {
           throw new Error("Room connection failed");
         }
-
-        // Setup actions
-        const [sendRole, onRole] = room.makeAction<{
-          role: string;
-          ts: number;
-        }>("role");
-        const [sendGetStream, _] = room.makeAction<null>("getStream");
-
-        // Handle role announcements
-        onRole(({ role }, peerId) => {
-          if (role === "server") {
-            console.log("client: got server", peerId);
-            serverPeerId = peerId;
-            options.onStateChange?.(ClientState.CONNECTED);
-            sendGetStream(null, peerId);
-          }
-        });
-
-        // Announce client role when peers join
-        room.onPeerJoin((peerId) => {
-          console.log("client: peer joined", peerId);
-          sendRole({ role: "client", ts: joinTs }, peerId);
-        });
-
-        // Handle peer leaving
-        room.onPeerLeave((peerId) => {
-          console.log("client: peer left", peerId);
-          if (peerId === serverPeerId) {
-            serverPeerId = null;
-            options.onStateChange?.(ClientState.CONNECTING);
-          }
-        });
 
         // Handle incoming streams
         room.onPeerStream((incomingStream) => {
@@ -273,27 +304,34 @@ export const createClient = (options: ClientOptions) => {
 
           options.onStateChange?.(ClientState.STREAMING);
 
-          // Only resolve the first time to return the stable stream
-          if (!resolved) {
-            resolved = true;
-            resolve(outputStream);
-          }
+          resolve(outputStream);
         });
 
         console.log(`Client started with peer ID ${selfId}`);
       });
+
+      let maxResolutionPromise = new Promise<IResolution>((resolve) => {
+        onMaxResolution(({ width, height }) => {
+          resolve({ width, height });
+        });
+      });
+
+      return {
+        stream: await streamPromise,
+        maxResolution: await maxResolutionPromise,
+      };
     },
 
     disconnect: async (): Promise<void> => {
-      return clientSerializer(async () => {
+      return serializer(async () => {
         console.log("disconnecting client");
-        if (!room) return;
+        if (!_room) return;
         options.onStateChange?.(ClientState.DISCONNECTED);
-        await room.leave();
+        await _room.leave();
         // Hack: wait for disconnect to complete - above await resolves too early.
-        await wait(100);
+        await wait(1000);
         console.log("client: disconnected");
-        room = null;
+        _room = null;
       });
     },
   };
@@ -348,8 +386,8 @@ export function useTrysteroClient(options: ClientOptions) {
 
     const connectAndGetStream = async () => {
       try {
-        const mediaStream = await client.connect();
-        setStream(mediaStream);
+        const { stream } = await client.connect();
+        setStream(stream);
       } catch (error) {
         console.error("Failed to connect:", error);
       }
