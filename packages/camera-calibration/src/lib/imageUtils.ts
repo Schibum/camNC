@@ -1,4 +1,20 @@
-import { getCanvasBlob } from "../store/calibrationStore"; // Import helper if needed or redefine it here
+// Removed import as the function is now defined in this file
+// import { getCanvasBlob } from "../store/calibrationStore";
+
+/**
+ * Helper to promisify canvas.toBlob.
+ * @param canvas The source canvas.
+ * @param type Optional image MIME type.
+ * @param quality Optional image quality.
+ * @returns Promise resolving to the Blob or null.
+ */
+export function getCanvasBlob(
+  canvas: HTMLCanvasElement,
+  type?: string,
+  quality?: any
+): Promise<Blob | null> {
+  return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
+}
 
 /**
  * Creates an image Blob from ImageData.
@@ -31,7 +47,7 @@ export async function createImageBlob(
 
   ctx.putImageData(source, 0, 0);
 
-  // Use the imported getCanvasBlob helper
+  // Use the getCanvasBlob helper defined in this file
   const blob = await getCanvasBlob(canvas, type, quality);
 
   if (!blob) {

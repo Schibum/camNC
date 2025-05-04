@@ -1,6 +1,6 @@
 import { toast } from "@wbcnc/ui/components/sonner";
 import { v4 as uuidv4 } from "uuid";
-import { create } from "zustand";
+import { create, StateCreator } from "zustand";
 import {
   calculateCornerMetrics,
   calculateMovement,
@@ -25,6 +25,9 @@ const DEFAULT_STABILITY_DURATION_THRESHOLD = 1.0;
 // Default max relative movement threshold (fraction of image diagonal)
 const DEFAULT_MAX_RELATIVE_MOVEMENT_THRESHOLD = 0.003; // 0.3% of diagonal
 
+// --- Slice Interfaces ---
+
+// Input type for initialization
 interface CalibrationSettings {
   patternSize?: PatternSize;
   squareSize?: number;
@@ -34,15 +37,19 @@ interface CalibrationSettings {
   autoCapture?: boolean;
 }
 
-interface CalibrationState {
-  // Camera state
+interface CameraSlice {
   stream: MediaStream | null;
   videoElement: HTMLVideoElement | null;
   frameWidth: number;
   frameHeight: number;
   isStreaming: boolean;
+  startCamera: (source: MediaStream | string) => Promise<void>;
+  stopCamera: () => void;
+  setFrameDimensions: (width: number, height: number) => void;
+  resetCalibration: () => void; // This action resets state across multiple slices
+}
 
-  // Processing state
+interface ProcessingSlice {
   currentCorners: Corner[] | null;
   currentFrameImageData: ImageData | null;
   movementHistory: number[];
@@ -52,45 +59,55 @@ interface CalibrationState {
   detectionFps: number;
   lastFrameProcessedTime: number;
   lastUpdateTime: number;
+  currentStableDuration: number; // Moved here as it's calculated during processing
+  wasStableAndUnique: boolean; // Moved here as it's determined during processing
+  isCapturePending: boolean; // Needed here to prevent re-triggering auto-capture
+  updateCorners: (corners: Corner[], imageData: ImageData) => void;
+  clearCorners: () => void;
+  resetDetectionFps: () => void;
+  updateDetectionFps: () => void;
+  calculateFrameMetrics: (corners: Corner[], now: number) => void;
+}
 
-  // Capture state
+interface CaptureSlice {
   capturedFrames: CapturedFrame[];
   selectedFrameId: string | null;
   showGallery: boolean;
+  // isCapturePending moved to ProcessingSlice as it's set there
+  captureFrame: (forceCapture?: boolean) => Promise<string | undefined>;
+  deleteFrame: (id: string) => void;
+  setShowGallery: (show: boolean) => void;
+  setSelectedFrame: (id: string | null) => void;
+}
 
-  // Calibration settings and results
+interface SettingsSlice {
   patternSize: PatternSize;
   squareSize: number;
   stabilityDurationThreshold: number;
   maxRelativeMovementForStability: number;
-  currentStableDuration: number;
   similarityThreshold: number;
   isAutoCaptureEnabled: boolean;
-  wasStableAndUnique: boolean;
-  isCapturePending: boolean;
-  calibrationResult: CalibrationResult | null;
-
-  // Actions
   initializeSettings: (settings: CalibrationSettings) => void;
-  startCamera: (source: MediaStream | string) => Promise<void>;
-  stopCamera: () => void;
-  captureFrame: (forceCapture?: boolean) => Promise<string | undefined>;
-  deleteFrame: (id: string) => void;
-  runCalibration: () => void;
-  setShowGallery: (show: boolean) => void;
-  setSelectedFrame: (id: string | null) => void;
-  updateCorners: (corners: Corner[], imageData: ImageData) => void;
-  clearCorners: () => void;
-  resetCalibration: () => void;
-  setFrameDimensions: (width: number, height: number) => void;
-  resetDetectionFps: () => void;
-  updateDetectionFps: () => void;
-  // Helper to calculate stability and uniqueness metrics and update state
-  calculateFrameMetrics: (corners: Corner[], now: number) => void;
 }
+
+interface CalibrationResultSlice {
+  calibrationResult: CalibrationResult | null;
+  runCalibration: () => void;
+  resetCalibration: () => void; // This action resets state across multiple slices
+}
+
+// Combined state type
+type CalibrationState = CameraSlice &
+  ProcessingSlice &
+  CaptureSlice &
+  SettingsSlice &
+  CalibrationResultSlice;
+
+// --- Helper Functions ---
 
 // Helper to promisify canvas.toBlob
 // Export this helper so it can be used externally
+/* // Removed getCanvasBlob - moved to imageUtils.ts
 export function getCanvasBlob(
   canvas: HTMLCanvasElement,
   type?: string,
@@ -98,270 +115,407 @@ export function getCanvasBlob(
 ): Promise<Blob | null> {
   return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
 }
+*/
 
-export const useCalibrationStore = create<CalibrationState>((set, get) => {
-  return {
-    // Initial state
-    stream: null,
-    videoElement: null,
-    frameWidth: 0,
-    frameHeight: 0,
-    isStreaming: false,
-    currentCorners: null,
-    currentFrameImageData: null,
-    movementHistory: [],
-    previousCornerMetrics: null,
-    stabilityPercentage: 0,
-    uniquenessPercentage: 100,
-    detectionFps: 0,
-    lastFrameProcessedTime: 0,
-    lastUpdateTime: 0,
-    capturedFrames: [],
-    selectedFrameId: null,
-    showGallery: false,
-    patternSize: { width: 9, height: 6 },
-    squareSize: 1.0,
-    stabilityDurationThreshold: DEFAULT_STABILITY_DURATION_THRESHOLD,
-    maxRelativeMovementForStability: DEFAULT_MAX_RELATIVE_MOVEMENT_THRESHOLD,
-    currentStableDuration: 0,
-    similarityThreshold: 5,
-    isAutoCaptureEnabled: true,
-    wasStableAndUnique: false,
-    isCapturePending: false,
-    calibrationResult: null,
+// --- Slice Creators ---
 
-    // Actions
-    initializeSettings: (settings: CalibrationSettings) => {
-      set((state) => ({
-        patternSize: settings.patternSize ?? state.patternSize,
-        squareSize: settings.squareSize ?? state.squareSize,
-        stabilityDurationThreshold:
-          settings.stabilityDurationThreshold ??
-          state.stabilityDurationThreshold,
-        maxRelativeMovementForStability:
-          settings.maxRelativeMovementForStability ??
-          state.maxRelativeMovementForStability,
-        similarityThreshold:
-          settings.similarityThreshold ?? state.similarityThreshold,
-        isAutoCaptureEnabled:
-          settings.autoCapture ?? state.isAutoCaptureEnabled,
-        wasStableAndUnique: false,
-        currentStableDuration: 0,
-      }));
-    },
+const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
+  set,
+  get
+) => ({
+  stream: null,
+  videoElement: null,
+  frameWidth: 0,
+  frameHeight: 0,
+  isStreaming: false,
+  startCamera: async (source: MediaStream | string) => {
+    // Ensure cleanup of previous state first
+    get().stopCamera(); // Calls stopCamera from this slice
 
-    startCamera: async (source: MediaStream | string) => {
-      // Ensure cleanup of previous state first
-      get().stopCamera();
+    try {
+      const element = document.createElement("video");
+      element.autoplay = true;
+      element.playsInline = true;
+      element.muted = true;
 
-      try {
-        const element = document.createElement("video");
-        element.autoplay = true;
-        element.playsInline = true;
-        element.muted = true;
-
-        const handleMetadataLoaded = () => {
-          console.log(
-            "[Store] Video metadata loaded:",
-            element.videoWidth,
-            element.videoHeight
-          );
-          if (element.videoWidth > 0 && element.videoHeight > 0) {
-            // needed by opencv VideoCapture
-            element.width = element.videoWidth;
-            element.height = element.videoHeight;
-            set({
-              frameWidth: element.videoWidth,
-              frameHeight: element.videoHeight,
-            });
-          } else {
-            console.warn(
-              "[Store] Metadata loaded but dimensions invalid on detached element."
-            );
-          }
-          element.removeEventListener("loadedmetadata", handleMetadataLoaded);
-        };
-
-        element.addEventListener("loadedmetadata", handleMetadataLoaded);
-
-        // Use the provided source based on its type
-        if (typeof source === "string") {
-          // Handle URL string
-          element.src = source;
-          element.crossOrigin = "anonymous";
-          console.log(
-            "[Store] Assigned provided URL to video element:",
-            source
-          );
-        } else if (source instanceof MediaStream) {
-          // Handle MediaStream
-          if (!source.active || source.getVideoTracks().length === 0) {
-            console.error(
-              "[Store] startCamera received an invalid or inactive stream."
-            );
-            set({ stream: null, videoElement: null, isStreaming: false });
-            return Promise.reject(
-              new Error("Invalid MediaStream provided to startCamera")
-            );
-          }
-          element.srcObject = source;
-          console.log("[Store] Assigned provided stream to video element.");
+      const handleMetadataLoaded = () => {
+        console.log(
+          "[Store:Camera] Video metadata loaded:",
+          element.videoWidth,
+          element.videoHeight
+        );
+        if (element.videoWidth > 0 && element.videoHeight > 0) {
+          element.width = element.videoWidth;
+          element.height = element.videoHeight;
+          set({
+            frameWidth: element.videoWidth,
+            frameHeight: element.videoHeight,
+          });
         } else {
-          // Handle invalid source
-          console.error("[Store] startCamera received an invalid source type.");
-          set({ stream: null, videoElement: null, isStreaming: false });
-          return Promise.reject(
-            new Error("Invalid source type provided to startCamera")
+          console.warn(
+            "[Store:Camera] Metadata loaded but dimensions invalid on detached element."
           );
         }
+        element.removeEventListener("loadedmetadata", handleMetadataLoaded);
+      };
 
-        await element.play();
+      element.addEventListener("loadedmetadata", handleMetadataLoaded);
 
-        console.log("[Store] Video element is playing.");
-        set({
-          stream: source instanceof MediaStream ? source : null,
-          videoElement: element,
-          isStreaming: true,
-          capturedFrames: [],
-          calibrationResult: null,
-          currentStableDuration: 0,
-          lastUpdateTime: 0,
-        });
-        // Reset FPS timer on start
-        get().resetDetectionFps();
-      } catch (error) {
-        console.error("[Store] Error setting up/playing video element:", error);
-        // Clean up element listener if play fails
-        const element = get().videoElement;
-        element?.removeEventListener("loadedmetadata", (e: any) =>
-          e?.target?.removeEventListener(
-            "loadedmetadata",
-            (e as any)?.target?._listenerRef
-          )
-        ); // Attempt cleanup
-        set({
-          stream: null,
-          videoElement: null,
-          isStreaming: false,
-          currentStableDuration: 0,
-          lastUpdateTime: 0,
-        });
-        // Reset FPS timer on stop
-        get().resetDetectionFps();
-        return Promise.reject(error); // Propagate error
-      }
-    },
-
-    stopCamera: () => {
-      const { videoElement } = get();
-      console.log("[Store] Stopping camera element management...");
-
-      if (videoElement) {
-        console.log("[Store] Cleaning up detached video element.");
-        videoElement.pause();
-        videoElement.srcObject = null;
-        // remove listeners if needed
+      if (typeof source === "string") {
+        element.src = source;
+        element.crossOrigin = "anonymous";
+        console.log(
+          "[Store:Camera] Assigned provided URL to video element:",
+          source
+        );
+      } else if (source instanceof MediaStream) {
+        if (!source.active || source.getVideoTracks().length === 0) {
+          console.error(
+            "[Store:Camera] startCamera received an invalid or inactive stream."
+          );
+          set({ stream: null, videoElement: null, isStreaming: false });
+          return Promise.reject(
+            new Error("Invalid MediaStream provided to startCamera")
+          );
+        }
+        element.srcObject = source;
+        console.log(
+          "[Store:Camera] Assigned provided stream to video element."
+        );
+      } else {
+        console.error(
+          "[Store:Camera] startCamera received an invalid source type."
+        );
+        set({ stream: null, videoElement: null, isStreaming: false });
+        return Promise.reject(
+          new Error("Invalid source type provided to startCamera")
+        );
       }
 
+      await element.play();
+
+      console.log("[Store:Camera] Video element is playing.");
+      // Reset states in other slices via direct set calls
+      set({
+        stream: source instanceof MediaStream ? source : null,
+        videoElement: element,
+        isStreaming: true,
+        // Reset capture state
+        capturedFrames: [],
+        selectedFrameId: null,
+        // Reset calibration state
+        calibrationResult: null,
+        // Reset processing state
+        currentStableDuration: 0,
+        lastUpdateTime: 0,
+        isCapturePending: false,
+        wasStableAndUnique: false,
+        previousCornerMetrics: null,
+        movementHistory: [],
+        currentCorners: null,
+        currentFrameImageData: null,
+      });
+      get().resetDetectionFps(); // Calls action from Processing slice
+    } catch (error) {
+      console.error(
+        "[Store:Camera] Error setting up/playing video element:",
+        error
+      );
+      const element = get().videoElement;
+      // Attempt cleanup (listener removal might need adjustment based on actual implementation)
+      element?.removeEventListener("loadedmetadata", (e: any) =>
+        e?.target?.removeEventListener(
+          "loadedmetadata",
+          (e as any)?.target?._listenerRef // Assuming _listenerRef holds the handle
+        )
+      );
       set({
         stream: null,
         videoElement: null,
         isStreaming: false,
-        frameWidth: 0,
-        frameHeight: 0,
-        currentCorners: null,
-        currentFrameImageData: null,
-        previousCornerMetrics: null,
-        movementHistory: [],
         currentStableDuration: 0,
         lastUpdateTime: 0,
+        isCapturePending: false, // Ensure reset on error too
       });
-      // Reset FPS timer on stop
-      get().resetDetectionFps();
-    },
+      get().resetDetectionFps(); // Calls action from Processing slice
+      return Promise.reject(error);
+    }
+  },
+  stopCamera: () => {
+    const { videoElement } = get(); // Use get() to access state within the same slice action
+    console.log("[Store:Camera] Stopping camera element management...");
 
-    clearCorners: () => {
-      get().updateDetectionFps(); // Call FPS update action *before* set
-      const { capturedFrames } = get();
+    if (videoElement) {
+      console.log("[Store:Camera] Cleaning up detached video element.");
+      videoElement.pause();
+      videoElement.srcObject = null;
+      // Remove listeners if needed (add specific removal logic here if applicable)
+    }
 
-      set({
-        currentCorners: null,
-        currentFrameImageData: null,
-        stabilityPercentage: 0,
-        uniquenessPercentage: capturedFrames.length > 0 ? 0 : 100,
-        movementHistory: [],
-        previousCornerMetrics: null,
-        wasStableAndUnique: false,
-        isCapturePending: false,
-        currentStableDuration: 0,
-        lastUpdateTime: 0,
-      });
-    },
+    // Reset states across multiple slices
+    set({
+      stream: null,
+      videoElement: null,
+      isStreaming: false,
+      frameWidth: 0,
+      frameHeight: 0,
+      // Reset processing state
+      currentCorners: null,
+      currentFrameImageData: null,
+      previousCornerMetrics: null,
+      movementHistory: [],
+      currentStableDuration: 0,
+      lastUpdateTime: 0,
+      wasStableAndUnique: false,
+      isCapturePending: false,
+      // Reset capture state
+      selectedFrameId: null, // Keep captured frames? No, reset on stop.
+      // capturedFrames: [], // Resetting frames on stop might be disruptive, comment out for now
+    });
+    get().resetDetectionFps(); // Calls action from Processing slice
+  },
+  setFrameDimensions: (width: number, height: number) => {
+    set({ frameWidth: width, frameHeight: height });
+  },
+  resetCalibration: () => {
+    // Reset state across multiple slices
+    set({
+      // Capture slice
+      capturedFrames: [],
+      selectedFrameId: null,
+      // Calibration slice
+      calibrationResult: null,
+      // Processing slice
+      currentFrameImageData: null, // Clear last processed image
+      currentStableDuration: 0,
+      lastUpdateTime: 0,
+      wasStableAndUnique: false,
+      isCapturePending: false,
+      previousCornerMetrics: null,
+      movementHistory: [],
+    });
+  },
+});
 
-    updateCorners: (corners: Corner[], imageData: ImageData) => {
-      get().updateDetectionFps(); // Call FPS update action *before* set
-      const now = performance.now();
-      // Store previous state for rising edge detection
-      const wasStableAndUniqueBeforeUpdate = get().wasStableAndUnique;
+const createProcessingSlice: StateCreator<
+  CalibrationState,
+  [],
+  [],
+  ProcessingSlice
+> = (set, get) => ({
+  currentCorners: null,
+  currentFrameImageData: null,
+  movementHistory: [],
+  previousCornerMetrics: null,
+  stabilityPercentage: 0,
+  uniquenessPercentage: 100, // Default to 100 when no frames captured yet
+  detectionFps: 0,
+  lastFrameProcessedTime: 0,
+  lastUpdateTime: 0,
+  currentStableDuration: 0,
+  wasStableAndUnique: false,
+  isCapturePending: false,
 
-      // Update the current frame data first
-      set({ currentCorners: corners, currentFrameImageData: imageData });
-      // Then calculate metrics and update related state
-      get().calculateFrameMetrics(corners, now);
+  updateCorners: (corners: Corner[], imageData: ImageData) => {
+    get().updateDetectionFps(); // Call FPS update action *before* set
+    const now = performance.now();
+    const wasStableAndUniqueBeforeUpdate = get().wasStableAndUnique;
 
-      // Read updated state after metrics calculation
-      const {
-        isAutoCaptureEnabled,
-        wasStableAndUnique,
-        isCapturePending,
-        currentStableDuration,
-        stabilityDurationThreshold,
-        uniquenessPercentage,
-        similarityThreshold,
-      } = get();
+    set({ currentCorners: corners, currentFrameImageData: imageData });
+    get().calculateFrameMetrics(corners, now); // Calls helper within the same slice
 
-      // --- Auto-Capture Logic (back in updateCorners) ---
-      // Trigger capture on the *rising edge* of stable+unique AND if no capture is already pending
-      if (
-        isAutoCaptureEnabled &&
-        wasStableAndUnique &&
-        !wasStableAndUniqueBeforeUpdate &&
-        !isCapturePending
-      ) {
-        console.log(
-          `[Store:updateCorners] Auto-capture triggered (Stable Duration: ${currentStableDuration.toFixed(2)}s >= ${stabilityDurationThreshold}s, Unique: ${uniquenessPercentage.toFixed(1)}% >= ${similarityThreshold}%).`
-        );
-        set({ isCapturePending: true }); // Set pending flag immediately
-        // Run capture asynchronously, don't await here to avoid blocking updates
-        get()
-          .captureFrame()
-          .catch((error) => {
-            console.error("[Store:updateCorners] Auto-capture failed:", error);
-            // Important: Reset pending flag on *any* capture failure
-            set({ isCapturePending: false, currentStableDuration: 0 }); // Reset here
-          });
-      }
-    },
+    // Read updated state after metrics calculation
+    const {
+      isAutoCaptureEnabled, // From SettingsSlice
+      wasStableAndUnique, // From this slice
+      isCapturePending, // From this slice
+      currentStableDuration, // From this slice
+      stabilityDurationThreshold, // From SettingsSlice
+      uniquenessPercentage, // From this slice
+      similarityThreshold, // From SettingsSlice
+    } = get();
 
-    captureFrame: async (forceCapture = false) => {
-      const { currentCorners, currentFrameImageData } = get();
-
-      if (!currentCorners) {
-        toast.warning("No chessboard detected to capture", {
-          id: "no-chessboard-detected",
+    // Auto-Capture Logic
+    if (
+      isAutoCaptureEnabled &&
+      wasStableAndUnique &&
+      !wasStableAndUniqueBeforeUpdate &&
+      !isCapturePending
+    ) {
+      console.log(
+        `[Store:Processing] Auto-capture triggered (Stable Duration: ${currentStableDuration.toFixed(2)}s >= ${stabilityDurationThreshold}s, Unique: ${uniquenessPercentage.toFixed(1)}% >= ${similarityThreshold}%).`
+      );
+      set({ isCapturePending: true }); // Set pending flag immediately
+      // Call captureFrame from CaptureSlice asynchronously
+      get()
+        .captureFrame() // Calls action from Capture slice
+        .catch((error) => {
+          console.error("[Store:Processing] Auto-capture failed:", error);
+          // Reset pending flag and duration on failure
+          set({ isCapturePending: false, currentStableDuration: 0 });
         });
-        set({ isCapturePending: false, currentStableDuration: 0 });
-        return;
-      }
+    }
+  },
 
-      if (!currentFrameImageData) {
-        const errMsg = "[captureFrame] No ImageData available for capture";
-        console.error(errMsg);
-        set({ isCapturePending: false, currentStableDuration: 0 });
-        return Promise.reject(new Error(errMsg));
-      }
+  clearCorners: () => {
+    get().updateDetectionFps(); // Call FPS update action *before* set
+    const { capturedFrames } = get(); // Access capturedFrames from CaptureSlice
 
-      // Removed try...catch block here. Errors from createImageBlob will propagate.
+    set({
+      currentCorners: null,
+      currentFrameImageData: null,
+      stabilityPercentage: 0,
+      uniquenessPercentage: capturedFrames.length > 0 ? 0 : 100,
+      movementHistory: [],
+      previousCornerMetrics: null,
+      wasStableAndUnique: false,
+      isCapturePending: false,
+      currentStableDuration: 0,
+      lastUpdateTime: 0, // Reset update time as metrics are cleared
+    });
+  },
+
+  resetDetectionFps: () => {
+    set({ detectionFps: 0, lastFrameProcessedTime: 0 });
+  },
+
+  updateDetectionFps: () => {
+    const { lastFrameProcessedTime, detectionFps } = get(); // Access state from this slice
+    const now = performance.now();
+    const deltaTime = now - lastFrameProcessedTime;
+    let smoothedFps = detectionFps;
+
+    if (lastFrameProcessedTime > 0 && deltaTime > 0) {
+      const currentRawFps = 1000 / deltaTime;
+      smoothedFps =
+        FPS_SMOOTHING_FACTOR * currentRawFps +
+        (1 - FPS_SMOOTHING_FACTOR) * smoothedFps;
+    }
+    set({ detectionFps: smoothedFps, lastFrameProcessedTime: now });
+  },
+
+  calculateFrameMetrics: (corners: Corner[], now: number) => {
+    // Access state from multiple slices using get()
+    const {
+      movementHistory, // Processing
+      previousCornerMetrics, // Processing
+      maxRelativeMovementForStability, // Settings
+      capturedFrames, // Capture
+      frameWidth, // Camera
+      frameHeight, // Camera
+      stabilityDurationThreshold, // Settings
+      currentStableDuration, // Processing
+      lastUpdateTime, // Processing
+      similarityThreshold, // Settings
+    } = get();
+
+    const metrics = calculateCornerMetrics(corners);
+
+    let movement = Infinity;
+    if (previousCornerMetrics) {
+      movement = calculateMovement(metrics, previousCornerMetrics);
+    }
+
+    const deltaTime = lastUpdateTime > 0 ? now - lastUpdateTime : 0;
+    const deltaTimeSeconds = deltaTime / 1000;
+
+    const newHistory = [...movementHistory, movement];
+    if (newHistory.length > 10) newHistory.shift();
+
+    const avgMovement =
+      newHistory.length > 0
+        ? newHistory.reduce((sum, val) => sum + val, 0) / newHistory.length
+        : Infinity;
+
+    let normalizedAvgMovement = Infinity;
+    let stabilityPct = 0;
+    let isInstantaneouslyStable = false;
+
+    if (frameWidth > 0 && frameHeight > 0) {
+      const imageDiagonal = Math.sqrt(
+        frameWidth * frameWidth + frameHeight * frameHeight
+      );
+      if (imageDiagonal > 0) {
+        normalizedAvgMovement = avgMovement / imageDiagonal;
+        isInstantaneouslyStable =
+          normalizedAvgMovement <= maxRelativeMovementForStability;
+        stabilityPct = Math.min(
+          100,
+          Math.max(
+            0,
+            (1 - normalizedAvgMovement / maxRelativeMovementForStability) * 100
+          )
+        );
+      }
+    } else {
+      stabilityPct = 0;
+      isInstantaneouslyStable = false;
+    }
+
+    let newStableDuration = currentStableDuration;
+    if (isInstantaneouslyStable) {
+      newStableDuration += deltaTimeSeconds;
+    } else {
+      newStableDuration = 0;
+    }
+
+    const isStable = newStableDuration >= stabilityDurationThreshold;
+
+    const uniqueness = calculateSimilarityScore(
+      corners,
+      capturedFrames,
+      frameWidth,
+      frameHeight
+    );
+    const uniquenessPct = uniqueness * 100;
+    const isUnique = uniquenessPct >= similarityThreshold;
+
+    const currentlyStableAndUnique = isStable && isUnique;
+
+    // Update state within the Processing slice
+    set({
+      previousCornerMetrics: metrics,
+      movementHistory: newHistory,
+      stabilityPercentage: stabilityPct,
+      uniquenessPercentage: uniquenessPct,
+      wasStableAndUnique: currentlyStableAndUnique,
+      currentStableDuration: newStableDuration,
+      lastUpdateTime: now,
+      // isCapturePending is NOT reset here, only by captureFrame or clearCorners/updateCorners
+    });
+  },
+});
+
+const createCaptureSlice: StateCreator<
+  CalibrationState,
+  [],
+  [],
+  CaptureSlice
+> = (set, get) => ({
+  capturedFrames: [],
+  selectedFrameId: null,
+  showGallery: false,
+
+  captureFrame: async (forceCapture = false) => {
+    // Access state from ProcessingSlice
+    const { currentCorners, currentFrameImageData } = get();
+
+    if (!currentCorners) {
+      toast.warning("No chessboard detected to capture", {
+        id: "no-chessboard-detected",
+      });
+      set({ isCapturePending: false, currentStableDuration: 0 }); // Reset processing state
+      return;
+    }
+
+    if (!currentFrameImageData) {
+      const errMsg = "[Store:Capture] No ImageData available for capture";
+      console.error(errMsg);
+      set({ isCapturePending: false, currentStableDuration: 0 }); // Reset processing state
+      return Promise.reject(new Error(errMsg));
+    }
+
+    try {
       const imageBlob = await createImageBlob(
         currentFrameImageData,
         "image/jpeg",
@@ -377,193 +531,154 @@ export const useCalibrationStore = create<CalibrationState>((set, get) => {
       };
 
       console.log(
-        `[captureFrame] ${forceCapture ? "Forced" : "Auto"} capture successful for frame ${frameId}.`
+        `[Store:Capture] ${forceCapture ? "Forced" : "Auto"} capture successful for frame ${frameId}.`
       );
 
-      // Reset state on successful capture
+      // Update Capture slice state and reset relevant Processing slice state
       set((state) => ({
         capturedFrames: [...state.capturedFrames, frame],
+        // Reset processing state after successful capture
         currentStableDuration: 0,
         isCapturePending: false,
+        wasStableAndUnique: false, // Ensure rising edge logic works correctly next time
+        previousCornerMetrics: null, // Reset movement detection basis
+        movementHistory: [], // Clear movement history
       }));
 
-      return frameId; // Resolve with frameId on success
-    },
+      return frameId;
+    } catch (error) {
+      console.error("[Store:Capture] Error creating image blob:", error);
+      // Reset processing state on error
+      set({ isCapturePending: false, currentStableDuration: 0 });
+      // Propagate the error
+      return Promise.reject(error);
+    }
+  },
 
-    deleteFrame: (id: string) => {
-      set((state) => ({
-        capturedFrames: state.capturedFrames.filter((frame) => frame.id !== id),
-        selectedFrameId:
-          state.selectedFrameId === id ? null : state.selectedFrameId,
-        currentFrameImageData: null,
-        currentStableDuration: 0,
-        lastUpdateTime: 0,
-      }));
-    },
+  deleteFrame: (id: string) => {
+    set((state) => ({
+      capturedFrames: state.capturedFrames.filter((frame) => frame.id !== id),
+      selectedFrameId:
+        state.selectedFrameId === id ? null : state.selectedFrameId,
+      // Reset processing state as uniqueness might change
+      currentStableDuration: 0,
+      lastUpdateTime: 0, // Reset to recalculate uniqueness/stability properly
+      uniquenessPercentage: 100, // Assume max uniqueness until next calculation
+      wasStableAndUnique: false,
+      isCapturePending: false,
+    }));
+    // Recalculate uniqueness after deletion? Maybe not immediately needed.
+    // If currentCorners exist, could call calculateFrameMetrics?
+    // const { currentCorners } = get();
+    // if (currentCorners) {
+    //   get().calculateFrameMetrics(currentCorners, performance.now());
+    // }
+  },
 
-    runCalibration: () => {
-      const {
-        capturedFrames,
-        patternSize,
-        frameWidth,
-        frameHeight,
-        squareSize,
-      } = get();
+  setShowGallery: (show: boolean) => set({ showGallery: show }),
 
-      const validFrames = capturedFrames.filter((f) => f.imageBlob);
-      if (validFrames.length < 3) {
-        const errMsg = "At least 3 valid frames required for calibration";
-        console.error(errMsg);
-        // Throw error instead of returning silently
-        throw new Error(errMsg);
-      }
+  setSelectedFrame: (id: string | null) => set({ selectedFrameId: id }),
+});
 
-      // Removed try...catch block. Errors from calibrateCamera will propagate.
+const createSettingsSlice: StateCreator<
+  CalibrationState,
+  [],
+  [],
+  SettingsSlice
+> = (set, get) => ({
+  patternSize: { width: 9, height: 6 },
+  squareSize: 1.0,
+  stabilityDurationThreshold: DEFAULT_STABILITY_DURATION_THRESHOLD,
+  maxRelativeMovementForStability: DEFAULT_MAX_RELATIVE_MOVEMENT_THRESHOLD,
+  similarityThreshold: 5,
+  isAutoCaptureEnabled: true,
+
+  initializeSettings: (settings: CalibrationSettings) => {
+    set((state) => ({
+      patternSize: settings.patternSize ?? state.patternSize,
+      squareSize: settings.squareSize ?? state.squareSize,
+      stabilityDurationThreshold:
+        settings.stabilityDurationThreshold ?? state.stabilityDurationThreshold,
+      maxRelativeMovementForStability:
+        settings.maxRelativeMovementForStability ??
+        state.maxRelativeMovementForStability,
+      similarityThreshold:
+        settings.similarityThreshold ?? state.similarityThreshold,
+      isAutoCaptureEnabled: settings.autoCapture ?? state.isAutoCaptureEnabled,
+      // Reset processing state dependent on settings
+      wasStableAndUnique: false,
+      currentStableDuration: 0,
+      isCapturePending: false,
+    }));
+  },
+});
+
+const createCalibrationResultSlice: StateCreator<
+  CalibrationState,
+  [],
+  [],
+  CalibrationResultSlice
+> = (set, get) => ({
+  calibrationResult: null,
+
+  runCalibration: () => {
+    // Access state from Capture, Settings, and Camera slices
+    const {
+      capturedFrames, // Capture
+      patternSize, // Settings
+      frameWidth, // Camera
+      frameHeight, // Camera
+      squareSize, // Settings
+    } = get();
+
+    const validFrames = capturedFrames.filter((f) => f.imageBlob);
+    if (validFrames.length < 3) {
+      const errMsg = "At least 3 valid frames required for calibration";
+      console.error("[Store:Calibration]", errMsg);
+      throw new Error(errMsg); // Propagate error
+    }
+
+    try {
       const result = calibrateCamera(
         validFrames,
         patternSize,
         { width: frameWidth, height: frameHeight },
         squareSize
       );
-
       set({ calibrationResult: result });
-    },
+    } catch (error) {
+      console.error("[Store:Calibration] Calibration failed:", error);
+      set({ calibrationResult: null }); // Ensure result is null on error
+      throw error; // Re-throw error
+    }
+  },
 
-    setShowGallery: (show: boolean) => set({ showGallery: show }),
-
-    setSelectedFrame: (id: string | null) => set({ selectedFrameId: id }),
-
-    resetCalibration: () =>
-      set({
-        capturedFrames: [],
-        selectedFrameId: null,
-        calibrationResult: null,
-        currentFrameImageData: null,
-        currentStableDuration: 0,
-        lastUpdateTime: 0,
-      }),
-
-    setFrameDimensions: (width: number, height: number) => {
-      set({ frameWidth: width, frameHeight: height });
-    },
-
-    resetDetectionFps: () => {
-      set({ detectionFps: 0, lastFrameProcessedTime: 0 }); // Reset timestamp too
-    },
-
-    updateDetectionFps: () => {
-      const { lastFrameProcessedTime, detectionFps } = get();
-      const now = performance.now();
-      const deltaTime = now - lastFrameProcessedTime;
-      let smoothedFps = detectionFps;
-
-      if (lastFrameProcessedTime > 0 && deltaTime > 0) {
-        const currentRawFps = 1000 / deltaTime;
-        smoothedFps =
-          FPS_SMOOTHING_FACTOR * currentRawFps +
-          (1 - FPS_SMOOTHING_FACTOR) * smoothedFps;
-      }
-      // Use set directly here as it's part of the store actions
-      set({ detectionFps: smoothedFps, lastFrameProcessedTime: now });
-    },
-
-    // Helper to calculate stability and uniqueness metrics and update state
-    calculateFrameMetrics: (corners: Corner[], now: number) => {
-      const {
-        movementHistory,
-        previousCornerMetrics,
-        maxRelativeMovementForStability,
-        capturedFrames,
-        frameWidth,
-        frameHeight,
-        stabilityDurationThreshold,
-        currentStableDuration,
-        lastUpdateTime,
-        similarityThreshold,
-      } = get();
-
-      const metrics = calculateCornerMetrics(corners);
-
-      let movement = Infinity; // Raw pixel movement
-      if (previousCornerMetrics) {
-        movement = calculateMovement(metrics, previousCornerMetrics);
-      }
-
-      // Time Delta Calculation
-      const deltaTime = lastUpdateTime > 0 ? now - lastUpdateTime : 0; // in ms
-      const deltaTimeSeconds = deltaTime / 1000;
-
-      // Movement History & Average (using raw pixels)
-      const newHistory = [...movementHistory, movement];
-      if (newHistory.length > 10) newHistory.shift(); // Keep last 10 movements
-
-      const avgMovement =
-        newHistory.length > 0
-          ? newHistory.reduce((sum, val) => sum + val, 0) / newHistory.length
-          : Infinity;
-
-      // Normalization & Instantaneous Stability Check
-      let normalizedAvgMovement = Infinity;
-      let stabilityPct = 0;
-      let isInstantaneouslyStable = false;
-
-      if (frameWidth > 0 && frameHeight > 0) {
-        const imageDiagonal = Math.sqrt(
-          frameWidth * frameWidth + frameHeight * frameHeight
-        );
-        if (imageDiagonal > 0) {
-          normalizedAvgMovement = avgMovement / imageDiagonal;
-          isInstantaneouslyStable =
-            normalizedAvgMovement <= maxRelativeMovementForStability;
-          stabilityPct = Math.min(
-            100,
-            Math.max(
-              0,
-              (1 - normalizedAvgMovement / maxRelativeMovementForStability) *
-                100
-            )
-          );
-        }
-      } else {
-        // Cannot calculate stability without frame dimensions
-        stabilityPct = 0;
-        isInstantaneouslyStable = false;
-      }
-
-      // Update Stable Duration
-      let newStableDuration = currentStableDuration;
-      if (isInstantaneouslyStable) {
-        newStableDuration += deltaTimeSeconds; // Accumulate time if stable
-      } else {
-        newStableDuration = 0; // Reset duration if not stable
-      }
-
-      // Check Overall Stability (Duration Threshold)
-      const isStable = newStableDuration >= stabilityDurationThreshold;
-
-      // Uniqueness
-      const uniqueness = calculateSimilarityScore(
-        corners,
-        capturedFrames,
-        frameWidth,
-        frameHeight
-      );
-      const uniquenessPct = uniqueness * 100;
-      const isUnique = uniquenessPct >= similarityThreshold;
-
-      // Determine current state based on calculated metrics
-      const currentlyStableAndUnique = isStable && isUnique;
-
-      // --- Update State (metrics only) ---
-      set({
-        previousCornerMetrics: metrics,
-        movementHistory: newHistory,
-        stabilityPercentage: stabilityPct,
-        uniquenessPercentage: uniquenessPct,
-        wasStableAndUnique: currentlyStableAndUnique, // Store current state for next frame's rising edge detection
-        currentStableDuration: newStableDuration,
-        lastUpdateTime: now,
-      });
-    },
-  };
+  resetCalibration: () => {
+    // Reset state across multiple slices
+    set({
+      // Capture slice
+      capturedFrames: [],
+      selectedFrameId: null,
+      // Calibration slice
+      calibrationResult: null,
+      // Processing slice
+      currentFrameImageData: null, // Clear last processed image
+      currentStableDuration: 0,
+      lastUpdateTime: 0,
+      wasStableAndUnique: false,
+      isCapturePending: false,
+      previousCornerMetrics: null,
+      movementHistory: [],
+    });
+  },
 });
+
+export const useCalibrationStore = create<CalibrationState>()((...a) => ({
+  // --- Combine Slices ---
+  // Pass the arguments (`set`, `get`, `api`) using the spread operator
+  ...createCameraSlice(...a),
+  ...createProcessingSlice(...a),
+  ...createCaptureSlice(...a),
+  ...createSettingsSlice(...a),
+  ...createCalibrationResultSlice(...a),
+}));
