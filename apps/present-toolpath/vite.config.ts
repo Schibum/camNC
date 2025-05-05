@@ -7,11 +7,19 @@ import checker from 'vite-plugin-checker';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import tsconfigPaths from 'vite-tsconfig-paths';
 
+const ReactCompilerConfig = {
+  target: '19',
+};
+
 // https://vitejs.dev/config/
 export default defineConfig(({ command, ...params }) => {
   const plugins: PluginOption[] = [
     TanStackRouterVite({ target: 'react', autoCodeSplitting: true }),
-    react(),
+    react({
+      babel: {
+        plugins: [['babel-plugin-react-compiler', ReactCompilerConfig]],
+      },
+    }),
     tsconfigPaths(),
     tailwindcss(),
     nodePolyfills(),
@@ -29,7 +37,7 @@ export default defineConfig(({ command, ...params }) => {
       headers: {
         'Cross-Origin-Opener-Policy': 'same-origin',
         'Cross-Origin-Embedder-Policy': 'require-corp',
-      }
-    }
+      },
+    },
   };
 });
