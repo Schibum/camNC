@@ -30,28 +30,33 @@ function getStableWebrtcDefaults() {
   return parsed as WebrtcConnectionParams;
 }
 
-export function VideoSourceTabs({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  const defaults = useMemo(() => parseConnectionString(value), [value]);
+export interface IOnChangeArgs {
+  url: string;
+  maxResolution: VideoDimensions;
+}
 
-  const [sourceType, setSourceType] = useState<string>(defaults.type);
+export function VideoSourceSelection({ value = '', onChange }: { value?: string; onChange: (value: IOnChangeArgs) => void }) {
+  const defaults = useMemo(() => (value ? parseConnectionString(value) : undefined), [value]);
+
+  const [sourceType, setSourceType] = useState<string>(defaults?.type || 'webrtc');
   const [connectParams, setConnectParams] = useState<RtcConnectionParams | null>(null);
 
-  function onSubmit(params: RtcConnectionParams, maxResolution?: VideoDimensions) {
+  function onSubmit(params: RtcConnectionParams, maxResolution: VideoDimensions) {
     setConnectParams(null);
-    console.log('submit', params, maxResolution);
-    onChange(buildConnectionUrl(params));
+    console.log('VideoSourceSelection onSubmit', params, maxResolution);
+    onChange({ url: buildConnectionUrl(params), maxResolution });
   }
 
   function onConnect(params: RtcConnectionParams) {
     setConnectParams(params);
   }
 
-  const urlDefaults = defaults.type === 'url' ? defaults : { type: 'url' as const, url: '' };
+  const urlDefaults = defaults?.type === 'url' ? defaults : { type: 'url' as const, url: '' };
   const webtorrentDefaults: WebtorrentConnectionParams =
-    defaults.type === 'webtorrent' ? defaults : { type: 'webtorrent' as const, share: '', pwd: '' };
-  const webrtcDefaults: WebrtcConnectionParams = defaults.type === 'webrtc' ? defaults : getStableWebrtcDefaults();
+    defaults?.type === 'webtorrent' ? defaults : { type: 'webtorrent' as const, share: '', pwd: '' };
+  const webrtcDefaults: WebrtcConnectionParams = defaults?.type === 'webrtc' ? defaults : getStableWebrtcDefaults();
   const webcamDefaults: WebcamConnectionParams =
-    defaults.type === 'webcam' ? defaults : { type: 'webcam' as const, deviceId: '', idealWidth: 4096, idealHeight: 2160 };
+    defaults?.type === 'webcam' ? defaults : { type: 'webcam' as const, deviceId: '', idealWidth: 4096, idealHeight: 2160 };
 
   return (
     <>
@@ -84,8 +89,4 @@ export function VideoSourceTabs({ value, onChange }: { value: string; onChange: 
       )}
     </>
   );
-}
-
-export function VideoSourceSelection() {
-  return <VideoSourceTabs value="https://hello.com/stream.mp4" onChange={() => {}} />;
 }

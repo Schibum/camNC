@@ -4,7 +4,7 @@ import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
 import { Suspense, forwardRef, useImperativeHandle, useLayoutEffect, useRef } from 'react';
 
 export interface VideoPreviewRef {
-  maxResolution?: VideoDimensions;
+  getMaxResolution: () => VideoDimensions;
 }
 
 export type VideoPreviewProps = {
@@ -25,16 +25,31 @@ interface VideoPreviewInnerProps extends Omit<React.VideoHTMLAttributes<HTMLVide
 
 const VideoPreviewInner = forwardRef<VideoPreviewRef, VideoPreviewInnerProps>(function VideoPreviewInner({ connectionUrl, ...props }, ref) {
   const { src, maxResolution } = useVideoSource(connectionUrl);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useImperativeHandle(ref, () => ({
-    maxResolution,
+    getMaxResolution: () => {
+      if (maxResolution) {
+        return maxResolution;
+      } else if (videoRef.current) {
+        return {
+          width: videoRef.current.videoWidth,
+          height: videoRef.current.videoHeight,
+        };
+      }
+      throw new Error('could not get max resolution');
+    },
   }));
 
-  return <MediaSourceVideo src={src} {...props} />;
+  return <MediaSourceVideo src={src} {...props} ref={videoRef} />;
 });
 
-function MediaSourceVideo({ src, ...props }: { src: string | MediaStream } & Omit<React.VideoHTMLAttributes<HTMLVideoElement>, 'src'>) {
+const MediaSourceVideo = forwardRef<
+  HTMLVideoElement,
+  { src: string | MediaStream } & Omit<React.VideoHTMLAttributes<HTMLVideoElement>, 'src'>
+>(function MediaSourceVideo({ src, ...props }, ref) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  useImperativeHandle(ref, () => videoRef.current as HTMLVideoElement);
   useLayoutEffect(() => {
     if (!src || !videoRef.current) return;
     if (src instanceof MediaStream) {
@@ -54,4 +69,4 @@ function MediaSourceVideo({ src, ...props }: { src: string | MediaStream } & Omi
       ref={videoRef}
     />
   );
-}
+});

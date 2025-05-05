@@ -22,7 +22,7 @@ export interface CameraExtrinsics {
 
 // Types from atoms.tsx
 export type ITuple = [number, number];
-export type IBox = [ITuple, ITuple, ITuple, ITuple];
+export type IMachineBounds = [ITuple, ITuple, ITuple, ITuple];
 
 export interface CameraConfig {
   // Streaming URL.
@@ -30,9 +30,21 @@ export interface CameraConfig {
   // Camera resolution.
   dimensions: ITuple;
   // Machine bounds in camera coordinates.
-  machineBoundsInCam: IBox;
+  machineBoundsInCam: IMachineBounds;
   // Machine bounds in pixels. (xmin, ymin), (xmax, ymax)
   machineBounds: Box2;
+}
+
+// Should there be a separate type for pending/incomplete source configs?
+export interface ICamSource {
+  url: string;
+  maxResolution: ITuple;
+  // Technically machine is independent of source, but multiple cams per machine
+  // seems rare enough that we'll store it here for now.
+  machineBounds?: Box2;
+  machineBoundsInCam?: IMachineBounds;
+  calibration?: CalibrationData;
+  extrinsics?: CameraExtrinsics;
 }
 
 // Default calibration data
@@ -124,9 +136,12 @@ const storage: PersistStorage<unknown> = {
 // prettier-ignore
 export const useStore = create(devtools(persist(immer(combine(
   {
+    // old
     cameraConfig: defaultCameraConfig,
     calibrationData: defaultCalibrationData,
     cameraExtrinsics: defaultExtrinsicParameters,
+    // new, should probably go into a backend instead at some point
+    camSource: null as ICamSource | null,
 
     toolDiameter: 3.0, // Default tool diameter in mm
     toolpath: null as ParsedToolpath | null,
@@ -152,6 +167,27 @@ export const useStore = create(devtools(persist(immer(combine(
     setShowStillFrame: (show: boolean) => set(state => {
       state.showStillFrame = show;
     }),
+    camSourceSetters: {
+      setSource: (url: string, maxResolution: ITuple) => set(state => {
+        state.camSource = { ...state.camSource, url, maxResolution};
+      }),
+      setCalibration: (calibration: CalibrationData) => set(state => {
+        if (!state.camSource) throw new Error('configure source first');
+        state.camSource.calibration = calibration;
+      }),
+      setExtrinsics: (extrinsics: CameraExtrinsics) => set(state => {
+        if (!state.camSource) throw new Error('configure source first');
+        state.camSource.extrinsics = extrinsics;
+      }),
+      setMachineBounds: (bounds: Box2) => set(state => {
+        if (!state.camSource) throw new Error('configure source first');
+        state.camSource.machineBounds = bounds;
+      }),
+      setMachineBoundsInCam: (points: IMachineBounds) => set(state => {
+        if (!state.camSource) throw new Error('configure source first');
+        state.camSource.machineBoundsInCam = points;
+      }),
+    },
     machineBoundsSetters: {
       setXMin: (xMin: number) => set(state => {
         state.cameraConfig.machineBounds.min.x = xMin;
@@ -178,7 +214,7 @@ export const useStore = create(devtools(persist(immer(combine(
     setVideoSrc: (src: string) => set(state => {
       state.cameraConfig.url = src;
     }),
-    setMachineBoundsInCam: (points: IBox) => set(state => {
+    setMachineBoundsInCam: (points: IMachineBounds) => set(state => {
       state.cameraConfig.machineBoundsInCam = points;
     }),
     setCameraConfig: (config: CameraConfig) => set(state => {
@@ -208,15 +244,19 @@ export const useStore = create(devtools(persist(immer(combine(
     cameraConfig: state.cameraConfig,
     toolDiameter: state.toolDiameter,
     cameraExtrinsics: state.cameraExtrinsics,
+    camSource: state.camSource,
   }),
 })));
 
+// old
 export const useVideoSrc = () => useStore(state => state.cameraConfig.url);
 export const useVideoDimensions = () => useStore(state => state.cameraConfig.dimensions);
 
 export const useCameraConfig = () => useStore(state => state.cameraConfig);
 export const useCalibrationData = () => useStore(state => state.calibrationData);
 export const useNewCameraMatrix = () => useStore(state => state.calibrationData.new_camera_matrix);
+// new
+export const useCamSource = () => useStore(state => state.camSource);
 
 // Access tool diameter from store
 export const useToolDiameter = () => useStore(state => state.toolDiameter);
@@ -241,7 +281,7 @@ export function useVideoToMachineHomography() {
     [mp.min.x, mp.max.y], // xmin, ymax
     [mp.max.x, mp.max.y], // xmax, ymax
     [mp.max.x, mp.min.y], // xmax, ymin
-  ] as IBox;
+  ] as IMachineBounds;
   const H = computeHomography(machineBoundsInCam, dstPoints);
   const M = new Matrix4().fromArray(buildMatrix4FromHomography(H));
   // return M;

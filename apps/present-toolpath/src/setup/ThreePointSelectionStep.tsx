@@ -1,17 +1,17 @@
+import { useReprojectedMachineBounds, useUpdateCameraExtrinsics } from '@/calibration/solveP3P';
 import { UnskewedVideoMesh } from '@/calibration/UnskewTsl';
-import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { Draggable } from '@/scene/Draggable';
 import { PresentCanvas } from '@/scene/PresentCanvas';
 import { Line, Text } from '@react-three/drei';
 import { ThreeEvent } from '@react-three/fiber';
+import { Button } from '@wbcnc/ui/components/button';
+import { PageHeader } from '@wbcnc/ui/components/page-header';
 import React, { useCallback, useMemo, useState } from 'react';
 import * as THREE from 'three';
-import { IBox, ITuple, useStore } from '../store';
-import { Button } from '@wbcnc/ui/components/button';
-import { useUpdateCameraExtrinsics, useReprojectedMachineBounds } from '@/calibration/solveP3P';
+import { IMachineBounds, ITuple, useStore } from '../store';
 import { MachineBoundsInput } from './MachineBoundsDialog';
 
-interface PointSelectionStepProps { }
+interface PointSelectionStepProps {}
 
 function ReprojectedMachineBounds() {
   const reprojectedPoints = useReprojectedMachineBounds();
@@ -171,7 +171,7 @@ function PointsScene({ points, setPoints }: { points: ITuple[]; setPoints: (poin
   );
 }
 
-export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({ }) => {
+export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) => {
   const [points, setPoints] = useState<ITuple[]>(useStore(state => state.cameraConfig.machineBoundsInCam));
   const setMachineBoundsInCam = useStore(state => state.setMachineBoundsInCam);
   const updateCameraExtrinsics = useUpdateCameraExtrinsics();
@@ -184,7 +184,7 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({ }) 
     }
     console.log('points', points);
 
-    setMachineBoundsInCam(points as IBox);
+    setMachineBoundsInCam(points as IMachineBounds);
     updateCameraExtrinsics();
   };
 

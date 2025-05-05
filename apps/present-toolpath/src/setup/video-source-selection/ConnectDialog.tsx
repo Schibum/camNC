@@ -14,7 +14,7 @@ export function ConnectDialog({
   onCancel,
 }: {
   params: RtcConnectionParams;
-  onConfirm: (maxResolution?: VideoDimensions) => void;
+  onConfirm: (maxResolution: VideoDimensions) => void;
   onCancel: () => void;
 }) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -79,7 +79,7 @@ export function ConnectDialog({
             <Button variant="secondary">Cancel</Button>
           </DialogClose>
           <DialogClose asChild>
-            <Button disabled={!isPlaying} onClick={() => onConfirm(videoPreviewRef.current?.maxResolution)}>
+            <Button disabled={!isPlaying} onClick={() => onConfirm(videoPreviewRef.current!.getMaxResolution())}>
               Confirm Video Source
             </Button>
           </DialogClose>

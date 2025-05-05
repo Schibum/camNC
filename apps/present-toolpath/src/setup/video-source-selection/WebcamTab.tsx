@@ -11,7 +11,7 @@ export function WebcamTab({
   onSubmit,
 }: {
   defaults: WebcamConnectionParams;
-  onSubmit: (params: WebcamConnectionParams, maxResolution?: VideoDimensions) => void;
+  onSubmit: (params: WebcamConnectionParams, maxResolution: VideoDimensions) => void;
 }) {
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState(defaults.deviceId);
@@ -52,6 +52,10 @@ export function WebcamTab({
     } as const;
   }
 
+  function handleConfirm() {
+    onSubmit(getParams(), videoPreviewRef.current!.getMaxResolution());
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -78,7 +82,7 @@ export function WebcamTab({
           </div>
         )}
         {selectedDeviceId && <VideoPreview connectionUrl={buildConnectionUrl(getParams())} ref={videoPreviewRef} />}
-        <Button disabled={!selectedDeviceId} onClick={() => onSubmit(getParams(), videoPreviewRef.current?.maxResolution)}>
+        <Button disabled={!selectedDeviceId} onClick={handleConfirm}>
           Confirm
         </Button>
       </CardContent>

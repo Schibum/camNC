@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from '@wbcnc/ui/components/dialog';
 import { ChevronsUpDown } from 'lucide-react';
-import { useStore } from '../store';
+import { useCamSource } from '../store';
 
 function CodeBlock({ children }: { children: React.ReactNode }) {
   return <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm whitespace-pre-wrap">{children}</code>;
@@ -23,7 +23,7 @@ function CodeJson({ obj }: { obj: any }) {
 
 // TODO(manu): updates this to prettyPrint once store uses three.js types
 function CalibrationDataDisplay() {
-  const calibrationData = useStore(state => state.calibrationData);
+  const calibrationData = useCamSource()?.calibration;
   if (!calibrationData) return null;
   const cameraMatrix = calibrationData?.calibration_matrix;
   return (
@@ -39,6 +39,7 @@ function CalibrationDataDisplay() {
 }
 
 export function AlreadyCalibratedDialog() {
+  if (!useCamSource()?.calibration) return null;
   return (
     <Dialog defaultOpen={true}>
       <DialogContent className="max-h-[90vh] flex flex-col">

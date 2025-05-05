@@ -1,13 +1,13 @@
-import { IBox, useStore } from '@/store';
+import { IMachineBounds, useStore } from '@/store';
+import { cv2, ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { use } from 'react';
 import { Box2, Matrix3, Vector2 } from 'three';
-import { cv2, ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { cvToMatrix3, cvToVector2, cvToVector3, matrix3ToCV, vector3ToCV } from '../lib/three-cv';
 
 function useMachineBoundsInImageCoords() {
   const machineBoundsInCam = useStore(state => state.cameraConfig.machineBoundsInCam);
   const dimensions = useStore(state => state.cameraConfig.dimensions);
-  const convertToImageCoords = (bounds: IBox): IBox => {
+  const convertToImageCoords = (bounds: IMachineBounds): IMachineBounds => {
     // In three.js, Y is up, but in image coordinates, Y is down
     // Also need to account for the origin being at the center in three.js vs top-left in image coordinates
     return bounds.map(([x, y]) => [
@@ -15,7 +15,7 @@ function useMachineBoundsInImageCoords() {
       x + dimensions[0] / 2,
       // Convert Y from [height/2, -height/2] to [0, height]
       dimensions[1] / 2 - y,
-    ]) as IBox;
+    ]) as IMachineBounds;
   };
 
   return convertToImageCoords(machineBoundsInCam);
@@ -84,7 +84,7 @@ function machineBoundsToCv(mp: Box2) {
   return objectPoints;
 }
 
-export function computeP3P(mp: Box2, machineBoundsInCam: IBox, newCamMatrix: Matrix3) {
+export function computeP3P(mp: Box2, machineBoundsInCam: IMachineBounds, newCamMatrix: Matrix3) {
   const objectPoints = machineBoundsToCv(mp);
   // prettier-ignore
   const imagePoints = cv2.matFromArray(4, 2, cv2.CV_64F, [
@@ -144,7 +144,7 @@ export function computeP3P(mp: Box2, machineBoundsInCam: IBox, newCamMatrix: Mat
   return { R: threeR, t: threeT };
 }
 
-function computeReprojectionError(reprojectedPoints: cv2.Mat, machineBoundsInCam: IBox) {
+function computeReprojectionError(reprojectedPoints: cv2.Mat, machineBoundsInCam: IMachineBounds) {
   let error = 0;
   for (let i = 0; i < reprojectedPoints.rows; i++) {
     const reprojectedPoint = cvToVector2(reprojectedPoints.row(i));

@@ -73,8 +73,13 @@ export function Go2RtcTab({
         <CardTitle>IP Camera via go2rtc</CardTitle>
         <CardDescription>
           Use any IP camera via{' '}
-          <a className="text-blue-500 hover:underline" href="https://github.com/AlexxIT/go2rtc?tab=readme-ov-file#module-webtorrent">
-            go2rtc <ExternalLink className="size-4 inline-block" />
+          <a
+            className="text-blue-500 hover:underline"
+            href="https://github.com/AlexxIT/go2rtc?tab=readme-ov-file#module-webtorrent"
+            target="_blank"
+            rel="noreferrer">
+            go2rtc&apos;s webtorrent module
+            <ExternalLink className="size-4 inline-block" />
           </a>
           .
         </CardDescription>

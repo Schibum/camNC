@@ -1,7 +1,7 @@
-import { cv2, ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { cvToVector2, matrix3ToCV, vector3ToCV } from '@/lib/three-cv';
-import { IBox, ITuple } from '@/store';
+import { IMachineBounds, ITuple } from '@/store';
 import _cv from '@techstark/opencv-js';
+import { cv2, ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { Box2, Matrix3, Vector2, Vector3 } from 'three';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { computeP3P } from './solveP3P';
@@ -28,7 +28,7 @@ describe('computeP3P', () => {
     const mp = new Box2(new Vector2(0, 0), new Vector2(623, 1243));
 
     // Image points - corners2 from Python example
-    const machineBoundsInCam: IBox = [
+    const machineBoundsInCam: IMachineBounds = [
       [1570, 418],
       [2209, 1599],
       [901, 1893],
@@ -59,7 +59,7 @@ describe('computeP3P', () => {
   });
 });
 
-function computeReprojectionError(R: Matrix3, t: Vector3, camMatrix: Matrix3, objectPoints: _cv.Mat, machineBoundsInCam: IBox) {
+function computeReprojectionError(R: Matrix3, t: Vector3, camMatrix: Matrix3, objectPoints: _cv.Mat, machineBoundsInCam: IMachineBounds) {
   const Rcv = matrix3ToCV(R);
   const rvec = new cv2.Mat();
   cv2.Rodrigues(Rcv, rvec);

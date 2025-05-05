@@ -1,20 +1,28 @@
 import { AlreadyCalibratedDialog } from '@/setup/already-calibrated-dialog';
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { CalibrationResult, CameraCalibration } from '@wbcnc/camera-calibration';
+import { useVideoSource } from '@wbcnc/go2webrtc/use-video-source';
 import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { use } from 'react';
 import { Matrix3 } from 'three';
-import { useStore, useVideoSrc } from '../../store';
+import { useStore } from '../../store';
 
 export const Route = createFileRoute('/setup/camera-calibration')({
   component: RouteComponent,
+  loader: async () => {
+    const camSource = useStore.getState().camSource;
+    if (!camSource) {
+      throw redirect({ to: '/setup/url-entry' });
+    }
+    return camSource.url;
+  },
 });
 
 function RouteComponent() {
   use(ensureOpenCvIsLoaded());
-  const src = useVideoSrc();
-  const setCalibrationData = useStore(state => state.setCalibrationData);
+  const { src } = useVideoSource(Route.useLoaderData());
+  const setCalibrationData = useStore(state => state.camSourceSetters.setCalibration);
   const navigate = useNavigate();
   const handleCalibrationComplete = (data: CalibrationResult) => {
     console.log('Calibration complete', data);
