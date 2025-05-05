@@ -127,6 +127,7 @@ export const useStore = create(devtools(persist(immer(combine(
     cameraConfig: defaultCameraConfig,
     calibrationData: defaultCalibrationData,
     cameraExtrinsics: defaultExtrinsicParameters,
+
     toolDiameter: 3.0, // Default tool diameter in mm
     toolpath: null as ParsedToolpath | null,
     isToolpathSelected: false,

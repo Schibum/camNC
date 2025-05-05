@@ -5,6 +5,8 @@ import { useWakeLock } from "@wbcnc/ui/hooks/use-wakelook";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 
+const kReloadInterval = 2 * 60 * 60 * 1000; // 2 hours
+
 const searchSchema = z.object({
   share: z.string().catch("test"),
   pwd: z.string().catch("test"),
@@ -46,6 +48,18 @@ function useWebRTCServer(options: ServerOptions) {
   }, []); // Empty dependency array ensures this runs only once on mount and cleanup on unmount
 }
 
+// Just reload the app code periodically to ensure that the latest code is used.
+function useAppUpdateOnIdle(status: string) {
+  useEffect(() => {
+    if (status === "idle") {
+      const timer = setTimeout(() => {
+        window.location.reload();
+      }, kReloadInterval);
+      return () => clearTimeout(timer);
+    }
+  }, [status]);
+}
+
 function RouteComponent() {
   const { share, pwd } = Route.useSearch();
   const [status, setStatus] = useState<string>("idle");
@@ -56,5 +70,6 @@ function RouteComponent() {
     onStatusUpdate: (status) => setStatus(status),
   }); // Use the custom hook
   useWakeLock();
+  useAppUpdateOnIdle(status);
   return <div>Hello {status}</div>;
 }
