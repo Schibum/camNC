@@ -141,7 +141,7 @@ export function computeP3P(mp: Box2, machineBoundsInCam: IMachineBounds, newCamM
   // threeR.set(0.04977487, 0.99875775, -0.00232803, 0.99862155, -0.04972894, 0.01679364, 0.01665701, -0.00316072, -0.99985627);
   // threeT.set(-679.60095678, -273.72803363, 1258.42778199);
 
-  return { R: threeR, t: threeT };
+  return { R: threeR, t: threeT, reprojectionError };
 }
 
 function computeReprojectionError(reprojectedPoints: cv2.Mat, machineBoundsInCam: IMachineBounds) {

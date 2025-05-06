@@ -141,7 +141,7 @@ export function UnskewedVideoMesh({ ...props }: ThreeElements['mesh']) {
 UnskewedVideoMesh.displayName = 'UnskewedVideoMesh';
 
 // Main component
-const UnskewTsl: React.FC<UnskewTslProps> = ({ width = 800, height = 600 }) => {
+const UnskewTsl: React.FC<UnskewTslProps> = () => {
   // Handle missing calibration data - calibrationData is now passed through UnskewedVideoMesh
   const calibrationData = useCalibrationData();
   // Handle missing video source - videoSrc is now handled in UnskewedVideoMesh
@@ -151,7 +151,7 @@ const UnskewTsl: React.FC<UnskewTslProps> = ({ width = 800, height = 600 }) => {
   }
 
   return (
-    <div style={{ width, height }}>
+    <div className="h-full w-full">
       <PresentCanvas>
         <UnskewedVideoMesh />
       </PresentCanvas>

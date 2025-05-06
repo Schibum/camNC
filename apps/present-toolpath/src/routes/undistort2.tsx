@@ -1,5 +1,6 @@
 import UnskewTsl from '@/calibration/UnskewTsl';
 import { createFileRoute } from '@tanstack/react-router';
+import { PageHeader } from '@wbcnc/ui/components/page-header';
 
 export const Route = createFileRoute('/undistort2')({
   component: RouteComponent,
@@ -7,8 +8,13 @@ export const Route = createFileRoute('/undistort2')({
 
 function RouteComponent() {
   return (
-    <div className="flex flex-col gap-4">
-      <UnskewTsl />
+    <div className="relative w-full h-full">
+      <PageHeader title="Unskew" className="absolute" />
+
+      {/* 3D Canvas */}
+      <div className="w-full h-dvh absolute top-0 left-0">
+        <UnskewTsl />
+      </div>
     </div>
   );
 }
