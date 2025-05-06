@@ -1,6 +1,6 @@
 import { useStillFrameTexture } from '@/hooks/useStillFrameTexture';
 import { PresentCanvas } from '@/scene/PresentCanvas';
-import { useCalibrationData, useMachineSize, useShowStillFrame, useVideoSrc } from '@/store';
+import { useMachineSize, useShowStillFrame } from '@/store';
 import { type ThreeElements } from '@react-three/fiber';
 import React, { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
@@ -45,14 +45,6 @@ export const UnprojectVideoMesh = React.forwardRef<
 UnprojectVideoMesh.displayName = 'UnprojectVideoMesh';
 
 export function UnprojectTsl() {
-  // Handle missing calibration data - calibrationData is now passed through UnskewedVideoMesh
-  const calibrationData = useCalibrationData();
-  // Handle missing video source - videoSrc is now handled in UnskewedVideoMesh
-  const videoSrc = useVideoSrc();
-  if (!calibrationData || !calibrationData.calibration_matrix || !calibrationData.distortion_coefficients || !videoSrc) {
-    throw new Error('Missing calibration data or video source');
-  }
-
   const machineSize = useMachineSize();
   const gridSize = Math.max(machineSize.x, machineSize.y);
 

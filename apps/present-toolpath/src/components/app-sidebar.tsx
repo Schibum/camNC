@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { Camera, Eye, Grid, Grid2x2, Route, Settings2 } from 'lucide-react';
+import { Camera, Eye, Grid, Grid2x2, Route, ScanQrCode, Settings2 } from 'lucide-react';
 import * as React from 'react';
 
 import { useLocation } from '@tanstack/react-router';
@@ -57,8 +57,13 @@ const settingsRoutes: NavRoute[] = [
   },
   {
     title: 'Machine Bounds',
-    to: '/setup/point-selection',
+    to: '/setup/machine-bounds',
     icon: Grid,
+  },
+  {
+    title: 'Reference Points',
+    to: '/setup/point-selection',
+    icon: ScanQrCode,
   },
 ];
 

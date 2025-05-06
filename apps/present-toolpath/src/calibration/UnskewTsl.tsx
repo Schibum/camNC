@@ -1,10 +1,10 @@
-import { CalibrationData, useCalibrationData, useVideoSrc, useVideoDimensions } from '@/store';
-import React, { useMemo } from 'react';
-import { type ThreeElements } from '@react-three/fiber';
-import * as THREE from 'three';
 import { PresentCanvas } from '@/scene/PresentCanvas';
-import { initUndistortRectifyMapTyped, Matrix3x3 } from './rectifyMap';
+import { CalibrationData, useCalibrationData, useCamResolution, useVideoSrc } from '@/store';
+import { type ThreeElements } from '@react-three/fiber';
+import React, { useMemo } from 'react';
+import * as THREE from 'three';
 import { useUnmapTextures } from './CameraShaderMaterial';
+import { initUndistortRectifyMapTyped, Matrix3x3 } from './rectifyMap';
 import { useCameraTexture } from './useCameraTexture';
 
 interface UnskewTslProps {
@@ -52,8 +52,8 @@ function calculateUndistortionMaps(calibrationData: CalibrationData, width: numb
   const startTime = performance.now();
 
   const { map1: mapXArray, map2: mapYArray } = initUndistortRectifyMapTyped(
-    calibration_matrix as Matrix3x3,
-    distortion_coefficients[0],
+    calibration_matrix,
+    distortion_coefficients,
     R,
     new_camera_matrix,
     { width, height }
@@ -66,7 +66,7 @@ function calculateUndistortionMaps(calibrationData: CalibrationData, width: numb
 
 // UndistortMesh component using Three.js Shading
 export function UnskewedVideoMesh({ ...props }: ThreeElements['mesh']) {
-  const videoDimensions = useVideoDimensions();
+  const videoDimensions = useCamResolution();
   const videoTexture = useCameraTexture();
 
   const [mapXTexture, mapYTexture] = useUnmapTextures();

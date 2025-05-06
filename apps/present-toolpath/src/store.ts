@@ -9,9 +9,9 @@ import { ParsedToolpath, parseGCode } from './visualize/gcodeParsing';
 import { parseToolInfo } from './visualize/guess-tools';
 
 export interface CalibrationData {
-  calibration_matrix: number[][];
+  calibration_matrix: Matrix3;
   new_camera_matrix: Matrix3;
-  distortion_coefficients: number[][];
+  distortion_coefficients: number[];
 }
 
 // World (machine coords) to physical camera transform
@@ -49,24 +49,19 @@ export interface ICamSource {
 
 // Default calibration data
 const defaultCalibrationData: CalibrationData = {
-  calibration_matrix: [
-    [2603.1886705430834, 0, 1379.8366938339807],
-    [0, 2604.6310069784477, 1003.6132669610694],
-    [0, 0, 1],
-  ],
+  // prettier-ignore
+  calibration_matrix: new Matrix3().set(
+    2603.1886705430834, 0, 1379.8366938339807,
+    0, 2604.6310069784477, 1003.6132669610694,
+    0, 0, 1
+  ),
   // prettier-ignore
   new_camera_matrix: new Matrix3().set(
-    2330.8340077175203,
-    0,
-    1403.629660654684,
-    0,
-    2433.357886188569,
-    1007.2455961471092,
-    0,
-    0,
-    1
+    2330.8340077175203, 0, 1403.629660654684,
+    0, 2433.357886188569, 1007.2455961471092,
+    0, 0, 1
   ),
-  distortion_coefficients: [[-0.3829847540404848, 0.22402397713785682, -0.00102448788321063, 0.0005674913681331104, -0.09251835726272765]],
+  distortion_coefficients: [-0.3829847540404848, 0.22402397713785682, -0.00102448788321063, 0.0005674913681331104, -0.09251835726272765],
 };
 
 const defaultCameraConfig: CameraConfig = {
@@ -137,8 +132,6 @@ const storage: PersistStorage<unknown> = {
 export const useStore = create(devtools(persist(immer(combine(
   {
     // old
-    cameraConfig: defaultCameraConfig,
-    calibrationData: defaultCalibrationData,
     cameraExtrinsics: defaultExtrinsicParameters,
     // new, should probably go into a backend instead at some point
     camSource: null as ICamSource | null,
@@ -152,17 +145,8 @@ export const useStore = create(devtools(persist(immer(combine(
     showStillFrame: false,
   },
   set => ({
-    setCalibrationData: (data: CalibrationData) => set(state => {
-      state.calibrationData = data;
-    }),
-    setVideoDimensions: (dimensions: ITuple) => set(state => {
-      state.cameraConfig.dimensions = dimensions;
-    }),
     setToolpathOffset: (offset: Vector3) => set(state => {
       state.toolpathOffset = offset;
-    }),
-    setMachineBounds: (bounds: Box2) => set(state => {
-      state.cameraConfig.machineBounds = bounds;
     }),
     setShowStillFrame: (show: boolean) => set(state => {
       state.showStillFrame = show;
@@ -179,27 +163,13 @@ export const useStore = create(devtools(persist(immer(combine(
         if (!state.camSource) throw new Error('configure source first');
         state.camSource.extrinsics = extrinsics;
       }),
-      setMachineBounds: (bounds: Box2) => set(state => {
+      setMachineBounds: (xmin: number, ymin: number, xmax: number, ymax: number) => set(state => {
         if (!state.camSource) throw new Error('configure source first');
-        state.camSource.machineBounds = bounds;
+        state.camSource.machineBounds = new Box2(new Vector2(xmin, ymin), new Vector2(xmax, ymax));
       }),
       setMachineBoundsInCam: (points: IMachineBounds) => set(state => {
         if (!state.camSource) throw new Error('configure source first');
         state.camSource.machineBoundsInCam = points;
-      }),
-    },
-    machineBoundsSetters: {
-      setXMin: (xMin: number) => set(state => {
-        state.cameraConfig.machineBounds.min.x = xMin;
-      }),
-      setXMax: (xMax: number) => set(state => {
-        state.cameraConfig.machineBounds.max.x = xMax;
-      }),
-      setYMin: (yMin: number) => set(state => {
-        state.cameraConfig.machineBounds.min.y = yMin;
-      }),
-      setYMax: (yMax: number) => set(state => {
-        state.cameraConfig.machineBounds.max.y = yMax;
       }),
     },
     setIsToolpathSelected: (isSelected: boolean) => set(state => {
@@ -210,15 +180,6 @@ export const useStore = create(devtools(persist(immer(combine(
     }),
     setCameraExtrinsics: (extrinsics: CameraExtrinsics) => set(state => {
       state.cameraExtrinsics = extrinsics;
-    }),
-    setVideoSrc: (src: string) => set(state => {
-      state.cameraConfig.url = src;
-    }),
-    setMachineBoundsInCam: (points: IMachineBounds) => set(state => {
-      state.cameraConfig.machineBoundsInCam = points;
-    }),
-    setCameraConfig: (config: CameraConfig) => set(state => {
-      state.cameraConfig = config;
     }),
     setToolDiameter: (diameter: number) => set(state => {
       state.toolDiameter = diameter;
@@ -241,22 +202,16 @@ export const useStore = create(devtools(persist(immer(combine(
   name: 'settings',
   storage,
   partialize: state => ({
-    cameraConfig: state.cameraConfig,
     toolDiameter: state.toolDiameter,
     cameraExtrinsics: state.cameraExtrinsics,
     camSource: state.camSource,
   }),
 })));
 
-// old
-export const useVideoSrc = () => useStore(state => state.cameraConfig.url);
-export const useVideoDimensions = () => useStore(state => state.cameraConfig.dimensions);
-
-export const useCameraConfig = () => useStore(state => state.cameraConfig);
-export const useCalibrationData = () => useStore(state => state.calibrationData);
-export const useNewCameraMatrix = () => useStore(state => state.calibrationData.new_camera_matrix);
-// new
 export const useCamSource = () => useStore(state => state.camSource);
+export const useVideoSrc = () => useStore(state => state.camSource!.url);
+export const useCalibrationData = () => useStore(state => state.camSource!.calibration!);
+export const useNewCameraMatrix = () => useStore(state => state.camSource!.calibration!.new_camera_matrix);
 // Returns the resolution of the camera source. Throws if no source is configured.
 export const useCamResolution = () => useStore(state => state.camSource!.maxResolution);
 
@@ -267,7 +222,10 @@ export const useSetToolDiameter = () => useStore(state => state.setToolDiameter)
 // Returns the usable size of the machine boundary in mm [xrange, yrange].
 // Computed as xmax - xmin, ymax - ymin.
 export function useMachineSize() {
-  const bounds = useStore(state => state.cameraConfig.machineBounds);
+  const bounds = useStore(state => state.camSource?.machineBounds);
+  if (!bounds) {
+    throw new Error('Machine bounds not set');
+  }
   return bounds.getSize(new Vector2());
 }
 
@@ -276,8 +234,8 @@ export function useMachineSize() {
  * This is used to flatten the video to the machine plane.
  */
 export function useVideoToMachineHomography() {
-  const machineBoundsInCam = useStore(state => state.cameraConfig.machineBoundsInCam);
-  const mp = useStore(state => state.cameraConfig.machineBounds);
+  const machineBoundsInCam = useStore(state => state.camSource!.machineBoundsInCam!);
+  const mp = useStore(state => state.camSource!.machineBounds!);
   const dstPoints = [
     [mp.min.x, mp.min.y], // xmin, ymin
     [mp.min.x, mp.max.y], // xmin, ymax

@@ -29,7 +29,7 @@ function CalibrationDataDisplay() {
   return (
     <div className="flex flex-col gap-2 flex-1 overflow-scroll">
       <div className="text-sm font-medium">Camera Matrix:</div>
-      <CodeJson obj={cameraMatrix} />
+      <CodeBlock>{prettyPrintThree(cameraMatrix)}</CodeBlock>
       <div className="text-sm font-medium">New Camera Matrix:</div>
       <CodeBlock>{prettyPrintThree(calibrationData.new_camera_matrix)}</CodeBlock>
       <div className="text-sm font-medium">Distortion Coefficients:</div>

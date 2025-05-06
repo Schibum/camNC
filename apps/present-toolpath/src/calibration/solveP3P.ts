@@ -4,24 +4,22 @@ import { use } from 'react';
 import { Box2, Matrix3, Vector2 } from 'three';
 import { cvToMatrix3, cvToVector2, cvToVector3, matrix3ToCV, vector3ToCV } from '../lib/three-cv';
 
-function useMachineBoundsInImageCoords() {
-  const machineBoundsInCam = useStore(state => state.cameraConfig.machineBoundsInCam);
-  const dimensions = useStore(state => state.cameraConfig.dimensions);
-  const convertToImageCoords = (bounds: IMachineBounds): IMachineBounds => {
-    // In three.js, Y is up, but in image coordinates, Y is down
-    // Also need to account for the origin being at the center in three.js vs top-left in image coordinates
-    return bounds.map(([x, y]) => [
-      // Convert X from [-width/2, width/2] to [0, width]
-      x + dimensions[0] / 2,
-      // Convert Y from [height/2, -height/2] to [0, height]
-      dimensions[1] / 2 - y,
-    ]) as IMachineBounds;
-  };
-
-  return convertToImageCoords(machineBoundsInCam);
+function getMachineBoundsInImageCoords() {
+  const { machineBoundsInCam: bounds, maxResolution: dimensions } = useStore.getState().camSource!;
+  if (!bounds) {
+    throw new Error('Machine bounds not defined');
+  }
+  // In three.js, Y is up, but in image coordinates, Y is down
+  // Also need to account for the origin being at the center in three.js vs top-left in image coordinates
+  return bounds.map(([x, y]) => [
+    // Convert X from [-width/2, width/2] to [0, width]
+    x + dimensions[0] / 2,
+    // Convert Y from [height/2, -height/2] to [0, height]
+    dimensions[1] / 2 - y,
+  ]) as IMachineBounds;
 }
 function useConvertImageToThree() {
-  const dimensions = useStore(state => state.cameraConfig.dimensions);
+  const dimensions = useStore(state => state.camSource!.maxResolution);
   const convertToThreeCoords = (bounds: Vector2): Vector2 => {
     return new Vector2(bounds.x - dimensions[0] / 2, dimensions[1] / 2 - bounds.y);
   };
@@ -29,12 +27,12 @@ function useConvertImageToThree() {
 }
 
 export function useComputeP3P() {
-  const mp = useStore(state => state.cameraConfig.machineBounds);
-  const calibrationData = useStore(state => state.calibrationData);
-  const machineBoundsInImageCoords = useMachineBoundsInImageCoords();
-  console.log('machineBoundsInImageCoords', machineBoundsInImageCoords);
-
-  return () => computeP3P(mp, machineBoundsInImageCoords, calibrationData.new_camera_matrix);
+  return () => {
+    const camSource = useStore.getState().camSource;
+    const mp = camSource!.machineBounds!;
+    const calibrationData = camSource!.calibration!;
+    return computeP3P(mp, getMachineBoundsInImageCoords(), calibrationData.new_camera_matrix);
+  };
 }
 
 export function useUpdateCameraExtrinsics() {
@@ -50,13 +48,13 @@ export function useUpdateCameraExtrinsics() {
 
 export function useReprojectedMachineBounds() {
   const convertToThree = useConvertImageToThree();
-  const cameraMatrix = matrix3ToCV(useStore(state => state.calibrationData.new_camera_matrix));
+  const cameraMatrix = matrix3ToCV(useStore(state => state.camSource!.calibration!.new_camera_matrix));
   const { R, t } = useStore(state => state.cameraExtrinsics);
   const Rcv = matrix3ToCV(R);
   const tcv = vector3ToCV(t);
   const distCoeffs = cv2.Mat.zeros(1, 5, cv2.CV_64F);
   const reprojectedPoints = new cv2.Mat();
-  const objectPoints = machineBoundsToCv(useStore(state => state.cameraConfig.machineBounds));
+  const objectPoints = machineBoundsToCv(useStore(state => state.camSource!.machineBounds!));
   cv2.projectPoints(objectPoints, Rcv, tcv, cameraMatrix, distCoeffs, reprojectedPoints);
   const pointsThree = [];
   for (let i = 0; i < reprojectedPoints.rows; i++) {

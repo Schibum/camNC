@@ -1,4 +1,4 @@
-import { useCalibrationData, useCameraExtrinsics, useNewCameraMatrix, useVideoDimensions } from '@/store';
+import { useCalibrationData, useCameraExtrinsics, useCamResolution, useNewCameraMatrix } from '@/store';
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import { calculateUndistortionMapsCached } from './UnskewTsl';
@@ -8,7 +8,7 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
   const { R, t } = useCameraExtrinsics();
   // Get your intrinsic matrix via your custom hook.
   const K = useNewCameraMatrix();
-  const videoDimensions = useVideoDimensions();
+  const videoDimensions = useCamResolution();
 
   // Precompute the undistortion maps (as textures).
   const [mapXTexture, mapYTexture] = useUnmapTextures();
@@ -103,7 +103,7 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
 
 export function useUnmapTextures(): [THREE.DataTexture, THREE.DataTexture] {
   const calibrationData = useCalibrationData();
-  const videoDimensions = useVideoDimensions();
+  const videoDimensions = useCamResolution();
   return useMemo(() => {
     const [width, height] = videoDimensions;
     const placeholderX = new THREE.DataTexture(new Float32Array(width * height), width, height, THREE.RedFormat, THREE.FloatType);

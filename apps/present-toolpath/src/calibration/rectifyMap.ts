@@ -21,7 +21,7 @@ export interface UndistortResult {
  *
  * Like openCV version
  * (https://docs.opencv.org/3.4/da/d54/group__imgproc__transform.html#ga7dfb72c9cf9780a347fbe3d1c47e5d5a),
- * but implemented in JS to avoid pulling in that large lib.
+ * but implemented in JS to avoid pulling in that large lib on startup.
  *
  * @param cameraMatrix - 3x3 matrix for the original camera intrinsics.
  * @param distCoeffs - Distortion coefficients [k1, k2, p1, p2, (optional) k3].
@@ -31,7 +31,7 @@ export interface UndistortResult {
  * @returns The computed maps as Float32Arrays.
  */
 export function initUndistortRectifyMapTyped(
-  cameraMatrix: Matrix3x3,
+  cameraMatrix: Matrix3,
   distCoeffs: number[],
   R: Matrix3x3,
   newCameraMatrix: Matrix3,
@@ -48,10 +48,10 @@ export function initUndistortRectifyMapTyped(
     cy_new = newCameraMatrix.elements[7];
 
   // Precompute parameters from the original cameraMatrix.
-  const fx = cameraMatrix[0][0],
-    cx = cameraMatrix[0][2],
-    fy = cameraMatrix[1][1],
-    cy = cameraMatrix[1][2];
+  const fx = cameraMatrix.elements[0],
+    cx = cameraMatrix.elements[6],
+    fy = cameraMatrix.elements[4],
+    cy = cameraMatrix.elements[7];
 
   // Load distortion coefficients.
   const k1 = distCoeffs[0] || 0;

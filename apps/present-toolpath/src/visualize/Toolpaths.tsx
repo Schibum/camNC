@@ -121,7 +121,7 @@ function ToolpathBackgroundPlane() {
 }
 
 function UseableMachineSpaceOutline() {
-  const machineBounds = useStore(s => s.cameraConfig.machineBounds);
+  const machineBounds = useStore(s => s.camSource!.machineBounds!);
   const corners = useMemo(() => {
     return [
       [machineBounds.min.x, machineBounds.min.y],

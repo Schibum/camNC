@@ -1,11 +1,8 @@
-import { useStore, useVideoSrc } from '@/store';
+import { useVideoSrc } from '@/store';
 import { useVideoTexture } from '@react-three/drei';
-import { useEffect } from 'react';
-
 
 export function useCameraTexture() {
   const videoSrc = useVideoSrc();
-  const setVideoDimensions = useStore(state => state.setVideoDimensions);
   // Use drei's useVideoTexture hook to load video texture
   const videoTexture = useVideoTexture(videoSrc, {
     crossOrigin: 'anonymous',
@@ -13,9 +10,7 @@ export function useCameraTexture() {
     loop: true,
     start: true,
   });
+  console.log('videoTexture', videoTexture);
   // videoTexture.flipY = false;
-  useEffect(() => {
-    setVideoDimensions([videoTexture.image.videoWidth, videoTexture.image.videoHeight]);
-  }, [videoTexture.image.videoWidth, videoTexture.image.videoHeight, setVideoDimensions]);
   return videoTexture;
 }

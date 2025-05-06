@@ -1,34 +1,106 @@
 import { useStore } from '@/store';
-import { NumberInputWithLabel } from '@wbcnc/ui/components/NumberInputWithLabel';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@wbcnc/ui/components/button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@wbcnc/ui/components/dialog';
-import { Settings2 } from 'lucide-react';
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@wbcnc/ui/components/form';
+import { Input } from '@wbcnc/ui/components/input';
+import { useForm } from 'react-hook-form';
+import z from 'zod';
 
-export function MachineBoundsInput() {
-  const bounds = useStore(state => state.cameraConfig.machineBounds);
-  const setters = useStore(state => state.machineBoundsSetters);
+const schema = z
+  .object({
+    xmin: z.coerce.number().min(0),
+    xmax: z.coerce.number().min(0),
+    ymin: z.coerce.number().min(0),
+    ymax: z.coerce.number().min(0),
+  })
+  .refine(data => data.xmax > data.xmin, {
+    message: 'xmax must be greater than xmin',
+    path: ['xmax'],
+  })
+  .refine(data => data.ymax > data.ymin, {
+    message: 'ymax must be greater than ymin',
+    path: ['ymax'],
+  });
 
+export function MachineBoundsForm({ onConfirmed }: { onConfirmed: () => void }) {
+  const bounds = useStore(state => state.camSource!.machineBounds);
+  const setMachineBounds = useStore(state => state.camSourceSetters.setMachineBounds);
+  const form = useForm({
+    defaultValues: {
+      xmin: bounds?.min.x || 6,
+      xmax: bounds?.max.x || 600,
+      ymin: bounds?.min.y || 6,
+      ymax: bounds?.max.y || 1200,
+    },
+    resolver: zodResolver(schema),
+  });
+  function onSubmit(data: z.infer<typeof schema>) {
+    setMachineBounds(data.xmin, data.ymin, data.xmax, data.ymax);
+    onConfirmed();
+  }
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="outline">
-          <Settings2 className="mr-2" />
-          Useable Machine Space
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Configure Useable Machine Space</DialogTitle>
-          <DialogDescription>Pulloff distances and max limits</DialogDescription>
-        </DialogHeader>
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
         <div className="grid grid-cols-1 @xs:grid-cols-2 gap-2">
-          <NumberInputWithLabel label="xmin" value={bounds.min.x} onValueChange={value => value && setters.setXMin(value)} />
-          <NumberInputWithLabel label="xmax" value={bounds.max.x} onValueChange={value => value && setters.setXMax(value)} />
-
-          <NumberInputWithLabel label="ymin" value={bounds.min.y} onValueChange={value => value && setters.setYMin(value)} />
-          <NumberInputWithLabel label="ymax" value={bounds.max.y} onValueChange={value => value && setters.setYMax(value)} />
+          <FormField
+            control={form.control}
+            name="xmin"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>xmin</FormLabel>
+                <FormControl>
+                  <Input {...field} type="number" />
+                </FormControl>
+                <FormDescription>Minimum usable x-coordinate</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="xmax"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>xmax</FormLabel>
+                <FormControl>
+                  <Input {...field} type="number" />
+                </FormControl>
+                <FormDescription>Maximum usable x-coordinate</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="ymin"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>ymin</FormLabel>
+                <FormControl>
+                  <Input {...field} type="number" />
+                </FormControl>
+                <FormDescription>Minimum usable y-coordinate</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="ymax"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>ymax</FormLabel>
+                <FormControl>
+                  <Input {...field} type="number" />
+                </FormControl>
+                <FormDescription>Maximum usable y-coordinate</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
-      </DialogContent>
-    </Dialog>
+        <Button type="submit">Confirm</Button>
+      </form>
+    </Form>
   );
 }

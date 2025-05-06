@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
+import { useCamResolution, useMachineSize } from '@/store';
 import { useThree } from '@react-three/fiber';
-import { useVideoDimensions, useMachineSize } from '@/store';
+import { useMemo } from 'react';
 
 // Returns the scale factor from video pixels to world units.
 // Used as minimum for the camera, so the video is fully contained in the viewport.
@@ -8,7 +8,7 @@ import { useVideoDimensions, useMachineSize } from '@/store';
 // Multiplied by the world / video pixel coordinates, you get the viewport coordinates.
 export function useViewportToVideoScale() {
   const size = useThree(state => state.size);
-  const videoDimensions = useVideoDimensions();
+  const videoDimensions = useCamResolution();
   const containerAspect = size.width / size.height;
   const videoAspect = videoDimensions[0] / videoDimensions[1];
   return containerAspect < videoAspect ? size.width / videoDimensions[0] : size.height / videoDimensions[1];

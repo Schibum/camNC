@@ -6,10 +6,9 @@ import { Line, Text } from '@react-three/drei';
 import { ThreeEvent } from '@react-three/fiber';
 import { Button } from '@wbcnc/ui/components/button';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useMemo, useState } from 'react';
 import * as THREE from 'three';
-import { IMachineBounds, ITuple, useStore } from '../store';
-import { MachineBoundsInput } from './MachineBoundsDialog';
+import { IMachineBounds, ITuple, useCamResolution, useStore } from '../store';
 
 interface PointSelectionStepProps {}
 
@@ -79,7 +78,7 @@ const Crosshair: React.FC<{
 
 // Component to render and interact with points
 function PointsScene({ points, setPoints }: { points: ITuple[]; setPoints: (points: ITuple[]) => void }) {
-  const videoSize = useStore(state => state.cameraConfig.dimensions);
+  const videoSize = useCamResolution();
   const [isDragging, setIsDragging] = useState(false);
   // Handle placing a new point by clicking on the mesh
   const handlePlacePoint = ({ point, ...e }: ThreeEvent<MouseEvent>) => {
@@ -148,17 +147,19 @@ function PointsScene({ points, setPoints }: { points: ITuple[]; setPoints: (poin
               setIsDragging(false);
             }}>
             <Crosshair position={[0, 0, 0]} color={index % 2 === 0 ? '#4287f5' : '#f54242'} size={25} />
-            <Text
-              fontSize={40}
-              color="white"
-              outlineColor="black"
-              outlineWidth={1}
-              outlineBlur={1}
-              anchorX="center"
-              anchorY="middle"
-              position={[0, 50, 0]}>
-              {kPointLabels[index]}
-            </Text>
+            <Suspense>
+              <Text
+                fontSize={40}
+                color="white"
+                outlineColor="black"
+                outlineWidth={1}
+                outlineBlur={1}
+                anchorX="center"
+                anchorY="middle"
+                position={[0, 50, 0]}>
+                {kPointLabels[index]}
+              </Text>
+            </Suspense>
           </Draggable>
         );
       })}
@@ -172,8 +173,8 @@ function PointsScene({ points, setPoints }: { points: ITuple[]; setPoints: (poin
 }
 
 export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) => {
-  const [points, setPoints] = useState<ITuple[]>(useStore(state => state.cameraConfig.machineBoundsInCam));
-  const setMachineBoundsInCam = useStore(state => state.setMachineBoundsInCam);
+  const [points, setPoints] = useState<ITuple[]>(useStore(state => state.camSource!.machineBoundsInCam) || []);
+  const setMachineBoundsInCam = useStore(state => state.camSourceSetters.setMachineBoundsInCam);
   const updateCameraExtrinsics = useUpdateCameraExtrinsics();
 
   // Handle saving points
@@ -204,7 +205,6 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
 
       <div className="absolute bottom-4 right-4 flex items-center justify-end gap-2 p-2 bg-white/80 rounded-lg shadow-sm">
         <NextPointHint pointCount={points.length} />
-        <MachineBoundsInput />
         {/* Action buttons for reset and save */}
         <Button variant="secondary" onClick={handleReset}>
           Reset

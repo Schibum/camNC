@@ -19,6 +19,10 @@ export const Route = createFileRoute('/setup/camera-calibration')({
   },
 });
 
+function toMatrix3(d: number[][]) {
+  return new Matrix3().set(d[0][0], d[0][1], d[0][2], d[1][0], d[1][1], d[1][2], d[2][0], d[2][1], d[2][2]);
+}
+
 function RouteComponent() {
   use(ensureOpenCvIsLoaded());
   const { url, maxResolution } = Route.useLoaderData();
@@ -28,12 +32,11 @@ function RouteComponent() {
   const navigate = useNavigate();
   const handleCalibrationComplete = (data: CalibrationResult) => {
     console.log('Calibration complete', data);
-    const nc = data.newCameraMatrix;
     console.log('updating calibration data', data);
     setCalibrationData({
-      calibration_matrix: data.cameraMatrix,
-      new_camera_matrix: new Matrix3().set(nc[0][0], nc[0][1], nc[0][2], nc[1][0], nc[1][1], nc[1][2], nc[2][0], nc[2][1], nc[2][2]),
-      distortion_coefficients: [data.distCoeffs],
+      calibration_matrix: toMatrix3(data.cameraMatrix),
+      new_camera_matrix: toMatrix3(data.newCameraMatrix),
+      distortion_coefficients: data.distCoeffs,
     });
 
     navigate({ to: '/setup/point-selection' });
