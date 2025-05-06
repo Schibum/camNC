@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { CalibrationResult, PatternSize } from "../lib/calibrationTypes";
-import { useCalibrationStore } from "../store/calibrationStore";
+import { Resolution, useCalibrationStore } from "../store/calibrationStore";
 import { CameraView } from "./CameraView";
 import { CaptureButton } from "./CaptureButton";
 import { GalleryView } from "./GalleryView";
@@ -9,6 +9,7 @@ import { RecentCapturePreview } from "./RecentCapturePreview";
 
 interface CameraCalibrationProps {
   src?: MediaStream | string;
+  resolution?: Resolution;
   onCalibrationConfirmed?: (result: CalibrationResult) => void;
   autoCapture?: boolean;
   patternSize?: PatternSize;
@@ -26,6 +27,7 @@ const LoadingIndicator = () => (
 
 export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
   src,
+  resolution,
   onCalibrationConfirmed,
   autoCapture = true,
   patternSize,
@@ -67,8 +69,6 @@ export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
   ]);
 
   useEffect(() => {
-    let isMounted = true;
-
     const setupCamera = async () => {
       if (!src) {
         console.log("[CameraCalibration] No src provided. Ensuring cleanup.");
@@ -80,10 +80,7 @@ export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
         console.log(
           "[CameraCalibration] Valid src provided. Calling store.startCamera."
         );
-        await startCamera(src);
-        if (isMounted) {
-          console.log("[CameraCalibration] Store finished startCamera.");
-        }
+        await startCamera(src, resolution);
       } catch (storeError) {
         console.error(
           "[CameraCalibration] Store failed to start camera with provided src:",
@@ -95,7 +92,6 @@ export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
     setupCamera();
 
     return () => {
-      isMounted = false;
       console.log(
         "[CameraCalibration] Cleanup: Calling store.stopCamera (element cleanup)."
       );

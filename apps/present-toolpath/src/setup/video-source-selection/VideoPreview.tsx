@@ -28,6 +28,7 @@ const VideoPreviewInner = forwardRef<VideoPreviewRef, VideoPreviewInnerProps>(fu
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useImperativeHandle(ref, () => ({
+    // Max resolution for dynamic-resolution sources or actual resolution else.
     getMaxResolution: () => {
       if (maxResolution) {
         return maxResolution;

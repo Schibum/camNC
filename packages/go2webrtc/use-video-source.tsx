@@ -72,6 +72,7 @@ export function useVideoSource(url: string) {
 
   return {
     src: connectedInfo.src,
+    // Max resolution of the source. Only defined for WebRTC and Webcam sources ATM.
     maxResolution: connectedInfo.maxResolution,
     source: vs,
   };

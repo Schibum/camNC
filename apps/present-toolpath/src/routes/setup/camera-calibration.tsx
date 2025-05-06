@@ -15,13 +15,15 @@ export const Route = createFileRoute('/setup/camera-calibration')({
     if (!camSource) {
       throw redirect({ to: '/setup/url-entry' });
     }
-    return camSource.url;
+    return camSource;
   },
 });
 
 function RouteComponent() {
   use(ensureOpenCvIsLoaded());
-  const { src } = useVideoSource(Route.useLoaderData());
+  const { url, maxResolution } = Route.useLoaderData();
+  const resolution = { width: maxResolution[0], height: maxResolution[1] };
+  const { src } = useVideoSource(url);
   const setCalibrationData = useStore(state => state.camSourceSetters.setCalibration);
   const navigate = useNavigate();
   const handleCalibrationComplete = (data: CalibrationResult) => {
@@ -41,6 +43,7 @@ function RouteComponent() {
       <PageHeader title="Camera Calibration" className="absolute" />
       <CameraCalibration
         src={src}
+        resolution={resolution}
         onCalibrationConfirmed={handleCalibrationComplete}
         autoCapture={true}
         patternSize={{ width: 9, height: 6 }}

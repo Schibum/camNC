@@ -257,6 +257,8 @@ export const useCalibrationData = () => useStore(state => state.calibrationData)
 export const useNewCameraMatrix = () => useStore(state => state.calibrationData.new_camera_matrix);
 // new
 export const useCamSource = () => useStore(state => state.camSource);
+// Returns the resolution of the camera source. Throws if no source is configured.
+export const useCamResolution = () => useStore(state => state.camSource!.maxResolution);
 
 // Access tool diameter from store
 export const useToolDiameter = () => useStore(state => state.toolDiameter);

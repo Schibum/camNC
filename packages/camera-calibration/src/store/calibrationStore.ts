@@ -37,13 +37,21 @@ interface CalibrationSettings {
   autoCapture?: boolean;
 }
 
+export interface Resolution {
+  width: number;
+  height: number;
+}
+
 interface CameraSlice {
   stream: MediaStream | null;
   videoElement: HTMLVideoElement | null;
   frameWidth: number;
   frameHeight: number;
   isStreaming: boolean;
-  startCamera: (source: MediaStream | string) => Promise<void>;
+  startCamera: (
+    source: MediaStream | string,
+    resolution?: Resolution
+  ) => Promise<void>;
   stopCamera: () => void;
   setFrameDimensions: (width: number, height: number) => void;
   resetCalibration: () => void; // This action resets state across multiple slices
@@ -103,7 +111,12 @@ type CalibrationState = CameraSlice &
   SettingsSlice &
   CalibrationResultSlice;
 
-// --- Slice Creators ---
+function getAspectRatio(resolution: Resolution) {
+  const { width, height } = resolution;
+  const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
+  const divisor = gcd(width, height);
+  return `${width / divisor}:${height / divisor}`;
+}
 
 const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
   set,
@@ -114,118 +127,84 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
   frameWidth: 0,
   frameHeight: 0,
   isStreaming: false,
-  startCamera: async (source: MediaStream | string) => {
+  startCamera: async (
+    source: MediaStream | string,
+    resolution?: Resolution
+  ) => {
     // Ensure cleanup of previous state first
     get().stopCamera(); // Calls stopCamera from this slice
 
-    try {
-      const element = document.createElement("video");
-      element.autoplay = true;
-      element.playsInline = true;
-      element.muted = true;
+    const element = document.createElement("video");
+    element.autoplay = true;
+    element.playsInline = true;
+    element.muted = true;
 
-      const handleMetadataLoaded = () => {
-        console.log(
-          "[Store:Camera] Video metadata loaded:",
-          element.videoWidth,
-          element.videoHeight
-        );
-        if (element.videoWidth > 0 && element.videoHeight > 0) {
-          element.width = element.videoWidth;
-          element.height = element.videoHeight;
-          set({
-            frameWidth: element.videoWidth,
-            frameHeight: element.videoHeight,
-          });
-        } else {
-          console.warn(
-            "[Store:Camera] Metadata loaded but dimensions invalid on detached element."
+    const handleMetadataLoaded = () => {
+      let vidRes = { width: element.videoWidth, height: element.videoHeight };
+      if (resolution) {
+        if (getAspectRatio(resolution) !== getAspectRatio(vidRes)) {
+          throw new Error(
+            "Aspect ratio mismatch between provided and video element"
           );
         }
-        element.removeEventListener("loadedmetadata", handleMetadataLoaded);
-      };
-
-      element.addEventListener("loadedmetadata", handleMetadataLoaded);
-
-      if (typeof source === "string") {
-        element.src = source;
-        element.crossOrigin = "anonymous";
-        console.log(
-          "[Store:Camera] Assigned provided URL to video element:",
-          source
-        );
-      } else if (source instanceof MediaStream) {
-        if (!source.active || source.getVideoTracks().length === 0) {
-          console.error(
-            "[Store:Camera] startCamera received an invalid or inactive stream."
-          );
-          set({ stream: null, videoElement: null, isStreaming: false });
-          return Promise.reject(
-            new Error("Invalid MediaStream provided to startCamera")
-          );
-        }
-        element.srcObject = source;
-        console.log(
-          "[Store:Camera] Assigned provided stream to video element."
-        );
-      } else {
-        console.error(
-          "[Store:Camera] startCamera received an invalid source type."
-        );
-        set({ stream: null, videoElement: null, isStreaming: false });
-        return Promise.reject(
-          new Error("Invalid source type provided to startCamera")
-        );
+        console.log("Using externally provided resolution", resolution);
+        vidRes = resolution;
       }
+      const { width, height } = vidRes;
+      if (width > 0 && height > 0) {
+        element.width = width;
+        element.height = height;
+        set({
+          frameWidth: width,
+          frameHeight: height,
+        });
+      } else {
+        throw new Error("Invalid video dimensions");
+      }
+    };
 
-      await element.play();
+    element.addEventListener("loadedmetadata", handleMetadataLoaded, {
+      once: true,
+    });
 
-      console.log("[Store:Camera] Video element is playing.");
-      // Reset states in other slices via direct set calls
-      set({
-        stream: source instanceof MediaStream ? source : null,
-        videoElement: element,
-        isStreaming: true,
-        // Reset capture state
-        capturedFrames: [],
-        selectedFrameId: null,
-        // Reset calibration state
-        calibrationResult: null,
-        // Reset processing state
-        currentStableDuration: 0,
-        lastUpdateTime: 0,
-        isCapturePending: false,
-        wasStableAndUnique: false,
-        previousCornerMetrics: null,
-        movementHistory: [],
-        currentCorners: null,
-        currentFrameImageData: null,
-      });
-      get().resetDetectionFps(); // Calls action from Processing slice
-    } catch (error) {
-      console.error(
-        "[Store:Camera] Error setting up/playing video element:",
-        error
-      );
-      const element = get().videoElement;
-      // Attempt cleanup (listener removal might need adjustment based on actual implementation)
-      element?.removeEventListener("loadedmetadata", (e: any) =>
-        e?.target?.removeEventListener(
-          "loadedmetadata",
-          (e as any)?.target?._listenerRef // Assuming _listenerRef holds the handle
-        )
-      );
-      set({
-        stream: null,
-        videoElement: null,
-        isStreaming: false,
-        currentStableDuration: 0,
-        lastUpdateTime: 0,
-        isCapturePending: false, // Ensure reset on error too
-      });
-      get().resetDetectionFps(); // Calls action from Processing slice
-      return Promise.reject(error);
+    if (typeof source === "string") {
+      element.src = source;
+      element.crossOrigin = "anonymous";
+    } else if (source instanceof MediaStream) {
+      if (!source.active || source.getVideoTracks().length === 0) {
+        set({ stream: null, videoElement: null, isStreaming: false });
+        throw new Error("Invalid MediaStream provided to startCamera");
+      }
+      element.srcObject = source;
+    } else {
+      set({ stream: null, videoElement: null, isStreaming: false });
+      throw new Error("Invalid source type provided to startCamera");
     }
+
+    await element.play();
+
+    console.log("[Store:Camera] Video element is playing.");
+    // Reset states in other slices via direct set calls
+    set({
+      stream: source instanceof MediaStream ? source : null,
+      videoElement: element,
+      isStreaming: true,
+      // Reset capture state
+      capturedFrames: [],
+      selectedFrameId: null,
+      // Reset calibration state
+      calibrationResult: null,
+      // Reset processing state
+      currentStableDuration: 0,
+      lastUpdateTime: 0,
+      isCapturePending: false,
+      wasStableAndUnique: false,
+      previousCornerMetrics: null,
+      movementHistory: [],
+      currentCorners: null,
+      currentFrameImageData: null,
+    });
+    get().resetDetectionFps(); // Calls action from Processing slice
   },
   stopCamera: () => {
     const { videoElement } = get(); // Use get() to access state within the same slice action
