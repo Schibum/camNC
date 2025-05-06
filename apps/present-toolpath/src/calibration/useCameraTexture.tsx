@@ -10,7 +10,6 @@ export function useCameraTexture() {
     loop: true,
     start: true,
   });
-  console.log('videoTexture', videoTexture);
   // videoTexture.flipY = false;
   return videoTexture;
 }

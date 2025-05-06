@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { Camera, Eye, Grid, Grid2x2, Route, ScanQrCode, Settings2 } from 'lucide-react';
+import { Camera, Eye, Grid2x2, Grid3x3, Route, Ruler, ScanQrCode, Settings2 } from 'lucide-react';
 import * as React from 'react';
 
 import { useLocation } from '@tanstack/react-router';
@@ -46,19 +46,19 @@ const routes: NavRoute[] = [
 
 const settingsRoutes: NavRoute[] = [
   {
-    title: 'Camera URL',
+    title: 'Camera Source',
     to: '/setup/url-entry',
     icon: Camera,
   },
   {
     title: 'Camera Calibration',
     to: '/setup/camera-calibration',
-    icon: Camera,
+    icon: Grid3x3,
   },
   {
     title: 'Machine Bounds',
     to: '/setup/machine-bounds',
-    icon: Grid,
+    icon: Ruler,
   },
   {
     title: 'Reference Points',
