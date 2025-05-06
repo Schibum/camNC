@@ -21,6 +21,7 @@ import { Route as SetupUrlEntryImport } from './routes/setup.url-entry'
 import { Route as SetupSetupImport } from './routes/setup/setup'
 import { Route as SetupPointSelectionImport } from './routes/setup/point-selection'
 import { Route as SetupMachineBoundsImport } from './routes/setup/machine-bounds'
+import { Route as SetupEditSettingsImport } from './routes/setup/edit-settings'
 import { Route as SetupCameraCalibrationImport } from './routes/setup/camera-calibration'
 
 // Create/Update Routes
@@ -87,6 +88,12 @@ const SetupMachineBoundsRoute = SetupMachineBoundsImport.update({
   getParentRoute: () => rootRoute,
 } as any)
 
+const SetupEditSettingsRoute = SetupEditSettingsImport.update({
+  id: '/setup/edit-settings',
+  path: '/setup/edit-settings',
+  getParentRoute: () => rootRoute,
+} as any)
+
 const SetupCameraCalibrationRoute = SetupCameraCalibrationImport.update({
   id: '/setup/camera-calibration',
   path: '/setup/camera-calibration',
@@ -123,6 +130,13 @@ declare module '@tanstack/react-router' {
       path: '/setup/camera-calibration'
       fullPath: '/setup/camera-calibration'
       preLoaderRoute: typeof SetupCameraCalibrationImport
+      parentRoute: typeof rootRoute
+    }
+    '/setup/edit-settings': {
+      id: '/setup/edit-settings'
+      path: '/setup/edit-settings'
+      fullPath: '/setup/edit-settings'
+      preLoaderRoute: typeof SetupEditSettingsImport
       parentRoute: typeof rootRoute
     }
     '/setup/machine-bounds': {
@@ -184,6 +198,7 @@ export interface FileRoutesByFullPath {
   '/undistort2': typeof Undistort2Route
   '/unproject': typeof UnprojectRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
+  '/setup/edit-settings': typeof SetupEditSettingsRoute
   '/setup/machine-bounds': typeof SetupMachineBoundsRoute
   '/setup/point-selection': typeof SetupPointSelectionRoute
   '/setup/setup': typeof SetupSetupRoute
@@ -198,6 +213,7 @@ export interface FileRoutesByTo {
   '/undistort2': typeof Undistort2Route
   '/unproject': typeof UnprojectRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
+  '/setup/edit-settings': typeof SetupEditSettingsRoute
   '/setup/machine-bounds': typeof SetupMachineBoundsRoute
   '/setup/point-selection': typeof SetupPointSelectionRoute
   '/setup/setup': typeof SetupSetupRoute
@@ -213,6 +229,7 @@ export interface FileRoutesById {
   '/undistort2': typeof Undistort2Route
   '/unproject': typeof UnprojectRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
+  '/setup/edit-settings': typeof SetupEditSettingsRoute
   '/setup/machine-bounds': typeof SetupMachineBoundsRoute
   '/setup/point-selection': typeof SetupPointSelectionRoute
   '/setup/setup': typeof SetupSetupRoute
@@ -229,6 +246,7 @@ export interface FileRouteTypes {
     | '/undistort2'
     | '/unproject'
     | '/setup/camera-calibration'
+    | '/setup/edit-settings'
     | '/setup/machine-bounds'
     | '/setup/point-selection'
     | '/setup/setup'
@@ -242,6 +260,7 @@ export interface FileRouteTypes {
     | '/undistort2'
     | '/unproject'
     | '/setup/camera-calibration'
+    | '/setup/edit-settings'
     | '/setup/machine-bounds'
     | '/setup/point-selection'
     | '/setup/setup'
@@ -255,6 +274,7 @@ export interface FileRouteTypes {
     | '/undistort2'
     | '/unproject'
     | '/setup/camera-calibration'
+    | '/setup/edit-settings'
     | '/setup/machine-bounds'
     | '/setup/point-selection'
     | '/setup/setup'
@@ -270,6 +290,7 @@ export interface RootRouteChildren {
   Undistort2Route: typeof Undistort2Route
   UnprojectRoute: typeof UnprojectRoute
   SetupCameraCalibrationRoute: typeof SetupCameraCalibrationRoute
+  SetupEditSettingsRoute: typeof SetupEditSettingsRoute
   SetupMachineBoundsRoute: typeof SetupMachineBoundsRoute
   SetupPointSelectionRoute: typeof SetupPointSelectionRoute
   SetupSetupRoute: typeof SetupSetupRoute
@@ -284,6 +305,7 @@ const rootRouteChildren: RootRouteChildren = {
   Undistort2Route: Undistort2Route,
   UnprojectRoute: UnprojectRoute,
   SetupCameraCalibrationRoute: SetupCameraCalibrationRoute,
+  SetupEditSettingsRoute: SetupEditSettingsRoute,
   SetupMachineBoundsRoute: SetupMachineBoundsRoute,
   SetupPointSelectionRoute: SetupPointSelectionRoute,
   SetupSetupRoute: SetupSetupRoute,
@@ -307,6 +329,7 @@ export const routeTree = rootRoute
         "/undistort2",
         "/unproject",
         "/setup/camera-calibration",
+        "/setup/edit-settings",
         "/setup/machine-bounds",
         "/setup/point-selection",
         "/setup/setup",
@@ -327,6 +350,9 @@ export const routeTree = rootRoute
     },
     "/setup/camera-calibration": {
       "filePath": "setup/camera-calibration.tsx"
+    },
+    "/setup/edit-settings": {
+      "filePath": "setup/edit-settings.tsx"
     },
     "/setup/machine-bounds": {
       "filePath": "setup/machine-bounds.tsx"

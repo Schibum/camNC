@@ -4,7 +4,7 @@ import { PresentCanvas } from '@/scene/PresentCanvas';
 import { GCodeVisualizer } from '@/visualize/Toolpaths';
 import { VisualizeToolbar } from '@/visualize/VisualizeToolbar';
 import { ThreeElements, ThreeEvent } from '@react-three/fiber';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
 import React from 'react';
 import * as THREE from 'three';
@@ -12,6 +12,12 @@ import { useStore } from '../../store';
 
 export const Route = createFileRoute('/visualize/2DView')({
   component: VisualizeComponent,
+  loader: async () => {
+    const extrinsics = useStore.getState().camSource?.extrinsics;
+    if (!extrinsics) {
+      throw redirect({ to: '/setup/point-selection' });
+    }
+  },
 });
 
 const UnprojectVideoMeshWithStockHeight = React.forwardRef<THREE.Mesh, ThreeElements['mesh']>(({ ...props }, ref) => {

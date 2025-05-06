@@ -24,17 +24,6 @@ export interface CameraExtrinsics {
 export type ITuple = [number, number];
 export type IMachineBounds = [ITuple, ITuple, ITuple, ITuple];
 
-export interface CameraConfig {
-  // Streaming URL.
-  url: string;
-  // Camera resolution.
-  dimensions: ITuple;
-  // Machine bounds in camera coordinates.
-  machineBoundsInCam: IMachineBounds;
-  // Machine bounds in pixels. (xmin, ymin), (xmax, ymax)
-  machineBounds: Box2;
-}
-
 // Should there be a separate type for pending/incomplete source configs?
 export interface ICamSource {
   url: string;
@@ -64,7 +53,7 @@ const defaultCalibrationData: CalibrationData = {
   distortion_coefficients: [-0.3829847540404848, 0.22402397713785682, -0.00102448788321063, 0.0005674913681331104, -0.09251835726272765],
 };
 
-const defaultCameraConfig: CameraConfig = {
+const defaultCameraConfig = {
   url: 'http://localhost:5173/calib_vid_trimmed.mp4',
   machineBoundsInCam: [
     [775.2407626853826, 387.8188510252899],
@@ -131,8 +120,6 @@ const storage: PersistStorage<unknown> = {
 // prettier-ignore
 export const useStore = create(devtools(persist(immer(combine(
   {
-    // old
-    cameraExtrinsics: defaultExtrinsicParameters,
     // new, should probably go into a backend instead at some point
     camSource: null as ICamSource | null,
 
@@ -150,6 +137,9 @@ export const useStore = create(devtools(persist(immer(combine(
     }),
     setShowStillFrame: (show: boolean) => set(state => {
       state.showStillFrame = show;
+    }),
+    setCamSource: (camSource: ICamSource) => set(state => {
+      state.camSource = camSource;
     }),
     camSourceSetters: {
       setSource: (url: string, maxResolution: ITuple) => set(state => {
@@ -178,9 +168,6 @@ export const useStore = create(devtools(persist(immer(combine(
     setIsToolpathHovered: (isHovered: boolean) => set(state => {
       state.isToolpathHovered = isHovered;
     }),
-    setCameraExtrinsics: (extrinsics: CameraExtrinsics) => set(state => {
-      state.cameraExtrinsics = extrinsics;
-    }),
     setToolDiameter: (diameter: number) => set(state => {
       state.toolDiameter = diameter;
     }),
@@ -203,7 +190,6 @@ export const useStore = create(devtools(persist(immer(combine(
   storage,
   partialize: state => ({
     toolDiameter: state.toolDiameter,
-    cameraExtrinsics: state.cameraExtrinsics,
     camSource: state.camSource,
   }),
 })));
@@ -250,8 +236,8 @@ export function useVideoToMachineHomography() {
   return translate.multiply(M);
 }
 
-export const useCameraExtrinsics = () => useStore(state => state.cameraExtrinsics);
-export const useSetCameraExtrinsics = () => useStore(state => state.setCameraExtrinsics);
+export const useCameraExtrinsics = () => useStore(state => state.camSource!.extrinsics!);
+export const useSetCameraExtrinsics = () => useStore(state => state.camSourceSetters.setExtrinsics);
 
 export const useShowStillFrame = () => useStore(state => state.showStillFrame);
 export const useSetShowStillFrame = () => useStore(state => state.setShowStillFrame);

@@ -1,4 +1,4 @@
-import { IMachineBounds, useStore } from '@/store';
+import { IMachineBounds, useCameraExtrinsics, useSetCameraExtrinsics, useStore } from '@/store';
 import { cv2, ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { use } from 'react';
 import { Box2, Matrix3, Vector2 } from 'three';
@@ -38,7 +38,7 @@ export function useComputeP3P() {
 export function useUpdateCameraExtrinsics() {
   use(ensureOpenCvIsLoaded());
   const compute = useComputeP3P();
-  const setCameraExtrinsics = useStore(state => state.setCameraExtrinsics);
+  const setCameraExtrinsics = useSetCameraExtrinsics();
   return () => {
     const { R, t } = compute();
     console.log('updated camera extrinsics', R, t);
@@ -47,14 +47,16 @@ export function useUpdateCameraExtrinsics() {
 }
 
 export function useReprojectedMachineBounds() {
+  const extrinsics = useCameraExtrinsics();
   const convertToThree = useConvertImageToThree();
   const cameraMatrix = matrix3ToCV(useStore(state => state.camSource!.calibration!.new_camera_matrix));
-  const { R, t } = useStore(state => state.cameraExtrinsics);
+  const objectPoints = machineBoundsToCv(useStore(state => state.camSource!.machineBounds!));
+  if (!extrinsics) return [];
+  const { R, t } = extrinsics;
   const Rcv = matrix3ToCV(R);
   const tcv = vector3ToCV(t);
   const distCoeffs = cv2.Mat.zeros(1, 5, cv2.CV_64F);
   const reprojectedPoints = new cv2.Mat();
-  const objectPoints = machineBoundsToCv(useStore(state => state.camSource!.machineBounds!));
   cv2.projectPoints(objectPoints, Rcv, tcv, cameraMatrix, distCoeffs, reprojectedPoints);
   const pointsThree = [];
   for (let i = 0; i < reprojectedPoints.rows; i++) {

@@ -1,5 +1,5 @@
-import { Matrix3, Vector2, Vector3 } from 'three';
 import { cv2 } from '@wbcnc/load-opencv';
+import { Matrix3, Vector2, Vector3 } from 'three';
 
 /**
  * Converts a Three.js Matrix3 to an OpenCV Mat.
@@ -135,9 +135,11 @@ export function vector2ToCV(vector: Vector2, type: number = cv2.CV_64F, useMulti
 export function cvToVector2(cvMat: cv2.Mat): Vector2 {
   // Check dimensions - now supporting 1x1 with 2 channels
   if (
-    !((cvMat.rows === 2 && cvMat.cols === 1) ||
+    !(
+      (cvMat.rows === 2 && cvMat.cols === 1) ||
       (cvMat.rows === 1 && cvMat.cols === 2) ||
-      (cvMat.rows === 1 && cvMat.cols === 1 && cvMat.channels() === 2))
+      (cvMat.rows === 1 && cvMat.cols === 1 && cvMat.channels() === 2)
+    )
   ) {
     throw new Error('OpenCV matrix must be 2x1, 1x2, or 1x1 with 2 channels to convert to Three.js Vector2');
   }

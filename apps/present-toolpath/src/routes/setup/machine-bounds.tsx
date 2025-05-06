@@ -2,7 +2,7 @@ import { useStore } from '@/store';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '@wbcnc/ui/components/card';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
-import { MachineBoundsForm } from '../../setup/MachineBoundsDialog';
+import { MachineBoundsForm } from '../../setup/MachineBoundsForm';
 
 export const Route = createFileRoute('/setup/machine-bounds')({
   component: RouteComponent,
