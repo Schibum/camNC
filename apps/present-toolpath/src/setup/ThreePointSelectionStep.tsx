@@ -1,4 +1,6 @@
-import { useReprojectedMachineBounds, useUpdateCameraExtrinsics } from '@/calibration/solveP3P';
+import { calculateUndistortionMapsCached } from '@/calibration/rectifyMap';
+import { remapCv } from '@/calibration/remapCv';
+import { useConvertImageToThree, useReprojectedMachineBounds, useUpdateCameraExtrinsics } from '@/calibration/solveP3P';
 import { UnskewedVideoMesh } from '@/calibration/UnskewTsl';
 import { averageVideoFrames } from '@/hooks/useStillFrameTexture';
 import { Draggable } from '@/scene/Draggable';
@@ -9,9 +11,9 @@ import { Button } from '@wbcnc/ui/components/button';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
 import React, { Suspense, useCallback, useMemo, useState } from 'react';
 import * as THREE from 'three';
+import { Vector2 } from 'three';
 import { IMachineBounds, ITuple, useCamResolution, useStore } from '../store';
 import { detectAruco } from './detect-aruco';
-
 interface PointSelectionStepProps {}
 
 function ReprojectedMachineBounds() {
@@ -174,9 +176,11 @@ function PointsScene({ points, setPoints }: { points: ITuple[]; setPoints: (poin
   );
 }
 
-async function getStillFrame() {
+async function getStillFrame(averageFrames = 5) {
   const src = useStore.getState().camSource?.url;
-  const resolution = useStore.getState().camSource?.maxResolution;
+  const resolution = useStore.getState().camSource!.maxResolution;
+  const calibrationData = useStore.getState().camSource!.calibration!;
+  const [mapX, mapY] = calculateUndistortionMapsCached(calibrationData, resolution[0], resolution[1]);
   if (!src || !resolution) {
     throw new Error('No camera source');
   }
@@ -184,26 +188,23 @@ async function getStillFrame() {
   const videoElem = document.createElement('video');
   videoElem.src = src;
   await videoElem.play();
-  const imgData = await averageVideoFrames(videoElem);
-  const canvas = document.createElement('canvas');
-  canvas.width = resolution[0];
-  canvas.height = resolution[1];
-  const ctx = canvas.getContext('2d');
-  if (!ctx) {
-    throw new Error('Could not get 2d context');
-  }
-  ctx.putImageData(imgData, 0, 0);
-  return canvas;
+  const imgData = await averageVideoFrames(videoElem, averageFrames);
+  return remapCv(imgData, mapX, mapY);
 }
 
-function DetectArucosButton() {
+function DetectArucosButton({ onMarkersDetected }: { onMarkersDetected: (markers: Vector2[]) => void }) {
   const [isDetecting, setIsDetecting] = useState(false);
+  const convertToThree = useConvertImageToThree();
   const handleClick = async () => {
     setIsDetecting(true);
-    const canvas = await getStillFrame();
-    const markers = detectAruco(canvas);
+    const imgMat = await getStillFrame();
+    const markers = detectAruco(imgMat);
+    imgMat.delete();
     console.log('markers', markers);
     setIsDetecting(false);
+    const markersThree = markers.map(m => convertToThree(new Vector2(m.origin[0], m.origin[1])));
+    // console.log('markersThree', markersThree);
+    onMarkersDetected(markersThree);
   };
 
   return <Button onClick={handleClick}>{isDetecting ? 'Detecting...' : 'Detect Arucos'}</Button>;
@@ -230,6 +231,13 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
     setPoints([]);
   };
 
+  const handleMarkersDetected = (markers: Vector2[]) => {
+    if (markers.length !== 4) {
+      console.warn('Detected', markers.length, 'markers, expected 4, ignoring');
+    }
+    setPoints(markers.map(m => [m.x, m.y]));
+  };
+
   return (
     <div className="w-full h-dvh flex flex-col gap-1 overflow-hidden">
       <PageHeader title="Machine Bounds" className="absolute" />
@@ -243,7 +251,7 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
       <div className="absolute bottom-4 right-4 flex items-center justify-end gap-2 p-2 bg-white/80 rounded-lg shadow-sm">
         <NextPointHint pointCount={points.length} />
         {/* Action buttons for reset and save */}
-        <DetectArucosButton />
+        <DetectArucosButton onMarkersDetected={handleMarkersDetected} />
         <Button variant="secondary" onClick={handleReset}>
           Reset
         </Button>

@@ -74,7 +74,7 @@ const schema = z.object({
 });
 
 function calibToJson(data: ICamSource) {
-  if (!data) return '';
+  if (!data || !data.calibration) return '';
   return JSON.stringify(
     {
       calibration: {

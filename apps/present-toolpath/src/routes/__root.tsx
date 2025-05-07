@@ -6,6 +6,7 @@ import { TooltipProvider } from '@wbcnc/ui/components/tooltip';
 
 export const Route = createRootRoute({
   component: RootComponent,
+  // errorComponent: ErrorComponent,
 });
 
 function RootComponent() {

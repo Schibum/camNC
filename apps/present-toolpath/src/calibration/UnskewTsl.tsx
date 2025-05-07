@@ -1,69 +1,15 @@
 import { PresentCanvas } from '@/scene/PresentCanvas';
-import { CalibrationData, useCalibrationData, useCamResolution, useVideoSrc } from '@/store';
+import { useCalibrationData, useCamResolution, useVideoSrc } from '@/store';
 import { type ThreeElements } from '@react-three/fiber';
 import React, { useMemo } from 'react';
 import * as THREE from 'three';
 import { useUnmapTextures } from './CameraShaderMaterial';
-import { initUndistortRectifyMapTyped, Matrix3x3 } from './rectifyMap';
 import { useCameraTexture } from './useCameraTexture';
 
 interface UnskewTslProps {
   width?: number;
   height?: number;
 }
-
-let lastCalibrationData: CalibrationData | null = null;
-let lastWidth: number | null = null;
-let lastHeight: number | null = null;
-let lastUndistortionMaps: [Float32Array, Float32Array] | null = null;
-
-// Same as calculateUndistortionMaps, but caches the most recent result globally
-export function calculateUndistortionMapsCached(
-  calibrationData: CalibrationData,
-  width: number,
-  height: number
-): [Float32Array, Float32Array] {
-  if (calibrationData === lastCalibrationData && width === lastWidth && height === lastHeight && lastUndistortionMaps) {
-    return lastUndistortionMaps;
-  }
-  lastCalibrationData = calibrationData;
-  lastWidth = width;
-  lastHeight = height;
-  lastUndistortionMaps = calculateUndistortionMaps(calibrationData, width, height);
-  return lastUndistortionMaps;
-}
-
-/**
- * Calculate the undistortion maps from OpenCV camera parameters
- * @param calibrationData Camera calibration data with intrinsic matrix and distortion coefficients
- * @param width Image width
- * @param height Image height
- * @returns {Float32Array[]} Arrays for X and Y undistortion maps
- */
-function calculateUndistortionMaps(calibrationData: CalibrationData, width: number, height: number): [Float32Array, Float32Array] {
-  // Extract camera matrix and distortion coefficients
-  const { calibration_matrix, distortion_coefficients, new_camera_matrix } = calibrationData;
-
-  const R: Matrix3x3 = [
-    [1, 0, 0],
-    [0, 1, 0],
-    [0, 0, 1],
-  ];
-  const startTime = performance.now();
-
-  const { map1: mapXArray, map2: mapYArray } = initUndistortRectifyMapTyped(
-    calibration_matrix,
-    distortion_coefficients,
-    R,
-    new_camera_matrix,
-    { width, height }
-  );
-  const endTime = performance.now();
-  console.log(`Time taken to calculate undistortion maps: ${endTime - startTime} milliseconds`);
-
-  return [mapXArray, mapYArray];
-}
-
 // UndistortMesh component using Three.js Shading
 export function UnskewedVideoMesh({ ...props }: ThreeElements['mesh']) {
   const videoDimensions = useCamResolution();

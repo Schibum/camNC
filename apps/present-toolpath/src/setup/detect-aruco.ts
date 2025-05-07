@@ -20,9 +20,9 @@ type IMarker = {
   origin: [number, number];
 };
 
-export function detectAruco(canvas: HTMLCanvasElement) {
+export function detectAruco(matOrCanvas: HTMLCanvasElement | cv2.Mat) {
   const startTime = performance.now();
-  const img = cv2.imread(canvas);
+  const img = matOrCanvas instanceof HTMLCanvasElement ? cv2.imread(matOrCanvas) : matOrCanvas;
 
   // Convert to grayscale for detection
   const gray = new cv2.Mat();
@@ -56,7 +56,9 @@ export function detectAruco(canvas: HTMLCanvasElement) {
   ids.delete();
   rejected.delete();
   gray.delete();
-  img.delete();
+  if (matOrCanvas instanceof HTMLCanvasElement) {
+    img.delete();
+  }
   detector.delete();
 
   return markers;

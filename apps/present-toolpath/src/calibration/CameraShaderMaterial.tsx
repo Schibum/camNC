@@ -1,7 +1,7 @@
 import { useCalibrationData, useCameraExtrinsics, useCamResolution, useNewCameraMatrix } from '@/store';
 import { useMemo } from 'react';
 import * as THREE from 'three';
-import { calculateUndistortionMapsCached } from './UnskewTsl';
+import { calculateUndistortionMapsCached } from './rectifyMap';
 
 export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
   // These are your extrinsics (rotation and translation) from world to camera space.
@@ -106,13 +106,13 @@ export function useUnmapTextures(): [THREE.DataTexture, THREE.DataTexture] {
   const videoDimensions = useCamResolution();
   return useMemo(() => {
     const [width, height] = videoDimensions;
-    const placeholderX = new THREE.DataTexture(new Float32Array(width * height), width, height, THREE.RedFormat, THREE.FloatType);
-    const placeholderY = new THREE.DataTexture(new Float32Array(width * height), width, height, THREE.RedFormat, THREE.FloatType);
     const [mapX, mapY] = calculateUndistortionMapsCached(calibrationData, width, height);
-    placeholderX.image.data = mapX;
-    placeholderY.image.data = mapY;
-    placeholderX.needsUpdate = true;
-    placeholderY.needsUpdate = true;
-    return [placeholderX, placeholderY];
+    const texX = new THREE.DataTexture(mapX, width, height, THREE.RedFormat, THREE.FloatType);
+    const texY = new THREE.DataTexture(mapY, width, height, THREE.RedFormat, THREE.FloatType);
+    // texX.image.data = mapX;
+    // texY.image.data = mapY;
+    texX.needsUpdate = true;
+    texY.needsUpdate = true;
+    return [texX, texY];
   }, [videoDimensions, calibrationData]);
 }

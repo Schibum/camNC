@@ -18,7 +18,7 @@ function getMachineBoundsInImageCoords() {
     dimensions[1] / 2 - y,
   ]) as IMachineBounds;
 }
-function useConvertImageToThree() {
+export function useConvertImageToThree() {
   const dimensions = useStore(state => state.camSource!.maxResolution);
   const convertToThreeCoords = (bounds: Vector2): Vector2 => {
     return new Vector2(bounds.x - dimensions[0] / 2, dimensions[1] / 2 - bounds.y);
