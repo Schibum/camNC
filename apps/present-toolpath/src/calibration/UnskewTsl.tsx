@@ -1,5 +1,5 @@
 import { PresentCanvas } from '@/scene/PresentCanvas';
-import { useCalibrationData, useCamResolution, useVideoSrc } from '@/store';
+import { useCalibrationData, useCamResolution, useVideoUrl } from '@/store';
 import { type ThreeElements } from '@react-three/fiber';
 import React, { useMemo } from 'react';
 import * as THREE from 'three';
@@ -91,7 +91,7 @@ const UnskewTsl: React.FC<UnskewTslProps> = () => {
   // Handle missing calibration data - calibrationData is now passed through UnskewedVideoMesh
   const calibrationData = useCalibrationData();
   // Handle missing video source - videoSrc is now handled in UnskewedVideoMesh
-  const videoSrc = useVideoSrc();
+  const videoSrc = useVideoUrl();
   if (!calibrationData || !calibrationData.calibration_matrix || !calibrationData.distortion_coefficients || !videoSrc) {
     throw new Error('Missing calibration data or video source');
   }

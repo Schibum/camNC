@@ -1,8 +1,5 @@
-import { calculateUndistortionMapsCached } from '@/calibration/rectifyMap';
-import { remapCv } from '@/calibration/remapCv';
-import { useConvertImageToThree, useReprojectedMachineBounds, useUpdateCameraExtrinsics } from '@/calibration/solveP3P';
+import { useReprojectedMachineBounds, useUpdateCameraExtrinsics } from '@/calibration/solveP3P';
 import { UnskewedVideoMesh } from '@/calibration/UnskewTsl';
-import { averageVideoFrames } from '@/hooks/useStillFrameTexture';
 import { Draggable } from '@/scene/Draggable';
 import { PresentCanvas } from '@/scene/PresentCanvas';
 import { Line, Text } from '@react-three/drei';
@@ -13,7 +10,7 @@ import React, { Suspense, useCallback, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import { Vector2 } from 'three';
 import { IMachineBounds, ITuple, useCamResolution, useStore } from '../store';
-import { detectAruco } from './detect-aruco';
+import { DetectArucosButton } from './DetectArucoButton';
 interface PointSelectionStepProps {}
 
 function ReprojectedMachineBounds() {
@@ -174,40 +171,6 @@ function PointsScene({ points, setPoints }: { points: ITuple[]; setPoints: (poin
       {points.length === 4 && !isDragging && <ReprojectedMachineBounds />}
     </>
   );
-}
-
-async function getStillFrame(averageFrames = 5) {
-  const src = useStore.getState().camSource?.url;
-  const resolution = useStore.getState().camSource!.maxResolution;
-  const calibrationData = useStore.getState().camSource!.calibration!;
-  const [mapX, mapY] = calculateUndistortionMapsCached(calibrationData, resolution[0], resolution[1]);
-  if (!src || !resolution) {
-    throw new Error('No camera source');
-  }
-  // TODO: use videoSource
-  const videoElem = document.createElement('video');
-  videoElem.src = src;
-  await videoElem.play();
-  const imgData = await averageVideoFrames(videoElem, averageFrames);
-  return remapCv(imgData, mapX, mapY);
-}
-
-function DetectArucosButton({ onMarkersDetected }: { onMarkersDetected: (markers: Vector2[]) => void }) {
-  const [isDetecting, setIsDetecting] = useState(false);
-  const convertToThree = useConvertImageToThree();
-  const handleClick = async () => {
-    setIsDetecting(true);
-    const imgMat = await getStillFrame();
-    const markers = detectAruco(imgMat);
-    imgMat.delete();
-    console.log('markers', markers);
-    setIsDetecting(false);
-    const markersThree = markers.map(m => convertToThree(new Vector2(m.origin[0], m.origin[1])));
-    // console.log('markersThree', markersThree);
-    onMarkersDetected(markersThree);
-  };
-
-  return <Button onClick={handleClick}>{isDetecting ? 'Detecting...' : 'Detect Arucos'}</Button>;
 }
 
 export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) => {

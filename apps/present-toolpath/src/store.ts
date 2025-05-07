@@ -195,7 +195,7 @@ export const useStore = create(devtools(persist(immer(combine(
 })));
 
 export const useCamSource = () => useStore(state => state.camSource);
-export const useVideoSrc = () => useStore(state => state.camSource!.url);
+export const useVideoUrl = () => useStore(state => state.camSource!.url);
 export const useCalibrationData = () => useStore(state => state.camSource!.calibration!);
 export const useNewCameraMatrix = () => useStore(state => state.camSource!.calibration!.new_camera_matrix);
 // Returns the resolution of the camera source. Throws if no source is configured.
