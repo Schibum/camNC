@@ -1,5 +1,6 @@
 import { useReprojectedMachineBounds, useUpdateCameraExtrinsics } from '@/calibration/solveP3P';
 import { UnskewedVideoMesh } from '@/calibration/UnskewTsl';
+import { averageVideoFrames } from '@/hooks/useStillFrameTexture';
 import { Draggable } from '@/scene/Draggable';
 import { PresentCanvas } from '@/scene/PresentCanvas';
 import { Line, Text } from '@react-three/drei';
@@ -9,6 +10,7 @@ import { PageHeader } from '@wbcnc/ui/components/page-header';
 import React, { Suspense, useCallback, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import { IMachineBounds, ITuple, useCamResolution, useStore } from '../store';
+import { detectAruco } from './detect-aruco';
 
 interface PointSelectionStepProps {}
 
@@ -172,6 +174,41 @@ function PointsScene({ points, setPoints }: { points: ITuple[]; setPoints: (poin
   );
 }
 
+async function getStillFrame() {
+  const src = useStore.getState().camSource?.url;
+  const resolution = useStore.getState().camSource?.maxResolution;
+  if (!src || !resolution) {
+    throw new Error('No camera source');
+  }
+  // TODO: use videoSource
+  const videoElem = document.createElement('video');
+  videoElem.src = src;
+  await videoElem.play();
+  const imgData = await averageVideoFrames(videoElem);
+  const canvas = document.createElement('canvas');
+  canvas.width = resolution[0];
+  canvas.height = resolution[1];
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('Could not get 2d context');
+  }
+  ctx.putImageData(imgData, 0, 0);
+  return canvas;
+}
+
+function DetectArucosButton() {
+  const [isDetecting, setIsDetecting] = useState(false);
+  const handleClick = async () => {
+    setIsDetecting(true);
+    const canvas = await getStillFrame();
+    const markers = detectAruco(canvas);
+    console.log('markers', markers);
+    setIsDetecting(false);
+  };
+
+  return <Button onClick={handleClick}>{isDetecting ? 'Detecting...' : 'Detect Arucos'}</Button>;
+}
+
 export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) => {
   const [points, setPoints] = useState<ITuple[]>(useStore(state => state.camSource!.machineBoundsInCam) || []);
   const setMachineBoundsInCam = useStore(state => state.camSourceSetters.setMachineBoundsInCam);
@@ -206,6 +243,7 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
       <div className="absolute bottom-4 right-4 flex items-center justify-end gap-2 p-2 bg-white/80 rounded-lg shadow-sm">
         <NextPointHint pointCount={points.length} />
         {/* Action buttons for reset and save */}
+        <DetectArucosButton />
         <Button variant="secondary" onClick={handleReset}>
           Reset
         </Button>

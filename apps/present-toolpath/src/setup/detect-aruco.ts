@@ -50,6 +50,7 @@ export function detectAruco(canvas: HTMLCanvasElement) {
     const idValue = ids.data32S[i];
     markers.push({ id: idValue, origin: pt1 });
   }
+  markers.sort((a, b) => a.id - b.id);
 
   corners.delete();
   ids.delete();

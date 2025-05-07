@@ -17,6 +17,7 @@ const go2rtcSchema = z.object({
 });
 
 function Rtc2GoConfigTextarea({ form }: { form: UseFormReturn<z.infer<typeof go2rtcSchema>> }) {
+  'use no memo'; // opts out this component from being compiled by React Compiler
   const { watch } = form;
   const share = watch('share');
   const pwd = watch('pwd');
@@ -53,6 +54,7 @@ export function Go2RtcTab({
   defaults: WebtorrentConnectionParams;
   onConnect: (params: WebtorrentConnectionParams) => void;
 }) {
+  'use no memo'; // opts out this component from being compiled by React Compiler
   // const [params, setParams] = useAtom(connectionParamsAtom);
   // if (params.type !== 'webtorrent') throw new Error();
   const form = useForm<z.infer<typeof go2rtcSchema>>({

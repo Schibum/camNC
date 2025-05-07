@@ -23,7 +23,8 @@
       "DOM.Iterable"
     ],
     "types": [
-      "@vitest/browser/providers/playwright"
+      "@vitest/browser/providers/playwright",
+      "vite/client"
     ],
   },
   "include": [

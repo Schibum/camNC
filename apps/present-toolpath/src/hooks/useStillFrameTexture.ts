@@ -10,7 +10,7 @@ import { CanvasTexture } from 'three';
  * @param targetFrameCount The number of frames to average.
  * @returns A Promise that resolves with the averaged ImageData.
  */
-function averageVideoFrames(videoElement: HTMLVideoElement, targetFrameCount: number = 25): Promise<ImageData> {
+export function averageVideoFrames(videoElement: HTMLVideoElement, targetFrameCount: number = 25): Promise<ImageData> {
   return new Promise((resolve, reject) => {
     if (!videoElement.videoWidth || !videoElement.videoHeight) {
       throw new Error('Video dimensions are not available. Ensure the video has loaded metadata.');
