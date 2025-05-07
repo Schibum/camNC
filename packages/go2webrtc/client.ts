@@ -220,7 +220,7 @@ function setCodecPreferences(
 async function getOffer(
   pc: RTCPeerConnection,
   timeoutMs: number = 5000,
-  debounceMs = 2000
+  debounceMs = 1000
 ): Promise<string> {
   try {
     const offer = await pc.createOffer();

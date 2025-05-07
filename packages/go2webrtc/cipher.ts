@@ -24,7 +24,7 @@ export async function cipher(
   pwd: string,
   nonce?: string
 ): Promise<CryptoHelper> {
-  nonce = nonce || Math.random().toString(36).substring(2);
+  nonce = nonce || (Date.now() * 1_000_000).toString(36);
   const hashBuffer = await crypto.subtle.digest("SHA-256", encode(share));
   const ivData = await crypto.subtle.digest(
     "SHA-256",
@@ -41,11 +41,8 @@ export async function cipher(
     false,
     ["encrypt", "decrypt"]
   );
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashString = hashArray.map((b) => String.fromCharCode(b)).join("");
-  const hash = btoa(hashString);
   return {
-    hash: hash,
+    hash: btoa(decode(hashBuffer)),
     nonce: nonce,
     encrypt: async (plaintext: string) => {
       const ciphertextBuffer = await crypto.subtle.encrypt(
