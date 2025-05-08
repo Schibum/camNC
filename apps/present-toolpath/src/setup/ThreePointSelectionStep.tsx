@@ -1,5 +1,5 @@
 import { useReprojectedMachineBounds, useUpdateCameraExtrinsics } from '@/calibration/solveP3P';
-import { UnskewedVideoMesh } from '@/calibration/UnskewTsl';
+import { UnskewedVideoMeshWithLoading } from '@/calibration/UnskewTsl';
 import { Draggable } from '@/scene/Draggable';
 import { PresentCanvas } from '@/scene/PresentCanvas';
 import { Line, Text } from '@react-three/drei';
@@ -123,7 +123,7 @@ function PointsScene({ points, setPoints }: { points: ITuple[]; setPoints: (poin
   return (
     <>
       {/* Use primitive to properly attach the ref and event handlers */}
-      <UnskewedVideoMesh />
+      <UnskewedVideoMeshWithLoading />
 
       {/* Add a transparent plane overtop for click handling */}
       <mesh position={[0, 0, 0.005]} onClick={handlePlacePoint}>

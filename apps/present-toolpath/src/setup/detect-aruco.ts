@@ -1,6 +1,6 @@
 import { cv2 } from '@wbcnc/load-opencv';
 
-const kDictId = 2; // DICT_4X4_250
+const kDictId = 0; // DICT_4X4_50
 const kRefinementMethod = 1; // subpixel
 
 function createDetector() {
