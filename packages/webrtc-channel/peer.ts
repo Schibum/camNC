@@ -17,8 +17,9 @@ const DEFAULT_ICE: RTCIceServer[] = [
 ];
 
 export default class Peer {
-  readonly pc: RTCPeerConnection;
-  readonly dc: RTCDataChannel;
+  readonly peerConnection: RTCPeerConnection;
+  private readonly internalDataChannel: RTCDataChannel;
+  readonly dataChannel: RTCDataChannel;
   readonly signalingPort: MessagePort;
   readonly polite: boolean;
   readonly ready: Promise<void>;
@@ -38,12 +39,22 @@ export default class Peer {
     this.signal = opts.signal ?? this.abortCtrl.signal;
 
     /* PeerConnection */
-    this.pc = new RTCPeerConnection({
+    this.peerConnection = new RTCPeerConnection({
       iceServers: opts.iceServers ?? DEFAULT_ICE,
     });
 
     /* Negotiated symmetric channel */
-    this.dc = this.pc.createDataChannel("both", { negotiated: true, id: 0 });
+    this.internalDataChannel = this.peerConnection.createDataChannel("both", {
+      negotiated: true,
+      id: 0,
+    });
+    this.dataChannel = this.peerConnection.createDataChannel(
+      "user-data-channel",
+      {
+        negotiated: true,
+        id: 1,
+      }
+    );
 
     /* Bootstrap signalling via MessageChannel */
     const { port1, port2 } = new MessageChannel();
@@ -55,12 +66,13 @@ export default class Peer {
     };
 
     /* Swap to in-band signalling once channel opens */
-    this.ready = new Promise((resolve) => {
-      this.dc.addEventListener(
+    let internalDataChannelReady = new Promise<void>((resolve) => {
+      this.internalDataChannel.addEventListener(
         "open",
         () => {
-          this.send = (env) => this.dc.send(JSON.stringify(env));
-          this.dc.addEventListener("message", (e) => {
+          this.send = (env) =>
+            this.internalDataChannel.send(JSON.stringify(env));
+          this.internalDataChannel.addEventListener("message", (e) => {
             const env = this.parse(e.data);
             if (env) this.onSignal(env);
           });
@@ -71,9 +83,21 @@ export default class Peer {
         { once: true, signal: this.signal }
       );
     });
+    let dataChannelReady = new Promise<void>((resolve) => {
+      this.dataChannel.addEventListener(
+        "open",
+        () => {
+          resolve();
+        },
+        { once: true, signal: this.signal }
+      );
+    });
+    this.ready = Promise.all([internalDataChannelReady, dataChannelReady]).then(
+      () => {}
+    );
 
     /* Outbound ICE */
-    this.pc.addEventListener(
+    this.peerConnection.addEventListener(
       "icecandidate",
       ({ candidate }) =>
         candidate && this.send({ candidate: candidate.toJSON() }),
@@ -81,10 +105,18 @@ export default class Peer {
     );
 
     /* Abort on ICE failure */
-    this.pc.addEventListener(
+    this.peerConnection.addEventListener(
       "iceconnectionstatechange",
       () => {
-        if (["failed", "disconnected"].includes(this.pc.iceConnectionState)) {
+        console.log(
+          "iceconnectionstatechange",
+          this.peerConnection.iceConnectionState
+        );
+        if (
+          ["failed", "disconnected"].includes(
+            this.peerConnection.iceConnectionState
+          )
+        ) {
           this.abortCtrl.abort();
         }
       },
@@ -92,19 +124,47 @@ export default class Peer {
     );
 
     /* negotiationneeded */
-    this.pc.addEventListener(
+    this.peerConnection.addEventListener(
       "negotiationneeded",
       async () => {
+        console.log("negotiationneeded");
         try {
+          if (this.polite) return;
           this.makingOffer = true;
-          await this.pc.setLocalDescription();
-          this.send({ description: this.pc.localDescription! });
+          await this.peerConnection.setLocalDescription();
+          this.send({ description: this.peerConnection.localDescription! });
         } finally {
           this.makingOffer = false;
         }
       },
       { signal: this.signal }
     );
+    this.peerConnection.addEventListener("icegatheringstatechange", () => {
+      console.log(
+        "icegatheringstatechange",
+        this.peerConnection.iceGatheringState
+      );
+    });
+    this.peerConnection.addEventListener("connectionstatechange", () => {
+      console.log("connectionstatechange", this.peerConnection.connectionState);
+      if (this.peerConnection.connectionState === "failed") {
+        this.destroy();
+      }
+    });
+    this.dataChannel.addEventListener("close", () => {
+      console.log("dataChannel closed");
+    });
+    this.dataChannel.addEventListener("error", () => {
+      console.log("dataChannel error");
+    });
+  }
+
+  destroy() {
+    console.log("destroying peer");
+    this.peerConnection.close();
+    this.internalDataChannel.close();
+    this.dataChannel.close();
+    this.signalingPort.close();
   }
 
   /* ---------------- internal helpers ---------------- */
@@ -118,9 +178,10 @@ export default class Peer {
 
   // We may receive ICE before description out of order via our signalling, so buffer those.
   private async flushPending() {
+    console.log("flushing pending candidates");
     for (const cand of this.pendingCandidates.splice(0)) {
       try {
-        await this.pc.addIceCandidate(cand);
+        await this.peerConnection.addIceCandidate(cand);
       } catch (err) {
         console.error("ICE add error (flush)", err);
       }
@@ -128,44 +189,63 @@ export default class Peer {
   }
 
   private async onSignal(env: SignalEnvelope) {
+    console.log("onSignal", this.peerConnection.signalingState);
     if ("description" in env && env.description) {
       const desc = env.description;
 
-      /* ---------- MDN readyForOffer / offerCollision logic ---------- */
       const readyForOffer =
         !this.makingOffer &&
-        (this.pc.signalingState === "stable" ||
+        (this.peerConnection.signalingState === "stable" ||
           this.isSettingRemoteAnswerPending);
 
       const offerCollision = desc.type === "offer" && !readyForOffer;
 
       this.ignoreOffer = !this.polite && offerCollision;
       if (this.ignoreOffer) {
-        // ★ NEW — discard any candidates that belong to the ignored offer
-        this.pendingCandidates.length = 0;
+        console.log("ignoring offer, clearing pending candidates");
+        this.pendingCandidates.length = 0; // discard stale ICE
+        return;
+      }
+
+      if (
+        desc.type === "answer" &&
+        this.peerConnection.signalingState !== "have-local-offer" &&
+        this.peerConnection.signalingState !== "have-remote-pranswer"
+      ) {
+        console.warn(
+          "Ignoring unexpected answer in signalingState=",
+          this.peerConnection.signalingState
+        );
         return;
       }
 
       this.isSettingRemoteAnswerPending = desc.type === "answer";
+
       try {
-        await this.pc.setRemoteDescription(desc); // implicit rollback if needed
+        await this.peerConnection.setRemoteDescription(desc); // implicit rollback if needed
         this.isSettingRemoteAnswerPending = false;
 
         await this.flushPending();
 
         if (desc.type === "offer") {
-          await this.pc.setLocalDescription(); // auto-create answer
-          this.send({ description: this.pc.localDescription! });
+          await this.peerConnection.setLocalDescription();
+
+          this.send({ description: this.peerConnection.localDescription! });
         }
       } catch (err) {
         console.error("Negotiation error", err);
       }
     } else if ("candidate" in env && env.candidate) {
+      console.log("maybe adding candidate", env.candidate);
       try {
-        if (this.pc.remoteDescription && this.pc.remoteDescription.type) {
-          // remote SDP is already in place — add immediately
-          await this.pc.addIceCandidate(env.candidate);
+        if (
+          this.peerConnection.remoteDescription &&
+          this.peerConnection.remoteDescription.type
+        ) {
+          console.log("actually adding candidate", env.candidate);
+          await this.peerConnection.addIceCandidate(env.candidate);
         } else {
+          console.log("buffering candidate", env.candidate);
           this.pendingCandidates.push(env.candidate);
         }
       } catch (err) {

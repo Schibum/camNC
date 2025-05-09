@@ -4,6 +4,7 @@ import Peer from "./peer";
 
 type Events = {
   message: any;
+  ready: void;
 };
 
 /**
@@ -37,7 +38,7 @@ export class RoleMessaging {
     console.log("disconnecting");
     await this.signaller.disconnect();
     for (const peer of this.peers.values()) {
-      peer.pc.close();
+      peer.peerConnection.close();
     }
   }
 
@@ -49,7 +50,7 @@ export class RoleMessaging {
   async sendMessage(message: string) {
     for (const [peerId, peer] of this.peers.entries()) {
       console.log("sending message to", peerId);
-      peer.dc.send(message);
+      peer.dataChannel.send(message);
     }
   }
 
@@ -58,6 +59,7 @@ export class RoleMessaging {
     if (peerInfo.role != this.toRole) return;
 
     let peer = new Peer({ polite: this.isPolite });
+    console.log("adding handlers for signalling");
     peer.signalingPort.onmessage = (ev) => {
       console.log(
         "signal out from",
@@ -82,13 +84,14 @@ export class RoleMessaging {
     this.peers.set(peerInfo.peerId, peer);
     // test, TODO: refine
     peer.ready.then(() => {
+      this.emit("ready");
       console.log("peer ready", peerInfo.peerId);
     });
-    peer.dc.addEventListener("close", () => {
+    peer.dataChannel.addEventListener("close", () => {
       console.log("peer closed", peerInfo.peerId);
       this.peers.delete(peerInfo.peerId);
     });
-    peer.dc.addEventListener("message", (ev) => {
+    peer.dataChannel.addEventListener("message", (ev) => {
       console.log("message from", peerInfo.peerId, ev.data);
       this.emit("message", ev.data);
     });

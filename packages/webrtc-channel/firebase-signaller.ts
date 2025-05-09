@@ -10,6 +10,7 @@ import {
   push,
   ref,
   remove,
+  serverTimestamp,
   set,
 } from "firebase/database";
 import mitt, { Emitter } from "mitt";
@@ -77,7 +78,9 @@ export class FirebaseSignaller {
 
     await remove(this._selfRef).catch(() => void 0); // clear potential leftovers
 
-    await set(this._selfRef, { _: { peerId: this.peerId, role } });
+    await set(this._selfRef, {
+      _: { peerId: this.peerId, role, ts: serverTimestamp() },
+    });
     onDisconnect(this._selfRef).remove();
 
     this.watchRoom();
@@ -144,27 +147,38 @@ export class FirebaseSignaller {
 
     const processed: Record<string, Record<string, true>> = {};
 
+    const processMessage = (fromPeerId: string, key: string, val: unknown) => {
+      processed[fromPeerId] ??= {};
+      if (key in processed[fromPeerId]) {
+        console.log("YYYYde-duped", key);
+        return; // de‑dupe
+      }
+      processed[fromPeerId][key] = true;
+
+      this.emit("signal", { from: fromPeerId, data: val });
+    };
+
     console.log("adding top listener");
     this._unsubs.push(
       onChildAdded(this._selfRef, (peerDirSnap) => {
         const fromPeerId = peerDirSnap.key!;
         if (fromPeerId === "_") return; // skip presence marker
 
-        console.log(
-          "adding onValue",
-          this._unsubs.length,
-          peerDirSnap.val(),
-          peerDirSnap.ref.toString()
-        );
+        // console.log(
+        //   "adding onValue",
+        //   this._unsubs.length,
+        //   peerDirSnap.val(),
+        //   peerDirSnap.ref.toString()
+        // );
+        for (const [key, val] of Object.entries(peerDirSnap.val())) {
+          console.log("procesiing parsed msg", key, val);
+          processMessage(fromPeerId, key, val);
+        }
 
         this._unsubs.push(
           onChildAdded(peerDirSnap.ref, (msgSnap) => {
-            processed[fromPeerId] ??= {};
-            if (msgSnap.key! in processed[fromPeerId]) return; // de‑dupe
-            processed[fromPeerId][msgSnap.key!] = true;
-            console.log("from deepeee", msgSnap.val());
-
-            this.emit("signal", { from: fromPeerId, data: msgSnap.val() });
+            processMessage(fromPeerId, msgSnap.key!, msgSnap.val());
+            // would tre-trigger top onChildAdded if it removes the last item
             // remove(msgSnap.ref).catch(() => void 0);
           })
         );

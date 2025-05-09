@@ -27,22 +27,26 @@ function useRoles() {
 
 function useRoom(roomId: string) {
   const [selfRole, otherRole] = useRoles();
+  const [ready, setReady] = useState(false);
   console.log("selfRole", selfRole, "otherRole", otherRole);
   const [messaging] = useState(
     () => new RoleMessaging(roomId, selfRole, otherRole)
   );
   useEffect(() => {
     messaging.join();
+    messaging.on("ready", () => {
+      setReady(true);
+    });
     return () => {
       messaging.disconnect();
     };
   }, [messaging, roomId]);
-  return messaging;
+  return { messaging, ready };
 }
 
 function RouteComponent() {
   const { room } = Route.useParams();
-  const messaging = useRoom(room);
+  const { messaging, ready } = useRoom(room);
 
   useEffect(() => {
     messaging.on("message", (event) => {
@@ -55,7 +59,12 @@ function RouteComponent() {
   }
   return (
     <div>
-      <Button onClick={sendMessage}>Send Message</Button>
+      <div>
+        <Button onClick={sendMessage}>Send Message</Button>
+      </div>
+      <div>
+        <p>Ready: {ready ? "true" : "false"}</p>
+      </div>
     </div>
   );
 }
