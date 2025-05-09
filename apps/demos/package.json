@@ -17,6 +17,7 @@
     "@wbcnc/go2webrtc": "workspace:*",
     "@wbcnc/load-opencv": "workspace:*",
     "@wbcnc/ui": "workspace:*",
+    "@wbcnc/webrtc-channel": "workspace:*",
     "lucide-react": "^0.488.0",
     "next-qrcode": "^2.5.1",
     "react": "^19.1.0",

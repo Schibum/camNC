@@ -1,4 +1,3 @@
-import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 // import "@wbcnc/ui/globals.css"
@@ -20,9 +19,9 @@ declare module "@tanstack/react-router" {
 }
 
 createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <ThemeProvider defaultTheme="dark">
-      <RouterProvider router={router} />
-    </ThemeProvider>
-  </StrictMode>
+  // <StrictMode>
+  <ThemeProvider defaultTheme="dark">
+    <RouterProvider router={router} />
+  </ThemeProvider>
+  // </StrictMode>
 );
