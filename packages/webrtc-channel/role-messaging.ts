@@ -2,6 +2,7 @@ import mitt, { Emitter } from "mitt";
 import { FirebaseSignaller, PeerInfo } from "./firebase-signaller";
 import Peer from "./peer";
 
+import log from "loglevel";
 type Events = {
   message: any;
   ready: void;
@@ -26,7 +27,7 @@ export class RoleMessaging {
     private readonly toRole: string
   ) {
     this.isPolite = this.shallBePolite();
-    console.log("isPolite", this.isPolite);
+    log.debug("isPolite", this.isPolite);
 
     const bus = mitt<Events>();
     this.on = bus.on;
@@ -35,7 +36,7 @@ export class RoleMessaging {
   }
 
   async disconnect() {
-    console.log("disconnecting");
+    log.debug("disconnecting");
     await this.signaller.disconnect();
     for (const peer of this.peers.values()) {
       peer.peerConnection.close();
@@ -49,19 +50,19 @@ export class RoleMessaging {
 
   async sendMessage(message: string) {
     for (const [peerId, peer] of this.peers.entries()) {
-      console.log("sending message to", peerId);
+      log.debug("sending message to", peerId);
       peer.dataChannel.send(message);
     }
   }
 
   private onPeerJoined(peerInfo: PeerInfo) {
-    console.log("onPeerJoined", peerInfo);
+    log.debug("onPeerJoined", peerInfo);
     if (peerInfo.role != this.toRole) return;
 
     let peer = new Peer({ polite: this.isPolite });
-    console.log("adding handlers for signalling");
+    log.debug("adding handlers for signalling");
     peer.signalingPort.onmessage = (ev) => {
-      console.log(
+      log.debug(
         "signal out from",
         this.signaller.peerId,
         "to",
@@ -72,7 +73,7 @@ export class RoleMessaging {
     };
     this.signaller.on("signal", (ev) => {
       if (ev.from !== peerInfo.peerId) return;
-      console.log(
+      log.debug(
         "signal in from",
         ev.from,
         "to",
@@ -85,14 +86,14 @@ export class RoleMessaging {
     // test, TODO: refine
     peer.ready.then(() => {
       this.emit("ready");
-      console.log("peer ready", peerInfo.peerId);
+      log.debug("peer ready", peerInfo.peerId);
     });
     peer.dataChannel.addEventListener("close", () => {
-      console.log("peer closed", peerInfo.peerId);
+      log.debug("peer closed", peerInfo.peerId);
       this.peers.delete(peerInfo.peerId);
     });
     peer.dataChannel.addEventListener("message", (ev) => {
-      console.log("message from", peerInfo.peerId, ev.data);
+      log.debug("message from", peerInfo.peerId, ev.data);
       this.emit("message", ev.data);
     });
   }

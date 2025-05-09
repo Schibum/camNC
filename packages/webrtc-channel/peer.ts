@@ -1,5 +1,5 @@
-/* rtc.ts ───────────────────────────────────────────────────────────
-   Perfect-negotiation implementation • robust against early ICE     */
+import log from "loglevel";
+log.setDefaultLevel(log.levels.INFO);
 
 export interface PeerOptions {
   polite?: boolean;
@@ -21,7 +21,7 @@ export default class Peer {
   private readonly internalDataChannel: RTCDataChannel;
   readonly dataChannel: RTCDataChannel;
   readonly signalingPort: MessagePort;
-  readonly polite: boolean;
+  readonly isInitiator: boolean;
   readonly ready: Promise<void>;
   readonly signal: AbortSignal;
 
@@ -35,7 +35,7 @@ export default class Peer {
   private send: (env: SignalEnvelope) => void;
 
   constructor(opts: PeerOptions = {}) {
-    this.polite = opts.polite ?? true;
+    this.isInitiator = opts.polite ?? true;
     this.signal = opts.signal ?? this.abortCtrl.signal;
 
     /* PeerConnection */
@@ -108,7 +108,7 @@ export default class Peer {
     this.peerConnection.addEventListener(
       "iceconnectionstatechange",
       () => {
-        console.log(
+        log.debug(
           "iceconnectionstatechange",
           this.peerConnection.iceConnectionState
         );
@@ -127,9 +127,9 @@ export default class Peer {
     this.peerConnection.addEventListener(
       "negotiationneeded",
       async () => {
-        console.log("negotiationneeded");
+        log.debug("negotiationneeded");
         try {
-          if (this.polite) return;
+          if (!this.isInitiator) return;
           this.makingOffer = true;
           await this.peerConnection.setLocalDescription();
           this.send({ description: this.peerConnection.localDescription! });
@@ -139,35 +139,28 @@ export default class Peer {
       },
       { signal: this.signal }
     );
-    this.peerConnection.addEventListener("icegatheringstatechange", () => {
-      console.log(
-        "icegatheringstatechange",
-        this.peerConnection.iceGatheringState
-      );
-    });
     this.peerConnection.addEventListener("connectionstatechange", () => {
-      console.log("connectionstatechange", this.peerConnection.connectionState);
+      log.debug("connectionstatechange", this.peerConnection.connectionState);
       if (this.peerConnection.connectionState === "failed") {
         this.destroy();
       }
     });
     this.dataChannel.addEventListener("close", () => {
-      console.log("dataChannel closed");
+      log.debug("dataChannel closed");
     });
     this.dataChannel.addEventListener("error", () => {
-      console.log("dataChannel error");
+      log.debug("dataChannel error");
     });
   }
 
   destroy() {
-    console.log("destroying peer");
+    log.debug("destroying peer");
     this.peerConnection.close();
     this.internalDataChannel.close();
     this.dataChannel.close();
     this.signalingPort.close();
   }
 
-  /* ---------------- internal helpers ---------------- */
   private parse(raw: any): SignalEnvelope | null {
     try {
       return typeof raw === "string" ? JSON.parse(raw) : raw;
@@ -178,18 +171,18 @@ export default class Peer {
 
   // We may receive ICE before description out of order via our signalling, so buffer those.
   private async flushPending() {
-    console.log("flushing pending candidates");
+    log.debug("flushing pending candidates");
     for (const cand of this.pendingCandidates.splice(0)) {
       try {
         await this.peerConnection.addIceCandidate(cand);
       } catch (err) {
-        console.error("ICE add error (flush)", err);
+        log.error("ICE add error (flush)", err);
       }
     }
   }
 
   private async onSignal(env: SignalEnvelope) {
-    console.log("onSignal", this.peerConnection.signalingState);
+    log.debug("onSignal", this.peerConnection.signalingState);
     if ("description" in env && env.description) {
       const desc = env.description;
 
@@ -200,9 +193,9 @@ export default class Peer {
 
       const offerCollision = desc.type === "offer" && !readyForOffer;
 
-      this.ignoreOffer = !this.polite && offerCollision;
+      this.ignoreOffer = !this.isInitiator && offerCollision;
       if (this.ignoreOffer) {
-        console.log("ignoring offer, clearing pending candidates");
+        log.debug("ignoring offer, clearing pending candidates");
         this.pendingCandidates.length = 0; // discard stale ICE
         return;
       }
@@ -212,7 +205,7 @@ export default class Peer {
         this.peerConnection.signalingState !== "have-local-offer" &&
         this.peerConnection.signalingState !== "have-remote-pranswer"
       ) {
-        console.warn(
+        log.warn(
           "Ignoring unexpected answer in signalingState=",
           this.peerConnection.signalingState
         );
@@ -233,23 +226,20 @@ export default class Peer {
           this.send({ description: this.peerConnection.localDescription! });
         }
       } catch (err) {
-        console.error("Negotiation error", err);
+        log.error("Negotiation error", err);
       }
     } else if ("candidate" in env && env.candidate) {
-      console.log("maybe adding candidate", env.candidate);
       try {
         if (
           this.peerConnection.remoteDescription &&
           this.peerConnection.remoteDescription.type
         ) {
-          console.log("actually adding candidate", env.candidate);
           await this.peerConnection.addIceCandidate(env.candidate);
         } else {
-          console.log("buffering candidate", env.candidate);
           this.pendingCandidates.push(env.candidate);
         }
       } catch (err) {
-        if (!this.ignoreOffer) console.error("ICE add error", err);
+        if (!this.ignoreOffer) log.error("ICE add error", err);
       }
     }
   }

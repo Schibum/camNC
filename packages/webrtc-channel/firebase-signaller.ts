@@ -150,7 +150,6 @@ export class FirebaseSignaller {
     const processMessage = (fromPeerId: string, key: string, val: unknown) => {
       processed[fromPeerId] ??= {};
       if (key in processed[fromPeerId]) {
-        console.log("YYYYde-duped", key);
         return; // de‑dupe
       }
       processed[fromPeerId][key] = true;
@@ -164,14 +163,9 @@ export class FirebaseSignaller {
         const fromPeerId = peerDirSnap.key!;
         if (fromPeerId === "_") return; // skip presence marker
 
-        // console.log(
-        //   "adding onValue",
-        //   this._unsubs.length,
-        //   peerDirSnap.val(),
-        //   peerDirSnap.ref.toString()
-        // );
+        // Workaround: In some rare cases onChildAdded does not seem to get
+        // triggered for existing items.
         for (const [key, val] of Object.entries(peerDirSnap.val())) {
-          console.log("procesiing parsed msg", key, val);
           processMessage(fromPeerId, key, val);
         }
 
