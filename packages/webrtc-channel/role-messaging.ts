@@ -25,6 +25,7 @@ export class RoleMessaging {
     private readonly toRole: string
   ) {
     this.isPolite = this.shallBePolite();
+    console.log("isPolite", this.isPolite);
 
     const bus = mitt<Events>();
     this.on = bus.on;
@@ -46,8 +47,8 @@ export class RoleMessaging {
   }
 
   async sendMessage(message: string) {
-    for (const peer of this.peers.values()) {
-      console.log("sending message to", peer.dc);
+    for (const [peerId, peer] of this.peers.entries()) {
+      console.log("sending message to", peerId);
       peer.dc.send(message);
     }
   }
@@ -68,6 +69,7 @@ export class RoleMessaging {
       this.signaller.sendMessage(peerInfo.peerId, ev.data);
     };
     this.signaller.on("signal", (ev) => {
+      if (ev.from !== peerInfo.peerId) return;
       console.log(
         "signal in from",
         ev.from,
@@ -75,7 +77,6 @@ export class RoleMessaging {
         this.signaller.peerId,
         ev.data
       );
-      if (ev.from !== peerInfo.peerId) return;
       peer.signalingPort.postMessage(ev.data);
     });
     this.peers.set(peerInfo.peerId, peer);

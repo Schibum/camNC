@@ -144,20 +144,28 @@ export class FirebaseSignaller {
 
     const processed: Record<string, Record<string, true>> = {};
 
+    console.log("adding top listener");
     this._unsubs.push(
       onChildAdded(this._selfRef, (peerDirSnap) => {
         const fromPeerId = peerDirSnap.key!;
         if (fromPeerId === "_") return; // skip presence marker
 
+        console.log(
+          "adding onValue",
+          this._unsubs.length,
+          peerDirSnap.val(),
+          peerDirSnap.ref.toString()
+        );
+
         this._unsubs.push(
           onChildAdded(peerDirSnap.ref, (msgSnap) => {
-            console.log("msgSnap", msgSnap.key, msgSnap.val());
             processed[fromPeerId] ??= {};
             if (msgSnap.key! in processed[fromPeerId]) return; // de‑dupe
             processed[fromPeerId][msgSnap.key!] = true;
+            console.log("from deepeee", msgSnap.val());
 
             this.emit("signal", { from: fromPeerId, data: msgSnap.val() });
-            remove(msgSnap.ref).catch(() => void 0);
+            // remove(msgSnap.ref).catch(() => void 0);
           })
         );
       })

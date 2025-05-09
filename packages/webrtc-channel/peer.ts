@@ -1,12 +1,5 @@
 /* rtc.ts ───────────────────────────────────────────────────────────
-   Perfect-negotiation implementation aligned 1‑to‑1 with the **MDN
-   example (2025‑03‑11)** including:
-   • `makingOffer`, `ignoreOffer`, **`isSettingRemoteAnswerPending`,
-     `readyForOffer`** variables
-   • Implicit rollback (no explicit "rollback" sLD)
-   • MessageChannel bootstrap ➜ auto‑switch to RTCDataChannel
-   • Trickle‑ICE only
-*/
+   Perfect-negotiation implementation • robust against early ICE     */
 
 export interface PeerOptions {
   polite?: boolean;
@@ -35,6 +28,8 @@ export default class Peer {
   private ignoreOffer = false;
   private isSettingRemoteAnswerPending = false;
 
+  private pendingCandidates: RTCIceCandidateInit[] = [];
+
   private abortCtrl = new AbortController();
   private send: (env: SignalEnvelope) => void;
 
@@ -59,7 +54,7 @@ export default class Peer {
       if (env) this.onSignal(env);
     };
 
-    /* Swap to in‑band signalling once channel opens */
+    /* Swap to in-band signalling once channel opens */
     this.ready = new Promise((resolve) => {
       this.dc.addEventListener(
         "open",
@@ -121,6 +116,17 @@ export default class Peer {
     }
   }
 
+  // We may receive ICE before description out of order via our signalling, so buffer those.
+  private async flushPending() {
+    for (const cand of this.pendingCandidates.splice(0)) {
+      try {
+        await this.pc.addIceCandidate(cand);
+      } catch (err) {
+        console.error("ICE add error (flush)", err);
+      }
+    }
+  }
+
   private async onSignal(env: SignalEnvelope) {
     if ("description" in env && env.description) {
       const desc = env.description;
@@ -134,15 +140,21 @@ export default class Peer {
       const offerCollision = desc.type === "offer" && !readyForOffer;
 
       this.ignoreOffer = !this.polite && offerCollision;
-      if (this.ignoreOffer) return;
+      if (this.ignoreOffer) {
+        // ★ NEW — discard any candidates that belong to the ignored offer
+        this.pendingCandidates.length = 0;
+        return;
+      }
 
       this.isSettingRemoteAnswerPending = desc.type === "answer";
       try {
         await this.pc.setRemoteDescription(desc); // implicit rollback if needed
         this.isSettingRemoteAnswerPending = false;
 
+        await this.flushPending();
+
         if (desc.type === "offer") {
-          await this.pc.setLocalDescription(); // auto‑create answer
+          await this.pc.setLocalDescription(); // auto-create answer
           this.send({ description: this.pc.localDescription! });
         }
       } catch (err) {
@@ -150,7 +162,12 @@ export default class Peer {
       }
     } else if ("candidate" in env && env.candidate) {
       try {
-        await this.pc.addIceCandidate(env.candidate);
+        if (this.pc.remoteDescription && this.pc.remoteDescription.type) {
+          // remote SDP is already in place — add immediately
+          await this.pc.addIceCandidate(env.candidate);
+        } else {
+          this.pendingCandidates.push(env.candidate);
+        }
       } catch (err) {
         if (!this.ignoreOffer) console.error("ICE add error", err);
       }
