@@ -1,38 +1,57 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { zodValidator } from "@tanstack/zod-adapter";
 import { Button } from "@wbcnc/ui/components/button";
-import { wirePeerToFirestore } from "@wbcnc/webrtc-channel/firestore-peer";
-import Peer from "@wbcnc/webrtc-channel/peer";
+import { RoleMessaging } from "@wbcnc/webrtc-channel/role-messaging";
+import { initTestFbApp } from "@wbcnc/webrtc-channel/test-fb-config";
 import { useEffect, useState } from "react";
+import { z } from "zod";
+
+initTestFbApp();
+
 export const Route = createFileRoute("/webrtc-channel/$room")({
   component: RouteComponent,
+  validateSearch: zodValidator(
+    z.object({
+      server: z.boolean().optional(),
+    })
+  ),
 });
 
-function useRoom(roomId: string) {
-  const [peer] = useState(() => new Peer({ polite: true }));
-  useEffect(() => {
-    console.log("useRoom", roomId);
-    const detach = wirePeerToFirestore(peer, roomId);
-    peer.ready.then(() => {
-      console.log("peer ready");
-    });
+function useRoles() {
+  const { server } = Route.useSearch();
+  if (server) {
+    return ["server", "client"] as const;
+  }
+  return ["client", "server"] as const;
+}
 
-    return () => detach();
-  }, [peer, roomId]);
-  return peer;
+function useRoom(roomId: string) {
+  const [selfRole, otherRole] = useRoles();
+  console.log("selfRole", selfRole, "otherRole", otherRole);
+  const [messaging] = useState(
+    () => new RoleMessaging(roomId, selfRole, otherRole)
+  );
+  useEffect(() => {
+    messaging.join();
+    return () => {
+      messaging.disconnect();
+    };
+  }, [messaging, roomId]);
+  return messaging;
 }
 
 function RouteComponent() {
   const { room } = Route.useParams();
-  const peer = useRoom(room);
+  const messaging = useRoom(room);
 
   useEffect(() => {
-    peer.dc.onmessage = (event) => {
+    messaging.on("message", (event) => {
       console.log("message from other peere", event);
-    };
-  }, [peer]);
+    });
+  }, [messaging]);
 
   function sendMessage() {
-    peer.dc.send("Hello from channel 1");
+    messaging.sendMessage("Hello from channel 1");
   }
   return (
     <div>

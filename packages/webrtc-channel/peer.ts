@@ -1,18 +1,11 @@
 /* rtc.ts ───────────────────────────────────────────────────────────
-   Perfect‑negotiation (MDN style, **implicit rollback**) — TypeScript
-
-   Differences from the previous revision
-   ──────────────────────────────────────
-   • The polite peer NO LONGER calls `setLocalDescription({type: 'rollback'})`.
-     The WebRTC spec rolls back implicitly when `setRemoteDescription()` is
-     executed while an offer is pending. This matches the MDN example.
-   • The rest of the flow (makingOffer, ignoreOffer, trickle ICE, switch to
-     in‑band signalling once the data‑channel opens) is unchanged.
-
-   Public surface
-   --------------
-     new Peer({ polite?, iceServers?, signal? })
-       .pc, .dc, .signalingPort, .ready, .signal, .polite
+   Perfect-negotiation implementation aligned 1‑to‑1 with the **MDN
+   example (2025‑03‑11)** including:
+   • `makingOffer`, `ignoreOffer`, **`isSettingRemoteAnswerPending`,
+     `readyForOffer`** variables
+   • Implicit rollback (no explicit "rollback" sLD)
+   • MessageChannel bootstrap ➜ auto‑switch to RTCDataChannel
+   • Trickle‑ICE only
 */
 
 export interface PeerOptions {
@@ -21,13 +14,9 @@ export interface PeerOptions {
   signal?: AbortSignal;
 }
 
-interface DescriptionMsg {
-  description: RTCSessionDescriptionInit;
-}
-interface CandidateMsg {
-  candidate: RTCIceCandidateInit;
-}
-export type SignalEnvelope = DescriptionMsg | CandidateMsg;
+export type SignalEnvelope =
+  | { description: RTCSessionDescriptionInit }
+  | { candidate: RTCIceCandidateInit };
 
 const DEFAULT_ICE: RTCIceServer[] = [
   { urls: "stun:stun.l.google.com:19302" },
@@ -45,23 +34,23 @@ export default class Peer {
   private makingOffer = false;
   private ignoreOffer = false;
   private isSettingRemoteAnswerPending = false;
+
   private abortCtrl = new AbortController();
   private send: (env: SignalEnvelope) => void;
 
   constructor(opts: PeerOptions = {}) {
-    /* options */
     this.polite = opts.polite ?? true;
     this.signal = opts.signal ?? this.abortCtrl.signal;
 
-    /* connection */
+    /* PeerConnection */
     this.pc = new RTCPeerConnection({
       iceServers: opts.iceServers ?? DEFAULT_ICE,
     });
 
-    /* negotiated symmetric data‑channel */
+    /* Negotiated symmetric channel */
     this.dc = this.pc.createDataChannel("both", { negotiated: true, id: 0 });
 
-    /* bootstrap signalling */
+    /* Bootstrap signalling via MessageChannel */
     const { port1, port2 } = new MessageChannel();
     this.signalingPort = port1;
     this.send = (env) => port2.postMessage(JSON.stringify(env));
@@ -70,8 +59,8 @@ export default class Peer {
       if (env) this.onSignal(env);
     };
 
-    /* switch to in‑band signalling once dc opens */
-    this.ready = new Promise((res) => {
+    /* Swap to in‑band signalling once channel opens */
+    this.ready = new Promise((resolve) => {
       this.dc.addEventListener(
         "open",
         () => {
@@ -82,13 +71,13 @@ export default class Peer {
           });
           port1.close();
           port2.close();
-          res();
+          resolve();
         },
         { once: true, signal: this.signal }
       );
     });
 
-    /* ICE candidate outbound */
+    /* Outbound ICE */
     this.pc.addEventListener(
       "icecandidate",
       ({ candidate }) =>
@@ -96,7 +85,7 @@ export default class Peer {
       { signal: this.signal }
     );
 
-    /* abort on ICE failure */
+    /* Abort on ICE failure */
     this.pc.addEventListener(
       "iceconnectionstatechange",
       () => {
@@ -113,7 +102,7 @@ export default class Peer {
       async () => {
         try {
           this.makingOffer = true;
-          await this.pc.setLocalDescription(); // create + set offer
+          await this.pc.setLocalDescription();
           this.send({ description: this.pc.localDescription! });
         } finally {
           this.makingOffer = false;
@@ -123,7 +112,7 @@ export default class Peer {
     );
   }
 
-  /* helpers */
+  /* ---------------- internal helpers ---------------- */
   private parse(raw: any): SignalEnvelope | null {
     try {
       return typeof raw === "string" ? JSON.parse(raw) : raw;
@@ -136,27 +125,34 @@ export default class Peer {
     if ("description" in env && env.description) {
       const desc = env.description;
 
+      /* ---------- MDN readyForOffer / offerCollision logic ---------- */
       const readyForOffer =
         !this.makingOffer &&
         (this.pc.signalingState === "stable" ||
           this.isSettingRemoteAnswerPending);
+
       const offerCollision = desc.type === "offer" && !readyForOffer;
 
       this.ignoreOffer = !this.polite && offerCollision;
       if (this.ignoreOffer) return;
 
-      this.isSettingRemoteAnswerPending = desc.type == "answer";
-      await this.pc.setRemoteDescription(desc);
-      this.isSettingRemoteAnswerPending = false;
-      if (desc.type === "offer") {
-        await this.pc.setLocalDescription(await this.pc.createAnswer());
-        this.send({ description: this.pc.localDescription! });
+      this.isSettingRemoteAnswerPending = desc.type === "answer";
+      try {
+        await this.pc.setRemoteDescription(desc); // implicit rollback if needed
+        this.isSettingRemoteAnswerPending = false;
+
+        if (desc.type === "offer") {
+          await this.pc.setLocalDescription(); // auto‑create answer
+          this.send({ description: this.pc.localDescription! });
+        }
+      } catch (err) {
+        console.error("Negotiation error", err);
       }
     } else if ("candidate" in env && env.candidate) {
       try {
         await this.pc.addIceCandidate(env.candidate);
       } catch (err) {
-        if (!this.ignoreOffer) throw err;
+        if (!this.ignoreOffer) console.error("ICE add error", err);
       }
     }
   }
