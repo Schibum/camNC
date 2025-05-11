@@ -60,6 +60,8 @@ export class FirebaseSignaller {
     this.emit = bus.emit;
 
     this.peerId = FirebaseSignaller.generateId();
+    // HACK, this seems to prevent connections if set.
+    localStorage.removeItem("firebase:previous_websocket_failure");
   }
 
   /** Join (or create) a room and start signalling. */

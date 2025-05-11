@@ -1,8 +1,10 @@
 import log from "loglevel";
+import mitt, { Emitter } from "mitt";
+
 log.setDefaultLevel(log.levels.INFO);
 
 export interface PeerOptions {
-  polite?: boolean;
+  isInitiator?: boolean;
   iceServers?: RTCIceServer[];
   signal?: AbortSignal;
 }
@@ -16,6 +18,10 @@ const DEFAULT_ICE: RTCIceServer[] = [
   { urls: "stun:global.stun.twilio.com:3478" },
 ];
 
+type Events = {
+  close: void;
+};
+
 export default class Peer {
   readonly peerConnection: RTCPeerConnection;
   private readonly internalDataChannel: RTCDataChannel;
@@ -28,15 +34,25 @@ export default class Peer {
   private makingOffer = false;
   private ignoreOffer = false;
   private isSettingRemoteAnswerPending = false;
+  private destroyed = false;
 
   private pendingCandidates: RTCIceCandidateInit[] = [];
 
   private abortCtrl = new AbortController();
   private send: (env: SignalEnvelope) => void;
 
+  public readonly on: Emitter<Events>["on"];
+  public readonly off: Emitter<Events>["off"];
+  public readonly emit: Emitter<Events>["emit"];
+
   constructor(opts: PeerOptions = {}) {
-    this.isInitiator = opts.polite ?? true;
+    this.isInitiator = opts.isInitiator ?? true;
     this.signal = opts.signal ?? this.abortCtrl.signal;
+
+    const bus = mitt<Events>();
+    this.on = bus.on;
+    this.off = bus.off;
+    this.emit = bus.emit;
 
     /* PeerConnection */
     this.peerConnection = new RTCPeerConnection({
@@ -147,13 +163,18 @@ export default class Peer {
     });
     this.dataChannel.addEventListener("close", () => {
       log.debug("dataChannel closed");
+      this.destroy();
     });
     this.dataChannel.addEventListener("error", () => {
       log.debug("dataChannel error");
+      this.destroy();
     });
   }
 
   destroy() {
+    if (this.destroyed) return;
+    this.emit("close");
+    this.destroyed = true;
     log.debug("destroying peer");
     this.peerConnection.close();
     this.internalDataChannel.close();
@@ -182,7 +203,11 @@ export default class Peer {
   }
 
   private async onSignal(env: SignalEnvelope) {
-    log.debug("onSignal", this.peerConnection.signalingState);
+    log.debug(
+      "onSignal pc.state=%s env=%o",
+      this.peerConnection.signalingState,
+      env
+    );
     if ("description" in env && env.description) {
       const desc = env.description;
 

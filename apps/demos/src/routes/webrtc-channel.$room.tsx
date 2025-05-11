@@ -30,7 +30,10 @@ function useRoom(roomId: string) {
   const [ready, setReady] = useState(false);
   console.log("selfRole", selfRole, "otherRole", otherRole);
   const [messaging] = useState(
-    () => new RoleMessaging(roomId, selfRole, otherRole)
+    () =>
+      new RoleMessaging(roomId, selfRole, otherRole, {
+        maxPeers: selfRole == "client" ? 1 : Infinity,
+      })
   );
   useEffect(() => {
     messaging.join();
@@ -38,7 +41,7 @@ function useRoom(roomId: string) {
       setReady(true);
     });
     return () => {
-      messaging.disconnect();
+      messaging.destroy();
     };
   }, [messaging, roomId]);
   return { messaging, ready };

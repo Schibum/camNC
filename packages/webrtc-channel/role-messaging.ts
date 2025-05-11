@@ -3,6 +3,8 @@ import { FirebaseSignaller, PeerInfo } from "./firebase-signaller";
 import Peer from "./peer";
 
 import log from "loglevel";
+log.setDefaultLevel(log.levels.DEBUG);
+
 type Events = {
   message: any;
   ready: void;
@@ -11,11 +13,12 @@ type Events = {
 /**
  * Wait for peers with a given role to join the room and creates p2p2 data connections to all those peers.
  * Allows to send and receive messages to all peers with the given role.
+ * Closes signalling connection while connected to maxPeers.
  */
 export class RoleMessaging {
-  private signaller = new FirebaseSignaller();
+  private signaller: FirebaseSignaller | undefined;
   private peers = new Map<string, Peer>();
-  private readonly isPolite: boolean;
+  private readonly isInitiator: boolean;
 
   public readonly on: Emitter<Events>["on"];
   public readonly off: Emitter<Events>["off"];
@@ -24,10 +27,11 @@ export class RoleMessaging {
   constructor(
     private readonly roomId: string,
     private readonly selfRole: string,
-    private readonly toRole: string
+    private readonly toRole: string,
+    private readonly opts: { maxPeers: number } = { maxPeers: Infinity }
   ) {
-    this.isPolite = this.shallBePolite();
-    log.debug("isPolite", this.isPolite);
+    this.isInitiator = this.shallBeInitiator();
+    log.debug("isInitiator", this.isInitiator);
 
     const bus = mitt<Events>();
     this.on = bus.on;
@@ -35,15 +39,17 @@ export class RoleMessaging {
     this.emit = bus.emit;
   }
 
-  async disconnect() {
-    log.debug("disconnecting");
-    await this.signaller.disconnect();
+  async destroy() {
+    log.debug("destroying");
+    await this.signaller?.disconnect();
     for (const peer of this.peers.values()) {
-      peer.peerConnection.close();
+      peer.destroy();
     }
   }
 
   async join() {
+    if (this.signaller) throw new Error("Already joined");
+    this.signaller = new FirebaseSignaller();
     this.signaller.on("peer-joined", (ev) => this.onPeerJoined(ev));
     await this.signaller.join(this.roomId, this.selfRole);
   }
@@ -58,47 +64,57 @@ export class RoleMessaging {
   private onPeerJoined(peerInfo: PeerInfo) {
     log.debug("onPeerJoined", peerInfo);
     if (peerInfo.role != this.toRole) return;
-
-    let peer = new Peer({ polite: this.isPolite });
+    if (this.peers.size >= this.opts.maxPeers) return;
+    if (!this.signaller) {
+      log.warn("peer joined, but no signaller, skipping");
+      return;
+    }
+    let peer = new Peer({ isInitiator: this.isInitiator });
     log.debug("adding handlers for signalling");
     peer.signalingPort.onmessage = (ev) => {
-      log.debug(
-        "signal out from",
-        this.signaller.peerId,
-        "to",
-        peerInfo.peerId,
-        ev.data
-      );
-      this.signaller.sendMessage(peerInfo.peerId, ev.data);
+      this.signaller?.sendMessage(peerInfo.peerId, ev.data);
     };
     this.signaller.on("signal", (ev) => {
       if (ev.from !== peerInfo.peerId) return;
-      log.debug(
-        "signal in from",
-        ev.from,
-        "to",
-        this.signaller.peerId,
-        ev.data
-      );
       peer.signalingPort.postMessage(ev.data);
     });
     this.peers.set(peerInfo.peerId, peer);
-    // test, TODO: refine
-    peer.ready.then(() => {
-      this.emit("ready");
-      log.debug("peer ready", peerInfo.peerId);
-    });
-    peer.dataChannel.addEventListener("close", () => {
-      log.debug("peer closed", peerInfo.peerId);
-      this.peers.delete(peerInfo.peerId);
-    });
+    peer.ready.then(() => this.onPeerReady(peerInfo.peerId));
+    peer.on("close", () => this.onPeerClosed(peerInfo.peerId));
     peer.dataChannel.addEventListener("message", (ev) => {
       log.debug("message from", peerInfo.peerId, ev.data);
       this.emit("message", ev.data);
     });
   }
 
-  private shallBePolite() {
+  private onPeerClosed(peerId: string) {
+    log.debug("peer closed", peerId);
+    this.peers.delete(peerId);
+    this.autoOpenCloseSignalling();
+  }
+
+  private onPeerReady(peerId: string) {
+    log.debug("peer ready", peerId);
+    this.emit("ready");
+    this.autoOpenCloseSignalling();
+  }
+
+  private async autoOpenCloseSignalling() {
+    if (this.peers.size >= this.opts.maxPeers) {
+      log.debug("autoOpenCloseSignalling: closing signalling");
+      if (this.signaller) {
+        this.signaller.disconnect();
+        this.signaller = undefined;
+      }
+    } else if (!this.signaller) {
+      log.debug("autoOpenCloseSignalling: opening signalling");
+      this.signaller = new FirebaseSignaller();
+      this.signaller.on("peer-joined", (ev) => this.onPeerJoined(ev));
+      await this.signaller.join(this.roomId, this.selfRole);
+    }
+  }
+
+  private shallBeInitiator() {
     return this.selfRole.localeCompare(this.toRole) < 0;
   }
 }
