@@ -16,6 +16,7 @@
         "dist/**"
       ]
     },
+    "test": {},
     "lint": {
       "dependsOn": [
         "^lint"
