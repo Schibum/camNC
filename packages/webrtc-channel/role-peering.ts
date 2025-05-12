@@ -6,6 +6,7 @@ import log from "loglevel";
 
 type Events = {
   message: any;
+  peerConnected: { peerId: string; peer: Peer };
 };
 
 /**
@@ -13,7 +14,7 @@ type Events = {
  * Allows to send and receive messages to all peers with the given role.
  * Closes signalling connection while connected to maxPeers.
  */
-export class RoleMessaging {
+export class RolePeering {
   private signaller: FirebaseSignaller | undefined;
   private peers = new Map<string, Peer>();
   private readonly isInitiator: boolean;
@@ -52,9 +53,10 @@ export class RoleMessaging {
     await this.signaller.join(this.roomId, this.selfRole);
   }
 
-  async sendMessage(message: string) {
+  async sendMessage(message: string, toPeerId?: string) {
     await Promise.all(
       Array.from(this.peers.entries()).map(async ([peerId, peer]) => {
+        if (toPeerId && peerId !== toPeerId) return;
         await peer.ready;
         log.debug("sending message to", peerId);
         peer.dataChannel.send(message);
@@ -95,8 +97,11 @@ export class RoleMessaging {
   }
 
   private onPeerReady(peerId: string) {
+    let peer = this.peers.get(peerId);
+    if (!peer) throw new Error("peer not found once ready");
     log.debug("peer ready", peerId);
     this.autoOpenCloseSignalling();
+    this.emit("peerConnected", { peerId, peer });
   }
 
   private async autoOpenCloseSignalling() {

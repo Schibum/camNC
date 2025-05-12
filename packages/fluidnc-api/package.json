@@ -1,0 +1,24 @@
+{
+  "name": "@wbcnc/fluidnc-api",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "vitest"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.7.0",
+  "dependencies": {
+    "@preact/signals-react": "^3.0.1",
+    "@wbcnc/webrtc-channel": "workspace:*",
+    "comlink": "^4.4.2",
+    "loglevel": "^1.9.2",
+    "playwright": "^1.51.1"
+  },
+  "devDependencies": {
+    "@vitest/browser": "^3.1.1",
+    "vitest": "^3.1.1"
+  }
+}

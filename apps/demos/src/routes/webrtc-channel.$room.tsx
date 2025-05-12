@@ -1,10 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { zodValidator } from "@tanstack/zod-adapter";
 import { Button } from "@wbcnc/ui/components/button";
-import { RoleMessaging } from "@wbcnc/webrtc-channel/role-messaging";
+import { RolePeering } from "@wbcnc/webrtc-channel/role-peering";
 import { initTestFbApp } from "@wbcnc/webrtc-channel/test-fb-config";
+import log from "loglevel";
 import { useEffect, useState } from "react";
 import { z } from "zod";
+
+log.setDefaultLevel(log.levels.DEBUG);
 
 initTestFbApp();
 
@@ -30,7 +33,7 @@ function useRoom(roomId: string) {
   console.log("selfRole", selfRole, "otherRole", otherRole);
   const [messaging] = useState(
     () =>
-      new RoleMessaging(roomId, selfRole, otherRole, {
+      new RolePeering(roomId, selfRole, otherRole, {
         maxPeers: selfRole == "client" ? 1 : Infinity,
       })
   );
