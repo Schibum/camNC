@@ -1,8 +1,6 @@
 import log from "loglevel";
 import mitt, { Emitter } from "mitt";
 
-log.setDefaultLevel(log.levels.INFO);
-
 export interface PeerOptions {
   isInitiator?: boolean;
   iceServers?: RTCIceServer[];

@@ -27,7 +27,6 @@ function useRoles() {
 
 function useRoom(roomId: string) {
   const [selfRole, otherRole] = useRoles();
-  const [ready, setReady] = useState(false);
   console.log("selfRole", selfRole, "otherRole", otherRole);
   const [messaging] = useState(
     () =>
@@ -37,28 +36,27 @@ function useRoom(roomId: string) {
   );
   useEffect(() => {
     messaging.join();
-    messaging.on("ready", () => {
-      setReady(true);
-    });
     return () => {
       messaging.destroy();
     };
   }, [messaging, roomId]);
-  return { messaging, ready };
+  return { messaging };
 }
 
 function RouteComponent() {
   const { room } = Route.useParams();
-  const { messaging, ready } = useRoom(room);
+  const { messaging } = useRoom(room);
+  const [messages, setMessages] = useState<string[]>([]);
 
   useEffect(() => {
     messaging.on("message", (event) => {
-      console.log("message from other peere", event);
+      console.log("message from other peer", event);
+      setMessages((prev) => [...prev, event]);
     });
   }, [messaging]);
 
   function sendMessage() {
-    messaging.sendMessage("Hello from channel 1");
+    messaging.sendMessage(`Hello it's me ${new Date().toISOString()}`);
   }
   return (
     <div>
@@ -66,7 +64,10 @@ function RouteComponent() {
         <Button onClick={sendMessage}>Send Message</Button>
       </div>
       <div>
-        <p>Ready: {ready ? "true" : "false"}</p>
+        <p>{messages.length} Messages</p>
+        {messages.map((message, index) => (
+          <p key={index}>{message}</p>
+        ))}
       </div>
     </div>
   );

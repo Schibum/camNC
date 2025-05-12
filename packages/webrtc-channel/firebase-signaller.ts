@@ -15,10 +15,6 @@ import {
 } from "firebase/database";
 import mitt, { Emitter } from "mitt";
 
-/** ────────────────────────────────────────────────────────────────
- *  Typings
- * ────────────────────────────────────────────────────────────────*/
-
 export interface FirebaseSignallerOptions {
   /** Pre‑initialised Firebase *App* (browser or Node). */
   firebaseApp?: FirebaseApp;
@@ -38,9 +34,6 @@ type Events = {
   "peer-joined": PeerInfo;
   signal: { from: string; data: unknown };
 };
-/** ────────────────────────────────────────────────────────────────
- *  FirebaseSignaller
- * ────────────────────────────────────────────────────────────────*/
 
 export class FirebaseSignaller {
   /* Public state */
@@ -125,20 +118,16 @@ export class FirebaseSignaller {
   private watchRoom(): void {
     if (!this._roomRef) return;
 
-    // let initialised = false;
-
-    // // Mark when initial snapshot arrived so we don’t emit existing peers.
-    // this._unsubs.push(
-    //   onValue(this._roomRef, () => (initialised = true), { onlyOnce: true })
-    // );
-
     this._unsubs.push(
       onChildAdded(this._roomRef, (snap) => {
-        // if (!initialised) return;
         if (snap.key === this.peerId) return; // ignore self
 
         const presence = snap.child("_").val() as PeerInfo | null;
-        if (presence) this.emit("peer-joined", presence);
+        if (presence)
+          this.emit("peer-joined", {
+            peerId: presence.peerId,
+            role: presence.role,
+          });
       })
     );
   }
@@ -159,7 +148,6 @@ export class FirebaseSignaller {
       this.emit("signal", { from: fromPeerId, data: val });
     };
 
-    console.log("adding top listener");
     this._unsubs.push(
       onChildAdded(this._selfRef, (peerDirSnap) => {
         const fromPeerId = peerDirSnap.key!;

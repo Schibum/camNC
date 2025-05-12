@@ -3,11 +3,9 @@ import { FirebaseSignaller, PeerInfo } from "./firebase-signaller";
 import Peer from "./peer";
 
 import log from "loglevel";
-log.setDefaultLevel(log.levels.DEBUG);
 
 type Events = {
   message: any;
-  ready: void;
 };
 
 /**
@@ -55,10 +53,13 @@ export class RoleMessaging {
   }
 
   async sendMessage(message: string) {
-    for (const [peerId, peer] of this.peers.entries()) {
-      log.debug("sending message to", peerId);
-      peer.dataChannel.send(message);
-    }
+    await Promise.all(
+      Array.from(this.peers.entries()).map(async ([peerId, peer]) => {
+        await peer.ready;
+        log.debug("sending message to", peerId);
+        peer.dataChannel.send(message);
+      })
+    );
   }
 
   private onPeerJoined(peerInfo: PeerInfo) {
@@ -95,7 +96,6 @@ export class RoleMessaging {
 
   private onPeerReady(peerId: string) {
     log.debug("peer ready", peerId);
-    this.emit("ready");
     this.autoOpenCloseSignalling();
   }
 

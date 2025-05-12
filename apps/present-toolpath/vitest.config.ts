@@ -15,6 +15,7 @@ export default defineConfig({
     // environment: 'jsdom',
     // opencv tests don't seem to work with jsdom as setup right now.
     browser: {
+      screenshotFailures: false,
       enabled: true,
       headless: true,
       provider: 'playwright',
