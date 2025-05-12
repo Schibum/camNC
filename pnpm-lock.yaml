@@ -13,6 +13,9 @@ importers:
 
   .:
     devDependencies:
+      playwright:
+        specifier: ^1.51.1
+        version: 1.51.1
       prettier:
         specifier: ^3.5.3
         version: 3.5.3
