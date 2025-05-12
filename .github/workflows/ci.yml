@@ -28,6 +28,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Install Playwright Browsers
-        run: pnpm dlx playwright install --with-deps --no-shell
+        run: pnpm dlx playwright install --with-deps chromium #--no-shell
       - name: Run tests
         run: pnpm -r test

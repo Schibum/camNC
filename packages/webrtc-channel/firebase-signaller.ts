@@ -184,10 +184,7 @@ export class FirebaseSignaller {
       return crypto.randomUUID();
 
     const bytes = new Uint8Array(16);
-    (typeof crypto !== "undefined"
-      ? crypto
-      : require("crypto")
-    ).getRandomValues(bytes);
+    self.crypto.getRandomValues(bytes);
     return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
   }
 }
