@@ -20,10 +20,7 @@ describe("FirebaseSignaller", () => {
 
     const signalSpy2 = vi.fn();
     signaller2.on("signal", signalSpy2);
-    await signaller.sendMessage(signaller2.peerId, {
-      type: "offer",
-      payload: "test-payload",
-    });
+    await signaller.sendMessage(signaller2.peerId, "test-payload");
 
     await vi.waitFor(() => {
       expect(joinedSpy1).toHaveBeenCalledWith({
@@ -36,7 +33,7 @@ describe("FirebaseSignaller", () => {
       });
       expect(signalSpy2).toHaveBeenCalledWith({
         from: signaller.peerId,
-        data: { type: "offer", payload: "test-payload" },
+        data: "test-payload",
       });
     });
     await signaller.disconnect();
