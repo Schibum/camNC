@@ -5,7 +5,8 @@ import { initTestFbApp } from "@wbcnc/webrtc-channel/test-fb-config";
 import * as Comlink from "comlink";
 import log from "loglevel";
 import { FluidncApi } from "./fluidnc-api";
-log.setDefaultLevel(log.levels.DEBUG);
+import { createPeerMessageChannel } from "./peer-message-channel";
+// log.setDefaultLevel(log.levels.DEBUG);
 
 initTestFbApp();
 
@@ -37,19 +38,7 @@ export class FluidncServer {
     log.debug("onPeerConnected", peerId, peer);
     this.numConnected.value++;
     peer.on("close", () => this.onPeerDisconnected(peerId));
-    // TODO:
-    const { port1, port2 } = new MessageChannel();
-    peer.dataChannel.onmessage = (ev) => {
-      port1.postMessage(ev.data);
-    };
-    port1.onmessage = (ev) => {
-      peer.dataChannel.send(ev.data);
-    };
-    // Close handling needed?
-    // peer.on("close", () => {
-    //   port1.close();
-    //   port2.close();
-    // });
+    let port2 = createPeerMessageChannel(peer);
     Comlink.expose(this.fluidApi, port2);
   }
 }

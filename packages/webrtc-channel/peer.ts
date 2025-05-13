@@ -21,7 +21,7 @@ type Events = {
 };
 
 export default class Peer {
-  readonly peerConnection: RTCPeerConnection;
+  readonly pc: RTCPeerConnection;
   private readonly internalDataChannel: RTCDataChannel;
   readonly dataChannel: RTCDataChannel;
   readonly signalingPort: MessagePort;
@@ -53,22 +53,19 @@ export default class Peer {
     this.emit = bus.emit;
 
     /* PeerConnection */
-    this.peerConnection = new RTCPeerConnection({
+    this.pc = new RTCPeerConnection({
       iceServers: opts.iceServers ?? DEFAULT_ICE,
     });
 
     /* Negotiated symmetric channel */
-    this.internalDataChannel = this.peerConnection.createDataChannel("both", {
+    this.internalDataChannel = this.pc.createDataChannel("both", {
       negotiated: true,
       id: 0,
     });
-    this.dataChannel = this.peerConnection.createDataChannel(
-      "user-data-channel",
-      {
-        negotiated: true,
-        id: 1,
-      }
-    );
+    this.dataChannel = this.pc.createDataChannel("user-data-channel", {
+      negotiated: true,
+      id: 1,
+    });
 
     /* Bootstrap signalling via MessageChannel */
     const { port1, port2 } = new MessageChannel();
@@ -111,7 +108,7 @@ export default class Peer {
     );
 
     /* Outbound ICE */
-    this.peerConnection.addEventListener(
+    this.pc.addEventListener(
       "icecandidate",
       ({ candidate }) =>
         candidate && this.send({ candidate: candidate.toJSON() }),
@@ -119,18 +116,11 @@ export default class Peer {
     );
 
     /* Abort on ICE failure */
-    this.peerConnection.addEventListener(
+    this.pc.addEventListener(
       "iceconnectionstatechange",
       () => {
-        log.debug(
-          "iceconnectionstatechange",
-          this.peerConnection.iceConnectionState
-        );
-        if (
-          ["failed", "disconnected"].includes(
-            this.peerConnection.iceConnectionState
-          )
-        ) {
+        log.debug("iceconnectionstatechange", this.pc.iceConnectionState);
+        if (["failed", "disconnected"].includes(this.pc.iceConnectionState)) {
           this.abortCtrl.abort();
         }
       },
@@ -138,24 +128,24 @@ export default class Peer {
     );
 
     /* negotiationneeded */
-    this.peerConnection.addEventListener(
+    this.pc.addEventListener(
       "negotiationneeded",
       async () => {
         log.debug("negotiationneeded");
         try {
           if (!this.isInitiator) return;
           this.makingOffer = true;
-          await this.peerConnection.setLocalDescription();
-          this.send({ description: this.peerConnection.localDescription! });
+          await this.pc.setLocalDescription();
+          this.send({ description: this.pc.localDescription! });
         } finally {
           this.makingOffer = false;
         }
       },
       { signal: this.signal }
     );
-    this.peerConnection.addEventListener("connectionstatechange", () => {
-      log.debug("connectionstatechange", this.peerConnection.connectionState);
-      if (this.peerConnection.connectionState === "failed") {
+    this.pc.addEventListener("connectionstatechange", () => {
+      log.debug("connectionstatechange", this.pc.connectionState);
+      if (["failed", "disconnected"].includes(this.pc.connectionState)) {
         this.destroy();
       }
     });
@@ -174,7 +164,7 @@ export default class Peer {
     this.emit("close");
     this.destroyed = true;
     log.debug("destroying peer");
-    this.peerConnection.close();
+    this.pc.close();
     this.internalDataChannel.close();
     this.dataChannel.close();
     this.signalingPort.close();
@@ -193,7 +183,7 @@ export default class Peer {
     log.debug("flushing pending candidates");
     for (const cand of this.pendingCandidates.splice(0)) {
       try {
-        await this.peerConnection.addIceCandidate(cand);
+        await this.pc.addIceCandidate(cand);
       } catch (err) {
         log.error("ICE add error (flush)", err);
       }
@@ -201,17 +191,13 @@ export default class Peer {
   }
 
   private async onSignal(env: SignalEnvelope) {
-    log.debug(
-      "onSignal pc.state=%s env=%o",
-      this.peerConnection.signalingState,
-      env
-    );
+    log.debug("onSignal pc.state=%s env=%o", this.pc.signalingState, env);
     if ("description" in env && env.description) {
       const desc = env.description;
 
       const readyForOffer =
         !this.makingOffer &&
-        (this.peerConnection.signalingState === "stable" ||
+        (this.pc.signalingState === "stable" ||
           this.isSettingRemoteAnswerPending);
 
       const offerCollision = desc.type === "offer" && !readyForOffer;
@@ -225,12 +211,12 @@ export default class Peer {
 
       if (
         desc.type === "answer" &&
-        this.peerConnection.signalingState !== "have-local-offer" &&
-        this.peerConnection.signalingState !== "have-remote-pranswer"
+        this.pc.signalingState !== "have-local-offer" &&
+        this.pc.signalingState !== "have-remote-pranswer"
       ) {
         log.warn(
           "Ignoring unexpected answer in signalingState=",
-          this.peerConnection.signalingState
+          this.pc.signalingState
         );
         return;
       }
@@ -238,26 +224,23 @@ export default class Peer {
       this.isSettingRemoteAnswerPending = desc.type === "answer";
 
       try {
-        await this.peerConnection.setRemoteDescription(desc); // implicit rollback if needed
+        await this.pc.setRemoteDescription(desc); // implicit rollback if needed
         this.isSettingRemoteAnswerPending = false;
 
         await this.flushPending();
 
         if (desc.type === "offer") {
-          await this.peerConnection.setLocalDescription();
+          await this.pc.setLocalDescription();
 
-          this.send({ description: this.peerConnection.localDescription! });
+          this.send({ description: this.pc.localDescription! });
         }
       } catch (err) {
         log.error("Negotiation error", err);
       }
     } else if ("candidate" in env && env.candidate) {
       try {
-        if (
-          this.peerConnection.remoteDescription &&
-          this.peerConnection.remoteDescription.type
-        ) {
-          await this.peerConnection.addIceCandidate(env.candidate);
+        if (this.pc.remoteDescription && this.pc.remoteDescription.type) {
+          await this.pc.addIceCandidate(env.candidate);
         } else {
           this.pendingCandidates.push(env.candidate);
         }

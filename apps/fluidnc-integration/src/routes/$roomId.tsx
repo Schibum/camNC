@@ -1,8 +1,9 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
+import log from "loglevel";
 import { ServerCard } from "../server-card";
 import { useFluidncServer } from "../useFluidncServer";
+log.setDefaultLevel(log.levels.DEBUG);
 
-import { useSignals } from "@preact/signals-react/runtime";
 export const Route = createFileRoute("/$roomId")({
   component: RouteComponent,
   loader: async ({ params }) => {
@@ -14,19 +15,18 @@ export const Route = createFileRoute("/$roomId")({
 });
 
 function RouteComponent() {
-  useSignals();
   const { roomId } = Route.useParams();
   const server = useFluidncServer(roomId);
   if (!server) {
     return null;
   }
-  server.numConnected.subscribe(() => {
-    console.log("numConnected", server.numConnected.value);
-  });
 
   return (
     <div>
-      <ServerCard status={`${server.numConnected.value} connected`} />
+      <ServerCard
+        status={`${server.numConnected.value} connected`}
+        roomId={roomId}
+      />
     </div>
   );
 }

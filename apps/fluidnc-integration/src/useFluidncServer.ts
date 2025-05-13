@@ -9,6 +9,7 @@ export function useFluidncServer(roomId: string) {
     setServer(server);
     return () => {
       server.stop();
+      setServer(null);
     };
   }, [roomId]);
   return server;

@@ -4,13 +4,14 @@ import log from "loglevel";
 import Peer from "../webrtc-channel/peer";
 import { RolePeering } from "../webrtc-channel/role-peering";
 import type { FluidncApi } from "./fluidnc-api";
+import { createPeerMessageChannel } from "./peer-message-channel";
 
 export class FluidncClient {
   private peering: RolePeering;
   public api: Comlink.Remote<FluidncApi> | null = null;
   public isConnected = signal(false);
   constructor(roomId: string) {
-    this.peering = new RolePeering(roomId, "client", "server");
+    this.peering = new RolePeering(roomId, "client", "server", { maxPeers: 1 });
     this.peering.on("peerConnected", ({ peerId, peer }) =>
       this.onPeerConnected(peerId, peer)
     );
@@ -27,14 +28,10 @@ export class FluidncClient {
 
   private onPeerConnected(peerId: string, peer: Peer) {
     log.debug("onPeerConnected", peerId, peer);
+    this.isConnected.value = true;
     peer.on("close", () => this.onPeerDisconnected());
-    const { port1, port2 } = new MessageChannel();
-    peer.dataChannel.onmessage = (ev) => {
-      port1.postMessage(ev.data);
-    };
-    port1.onmessage = (ev) => {
-      peer.dataChannel.send(ev.data);
-    };
+
+    let port2 = createPeerMessageChannel(peer);
     this.api = Comlink.wrap<FluidncApi>(port2);
   }
 }

@@ -17,6 +17,7 @@ import { Route as PlayTrysteroImport } from './routes/play-trystero'
 import { Route as Go2webrtcImport } from './routes/go2webrtc'
 import { Route as CameraCalibrationImport } from './routes/camera-calibration'
 import { Route as WebrtcChannelRoomImport } from './routes/webrtc-channel.$room'
+import { Route as FluidncClientRoomIdImport } from './routes/fluidnc-client.$roomId'
 
 // Create/Update Routes
 
@@ -53,6 +54,12 @@ const CameraCalibrationRoute = CameraCalibrationImport.update({
 const WebrtcChannelRoomRoute = WebrtcChannelRoomImport.update({
   id: '/webrtc-channel/$room',
   path: '/webrtc-channel/$room',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const FluidncClientRoomIdRoute = FluidncClientRoomIdImport.update({
+  id: '/fluidnc-client/$roomId',
+  path: '/fluidnc-client/$roomId',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -95,6 +102,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServeWebrtcImport
       parentRoute: typeof rootRoute
     }
+    '/fluidnc-client/$roomId': {
+      id: '/fluidnc-client/$roomId'
+      path: '/fluidnc-client/$roomId'
+      fullPath: '/fluidnc-client/$roomId'
+      preLoaderRoute: typeof FluidncClientRoomIdImport
+      parentRoute: typeof rootRoute
+    }
     '/webrtc-channel/$room': {
       id: '/webrtc-channel/$room'
       path: '/webrtc-channel/$room'
@@ -113,6 +127,7 @@ export interface FileRoutesByFullPath {
   '/play-trystero': typeof PlayTrysteroRoute
   '/serve-trystero': typeof ServeTrysteroRoute
   '/serve-webrtc': typeof ServeWebrtcRoute
+  '/fluidnc-client/$roomId': typeof FluidncClientRoomIdRoute
   '/webrtc-channel/$room': typeof WebrtcChannelRoomRoute
 }
 
@@ -122,6 +137,7 @@ export interface FileRoutesByTo {
   '/play-trystero': typeof PlayTrysteroRoute
   '/serve-trystero': typeof ServeTrysteroRoute
   '/serve-webrtc': typeof ServeWebrtcRoute
+  '/fluidnc-client/$roomId': typeof FluidncClientRoomIdRoute
   '/webrtc-channel/$room': typeof WebrtcChannelRoomRoute
 }
 
@@ -132,6 +148,7 @@ export interface FileRoutesById {
   '/play-trystero': typeof PlayTrysteroRoute
   '/serve-trystero': typeof ServeTrysteroRoute
   '/serve-webrtc': typeof ServeWebrtcRoute
+  '/fluidnc-client/$roomId': typeof FluidncClientRoomIdRoute
   '/webrtc-channel/$room': typeof WebrtcChannelRoomRoute
 }
 
@@ -143,6 +160,7 @@ export interface FileRouteTypes {
     | '/play-trystero'
     | '/serve-trystero'
     | '/serve-webrtc'
+    | '/fluidnc-client/$roomId'
     | '/webrtc-channel/$room'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -151,6 +169,7 @@ export interface FileRouteTypes {
     | '/play-trystero'
     | '/serve-trystero'
     | '/serve-webrtc'
+    | '/fluidnc-client/$roomId'
     | '/webrtc-channel/$room'
   id:
     | '__root__'
@@ -159,6 +178,7 @@ export interface FileRouteTypes {
     | '/play-trystero'
     | '/serve-trystero'
     | '/serve-webrtc'
+    | '/fluidnc-client/$roomId'
     | '/webrtc-channel/$room'
   fileRoutesById: FileRoutesById
 }
@@ -169,6 +189,7 @@ export interface RootRouteChildren {
   PlayTrysteroRoute: typeof PlayTrysteroRoute
   ServeTrysteroRoute: typeof ServeTrysteroRoute
   ServeWebrtcRoute: typeof ServeWebrtcRoute
+  FluidncClientRoomIdRoute: typeof FluidncClientRoomIdRoute
   WebrtcChannelRoomRoute: typeof WebrtcChannelRoomRoute
 }
 
@@ -178,6 +199,7 @@ const rootRouteChildren: RootRouteChildren = {
   PlayTrysteroRoute: PlayTrysteroRoute,
   ServeTrysteroRoute: ServeTrysteroRoute,
   ServeWebrtcRoute: ServeWebrtcRoute,
+  FluidncClientRoomIdRoute: FluidncClientRoomIdRoute,
   WebrtcChannelRoomRoute: WebrtcChannelRoomRoute,
 }
 
@@ -196,6 +218,7 @@ export const routeTree = rootRoute
         "/play-trystero",
         "/serve-trystero",
         "/serve-webrtc",
+        "/fluidnc-client/$roomId",
         "/webrtc-channel/$room"
       ]
     },
@@ -213,6 +236,9 @@ export const routeTree = rootRoute
     },
     "/serve-webrtc": {
       "filePath": "serve-webrtc.tsx"
+    },
+    "/fluidnc-client/$roomId": {
+      "filePath": "fluidnc-client.$roomId.tsx"
     },
     "/webrtc-channel/$room": {
       "filePath": "webrtc-channel.$room.tsx"

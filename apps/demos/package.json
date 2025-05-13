@@ -11,9 +11,12 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
+    "@preact/signals-react": "^3.0.1",
+    "@preact/signals-react-transform": "^0.5.1",
     "@tanstack/router-plugin": "^1.116.1",
     "@tanstack/zod-adapter": "^1.116.0",
     "@wbcnc/camera-calibration": "workspace:*",
+    "@wbcnc/fluidnc-api": "workspace:*",
     "@wbcnc/go2webrtc": "workspace:*",
     "@wbcnc/load-opencv": "workspace:*",
     "@wbcnc/ui": "workspace:*",

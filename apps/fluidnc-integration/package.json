@@ -11,8 +11,10 @@
   },
   "dependencies": {
     "@preact/signals-react": "^3.0.1",
+    "@preact/signals-react-transform": "^0.5.1",
     "@tanstack/react-router": "^1.116.0",
     "@tanstack/router-plugin": "^1.116.1",
+    "babel-plugin-react-compiler": "19.1.0-rc.1",
     "@tanstack/zod-adapter": "^1.116.0",
     "@wbcnc/fluidnc-api": "workspace:*",
     "comlink": "^4.4.2",
