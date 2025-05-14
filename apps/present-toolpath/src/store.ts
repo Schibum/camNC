@@ -36,6 +36,8 @@ export interface ICamSource {
   machineBoundsInCam?: IMachineBounds;
   calibration?: CalibrationData;
   extrinsics?: CameraExtrinsics;
+  // Optional marker positions in machine coordinates
+  markerPositions?: Vector3[];
 }
 
 superjson.registerCustom<Box2, { min: number[]; max: number[] }>(
@@ -127,6 +129,10 @@ export const useStore = create(devtools(persist(immer(combine(
       setMachineBoundsInCam: (points: IMachineBounds) => set(state => {
         if (!state.camSource) throw new Error('configure source first');
         state.camSource.machineBoundsInCam = points;
+      }),
+      setMarkerPositions: (markers: Vector3[]) => set(state => {
+        if (!state.camSource) throw new Error('configure source first');
+        state.camSource.markerPositions = markers;
       }),
     },
     setIsToolpathSelected: (isSelected: boolean) => set(state => {
@@ -235,6 +241,11 @@ export const useSetCameraExtrinsics = () => useStore(state => state.camSourceSet
 
 export const useShowStillFrame = () => useStore(state => state.showStillFrame);
 export const useSetShowStillFrame = () => useStore(state => state.setShowStillFrame);
+
+// Hook to access marker positions
+export const useMarkerPositions = () => useStore(state => state.camSource!.markerPositions!);
+// Hook to set marker positions
+export const useSetMarkerPositions = () => useStore(state => state.camSourceSetters.setMarkerPositions);
 
 // Returns the FluidncClient instance, will create and connect if it doesn't exist yet.
 export const useEnsureFluidncClient = () => {

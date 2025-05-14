@@ -1,7 +1,9 @@
 import { FluidncClient } from '@wbcnc/fluidnc-api/fluidnc-client';
 
 export class CncApi {
-  constructor(private readonly nc: FluidncClient) {}
+  constructor(private readonly nc: FluidncClient) {
+    console.log('CncApi constructor', nc);
+  }
 
   isConnected() {
     return this.nc.isConnected.value;

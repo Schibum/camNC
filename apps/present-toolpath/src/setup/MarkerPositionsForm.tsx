@@ -1,0 +1,127 @@
+import { useSetMarkerPositions, useStore } from '@/store';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Button } from '@wbcnc/ui/components/button';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@wbcnc/ui/components/form';
+import { Input } from '@wbcnc/ui/components/input';
+import { Control, useForm } from 'react-hook-form';
+import { Vector3 } from 'three';
+import z from 'zod';
+
+const markerSchema = z.object({
+  x: z.coerce.number(),
+  y: z.coerce.number(),
+  z: z.coerce.number(),
+});
+
+const schema = z.object({
+  markers: z.tuple([markerSchema, markerSchema, markerSchema, markerSchema]),
+});
+
+type MarkerFormData = z.infer<typeof schema>;
+
+// Marker indices for a fixed set of four positions
+const markerIndices = [0, 1, 2, 3] as const;
+type MarkerIndex = (typeof markerIndices)[number];
+
+// Sub-component to render x, y, z fields inline for a given marker
+interface MarkerFieldsProps {
+  control: Control<MarkerFormData>;
+  index: MarkerIndex;
+}
+function MarkerFields({ control, index }: MarkerFieldsProps) {
+  return (
+    <div className="flex space-x-4 items-end">
+      <FormField
+        control={control}
+        name={`markers.${index}.x`}
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>x</FormLabel>
+            <FormControl>
+              <Input {...field} type="number" />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+      <FormField
+        control={control}
+        name={`markers.${index}.y`}
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>y</FormLabel>
+            <FormControl>
+              <Input {...field} type="number" />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+      <FormField
+        control={control}
+        name={`markers.${index}.z`}
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>z</FormLabel>
+            <FormControl>
+              <Input {...field} type="number" />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+    </div>
+  );
+}
+
+export function MarkerPositionsForm({ onConfirmed }: { onConfirmed: () => void }) {
+  const bounds = useStore(state => state.camSource!.machineBounds!);
+  const savedRaw = useStore(state => state.camSource?.markerPositions);
+  const setMarkerPositions = useSetMarkerPositions();
+
+  const machineDefaultMarkers = [
+    { x: bounds.min.x, y: bounds.min.y, z: 0 },
+    { x: bounds.min.x, y: bounds.max.y, z: 0 },
+    { x: bounds.max.x, y: bounds.max.y, z: 0 },
+    { x: bounds.max.x, y: bounds.min.y, z: 0 },
+  ];
+  const defaultMarkers = savedRaw ? savedRaw.map(v => ({ x: v.x, y: v.y, z: v.z })) : machineDefaultMarkers;
+
+  const form = useForm<MarkerFormData>({
+    defaultValues: { markers: defaultMarkers } as MarkerFormData,
+    resolver: zodResolver(schema),
+  });
+
+  // Expose reset to restore machine-bound defaults
+  const { reset } = form;
+  function handleReset() {
+    reset({ markers: machineDefaultMarkers } as MarkerFormData);
+  }
+
+  function onSubmit(data: MarkerFormData) {
+    const vectors = data.markers.map(m => new Vector3(m.x, m.y, m.z));
+    setMarkerPositions(vectors);
+    onConfirmed();
+  }
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <p className="text-sm">Markers can be placed outside the machine bounds.</p>
+        {markerIndices.map(i => (
+          <div key={i}>
+            <h3 className="font-medium mb-2">Marker {i}</h3>
+            <MarkerFields control={form.control} index={i} />
+          </div>
+        ))}
+
+        <div className="flex space-x-2 justify-end mt-8">
+          <Button variant="secondary" type="button" onClick={handleReset}>
+            Reset to machine bounds
+          </Button>
+          <Button type="submit">Confirm</Button>
+        </div>
+      </form>
+    </Form>
+  );
+}

@@ -17,7 +17,7 @@ export default defineConfig(({ command, ...params }) => {
     TanStackRouterVite({ target: 'react', autoCodeSplitting: true }),
     react({
       babel: {
-        plugins: [['babel-plugin-react-compiler', ReactCompilerConfig]],
+        plugins: [['babel-plugin-react-compiler', ReactCompilerConfig], ['module:@preact/signals-react-transform']],
       },
     }),
     tsconfigPaths(),

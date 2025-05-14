@@ -21,6 +21,7 @@ import { Route as SetupUrlEntryImport } from './routes/setup.url-entry'
 import { Route as SetupSetupImport } from './routes/setup/setup'
 import { Route as SetupPointSelectionImport } from './routes/setup/point-selection'
 import { Route as SetupNewCamMatrixImport } from './routes/setup/new-cam-matrix'
+import { Route as SetupMarkerPositionsImport } from './routes/setup/marker-positions'
 import { Route as SetupMachineBoundsImport } from './routes/setup/machine-bounds'
 import { Route as SetupEditSettingsImport } from './routes/setup/edit-settings'
 import { Route as SetupCameraCalibrationImport } from './routes/setup/camera-calibration'
@@ -89,6 +90,12 @@ const SetupNewCamMatrixRoute = SetupNewCamMatrixImport.update({
   getParentRoute: () => rootRoute,
 } as any)
 
+const SetupMarkerPositionsRoute = SetupMarkerPositionsImport.update({
+  id: '/setup/marker-positions',
+  path: '/setup/marker-positions',
+  getParentRoute: () => rootRoute,
+} as any)
+
 const SetupMachineBoundsRoute = SetupMachineBoundsImport.update({
   id: '/setup/machine-bounds',
   path: '/setup/machine-bounds',
@@ -153,6 +160,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SetupMachineBoundsImport
       parentRoute: typeof rootRoute
     }
+    '/setup/marker-positions': {
+      id: '/setup/marker-positions'
+      path: '/setup/marker-positions'
+      fullPath: '/setup/marker-positions'
+      preLoaderRoute: typeof SetupMarkerPositionsImport
+      parentRoute: typeof rootRoute
+    }
     '/setup/new-cam-matrix': {
       id: '/setup/new-cam-matrix'
       path: '/setup/new-cam-matrix'
@@ -214,6 +228,7 @@ export interface FileRoutesByFullPath {
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
   '/setup/machine-bounds': typeof SetupMachineBoundsRoute
+  '/setup/marker-positions': typeof SetupMarkerPositionsRoute
   '/setup/new-cam-matrix': typeof SetupNewCamMatrixRoute
   '/setup/point-selection': typeof SetupPointSelectionRoute
   '/setup/setup': typeof SetupSetupRoute
@@ -230,6 +245,7 @@ export interface FileRoutesByTo {
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
   '/setup/machine-bounds': typeof SetupMachineBoundsRoute
+  '/setup/marker-positions': typeof SetupMarkerPositionsRoute
   '/setup/new-cam-matrix': typeof SetupNewCamMatrixRoute
   '/setup/point-selection': typeof SetupPointSelectionRoute
   '/setup/setup': typeof SetupSetupRoute
@@ -247,6 +263,7 @@ export interface FileRoutesById {
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
   '/setup/machine-bounds': typeof SetupMachineBoundsRoute
+  '/setup/marker-positions': typeof SetupMarkerPositionsRoute
   '/setup/new-cam-matrix': typeof SetupNewCamMatrixRoute
   '/setup/point-selection': typeof SetupPointSelectionRoute
   '/setup/setup': typeof SetupSetupRoute
@@ -265,6 +282,7 @@ export interface FileRouteTypes {
     | '/setup/camera-calibration'
     | '/setup/edit-settings'
     | '/setup/machine-bounds'
+    | '/setup/marker-positions'
     | '/setup/new-cam-matrix'
     | '/setup/point-selection'
     | '/setup/setup'
@@ -280,6 +298,7 @@ export interface FileRouteTypes {
     | '/setup/camera-calibration'
     | '/setup/edit-settings'
     | '/setup/machine-bounds'
+    | '/setup/marker-positions'
     | '/setup/new-cam-matrix'
     | '/setup/point-selection'
     | '/setup/setup'
@@ -295,6 +314,7 @@ export interface FileRouteTypes {
     | '/setup/camera-calibration'
     | '/setup/edit-settings'
     | '/setup/machine-bounds'
+    | '/setup/marker-positions'
     | '/setup/new-cam-matrix'
     | '/setup/point-selection'
     | '/setup/setup'
@@ -312,6 +332,7 @@ export interface RootRouteChildren {
   SetupCameraCalibrationRoute: typeof SetupCameraCalibrationRoute
   SetupEditSettingsRoute: typeof SetupEditSettingsRoute
   SetupMachineBoundsRoute: typeof SetupMachineBoundsRoute
+  SetupMarkerPositionsRoute: typeof SetupMarkerPositionsRoute
   SetupNewCamMatrixRoute: typeof SetupNewCamMatrixRoute
   SetupPointSelectionRoute: typeof SetupPointSelectionRoute
   SetupSetupRoute: typeof SetupSetupRoute
@@ -328,6 +349,7 @@ const rootRouteChildren: RootRouteChildren = {
   SetupCameraCalibrationRoute: SetupCameraCalibrationRoute,
   SetupEditSettingsRoute: SetupEditSettingsRoute,
   SetupMachineBoundsRoute: SetupMachineBoundsRoute,
+  SetupMarkerPositionsRoute: SetupMarkerPositionsRoute,
   SetupNewCamMatrixRoute: SetupNewCamMatrixRoute,
   SetupPointSelectionRoute: SetupPointSelectionRoute,
   SetupSetupRoute: SetupSetupRoute,
@@ -353,6 +375,7 @@ export const routeTree = rootRoute
         "/setup/camera-calibration",
         "/setup/edit-settings",
         "/setup/machine-bounds",
+        "/setup/marker-positions",
         "/setup/new-cam-matrix",
         "/setup/point-selection",
         "/setup/setup",
@@ -379,6 +402,9 @@ export const routeTree = rootRoute
     },
     "/setup/machine-bounds": {
       "filePath": "setup/machine-bounds.tsx"
+    },
+    "/setup/marker-positions": {
+      "filePath": "setup/marker-positions.tsx"
     },
     "/setup/new-cam-matrix": {
       "filePath": "setup/new-cam-matrix.tsx"

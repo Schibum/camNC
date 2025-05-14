@@ -1,7 +1,7 @@
 import { IMachineBounds, useCameraExtrinsics, useSetCameraExtrinsics, useStore } from '@/store';
 import { cv2, ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { use } from 'react';
-import { Box2, Matrix3, Vector2 } from 'three';
+import { Matrix3, Vector2, Vector3 } from 'three';
 import { cvToMatrix3, cvToVector2, cvToVector3, matrix3ToCV, vector3ToCV } from '../lib/three-cv';
 
 function getMachineBoundsInImageCoords() {
@@ -29,7 +29,7 @@ export function useConvertImageToThree() {
 export function useComputeP3P() {
   return () => {
     const camSource = useStore.getState().camSource;
-    const mp = camSource!.machineBounds!;
+    const mp = camSource!.markerPositions!;
     const calibrationData = camSource!.calibration!;
     return computeP3P(mp, getMachineBoundsInImageCoords(), calibrationData.new_camera_matrix);
   };
@@ -50,7 +50,7 @@ export function useReprojectedMachineBounds() {
   const extrinsics = useCameraExtrinsics();
   const convertToThree = useConvertImageToThree();
   const cameraMatrix = matrix3ToCV(useStore(state => state.camSource!.calibration!.new_camera_matrix));
-  const objectPoints = machineBoundsToCv(useStore(state => state.camSource!.machineBounds!));
+  const objectPoints = markerMachinePosToCv(useStore(state => state.camSource!.markerPositions!));
   if (!extrinsics) return [];
   const { R, t } = extrinsics;
   const Rcv = matrix3ToCV(R);
@@ -72,20 +72,20 @@ export function useReprojectedMachineBounds() {
 }
 
 // Return 3d machine bound points as 3d CV Mat
-function machineBoundsToCv(mp: Box2) {
+function markerMachinePosToCv(mp: Vector3[]) {
+  if (mp.length !== 4) {
+    throw new Error('Must have 4 marker positions');
+  }
   // Create 3D object points (assuming z=0)
   // prettier-ignore
-  const objectPoints = cv2.matFromArray(4, 3, cv2.CV_64F, [
-    mp.min.x, mp.min.y, 0,
-    mp.min.x, mp.max.y, 0,
-    mp.max.x, mp.max.y, 0,
-    mp.max.x, mp.min.y, 0,
-  ]);
+  const objectPoints = cv2.matFromArray(4, 3, cv2.CV_64F,
+    mp.flatMap(point => [point.x, point.y, point.z])
+  );
   return objectPoints;
 }
 
-export function computeP3P(mp: Box2, machineBoundsInCam: IMachineBounds, newCamMatrix: Matrix3) {
-  const objectPoints = machineBoundsToCv(mp);
+export function computeP3P(mp: Vector3[], machineBoundsInCam: IMachineBounds, newCamMatrix: Matrix3) {
+  const objectPoints = markerMachinePosToCv(mp);
   // prettier-ignore
   const imagePoints = cv2.matFromArray(4, 2, cv2.CV_64F, [
     machineBoundsInCam[0][0], machineBoundsInCam[0][1],

@@ -1,3 +1,4 @@
+import { SetZeroButton } from '@/components/fluidnc/SetZeroButton';
 import { useEnsureFluidncClient, useHasToolpath, useSetShowStillFrame, useShowStillFrame, useStore } from '@/store';
 import { Button } from '@wbcnc/ui/components/button';
 import { CopyButton } from '@wbcnc/ui/components/copy-button';
@@ -281,6 +282,7 @@ export function VisualizeToolbar() {
       <ColorLegendButton />
       <BoundsInfoButton />
       <FluidncButton />
+      <SetZeroButton />
       {/* <CommandsMenu /> */}
     </div>
   );

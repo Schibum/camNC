@@ -6,6 +6,7 @@ import { Line, Text } from '@react-three/drei';
 import { ThreeEvent } from '@react-three/fiber';
 import { Button } from '@wbcnc/ui/components/button';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
+import { toast } from '@wbcnc/ui/components/sonner';
 import React, { Suspense, useCallback, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import { Vector2 } from 'three';
@@ -196,7 +197,8 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
 
   const handleMarkersDetected = (markers: Vector2[]) => {
     if (markers.length !== 4) {
-      console.warn('Detected', markers.length, 'markers, expected 4, ignoring');
+      toast.error('Detected ' + markers.length + ' markers, expected 4, ignoring');
+      return;
     }
     setPoints(markers.map(m => [m.x, m.y]));
   };

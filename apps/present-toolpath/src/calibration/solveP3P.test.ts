@@ -1,7 +1,7 @@
 import { IMachineBounds, ITuple } from '@/store';
 // import _cv from '@techstark/opencv-js';
 import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
-import { Box2, Matrix3, Vector2 } from 'three';
+import { Matrix3, Vector3 } from 'three';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { computeP3P } from './solveP3P';
 
@@ -19,7 +19,7 @@ describe('computeP3P', () => {
     const dimensions: ITuple = [2560, 1920]; // Image dimensions
 
     // Machine bounds (in machine coordinates)
-    const mp = new Box2(new Vector2(0, 0), new Vector2(623, 1243));
+    const mp = [new Vector3(0, 0, 0), new Vector3(0, 1243, 0), new Vector3(623, 1243, 0), new Vector3(623, 0, 0)];
 
     // Image points - corners2 from Python example
     const machineBoundsInCam: IMachineBounds = [
