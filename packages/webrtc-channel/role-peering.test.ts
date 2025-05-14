@@ -1,10 +1,10 @@
+import { initFbApp } from "@wbcnc/public-config/firebase";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { RolePeering } from "./role-peering";
-import { initTestFbApp } from "./test-fb-config";
 // log.setDefaultLevel(log.levels.DEBUG);
 describe("RolePeering", () => {
   beforeAll(() => {
-    initTestFbApp();
+    initFbApp();
   });
 
   it("send message to target role peers", async () => {

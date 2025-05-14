@@ -1,14 +1,27 @@
-import { FluidncApi } from './fluidnc-api';
+import { FluidncClient } from '@wbcnc/fluidnc-api/fluidnc-client';
 
-const fluidncApi = new FluidncApi();
+export class CncApi {
+  constructor(private readonly nc: FluidncClient) {}
 
-/**
- * Set the workspace XY zero point to given machine coordinates.
- */
-export function setWorkspaceXYZero(x: number, y: number) {
-  return fluidncApi.cmd(`G10 L2 P0 X${x} Y${y}\n G0 X0 Y0`);
-}
+  isConnected() {
+    return this.nc.isConnected.value;
+  }
 
-export function jogToMachineCoordinates(x: number, y: number) {
-  return fluidncApi.cmd(`G53 G0 X${x} Y${y}`);
+  private get api() {
+    if (!this.nc.api) {
+      throw new Error('FluidNC API not connected');
+    }
+    return this.nc.api;
+  }
+
+  jogToMachineCoordinates(x: number, y: number) {
+    return this.api.cmd(`G53 G0 X${x} Y${y}`);
+  }
+
+  /**
+   * Set the workspace XY zero point to given machine coordinates.
+   */
+  setWorkspaceXYZero(x: number, y: number) {
+    return this.api.cmd(`G10 L2 P0 X${x} Y${y}\n G0 X0 Y0`);
+  }
 }

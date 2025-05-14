@@ -1,9 +1,9 @@
+import { initFbApp } from "@wbcnc/public-config/firebase";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { FirebaseSignaller } from "./firebase-signaller";
-import { initTestFbApp } from "./test-fb-config";
 describe("FirebaseSignaller", () => {
   beforeAll(() => {
-    initTestFbApp();
+    initFbApp();
   });
 
   it("signal something", async () => {

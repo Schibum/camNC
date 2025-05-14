@@ -1,9 +1,11 @@
+import { FluidncClient } from '@wbcnc/fluidnc-api/fluidnc-client';
 import { immerable } from 'immer';
 import superjson from 'superjson';
 import { Box2, Matrix3, Matrix4, Vector2, Vector3 } from 'three';
-import { create } from 'zustand';
-import { PersistStorage, combine, devtools, persist } from 'zustand/middleware';
+import { create, ExtractState } from 'zustand';
+import { combine, devtools, persist, PersistStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
+import { CncApi } from './lib/cnc-api';
 import { buildMatrix4FromHomography, computeHomography } from './math/perspectiveTransform';
 import { ParsedToolpath, parseGCode } from './visualize/gcodeParsing';
 import { parseToolInfo } from './visualize/guess-tools';
@@ -35,46 +37,6 @@ export interface ICamSource {
   calibration?: CalibrationData;
   extrinsics?: CameraExtrinsics;
 }
-
-// Default calibration data
-const defaultCalibrationData: CalibrationData = {
-  // prettier-ignore
-  calibration_matrix: new Matrix3().set(
-    2603.1886705430834, 0, 1379.8366938339807,
-    0, 2604.6310069784477, 1003.6132669610694,
-    0, 0, 1
-  ),
-  // prettier-ignore
-  new_camera_matrix: new Matrix3().set(
-    2330.8340077175203, 0, 1403.629660654684,
-    0, 2433.357886188569, 1007.2455961471092,
-    0, 0, 1
-  ),
-  distortion_coefficients: [-0.3829847540404848, 0.22402397713785682, -0.00102448788321063, 0.0005674913681331104, -0.09251835726272765],
-};
-
-const defaultCameraConfig = {
-  url: 'http://localhost:5173/calib_vid_trimmed.mp4',
-  machineBoundsInCam: [
-    [775.2407626853826, 387.8188510252899],
-    [
-      1519.2067250840014,
-
-      337.45285514244796,
-    ],
-
-    [2179.481105806898, 1458.6055639831977],
-    [713.8957172275411, 1657.8738581807893],
-  ],
-  dimensions: [2560, 1920],
-  machineBounds: new Box2(new Vector2(0, 0), new Vector2(625, 1235)),
-};
-
-const defaultExtrinsicParameters: CameraExtrinsics = {
-  R: new Matrix3().set(-0.97566293, 0.21532301, 0.04144691, 0.11512022, 0.66386443, -0.73893934, -0.18662577, -0.71618435, -0.67249595),
-  // R.copy(new Matrix3().identity());
-  t: new Vector3(94.45499514, -537.61861834, 1674.35779694),
-};
 
 superjson.registerCustom<Box2, { min: number[]; max: number[] }>(
   {
@@ -117,6 +79,8 @@ const storage: PersistStorage<unknown> = {
 (Vector2 as any)[immerable] = true;
 // Should we create slices? see https://github.com/pmndrs/zustand/discussions/2195#discussioncomment-7614103
 
+type TStore = ExtractState<typeof useStore>;
+
 // prettier-ignore
 export const useStore = create(devtools(persist(immer(combine(
   {
@@ -130,8 +94,11 @@ export const useStore = create(devtools(persist(immer(combine(
     toolpathOffset: new Vector3(0, 0, 0),
     stockHeight: 0,
     showStillFrame: false,
+    fluidncToken: crypto.randomUUID() as string,
+    fluidncClient: null as FluidncClient | null,
+    cncApi: null as CncApi | null,
   },
-  set => ({
+  (set, get) => ({
     setToolpathOffset: (offset: Vector3) => set(state => {
       state.toolpathOffset = offset;
     }),
@@ -184,6 +151,32 @@ export const useStore = create(devtools(persist(immer(combine(
         state.toolDiameter = tools[0].diameter;
       }
     }),
+    setFluidncToken: (token: string) => set(state => {
+      state.fluidncToken = token;
+    }),
+    ensureFluidncClient: () => {
+      const state = get() as TStore;
+      if (state.fluidncClient) {
+        return state.fluidncClient;
+      }
+      state.connectFluidnc();
+      return get().fluidncClient!;
+    },
+    connectFluidnc: async() => {
+      if (get().fluidncClient) {
+        throw new Error('client already created');
+      }
+      const client = new FluidncClient(get().fluidncToken);
+      set(state => {
+        state.fluidncClient = client;
+        state.cncApi = new CncApi(client);
+      });
+      await client.start();
+      return client;
+    },
+    disconnectFluidnc: () => set(state => {
+      state.fluidncClient = null;
+    }),
   })
 )), {
   name: 'settings',
@@ -191,6 +184,7 @@ export const useStore = create(devtools(persist(immer(combine(
   partialize: state => ({
     toolDiameter: state.toolDiameter,
     camSource: state.camSource,
+    fluidncToken: state.fluidncToken,
   }),
 })));
 
@@ -241,3 +235,14 @@ export const useSetCameraExtrinsics = () => useStore(state => state.camSourceSet
 
 export const useShowStillFrame = () => useStore(state => state.showStillFrame);
 export const useSetShowStillFrame = () => useStore(state => state.setShowStillFrame);
+
+// Returns the FluidncClient instance, will create and connect if it doesn't exist yet.
+export const useEnsureFluidncClient = () => {
+  const client = useStore(state => state.ensureFluidncClient());
+  return client;
+};
+
+export const useCncApi = () => useStore(state => state.cncApi);
+
+export const useToolpath = () => useStore(state => state.toolpath);
+export const useHasToolpath = () => useToolpath() !== null;

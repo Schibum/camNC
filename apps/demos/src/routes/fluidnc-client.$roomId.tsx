@@ -17,8 +17,9 @@ function RouteComponent() {
     return client;
   });
 
-  function sendCmd() {
-    client.api!.cmd("test");
+  async function sendCmd() {
+    const result = await client.api!.cmd("?");
+    console.log(result);
   }
   return (
     <div>

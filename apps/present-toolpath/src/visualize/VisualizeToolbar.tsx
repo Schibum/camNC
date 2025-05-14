@@ -1,5 +1,6 @@
-import { useSetShowStillFrame, useShowStillFrame, useStore } from '@/store';
+import { useEnsureFluidncClient, useHasToolpath, useSetShowStillFrame, useShowStillFrame, useStore } from '@/store';
 import { Button } from '@wbcnc/ui/components/button';
+import { CopyButton } from '@wbcnc/ui/components/copy-button';
 import {
   Dialog,
   DialogContent,
@@ -9,15 +10,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@wbcnc/ui/components/dialog';
+import { Input } from '@wbcnc/ui/components/input';
 import { allowCmdOnMac, Kbd } from '@wbcnc/ui/components/kbd';
+import { Label } from '@wbcnc/ui/components/label';
 import { NumberInputWithLabel } from '@wbcnc/ui/components/NumberInputWithLabel';
 import { Popover, PopoverContent, PopoverTrigger } from '@wbcnc/ui/components/popover';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@wbcnc/ui/components/tooltip';
-import { Diameter, FolderOpen, Info, MonitorPause, MonitorPlay, Palette, PencilRuler } from 'lucide-react';
+import { Diameter, FolderOpen, Info, Link2, Link2Off, MonitorPause, MonitorPlay, Palette, PencilRuler } from 'lucide-react';
 import { useState } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { BoundsInfo } from './BoundsInfo';
-import { CommandsMenu } from './CommandsMenu';
 import { ZDepthLegend } from './ZDepthLegend';
 function TooltipIconButton({
   label,
@@ -207,6 +209,8 @@ function StockHeightButton({ onClick }: { onClick: () => void }) {
 
 function ColorLegendButton() {
   const [open, setOpen] = useState(false);
+  const hasToolpath = useHasToolpath();
+  if (!hasToolpath) return null;
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -222,7 +226,9 @@ function ColorLegendButton() {
 }
 
 function BoundsInfoButton() {
+  const hasToolpath = useHasToolpath();
   const [open, setOpen] = useState(false);
+  if (!hasToolpath) return null;
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -237,6 +243,34 @@ function BoundsInfoButton() {
   );
 }
 
+const kFluidNcIntegrationBaseUrl = 'https://fluidnc-integration.vercel.app';
+function FluidncButton() {
+  const client = useEnsureFluidncClient();
+  const [open, setOpen] = useState(false);
+  const widgetUrl = `${kFluidNcIntegrationBaseUrl}/${client.accessToken}`;
+  const tooltip = 'FluidNC ' + (client.isConnected.value ? '(Connected)' : '(Not Connected)');
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <TooltipIconButton label={tooltip} icon={client.isConnected.value ? <Link2 /> : <Link2Off />} onClick={() => {}} />
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>FluidNC Integration</DialogTitle>
+          <DialogDescription>Add under Settings → Interface → Additional Content as Panel with type Extension</DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-2">
+          <Label>Widget URL</Label>
+          <div className="flex flex-row gap-2">
+            <Input type="text" value={widgetUrl} readOnly onClick={ev => (ev.target as HTMLInputElement).select()} className="flex" />
+            <CopyButton value={widgetUrl} />
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function VisualizeToolbar() {
   return (
     <div className="flex gap-0 items-center pl-2">
@@ -246,7 +280,8 @@ export function VisualizeToolbar() {
       <StockHeightDialogButton />
       <ColorLegendButton />
       <BoundsInfoButton />
-      <CommandsMenu />
+      <FluidncButton />
+      {/* <CommandsMenu /> */}
     </div>
   );
 }

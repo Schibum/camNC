@@ -1,6 +1,6 @@
 import { FirebaseApp, initializeApp } from "firebase/app";
 
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyAhBi6p_4cMPWBhlAbkqxPzsllGcF_Awdo",
   authDomain: "wbcnc-ec187.firebaseapp.com",
   projectId: "wbcnc-ec187",
@@ -14,7 +14,7 @@ const firebaseConfig = {
 
 let _app: FirebaseApp | undefined;
 
-export function initTestFbApp() {
+export function initFbApp() {
   if (_app) return _app;
   _app = initializeApp(firebaseConfig);
   return _app;

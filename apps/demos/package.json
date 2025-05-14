@@ -19,6 +19,7 @@
     "@wbcnc/fluidnc-api": "workspace:*",
     "@wbcnc/go2webrtc": "workspace:*",
     "@wbcnc/load-opencv": "workspace:*",
+    "@wbcnc/public-config": "workspace:*",
     "@wbcnc/ui": "workspace:*",
     "@wbcnc/webrtc-channel": "workspace:*",
     "loglevel": "^1.9.2",

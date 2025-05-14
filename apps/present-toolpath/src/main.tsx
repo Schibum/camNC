@@ -1,8 +1,11 @@
 import { RouterProvider, createRouter } from '@tanstack/react-router';
+import { initFbApp } from '@wbcnc/public-config/firebase';
 import { StrictMode } from 'react';
 import ReactDOM from 'react-dom/client';
 import { routeTree } from './routeTree.gen';
 import './style.css';
+
+initFbApp();
 
 // Set up a Router instance
 const router = createRouter({

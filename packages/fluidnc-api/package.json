@@ -12,6 +12,7 @@
   "packageManager": "pnpm@10.7.0",
   "dependencies": {
     "@preact/signals-react": "^3.0.1",
+    "@wbcnc/public-config": "workspace:*",
     "@wbcnc/webrtc-channel": "workspace:*",
     "comlink": "^4.4.2",
     "loglevel": "^1.9.2",

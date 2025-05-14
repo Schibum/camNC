@@ -1,21 +1,18 @@
 import { signal } from "@preact/signals-react";
 import Peer from "@wbcnc/webrtc-channel/peer";
 import { RolePeering } from "@wbcnc/webrtc-channel/role-peering";
-import { initTestFbApp } from "@wbcnc/webrtc-channel/test-fb-config";
 import * as Comlink from "comlink";
 import log from "loglevel";
 import { FluidncApi } from "./fluidnc-api";
 import { createPeerMessageChannel } from "./peer-message-channel";
 // log.setDefaultLevel(log.levels.DEBUG);
 
-initTestFbApp();
-
 export class FluidncServer {
   private peering: RolePeering;
   private fluidApi = new FluidncApi();
   public numConnected = signal(0);
-  constructor(roomId: string) {
-    this.peering = new RolePeering(roomId, "server", "client");
+  constructor(accessToken: string) {
+    this.peering = new RolePeering(accessToken, "server", "client");
     this.peering.on("peerConnected", ({ peerId, peer }) =>
       this.onPeerConnected(peerId, peer)
     );

@@ -1,0 +1,16 @@
+{
+  "name": "@wbcnc/public-config",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "private": true,
+  "main": "index.js",
+  "scripts": {},
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.7.0",
+  "dependencies": {
+    "firebase": "^11.7.1"
+  }
+}

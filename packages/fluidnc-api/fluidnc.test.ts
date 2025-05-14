@@ -1,6 +1,5 @@
+import { initFbApp } from "@wbcnc/public-config/firebase";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { initTestFbApp } from "../webrtc-channel/test-fb-config";
-import { FluidncApi } from "./fluidnc-api";
 import { FluidncClient } from "./fluidnc-client";
 import { FluidncServer } from "./fluidnc-server";
 
@@ -15,17 +14,13 @@ vi.mock("./fluidnc-api", () => {
 
 describe("FluidNcClient ↔ FluidNcServer integration", () => {
   beforeAll(() => {
-    initTestFbApp();
+    initFbApp();
   });
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it("will route client.cmd(...) through Comlink to Server.fluidApi.cmd", async () => {
-    // pick up the mock constructor
-    const MockedApi = vi.mocked(FluidncApi);
-
-    // roomId must be the same for client+server
     const roomId = crypto.randomUUID();
     const client = new FluidncClient(roomId);
     const server = new FluidncServer(roomId);
@@ -38,9 +33,9 @@ describe("FluidNcClient ↔ FluidNcServer integration", () => {
     // wait until they see each other
     await vi.waitUntil(() => server.numConnected.value === 1);
     await vi.waitUntil(() => client.api);
-    console.log("got client api");
 
-    await client.api!.cmd("cmd1");
+    apiMock.cmd.mockReturnValue("treturn");
+    expect(await client.api!.cmd("cmd1")).toEqual("treturn");
     expect(apiMock.cmd).toHaveBeenCalledWith("cmd1");
     await client.api!.cmd("cmd2");
     expect(apiMock.cmd).toHaveBeenCalledWith("cmd2");

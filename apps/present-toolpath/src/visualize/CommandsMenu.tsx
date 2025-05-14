@@ -27,7 +27,7 @@ export function CommandsMenu() {
 
   return (
     <>
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm text-muted-foreground ml-1">
         Press <Kbd shortcut={shortcut} />
       </p>
       <CommandDialog open={open} onOpenChange={setOpen}>

@@ -8,10 +8,13 @@ import { createPeerMessageChannel } from "./peer-message-channel";
 
 export class FluidncClient {
   private peering: RolePeering;
+  // FluidNC Api or null while disconnected.
   public api: Comlink.Remote<FluidncApi> | null = null;
   public isConnected = signal(false);
-  constructor(roomId: string) {
-    this.peering = new RolePeering(roomId, "client", "server", { maxPeers: 1 });
+  constructor(public accessToken: string) {
+    this.peering = new RolePeering(accessToken, "client", "server", {
+      maxPeers: 1,
+    });
     this.peering.on("peerConnected", ({ peerId, peer }) =>
       this.onPeerConnected(peerId, peer)
     );
@@ -19,6 +22,10 @@ export class FluidncClient {
 
   async start() {
     await this.peering.join();
+  }
+
+  async stop() {
+    await this.peering.destroy();
   }
 
   private onPeerDisconnected() {

@@ -1,10 +1,12 @@
 import { createRoot } from "react-dom/client";
 import "./index.css";
 // import "@wbcnc/ui/globals.css"
-
 import { createRouter, RouterProvider } from "@tanstack/react-router";
+import { initFbApp } from "@wbcnc/public-config/firebase";
 import { ThemeProvider } from "@wbcnc/ui/components/theme-provider";
 import { routeTree } from "./routeTree.gen";
+
+initFbApp();
 // Set up a Router instance
 const router = createRouter({
   routeTree,

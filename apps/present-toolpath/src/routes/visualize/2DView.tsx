@@ -1,14 +1,14 @@
 import { UnprojectVideoMesh } from '@/calibration/Unproject';
-import { jogToMachineCoordinates } from '@/lib/cnc-api';
 import { PresentCanvas } from '@/scene/PresentCanvas';
 import { GCodeVisualizer } from '@/visualize/Toolpaths';
 import { VisualizeToolbar } from '@/visualize/VisualizeToolbar';
 import { ThreeElements, ThreeEvent } from '@react-three/fiber';
 import { createFileRoute, redirect } from '@tanstack/react-router';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
+import { toast } from '@wbcnc/ui/components/sonner';
 import React from 'react';
 import * as THREE from 'three';
-import { useStore } from '../../store';
+import { useCncApi, useStore } from '../../store';
 
 export const Route = createFileRoute('/visualize/2DView')({
   component: VisualizeComponent,
@@ -27,10 +27,17 @@ const UnprojectVideoMeshWithStockHeight = React.forwardRef<THREE.Mesh, ThreeElem
 UnprojectVideoMeshWithStockHeight.displayName = 'UnprojectVideoMeshWithStockHeight';
 
 function VisualizeComponent() {
+  const cncApi = useCncApi();
+
   function onDbClick(event: ThreeEvent<MouseEvent>) {
     console.log('onDbClick', event.unprojectedPoint);
+    if (!cncApi?.isConnected()) {
+      toast.error('FluicNC integration not connected');
+      return;
+    }
     const point = event.unprojectedPoint;
-    jogToMachineCoordinates(point.x, point.y);
+    cncApi?.jogToMachineCoordinates(point.x, point.y);
+    toast.success(`Jogging to ${point.x.toFixed(2)}, ${point.y.toFixed(2)}`);
   }
 
   return (

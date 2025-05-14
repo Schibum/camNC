@@ -2,14 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { zodValidator } from "@tanstack/zod-adapter";
 import { Button } from "@wbcnc/ui/components/button";
 import { RolePeering } from "@wbcnc/webrtc-channel/role-peering";
-import { initTestFbApp } from "@wbcnc/webrtc-channel/test-fb-config";
 import log from "loglevel";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 
 log.setDefaultLevel(log.levels.DEBUG);
-
-initTestFbApp();
 
 export const Route = createFileRoute("/webrtc-channel/$room")({
   component: RouteComponent,
