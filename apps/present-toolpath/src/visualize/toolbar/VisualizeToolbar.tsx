@@ -1,8 +1,6 @@
-import { getFluidNcClient } from '@/fluidnc-hooks';
 import { useHasToolpath, useSetShowStillFrame, useShowStillFrame, useStore } from '@/store';
 import { SetZeroButton } from '@/visualize/toolbar/SetZeroButton';
 import { Button } from '@wbcnc/ui/components/button';
-import { CopyButton } from '@wbcnc/ui/components/copy-button';
 import {
   Dialog,
   DialogContent,
@@ -12,14 +10,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@wbcnc/ui/components/dialog';
-import { Input } from '@wbcnc/ui/components/input';
-import { Label } from '@wbcnc/ui/components/label';
 import { NumberInputWithLabel } from '@wbcnc/ui/components/NumberInputWithLabel';
 import { Popover, PopoverContent, PopoverTrigger } from '@wbcnc/ui/components/popover';
-import { Diameter, FolderOpen, Info, Link2, Link2Off, MonitorPause, MonitorPlay, Palette, PencilRuler } from 'lucide-react';
+import { Diameter, FolderOpen, Info, MonitorPause, MonitorPlay, Palette, PencilRuler } from 'lucide-react';
 import { useState } from 'react';
 import { BoundsInfo } from '../BoundsInfo';
 import { ZDepthLegend } from '../ZDepthLegend';
+import { FluidncButton } from './FluidncButton';
 import { TooltipIconButton } from './TooltipIconButton';
 
 function PlayPauseButton() {
@@ -211,35 +208,6 @@ function BoundsInfoButton() {
         <BoundsInfo />
       </PopoverContent>
     </Popover>
-  );
-}
-
-const kFluidNcIntegrationBaseUrl = 'https://fluidnc-integration.vercel.app';
-function FluidncButton() {
-  'use no memo';
-  const client = getFluidNcClient();
-  const [open, setOpen] = useState(false);
-  const widgetUrl = `${kFluidNcIntegrationBaseUrl}/${client.accessToken}`;
-  const tooltip = 'FluidNC ' + (client.isConnected.value ? '(Connected)' : '(Not Connected)');
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <TooltipIconButton label={tooltip} icon={client.isConnected.value ? <Link2 /> : <Link2Off />} onClick={() => {}} />
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>FluidNC Integration</DialogTitle>
-          <DialogDescription>Add under Settings → Interface → Additional Content as Panel with type Extension</DialogDescription>
-        </DialogHeader>
-        <div className="flex flex-col gap-2">
-          <Label>Widget URL</Label>
-          <div className="flex flex-row gap-2">
-            <Input type="text" value={widgetUrl} readOnly onClick={ev => (ev.target as HTMLInputElement).select()} className="flex" />
-            <CopyButton value={widgetUrl} />
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }
 

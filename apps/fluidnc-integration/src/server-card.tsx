@@ -1,3 +1,4 @@
+import { FluidncServer } from "@wbcnc/fluidnc-api/fluidnc-server";
 import {
   Card,
   CardContent,
@@ -5,13 +6,7 @@ import {
   CardTitle,
 } from "@wbcnc/ui/components/card";
 
-export function ServerCard({
-  status,
-  roomId,
-}: {
-  status: string;
-  roomId: string;
-}) {
+export function ServerCard({ server }: { server: FluidncServer }) {
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
@@ -22,20 +17,18 @@ export function ServerCard({
           <p className="text-sm text-gray-500">Connection Status</p>
           <span
             className={`inline-block mt-1 px-3 py-1 text-xs font-semibold rounded-full ${
-              status.toLowerCase() === "connected"
-                ? "bg-green-100 text-green-800"
-                : status.toLowerCase() === "disconnected"
-                  ? "bg-red-100 text-red-800"
-                  : "bg-gray-100 text-gray-800"
+              server.numConnected.value === 0
+                ? "bg-red-100 text-red-800"
+                : "bg-green-100 text-green-800"
             }`}
           >
-            {status}
+            {server.numConnected.value} connected
           </span>
         </div>
         <div>
           <p className="text-sm text-gray-500">Access token</p>
           <span className="inline-block mt-1 px-3 py-1 text-xs font-semibold bg-blue-100 text-blue-800 rounded-lg">
-            {roomId}
+            {server.accessToken}
           </span>
         </div>
       </CardContent>

@@ -56,6 +56,11 @@ const settingsRoutes: NavRoute[] = [
     icon: Grid3x3,
   },
   {
+    title: 'FluidNC',
+    to: '/setup/fluidnc',
+    icon: Ruler,
+  },
+  {
     title: 'Machine Bounds',
     to: '/setup/machine-bounds',
     icon: Ruler,

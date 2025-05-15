@@ -23,10 +23,7 @@ function RouteComponent() {
 
   return (
     <div>
-      <ServerCard
-        status={`${server.numConnected.value} connected`}
-        roomId={roomId}
-      />
+      <ServerCard server={server} />
     </div>
   );
 }

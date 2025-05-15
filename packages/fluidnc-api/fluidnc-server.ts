@@ -11,7 +11,7 @@ export class FluidncServer {
   private peering: RolePeering;
   private fluidApi = new FluidncApi();
   public numConnected = signal(0);
-  constructor(accessToken: string) {
+  constructor(public readonly accessToken: string) {
     this.peering = new RolePeering(accessToken, "server", "client");
     this.peering.on("peerConnected", ({ peerId, peer }) =>
       this.onPeerConnected(peerId, peer)

@@ -23,6 +23,7 @@ import { Route as SetupPointSelectionImport } from './routes/setup/point-selecti
 import { Route as SetupNewCamMatrixImport } from './routes/setup/new-cam-matrix'
 import { Route as SetupMarkerPositionsImport } from './routes/setup/marker-positions'
 import { Route as SetupMachineBoundsImport } from './routes/setup/machine-bounds'
+import { Route as SetupFluidncImport } from './routes/setup/fluidnc'
 import { Route as SetupEditSettingsImport } from './routes/setup/edit-settings'
 import { Route as SetupCameraCalibrationImport } from './routes/setup/camera-calibration'
 
@@ -102,6 +103,12 @@ const SetupMachineBoundsRoute = SetupMachineBoundsImport.update({
   getParentRoute: () => rootRoute,
 } as any)
 
+const SetupFluidncRoute = SetupFluidncImport.update({
+  id: '/setup/fluidnc',
+  path: '/setup/fluidnc',
+  getParentRoute: () => rootRoute,
+} as any)
+
 const SetupEditSettingsRoute = SetupEditSettingsImport.update({
   id: '/setup/edit-settings',
   path: '/setup/edit-settings',
@@ -151,6 +158,13 @@ declare module '@tanstack/react-router' {
       path: '/setup/edit-settings'
       fullPath: '/setup/edit-settings'
       preLoaderRoute: typeof SetupEditSettingsImport
+      parentRoute: typeof rootRoute
+    }
+    '/setup/fluidnc': {
+      id: '/setup/fluidnc'
+      path: '/setup/fluidnc'
+      fullPath: '/setup/fluidnc'
+      preLoaderRoute: typeof SetupFluidncImport
       parentRoute: typeof rootRoute
     }
     '/setup/machine-bounds': {
@@ -227,6 +241,7 @@ export interface FileRoutesByFullPath {
   '/unproject': typeof UnprojectRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
+  '/setup/fluidnc': typeof SetupFluidncRoute
   '/setup/machine-bounds': typeof SetupMachineBoundsRoute
   '/setup/marker-positions': typeof SetupMarkerPositionsRoute
   '/setup/new-cam-matrix': typeof SetupNewCamMatrixRoute
@@ -244,6 +259,7 @@ export interface FileRoutesByTo {
   '/unproject': typeof UnprojectRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
+  '/setup/fluidnc': typeof SetupFluidncRoute
   '/setup/machine-bounds': typeof SetupMachineBoundsRoute
   '/setup/marker-positions': typeof SetupMarkerPositionsRoute
   '/setup/new-cam-matrix': typeof SetupNewCamMatrixRoute
@@ -262,6 +278,7 @@ export interface FileRoutesById {
   '/unproject': typeof UnprojectRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
+  '/setup/fluidnc': typeof SetupFluidncRoute
   '/setup/machine-bounds': typeof SetupMachineBoundsRoute
   '/setup/marker-positions': typeof SetupMarkerPositionsRoute
   '/setup/new-cam-matrix': typeof SetupNewCamMatrixRoute
@@ -281,6 +298,7 @@ export interface FileRouteTypes {
     | '/unproject'
     | '/setup/camera-calibration'
     | '/setup/edit-settings'
+    | '/setup/fluidnc'
     | '/setup/machine-bounds'
     | '/setup/marker-positions'
     | '/setup/new-cam-matrix'
@@ -297,6 +315,7 @@ export interface FileRouteTypes {
     | '/unproject'
     | '/setup/camera-calibration'
     | '/setup/edit-settings'
+    | '/setup/fluidnc'
     | '/setup/machine-bounds'
     | '/setup/marker-positions'
     | '/setup/new-cam-matrix'
@@ -313,6 +332,7 @@ export interface FileRouteTypes {
     | '/unproject'
     | '/setup/camera-calibration'
     | '/setup/edit-settings'
+    | '/setup/fluidnc'
     | '/setup/machine-bounds'
     | '/setup/marker-positions'
     | '/setup/new-cam-matrix'
@@ -331,6 +351,7 @@ export interface RootRouteChildren {
   UnprojectRoute: typeof UnprojectRoute
   SetupCameraCalibrationRoute: typeof SetupCameraCalibrationRoute
   SetupEditSettingsRoute: typeof SetupEditSettingsRoute
+  SetupFluidncRoute: typeof SetupFluidncRoute
   SetupMachineBoundsRoute: typeof SetupMachineBoundsRoute
   SetupMarkerPositionsRoute: typeof SetupMarkerPositionsRoute
   SetupNewCamMatrixRoute: typeof SetupNewCamMatrixRoute
@@ -348,6 +369,7 @@ const rootRouteChildren: RootRouteChildren = {
   UnprojectRoute: UnprojectRoute,
   SetupCameraCalibrationRoute: SetupCameraCalibrationRoute,
   SetupEditSettingsRoute: SetupEditSettingsRoute,
+  SetupFluidncRoute: SetupFluidncRoute,
   SetupMachineBoundsRoute: SetupMachineBoundsRoute,
   SetupMarkerPositionsRoute: SetupMarkerPositionsRoute,
   SetupNewCamMatrixRoute: SetupNewCamMatrixRoute,
@@ -374,6 +396,7 @@ export const routeTree = rootRoute
         "/unproject",
         "/setup/camera-calibration",
         "/setup/edit-settings",
+        "/setup/fluidnc",
         "/setup/machine-bounds",
         "/setup/marker-positions",
         "/setup/new-cam-matrix",
@@ -399,6 +422,9 @@ export const routeTree = rootRoute
     },
     "/setup/edit-settings": {
       "filePath": "setup/edit-settings.tsx"
+    },
+    "/setup/fluidnc": {
+      "filePath": "setup/fluidnc.tsx"
     },
     "/setup/machine-bounds": {
       "filePath": "setup/machine-bounds.tsx"
