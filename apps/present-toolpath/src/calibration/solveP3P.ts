@@ -40,9 +40,10 @@ export function useUpdateCameraExtrinsics() {
   const compute = useComputeP3P();
   const setCameraExtrinsics = useSetCameraExtrinsics();
   return () => {
-    const { R, t } = compute();
-    console.log('updated camera extrinsics', R, t);
+    const { R, t, reprojectionError } = compute();
+    console.log('updated camera extrinsics', R, t, reprojectionError);
     setCameraExtrinsics({ R, t });
+    return reprojectionError;
   };
 }
 

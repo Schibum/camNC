@@ -7,12 +7,15 @@ import { ThreeEvent } from '@react-three/fiber';
 import { Button } from '@wbcnc/ui/components/button';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { toast } from '@wbcnc/ui/components/sonner';
+import { useNavigate } from 'node_modules/@tanstack/react-router/dist/esm/useNavigate';
 import React, { Suspense, useCallback, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import { Vector2 } from 'three';
 import { IMachineBounds, ITuple, useCamResolution, useStore } from '../store';
 import { DetectArucosButton } from './DetectArucoButton';
-interface PointSelectionStepProps {}
+interface PointSelectionStepProps {
+  onComplete: () => void;
+}
 
 function ReprojectedMachineBounds() {
   const reprojectedPoints = useReprojectedMachineBounds();
@@ -178,6 +181,7 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
   const [points, setPoints] = useState<ITuple[]>(useStore(state => state.camSource!.machineBoundsInCam) || []);
   const setMachineBoundsInCam = useStore(state => state.camSourceSetters.setMachineBoundsInCam);
   const updateCameraExtrinsics = useUpdateCameraExtrinsics();
+  const navigate = useNavigate();
 
   // Handle saving points
   const handleSave = () => {
@@ -188,7 +192,11 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
     console.log('points', points);
 
     setMachineBoundsInCam(points as IMachineBounds);
-    updateCameraExtrinsics();
+    const reprojectionError = updateCameraExtrinsics();
+    toast.success(`Updated camera extrinsics`, {
+      description: `Reprojection error: ${reprojectionError.toFixed(2)}mm (< 1mm is good)`,
+    });
+    navigate({ to: '/' });
   };
 
   const handleReset = () => {
