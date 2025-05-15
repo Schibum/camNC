@@ -26,6 +26,15 @@ interface PendingRequest {
   type: string;
 }
 
+async function readBlobAsString(blob: Blob) {
+  let reader = new FileReader();
+  return new Promise<string>((resolve, reject) => {
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(blob);
+  });
+}
+
 /**
  * Esp3dApi wraps communication with the WebUI using postMessage.
  * It implements all the documented API methods:
@@ -223,18 +232,19 @@ export class FluidncApi {
    * @param progressCallback Optional callback for progress updates.
    * @returns A Promise that resolves with the downloaded file (e.g. as a blob).
    */
-  public download(
+  public async download(
     url: string,
     args?: any,
     progressCallback?: (progress: number) => void
-  ): Promise<any> {
+  ): Promise<string> {
     const message = {
       type: "download",
       target: "webui",
       url,
       args,
     };
-    return this.sendRequest(message, progressCallback);
+    let blob = await this.sendRequest(message, progressCallback);
+    return readBlobAsString(blob);
   }
 
   /**

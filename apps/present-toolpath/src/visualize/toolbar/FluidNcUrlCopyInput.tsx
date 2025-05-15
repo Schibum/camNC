@@ -1,4 +1,4 @@
-import { getFluidNcClient } from '@/fluidnc-hooks';
+import { getFluidNcClient } from '@/lib/fluidnc-singleton';
 import { CopyButton } from '@wbcnc/ui/components/copy-button';
 import { Input } from '@wbcnc/ui/components/input';
 import { Label } from '@wbcnc/ui/components/label';

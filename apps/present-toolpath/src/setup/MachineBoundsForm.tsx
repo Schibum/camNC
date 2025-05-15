@@ -1,3 +1,4 @@
+import { useFluidncSettings } from '@/lib/useFluidncSettings';
 import { useStore } from '@/store';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@wbcnc/ui/components/button';
@@ -23,6 +24,7 @@ const schema = z
   });
 
 export function MachineBoundsForm({ onConfirmed }: { onConfirmed: () => void }) {
+  useFluidncSettings();
   const bounds = useStore(state => state.camSource!.machineBounds);
   const setMachineBounds = useStore(state => state.camSourceSetters.setMachineBounds);
   const form = useForm({

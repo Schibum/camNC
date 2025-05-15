@@ -1,4 +1,4 @@
-import { getCncApi } from '@/fluidnc-hooks';
+import { getCncApi } from '@/lib/fluidnc-singleton';
 import { useStore } from '@/store';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { CircleOff } from 'lucide-react';

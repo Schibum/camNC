@@ -1,5 +1,5 @@
 import { UnprojectVideoMesh } from '@/calibration/Unproject';
-import { getCncApi } from '@/fluidnc-hooks';
+import { getCncApi } from '@/lib/fluidnc-singleton';
 import { PresentCanvas } from '@/scene/PresentCanvas';
 import { GCodeVisualizer } from '@/visualize/Toolpaths';
 import { VisualizeToolbar } from '@/visualize/toolbar/VisualizeToolbar';

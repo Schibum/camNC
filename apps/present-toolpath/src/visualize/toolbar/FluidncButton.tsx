@@ -1,4 +1,4 @@
-import { getFluidNcClient } from '@/fluidnc-hooks';
+import { getFluidNcClient } from '@/lib/fluidnc-singleton';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@wbcnc/ui/components/dialog';
 import { Link2, Link2Off } from 'lucide-react';
 import { useState } from 'react';

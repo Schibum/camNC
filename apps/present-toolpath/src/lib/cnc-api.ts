@@ -1,7 +1,7 @@
 import { FluidncClient } from '@wbcnc/fluidnc-api/fluidnc-client';
 
 export class CncApi {
-  constructor(private readonly nc: FluidncClient) {
+  constructor(public readonly nc: FluidncClient) {
     console.log('CncApi constructor', nc);
   }
 
@@ -25,5 +25,9 @@ export class CncApi {
    */
   setWorkspaceXYZero(x: number, y: number) {
     return this.api.cmd(`G10 L2 P0 X${x} Y${y}\n G0 X0 Y0`);
+  }
+
+  readConfigFile() {
+    return this.api.download('/config.yaml');
   }
 }
