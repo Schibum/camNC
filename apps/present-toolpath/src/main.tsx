@@ -1,11 +1,16 @@
 import { RouterProvider, createRouter } from '@tanstack/react-router';
+import { setKeepAliveTime } from '@wbcnc/go2webrtc/use-video-source';
 import { initFbApp } from '@wbcnc/public-config/firebase';
 import { StrictMode } from 'react';
 import ReactDOM from 'react-dom/client';
+import { getCncApi } from './fluidnc-hooks';
 import { routeTree } from './routeTree.gen';
 import './style.css';
 
 initFbApp();
+// Create connection early
+getCncApi();
+setKeepAliveTime(60_000);
 
 // Set up a Router instance
 const router = createRouter({

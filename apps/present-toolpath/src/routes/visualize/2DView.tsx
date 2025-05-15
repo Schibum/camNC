@@ -1,14 +1,15 @@
 import { UnprojectVideoMesh } from '@/calibration/Unproject';
+import { getCncApi } from '@/fluidnc-hooks';
 import { PresentCanvas } from '@/scene/PresentCanvas';
 import { GCodeVisualizer } from '@/visualize/Toolpaths';
-import { VisualizeToolbar } from '@/visualize/VisualizeToolbar';
+import { VisualizeToolbar } from '@/visualize/toolbar/VisualizeToolbar';
 import { ThreeElements, ThreeEvent } from '@react-three/fiber';
 import { createFileRoute, redirect } from '@tanstack/react-router';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { toast } from '@wbcnc/ui/components/sonner';
 import React from 'react';
 import * as THREE from 'three';
-import { useCncApi, useStore } from '../../store';
+import { useStore } from '../../store';
 
 export const Route = createFileRoute('/visualize/2DView')({
   component: VisualizeComponent,
@@ -27,7 +28,7 @@ const UnprojectVideoMeshWithStockHeight = React.forwardRef<THREE.Mesh, ThreeElem
 UnprojectVideoMeshWithStockHeight.displayName = 'UnprojectVideoMeshWithStockHeight';
 
 function VisualizeComponent() {
-  const cncApi = useCncApi();
+  const cncApi = getCncApi();
 
   function onDbClick(event: ThreeEvent<MouseEvent>) {
     console.log('onDbClick', event.unprojectedPoint);

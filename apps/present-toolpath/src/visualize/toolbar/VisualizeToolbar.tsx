@@ -1,5 +1,6 @@
-import { SetZeroButton } from '@/components/fluidnc/SetZeroButton';
-import { useEnsureFluidncClient, useHasToolpath, useSetShowStillFrame, useShowStillFrame, useStore } from '@/store';
+import { getFluidNcClient } from '@/fluidnc-hooks';
+import { useHasToolpath, useSetShowStillFrame, useShowStillFrame, useStore } from '@/store';
+import { SetZeroButton } from '@/visualize/toolbar/SetZeroButton';
 import { Button } from '@wbcnc/ui/components/button';
 import { CopyButton } from '@wbcnc/ui/components/copy-button';
 import {
@@ -12,45 +13,14 @@ import {
   DialogTrigger,
 } from '@wbcnc/ui/components/dialog';
 import { Input } from '@wbcnc/ui/components/input';
-import { allowCmdOnMac, Kbd } from '@wbcnc/ui/components/kbd';
 import { Label } from '@wbcnc/ui/components/label';
 import { NumberInputWithLabel } from '@wbcnc/ui/components/NumberInputWithLabel';
 import { Popover, PopoverContent, PopoverTrigger } from '@wbcnc/ui/components/popover';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@wbcnc/ui/components/tooltip';
 import { Diameter, FolderOpen, Info, Link2, Link2Off, MonitorPause, MonitorPlay, Palette, PencilRuler } from 'lucide-react';
 import { useState } from 'react';
-import { useHotkeys } from 'react-hotkeys-hook';
-import { BoundsInfo } from './BoundsInfo';
-import { ZDepthLegend } from './ZDepthLegend';
-function TooltipIconButton({
-  label,
-  icon,
-  shortcut,
-  onClick,
-}: {
-  label: string;
-  icon: React.ReactNode;
-  shortcut?: string;
-  onClick: () => void;
-}) {
-  shortcut = allowCmdOnMac(shortcut ?? '');
-  useHotkeys(shortcut, onClick, { preventDefault: true });
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button onClick={onClick} aria-label={label} variant="ghost">
-          {icon}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>
-        <div className="flex items-center gap-2">
-          {label} <Kbd shortcut={shortcut} />
-        </div>
-      </TooltipContent>
-    </Tooltip>
-  );
-}
+import { BoundsInfo } from '../BoundsInfo';
+import { ZDepthLegend } from '../ZDepthLegend';
+import { TooltipIconButton } from './TooltipIconButton';
 
 function PlayPauseButton() {
   const showStillFrame = useShowStillFrame();
@@ -246,7 +216,8 @@ function BoundsInfoButton() {
 
 const kFluidNcIntegrationBaseUrl = 'https://fluidnc-integration.vercel.app';
 function FluidncButton() {
-  const client = useEnsureFluidncClient();
+  'use no memo';
+  const client = getFluidNcClient();
   const [open, setOpen] = useState(false);
   const widgetUrl = `${kFluidNcIntegrationBaseUrl}/${client.accessToken}`;
   const tooltip = 'FluidNC ' + (client.isConnected.value ? '(Connected)' : '(Not Connected)');

@@ -1,7 +1,16 @@
 import { use, useEffect, useMemo } from "react";
 import { VideoSource, videoSource } from "./video-source";
 
-const GRACE_PERIOD_MS = 5_000; // 5 seconds, tweak to taste
+let keepAliveMs = 5_000; // 5 seconds, tweak to taste
+
+/**
+ * Set the keep alive time for the video source.
+ * This is used to prevent the video source from being disposed of when it is not in use.
+ * @param ms - The time in milliseconds to keep the video source alive.
+ */
+export function setKeepAliveTime(ms: number) {
+  keepAliveMs = ms;
+}
 
 interface CachedEntry {
   vs: VideoSource;
@@ -20,7 +29,7 @@ function scheduleIdleDispose(url: string, entry: CachedEntry) {
         await stillEntry.vs.dispose().catch(console.error);
         cache.delete(url);
       }
-    }, GRACE_PERIOD_MS);
+    }, keepAliveMs);
   }
 }
 

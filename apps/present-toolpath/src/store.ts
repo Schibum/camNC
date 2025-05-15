@@ -1,11 +1,9 @@
-import { FluidncClient } from '@wbcnc/fluidnc-api/fluidnc-client';
 import { immerable } from 'immer';
 import superjson from 'superjson';
 import { Box2, Matrix3, Matrix4, Vector2, Vector3 } from 'three';
 import { create, ExtractState } from 'zustand';
 import { combine, devtools, persist, PersistStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
-import { CncApi } from './lib/cnc-api';
 import { buildMatrix4FromHomography, computeHomography } from './math/perspectiveTransform';
 import { ParsedToolpath, parseGCode } from './visualize/gcodeParsing';
 import { parseToolInfo } from './visualize/guess-tools';
@@ -97,8 +95,6 @@ export const useStore = create(devtools(persist(immer(combine(
     stockHeight: 0,
     showStillFrame: false,
     fluidncToken: crypto.randomUUID() as string,
-    fluidncClient: null as FluidncClient | null,
-    cncApi: null as CncApi | null,
   },
   (set, get) => ({
     setToolpathOffset: (offset: Vector3) => set(state => {
@@ -159,29 +155,6 @@ export const useStore = create(devtools(persist(immer(combine(
     }),
     setFluidncToken: (token: string) => set(state => {
       state.fluidncToken = token;
-    }),
-    ensureFluidncClient: () => {
-      const state = get() as TStore;
-      if (state.fluidncClient) {
-        return state.fluidncClient;
-      }
-      state.connectFluidnc();
-      return get().fluidncClient!;
-    },
-    connectFluidnc: async() => {
-      if (get().fluidncClient) {
-        throw new Error('client already created');
-      }
-      const client = new FluidncClient(get().fluidncToken);
-      set(state => {
-        state.fluidncClient = client;
-        state.cncApi = new CncApi(client);
-      });
-      await client.start();
-      return client;
-    },
-    disconnectFluidnc: () => set(state => {
-      state.fluidncClient = null;
     }),
   })
 )), {
@@ -246,14 +219,6 @@ export const useSetShowStillFrame = () => useStore(state => state.setShowStillFr
 export const useMarkerPositions = () => useStore(state => state.camSource!.markerPositions!);
 // Hook to set marker positions
 export const useSetMarkerPositions = () => useStore(state => state.camSourceSetters.setMarkerPositions);
-
-// Returns the FluidncClient instance, will create and connect if it doesn't exist yet.
-export const useEnsureFluidncClient = () => {
-  const client = useStore(state => state.ensureFluidncClient());
-  return client;
-};
-
-export const useCncApi = () => useStore(state => state.cncApi);
 
 export const useToolpath = () => useStore(state => state.toolpath);
 export const useHasToolpath = () => useToolpath() !== null;
