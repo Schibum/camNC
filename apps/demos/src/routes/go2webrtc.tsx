@@ -31,10 +31,8 @@ export const Route = createFileRoute("/go2webrtc")({
   component: RouteComponent,
 });
 
-const SERVE_URL_WEBTORRENT =
-  "https://present-toolpath-webrtc-cam.vercel.app/webtorrent";
-const SERVE_URL_TRYSTERO =
-  "https://present-toolpath-webrtc-cam.vercel.app/webrtc-custom";
+const SERVE_URL_WEBTORRENT = "https://camnc-webrtc-cam.vercel.app/webtorrent";
+const SERVE_URL_TRYSTERO = "https://camnc-webrtc-cam.vercel.app/webrtc-custom";
 
 type ParsedValues = { share: string; pwd: string };
 

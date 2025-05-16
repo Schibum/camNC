@@ -1,5 +1,5 @@
 {
-  "name": "@wbcnc/present-toolpath",
+  "name": "@wbcnc/camNC",
   "private": true,
   "type": "module",
   "scripts": {

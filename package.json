@@ -1,5 +1,5 @@
 {
-  "name": "present-toolpath-apps",
+  "name": "camNC-apps",
   "private": true,
   "scripts": {
     "build": "turbo run build",

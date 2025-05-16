@@ -3,7 +3,7 @@ import { Button } from '@wbcnc/ui/components/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@wbcnc/ui/components/card';
 import { useQRCode } from 'next-qrcode';
 
-const SERVE_URL = 'https://present-toolpath-webrtc-cam.vercel.app/webrtc-custom';
+const SERVE_URL = 'https://camnc-webrtc-cam.vercel.app/webrtc-custom';
 
 function ServeWebrtcQR({ params }: { params: WebrtcConnectionParams }) {
   const { SVG } = useQRCode();
