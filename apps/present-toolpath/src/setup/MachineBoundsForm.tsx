@@ -1,11 +1,38 @@
-import { useFluidncSettings } from '@/lib/useFluidncSettings';
+import { getFluidSettingsBounds } from '@/lib/fluidnc-settings';
+import { getFluidNcClient } from '@/lib/fluidnc-singleton';
 import { useStore } from '@/store';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@wbcnc/ui/components/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@wbcnc/ui/components/form';
 import { Input } from '@wbcnc/ui/components/input';
-import { useForm } from 'react-hook-form';
+import { toast } from '@wbcnc/ui/components/sonner';
+import { useForm, useFormContext } from 'react-hook-form';
 import z from 'zod';
+
+function UseFluidNcSettingsButton() {
+  'use no memo';
+  const client = getFluidNcClient();
+  const isConnected = client.isConnected.value;
+  const formContext = useFormContext<z.infer<typeof schema>>();
+
+  async function handleClick(e: React.MouseEvent<HTMLButtonElement>) {
+    e.preventDefault();
+    const settings = await getFluidSettingsBounds();
+    if (!settings) {
+      toast.error('Could not read FluidNC settings');
+      return;
+    }
+    formContext.setValue('xmin', settings.xmin);
+    formContext.setValue('xmax', settings.xmax);
+    formContext.setValue('ymin', settings.ymin);
+    formContext.setValue('ymax', settings.ymax);
+  }
+  return (
+    <Button disabled={!isConnected} onClick={handleClick} variant="outline">
+      Read FluidNC Settings
+    </Button>
+  );
+}
 
 const schema = z
   .object({
@@ -24,7 +51,6 @@ const schema = z
   });
 
 export function MachineBoundsForm({ onConfirmed }: { onConfirmed: () => void }) {
-  useFluidncSettings();
   const bounds = useStore(state => state.camSource!.machineBounds);
   const setMachineBounds = useStore(state => state.camSourceSetters.setMachineBounds);
   const form = useForm({
@@ -101,7 +127,10 @@ export function MachineBoundsForm({ onConfirmed }: { onConfirmed: () => void }) 
             )}
           />
         </div>
-        <Button type="submit">Confirm</Button>
+        <div className="flex gap-2">
+          <UseFluidNcSettingsButton />
+          <Button type="submit">Confirm</Button>
+        </div>
       </form>
     </Form>
   );

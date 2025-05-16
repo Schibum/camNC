@@ -357,6 +357,9 @@ importers:
       konva:
         specifier: ^9.3.20
         version: 9.3.20
+      loglevel:
+        specifier: ^1.9.2
+        version: 1.9.2
       lucide-react:
         specifier: ^0.488.0
         version: 0.488.0(react@19.1.0)

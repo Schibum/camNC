@@ -49,6 +49,7 @@
     "immer": "^10.1.1",
     "jotai": "^2.12.3",
     "konva": "^9.3.20",
+    "loglevel": "^1.9.2",
     "lucide-react": "^0.488.0",
     "mathjs": "^14.4.0",
     "next-qrcode": "^2.5.1",
