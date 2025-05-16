@@ -61,7 +61,7 @@ function OpenFileButton() {
     };
     input.click();
   }
-  return <TooltipIconButton label="Open File" icon={<FolderOpen />} shortcut="o" onClick={chooseFile} />;
+  return <TooltipIconButton label="Open gcode File" icon={<FolderOpen />} shortcut="o" onClick={chooseFile} />;
 }
 
 function ToolDiameterButton({ onClick }: { onClick: () => void }) {
@@ -98,9 +98,9 @@ function StockHeightDialogButton() {
           <DialogHeader>
             <DialogTitle>Stock Height</DialogTitle>
             <DialogDescription>
-              Adjust the height of the stock. This accounts for camera perspective on the top of the stock.
+              Set the stock material height to compensate for camera perspective effects.
               <br />
-              Note: only objects at the given height will have video pixels matching the machine coordinates.
+              Important: Machine coordinates will only align perfectly with video pixels for objects at this specific height.
             </DialogDescription>
           </DialogHeader>
 
@@ -111,7 +111,7 @@ function StockHeightDialogButton() {
             value={stockHeight}
             suffix="mm"
             step={0.1}
-            onValueChange={value => value && setStockHeight(value)}
+            onValueChange={value => value !== undefined && setStockHeight(value)}
           />
           <DialogFooter>
             <Button type="submit">OK</Button>
@@ -165,6 +165,7 @@ function StockHeightButton({ onClick }: { onClick: () => void }) {
     <TooltipIconButton
       onClick={onClick}
       label="Stock Height"
+      className={stockHeight === 0 ? 'bg-warning' : ''}
       icon={
         <>
           <PencilRuler /> <span className="text-xs text-muted-foreground">{stockHeight}mm</span>

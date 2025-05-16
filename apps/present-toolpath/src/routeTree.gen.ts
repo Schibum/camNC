@@ -11,13 +11,11 @@
 // Import Routes
 
 import { Route as rootRoute } from './routes/__root'
-import { Route as UnprojectImport } from './routes/unproject'
-import { Route as Undistort2Import } from './routes/undistort2'
 import { Route as IndexImport } from './routes/index'
 import { Route as SetupIndexImport } from './routes/setup/index'
 import { Route as VisualizeVisualizeCommandsImport } from './routes/visualize/VisualizeCommands'
 import { Route as Visualize2DViewImport } from './routes/visualize/2DView'
-import { Route as SetupUrlEntryImport } from './routes/setup.url-entry'
+import { Route as SetupUrlEntryImport } from './routes/setup/url-entry'
 import { Route as SetupSetupImport } from './routes/setup/setup'
 import { Route as SetupPointSelectionImport } from './routes/setup/point-selection'
 import { Route as SetupNewCamMatrixImport } from './routes/setup/new-cam-matrix'
@@ -26,20 +24,10 @@ import { Route as SetupMachineBoundsImport } from './routes/setup/machine-bounds
 import { Route as SetupFluidncImport } from './routes/setup/fluidnc'
 import { Route as SetupEditSettingsImport } from './routes/setup/edit-settings'
 import { Route as SetupCameraCalibrationImport } from './routes/setup/camera-calibration'
+import { Route as DebugUnprojectImport } from './routes/debug/unproject'
+import { Route as DebugUndistort2Import } from './routes/debug/undistort2'
 
 // Create/Update Routes
-
-const UnprojectRoute = UnprojectImport.update({
-  id: '/unproject',
-  path: '/unproject',
-  getParentRoute: () => rootRoute,
-} as any)
-
-const Undistort2Route = Undistort2Import.update({
-  id: '/undistort2',
-  path: '/undistort2',
-  getParentRoute: () => rootRoute,
-} as any)
 
 const IndexRoute = IndexImport.update({
   id: '/',
@@ -121,6 +109,18 @@ const SetupCameraCalibrationRoute = SetupCameraCalibrationImport.update({
   getParentRoute: () => rootRoute,
 } as any)
 
+const DebugUnprojectRoute = DebugUnprojectImport.update({
+  id: '/debug/unproject',
+  path: '/debug/unproject',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const DebugUndistort2Route = DebugUndistort2Import.update({
+  id: '/debug/undistort2',
+  path: '/debug/undistort2',
+  getParentRoute: () => rootRoute,
+} as any)
+
 // Populate the FileRoutesByPath interface
 
 declare module '@tanstack/react-router' {
@@ -132,18 +132,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexImport
       parentRoute: typeof rootRoute
     }
-    '/undistort2': {
-      id: '/undistort2'
-      path: '/undistort2'
-      fullPath: '/undistort2'
-      preLoaderRoute: typeof Undistort2Import
+    '/debug/undistort2': {
+      id: '/debug/undistort2'
+      path: '/debug/undistort2'
+      fullPath: '/debug/undistort2'
+      preLoaderRoute: typeof DebugUndistort2Import
       parentRoute: typeof rootRoute
     }
-    '/unproject': {
-      id: '/unproject'
-      path: '/unproject'
-      fullPath: '/unproject'
-      preLoaderRoute: typeof UnprojectImport
+    '/debug/unproject': {
+      id: '/debug/unproject'
+      path: '/debug/unproject'
+      fullPath: '/debug/unproject'
+      preLoaderRoute: typeof DebugUnprojectImport
       parentRoute: typeof rootRoute
     }
     '/setup/camera-calibration': {
@@ -237,8 +237,8 @@ declare module '@tanstack/react-router' {
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/undistort2': typeof Undistort2Route
-  '/unproject': typeof UnprojectRoute
+  '/debug/undistort2': typeof DebugUndistort2Route
+  '/debug/unproject': typeof DebugUnprojectRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
   '/setup/fluidnc': typeof SetupFluidncRoute
@@ -255,8 +255,8 @@ export interface FileRoutesByFullPath {
 
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/undistort2': typeof Undistort2Route
-  '/unproject': typeof UnprojectRoute
+  '/debug/undistort2': typeof DebugUndistort2Route
+  '/debug/unproject': typeof DebugUnprojectRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
   '/setup/fluidnc': typeof SetupFluidncRoute
@@ -274,8 +274,8 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRoute
   '/': typeof IndexRoute
-  '/undistort2': typeof Undistort2Route
-  '/unproject': typeof UnprojectRoute
+  '/debug/undistort2': typeof DebugUndistort2Route
+  '/debug/unproject': typeof DebugUnprojectRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
   '/setup/fluidnc': typeof SetupFluidncRoute
@@ -294,8 +294,8 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/undistort2'
-    | '/unproject'
+    | '/debug/undistort2'
+    | '/debug/unproject'
     | '/setup/camera-calibration'
     | '/setup/edit-settings'
     | '/setup/fluidnc'
@@ -311,8 +311,8 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/undistort2'
-    | '/unproject'
+    | '/debug/undistort2'
+    | '/debug/unproject'
     | '/setup/camera-calibration'
     | '/setup/edit-settings'
     | '/setup/fluidnc'
@@ -328,8 +328,8 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/undistort2'
-    | '/unproject'
+    | '/debug/undistort2'
+    | '/debug/unproject'
     | '/setup/camera-calibration'
     | '/setup/edit-settings'
     | '/setup/fluidnc'
@@ -347,8 +347,8 @@ export interface FileRouteTypes {
 
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  Undistort2Route: typeof Undistort2Route
-  UnprojectRoute: typeof UnprojectRoute
+  DebugUndistort2Route: typeof DebugUndistort2Route
+  DebugUnprojectRoute: typeof DebugUnprojectRoute
   SetupCameraCalibrationRoute: typeof SetupCameraCalibrationRoute
   SetupEditSettingsRoute: typeof SetupEditSettingsRoute
   SetupFluidncRoute: typeof SetupFluidncRoute
@@ -365,8 +365,8 @@ export interface RootRouteChildren {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  Undistort2Route: Undistort2Route,
-  UnprojectRoute: UnprojectRoute,
+  DebugUndistort2Route: DebugUndistort2Route,
+  DebugUnprojectRoute: DebugUnprojectRoute,
   SetupCameraCalibrationRoute: SetupCameraCalibrationRoute,
   SetupEditSettingsRoute: SetupEditSettingsRoute,
   SetupFluidncRoute: SetupFluidncRoute,
@@ -392,8 +392,8 @@ export const routeTree = rootRoute
       "filePath": "__root.tsx",
       "children": [
         "/",
-        "/undistort2",
-        "/unproject",
+        "/debug/undistort2",
+        "/debug/unproject",
         "/setup/camera-calibration",
         "/setup/edit-settings",
         "/setup/fluidnc",
@@ -411,11 +411,11 @@ export const routeTree = rootRoute
     "/": {
       "filePath": "index.tsx"
     },
-    "/undistort2": {
-      "filePath": "undistort2.tsx"
+    "/debug/undistort2": {
+      "filePath": "debug/undistort2.tsx"
     },
-    "/unproject": {
-      "filePath": "unproject.tsx"
+    "/debug/unproject": {
+      "filePath": "debug/unproject.tsx"
     },
     "/setup/camera-calibration": {
       "filePath": "setup/camera-calibration.tsx"
@@ -442,7 +442,7 @@ export const routeTree = rootRoute
       "filePath": "setup/setup.tsx"
     },
     "/setup/url-entry": {
-      "filePath": "setup.url-entry.tsx"
+      "filePath": "setup/url-entry.tsx"
     },
     "/visualize/2DView": {
       "filePath": "visualize/2DView.tsx"

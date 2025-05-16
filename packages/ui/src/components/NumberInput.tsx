@@ -18,6 +18,7 @@ export interface NumberInputProps
   decimalScale?: number;
 }
 
+/** @noUseSignals */
 export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
   (
     {
