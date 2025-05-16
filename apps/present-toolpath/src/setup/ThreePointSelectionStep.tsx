@@ -33,7 +33,12 @@ function ReprojectedMachineBounds() {
   );
 }
 
-const kPointLabels = ['1: (xmin, ymin)', '2: (xmin, ymax)', '3: (xmax, ymax)', '4: (xmax, ymin)'];
+const kPointLabels = [
+  'Marker 0: near (xmin, ymin)',
+  'Marker 1: near (xmin, ymax)',
+  'Marker 2: near (xmax, ymax)',
+  'Marker 3: near (xmax, ymin)',
+];
 
 const NextPointHint: React.FC<{ pointCount: number }> = ({ pointCount }) => {
   if (pointCount >= 4) {
@@ -194,7 +199,7 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
     setMachineBoundsInCam(points as IMachineBounds);
     const reprojectionError = updateCameraExtrinsics();
     toast.success(`Updated camera extrinsics`, {
-      description: `Reprojection error: ${reprojectionError.toFixed(2)}mm (< 1mm is good)`,
+      description: `Reprojection error: ${reprojectionError.toFixed(2)}px (< 1px is good)`,
     });
     navigate({ to: '/' });
   };

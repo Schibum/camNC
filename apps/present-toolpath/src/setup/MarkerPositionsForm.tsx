@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@wbcnc/ui/components/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@wbcnc/ui/components/form';
 import { Input } from '@wbcnc/ui/components/input';
+import { ExternalLink } from 'lucide-react';
 import { Control, useForm } from 'react-hook-form';
 import { Vector3 } from 'three';
 import z from 'zod';
@@ -107,7 +108,28 @@ export function MarkerPositionsForm({ onConfirmed }: { onConfirmed: () => void }
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <p className="text-sm">Markers can be placed outside the machine bounds.</p>
+        <p>You'll need to place 4 markers on (or close to) the wasteboard. They need to be visible in the camera image. Options:</p>
+        <ul className="list-disc list-inside">
+          <li>
+            Easiest setup is to engrave{' '}
+            <a
+              href="https://vector76.github.io/gcode_tpgen/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-500 hover:underline">
+              Squareness marks <ExternalLink className="size-4 inline-block" />
+            </a>{' '}
+            on the wasteboard at the machine bounds. Then select those manually in the camera view (next step).
+          </li>
+          <li>
+            Place{' '}
+            <a href="/aruco.pdf" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
+              ArUco markers <ExternalLink className="size-4 inline-block" />
+            </a>{' '}
+            next to the wasteboard at known machine coordinates. Harder to position accuratly, but they can be (re-)detected automatically
+            (e.g. in case the camera or table moves).
+          </li>
+        </ul>
         {markerIndices.map(i => (
           <div key={i}>
             <h3 className="font-medium mb-2">Marker {i}</h3>

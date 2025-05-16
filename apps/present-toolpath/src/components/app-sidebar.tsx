@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { Camera, Eye, Grid2x2, Grid3x3, HardDriveDownload, Route, Ruler, ScanQrCode, Settings2 } from 'lucide-react';
+import { Camera, Eye, Grid2x2, Grid3x3, HardDriveDownload, Puzzle, Route, Ruler, Scale3d, ScanQrCode, Settings2 } from 'lucide-react';
 import * as React from 'react';
 
 import { useLocation } from '@tanstack/react-router';
@@ -58,17 +58,17 @@ const settingsRoutes: NavRoute[] = [
   {
     title: 'FluidNC',
     to: '/setup/fluidnc',
-    icon: Ruler,
+    icon: Puzzle,
   },
   {
     title: 'Machine Bounds',
     to: '/setup/machine-bounds',
-    icon: Ruler,
+    icon: Scale3d,
   },
   {
     title: 'Marker Positions',
     to: '/setup/marker-positions',
-    icon: ScanQrCode,
+    icon: Ruler,
   },
   {
     title: 'Reference Points',
