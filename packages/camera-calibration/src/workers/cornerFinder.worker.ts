@@ -6,6 +6,8 @@ import type {
 } from "./types";
 
 let cv: any;
+// Use classic findChessboardCorners (true) or slower findChessboardCornersSB (false)
+const kUseClassic = true;
 
 class CornerFinderWorker {
   private isOpencvInitialized: boolean = false;
@@ -100,26 +102,38 @@ class CornerFinderWorker {
       // Allocate corners Mat
       cornersMat = new cv.Mat();
 
-      // Find chessboard corners
-      const found = cv.findChessboardCorners(
-        grayMat,
-        patternSizeCv,
-        cornersMat,
-        cv.CALIB_CB_ADAPTIVE_THRESH +
-          cv.CALIB_CB_NORMALIZE_IMAGE +
-          cv.CALIB_CB_FAST_CHECK
-      );
+      let found = false;
+      if (kUseClassic) {
+        // Find chessboard corners
+        found = cv.findChessboardCorners(
+          grayMat,
+          patternSizeCv,
+          cornersMat,
+          cv.CALIB_CB_ADAPTIVE_THRESH +
+            cv.CALIB_CB_NORMALIZE_IMAGE +
+            cv.CALIB_CB_FAST_CHECK
+        );
+      } else {
+        found = cv.findChessboardCornersSB(
+          grayMat,
+          patternSizeCv,
+          cornersMat,
+          0
+        );
+      }
 
       // If corners are found, refine them with cornerSubPix for better accuracy
       if (found) {
         // Refine corner locations with subpixel accuracy
-        cv.cornerSubPix(
-          grayMat,
-          cornersMat,
-          this.winSize,
-          this.zeroZone,
-          this.criteria
-        );
+        if (kUseClassic) {
+          cv.cornerSubPix(
+            grayMat,
+            cornersMat,
+            this.winSize,
+            this.zeroZone,
+            this.criteria
+          );
+        }
 
         // Get corner data as Float32Array
         const corners = convertCorners(cornersMat);
