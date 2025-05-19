@@ -10,183 +10,197 @@ let cv: any;
 // Use classic findChessboardCorners (true) or findChessboardCornersSB (false)
 const kUseClassic = false;
 
+const PREVIEW_MAX_SIDE = 1600;
+
 class CornerFinderWorker {
-  private isOpencvInitialized: boolean = false;
-  private isProcessing: boolean = false;
+  private isOpencvInitialized = false;
+  private isProcessing = false;
+
   private criteria: any;
   private winSize: any;
   private zeroZone: any;
+
+  // Re-used Mats (full-resolution)
   private srcMat: cv2.Mat | null = null;
   private grayMat: cv2.Mat | null = null;
-  private cornersMat: cv2.Mat | null = null;
+  private cornersMatFull: cv2.Mat | null = null;
   private patternSizeCv: cv2.Size | null = null;
 
-  constructor() {
-    // No initialization in constructor
-  }
+  constructor() {}
 
-  private _isBlurry(gray: any, maxSide = 640): boolean {
-    let work = gray;
+  // ------------ quick blur gate (variance of Laplacian) ------------------
+  private _isBlurry(gray: cv2.Mat, maxSide = 640): boolean {
+    let work: cv2.Mat = gray;
     if (maxSide > 0 && Math.max(gray.rows, gray.cols) > maxSide) {
       const scale = maxSide / Math.max(gray.rows, gray.cols);
       work = new cv.Mat();
-      cv.resize(
-        gray,
-        work,
-        new cv.Size(0, 0), // let OpenCV compute the new size
-        scale,
-        scale,
-        cv.INTER_AREA // best kernel when shrinking
-      );
+      cv.resize(gray, work, new cv.Size(0, 0), scale, scale, cv.INTER_AREA);
     }
 
-    const lap = new cv2.Mat();
-    cv2.Laplacian(work, lap, cv2.CV_64F);
+    const lap = new cv.Mat();
+    cv.Laplacian(work, lap, cv.CV_64F);
 
     const mean = new cv.Mat();
     const std = new cv.Mat();
-    cv.meanStdDev(lap, mean, std); // stdDev[0]² == variance
+    cv.meanStdDev(lap, mean, std);
     const score = std.data64F[0] ** 2;
-    console.log("[CornerFinderWorker] Blurriness score:", score);
+
     lap.delete();
     mean.delete();
     std.delete();
+    if (work !== gray) work.delete();
 
-    return score < 200;
+    return score < 200; // tweak threshold for your camera / lighting
   }
 
   async init(): Promise<boolean> {
-    console.log("[CornerFinderWorker] Initializing...");
-    if (this.isOpencvInitialized) {
-      return true;
-    }
+    if (this.isOpencvInitialized) return true;
 
-    await this.loadOpenCV();
-    this.isOpencvInitialized = true;
+    await ensureOpenCvIsLoaded();
+    cv = (self as any).cv;
+
     this.criteria = new cv.TermCriteria(
       cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER,
       30,
       0.001
     );
-
-    // Create a zero-size zone for cornerSubPix
     this.zeroZone = new cv.Size(-1, -1);
-
-    // Define window size for cornerSubPix
     this.winSize = new cv.Size(11, 11);
+
+    this.isOpencvInitialized = true;
     return true;
   }
 
-  private async loadOpenCV(): Promise<void> {
-    await ensureOpenCvIsLoaded();
-    cv = self.cv;
-  }
-
+  // --------------------------- main entry --------------------------------
   async processFrame(
     input: CornerFinderWorkerInput
   ): Promise<CornerFinderWorkerOutput> {
-    if (!this.isOpencvInitialized) {
-      const initialized = await this.init();
-      if (!initialized) {
-        throw new Error("OpenCV failed to load in worker.");
-      }
-    }
+    if (!this.isOpencvInitialized) await this.init();
 
-    if (this.isProcessing) {
-      console.warn("[CornerFinderWorker] Already processing, skipping frame.");
-      throw new Error("Worker is busy.");
-    }
-
-    const startAt = performance.now();
-
+    if (this.isProcessing) throw new Error("Worker is busy.");
     this.isProcessing = true;
 
+    const startAt = performance.now();
     const { imageData, width, height, patternWidth, patternHeight } = input;
 
     try {
+      /* 1. make sure reusable Mats exist (full-resolution) */
       if (!this.srcMat) {
         this.srcMat = new cv.Mat(height, width, cv.CV_8UC4);
         this.grayMat = new cv.Mat(height, width, cv.CV_8UC1);
       }
-
-      // Copy new RGBA pixels into the existing Mat buffer
-      const rgba = new Uint8ClampedArray(imageData);
-      this.srcMat!.data.set(rgba);
-
       if (!this.patternSizeCv) {
-        this.cornersMat?.delete();
         this.patternSizeCv = new cv.Size(patternWidth, patternHeight);
+
         const count = patternWidth * patternHeight;
-        // two‐channel float for (x,y)
-        this.cornersMat = new cv.Mat(count, 1, cv.CV_32FC2);
+        this.cornersMatFull?.delete();
+        this.cornersMatFull = new cv.Mat(count, 1, cv.CV_32FC2);
       }
 
-      // Now convert & detect in-place:
+      /* 2. load incoming RGBA buffer directly into srcMat */
+      this.srcMat!.data.set(new Uint8ClampedArray(imageData));
+
+      /* 3. convert to gray */
       cv.cvtColor(this.srcMat, this.grayMat, cv.COLOR_RGBA2GRAY);
 
-      if (this._isBlurry(this.grayMat)) {
-        console.warn(
-          "[CornerFinderWorker] Image is too blurry, skipping frame."
-        );
+      /* 4. fast blur gate on the gray-preview (internal down-scale) */
+      if (this._isBlurry(this.grayMat!)) {
+        console.warn("[CornerFinderWorker] Frame too blurry – skipped");
         return { corners: null };
       }
 
+      /* 5. build (or re-use) a PREVIEW image for pattern search */
+      let grayPreview: cv2.Mat = this.grayMat!; // may remain full-res
+      let scale = 1.0;
+      let needDeletePreview = false;
+
+      if (PREVIEW_MAX_SIDE > 0 && Math.max(width, height) > PREVIEW_MAX_SIDE) {
+        scale = PREVIEW_MAX_SIDE / Math.max(width, height);
+        grayPreview = new cv.Mat();
+        cv.resize(
+          this.grayMat,
+          grayPreview,
+          new cv.Size(0, 0),
+          scale,
+          scale,
+          cv.INTER_AREA
+        );
+        needDeletePreview = true;
+      }
+
+      /* 6. detect chessboard corners on the preview */
+      const cornersPreview = new cv.Mat();
       let found = false;
       if (kUseClassic) {
-        // Find chessboard corners
         found = cv.findChessboardCorners(
-          this.grayMat,
+          grayPreview,
           this.patternSizeCv,
-          this.cornersMat,
+          cornersPreview,
           cv.CALIB_CB_ADAPTIVE_THRESH +
             cv.CALIB_CB_NORMALIZE_IMAGE +
             cv.CALIB_CB_FAST_CHECK
         );
       } else {
         found = cv.findChessboardCornersSB(
-          this.grayMat,
+          grayPreview,
           this.patternSizeCv,
-          this.cornersMat,
+          cornersPreview,
           0
         );
       }
 
-      // If corners are found, refine them with cornerSubPix for better accuracy
-      if (found) {
-        // Refine corner locations with subpixel accuracy
-        if (kUseClassic) {
-          cv.cornerSubPix(
-            this.grayMat,
-            this.cornersMat,
-            this.winSize,
-            this.zeroZone,
-            this.criteria
-          );
-        }
-
-        // Get corner data as Float32Array
-        const corners = convertCorners(this.cornersMat);
-        return { corners };
-      } else {
+      if (!found) {
+        if (needDeletePreview) grayPreview.delete();
+        cornersPreview.delete();
         return { corners: null };
       }
+
+      /* 7. upscale coordinates → full-res Mat */
+      for (let i = 0; i < cornersPreview.rows; ++i) {
+        const x = cornersPreview.data32F[2 * i] / scale;
+        const y = cornersPreview.data32F[2 * i + 1] / scale;
+        this.cornersMatFull!.data32F[2 * i] = x;
+        this.cornersMatFull!.data32F[2 * i + 1] = y;
+      }
+
+      /* 8. sub-pixel refinement at NATIVE resolution (always) */
+      const subPixStart = performance.now();
+      cv.cornerSubPix(
+        this.grayMat,
+        this.cornersMatFull,
+        this.winSize,
+        this.zeroZone,
+        this.criteria
+      );
+      const subPixEnd = performance.now();
+      // console.log(
+      //   `[CornerFinderWorker] Sub-pixel refinement took ${(
+      //     subPixEnd - subPixStart
+      //   ).toFixed(2)} ms`
+      // );
+
+      /* 9. convert to Float32Array for posting back */
+      const corners = convertCorners(this.cornersMatFull);
+
+      /* 10. cleanup preview mats */
+      if (needDeletePreview) grayPreview.delete();
+      cornersPreview.delete();
+
+      return { corners };
     } finally {
       this.isProcessing = false;
-      const endAt = performance.now();
       console.log(
-        `[CornerFinderWorker] Processed frame in ${endAt - startAt}ms`
+        `[CornerFinderWorker] frame processed in ${(
+          performance.now() - startAt
+        ).toFixed(2)} ms`
       );
     }
   }
 }
 
-// Create an instance of the worker
+/* ------------------ singleton + Comlink plumbing ------------------------ */
 const worker = new CornerFinderWorker();
-
-// Expose the worker instance to the main thread using Comlink
 Comlink.expose(worker);
 
-// Handle errors
-self.onerror = (error) => {
-  console.error("[CornerFinderWorker] Uncaught worker error:", error);
-};
+self.onerror = (err) =>
+  console.error("[CornerFinderWorker] Uncaught worker error:", err);

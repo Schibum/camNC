@@ -21,9 +21,9 @@ import { createImageBlob } from "../lib/imageUtils";
 // Smoothing factor for FPS calculation (lower value = smoother)
 const FPS_SMOOTHING_FACTOR = 0.8;
 // Default stability duration threshold in seconds
-const DEFAULT_STABILITY_DURATION_THRESHOLD = 0; // 1.0;
+const DEFAULT_STABILITY_DURATION_THRESHOLD = 0.5;
 // Default max relative movement threshold (fraction of image diagonal)
-const DEFAULT_MAX_RELATIVE_MOVEMENT_THRESHOLD = 0.0005; // 0.05% of diagonal
+const DEFAULT_MAX_RELATIVE_MOVEMENT_THRESHOLD = 0.005; // 0.05% of diagonal
 
 // --- Slice Interfaces ---
 

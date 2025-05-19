@@ -71,9 +71,9 @@ export const InstructionOverlay: React.FC<InstructionOverlayProps> = ({
     const stabThreshPercent = 90;
 
     if (uniquenessPercentage < simThresh) {
-      setMessage("Move chessboard to new location");
+      setMessage(<>↗️ Move chessboard to new location</>);
     } else if (stabilityPercentage < stabThreshPercent) {
-      setMessage("Hold still");
+      setMessage(<>✋ Hold still</>);
     } else {
       setMessage(null); // Clear message if ready for capture
     }
