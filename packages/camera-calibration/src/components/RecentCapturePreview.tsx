@@ -1,16 +1,20 @@
-import { useEffect, useRef, useState } from 'react';
-import { useCalibrationStore } from '../store/calibrationStore';
-import { useSpring, animated } from '@react-spring/web';
+import { animated, useSpring } from "@react-spring/web";
+import { useEffect, useRef, useState } from "react";
+import { useCalibrationStore } from "../store/calibrationStore";
 
-const AnimatedDiv = animated('div');
+const AnimatedDiv = animated("div");
 
 export const RecentCapturePreview: React.FC = () => {
+  "use no memo";
   const { capturedFrames, setShowGallery } = useCalibrationStore();
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const prevFrameCount = useRef(capturedFrames.length);
   const isInitialMount = useRef(true);
 
-  const mostRecentFrame = capturedFrames.length > 0 ? capturedFrames[capturedFrames.length - 1] : null;
+  const mostRecentFrame =
+    capturedFrames.length > 0
+      ? capturedFrames[capturedFrames.length - 1]
+      : null;
 
   // Generate Object URL from Blob
   useEffect(() => {
@@ -31,7 +35,7 @@ export const RecentCapturePreview: React.FC = () => {
 
   // Animation logic using react-spring for both entry and hover
   const [springs, api] = useSpring(() => ({
-    from: { opacity: 1, transform: 'translate(0px, 0px) scale(1)' },
+    from: { opacity: 1, transform: "translate(0px, 0px) scale(1)" },
     config: { tension: 220, friction: 20 }, // Default config
   }));
 
@@ -41,15 +45,15 @@ export const RecentCapturePreview: React.FC = () => {
       isInitialMount.current = false;
       prevFrameCount.current = capturedFrames.length;
       // Set initial state without animation
-      api.set({ opacity: 1, transform: 'translate(0px, 0px) scale(1)' });
+      api.set({ opacity: 1, transform: "translate(0px, 0px) scale(1)" });
       return;
     }
 
     // Animate only when a new frame is added
     if (capturedFrames.length > prevFrameCount.current) {
       api.start({
-        from: { opacity: 0, transform: 'translate(40vw, -40vh) scale(0.1)' }, // Start from near center
-        to: { opacity: 1, transform: 'translate(0px, 0px) scale(1)' },
+        from: { opacity: 0, transform: "translate(40vw, -40vh) scale(0.1)" }, // Start from near center
+        to: { opacity: 1, transform: "translate(0px, 0px) scale(1)" },
         // Config specific to entry animation can be placed here if needed
       });
     }
@@ -62,13 +66,12 @@ export const RecentCapturePreview: React.FC = () => {
 
   // Hover handlers
   const handleMouseEnter = () => {
-    api.start({ transform: 'translate(0px, 0px) scale(1.05)' });
+    api.start({ transform: "translate(0px, 0px) scale(1.05)" });
   };
 
   const handleMouseLeave = () => {
-    api.start({ transform: 'translate(0px, 0px) scale(1)' });
+    api.start({ transform: "translate(0px, 0px) scale(1)" });
   };
-
 
   return (
     <AnimatedDiv
@@ -84,9 +87,9 @@ export const RecentCapturePreview: React.FC = () => {
         className="recent-capture-image w-full h-full object-cover"
       />
       {capturedFrames.length > 0 && (
-          <div className="recent-capture-count absolute top-[5px] right-[5px] bg-red-600 text-white text-[12px] w-[20px] h-[20px] rounded-full flex items-center justify-center">
-            {capturedFrames.length}
-          </div>
+        <div className="recent-capture-count absolute top-[5px] right-[5px] bg-red-600 text-white text-[12px] w-[20px] h-[20px] rounded-full flex items-center justify-center">
+          {capturedFrames.length}
+        </div>
       )}
     </AnimatedDiv>
   );

@@ -35,6 +35,7 @@ export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
   stabilityThreshold,
   similarityThreshold,
 }) => {
+  "use no memo";
   // Select actions (references are generally stable)
   const initializeSettings = useCalibrationStore(
     (state) => state.initializeSettings

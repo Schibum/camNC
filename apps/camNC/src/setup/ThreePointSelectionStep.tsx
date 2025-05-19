@@ -213,6 +213,7 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
       toast.error('Detected ' + markers.length + ' markers, expected 4, ignoring');
       return;
     }
+    toast.success('Detected 4 markers', { position: 'top-right' });
     setPoints(markers.map(m => [m.x, m.y]));
   };
 

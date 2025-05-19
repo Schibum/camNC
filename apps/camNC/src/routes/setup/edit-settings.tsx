@@ -28,6 +28,7 @@ const innerSchema = z.object({
   }),
   machineBounds: z.array(z.number()).length(4),
   machineBoundsInCam: z.array(z.array(z.number()).length(2)).length(4),
+  markerPositions: z.array(z.array(z.number()).length(3)).length(4),
 });
 
 const schema = z.object({
@@ -68,6 +69,7 @@ const schema = z.object({
           new Vector2().fromArray(data.machineBounds.slice(0, 2)),
           new Vector2().fromArray(data.machineBounds.slice(2, 4))
         ),
+        markerPositions: data.markerPositions.map(p => new Vector3(...p)),
         machineBoundsInCam: data.machineBoundsInCam,
       };
     }),
@@ -87,6 +89,7 @@ function calibToJson(data: ICamSource) {
         t: data.extrinsics!.t.toArray(),
       },
       machineBounds: data.machineBounds?.min.toArray().concat(data.machineBounds?.max.toArray()),
+      markerPositions: data.markerPositions?.map(p => p.toArray()),
       machineBoundsInCam: data.machineBoundsInCam,
     },
     null,
