@@ -1,12 +1,14 @@
-import type * as cv from '@techstark/opencv-js'
+import type * as cv from "@techstark/opencv-js";
 
-const win = window as any;
+const win = self as any;
 async function loadOpenCv() {
-  const _cv = await (await import(/* @vite-ignore */ location.origin + '/opencv_js.js')).default() as typeof cv;
+  const _cv = (await (
+    await import(/* @vite-ignore */ location.origin + "/opencv_js.js")
+  ).default()) as typeof cv;
   win.cv = _cv;
 }
 
- let _ensureOpenCvIsLoadedPromise: Promise<void>;
+let _ensureOpenCvIsLoadedPromise: Promise<void>;
 
 // Always return the same promise object to allow passing it to react use()
 export function ensureOpenCvIsLoaded() {
@@ -41,7 +43,9 @@ export const cv2 = new Proxy(
   {
     get: (target, prop) => {
       if (!win.cv) {
-        throw new Error('OpenCV is not loaded. Call ensureOpenCvIsLoaded() first.');
+        throw new Error(
+          "OpenCV is not loaded. Call ensureOpenCvIsLoaded() first."
+        );
       }
       return win.cv[prop as keyof typeof cv];
     },

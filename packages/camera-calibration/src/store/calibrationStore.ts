@@ -21,9 +21,9 @@ import { createImageBlob } from "../lib/imageUtils";
 // Smoothing factor for FPS calculation (lower value = smoother)
 const FPS_SMOOTHING_FACTOR = 0.8;
 // Default stability duration threshold in seconds
-const DEFAULT_STABILITY_DURATION_THRESHOLD = 1.0;
+const DEFAULT_STABILITY_DURATION_THRESHOLD = 0; // 1.0;
 // Default max relative movement threshold (fraction of image diagonal)
-const DEFAULT_MAX_RELATIVE_MOVEMENT_THRESHOLD = 0.003; // 0.3% of diagonal
+const DEFAULT_MAX_RELATIVE_MOVEMENT_THRESHOLD = 0.0005; // 0.05% of diagonal
 
 // --- Slice Interfaces ---
 
@@ -112,7 +112,10 @@ type CalibrationState = CameraSlice &
   CalibrationResultSlice;
 
 function getAspectRatio(resolution: Resolution) {
-  const { width, height } = resolution;
+  // Hack, seems FF may flip width/height.
+  const width = Math.max(resolution.width, resolution.height);
+  const height = Math.min(resolution.width, resolution.height);
+  // const { width, height } = resolution;
   const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
   const divisor = gcd(width, height);
   return `${width / divisor}:${height / divisor}`;
@@ -143,12 +146,31 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
       let vidRes = { width: element.videoWidth, height: element.videoHeight };
       if (resolution) {
         if (getAspectRatio(resolution) !== getAspectRatio(vidRes)) {
+          toast.error(
+            "Aspect ratio mismatch between provided and video element",
+            {
+              description: `Expected: ${getAspectRatio(resolution)}, actual: ${getAspectRatio(vidRes)}`,
+              duration: Infinity,
+              closeButton: true,
+            }
+          );
           throw new Error(
             "Aspect ratio mismatch between provided and video element"
           );
         }
-        console.log("Using externally provided resolution", resolution);
-        vidRes = resolution;
+        // Flip width/height if necessary (seen on FF mobile).
+        if (
+          vidRes.width === resolution.height &&
+          vidRes.height === resolution.width
+        ) {
+          console.log(
+            "Externally provided resolution is identical, just flipped",
+            resolution
+          );
+        } else {
+          console.log("Using externally provided resolution", resolution);
+          vidRes = resolution;
+        }
       }
       const { width, height } = vidRes;
       if (width > 0 && height > 0) {

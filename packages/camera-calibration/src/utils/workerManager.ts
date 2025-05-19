@@ -84,14 +84,10 @@ export class CornerFinderWorkerManager {
       );
     }
 
-    const messageId = Math.random().toString(36).substring(7); // Generate a random ID
-
     this.processingState = true;
 
     try {
       const message: CornerFinderWorkerInput = {
-        type: "processFrame",
-        messageId,
         imageData: imageData.data.buffer as ArrayBuffer,
         width: imageData.width,
         height: imageData.height,
