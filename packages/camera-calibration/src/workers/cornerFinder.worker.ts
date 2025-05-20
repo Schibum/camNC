@@ -91,7 +91,7 @@ class CornerFinderWorker {
     shiftedHull.delete();
     hull.delete();
 
-    console.log(`blur in chessboard: ${varLap}`);
+    // console.log(`blur in chessboard: ${varLap}`);
 
     return varLap < BOARD_BLUR_THRESH;
   }
