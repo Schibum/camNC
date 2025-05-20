@@ -1,6 +1,7 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { CornerFinderWorker } from "./cornerFinder.worker";
 
+import * as Comlink from "comlink";
 import imgPathBlurry from "../test_data/chessboard_blurry.jpg";
 import imgPathGood from "../test_data/chessboard_good.jpg";
 import imgNoChessboard from "../test_data/no_chessboard.jpg";
@@ -33,16 +34,26 @@ async function getImageData(
 }
 
 describe("CornerFinderWorker", () => {
-  let worker: CornerFinderWorker;
+  let worker: Worker;
+  let workerProxy: Comlink.Remote<CornerFinderWorker>;
 
-  beforeAll(async () => {
-    worker = new CornerFinderWorker();
-    await worker.init();
+  // Note: there seems to be some emscripten issue/race when not re-creating the
+  // worker for each test, so just avoid for now.
+  beforeEach(async () => {
+    worker = new Worker(new URL("./cornerFinder.worker.ts", import.meta.url), {
+      type: "module",
+    });
+    workerProxy = Comlink.wrap<CornerFinderWorker>(worker);
+    await workerProxy.init();
+  });
+
+  afterEach(() => {
+    worker.terminate();
   });
 
   it("should find corners in a clear chessboard image", async () => {
     const { imageData, width, height } = await getImageData(imgPathGood);
-    const result = await worker.processFrame({
+    const result = await workerProxy.processFrame({
       imageData,
       width,
       height,
@@ -57,7 +68,7 @@ describe("CornerFinderWorker", () => {
 
   it("should return null corners for an image without a chessboard", async () => {
     const { imageData, width, height } = await getImageData(imgNoChessboard);
-    const result = await worker.processFrame({
+    const result = await workerProxy.processFrame({
       imageData,
       width,
       height,
@@ -70,7 +81,7 @@ describe("CornerFinderWorker", () => {
 
   it("should detect blurry chessboard and return isBlurry true", async () => {
     const { imageData, width, height } = await getImageData(imgPathBlurry);
-    const result = await worker.processFrame({
+    const result = await workerProxy.processFrame({
       imageData,
       width,
       height,

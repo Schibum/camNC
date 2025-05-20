@@ -3,15 +3,10 @@ import type {
   CornerFinderWorkerInput,
   CornerFinderWorkerOutput,
 } from "../workers/types";
-
+import { CornerFinderWorker } from "../workers/cornerFinder.worker";
 export class CornerFinderWorkerManager {
   private worker: Worker | null = null;
-  private workerProxy: Comlink.Remote<{
-    init: () => Promise<boolean>;
-    processFrame: (
-      input: CornerFinderWorkerInput
-    ) => Promise<CornerFinderWorkerOutput>;
-  }> | null = null;
+  private workerProxy: Comlink.Remote<CornerFinderWorker> | null = null;
   private processingState: boolean = false;
 
   constructor() {
