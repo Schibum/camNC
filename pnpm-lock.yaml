@@ -675,6 +675,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^4.4.0
         version: 4.4.0(vite@6.3.1(@types/node@22.14.1)(jiti@2.4.2)(lightningcss@1.29.2)(tsx@4.19.3)(yaml@2.7.1))
+      '@vitest/browser':
+        specifier: 3.2.0-beta.1
+        version: 3.2.0-beta.1(playwright@1.51.1)(vite@6.3.1(@types/node@22.14.1)(jiti@2.4.2)(lightningcss@1.29.2)(tsx@4.19.3)(yaml@2.7.1))(vitest@3.2.0-beta.1)
       '@wbcnc/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
@@ -708,6 +711,9 @@ importers:
       vite:
         specifier: ^6.3.1
         version: 6.3.1(@types/node@22.14.1)(jiti@2.4.2)(lightningcss@1.29.2)(tsx@4.19.3)(yaml@2.7.1)
+      vitest:
+        specifier: 3.2.0-beta.1
+        version: 3.2.0-beta.1(@types/debug@4.1.12)(@types/node@22.14.1)(@vitest/browser@3.2.0-beta.1)(@vitest/ui@3.2.0-beta.1)(jiti@2.4.2)(jsdom@26.1.0)(lightningcss@1.29.2)(tsx@4.19.3)(yaml@2.7.1)
 
   packages/eslint-config:
     dependencies:
@@ -11905,7 +11911,7 @@ snapshots:
       event-iterator: 2.0.0
       it-stream-types: 2.0.2
       uint8arrays: 5.1.0
-      ws: 8.18.1
+      ws: 8.18.2
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate

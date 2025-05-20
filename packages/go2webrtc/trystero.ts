@@ -123,12 +123,24 @@ const getStream = async (
   return { stream: await newPromise, streamPromise: null };
 };
 
-function getMaxResolution(stream: MediaStream) {
+async function getMaxResolution(stream: MediaStream) {
   const track = stream.getVideoTracks()[0];
   if (!track) throw new Error("No video track found");
   let width = track.getSettings().width;
   let height = track.getSettings().height;
   if (!width || !height) throw new Error("No width or height found");
+  // HACK, seems like FF mobile flips width/height.
+  if (navigator.userAgent.includes("Firefox")) {
+    const video = document.createElement("video");
+    video.srcObject = stream;
+    await new Promise<void>((resolve) => {
+      video.onloadedmetadata = () => {
+        width = video.videoWidth;
+        height = video.videoHeight;
+        resolve();
+      };
+    });
+  }
   return { width, height };
 }
 
@@ -180,7 +192,7 @@ export const createServer = (options: ServerOptions) => {
         streamPromise = result.streamPromise;
 
         room.addStream(streamCache, peerId);
-        sendMaxResolution(getMaxResolution(streamCache), peerId);
+        sendMaxResolution(await getMaxResolution(streamCache), peerId);
         options.onStateChange?.(ServerState.STREAMING);
       });
 

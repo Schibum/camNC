@@ -7,8 +7,11 @@ import type {
 } from "./types";
 
 let cv: any;
-const kUseClassic = false; // true -> findChessboardCorners; false -> findChessboardCornersSB
-const PREVIEW_MAX_SIDE = 1600; // px, down‑scale for corner search
+
+const kUseClassic = true;
+const PREVIEW_MAX_SIDE = 1600;
+const FRAME_BLUR_THRESH = 400;
+const BOARD_BLUR_THRESH = 800;
 
 class CornerFinderWorker {
   private isOpencvInitialized = false;
@@ -18,18 +21,22 @@ class CornerFinderWorker {
   private winSize: any;
   private zeroZone: any;
 
-  private srcMat: cv2.Mat | null = null; // RGBA full‑res
-  private grayMat: cv2.Mat | null = null; // gray  full‑res
+  private srcMat: cv2.Mat | null = null;
+  private grayMat: cv2.Mat | null = null;
   private cornersMatFull: cv2.Mat | null = null;
   private patternSizeCv: cv2.Size | null = null;
 
-  /*–––––––––––––––––––––––––––– Utility: Laplacian variance –––––––––––––*/
-  private _lapVariance(mat: cv2.Mat): number {
+  private _lapVariance(mat: cv2.Mat, mask?: cv2.Mat): number {
     const lap = new cv.Mat();
     cv.Laplacian(mat, lap, cv.CV_64F);
+
     const mean = new cv.Mat();
     const std = new cv.Mat();
-    cv.meanStdDev(lap, mean, std);
+    if (mask) {
+      cv.meanStdDev(lap, mean, std, mask);
+    } else {
+      cv.meanStdDev(lap, mean, std);
+    }
     const varLap = std.data64F[0] ** 2;
     lap.delete();
     mean.delete();
@@ -37,66 +44,67 @@ class CornerFinderWorker {
     return varLap;
   }
 
-  /* Fast pre‑gate on whole frame (optional) */
-  private _isBlurryFrame(gray: cv2.Mat, maxSide = 640, thresh = 200): boolean {
+  private _isBlurryFrame(gray: cv2.Mat): boolean {
     let work = gray;
-    if (maxSide > 0 && Math.max(gray.rows, gray.cols) > maxSide) {
-      const scale = maxSide / Math.max(gray.rows, gray.cols);
+    if (Math.max(gray.rows, gray.cols) > 640) {
+      const scale = 640 / Math.max(gray.rows, gray.cols);
       work = new cv.Mat();
       cv.resize(gray, work, new cv.Size(0, 0), scale, scale, cv.INTER_AREA);
     }
-    const blurry = this._lapVariance(work) < thresh;
+    const varLap = this._lapVariance(work);
+    const blurry = varLap < FRAME_BLUR_THRESH;
+
+    console.log(`blur in frame: ${varLap}`);
     if (work !== gray) work.delete();
     return blurry;
   }
 
-  /* NEW: test blur **inside the chessboard ROI** (preview coordinates) */
   private _isChessboardBlurry(
     grayPreview: cv2.Mat,
-    cornersPreview: cv2.Mat,
-    thresh = 200
+    cornersPreview: cv2.Mat
   ): boolean {
-    // 1. compute bounding box of detected corners
-    let minX = Number.POSITIVE_INFINITY,
-      minY = Number.POSITIVE_INFINITY,
-      maxX = 0,
-      maxY = 0;
-    for (let i = 0; i < cornersPreview.rows; ++i) {
-      const x = cornersPreview.data32F[2 * i];
-      const y = cornersPreview.data32F[2 * i + 1];
-      if (x! < minX) minX = x!;
-      if (y! < minY) minY = y!;
-      if (x! > maxX) maxX = x!;
-      if (y! > maxY) maxY = y!;
+    const pts = new cv.Mat();
+    cornersPreview.convertTo(pts, cv.CV_32SC2);
+    const hull = new cv.Mat();
+    cv.convexHull(pts, hull, false, true);
+    pts.delete();
+
+    if (hull.rows < 3) {
+      hull.delete();
+      return true;
     }
 
-    // 2. add 10 % margin to catch slight motion blur outside
-    const marginX = 0.1 * (maxX - minX);
-    const marginY = 0.1 * (maxY - minY);
-    const x0 = Math.max(Math.floor(minX - marginX), 0);
-    const y0 = Math.max(Math.floor(minY - marginY), 0);
-    const x1 = Math.min(Math.ceil(maxX + marginX), grayPreview.cols - 1);
-    const y1 = Math.min(Math.ceil(maxY + marginY), grayPreview.rows - 1);
-    const w = x1 - x0;
-    const h = y1 - y0;
-    if (w <= 0 || h <= 0) return true; // something went wrong – treat as blurry
+    const bbox = cv.boundingRect(hull);
+    console.log(`bbox: ${bbox.x}, ${bbox.y}, ${bbox.width}, ${bbox.height}`);
+    const roiGray = grayPreview.roi(bbox);
+    const roiMask = new cv.Mat.zeros(bbox.height, bbox.width, cv.CV_8UC1);
+    const shiftedHull = new cv.Mat();
+    hull.convertTo(shiftedHull, cv.CV_32S);
 
-    // 3. ROI and compute variance
-    const roiRect = new cv.Rect(x0, y0, w, h);
-    const roi = grayPreview.roi(roiRect);
-    const varLap = this._lapVariance(roi);
+    for (let i = 0; i < shiftedHull.rows; i++) {
+      shiftedHull.data32S[2 * i] -= bbox.x;
+      shiftedHull.data32S[2 * i + 1] -= bbox.y;
+    }
+    cv.fillConvexPoly(roiMask, shiftedHull, new cv.Scalar(255));
+
+    const varLap = this._lapVariance(roiGray, roiMask);
+    const area = cv.countNonZero(roiMask);
+
+    roiGray.delete();
+    roiMask.delete();
+    shiftedHull.delete();
+    hull.delete();
+
+    if (area < 50) return true;
     console.log(`blur in chessboard: ${varLap}`);
-    roi.delete();
 
-    return varLap < thresh;
+    return varLap < BOARD_BLUR_THRESH;
   }
 
-  /*–––––––––––––––––––––––––– OpenCV init –––––––––––––––––––––––––––––––*/
   async init(): Promise<boolean> {
     if (this.isOpencvInitialized) return true;
     await ensureOpenCvIsLoaded();
     cv = (self as any).cv;
-
     this.criteria = new cv.TermCriteria(
       cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER,
       30,
@@ -104,12 +112,10 @@ class CornerFinderWorker {
     );
     this.zeroZone = new cv.Size(-1, -1);
     this.winSize = new cv.Size(11, 11);
-
     this.isOpencvInitialized = true;
     return true;
   }
 
-  /*–––––––––––––––––––––––––– main worker entry –––––––––––––––––––––––––*/
   async processFrame(
     input: CornerFinderWorkerInput
   ): Promise<CornerFinderWorkerOutput> {
@@ -121,7 +127,6 @@ class CornerFinderWorker {
     const { imageData, width, height, patternWidth, patternHeight } = input;
 
     try {
-      /* allocate persistent full‑res Mats once */
       if (!this.srcMat) {
         this.srcMat = new cv.Mat(height, width, cv.CV_8UC4);
         this.grayMat = new cv.Mat(height, width, cv.CV_8UC1);
@@ -133,21 +138,18 @@ class CornerFinderWorker {
         this.cornersMatFull = new cv.Mat(count, 1, cv.CV_32FC2);
       }
 
-      /* load RGBA buffer → srcMat */
       this.srcMat!.data.set(new Uint8ClampedArray(imageData));
-      cv.cvtColor(this.srcMat, this.grayMat, cv.COLOR_RGBA2GRAY);
+      cv.cvtColor(this.srcMat!, this.grayMat!, cv.COLOR_RGBA2GRAY);
 
-      /* optional whole‑frame blur gate (fast) */
       if (this._isBlurryFrame(this.grayMat!)) {
         console.info("[CFW] frame blurry → skip");
         return { corners: null };
       }
 
-      /* build preview (might equal grayMat) */
       let grayPreview: cv2.Mat = this.grayMat!;
       let scale = 1.0;
       let needDeletePreview = false;
-      if (PREVIEW_MAX_SIDE > 0 && Math.max(width, height) > PREVIEW_MAX_SIDE) {
+      if (Math.max(width, height) > PREVIEW_MAX_SIDE) {
         scale = PREVIEW_MAX_SIDE / Math.max(width, height);
         grayPreview = new cv.Mat();
         cv.resize(
@@ -161,7 +163,6 @@ class CornerFinderWorker {
         needDeletePreview = true;
       }
 
-      /* detect chessboard in preview */
       const cornersPreview = new cv.Mat();
       let found = false;
       if (kUseClassic) {
@@ -188,14 +189,13 @@ class CornerFinderWorker {
         return { corners: null };
       }
 
-      if (this._isChessboardBlurry(grayPreview, cornersPreview)) {
-        console.info("[CFW] chessboard blurry → skip");
-        if (needDeletePreview) grayPreview.delete();
-        cornersPreview.delete();
-        return { corners: null };
-      }
+      // if (this._isChessboardBlurry(grayPreview, cornersPreview)) {
+      //   console.info("[CFW] chessboard blurry → skip");
+      //   if (needDeletePreview) grayPreview.delete();
+      //   cornersPreview.delete();
+      //   return { corners: null };
+      // }
 
-      /* upscale preview coordinates → full‑res Mat */
       for (let i = 0; i < cornersPreview.rows; ++i) {
         this.cornersMatFull!.data32F[2 * i] =
           cornersPreview.data32F[2 * i] / scale;
@@ -203,7 +203,6 @@ class CornerFinderWorker {
           cornersPreview.data32F[2 * i + 1] / scale;
       }
 
-      /* sub‑pixel refinement (always native res) */
       cv.cornerSubPix(
         this.grayMat,
         this.cornersMatFull,
@@ -211,7 +210,6 @@ class CornerFinderWorker {
         this.zeroZone,
         this.criteria
       );
-
       const corners = convertCorners(this.cornersMatFull);
 
       if (needDeletePreview) grayPreview.delete();
@@ -225,7 +223,6 @@ class CornerFinderWorker {
   }
 }
 
-/*–––––––––––––––– Comlink plumbing –––––––––––––––––*/
 const worker = new CornerFinderWorker();
 Comlink.expose(worker);
 

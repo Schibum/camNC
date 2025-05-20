@@ -112,10 +112,7 @@ type CalibrationState = CameraSlice &
   CalibrationResultSlice;
 
 function getAspectRatio(resolution: Resolution) {
-  // Hack, seems FF may flip width/height.
-  const width = Math.max(resolution.width, resolution.height);
-  const height = Math.min(resolution.width, resolution.height);
-  // const { width, height } = resolution;
+  const { width, height } = resolution;
   const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
   const divisor = gcd(width, height);
   return `${width / divisor}:${height / divisor}`;
@@ -143,7 +140,7 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
     element.muted = true;
 
     const handleMetadataLoaded = () => {
-      let vidRes = { width: element.videoWidth, height: element.videoHeight };
+      const vidRes = { width: element.videoWidth, height: element.videoHeight };
       if (resolution) {
         if (getAspectRatio(resolution) !== getAspectRatio(vidRes)) {
           toast.error(
@@ -158,19 +155,7 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
             "Aspect ratio mismatch between provided and video element"
           );
         }
-        // Flip width/height if necessary (seen on FF mobile).
-        if (
-          vidRes.width === resolution.height &&
-          vidRes.height === resolution.width
-        ) {
-          console.log(
-            "Externally provided resolution is identical, just flipped",
-            resolution
-          );
-        } else {
-          console.log("Using externally provided resolution", resolution);
-          vidRes = resolution;
-        }
+        console.log("Using externally provided resolution", resolution);
       }
       const { width, height } = vidRes;
       if (width > 0 && height > 0) {
