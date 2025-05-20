@@ -18,7 +18,7 @@ function RouteComponent() {
           <CardHeader>
             <CardTitle>FluidNC Integration</CardTitle>
             <CardDescription>
-              Add under Settings → Interface → Additional Content as Panel with type Extension
+              In WebUI v3, add under Settings → Interface → Additional Content as Panel with type Extension.
               <p>This is optional, you can also just continue without setting up the FluidNC integration.</p>
             </CardDescription>
           </CardHeader>

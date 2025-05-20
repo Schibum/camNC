@@ -85,7 +85,7 @@ const AnimatedPlane = animated(Plane);
 function ToolpathBackgroundPlane() {
   const isToolpathHovered = useStore(s => s.isToolpathHovered);
   const toolpath = useStore(s => s.toolpath);
-  const { opacity } = useSpring({ opacity: isToolpathHovered ? 0.15 : 0.05 });
+  const { opacity } = useSpring({ opacity: isToolpathHovered ? 0.05 : 0.02 });
   const bounds = toolpath?.getBounds();
   const boundingSize = useMemo(() => {
     if (!bounds) return null;

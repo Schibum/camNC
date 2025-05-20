@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { TooltipIconButton } from './TooltipIconButton';
 
 export function SetZeroButton() {
+  'use no memo';
   const [isLoading, setIsLoading] = useState(false);
   const toolpathOffset = useStore(s => s.toolpathOffset);
   const cncApi = getCncApi();
@@ -24,5 +25,13 @@ export function SetZeroButton() {
     });
   }
 
-  return <TooltipIconButton label="Zero XY" icon={<CircleOff />} shortcut="z" onClick={onClick} disabled={isLoading} />;
+  return (
+    <TooltipIconButton
+      label="Zero XY"
+      icon={<CircleOff />}
+      shortcut="z"
+      onClick={onClick}
+      disabled={isLoading || !cncApi.nc.isConnected.value}
+    />
+  );
 }
