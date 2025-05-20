@@ -2,10 +2,7 @@ import { cv2, ensureOpenCvIsLoaded } from "@wbcnc/load-opencv";
 
 import * as Comlink from "comlink";
 import { convertCorners } from "../lib/calibrationCore";
-import type {
-  CornerFinderWorkerInput,
-  CornerFinderWorkerOutput,
-} from "./types";
+import { CornerFinderWorkerInput, CornerFinderWorkerOutput } from "./types";
 
 const FRAME_BLUR_THRESH = 400;
 const BOARD_BLUR_THRESH = 100;

@@ -32,7 +32,7 @@ export function createObjectPoints(
 ): any {
   const { width, height } = patternSize;
   const numCorners = width * height;
-  const cv = window.cv;
+  const cv = self.cv;
 
   const objp = new cv.Mat(numCorners, 1, cv.CV_32FC3);
   for (let i = 0; i < height; i++) {
@@ -180,7 +180,6 @@ export function calculateSimilarityScore(
 
 /**
  * Performs camera calibration using the captured frames
- * // TODO: move to worker
  */
 export function calibrateCamera(
   capturedFrames: CapturedFrame[],
@@ -192,7 +191,7 @@ export function calibrateCamera(
     throw new Error("At least 3 frames required for calibration");
   }
 
-  const cv = window.cv;
+  const cv = self.cv;
   const imageSize = new cv.Size(frameSize.width, frameSize.height);
 
   // Prepare MatVectors for object and image points

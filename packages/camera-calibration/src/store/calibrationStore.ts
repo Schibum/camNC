@@ -1,10 +1,8 @@
 import { toast } from "@wbcnc/ui/components/sonner";
 import { v4 as uuidv4 } from "uuid";
 import { create, StateCreator } from "zustand";
-import {
-  calculateSimilarityScore,
-  calibrateCamera,
-} from "../lib/calibrationCore";
+import { CalibrateInWorker } from "../lib/calibrateInWorker";
+import { calculateSimilarityScore } from "../lib/calibrationCore";
 import {
   CalibrationResult,
   CapturedFrame,
@@ -95,6 +93,7 @@ interface SettingsSlice {
 }
 
 interface CalibrationResultSlice {
+  isCalibrating: boolean;
   calibrationResult: CalibrationResult | null;
   runCalibration: () => void;
   resetCalibration: () => void;
@@ -387,21 +386,28 @@ const createCalibrationResultSlice: StateCreator<
   CalibrationResultSlice
 > = (set, get) => ({
   calibrationResult: null,
-
-  runCalibration: () => {
+  isCalibrating: false,
+  runCalibration: async () => {
     const { capturedFrames, patternSize, frameWidth, frameHeight, squareSize } =
       get();
     const valid = capturedFrames.filter((f) => f.imageBlob);
     if (valid.length < 3) {
       throw new Error("At least 3 valid frames required for calibration");
     }
-    const result = calibrateCamera(
-      valid,
-      patternSize,
-      { width: frameWidth, height: frameHeight },
-      squareSize
-    );
-    set({ calibrationResult: result });
+    set({ isCalibrating: true });
+    const worker = new CalibrateInWorker();
+    try {
+      const result = await worker.calibrate(
+        valid,
+        patternSize,
+        { width: frameWidth, height: frameHeight },
+        squareSize
+      );
+      set({ calibrationResult: result });
+    } finally {
+      set({ isCalibrating: false });
+      await worker.terminate();
+    }
   },
 
   resetCalibration: () =>
