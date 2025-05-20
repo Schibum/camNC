@@ -10,7 +10,7 @@ import type {
 const FRAME_BLUR_THRESH = 400;
 const BOARD_BLUR_THRESH = 100;
 
-class CornerFinderWorker {
+export class CornerFinderWorker {
   private isOpencvInitialized = false;
   private isProcessing = false;
 
@@ -132,6 +132,12 @@ class CornerFinderWorker {
         this.cornersMatFull = new cv2.Mat(count, 1, cv2.CV_32FC2);
       }
 
+      if (this.srcMat!.rows !== height || this.srcMat!.cols !== width) {
+        this.srcMat!.delete();
+        this.grayMat!.delete();
+        this.srcMat = new cv2.Mat(height, width, cv2.CV_8UC4);
+        this.grayMat = new cv2.Mat(height, width, cv2.CV_8UC1);
+      }
       this.srcMat!.data.set(new Uint8ClampedArray(imageData));
       cv2.cvtColor(this.srcMat!, this.grayMat!, cv2.COLOR_RGBA2GRAY);
 

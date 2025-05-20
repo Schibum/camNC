@@ -321,7 +321,7 @@ const createCaptureSlice: StateCreator<
       const blob = await createImageBlob(
         currentFrameImageData,
         "image/jpeg",
-        1.0
+        0.9
       );
       const id = uuidv4();
       const frame: CapturedFrame = {

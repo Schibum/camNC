@@ -12,4 +12,10 @@ export default defineConfig({
       instances: [{ browser: "chromium" }],
     },
   },
+  server: {
+    headers: {
+      "Cross-Origin-Opener-Policy": "same-origin",
+      "Cross-Origin-Embedder-Policy": "require-corp",
+    },
+  },
 });
