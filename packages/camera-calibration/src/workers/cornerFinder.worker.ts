@@ -9,9 +9,9 @@ import type {
 let cv: any;
 
 const kUseClassic = true;
-const PREVIEW_MAX_SIDE = 1600;
+const PREVIEW_MAX_SIDE = Infinity; // 1600;
 const FRAME_BLUR_THRESH = 400;
-const BOARD_BLUR_THRESH = 800;
+const BOARD_BLUR_THRESH = 400;
 
 class CornerFinderWorker {
   private isOpencvInitialized = false;
@@ -96,7 +96,7 @@ class CornerFinderWorker {
     hull.delete();
 
     if (area < 50) return true;
-    console.log(`blur in chessboard: ${varLap}`);
+    // console.log(`blur in chessboard: ${varLap}`);
 
     return varLap < BOARD_BLUR_THRESH;
   }
@@ -141,10 +141,10 @@ class CornerFinderWorker {
       this.srcMat!.data.set(new Uint8ClampedArray(imageData));
       cv.cvtColor(this.srcMat!, this.grayMat!, cv.COLOR_RGBA2GRAY);
 
-      if (this._isBlurryFrame(this.grayMat!)) {
-        console.info("[CFW] frame blurry → skip");
-        return { corners: null };
-      }
+      // if (this._isBlurryFrame(this.grayMat!)) {
+      //   console.info("[CFW] frame blurry → skip");
+      //   return { corners: null };
+      // }
 
       let grayPreview: cv2.Mat = this.grayMat!;
       let scale = 1.0;
@@ -218,7 +218,7 @@ class CornerFinderWorker {
       return { corners };
     } finally {
       this.isProcessing = false;
-      console.log(`[CFW] ${(performance.now() - t0).toFixed(2)} ms`);
+      // console.log(`[CFW] ${(performance.now() - t0).toFixed(2)} ms`);
     }
   }
 }
