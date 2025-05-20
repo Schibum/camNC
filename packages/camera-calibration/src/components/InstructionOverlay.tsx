@@ -21,9 +21,7 @@ export const InstructionOverlay: React.FC<InstructionOverlayProps> = ({
   const frameHeight = useCalibrationStore((state) => state.frameHeight);
   const currentCorners = useCalibrationStore((state) => state.currentCorners);
   const patternSize = useCalibrationStore((state) => state.patternSize);
-  const stabilityPercentage = useCalibrationStore(
-    (state) => state.stabilityPercentage
-  );
+  const isBlurry = useCalibrationStore((state) => state.isBlurry);
   const uniquenessPercentage = useCalibrationStore(
     (state) => state.uniquenessPercentage
   );
@@ -43,8 +41,11 @@ export const InstructionOverlay: React.FC<InstructionOverlayProps> = ({
       return;
     }
 
-    // Check if corners are detected
-    if (!currentCorners) {
+    const simThresh =
+      typeof similarityThreshold === "number" ? similarityThreshold : 15;
+    if (isBlurry) {
+      setMessage(<>😕 Chessboard is too blurry</>);
+    } else if (!currentCorners) {
       // Construct the message with the link around the dimensions
       setMessage(
         <>
@@ -61,19 +62,8 @@ export const InstructionOverlay: React.FC<InstructionOverlayProps> = ({
         </>
       );
       return;
-    }
-
-    // --- If corners ARE detected, check uniqueness/stability ---
-    // Use threshold from props or default
-    const simThresh =
-      typeof similarityThreshold === "number" ? similarityThreshold : 15;
-    // Stability threshold for message
-    const stabThreshPercent = 90;
-
-    if (uniquenessPercentage < simThresh) {
+    } else if (uniquenessPercentage < simThresh) {
       setMessage(<>↗️ Move chessboard to new location</>);
-    } else if (stabilityPercentage < stabThreshPercent) {
-      setMessage(<>✋ Hold still</>);
     } else {
       setMessage(null); // Clear message if ready for capture
     }
@@ -83,7 +73,7 @@ export const InstructionOverlay: React.FC<InstructionOverlayProps> = ({
     currentCorners,
     patternSize,
     uniquenessPercentage,
-    stabilityPercentage,
+    isBlurry,
     similarityThreshold, // Use prop value in dependency array
   ]);
 

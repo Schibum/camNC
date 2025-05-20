@@ -10,6 +10,7 @@ export interface CornerFinderWorkerInput {
 
 export interface CornerFinderWorkerOutput {
   corners: Corner[] | null;
+  isBlurry: boolean;
 }
 
 // Note: With Comlink, errors are thrown directly rather than returned as part of the response

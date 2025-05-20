@@ -117,7 +117,7 @@ export function useVideoProcessing() {
           );
           updateCorners(cornerData, imgDataCpy);
         } else {
-          clearCorners();
+          clearCorners(result.isBlurry);
         }
       } catch (error: any) {
         console.error(

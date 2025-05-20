@@ -8,10 +8,10 @@ import type {
 
 let cv: any;
 
-const kUseClassic = true;
+const kUseClassic = false;
 const PREVIEW_MAX_SIDE = Infinity; // 1600;
 const FRAME_BLUR_THRESH = 400;
-const BOARD_BLUR_THRESH = 400;
+const BOARD_BLUR_THRESH = 100;
 
 class CornerFinderWorker {
   private isOpencvInitialized = false;
@@ -75,7 +75,7 @@ class CornerFinderWorker {
     }
 
     const bbox = cv.boundingRect(hull);
-    console.log(`bbox: ${bbox.x}, ${bbox.y}, ${bbox.width}, ${bbox.height}`);
+    // console.log(`bbox: ${bbox.x}, ${bbox.y}, ${bbox.width}, ${bbox.height}`);
     const roiGray = grayPreview.roi(bbox);
     const roiMask = new cv.Mat.zeros(bbox.height, bbox.width, cv.CV_8UC1);
     const shiftedHull = new cv.Mat();
@@ -88,15 +88,13 @@ class CornerFinderWorker {
     cv.fillConvexPoly(roiMask, shiftedHull, new cv.Scalar(255));
 
     const varLap = this._lapVariance(roiGray, roiMask);
-    const area = cv.countNonZero(roiMask);
 
     roiGray.delete();
     roiMask.delete();
     shiftedHull.delete();
     hull.delete();
 
-    if (area < 50) return true;
-    // console.log(`blur in chessboard: ${varLap}`);
+    console.log(`blur in chessboard: ${varLap}`);
 
     return varLap < BOARD_BLUR_THRESH;
   }
@@ -148,7 +146,7 @@ class CornerFinderWorker {
 
       let grayPreview: cv2.Mat = this.grayMat!;
       let scale = 1.0;
-      let needDeletePreview = false;
+      let useDownscaledPreview = false;
       if (Math.max(width, height) > PREVIEW_MAX_SIDE) {
         scale = PREVIEW_MAX_SIDE / Math.max(width, height);
         grayPreview = new cv.Mat();
@@ -160,7 +158,7 @@ class CornerFinderWorker {
           scale,
           cv.INTER_AREA
         );
-        needDeletePreview = true;
+        useDownscaledPreview = true;
       }
 
       const cornersPreview = new cv.Mat();
@@ -184,17 +182,17 @@ class CornerFinderWorker {
       }
 
       if (!found) {
-        if (needDeletePreview) grayPreview.delete();
+        if (useDownscaledPreview) grayPreview.delete();
         cornersPreview.delete();
-        return { corners: null };
+        return { corners: null, isBlurry: false };
       }
 
-      // if (this._isChessboardBlurry(grayPreview, cornersPreview)) {
-      //   console.info("[CFW] chessboard blurry → skip");
-      //   if (needDeletePreview) grayPreview.delete();
-      //   cornersPreview.delete();
-      //   return { corners: null };
-      // }
+      if (this._isChessboardBlurry(grayPreview, cornersPreview)) {
+        // console.info("[CFW] chessboard blurry → skip");
+        if (useDownscaledPreview) grayPreview.delete();
+        cornersPreview.delete();
+        return { corners: null, isBlurry: true };
+      }
 
       for (let i = 0; i < cornersPreview.rows; ++i) {
         this.cornersMatFull!.data32F[2 * i] =
@@ -203,19 +201,21 @@ class CornerFinderWorker {
           cornersPreview.data32F[2 * i + 1] / scale;
       }
 
-      cv.cornerSubPix(
-        this.grayMat,
-        this.cornersMatFull,
-        this.winSize,
-        this.zeroZone,
-        this.criteria
-      );
+      if (useDownscaledPreview || kUseClassic) {
+        cv.cornerSubPix(
+          this.grayMat,
+          this.cornersMatFull,
+          this.winSize,
+          this.zeroZone,
+          this.criteria
+        );
+      }
       const corners = convertCorners(this.cornersMatFull);
 
-      if (needDeletePreview) grayPreview.delete();
+      if (useDownscaledPreview) grayPreview.delete();
       cornersPreview.delete();
 
-      return { corners };
+      return { corners, isBlurry: false };
     } finally {
       this.isProcessing = false;
       // console.log(`[CFW] ${(performance.now() - t0).toFixed(2)} ms`);
