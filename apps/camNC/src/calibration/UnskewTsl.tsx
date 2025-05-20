@@ -2,7 +2,7 @@ import { PresentCanvas } from '@/scene/PresentCanvas';
 import { useCalibrationData, useCamResolution, useVideoUrl } from '@/store';
 import { Text } from '@react-three/drei';
 import { type ThreeElements, useFrame } from '@react-three/fiber';
-import React, { Suspense, useMemo, useRef } from 'react';
+import React, { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useUnmapTextures } from './CameraShaderMaterial';
 import { useCameraTexture } from './useCameraTexture';
@@ -89,9 +89,9 @@ UnskewedVideoMesh.displayName = 'UnskewedVideoMesh';
 
 export function UnskewedVideoMeshWithLoading() {
   return (
-    <Suspense fallback={<AnimatedLoadingMesh />}>
-      <UnskewedVideoMesh />
-    </Suspense>
+    // <Suspense fallback={<AnimatedLoadingMesh />}>
+    <UnskewedVideoMesh />
+    // </Suspense>
   );
 }
 

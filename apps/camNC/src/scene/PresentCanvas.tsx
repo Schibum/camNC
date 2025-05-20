@@ -1,11 +1,12 @@
-import { useViewportToVideoScale, useViewPortToMachineScale } from '@/calibration/scaleHooks';
+import { useViewPortToMachineScale, useViewportToVideoScale } from '@/calibration/scaleHooks';
 import { useMachineSize } from '@/store';
 import { OrbitControls, Text } from '@react-three/drei';
-import { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { useEffect, useMemo, useRef } from 'react';
+import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
+import { Suspense, useEffect, useMemo, useRef } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import * as THREE from 'three';
+import { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 
 const maxZoomFactor = 10;
 
@@ -90,21 +91,38 @@ function DefaultControls({ worldScale }: { worldScale: IWorldScale }) {
   );
 }
 
+function LoadingOverlay() {
+  return (
+    <div className="w-full h-full select-none">
+      <div className="w-full h-full flex items-center justify-center">
+        <div className="flex flex-col items-center justify-center gap-4">
+          <LoadingSpinner className="size-20" />
+          <div className="text-gray-500 text-2xl">Loading Video...</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export const PresentCanvas = ({ worldScale = 'video', children }: { worldScale?: IWorldScale; children: React.ReactNode }) => {
   return (
-    <Canvas
-      orthographic
-      camera={{
-        near: -10000,
-        far: 10000,
-        position: [0, 0, 1500],
-      }}
-      raycaster={{ near: -10000, far: 10000 }}
-      gl={{ antialias: true, outputColorSpace: THREE.SRGBColorSpace }}>
-      <ambientLight intensity={1} />
-      {/* <directionalLight position={[10, 10, 10]} intensity={0.5} /> */}
-      <DefaultControls worldScale={worldScale} />
-      <ErrorBoundary FallbackComponent={FallbackContent}>{children}</ErrorBoundary>
-    </Canvas>
+    <div className="w-full h-full">
+      <Suspense fallback={<LoadingOverlay />}>
+        <Canvas
+          orthographic
+          camera={{
+            near: -10000,
+            far: 10000,
+            position: [0, 0, 1500],
+          }}
+          raycaster={{ near: -10000, far: 10000 }}
+          gl={{ antialias: true, outputColorSpace: THREE.SRGBColorSpace }}>
+          <ambientLight intensity={1} />
+          {/* <directionalLight position={[10, 10, 10]} intensity={0.5} /> */}
+          <DefaultControls worldScale={worldScale} />
+          <ErrorBoundary FallbackComponent={FallbackContent}>{children}</ErrorBoundary>
+        </Canvas>
+      </Suspense>
+    </div>
   );
 };
