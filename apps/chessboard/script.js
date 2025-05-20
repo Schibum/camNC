@@ -118,7 +118,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function handleFullscreenChange() {
     if (isFullscreen()) {
-      requestWakeLock();
       adjustFullscreenOrientation(); // Initial check
       // Listen for window resize events while fullscreen
       window.addEventListener("resize", adjustFullscreenOrientation);
@@ -177,9 +176,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (isFullscreen()) {
       exitFullscreen();
     } else {
+      requestWakeLock();
       // Ensure landscape is rendered before entering fullscreen
       renderLandscape();
-
       enterFullscreen();
     }
   });

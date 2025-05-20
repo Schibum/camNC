@@ -92,6 +92,7 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
   const capturedFrames = useCalibrationStore((s) => s.capturedFrames);
   const deleteFrame = useCalibrationStore((s) => s.deleteFrame);
   const runCalibration = useCalibrationStore((s) => s.runCalibration);
+  const isCalibrating = useCalibrationStore((s) => s.isCalibrating);
   const calibrationResult = useCalibrationStore((s) => s.calibrationResult);
 
   const [selectedFrameId, setSelectedFrameId] = useState<string | null>(null);
@@ -212,10 +213,11 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
                         onClick={runCalibration}
                         variant={calibrationResult ? "secondary" : "default"}
                         disabled={
-                          capturedFrames.filter((f) => f.imageBlob).length < 3
+                          capturedFrames.filter((f) => f.imageBlob).length <
+                            3 || isCalibrating
                         }
                       >
-                        Calibrate
+                        {isCalibrating ? "Calibrating..." : "Calibrate"}
                       </Button>
                       <ConfirmCalibrationButton
                         onCalibrationConfirmed={onCalibrationConfirmed}

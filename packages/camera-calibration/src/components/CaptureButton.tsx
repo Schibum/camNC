@@ -15,7 +15,7 @@ export const CaptureButton: React.FC<CaptureButtonProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === "Space" && !disabled) {
         e.preventDefault();
-        captureFrame(true);
+        captureFrame();
       }
     };
 
@@ -26,7 +26,7 @@ export const CaptureButton: React.FC<CaptureButtonProps> = ({
   return (
     <button
       className="capture-button group absolute bottom-[30px] left-1/2 -translate-x-1/2 w-[70px] h-[70px] rounded-full bg-white/30 cursor-pointer z-10 flex items-center justify-center transition-colors duration-200 hover:bg-white/40 disabled:opacity-50 disabled:cursor-not-allowed"
-      onClick={() => captureFrame(true)}
+      onClick={() => captureFrame()}
       disabled={disabled}
       aria-label="Capture frame (Space)"
     >

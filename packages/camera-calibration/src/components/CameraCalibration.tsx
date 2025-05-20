@@ -56,7 +56,6 @@ export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
     initializeSettings({
       patternSize,
       squareSize,
-      stabilityDurationThreshold: stabilityThreshold,
       similarityThreshold,
       autoCapture,
     });

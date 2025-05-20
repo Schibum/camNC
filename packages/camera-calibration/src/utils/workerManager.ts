@@ -3,15 +3,10 @@ import type {
   CornerFinderWorkerInput,
   CornerFinderWorkerOutput,
 } from "../workers/types";
-
+import { CornerFinderWorker } from "../workers/cornerFinder.worker";
 export class CornerFinderWorkerManager {
   private worker: Worker | null = null;
-  private workerProxy: Comlink.Remote<{
-    init: () => Promise<boolean>;
-    processFrame: (
-      input: CornerFinderWorkerInput
-    ) => Promise<CornerFinderWorkerOutput>;
-  }> | null = null;
+  private workerProxy: Comlink.Remote<CornerFinderWorker> | null = null;
   private processingState: boolean = false;
 
   constructor() {
@@ -84,14 +79,10 @@ export class CornerFinderWorkerManager {
       );
     }
 
-    const messageId = Math.random().toString(36).substring(7); // Generate a random ID
-
     this.processingState = true;
 
     try {
       const message: CornerFinderWorkerInput = {
-        type: "processFrame",
-        messageId,
         imageData: imageData.data.buffer as ArrayBuffer,
         width: imageData.width,
         height: imageData.height,
