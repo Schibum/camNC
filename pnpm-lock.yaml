@@ -779,6 +779,9 @@ importers:
       '@vitest/browser':
         specifier: 3.2.0-beta.1
         version: 3.2.0-beta.1(playwright@1.51.1)(vite@6.3.1(@types/node@22.14.1)(jiti@2.4.2)(lightningcss@1.29.2)(tsx@4.19.3)(yaml@2.7.1))(vitest@3.2.0-beta.1)
+      '@wbcnc/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
       vitest:
         specifier: 3.2.0-beta.1
         version: 3.2.0-beta.1(@types/debug@4.1.12)(@types/node@22.14.1)(@vitest/browser@3.2.0-beta.1)(@vitest/ui@3.2.0-beta.1)(jiti@2.4.2)(jsdom@26.1.0)(lightningcss@1.29.2)(tsx@4.19.3)(yaml@2.7.1)
@@ -803,18 +806,30 @@ importers:
       vitest:
         specifier: 3.2.0-beta.1
         version: 3.2.0-beta.1(@types/debug@4.1.12)(@types/node@22.14.1)(@vitest/browser@3.2.0-beta.1)(@vitest/ui@3.2.0-beta.1)(jiti@2.4.2)(jsdom@26.1.0)(lightningcss@1.29.2)(tsx@4.19.3)(yaml@2.7.1)
+    devDependencies:
+      '@wbcnc/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
 
   packages/load-opencv:
     dependencies:
       '@techstark/opencv-js':
         specifier: 4.10.0-release.1
         version: 4.10.0-release.1
+    devDependencies:
+      '@wbcnc/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
 
   packages/public-config:
     dependencies:
       firebase:
         specifier: ^11.7.1
         version: 11.7.1
+    devDependencies:
+      '@wbcnc/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
 
   packages/typescript-config: {}
 
@@ -948,6 +963,9 @@ importers:
       '@wbcnc/public-config':
         specifier: workspace:*
         version: link:../public-config
+      '@wbcnc/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
       vitest:
         specifier: 3.2.0-beta.1
         version: 3.2.0-beta.1(@types/debug@4.1.12)(@types/node@22.14.1)(@vitest/browser@3.2.0-beta.1)(@vitest/ui@3.2.0-beta.1)(jiti@2.4.2)(jsdom@26.1.0)(lightningcss@1.29.2)(tsx@4.19.3)(yaml@2.7.1)

@@ -12,7 +12,7 @@ import {
 } from '@wbcnc/ui/components/dropdown-menu';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { CircleArrowRight, CircleOff, CirclePlay, ClipboardCopy, Joystick, Link2, Link2Off, Puzzle } from 'lucide-react';
-import { useState } from 'react';
+import { ComponentProps, useState } from 'react';
 import { FluidNcUrlCopyInput } from './FluidNcUrlCopyInput';
 import { TooltipIconButton } from './TooltipIconButton';
 
@@ -59,6 +59,50 @@ function copyZeroGcodePosition() {
   });
 }
 
+function UploadMenuItem(props: ComponentProps<typeof DropdownMenuItem>) {
+  const fileName = 'camnc.gcode';
+  const toastId = 'upload-gcode';
+  async function uploadGcodeAndRun() {
+    const { x, y } = useStore.getState().toolpathOffset;
+    const cncApi = getCncApi();
+    const toolpath = useStore.getState().toolpath?.gcode;
+    if (!toolpath) {
+      toast.error('No toolpath loaded');
+      return;
+    }
+    const zeroPromise = cncApi.setWorkspaceXYZeroAndMove(x, y);
+    toast.promise(zeroPromise, {
+      id: toastId,
+      loading: 'Setting zero...',
+      success: 'Zero set',
+      error: 'Failed to set zero',
+    });
+    await zeroPromise;
+
+    const promise = cncApi.uploadGcode(toolpath, fileName);
+    toast.promise(promise, {
+      id: toastId,
+      loading: 'Uploading...',
+      success: 'Uploaded',
+      error: 'Failed to upload',
+    });
+    await promise;
+
+    const runPromise = cncApi.runFile(fileName);
+    toast.promise(runPromise, {
+      id: toastId,
+      loading: 'Running...',
+      success: 'Started file',
+      error: 'Failed to run',
+    });
+  }
+  return (
+    <DropdownMenuItem {...props} onClick={uploadGcodeAndRun}>
+      <CirclePlay /> Zero, move to gcode position and run gcode
+    </DropdownMenuItem>
+  );
+}
+
 export function FluidncButton() {
   'use no memo';
   const client = getFluidNcClient();
@@ -89,9 +133,7 @@ export function FluidncButton() {
         <DropdownMenuItem disabled={!isFluidAvailable} onClick={() => setZeroToGcodePosition(true)}>
           <CircleArrowRight /> Set and move to XY zero gcode position.
         </DropdownMenuItem>
-        <DropdownMenuItem disabled={!isFluidAvailable} onClick={uploadGcodeAndRun}>
-          <CirclePlay /> Zero, move to gcode position and run gcode
-        </DropdownMenuItem>
+        <UploadMenuItem disabled={!isFluidAvailable} />
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link to="/setup/fluidnc">

@@ -12,5 +12,8 @@
   "packageManager": "pnpm@10.7.0",
   "dependencies": {
     "firebase": "^11.7.1"
+  },
+  "devDependencies": {
+    "@wbcnc/typescript-config": "workspace:*"
   }
 }

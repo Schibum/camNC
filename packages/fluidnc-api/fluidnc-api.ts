@@ -202,11 +202,10 @@ export class FluidncApi {
    * @param size The file size.
    * @param path The target directory path (excluding filename).
    * @param filename The name of the file.
-   * @param args Optional additional arguments.
    * @param progressCallback Optional callback for progress updates.
    * @returns A Promise that resolves with the upload response.
    */
-  public upload(
+  public async upload(
     content: any,
     path: string,
     filename: string,
@@ -221,7 +220,9 @@ export class FluidncApi {
       path,
       filename,
     };
-    return this.sendRequest(message, progressCallback);
+    let res = await this.sendRequest(message, progressCallback);
+    console.warn("upload result", res);
+    return res;
   }
 
   /**

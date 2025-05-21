@@ -1,10 +1,10 @@
 import { signal } from "@preact/signals-react";
 import * as Comlink from "comlink";
 import log from "loglevel";
+import createChunkedPort from "../webrtc-channel/data-chunker";
 import Peer from "../webrtc-channel/peer";
 import { RolePeering } from "../webrtc-channel/role-peering";
 import type { FluidncApi } from "./fluidnc-api";
-import { createPeerMessageChannel } from "./peer-message-channel";
 
 export class FluidncClient {
   private peering: RolePeering;
@@ -38,7 +38,7 @@ export class FluidncClient {
     this.isConnected.value = true;
     peer.on("close", () => this.onPeerDisconnected());
 
-    let port2 = createPeerMessageChannel(peer);
+    let port2 = createChunkedPort(peer.dataChannel);
     this.api = Comlink.wrap<FluidncApi>(port2);
   }
 }
