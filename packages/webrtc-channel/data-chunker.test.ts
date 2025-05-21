@@ -13,7 +13,8 @@ function createMockTransportPair() {
   class MockPeer extends EventTarget {
     public bufferedAmount = 0;
     public bufferedAmountLowThreshold = 0;
-    public other: MockPeer;
+    public other: MockPeer | null = null;
+    readonly readyState = "open";
 
     send(data: any) {
       // simplistic back‑pressure simulation
@@ -27,7 +28,7 @@ function createMockTransportPair() {
 
       // Forward as MessageEvent to the remote side
       const evt = new MessageEvent("message", { data });
-      this.other.dispatchEvent(evt);
+      this.other!.dispatchEvent(evt);
     }
   }
 
