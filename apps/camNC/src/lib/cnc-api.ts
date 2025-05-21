@@ -24,6 +24,10 @@ export class CncApi {
    * Set the workspace XY zero point to given machine coordinates.
    */
   setWorkspaceXYZero(x: number, y: number) {
+    return this.api.cmd(`G10 L2 P0 X${x} Y${y}`);
+  }
+
+  setWorkspaceXYZeroAndMove(x: number, y: number) {
     return this.api.cmd(`G10 L2 P0 X${x} Y${y}\n G0 X0 Y0`);
   }
 
