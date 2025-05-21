@@ -214,7 +214,7 @@ export class FluidncApi {
     const message = {
       type: "upload",
       target: "webui",
-      url: "/sdfiles",
+      url: "/upload",
       content,
       size: content.length,
       path,
