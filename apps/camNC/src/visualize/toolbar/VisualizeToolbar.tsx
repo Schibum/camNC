@@ -1,5 +1,4 @@
 import { useHasToolpath, useSetShowStillFrame, useShowStillFrame, useStore } from '@/store';
-import { SetZeroButton } from '@/visualize/toolbar/SetZeroButton';
 import { Button } from '@wbcnc/ui/components/button';
 import {
   Dialog,
@@ -222,7 +221,6 @@ export function VisualizeToolbar() {
       <ColorLegendButton />
       <BoundsInfoButton />
       <FluidncButton />
-      <SetZeroButton />
       {/* <CommandsMenu /> */}
     </div>
   );
