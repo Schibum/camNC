@@ -1,6 +1,7 @@
 import { effect } from '@preact/signals-react';
 import { FluidncClient } from '@wbcnc/fluidnc-api/fluidnc-client';
 import * as Comlink from 'comlink';
+import { parseFluidNCLine } from './fluidnc-stream-parser';
 
 export class CncApi {
   constructor(public readonly nc: FluidncClient) {
@@ -11,9 +12,16 @@ export class CncApi {
 
   private onConnected() {
     const proxy = Comlink.proxy((message: { content: string }) => {
-      console.log('stream message', message);
+      this.onStream(message.content);
     });
     this.nc.api?.onStream(proxy);
+  }
+
+  private onStream(line: string) {
+    const parsed = parseFluidNCLine(line);
+    if (parsed) {
+      console.log('stream message', parsed);
+    }
   }
 
   isConnected() {

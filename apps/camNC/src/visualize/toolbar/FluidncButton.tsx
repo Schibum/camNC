@@ -1,4 +1,4 @@
-import { getCncApi, getFluidNcClient } from '@/lib/fluidnc-singleton';
+import { getCncApi, getFluidNcClient } from '@/lib/fluidnc/fluidnc-singleton';
 import { useHasToolpath, useStore } from '@/store';
 import { Link } from '@tanstack/react-router';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@wbcnc/ui/components/dialog';
