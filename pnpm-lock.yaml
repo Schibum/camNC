@@ -124,6 +124,9 @@ importers:
       colormap:
         specifier: ^2.3.2
         version: 2.3.2
+      comlink:
+        specifier: ^4.4.2
+        version: 4.4.2
       gcode-toolpath:
         specifier: ^3.0.0
         version: 3.0.0
@@ -772,6 +775,9 @@ importers:
       loglevel:
         specifier: ^1.9.2
         version: 1.9.2
+      mitt:
+        specifier: ^3.0.1
+        version: 3.0.1
       playwright:
         specifier: ^1.51.1
         version: 1.51.1
@@ -944,6 +950,9 @@ importers:
 
   packages/webrtc-channel:
     dependencies:
+      comlink:
+        specifier: ^4.4.2
+        version: 4.4.2
       firebase:
         specifier: ^11.7.1
         version: 11.7.1

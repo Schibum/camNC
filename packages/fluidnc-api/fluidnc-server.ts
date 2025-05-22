@@ -1,4 +1,5 @@
 import { signal } from "@preact/signals-react";
+import { comlinkMpMiddleware } from "@wbcnc/webrtc-channel/comlink/comlink-mp-middleware";
 import createChunkedPort from "@wbcnc/webrtc-channel/data-chunker";
 import Peer from "@wbcnc/webrtc-channel/peer";
 import { RolePeering } from "@wbcnc/webrtc-channel/role-peering";
@@ -36,6 +37,6 @@ export class FluidncServer {
     this.numConnected.value++;
     peer.on("close", () => this.onPeerDisconnected(peerId));
     let port2 = createChunkedPort(peer.dataChannel);
-    Comlink.expose(this.fluidApi, port2);
+    Comlink.expose(this.fluidApi, comlinkMpMiddleware(port2));
   }
 }

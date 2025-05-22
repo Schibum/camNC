@@ -1,8 +1,19 @@
+import { effect } from '@preact/signals-react';
 import { FluidncClient } from '@wbcnc/fluidnc-api/fluidnc-client';
+import * as Comlink from 'comlink';
 
 export class CncApi {
   constructor(public readonly nc: FluidncClient) {
-    console.log('CncApi constructor', nc);
+    effect(() => {
+      if (nc.isConnected.value) this.onConnected();
+    });
+  }
+
+  private onConnected() {
+    const proxy = Comlink.proxy((message: { content: string }) => {
+      console.log('stream message', message);
+    });
+    this.nc.api?.onStream(proxy);
   }
 
   isConnected() {
