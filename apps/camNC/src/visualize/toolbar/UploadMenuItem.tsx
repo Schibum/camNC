@@ -1,36 +1,67 @@
 import { getCncApi } from '@/lib/fluidnc/fluidnc-singleton';
 import { useStore } from '@/store';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@wbcnc/ui/components/alert-dialog';
 import { DropdownMenuItem } from '@wbcnc/ui/components/dropdown-menu';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { CirclePlay } from 'lucide-react';
-import { ComponentProps } from 'react';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@wbcnc/ui/components/alert-dialog';
+import { ComponentProps, useImperativeHandle, useRef, useState } from 'react';
 
-function NoProbeAlertDialog() {
-  return ( <AlertDialog>
-    <AlertDialogTrigger asChild>
-      <Button variant="outline">Show Dialog</Button>
-    </AlertDialogTrigger>
-    <AlertDialogContent>
-      <AlertDialogHeader>
-        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-        <AlertDialogDescription>
-          This action cannot be undone. This will permanently delete your
-          account and remove your data from our servers.
-        </AlertDialogDescription>
-      </AlertDialogHeader>
-      <AlertDialogFooter>
-        <AlertDialogCancel>Cancel</AlertDialogCancel>
-        <AlertDialogAction>Continue</AlertDialogAction>
-      </AlertDialogFooter>
-    </AlertDialogContent>
-  </AlertDialog>)
-  )
+interface NoProbeAlertDialogRef {
+  open: () => void;
+}
+
+function NoProbeAlertDialog({ onConfirm, ref }: { onConfirm: () => void; ref: React.RefObject<NoProbeAlertDialogRef | undefined> }) {
+  const [isOpen, setIsOpen] = useState(false);
+  useImperativeHandle(ref, () => ({
+    open: () => {
+      setIsOpen(true);
+    },
+  }));
+  const handleConfirm = () => {
+    setIsOpen(false);
+    onConfirm();
+  };
+  return (
+    <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>No probe command found in gcode</AlertDialogTitle>
+          <AlertDialogDescription>Make sure you have zeroed Z manually. Are you sure you want to continue?</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={handleConfirm}>Continue</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
 }
 
 export function UploadMenuItem(props: ComponentProps<typeof DropdownMenuItem>) {
   const fileName = 'camnc.gcode';
   const toastId = 'upload-gcode';
+  const noProbeAlertDialogRef = useRef<NoProbeAlertDialogRef | undefined>(undefined);
+
+  function handleClick(e: React.MouseEvent<HTMLDivElement>) {
+    const toolpath = useStore.getState().toolpath?.gcode ?? '';
+    if (!toolpath.slice(0, 10_000).includes('G10')) {
+      e.preventDefault();
+      e.stopPropagation();
+      noProbeAlertDialogRef.current?.open();
+    } else {
+      uploadGcodeAndRun();
+    }
+  }
+
   async function uploadGcodeAndRun() {
     const { x, y } = useStore.getState().toolpathOffset;
     const cncApi = getCncApi();
@@ -66,8 +97,11 @@ export function UploadMenuItem(props: ComponentProps<typeof DropdownMenuItem>) {
     });
   }
   return (
-    <DropdownMenuItem {...props} onClick={uploadGcodeAndRun}>
-      <CirclePlay /> Zero, move to gcode position and run gcode
-    </DropdownMenuItem>
+    <>
+      <DropdownMenuItem {...props} onClick={handleClick}>
+        <CirclePlay /> Zero, move to gcode position and run gcode
+      </DropdownMenuItem>
+      <NoProbeAlertDialog onConfirm={uploadGcodeAndRun} ref={noProbeAlertDialogRef} />
+    </>
   );
 }
