@@ -102,7 +102,7 @@ function PointsScene({ points, setPoints }: { points: ITuple[]; setPoints: (poin
 
   // Convert from video coordinates to Three.js mesh coordinates
   const videoToMeshCoords = useCallback((x: number, y: number): [number, number, number] => {
-    return [x, y, 0.01]; // Put points slightly in front of the mesh
+    return [x, y, -0.01]; // Put points slightly in front of the mesh
   }, []);
 
   // Create line points for the calibration rectangle
@@ -119,9 +119,9 @@ function PointsScene({ points, setPoints }: { points: ITuple[]; setPoints: (poin
   const handlePointDragEnd = (index: number, position: THREE.Vector3) => {
     console.log('handlePointDragEnd', index, position);
 
-    const x = position.x + videoSize[0] / 2;
+    const x = position.x;
     // Convert Y from [height/2, -height/2] to [0, height]
-    const y = videoSize[1] / 2 - position.y;
+    const y = videoSize[1];
     console.log('img pos', x, y, videoSize);
     const newPoints = [...points];
     newPoints[index] = [position.x, position.y];
@@ -135,7 +135,7 @@ function PointsScene({ points, setPoints }: { points: ITuple[]; setPoints: (poin
       <UnskewedVideoMeshWithLoading />
 
       {/* Add a transparent plane overtop for click handling */}
-      <mesh position={[0, 0, 0.005]} onClick={handlePlacePoint}>
+      <mesh position={[videoSize[0] / 2, videoSize[1] / 2, -0.005]} onClick={handlePlacePoint} rotation={[Math.PI, 0, 0]}>
         <planeGeometry args={[videoSize[0], videoSize[1]]} />
         <meshBasicMaterial transparent opacity={0} />
       </mesh>
@@ -147,6 +147,7 @@ function PointsScene({ points, setPoints }: { points: ITuple[]; setPoints: (poin
           <Draggable
             key={index}
             position={[x, y, z]}
+            rotation={[Math.PI, 0, 0]}
             onDragStart={event => {
               setIsDragging(true);
             }}

@@ -43,7 +43,7 @@ export function DetectArucosButton({ onMarkersDetected }: { onMarkersDetected: (
     imgMat.delete();
     console.log('markers', markers);
     setIsDetecting(false);
-    const markersThree = markers.map(m => convertToThree(new Vector2(m.origin[0], m.origin[1])));
+    const markersThree = markers.map(m => new Vector2(m.origin[0], m.origin[1]));
     // console.log('markersThree', markersThree);
     onMarkersDetected(markersThree);
   };

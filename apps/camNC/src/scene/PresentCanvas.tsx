@@ -1,6 +1,6 @@
 import { useViewPortToMachineScale, useViewportToVideoScale } from '@/calibration/scaleHooks';
 import { LoadingVideoOverlay } from '@/components/LoadingVideoOverlay';
-import { useMachineSize } from '@/store';
+import { useCamResolution, useMachineSize } from '@/store';
 import { OrbitControls, Text } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Suspense, useEffect, useMemo, useRef } from 'react';
@@ -24,12 +24,20 @@ const FallbackContent = ({ error }: { error: Error }) => (
 type IWorldScale = 'video' | 'machine';
 
 function useDefaultCameraRotation(worldScale: IWorldScale) {
-  return useMemo(() => new THREE.Euler(0, 0, worldScale === 'machine' ? -Math.PI / 2 : 0), [worldScale]);
+  return useMemo(() => {
+    if (worldScale === 'machine') {
+      return new THREE.Euler(0, 0, -Math.PI / 2);
+    } else if (worldScale === 'video') {
+      return new THREE.Euler(Math.PI, 0, 0);
+    }
+    return new THREE.Euler(0, 0, 0);
+  }, [worldScale]);
 }
 
 function DefaultControls({ worldScale }: { worldScale: IWorldScale }) {
   // Call both hooks unconditionally
   const videoScale = useViewportToVideoScale();
+  const videoSize = useCamResolution();
   const machineScale = useViewPortToMachineScale();
   const machineSize = useMachineSize();
   // Then select which value to use
@@ -43,8 +51,10 @@ function DefaultControls({ worldScale }: { worldScale: IWorldScale }) {
   useEffect(() => {
     if (worldScale === 'machine') {
       camera.position.set(machineSize.x / 2, machineSize.y / 2, 1500);
+    } else if (worldScale === 'video') {
+      camera.position.set(videoSize[0] / 2, videoSize[1] / 2, -1500);
     }
-  }, [camera, machineSize, worldScale]);
+  }, [camera, machineSize, worldScale, videoSize]);
 
   // Hack, override orbit controls camera rotation. It'll always set it back to
   // the default rotation otherwise.
@@ -98,7 +108,7 @@ export const PresentCanvas = ({ worldScale = 'video', children }: { worldScale?:
         <Canvas
           orthographic
           camera={{
-            near: -10000,
+            near: 0,
             far: 10000,
             position: [0, 0, 1500],
           }}

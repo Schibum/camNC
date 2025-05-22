@@ -2,15 +2,11 @@ import { PresentCanvas } from '@/scene/PresentCanvas';
 import { useCalibrationData, useCamResolution, useVideoUrl } from '@/store';
 import { Text } from '@react-three/drei';
 import { type ThreeElements, useFrame } from '@react-three/fiber';
-import React, { useMemo, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useUnmapTextures } from './CameraShaderMaterial';
 import { useCameraTexture } from './useCameraTexture';
 
-interface UnskewTslProps {
-  width?: number;
-  height?: number;
-}
 // UndistortMesh component using Three.js Shading
 export function UnskewedVideoMesh({ ...props }: ThreeElements['mesh']) {
   const videoDimensions = useCamResolution();
@@ -65,7 +61,10 @@ export function UnskewedVideoMesh({ ...props }: ThreeElements['mesh']) {
 
   // Plane geometry with correct aspect ratio
   const planeGeometry = useMemo(() => {
-    return new THREE.PlaneGeometry(videoDimensions[0], videoDimensions[1]);
+    const plane = new THREE.PlaneGeometry(videoDimensions[0], videoDimensions[1]);
+    plane.translate(videoDimensions[0] / 2, -videoDimensions[1] / 2, 0);
+    plane.rotateX(Math.PI);
+    return plane;
   }, [videoDimensions]);
 
   return (
@@ -134,7 +133,7 @@ function AnimatedLoadingMesh() {
 }
 
 // Main component
-const UnskewTsl: React.FC<UnskewTslProps> = () => {
+function UnskewTsl() {
   // Handle missing calibration data - calibrationData is now passed through UnskewedVideoMesh
   const calibrationData = useCalibrationData();
   // Handle missing video source - videoSrc is now handled in UnskewedVideoMesh
@@ -146,10 +145,15 @@ const UnskewTsl: React.FC<UnskewTslProps> = () => {
   return (
     <div className="h-full w-full">
       <PresentCanvas>
-        <UnskewedVideoMesh />
+        <UnskewedVideoMesh
+          onClick={ev => {
+            console.log('clicked', ev.point);
+          }}
+        />
+        {/* <axesHelper args={[3000]} translateZ={100} /> */}
       </PresentCanvas>
     </div>
   );
-};
+}
 
 export default UnskewTsl;
