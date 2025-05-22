@@ -19,7 +19,7 @@ interface NoProbeAlertDialogRef {
   open: () => void;
 }
 
-function NoProbeAlertDialog({ onConfirm, ref }: { onConfirm: () => void; ref: React.RefObject<NoProbeAlertDialogRef | undefined> }) {
+function NoProbeAlertDialog({ onConfirm, ref }: { onConfirm: () => void; ref?: React.Ref<NoProbeAlertDialogRef> }) {
   const [isOpen, setIsOpen] = useState(false);
   useImperativeHandle(ref, () => ({
     open: () => {
@@ -49,7 +49,7 @@ function NoProbeAlertDialog({ onConfirm, ref }: { onConfirm: () => void; ref: Re
 export function UploadMenuItem(props: ComponentProps<typeof DropdownMenuItem>) {
   const fileName = 'camnc.gcode';
   const toastId = 'upload-gcode';
-  const noProbeAlertDialogRef = useRef<NoProbeAlertDialogRef | undefined>(undefined);
+  const noProbeAlertDialogRef = useRef<NoProbeAlertDialogRef>(null);
 
   function handleClick(e: React.MouseEvent<HTMLDivElement>) {
     const toolpath = useStore.getState().toolpath?.gcode ?? '';

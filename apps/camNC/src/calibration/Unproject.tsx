@@ -2,17 +2,12 @@ import { useStillFrameTexture } from '@/hooks/useStillFrameTexture';
 import { PresentCanvas } from '@/scene/PresentCanvas';
 import { useMachineSize, useShowStillFrame } from '@/store';
 import { type ThreeElements } from '@react-three/fiber';
-import React, { useEffect, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { CameraShaderMaterial } from './CameraShaderMaterial';
 import { useCameraTexture } from './useCameraTexture';
 
-export const UnprojectVideoMesh = React.forwardRef<
-  THREE.Mesh,
-  {
-    overSize?: number;
-  } & ThreeElements['mesh']
->(({ overSize = 50, ...props }, ref) => {
+export const UnprojectVideoMesh = ({ overSize = 50, ref, ...props }: { overSize?: number } & ThreeElements['mesh']) => {
   const machineSize = useMachineSize();
   const useStillFrame = useShowStillFrame();
   const [stillFrameTexture, updateStillFrameTexture] = useStillFrameTexture();
@@ -39,7 +34,7 @@ export const UnprojectVideoMesh = React.forwardRef<
       )}
     </mesh>
   );
-});
+};
 
 // Add display name for debugging
 UnprojectVideoMesh.displayName = 'UnprojectVideoMesh';
