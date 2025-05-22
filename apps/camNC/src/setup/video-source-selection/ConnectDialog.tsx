@@ -1,8 +1,9 @@
+import { useTimeout } from '@/hooks/useTimeout';
 import { buildConnectionUrl, RtcConnectionParams } from '@wbcnc/go2webrtc/url-helpers';
 import { VideoDimensions } from '@wbcnc/go2webrtc/video-source';
 import { Button } from '@wbcnc/ui/components/button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@wbcnc/ui/components/dialog';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { VideoPreview, VideoPreviewRef } from './VideoPreview';
 
 // Show a warning if the connection takes longer than 10 seconds
@@ -19,32 +20,12 @@ export function ConnectDialog({
 }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [hasError, setHasError] = useState(false);
-  const [slowWarning, setSlowWarning] = useState(false);
+  const [slowWarning, clearSlowWarning] = useTimeout(kSlowConnectionWarningTimeout);
   const videoPreviewRef = useRef<VideoPreviewRef>(null);
-  const timeoutRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    const timerId = window.setTimeout(() => {
-      setSlowWarning(true);
-    }, kSlowConnectionWarningTimeout);
-    timeoutRef.current = timerId;
-    return () => {
-      if (timeoutRef.current !== null) {
-        window.clearTimeout(timeoutRef.current);
-      }
-    };
-  }, []);
 
   function onError() {
     setHasError(true);
     clearSlowWarning();
-  }
-
-  function clearSlowWarning() {
-    if (timeoutRef.current !== null) {
-      window.clearTimeout(timeoutRef.current);
-    }
-    setSlowWarning(false);
   }
 
   function onPlaying() {

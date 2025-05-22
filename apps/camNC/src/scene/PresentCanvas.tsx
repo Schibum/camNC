@@ -1,8 +1,8 @@
 import { useViewPortToMachineScale, useViewportToVideoScale } from '@/calibration/scaleHooks';
+import { LoadingVideoOverlay } from '@/components/LoadingVideoOverlay';
 import { useMachineSize } from '@/store';
 import { OrbitControls, Text } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
 import { Suspense, useEffect, useMemo, useRef } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import * as THREE from 'three';
@@ -91,23 +91,10 @@ function DefaultControls({ worldScale }: { worldScale: IWorldScale }) {
   );
 }
 
-function LoadingOverlay() {
-  return (
-    <div className="w-full h-full select-none">
-      <div className="w-full h-full flex items-center justify-center">
-        <div className="flex flex-col items-center justify-center gap-4">
-          <LoadingSpinner className="size-20" />
-          <div className="text-gray-500 text-2xl">Loading Video...</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export const PresentCanvas = ({ worldScale = 'video', children }: { worldScale?: IWorldScale; children: React.ReactNode }) => {
   return (
     <div className="w-full h-full">
-      <Suspense fallback={<LoadingOverlay />}>
+      <Suspense fallback={<LoadingVideoOverlay />}>
         <Canvas
           orthographic
           camera={{
