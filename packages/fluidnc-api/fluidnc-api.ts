@@ -3,6 +3,8 @@
 // Also see here: https://esp3d.io/ESP3D/Version_3.X/documentation/api/webhandlers/
 // And here: https://github.com/luc-github/ESP3D-WEBUI/blob/3.0/extensions_samples/API.md
 
+import mitt from "mitt";
+
 export interface ModalConfig {
   title: string;
   id: string; // e.g. 'simple_modal', 'confirm_modal', etc.
@@ -35,6 +37,12 @@ async function readBlobAsString(blob: Blob) {
   });
 }
 
+type Events = {
+  stream: {
+    content: string;
+  };
+};
+
 /**
  * Esp3dApi wraps communication with the WebUI using postMessage.
  * It implements all the documented API methods:
@@ -58,7 +66,9 @@ async function readBlobAsString(blob: Blob) {
 export class FluidncApi {
   // Map to hold pending requests keyed by unique id.
   private static pendingRequests: Map<string, PendingRequest> = new Map();
-
+  private events = mitt<Events>();
+  public on = this.events.on;
+  public off = this.events.off;
   /**
    * @param responseTimeout Timeout in milliseconds to wait for a response (default: 5000 ms)
    */
@@ -71,6 +81,9 @@ export class FluidncApi {
    */
   private handleMessage(event: MessageEvent): void {
     const message = event.data;
+    if (message.type === "stream") {
+      return this.onStreamMessage(message);
+    }
     if (!message || !message.id) return;
 
     const pending = FluidncApi.pendingRequests.get(message.id);
@@ -111,6 +124,21 @@ export class FluidncApi {
 
     clearTimeout(pending.timeout);
     FluidncApi.pendingRequests.delete(message.id);
+  }
+
+  // Hack to make fix typing with comlink
+  public onStream(callback: (message: { content: string }) => void): void {
+    console.warn("onStream", callback);
+    this.events.on("stream", callback);
+  }
+
+  public offStream(callback: (message: { content: string }) => void): void {
+    this.events.off("stream", callback);
+  }
+
+  // Just expose stream contents as events.
+  private onStreamMessage(message: { type: "stream"; content: string }): void {
+    this.events.emit("stream", { content: message.content });
   }
 
   /**
@@ -202,11 +230,10 @@ export class FluidncApi {
    * @param size The file size.
    * @param path The target directory path (excluding filename).
    * @param filename The name of the file.
-   * @param args Optional additional arguments.
    * @param progressCallback Optional callback for progress updates.
    * @returns A Promise that resolves with the upload response.
    */
-  public upload(
+  public async upload(
     content: any,
     path: string,
     filename: string,
@@ -215,13 +242,15 @@ export class FluidncApi {
     const message = {
       type: "upload",
       target: "webui",
-      url: "/sdfiles",
+      url: "/upload",
       content,
       size: content.length,
       path,
       filename,
     };
-    return this.sendRequest(message, progressCallback);
+    let res = await this.sendRequest(message, progressCallback);
+    console.warn("upload result", res);
+    return res;
   }
 
   /**

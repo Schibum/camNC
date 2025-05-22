@@ -17,5 +17,8 @@
     "react": "^19.1.0",
     "trystero": "^0.21.3",
     "vitest": "3.2.0-beta.1"
+  },
+  "devDependencies": {
+    "@wbcnc/typescript-config": "workspace:*"
   }
 }

@@ -1,7 +1,7 @@
 import { useVideoSource } from '@wbcnc/go2webrtc/use-video-source';
 import { VideoDimensions } from '@wbcnc/go2webrtc/video-source';
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
-import { Suspense, forwardRef, useImperativeHandle, useLayoutEffect, useRef } from 'react';
+import { Suspense, useImperativeHandle, useLayoutEffect, useRef } from 'react';
 
 export interface VideoPreviewRef {
   getMaxResolution: () => VideoDimensions;
@@ -9,21 +9,23 @@ export interface VideoPreviewRef {
 
 export type VideoPreviewProps = {
   connectionUrl: string;
+  ref?: React.Ref<VideoPreviewRef>;
 } & Omit<React.VideoHTMLAttributes<HTMLVideoElement>, 'src'>;
 
-export const VideoPreview = forwardRef<VideoPreviewRef, VideoPreviewProps>(function VideoPreview({ connectionUrl, ...props }, ref) {
+export const VideoPreview = ({ connectionUrl, ref, ...props }: VideoPreviewProps) => {
   return (
     <Suspense fallback={<LoadingSpinner className="size-20" />}>
       <VideoPreviewInner ref={ref} connectionUrl={connectionUrl} {...props} />
     </Suspense>
   );
-});
+};
 
 interface VideoPreviewInnerProps extends Omit<React.VideoHTMLAttributes<HTMLVideoElement>, 'src'> {
   connectionUrl: string;
+  ref?: React.Ref<VideoPreviewRef>;
 }
 
-const VideoPreviewInner = forwardRef<VideoPreviewRef, VideoPreviewInnerProps>(function VideoPreviewInner({ connectionUrl, ...props }, ref) {
+const VideoPreviewInner = ({ connectionUrl, ref, ...props }: VideoPreviewInnerProps) => {
   const { src, maxResolution } = useVideoSource(connectionUrl);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -43,12 +45,13 @@ const VideoPreviewInner = forwardRef<VideoPreviewRef, VideoPreviewInnerProps>(fu
   }));
 
   return <MediaSourceVideo src={src} {...props} ref={videoRef} />;
-});
+};
 
-const MediaSourceVideo = forwardRef<
-  HTMLVideoElement,
-  { src: string | MediaStream } & Omit<React.VideoHTMLAttributes<HTMLVideoElement>, 'src'>
->(function MediaSourceVideo({ src, ...props }, ref) {
+const MediaSourceVideo = function MediaSourceVideo({
+  src,
+  ref,
+  ...props
+}: { src: string | MediaStream; ref?: React.Ref<HTMLVideoElement> } & Omit<React.VideoHTMLAttributes<HTMLVideoElement>, 'src'>) {
   const videoRef = useRef<HTMLVideoElement>(null);
   useImperativeHandle(ref, () => videoRef.current as HTMLVideoElement);
   useLayoutEffect(() => {
@@ -70,4 +73,4 @@ const MediaSourceVideo = forwardRef<
       ref={videoRef}
     />
   );
-});
+};

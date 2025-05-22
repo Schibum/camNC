@@ -8,6 +8,8 @@ export class ParsedToolpath {
   public modals: Modal[] = [];
   public numArcSegments = 30;
   private bounds?: Box3;
+  // Original GCode string
+  public gcode: string = '';
 
   constructor() {}
 
@@ -72,6 +74,7 @@ export function parseGCode(gcode: string): ParsedToolpath {
     });
 
     toolpath.loadFromStringSync(gcode);
+    parsed.gcode = gcode;
     return parsed;
   } catch (error) {
     console.error('Error parsing GCode:', error);

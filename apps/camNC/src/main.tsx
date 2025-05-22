@@ -3,7 +3,7 @@ import { setKeepAliveTime } from '@wbcnc/go2webrtc/use-video-source';
 import { initFbApp } from '@wbcnc/public-config/firebase';
 import { StrictMode } from 'react';
 import ReactDOM from 'react-dom/client';
-import { getCncApi } from './lib/fluidnc-singleton';
+import { getCncApi } from './lib/fluidnc/fluidnc-singleton';
 import { routeTree } from './routeTree.gen';
 import './style.css';
 

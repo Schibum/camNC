@@ -45,6 +45,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "colormap": "^2.3.2",
+    "comlink": "^4.4.2",
     "gcode-toolpath": "^3.0.0",
     "immer": "^10.1.1",
     "jotai": "^2.12.3",

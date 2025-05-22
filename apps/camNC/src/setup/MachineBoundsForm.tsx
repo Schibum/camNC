@@ -1,5 +1,5 @@
-import { getFluidSettingsBounds } from '@/lib/fluidnc-settings';
-import { getFluidNcClient } from '@/lib/fluidnc-singleton';
+import { getFluidSettingsBounds } from '@/lib/fluidnc/fluidnc-settings';
+import { getFluidNcClient } from '@/lib/fluidnc/fluidnc-singleton';
 import { useStore } from '@/store';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@wbcnc/ui/components/button';

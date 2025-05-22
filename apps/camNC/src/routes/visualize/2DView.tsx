@@ -1,5 +1,5 @@
 import { UnprojectVideoMesh } from '@/calibration/Unproject';
-import { getCncApi } from '@/lib/fluidnc-singleton';
+import { getCncApi } from '@/lib/fluidnc/fluidnc-singleton';
 import { PresentCanvas } from '@/scene/PresentCanvas';
 import { GCodeVisualizer } from '@/visualize/Toolpaths';
 import { VisualizeToolbar } from '@/visualize/toolbar/VisualizeToolbar';
@@ -7,8 +7,6 @@ import { ThreeElements, ThreeEvent } from '@react-three/fiber';
 import { createFileRoute, redirect } from '@tanstack/react-router';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { toast } from '@wbcnc/ui/components/sonner';
-import React from 'react';
-import * as THREE from 'three';
 import { useStore } from '../../store';
 
 export const Route = createFileRoute('/visualize/2DView')({
@@ -21,10 +19,10 @@ export const Route = createFileRoute('/visualize/2DView')({
   },
 });
 
-const UnprojectVideoMeshWithStockHeight = React.forwardRef<THREE.Mesh, ThreeElements['mesh']>(({ ...props }, ref) => {
+const UnprojectVideoMeshWithStockHeight = ({ ...props }: ThreeElements['mesh']) => {
   const stockHeight = useStore(s => s.stockHeight);
-  return <UnprojectVideoMesh ref={ref} position-z={stockHeight} {...props} />;
-});
+  return <UnprojectVideoMesh position-z={stockHeight} {...props} />;
+};
 UnprojectVideoMeshWithStockHeight.displayName = 'UnprojectVideoMeshWithStockHeight';
 
 function VisualizeComponent() {
