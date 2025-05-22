@@ -1,9 +1,13 @@
-import { effect } from '@preact/signals-react';
+import { computed, effect, signal } from '@preact/signals-react';
 import { FluidncClient } from '@wbcnc/fluidnc-api/fluidnc-client';
 import * as Comlink from 'comlink';
-import { parseFluidNCLine } from './fluidnc-stream-parser';
+import { ParsedStatus, parseFluidNCLine } from './fluidnc-stream-parser';
 
 export class CncApi {
+  // FluidNC status parsed from stream lines
+  public readonly status = signal<ParsedStatus | null>(null);
+  public readonly machinePos = computed(() => this.status.value?.mpos);
+
   constructor(public readonly nc: FluidncClient) {
     effect(() => {
       if (nc.isConnected.value) this.onConnected();
@@ -20,7 +24,7 @@ export class CncApi {
   private onStream(line: string) {
     const parsed = parseFluidNCLine(line);
     if (parsed) {
-      console.log('stream message', parsed);
+      this.status.value = parsed;
     }
   }
 
