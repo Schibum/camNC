@@ -1,6 +1,5 @@
-import { useCameraExtrinsics, useSetCameraExtrinsics, useStore } from '@/store';
-import { cv2, ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
-import { use } from 'react';
+import { useCameraExtrinsics, useStore } from '@/store';
+import { cv2 } from '@wbcnc/load-opencv';
 import { Matrix3, Vector2, Vector3 } from 'three';
 import { cvToMatrix3, cvToVector2, cvToVector3, matrix3ToCV, vector3ToCV } from '../lib/three-cv';
 
@@ -8,25 +7,20 @@ function getMarkerPosInCam() {
   return useStore.getState().camSource!.markerPosInCam!;
 }
 
-export function useComputeP3P() {
-  return () => {
-    const camSource = useStore.getState().camSource;
-    const mp = camSource!.markerPositions!;
-    const calibrationData = camSource!.calibration!;
-    return computeP3P(mp, getMarkerPosInCam(), calibrationData.new_camera_matrix);
-  };
+function computeMarkerP3P() {
+  const camSource = useStore.getState().camSource;
+  const mp = camSource!.markerPositions!;
+  const calibrationData = camSource!.calibration!;
+  return computeP3P(mp, getMarkerPosInCam(), calibrationData.new_camera_matrix);
 }
 
-export function useUpdateCameraExtrinsics() {
-  use(ensureOpenCvIsLoaded());
-  const compute = useComputeP3P();
-  const setCameraExtrinsics = useSetCameraExtrinsics();
-  return () => {
-    const { R, t, reprojectionError } = compute();
-    console.log('updated camera extrinsics', R, t, reprojectionError);
-    setCameraExtrinsics({ R, t });
-    return reprojectionError;
-  };
+export function updateCameraExtrinsics() {
+  // const setCameraExtrinsics = useSetCameraExtrinsics();
+  const setCameraExtrinsics = useStore.getState().camSourceSetters.setExtrinsics;
+  const { R, t, reprojectionError } = computeMarkerP3P();
+  console.log('updated camera extrinsics', R, t, reprojectionError);
+  setCameraExtrinsics({ R, t });
+  return reprojectionError;
 }
 
 export function useReprojectedMachineBounds() {
