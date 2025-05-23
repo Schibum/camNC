@@ -1,9 +1,9 @@
-import { calculateUndistortionMapsCached } from '@/calibration/rectifyMap';
-import { remapCv } from '@/calibration/remapCv';
-import { detectAruco } from '@/setup/detect-aruco';
-import type { CalibrationData } from '@/store/store';
 import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import * as Comlink from 'comlink';
+import { calculateUndistortionMapsCached } from '../calibration/rectifyMap';
+import { remapCv } from '../calibration/remapCv';
+import { detectAruco } from '../setup/detect-aruco';
+import type { CalibrationData } from '../store/store';
 
 /**
  * Worker API exposed via Comlink.
