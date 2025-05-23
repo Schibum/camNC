@@ -90,7 +90,7 @@ function calibToJson(data: ICamSource) {
       },
       machineBounds: data.machineBounds?.min.toArray().concat(data.machineBounds?.max.toArray()),
       markerPositions: data.markerPositions?.map(p => p.toArray()),
-      machineBoundsInCam: data.machineBoundsInCam,
+      machineBoundsInCam: data.markerPosInCam,
     },
     null,
     2

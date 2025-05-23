@@ -1,29 +1,11 @@
-import { IMachineBounds, useCameraExtrinsics, useSetCameraExtrinsics, useStore } from '@/store';
+import { useCameraExtrinsics, useSetCameraExtrinsics, useStore } from '@/store';
 import { cv2, ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { use } from 'react';
 import { Matrix3, Vector2, Vector3 } from 'three';
 import { cvToMatrix3, cvToVector2, cvToVector3, matrix3ToCV, vector3ToCV } from '../lib/three-cv';
 
-function getMachineBoundsInImageCoords() {
-  const { machineBoundsInCam: bounds, maxResolution: dimensions } = useStore.getState().camSource!;
-  if (!bounds) {
-    throw new Error('Machine bounds not defined');
-  }
-  // In three.js, Y is up, but in image coordinates, Y is down
-  // Also need to account for the origin being at the center in three.js vs top-left in image coordinates
-  return bounds.map(([x, y]) => [
-    // Convert X from [-width/2, width/2] to [0, width]
-    x + dimensions[0] / 2,
-    // Convert Y from [height/2, -height/2] to [0, height]
-    dimensions[1] / 2 - y,
-  ]) as IMachineBounds;
-}
-export function useConvertImageToThree() {
-  const dimensions = useStore(state => state.camSource!.maxResolution);
-  const convertToThreeCoords = (bounds: Vector2): Vector2 => {
-    return new Vector2(bounds.x, bounds.y);
-  };
-  return convertToThreeCoords;
+function getMarkerPosInCam() {
+  return useStore.getState().camSource!.markerPosInCam!;
 }
 
 export function useComputeP3P() {
@@ -31,7 +13,7 @@ export function useComputeP3P() {
     const camSource = useStore.getState().camSource;
     const mp = camSource!.markerPositions!;
     const calibrationData = camSource!.calibration!;
-    return computeP3P(mp, getMachineBoundsInImageCoords(), calibrationData.new_camera_matrix);
+    return computeP3P(mp, getMarkerPosInCam(), calibrationData.new_camera_matrix);
   };
 }
 
@@ -49,7 +31,6 @@ export function useUpdateCameraExtrinsics() {
 
 export function useReprojectedMachineBounds() {
   const extrinsics = useCameraExtrinsics();
-  const convertToThree = useConvertImageToThree();
   const cameraMatrix = matrix3ToCV(useStore(state => state.camSource!.calibration!.new_camera_matrix));
   const objectPoints = markerMachinePosToCv(useStore(state => state.camSource!.markerPositions!));
   if (!extrinsics) return [];
@@ -62,7 +43,7 @@ export function useReprojectedMachineBounds() {
   const pointsThree = [];
   for (let i = 0; i < reprojectedPoints.rows; i++) {
     const reprojectedPoint = cvToVector2(reprojectedPoints.row(i));
-    pointsThree.push(convertToThree(reprojectedPoint));
+    pointsThree.push(reprojectedPoint);
   }
   objectPoints.delete();
   reprojectedPoints.delete();
@@ -85,14 +66,14 @@ function markerMachinePosToCv(mp: Vector3[]) {
   return objectPoints;
 }
 
-export function computeP3P(mp: Vector3[], machineBoundsInCam: IMachineBounds, newCamMatrix: Matrix3) {
+export function computeP3P(mp: Vector3[], markersInCam: Vector2[], newCamMatrix: Matrix3) {
   const objectPoints = markerMachinePosToCv(mp);
   // prettier-ignore
   const imagePoints = cv2.matFromArray(4, 2, cv2.CV_64F, [
-    machineBoundsInCam[0][0], machineBoundsInCam[0][1],
-    machineBoundsInCam[1][0], machineBoundsInCam[1][1],
-    machineBoundsInCam[2][0], machineBoundsInCam[2][1],
-    machineBoundsInCam[3][0], machineBoundsInCam[3][1],
+    markersInCam[0].x, markersInCam[0].y,
+    markersInCam[1].x, markersInCam[1].y,
+    markersInCam[2].x, markersInCam[2].y,
+    markersInCam[3].x, markersInCam[3].y,
   ]);
 
   const cameraMatrix = matrix3ToCV(newCamMatrix);
@@ -124,7 +105,7 @@ export function computeP3P(mp: Vector3[], machineBoundsInCam: IMachineBounds, ne
 
   const reprojectedPoints = new cv2.Mat();
   cv2.projectPoints(objectPoints, rvec, tvec, cameraMatrix, distCoeffs, reprojectedPoints);
-  const reprojectionError = computeReprojectionError(reprojectedPoints, machineBoundsInCam);
+  const reprojectionError = computeReprojectionError(reprojectedPoints, markersInCam);
   console.log('reprojectionError', reprojectionError);
   // Convert rotation vector to rotation matrix
   const R = new cv2.Mat();
@@ -145,12 +126,12 @@ export function computeP3P(mp: Vector3[], machineBoundsInCam: IMachineBounds, ne
   return { R: threeR, t: threeT, reprojectionError };
 }
 
-function computeReprojectionError(reprojectedPoints: cv2.Mat, machineBoundsInCam: IMachineBounds) {
+function computeReprojectionError(reprojectedPoints: cv2.Mat, markersInCam: Vector2[]) {
   let error = 0;
   for (let i = 0; i < reprojectedPoints.rows; i++) {
     const reprojectedPoint = cvToVector2(reprojectedPoints.row(i));
-    const machinePoint = new Vector2(machineBoundsInCam[i][0], machineBoundsInCam[i][1]);
-    error += reprojectedPoint.distanceTo(machinePoint);
+    const markerPoint = markersInCam[i];
+    error += reprojectedPoint.distanceTo(markerPoint);
   }
   return error / reprojectedPoints.rows;
 }

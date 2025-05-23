@@ -1,7 +1,7 @@
 import { calculateUndistortionMapsCached } from '@/calibration/rectifyMap';
 import { remapCv } from '@/calibration/remapCv';
-import { useConvertImageToThree } from '@/calibration/solveP3P';
 import { averageVideoFrames } from '@/hooks/useStillFrameTexture';
+import { measureTime } from '@/lib/measureTime';
 import { acquireVideoSource, releaseVideoSource } from '@wbcnc/go2webrtc/use-video-source';
 import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { Button } from '@wbcnc/ui/components/button';
@@ -32,13 +32,13 @@ async function getStillFrame(averageFrames = 25) {
   return remapCv(imgData, mapX, mapY);
 }
 
+const kNumFrames = 5;
 export function DetectArucosButton({ onMarkersDetected }: { onMarkersDetected: (markers: Vector2[]) => void }) {
   use(ensureOpenCvIsLoaded());
   const [isDetecting, setIsDetecting] = useState(false);
-  const convertToThree = useConvertImageToThree();
   const handleClick = async () => {
     setIsDetecting(true);
-    const imgMat = await getStillFrame();
+    const imgMat = await measureTime(() => getStillFrame(kNumFrames), 'getStillFrame');
     const markers = detectAruco(imgMat);
     imgMat.delete();
     console.log('markers', markers);
