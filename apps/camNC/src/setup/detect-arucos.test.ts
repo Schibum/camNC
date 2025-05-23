@@ -1,4 +1,4 @@
-import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
+import { cv2, ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import markersPngPath from '../test/data/markers.png';
 import markersOnWhitePngPath from '../test/data/markers_on_white.jpg';
@@ -14,14 +14,14 @@ function loadImage(path: string): Promise<HTMLImageElement> {
   });
 }
 
-function imgAsCanvas(img: HTMLImageElement) {
+function imgAsMat(img: HTMLImageElement) {
   const canvas = document.createElement('canvas');
   canvas.width = img.width;
   canvas.height = img.height;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Failed to get canvas context');
   ctx.drawImage(img, 0, 0);
-  return canvas;
+  return cv2.imread(canvas);
 }
 
 describe('detectAruco', () => {
@@ -31,8 +31,9 @@ describe('detectAruco', () => {
   });
 
   it('should detect arucos', async () => {
-    const canvas = imgAsCanvas(await loadImage(markersPngPath));
-    const markers = detectAruco(canvas);
+    const img = imgAsMat(await loadImage(markersPngPath));
+    const markers = detectAruco(img);
+    img.delete();
     expect(markers.map(m => m.id)).toEqual([0, 1, 2, 3]);
     expect(markers[0].origin.x).toBeCloseTo(53.5, 0.1);
     expect(markers[0].origin.y).toBeCloseTo(204.7, 0.1);
@@ -44,8 +45,9 @@ describe('detectAruco', () => {
   });
 
   it('should detect arucos on white', async () => {
-    const canvas = imgAsCanvas(await loadImage(markersOnWhitePngPath));
-    const markers = detectAruco(canvas);
+    const img = imgAsMat(await loadImage(markersOnWhitePngPath));
+    const markers = detectAruco(img);
+    img.delete();
     expect(markers.map(m => m.id)).toEqual([0, 1, 2, 3]);
     expect(markers[0].origin.x).toBeCloseTo(11.5, 0.1);
     expect(markers[0].origin.y).toBeCloseTo(112.3, 0.1);
