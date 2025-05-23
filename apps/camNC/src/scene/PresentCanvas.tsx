@@ -77,7 +77,7 @@ function DefaultControls({ worldScale }: { worldScale: IWorldScale }) {
     orbitRef.current.zoomToCursor = true;
     orbitRef.current.touches = {
       ONE: THREE.TOUCH.ROTATE,
-      TWO: THREE.TOUCH.PAN,
+      TWO: THREE.TOUCH.DOLLY_PAN,
     };
     orbitRef.current.mouseButtons = {
       LEFT: THREE.MOUSE.ROTATE,
