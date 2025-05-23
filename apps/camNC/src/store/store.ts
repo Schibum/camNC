@@ -1,12 +1,11 @@
 import { immerable } from 'immer';
 import superjson from 'superjson';
-import { Box2, Matrix3, Matrix4, Vector2, Vector3 } from 'three';
+import { Box2, Matrix3, Vector2, Vector3 } from 'three';
 import { create, ExtractState } from 'zustand';
 import { combine, devtools, persist, PersistStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
-import { buildMatrix4FromHomography, computeHomography } from './math/perspectiveTransform';
-import { ParsedToolpath, parseGCode } from './visualize/gcodeParsing';
-import { parseToolInfo } from './visualize/guess-tools';
+import { ParsedToolpath, parseGCode } from '../visualize/gcodeParsing';
+import { parseToolInfo } from '../visualize/guess-tools';
 
 export interface CalibrationData {
   calibration_matrix: Matrix3;
@@ -31,7 +30,8 @@ export interface ICamSource {
   // Technically machine is independent of source, but multiple cams per machine
   // seems rare enough that we'll store it here for now.
   machineBounds?: Box2;
-  machineBoundsInCam?: IMachineBounds;
+  // Position of markers in camera coordinates.
+  markerPosInCam?: Vector2[];
   calibration?: CalibrationData;
   extrinsics?: CameraExtrinsics;
   // Optional marker positions in machine coordinates
@@ -122,9 +122,9 @@ export const useStore = create(devtools(persist(immer(combine(
         if (!state.camSource) throw new Error('configure source first');
         state.camSource.machineBounds = new Box2(new Vector2(xmin, ymin), new Vector2(xmax, ymax));
       }),
-      setMachineBoundsInCam: (points: IMachineBounds) => set(state => {
+      setMachineBoundsInCam: (points: Vector2[]) => set(state => {
         if (!state.camSource) throw new Error('configure source first');
-        state.camSource.machineBoundsInCam = points;
+        state.camSource.markerPosInCam = points;
       }),
       setMarkerPositions: (markers: Vector3[]) => set(state => {
         if (!state.camSource) throw new Error('configure source first');
@@ -186,27 +186,6 @@ export function useMachineSize() {
     throw new Error('Machine bounds not set');
   }
   return bounds.getSize(new Vector2());
-}
-
-/**
- * Returns the homography matrix that maps video coordinates to machine coordinates.
- * This is used to flatten the video to the machine plane.
- */
-export function useVideoToMachineHomography() {
-  const machineBoundsInCam = useStore(state => state.camSource!.machineBoundsInCam!);
-  const mp = useStore(state => state.camSource!.machineBounds!);
-  const dstPoints = [
-    [mp.min.x, mp.min.y], // xmin, ymin
-    [mp.min.x, mp.max.y], // xmin, ymax
-    [mp.max.x, mp.max.y], // xmax, ymax
-    [mp.max.x, mp.min.y], // xmax, ymin
-  ] as IMachineBounds;
-  const H = computeHomography(machineBoundsInCam, dstPoints);
-  const M = new Matrix4().fromArray(buildMatrix4FromHomography(H));
-  // return M;
-  // Add min offset back, since we computed using min values.
-  const translate = new Matrix4().makeTranslation(mp.min.x, mp.min.y, 0);
-  return translate.multiply(M);
 }
 
 export const useCameraExtrinsics = () => useStore(state => state.camSource!.extrinsics!);

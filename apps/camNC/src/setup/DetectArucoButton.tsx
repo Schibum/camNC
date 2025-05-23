@@ -1,7 +1,7 @@
 import { calculateUndistortionMapsCached } from '@/calibration/rectifyMap';
 import { remapCv } from '@/calibration/remapCv';
-import { useConvertImageToThree } from '@/calibration/solveP3P';
 import { averageVideoFrames } from '@/hooks/useStillFrameTexture';
+import { measureTime } from '@/lib/measureTime';
 import { acquireVideoSource, releaseVideoSource } from '@wbcnc/go2webrtc/use-video-source';
 import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { Button } from '@wbcnc/ui/components/button';
@@ -9,7 +9,7 @@ import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
 import { ScanQrCode } from 'lucide-react';
 import { use, useState } from 'react';
 import { Vector2 } from 'three';
-import { useStore } from '../store';
+import { useStore } from '../store/store';
 import { detectAruco } from './detect-aruco';
 
 async function getStillFrame(averageFrames = 25) {
@@ -32,20 +32,20 @@ async function getStillFrame(averageFrames = 25) {
   return remapCv(imgData, mapX, mapY);
 }
 
+const kNumFrames = 5;
 export function DetectArucosButton({ onMarkersDetected }: { onMarkersDetected: (markers: Vector2[]) => void }) {
   use(ensureOpenCvIsLoaded());
   const [isDetecting, setIsDetecting] = useState(false);
-  const convertToThree = useConvertImageToThree();
   const handleClick = async () => {
     setIsDetecting(true);
-    const imgMat = await getStillFrame();
+    const imgMat = await measureTime(() => getStillFrame(kNumFrames), 'getStillFrame');
     const markers = detectAruco(imgMat);
     imgMat.delete();
     console.log('markers', markers);
     setIsDetecting(false);
-    const markersThree = markers.map(m => convertToThree(new Vector2(m.origin[0], m.origin[1])));
+    const markerPosInCam = markers.map(m => m.origin);
     // console.log('markersThree', markersThree);
-    onMarkersDetected(markersThree);
+    onMarkersDetected(markerPosInCam);
   };
 
   return (

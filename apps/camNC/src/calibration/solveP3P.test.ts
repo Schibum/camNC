@@ -1,7 +1,7 @@
-import { IMachineBounds, ITuple } from '@/store';
+import { ITuple } from '@/store/store';
 // import _cv from '@techstark/opencv-js';
 import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
-import { Matrix3, Vector3 } from 'three';
+import { Matrix3, Vector2, Vector3 } from 'three';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { computeP3P } from './solveP3P';
 
@@ -22,12 +22,7 @@ describe('computeP3P', () => {
     const mp = [new Vector3(0, 0, 0), new Vector3(0, 1243, 0), new Vector3(623, 1243, 0), new Vector3(623, 0, 0)];
 
     // Image points - corners2 from Python example
-    const machineBoundsInCam: IMachineBounds = [
-      [1570, 418],
-      [2209, 1599],
-      [901, 1893],
-      [959, 456],
-    ];
+    const markersInCam: Vector2[] = [new Vector2(1570, 418), new Vector2(2209, 1599), new Vector2(901, 1893), new Vector2(959, 456)];
 
     // prettier-ignore
     const camMatrix = new Matrix3().set(
@@ -37,7 +32,7 @@ describe('computeP3P', () => {
     );
 
     // Call the function
-    const result = computeP3P(mp, machineBoundsInCam, camMatrix);
+    const result = computeP3P(mp, markersInCam, camMatrix);
     expect(result.reprojectionError).toBeLessThan(1);
   });
 });

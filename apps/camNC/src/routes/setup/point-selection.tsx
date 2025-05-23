@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
 import { ThreePointSelectionStep } from '../../setup/ThreePointSelectionStep';
-import { useStore } from '../../store';
+import { useStore } from '../../store/store';
 
 export const Route = createFileRoute('/setup/point-selection')({
   component: ThreePointSelectionStep,

@@ -1,5 +1,5 @@
 import { getCncApi } from '@/lib/fluidnc/fluidnc-singleton';
-import { useStore } from '@/store';
+import { useStore } from '@/store/store';
 import {
   AlertDialog,
   AlertDialogAction,

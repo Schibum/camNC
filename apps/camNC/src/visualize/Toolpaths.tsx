@@ -6,7 +6,7 @@ import colormap from 'colormap';
 import React, { useMemo } from 'react';
 import { Color, SRGBColorSpace, Vector2, Vector3 } from 'three';
 import { Line2, LineGeometry, LineMaterial } from 'three/addons';
-import { useStore, useToolDiameter } from '../store';
+import { useStore, useToolDiameter } from '../store/store';
 import { ParsedToolpath } from './gcodeParsing';
 import { LineAxesHelper } from './LineAxesHelper';
 

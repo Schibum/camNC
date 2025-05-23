@@ -1,4 +1,4 @@
-import { useSetShowStillFrame, useShowStillFrame } from '@/store';
+import { useSetShowStillFrame, useShowStillFrame } from '@/store/store';
 import {
   CommandDialog,
   CommandEmpty,

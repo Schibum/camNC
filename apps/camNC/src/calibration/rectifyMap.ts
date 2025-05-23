@@ -1,4 +1,4 @@
-import { CalibrationData } from '@/store';
+import { CalibrationData } from '@/store/store';
 import { Matrix3 } from 'three';
 
 // Define a 3x3 matrix type.

@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { IOnChangeArgs, VideoSourceSelection } from '../../setup/video-source-selection/VideoSourceSelection';
-import { useCamSource, useStore } from '../../store';
+import { useCamSource, useStore } from '../../store/store';
 
 export const Route = createFileRoute('/setup/url-entry')({
   component: UrlEntryComponent,

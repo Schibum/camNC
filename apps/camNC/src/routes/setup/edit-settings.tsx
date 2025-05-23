@@ -1,5 +1,5 @@
 import { Array9, matrix3ToRowMajor } from '@/lib/three-plain';
-import { ICamSource, useCamSource, useStore } from '@/store';
+import { ICamSource, useCamSource, useStore } from '@/store/store';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createFileRoute } from '@tanstack/react-router';
 import { Button } from '@wbcnc/ui/components/button';
@@ -90,7 +90,7 @@ function calibToJson(data: ICamSource) {
       },
       machineBounds: data.machineBounds?.min.toArray().concat(data.machineBounds?.max.toArray()),
       markerPositions: data.markerPositions?.map(p => p.toArray()),
-      machineBoundsInCam: data.machineBoundsInCam,
+      machineBoundsInCam: data.markerPosInCam,
     },
     null,
     2

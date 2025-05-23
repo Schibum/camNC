@@ -1,5 +1,5 @@
 import { FluidncClient } from '@wbcnc/fluidnc-api/fluidnc-client';
-import { useStore } from '../../store';
+import { useStore } from '../../store/store';
 import { CncApi } from './cnc-api';
 
 // Returns the FluidncClient instance, will create and connect if it doesn't exist yet.

@@ -1,17 +1,17 @@
-import { useReprojectedMachineBounds, useUpdateCameraExtrinsics } from '@/calibration/solveP3P';
 import { UnskewedVideoMeshWithLoading } from '@/calibration/UnskewTsl';
 import { Draggable } from '@/scene/Draggable';
 import { PresentCanvas } from '@/scene/PresentCanvas';
+import { updateCameraExtrinsics, useReprojectedMachineBounds } from '@/store/store-p3p';
 import { Line, Text } from '@react-three/drei';
 import { ThreeEvent } from '@react-three/fiber';
 import { useNavigate } from '@tanstack/react-router';
 import { Button } from '@wbcnc/ui/components/button';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { toast } from '@wbcnc/ui/components/sonner';
-import React, { Suspense, useCallback, useMemo, useState } from 'react';
+import React, { Suspense, useMemo, useState } from 'react';
 import * as THREE from 'three';
-import { Vector2 } from 'three';
-import { IMachineBounds, ITuple, useCamResolution, useStore } from '../store';
+import { Vector2, Vector3 } from 'three';
+import { useCamResolution, useStore } from '../store/store';
 import { DetectArucosButton } from './DetectArucoButton';
 interface PointSelectionStepProps {
   onComplete: () => void;
@@ -86,8 +86,12 @@ const Crosshair: React.FC<{
   );
 };
 
+const videoToMeshCoords = (point: Vector2): Vector3 => {
+  return new Vector3(point.x, point.y, -0.01); // Put points slightly in front of the mesh
+};
+
 // Component to render and interact with points
-function PointsScene({ points, setPoints }: { points: ITuple[]; setPoints: (points: ITuple[]) => void }) {
+function PointsScene({ points, setPoints }: { points: Vector2[]; setPoints: (points: Vector2[]) => void }) {
   const videoSize = useCamResolution();
   const [isDragging, setIsDragging] = useState(false);
   // Handle placing a new point by clicking on the mesh
@@ -97,34 +101,25 @@ function PointsScene({ points, setPoints }: { points: ITuple[]; setPoints: (poin
     // Stop event propagation
     e.stopPropagation();
 
-    setPoints([...points, [point.x, point.y]]);
+    setPoints([...points, new Vector2(point.x, point.y)]);
   };
-
-  // Convert from video coordinates to Three.js mesh coordinates
-  const videoToMeshCoords = useCallback((x: number, y: number): [number, number, number] => {
-    return [x, y, 0.01]; // Put points slightly in front of the mesh
-  }, []);
 
   // Create line points for the calibration rectangle
   const linePoints = useMemo(() => {
     if (points.length !== 4) return [];
 
     return [
-      ...points.map(p => new THREE.Vector3(...videoToMeshCoords(p[0], p[1]))),
-      new THREE.Vector3(...videoToMeshCoords(points[0][0], points[0][1])), // Close the loop
+      ...points.map(p => videoToMeshCoords(p)),
+      videoToMeshCoords(points[0]), // Close the loop
     ];
-  }, [points, videoToMeshCoords]);
+  }, [points]);
 
   // Handle point drag end
   const handlePointDragEnd = (index: number, position: THREE.Vector3) => {
     console.log('handlePointDragEnd', index, position);
 
-    const x = position.x + videoSize[0] / 2;
-    // Convert Y from [height/2, -height/2] to [0, height]
-    const y = videoSize[1] / 2 - position.y;
-    console.log('img pos', x, y, videoSize);
     const newPoints = [...points];
-    newPoints[index] = [position.x, position.y];
+    newPoints[index] = new Vector2(position.x, position.y);
     setPoints(newPoints);
   };
 
@@ -135,18 +130,19 @@ function PointsScene({ points, setPoints }: { points: ITuple[]; setPoints: (poin
       <UnskewedVideoMeshWithLoading />
 
       {/* Add a transparent plane overtop for click handling */}
-      <mesh position={[0, 0, 0.005]} onClick={handlePlacePoint}>
+      <mesh position={[videoSize[0] / 2, videoSize[1] / 2, -0.005]} onClick={handlePlacePoint} rotation={[Math.PI, 0, 0]}>
         <planeGeometry args={[videoSize[0], videoSize[1]]} />
         <meshBasicMaterial transparent opacity={0} />
       </mesh>
 
       {/* Render points as draggable crosshairs */}
       {points.map((point, index) => {
-        const [x, y, z] = videoToMeshCoords(point[0], point[1]);
+        const pos = videoToMeshCoords(point);
         return (
           <Draggable
             key={index}
-            position={[x, y, z]}
+            position={pos}
+            rotation={[Math.PI, 0, 0]}
             onDragStart={event => {
               setIsDragging(true);
             }}
@@ -183,9 +179,8 @@ function PointsScene({ points, setPoints }: { points: ITuple[]; setPoints: (poin
 }
 
 export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) => {
-  const [points, setPoints] = useState<ITuple[]>(useStore(state => state.camSource!.machineBoundsInCam) || []);
+  const [points, setPoints] = useState<Vector2[]>(useStore(state => state.camSource!.markerPosInCam) || []);
   const setMachineBoundsInCam = useStore(state => state.camSourceSetters.setMachineBoundsInCam);
-  const updateCameraExtrinsics = useUpdateCameraExtrinsics();
   const navigate = useNavigate();
 
   // Handle saving points
@@ -196,10 +191,10 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
     }
     console.log('points', points);
 
-    setMachineBoundsInCam(points as IMachineBounds);
+    setMachineBoundsInCam(points);
     const reprojectionError = updateCameraExtrinsics();
     toast.success(`Updated camera extrinsics`, {
-      description: `Reprojection error: ${reprojectionError.toFixed(2)}px (< 1px is good)`,
+      description: `Reprojection error: ${reprojectionError.toFixed(2)}px (< 1px is very good)`,
     });
     navigate({ to: '/' });
   };
@@ -214,12 +209,12 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
       return;
     }
     toast.success('Detected 4 markers', { position: 'top-right' });
-    setPoints(markers.map(m => [m.x, m.y]));
+    setPoints(markers);
   };
 
   return (
     <div className="w-full h-dvh flex flex-col gap-1 overflow-hidden">
-      <PageHeader title="Machine Bounds" className="absolute" />
+      <PageHeader title="Markers in Camera" className="absolute" />
 
       <div className="flex-1 overflow-hidden">
         <PresentCanvas>

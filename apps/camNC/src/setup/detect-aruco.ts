@@ -1,4 +1,5 @@
 import { cv2 } from '@wbcnc/load-opencv';
+import { Vector2 } from 'three';
 
 const kDictId = 0; // DICT_4X4_50
 const kRefinementMethod = 1; // subpixel
@@ -17,9 +18,10 @@ function createDetector() {
 
 type IMarker = {
   id: number;
-  origin: [number, number];
+  origin: Vector2;
 };
 
+// Returns markers in camera coordinates. Returns markers in order of id.
 export function detectAruco(matOrCanvas: HTMLCanvasElement | cv2.Mat) {
   const startTime = performance.now();
   const img = matOrCanvas instanceof HTMLCanvasElement ? cv2.imread(matOrCanvas) : matOrCanvas;
@@ -46,7 +48,7 @@ export function detectAruco(matOrCanvas: HTMLCanvasElement | cv2.Mat) {
   const markers: IMarker[] = [];
   for (let i = 0; i < corners.size(); i++) {
     const points = corners.get(i);
-    const pt1 = [points.data32F[0], points.data32F[1]] as [number, number];
+    const pt1 = new Vector2(points.data32F[0], points.data32F[1]);
     const idValue = ids.data32S[i];
     markers.push({ id: idValue, origin: pt1 });
   }

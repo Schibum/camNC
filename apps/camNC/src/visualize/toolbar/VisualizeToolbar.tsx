@@ -1,4 +1,4 @@
-import { useHasToolpath, useSetShowStillFrame, useShowStillFrame, useStore } from '@/store';
+import { useHasToolpath, useSetShowStillFrame, useShowStillFrame, useStore } from '@/store/store';
 import { Button } from '@wbcnc/ui/components/button';
 import {
   Dialog,

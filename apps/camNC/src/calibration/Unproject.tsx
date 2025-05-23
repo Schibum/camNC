@@ -1,6 +1,6 @@
 import { useStillFrameTexture } from '@/hooks/useStillFrameTexture';
 import { PresentCanvas } from '@/scene/PresentCanvas';
-import { useMachineSize, useShowStillFrame } from '@/store';
+import { useMachineSize, useShowStillFrame } from '@/store/store';
 import { type ThreeElements } from '@react-three/fiber';
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';

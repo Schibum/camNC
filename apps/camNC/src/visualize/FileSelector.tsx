@@ -1,5 +1,5 @@
 import GCodeDropzone from '@/components/GCodeDropzone';
-import { useStore } from '@/store';
+import { useStore } from '@/store/store';
 
 export function FileSelector() {
   const updateToolpath = useStore(s => s.updateToolpath);

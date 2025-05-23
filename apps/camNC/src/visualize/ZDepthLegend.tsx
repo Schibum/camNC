@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
 import colormap from 'colormap';
-import { useStore } from '../store';
+import React, { useMemo } from 'react';
 import { Box3 } from 'three';
+import { useStore } from '../store/store';
 
 // Use the same colormap as in Toolpaths.tsx
 const plasmamap = colormap({
@@ -46,18 +46,11 @@ function ZDepthLegendForBounds({ bounds }: { bounds: Box3 }) {
           style={{
             background: `linear-gradient(to right, ${gradientColors})`,
             border: '1px solid rgba(0,0,0,0.1)',
-          }}
-        >
+          }}>
           {/* Tick marks for intermediate values */}
           {intermediateValues.map((value, index) => {
             const position = ((value - minZ) / (maxZ - minZ)) * 100;
-            return (
-              <div
-                key={index}
-                className="absolute top-full h-2 border-l border-gray-400"
-                style={{ left: `${position}%` }}
-              />
-            );
+            return <div key={index} className="absolute top-full h-2 border-l border-gray-400" style={{ left: `${position}%` }} />;
           })}
         </div>
 
