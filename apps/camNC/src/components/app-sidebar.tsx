@@ -61,7 +61,7 @@ const settingsRoutes: NavRoute[] = [
     icon: Ruler,
   },
   {
-    title: 'Reference Points',
+    title: 'Markers in Camera',
     to: '/setup/point-selection',
     icon: ScanQrCode,
   },

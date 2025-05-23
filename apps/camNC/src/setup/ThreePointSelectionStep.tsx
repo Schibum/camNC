@@ -214,7 +214,7 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
 
   return (
     <div className="w-full h-dvh flex flex-col gap-1 overflow-hidden">
-      <PageHeader title="Machine Bounds" className="absolute" />
+      <PageHeader title="Markers in Camera" className="absolute" />
 
       <div className="flex-1 overflow-hidden">
         <PresentCanvas>
