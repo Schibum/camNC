@@ -99,9 +99,6 @@ async function averageFrames(
   return convertToImageData(runningAverage, width, height);
 }
 
-/**
- * Simplifies marker detection results
- */
 function simplifyMarkerResults(markers: any[]): { id: number; origin: { x: number; y: number } }[] {
   return markers.map(m => ({ id: m.id, origin: { x: m.origin.x, y: m.origin.y } }));
 }

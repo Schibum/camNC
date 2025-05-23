@@ -22,7 +22,7 @@ export interface AutoScanOptions {
 export function useAutoScanMarkers({ intervalMs, firstScanDelayMs = 5_000, averageFrames = 5 }: AutoScanOptions): void {
   const serviceRef = useRef<MarkerScannerService | null>(null);
 
-  function onMarkerFound(points: Vector2[]): void {
+  function onMarkersFound(points: Vector2[]): void {
     useStore.getState().camSourceSetters.setMachineBoundsInCam(points);
     updateCameraExtrinsics();
   }
@@ -38,7 +38,7 @@ export function useAutoScanMarkers({ intervalMs, firstScanDelayMs = 5_000, avera
 
   useEffect(() => {
     const camSource = useStore.getState().camSource!;
-    const service = new MarkerScannerService(camSource, averageFrames, onMarkerFound);
+    const service = new MarkerScannerService(camSource, averageFrames, onMarkersFound);
     serviceRef.current = service;
 
     return () => {
@@ -55,7 +55,7 @@ class MarkerScannerService {
   constructor(
     private readonly camSource: ICamSource,
     private readonly averageFrames: number,
-    private readonly onSquare: (pts: Vector2[]) => void
+    private readonly onMarkersFound: (pts: Vector2[]) => void
   ) {}
 
   /** Bootstraps the Web Worker and prepares scanning. Call once after `new`. */
@@ -70,7 +70,7 @@ class MarkerScannerService {
     const mediaStream = src as MediaStream;
     const videoTrack = mediaStream.getVideoTracks()[0];
 
-    // Track → readable stream
+    // Chrome does not support sending VideoStreamTrack to workers yet, so conver to readable stream.
     const processor = new (window as any).MediaStreamTrackProcessor({ track: videoTrack });
     const readable = processor.readable;
 
@@ -102,10 +102,10 @@ class MarkerScannerService {
   async scan(): Promise<void> {
     if (!this.proxy) await this.init();
     const markers = await this.proxy!.scan();
-    const isSquare = markers.length === 4 && markers.every((m, i) => m.id === i);
-    if (isSquare) {
+    const hasAllMarkers = markers.length === 4 && markers.every((m, i) => m.id === i);
+    if (hasAllMarkers) {
       const pts = markers.map(({ origin }) => new Vector2(origin.x, origin.y));
-      this.onSquare(pts);
+      this.onMarkersFound(pts);
     }
   }
 
