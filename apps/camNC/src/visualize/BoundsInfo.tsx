@@ -1,4 +1,4 @@
-import { useStore } from '@/store';
+import { useStore } from '@/store/store';
 
 export function BoundsInfo() {
   const bounds = useStore(s => s.toolpath?.getBounds());

@@ -1,5 +1,5 @@
 import { cvToMatrix3, matrix3ToCV } from '@/lib/three-cv';
-import { useCalibrationData, useCamResolution, useStore } from '@/store';
+import { useCalibrationData, useCamResolution, useStore } from '@/store/store';
 import { createFileRoute } from '@tanstack/react-router';
 import { cv2, ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { Button } from '@wbcnc/ui/components/button';
@@ -8,7 +8,7 @@ import { NumberInputWithLabel } from '@wbcnc/ui/components/NumberInputWithLabel'
 import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { use, useState } from 'react';
 import { prettyPrintThree } from '../../lib/prettyPrintThree';
-import { CalibrationData } from '../../store';
+import { CalibrationData } from '../../store/store';
 
 export const Route = createFileRoute('/setup/new-cam-matrix')({
   component: RouteComponent,

@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from '@wbcnc/ui/components/dialog';
 import { ChevronsUpDown } from 'lucide-react';
-import { useCamSource } from '../store';
+import { useCamSource } from '../store/store';
 
 function CodeBlock({ children }: { children: React.ReactNode }) {
   return <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm whitespace-pre-wrap">{children}</code>;

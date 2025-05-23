@@ -4,8 +4,8 @@ import { Box2, Matrix3, Vector2, Vector3 } from 'three';
 import { create, ExtractState } from 'zustand';
 import { combine, devtools, persist, PersistStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
-import { ParsedToolpath, parseGCode } from './visualize/gcodeParsing';
-import { parseToolInfo } from './visualize/guess-tools';
+import { ParsedToolpath, parseGCode } from '../visualize/gcodeParsing';
+import { parseToolInfo } from '../visualize/guess-tools';
 
 export interface CalibrationData {
   calibration_matrix: Matrix3;

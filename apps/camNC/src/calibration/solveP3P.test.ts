@@ -1,4 +1,4 @@
-import { ITuple } from '@/store';
+import { ITuple } from '@/store/store';
 // import _cv from '@techstark/opencv-js';
 import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { Matrix3, Vector2, Vector3 } from 'three';

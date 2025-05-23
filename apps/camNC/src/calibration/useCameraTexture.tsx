@@ -1,4 +1,4 @@
-import { useVideoUrl } from '@/store';
+import { useVideoUrl } from '@/store/store';
 import { useVideoTexture } from '@react-three/drei';
 import { useVideoSource } from '@wbcnc/go2webrtc/use-video-source';
 

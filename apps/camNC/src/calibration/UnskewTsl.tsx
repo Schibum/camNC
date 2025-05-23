@@ -1,5 +1,5 @@
 import { PresentCanvas } from '@/scene/PresentCanvas';
-import { useCalibrationData, useCamResolution, useVideoUrl } from '@/store';
+import { useCalibrationData, useCamResolution, useVideoUrl } from '@/store/store';
 import { Text } from '@react-three/drei';
 import { type ThreeElements, useFrame } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';

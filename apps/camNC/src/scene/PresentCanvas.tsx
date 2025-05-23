@@ -1,6 +1,6 @@
 import { useViewPortToMachineScale, useViewportToVideoScale } from '@/calibration/scaleHooks';
 import { LoadingVideoOverlay } from '@/components/LoadingVideoOverlay';
-import { useCamResolution, useMachineSize } from '@/store';
+import { useCamResolution, useMachineSize } from '@/store/store';
 import { OrbitControls, Text } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Suspense, useEffect, useMemo, useRef } from 'react';

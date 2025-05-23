@@ -1,4 +1,4 @@
-import { useCamResolution, useMachineSize } from '@/store';
+import { useCamResolution, useMachineSize } from '@/store/store';
 import { useThree } from '@react-three/fiber';
 import { useMemo } from 'react';
 

@@ -1,5 +1,5 @@
 import { Array9, matrix3ToRowMajor } from '@/lib/three-plain';
-import { ICamSource, useCamSource, useStore } from '@/store';
+import { ICamSource, useCamSource, useStore } from '@/store/store';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createFileRoute } from '@tanstack/react-router';
 import { Button } from '@wbcnc/ui/components/button';

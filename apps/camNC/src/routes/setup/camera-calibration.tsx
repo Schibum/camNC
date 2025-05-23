@@ -7,7 +7,7 @@ import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { Suspense, use } from 'react';
 import { Matrix3 } from 'three';
-import { useStore } from '../../store';
+import { useStore } from '../../store/store';
 
 export const Route = createFileRoute('/setup/camera-calibration')({
   component: RouteComponent,

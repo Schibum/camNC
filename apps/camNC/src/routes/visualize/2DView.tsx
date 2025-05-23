@@ -7,7 +7,7 @@ import { ThreeElements, ThreeEvent } from '@react-three/fiber';
 import { createFileRoute, redirect } from '@tanstack/react-router';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { toast } from '@wbcnc/ui/components/sonner';
-import { useStore } from '../../store';
+import { useStore } from '../../store/store';
 
 export const Route = createFileRoute('/visualize/2DView')({
   component: VisualizeComponent,

@@ -1,4 +1,4 @@
-import { useCalibrationData, useCameraExtrinsics, useCamResolution, useNewCameraMatrix } from '@/store';
+import { useCalibrationData, useCameraExtrinsics, useCamResolution, useNewCameraMatrix } from '@/store/store';
 import { useMemo } from 'react';
 import * as THREE from 'three';
 import { calculateUndistortionMapsCached } from './rectifyMap';

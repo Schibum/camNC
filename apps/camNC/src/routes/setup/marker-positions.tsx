@@ -1,4 +1,4 @@
-import { useStore } from '@/store';
+import { useStore } from '@/store/store';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '@wbcnc/ui/components/card';
 import { PageHeader } from '@wbcnc/ui/components/page-header';

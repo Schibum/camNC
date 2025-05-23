@@ -1,6 +1,6 @@
 import { getFluidSettingsBounds } from '@/lib/fluidnc/fluidnc-settings';
 import { getFluidNcClient } from '@/lib/fluidnc/fluidnc-singleton';
-import { useStore } from '@/store';
+import { useStore } from '@/store/store';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@wbcnc/ui/components/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@wbcnc/ui/components/form';

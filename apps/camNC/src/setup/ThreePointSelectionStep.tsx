@@ -1,7 +1,7 @@
-import { useReprojectedMachineBounds, useUpdateCameraExtrinsics } from '@/calibration/solveP3P';
 import { UnskewedVideoMeshWithLoading } from '@/calibration/UnskewTsl';
 import { Draggable } from '@/scene/Draggable';
 import { PresentCanvas } from '@/scene/PresentCanvas';
+import { updateCameraExtrinsics, useReprojectedMachineBounds } from '@/store/store-p3p';
 import { Line, Text } from '@react-three/drei';
 import { ThreeEvent } from '@react-three/fiber';
 import { useNavigate } from '@tanstack/react-router';
@@ -11,7 +11,7 @@ import { toast } from '@wbcnc/ui/components/sonner';
 import React, { Suspense, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import { Vector2, Vector3 } from 'three';
-import { useCamResolution, useStore } from '../store';
+import { useCamResolution, useStore } from '../store/store';
 import { DetectArucosButton } from './DetectArucoButton';
 interface PointSelectionStepProps {
   onComplete: () => void;
@@ -181,7 +181,6 @@ function PointsScene({ points, setPoints }: { points: Vector2[]; setPoints: (poi
 export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) => {
   const [points, setPoints] = useState<Vector2[]>(useStore(state => state.camSource!.markerPosInCam) || []);
   const setMachineBoundsInCam = useStore(state => state.camSourceSetters.setMachineBoundsInCam);
-  const updateCameraExtrinsics = useUpdateCameraExtrinsics();
   const navigate = useNavigate();
 
   // Handle saving points

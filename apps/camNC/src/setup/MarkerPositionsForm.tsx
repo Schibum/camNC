@@ -1,4 +1,4 @@
-import { useSetMarkerPositions, useStore } from '@/store';
+import { useSetMarkerPositions, useStore } from '@/store/store';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@wbcnc/ui/components/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@wbcnc/ui/components/form';

@@ -9,7 +9,7 @@ import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
 import { ScanQrCode } from 'lucide-react';
 import { use, useState } from 'react';
 import { Vector2 } from 'three';
-import { useStore } from '../store';
+import { useStore } from '../store/store';
 import { detectAruco } from './detect-aruco';
 
 async function getStillFrame(averageFrames = 25) {

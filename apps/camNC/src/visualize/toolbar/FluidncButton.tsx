@@ -1,5 +1,5 @@
 import { getCncApi, getFluidNcClient } from '@/lib/fluidnc/fluidnc-singleton';
-import { useHasToolpath, useStore } from '@/store';
+import { useHasToolpath, useStore } from '@/store/store';
 import { Link } from '@tanstack/react-router';
 import {
   DropdownMenu,
