@@ -6,6 +6,7 @@ import { ICamSource, useStore } from '@/store/store';
 import { updateCameraExtrinsics } from '@/store/store-p3p';
 import type { MarkerScannerWorkerAPI } from '@/workers/markerScanner.worker';
 import { acquireVideoSource, releaseVideoSource } from '@wbcnc/go2webrtc/use-video-source';
+import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { useRunInterval } from './useRunInterval';
 
 /** Configuration for the automatic marker‑scanner. */
@@ -22,7 +23,8 @@ export interface AutoScanOptions {
 export function useAutoScanMarkers({ intervalMs, firstScanDelayMs = 5_000, averageFrames = 5 }: AutoScanOptions): void {
   const serviceRef = useRef<MarkerScannerService | null>(null);
 
-  function onMarkersFound(points: Vector2[]): void {
+  async function onMarkersFound(points: Vector2[]) {
+    await ensureOpenCvIsLoaded();
     useStore.getState().camSourceSetters.setMachineBoundsInCam(points);
     updateCameraExtrinsics();
   }
@@ -49,6 +51,7 @@ export function useAutoScanMarkers({ intervalMs, firstScanDelayMs = 5_000, avera
 }
 
 class MarkerScannerService {
+  private unsupportedSource = false;
   private proxy: Comlink.Remote<MarkerScannerWorkerAPI> | null = null;
   private cleanupFn: (() => void) | null = null;
 
@@ -60,12 +63,16 @@ class MarkerScannerService {
 
   /** Bootstraps the Web Worker and prepares scanning. Call once after `new`. */
   async init(): Promise<void> {
-    if (this.proxy) return; // already initialised
+    if (this.proxy || this.unsupportedSource) return; // already initialised
 
     // Acquire shared video stream
     const videoHandle = acquireVideoSource(this.camSource.url);
     const { src } = await videoHandle.connectedPromise;
-    if (typeof src === 'string') throw new Error('Marker scanner requires a MediaStream');
+    if (typeof src === 'string') {
+      this.unsupportedSource = true;
+      console.warn('Worker-based marker scanner not available for URL sources');
+      return;
+    }
 
     const mediaStream = src as MediaStream;
     const videoTrack = mediaStream.getVideoTracks()[0];
