@@ -403,7 +403,11 @@ const createCalibrationResultSlice: StateCreator<
         { width: frameWidth, height: frameHeight },
         squareSize
       );
-      set({ calibrationResult: result });
+      const updatedFrames = capturedFrames.map((f, idx) => ({
+        ...f,
+        perViewError: result.perViewErrors[idx],
+      }));
+      set({ calibrationResult: result, capturedFrames: updatedFrames });
     } finally {
       set({ isCalibrating: false });
       await worker.terminate();

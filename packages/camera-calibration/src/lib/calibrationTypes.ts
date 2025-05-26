@@ -18,6 +18,7 @@ export interface CapturedFrame {
   imageBlob: Blob | null;
   corners: Corner[];
   timestamp: number;
+  perViewError?: number;
 }
 
 export interface CalibrationResult {
@@ -25,6 +26,7 @@ export interface CalibrationResult {
   cameraMatrix: number[][];
   distCoeffs: number[];
   newCameraMatrix: number[][];
+  perViewErrors: number[];
 }
 
 export interface PatternSize {

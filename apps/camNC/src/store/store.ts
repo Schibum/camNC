@@ -185,7 +185,8 @@ export function useMachineSize() {
   if (!bounds) {
     throw new Error('Machine bounds not set');
   }
-  return bounds.getSize(new Vector2());
+  return bounds.max;
+  // return bounds.getSize(new Vector2());
 }
 
 export const useCameraExtrinsics = () => useStore(state => state.camSource!.extrinsics!);

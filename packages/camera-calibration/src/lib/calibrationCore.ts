@@ -220,15 +220,29 @@ export function calibrateCamera(
   const rvecs = new cv.MatVector();
   const tvecs = new cv.MatVector();
 
+  const stdDevInt = new cv.Mat();
+  const stdDevExt = new cv.Mat();
+  const perViewErrors = new cv.Mat();
+
+  const crit = new cv.TermCriteria(
+    cv.TermCriteria.COUNT + cv.TermCriteria.EPS,
+    30,
+    1e-6
+  );
   // Calibrate the camera
-  const rms = cv.calibrateCamera(
+  const rms = cv.calibrateCameraExtended(
     objectPoints,
     imagePoints,
     imageSize,
     cameraMatrix,
     distCoeffs,
     rvecs,
-    tvecs
+    tvecs,
+    stdDevInt,
+    stdDevExt,
+    perViewErrors,
+    0,
+    crit
   );
 
   // Get optimal new camera matrix
@@ -245,6 +259,7 @@ export function calibrateCamera(
     cameraMatrix: matToArray(cameraMatrix),
     distCoeffs: matToArray(distCoeffs)[0] || [],
     newCameraMatrix: matToArray(newCameraMatrix),
+    perViewErrors: matToArray(perViewErrors).map((row) => row[0]) as number[],
   };
 
   // Clean up
@@ -255,6 +270,9 @@ export function calibrateCamera(
   rvecs.delete();
   tvecs.delete();
   newCameraMatrix.delete();
+  stdDevInt.delete();
+  stdDevExt.delete();
+  perViewErrors.delete();
 
   return result;
 }
