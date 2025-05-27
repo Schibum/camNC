@@ -192,11 +192,8 @@ export function calibrateCamera(
     throw new Error("At least 3 frames required for calibration");
   }
   console.log(
-    "calibrateCamera, frames: %o, patternSize: %o, frameSize: %o, squareSize: %o, zeroTangentDist: %o",
-    capturedFrames,
-    patternSize,
-    frameSize,
-    squareSize,
+    "calibrateCamera: %d frames, zeroTangentDist: %s",
+    capturedFrames.length,
     zeroTangentDist
   );
 

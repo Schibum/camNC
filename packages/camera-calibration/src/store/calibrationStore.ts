@@ -392,8 +392,14 @@ const createCalibrationResultSlice: StateCreator<
   calibrationResult: null,
   isCalibrating: false,
   runCalibration: async () => {
-    const { capturedFrames, patternSize, frameWidth, frameHeight, squareSize } =
-      get();
+    const {
+      capturedFrames,
+      patternSize,
+      frameWidth,
+      frameHeight,
+      squareSize,
+      zeroTangentDist,
+    } = get();
     const frames = capturedFrames.map((f) => ({
       ...f,
       // Blob not needed for calibration, don't sent to worker
@@ -409,7 +415,8 @@ const createCalibrationResultSlice: StateCreator<
         frames,
         patternSize,
         { width: frameWidth, height: frameHeight },
-        squareSize
+        squareSize,
+        zeroTangentDist
       );
       const updatedFrames = capturedFrames.map((f, idx) => ({
         ...f,
