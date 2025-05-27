@@ -113,6 +113,9 @@ function webcamVideoSource(params: WebcamConnectionParams): VideoSource {
       },
     });
     const videoTrack = stream.getVideoTracks()[0];
+    if (!videoTrack) {
+      throw new Error("No video track found");
+    }
     let maxResolution: VideoDimensions | undefined;
     let width = videoTrack.getSettings().width;
     let height = videoTrack.getSettings().height;

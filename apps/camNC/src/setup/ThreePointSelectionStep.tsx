@@ -19,6 +19,7 @@ interface PointSelectionStepProps {
 
 function ReprojectedMachineBounds() {
   const reprojectedPoints = useReprojectedMachineBounds();
+  if (!reprojectedPoints) return null;
   return (
     <>
       {reprojectedPoints.map((point, index) => {

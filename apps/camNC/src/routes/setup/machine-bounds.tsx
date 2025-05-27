@@ -27,7 +27,7 @@ function RouteComponent() {
           <CardContent>
             <MachineBoundsForm
               onConfirmed={() => {
-                navigate({ to: '/setup/point-selection' });
+                navigate({ to: '/setup/marker-positions' });
               }}
             />
           </CardContent>

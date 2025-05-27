@@ -185,11 +185,20 @@ export function calibrateCamera(
   capturedFrames: CapturedFrame[],
   patternSize: PatternSize,
   frameSize: { width: number; height: number },
-  squareSize: number = 1.0
+  squareSize: number = 1.0,
+  zeroTangentDist = false
 ): CalibrationResult {
   if (capturedFrames.length < 3) {
     throw new Error("At least 3 frames required for calibration");
   }
+  console.log(
+    "calibrateCamera, frames: %o, patternSize: %o, frameSize: %o, squareSize: %o, zeroTangentDist: %o",
+    capturedFrames,
+    patternSize,
+    frameSize,
+    squareSize,
+    zeroTangentDist
+  );
 
   const cv = self.cv;
   const imageSize = new cv.Size(frameSize.width, frameSize.height);
@@ -229,6 +238,8 @@ export function calibrateCamera(
     30,
     1e-6
   );
+
+  const flags = zeroTangentDist ? cv.CALIB_ZERO_TANGENT_DIST : 0;
   // Calibrate the camera
   const rms = cv.calibrateCameraExtended(
     objectPoints,
@@ -241,7 +252,7 @@ export function calibrateCamera(
     stdDevInt,
     stdDevExt,
     perViewErrors,
-    0,
+    flags,
     crit
   );
 

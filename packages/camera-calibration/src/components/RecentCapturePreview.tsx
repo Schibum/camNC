@@ -1,8 +1,6 @@
-import { animated, useSpring } from "@react-spring/web";
+import { motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { useCalibrationStore } from "../store/calibrationStore";
-
-const AnimatedDiv = animated("div");
 
 export const RecentCapturePreview: React.FC = () => {
   "use no memo";
@@ -33,53 +31,61 @@ export const RecentCapturePreview: React.FC = () => {
     };
   }, [mostRecentFrame?.imageBlob]); // Depend only on the blob
 
-  // Animation logic using react-spring for both entry and hover
-  const [springs, api] = useSpring(() => ({
-    from: { opacity: 1, transform: "translate(0px, 0px) scale(1)" },
-    config: { tension: 220, friction: 20 }, // Default config
-  }));
+  // Track if we should animate (when new frame is added after initial mount)
+  const [shouldAnimate, setShouldAnimate] = useState(false);
 
   useEffect(() => {
     // Skip animation on initial mount
     if (isInitialMount.current) {
       isInitialMount.current = false;
       prevFrameCount.current = capturedFrames.length;
-      // Set initial state without animation
-      api.set({ opacity: 1, transform: "translate(0px, 0px) scale(1)" });
       return;
     }
 
-    // Animate only when a new frame is added
+    // Trigger animation only when a new frame is added
     if (capturedFrames.length > prevFrameCount.current) {
-      api.start({
-        from: { opacity: 0, transform: "translate(40vw, -40vh) scale(0.1)" }, // Start from near center
-        to: { opacity: 1, transform: "translate(0px, 0px) scale(1)" },
-        // Config specific to entry animation can be placed here if needed
-      });
+      setShouldAnimate(true);
     }
     prevFrameCount.current = capturedFrames.length; // Update previous count
-  }, [capturedFrames.length, api]);
+  }, [capturedFrames.length]);
 
   if (!mostRecentFrame || !imageUrl) {
     return null; // Don't render if no frame or image URL
   }
 
-  // Hover handlers
-  const handleMouseEnter = () => {
-    api.start({ transform: "translate(0px, 0px) scale(1.05)" });
-  };
-
-  const handleMouseLeave = () => {
-    api.start({ transform: "translate(0px, 0px) scale(1)" });
-  };
-
   return (
-    <AnimatedDiv
-      style={springs} // Apply animation styles from react-spring
-      className="recent-capture absolute bottom-[30px] left-[30px] w-[80px] h-[60px] rounded-[8px] overflow-hidden cursor-pointer shadow-lg z-10" // Removed CSS transition/hover classes
+    <motion.div
+      key={mostRecentFrame.timestamp} // Re-trigger animation for new frames
+      initial={
+        shouldAnimate
+          ? {
+              opacity: 0,
+              x: "40vw",
+              y: "-40vh",
+              scale: 0.1,
+            }
+          : {
+              opacity: 1,
+              x: 0,
+              y: 0,
+              scale: 1,
+            }
+      }
+      animate={{
+        opacity: 1,
+        x: 0,
+        y: 0,
+        scale: 1,
+      }}
+      transition={{
+        type: "spring",
+        tension: 220,
+        friction: 20,
+        bounce: 0,
+      }}
+      whileHover={{ scale: 1.05 }}
+      className="recent-capture absolute bottom-[30px] left-[30px] w-[80px] h-[60px] rounded-[8px] overflow-hidden cursor-pointer shadow-lg z-10"
       onClick={() => setShowGallery(true)}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
     >
       <img
         src={imageUrl}
@@ -91,6 +97,6 @@ export const RecentCapturePreview: React.FC = () => {
           {capturedFrames.length}
         </div>
       )}
-    </AnimatedDiv>
+    </motion.div>
   );
 };

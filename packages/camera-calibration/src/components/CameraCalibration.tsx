@@ -14,8 +14,8 @@ interface CameraCalibrationProps {
   autoCapture?: boolean;
   patternSize?: PatternSize;
   squareSize?: number;
-  stabilityThreshold?: number;
   similarityThreshold?: number;
+  zeroTangentDist?: boolean;
 }
 
 // Simple Loading Component (or replace with your preferred spinner)
@@ -32,8 +32,8 @@ export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
   autoCapture = true,
   patternSize,
   squareSize,
-  stabilityThreshold,
   similarityThreshold,
+  zeroTangentDist = false,
 }) => {
   "use no memo";
   // Select actions (references are generally stable)
@@ -58,15 +58,9 @@ export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
       squareSize,
       similarityThreshold,
       autoCapture,
+      zeroTangentDist,
     });
-  }, [
-    initializeSettings,
-    patternSize,
-    squareSize,
-    stabilityThreshold,
-    similarityThreshold,
-    autoCapture,
-  ]);
+  }, []);
 
   useEffect(() => {
     const setupCamera = async () => {
@@ -97,7 +91,7 @@ export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
       );
       stopCamera();
     };
-  }, [src, startCamera, stopCamera]);
+  }, [src, startCamera, stopCamera, resolution]);
 
   if (!window.cv) {
     throw new Error("OpenCV is not loaded");
