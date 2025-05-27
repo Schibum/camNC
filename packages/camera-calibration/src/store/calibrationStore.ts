@@ -153,7 +153,7 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
           getAspectRatio(resolution) !== getAspectRatio(vidRes)
         ) {
           toast.error("Aspect‑ratio mismatch", {
-            description: `Expected ${getAspectRatio(resolution)}, got ${getAspectRatio(vidRes)}`,
+            description: `Expected ${getAspectRatio(resolution)}, got ${getAspectRatio(vidRes)}. Make sure to lock device in portrait mode.`,
             duration: Infinity,
             closeButton: true,
           });

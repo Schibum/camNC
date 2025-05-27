@@ -16,6 +16,7 @@
     "@wbcnc/go2webrtc": "workspace:*",
     "lucide-react": "^0.511.0",
     "react": "^19.1.0",
+    "react-device-detect": "^2.2.3",
     "react-dom": "^19.1.0",
     "vite-plugin-checker": "^0.9.3",
     "vite-tsconfig-paths": "^5.1.4",
