@@ -2,6 +2,7 @@ import { cv2, ensureOpenCvIsLoaded } from "@wbcnc/load-opencv";
 
 import * as Comlink from "comlink";
 import { convertCorners } from "../lib/calibrationCore";
+import { PoseUniquenessGate } from "./poseUniquenessGate";
 import { CornerFinderWorkerInput, CornerFinderWorkerOutput } from "./types";
 
 const FRAME_BLUR_THRESH = 400;
@@ -19,6 +20,7 @@ export class CornerFinderWorker {
   private grayMat: cv2.Mat | null = null;
   private cornersMatFull: cv2.Mat | null = null;
   private patternSizeCv: cv2.Size | null = null;
+  private poseGate: PoseUniquenessGate | null = null;
 
   private _lapVariance(mat: cv2.Mat, mask?: cv2.Mat): number {
     const lap = new cv2.Mat();
@@ -150,12 +152,13 @@ export class CornerFinderWorker {
       );
       if (!found) {
         cornersPreview.delete();
-        return { corners: null, isBlurry: false };
+        return { corners: null, isBlurry: false, isUnique: false };
       }
       if (this._isChessboardBlurry(this.grayMat!, cornersPreview)) {
         cornersPreview.delete();
-        return { corners: null, isBlurry: true };
+        return { corners: null, isBlurry: true, isUnique: false };
       }
+
       for (let i = 0; i < cornersPreview.rows; ++i) {
         this.cornersMatFull!.data32F[2 * i]! = cornersPreview.data32F[2 * i]!;
         this.cornersMatFull!.data32F[2 * i + 1]! =
@@ -169,8 +172,17 @@ export class CornerFinderWorker {
         this.criteria
       );
       const corners = convertCorners(this.cornersMatFull);
+      // TODO: run this before upscaling
+
+      if (!this.poseGate) {
+        this.poseGate = new PoseUniquenessGate(
+          { width: patternWidth, height: patternHeight },
+          1.0
+        );
+      }
+      const isUnique = this.poseGate.accept(corners, width, height);
       cornersPreview.delete();
-      return { corners, isBlurry: false };
+      return { corners, isBlurry: false, isUnique };
     } finally {
       this.isProcessing = false;
       // console.log(`[CFW] ${(performance.now() - t0).toFixed(2)} ms`);

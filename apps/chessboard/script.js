@@ -139,10 +139,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ------------------------------ Full‑screen -------------------------------
   const isFullscreen = () => document.fullscreenElement !== null;
-  const enterFullscreen = () =>
-    chessboardContainer
+  const enterFullscreen = async () => {
+    await chessboardContainer
       .requestFullscreen?.()
       .catch((err) => console.error("FS error:", err));
+    screen?.orientation?.lock(screen.orientation.type);
+  };
   const exitFullscreen = () =>
     document.exitFullscreen?.().catch((err) => console.error("FS error:", err));
 

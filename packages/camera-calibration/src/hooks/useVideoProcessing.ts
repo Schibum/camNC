@@ -5,6 +5,9 @@ import { CornerFinderWorkerManager } from "../utils/workerManager";
 // Smoothing factor moved to store
 // const FPS_SMOOTHING_FACTOR = 0.1;
 
+// TODO: this does not need to be on the main thread at all, we can offload it
+// to a worker completely (see markerScanner.worker.ts)
+
 export function useVideoProcessing() {
   const animationFrameId = useRef<number | null>(null);
   const workerManagerRef = useRef<CornerFinderWorkerManager | null>(null);
@@ -115,7 +118,7 @@ export function useVideoProcessing() {
             frameWidth,
             frameHeight
           );
-          updateCorners(cornerData, imgDataCpy);
+          updateCorners(cornerData, imgDataCpy, result.isUnique);
         } else {
           clearCorners(result.isBlurry);
         }

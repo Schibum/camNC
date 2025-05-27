@@ -2,7 +2,6 @@ import { toast } from "@wbcnc/ui/components/sonner";
 import { v4 as uuidv4 } from "uuid";
 import { create, StateCreator } from "zustand";
 import { CalibrateInWorker } from "../lib/calibrateInWorker";
-import { calculateSimilarityScore } from "../lib/calibrationCore";
 import {
   CalibrationResult,
   CapturedFrame,
@@ -68,7 +67,11 @@ interface ProcessingSlice {
   // Uniqueness metric (0‑100 where 100 ⇒ completely novel)
   uniquenessPercentage: number;
 
-  updateCorners: (corners: Corner[], imageData: ImageData) => void;
+  updateCorners: (
+    corners: Corner[],
+    imageData: ImageData,
+    isUnique: boolean
+  ) => void;
   clearCorners: (isBlurry?: boolean) => void;
   resetDetectionFps: () => void;
   updateDetectionFps: () => void;
@@ -235,32 +238,33 @@ const createProcessingSlice: StateCreator<
   lastFrameProcessedTime: 0,
   uniquenessPercentage: 100,
 
-  updateCorners: (corners, imageData) => {
+  updateCorners: (corners, imageData, isUnique) => {
     // FPS first
     get().updateDetectionFps();
 
     set({ currentCorners: corners, currentFrameImageData: imageData });
 
     const {
-      capturedFrames,
-      frameWidth,
-      frameHeight,
-      similarityThreshold,
+      // capturedFrames,
+      // frameWidth,
+      // frameHeight,
+      // similarityThreshold,
       isAutoCaptureEnabled,
     } = get();
 
-    // 1 · How novel is this detection compared with saved frames?
-    const uniqueness = calculateSimilarityScore(
-      corners,
-      capturedFrames,
-      frameWidth,
-      frameHeight
-    );
-    const uniquenessPct = uniqueness * 100;
-    set({ uniquenessPercentage: uniquenessPct, isBlurry: false });
+    // // 1 · How novel is this detection compared with saved frames?
+    // const uniqueness = calculateSimilarityScore(
+    //   corners,
+    //   capturedFrames,
+    //   frameWidth,
+    //   frameHeight
+    // );
+    // const uniquenessPct = uniqueness * 100;
+    // set({ uniquenessPercentage: uniquenessPct, isBlurry: false });
 
     // 2 · Fire capture if it clears the novelty bar
-    if (isAutoCaptureEnabled && uniquenessPct >= similarityThreshold) {
+    // if (isAutoCaptureEnabled && uniquenessPct >= similarityThreshold) {
+    if (isAutoCaptureEnabled && isUnique) {
       get()
         .captureFrame()
         .catch((e) => console.error("Auto‑capture failed", e));
