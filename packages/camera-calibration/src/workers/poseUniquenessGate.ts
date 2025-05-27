@@ -3,7 +3,7 @@
    ------------------------------------------------------------------ */
 import { cv2 } from "@wbcnc/load-opencv";
 import { createObjectPoints } from "../lib/calibrationCore";
-import { Corner, PatternSize } from "../lib/calibrationTypes";
+import { PatternSize } from "../lib/calibrationTypes";
 
 interface Pose {
   rvec: cv2.Mat;
@@ -14,10 +14,13 @@ export class PoseUniquenessGate {
   private readonly diag: number; // pattern diagonal (world u.)
   private readonly objPts: cv2.Mat; // cached 3-D board coords
   private poses: Pose[] = [];
+  private K: cv2.Mat | null = null; // cached camera matrix
+  private frameW = 0;
+  private frameH = 0;
 
   constructor(
-    private readonly pattern: PatternSize,
-    private readonly squareSize = 1.0
+    readonly pattern: PatternSize,
+    readonly squareSize = 1.0
   ) {
     this.diag = Math.hypot(pattern.width - 1, pattern.height - 1) * squareSize;
     this.objPts = createObjectPoints(pattern, squareSize); // keep forever
@@ -30,55 +33,64 @@ export class PoseUniquenessGate {
       p.tvec.delete();
     });
     this.poses = [];
+    this.K?.delete();
+    this.K = null;
+    this.frameW = 0;
+    this.frameH = 0;
   }
 
-  /** ---- public entry ----
-         returns true  ⇢  frame is sufficiently different & stored
-                  false ⇢  too similar, ignore it                     */
-  accept(
-    corners: Corner[],
+  /** Clean up all OpenCV resources */
+  destroy(): void {
+    this.reset();
+    this.objPts.delete();
+  }
+
+  /** Update camera matrix if frame dimensions change */
+  private updateCameraMatrix(frameW: number, frameH: number): void {
+    if (this.frameW !== frameW || this.frameH !== frameH) {
+      this.K?.delete();
+      const fGuess = Math.max(frameW, frameH);
+      this.K = cv2.matFromArray(3, 3, cv2.CV_64F, [
+        fGuess,
+        0,
+        frameW / 2,
+        0,
+        fGuess,
+        frameH / 2,
+        0,
+        0,
+        1,
+      ]);
+      this.frameW = frameW;
+      this.frameH = frameH;
+    }
+  }
+
+  // returns true  ⇢  frame is sufficiently different & stored
+  //   false ⇢  too similar, ignore
+  acceptDirect(
+    cornersMat: cv2.Mat,
     frameW: number,
     frameH: number,
     thresh = 90,
     rotWeight = 3,
     traWeight = 1
   ): boolean {
-    // 1. build image-point Mat
-    const img = new cv2.Mat(corners.length, 1, cv2.CV_32FC2);
-    corners.forEach((c, i) => {
-      img.floatPtr(i, 0)[0] = c.x;
-      img.floatPtr(i, 0)[1] = c.y;
-    });
-
-    // 2. very rough intrinsics guess (good enough for pose distance)
-    const fGuess = Math.max(frameW, frameH);
-    const K = cv2.matFromArray(3, 3, cv2.CV_64F, [
-      fGuess,
-      0,
-      frameW / 2,
-      0,
-      fGuess,
-      frameH / 2,
-      0,
-      0,
-      1,
-    ]);
+    // Update camera matrix if frame dimensions changed
+    this.updateCameraMatrix(frameW, frameH);
 
     const rvec = new cv2.Mat();
     const tvec = new cv2.Mat();
     cv2.solvePnP(
       this.objPts,
-      img,
-      K,
+      cornersMat,
+      this.K!,
       new cv2.Mat(),
       rvec,
       tvec,
       false,
-      cv2.SOLVEPNP_ITERATIVE
+      (cv2 as any).SOLVEPNP_SQPNP
     );
-
-    img.delete();
-    K.delete();
 
     // first ever pose → accept unconditionally
     if (this.poses.length === 0) {

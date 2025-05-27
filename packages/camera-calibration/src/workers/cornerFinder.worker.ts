@@ -171,8 +171,7 @@ export class CornerFinderWorker {
         this.zeroZone,
         this.criteria
       );
-      const corners = convertCorners(this.cornersMatFull);
-      // TODO: run this before upscaling
+      // TODO: run this before upscaling?
 
       if (!this.poseGate) {
         this.poseGate = new PoseUniquenessGate(
@@ -180,7 +179,12 @@ export class CornerFinderWorker {
           1.0
         );
       }
-      const isUnique = this.poseGate.accept(corners, width, height);
+      const isUnique = this.poseGate.acceptDirect(
+        this.cornersMatFull!,
+        width,
+        height
+      );
+      const corners = convertCorners(this.cornersMatFull);
       cornersPreview.delete();
       return { corners, isBlurry: false, isUnique };
     } finally {
