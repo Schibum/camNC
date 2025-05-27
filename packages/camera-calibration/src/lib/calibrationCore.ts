@@ -185,11 +185,17 @@ export function calibrateCamera(
   capturedFrames: CapturedFrame[],
   patternSize: PatternSize,
   frameSize: { width: number; height: number },
-  squareSize: number = 1.0
+  squareSize: number = 1.0,
+  zeroTangentDist = false
 ): CalibrationResult {
   if (capturedFrames.length < 3) {
     throw new Error("At least 3 frames required for calibration");
   }
+  console.log(
+    "calibrateCamera: %d frames, zeroTangentDist: %s",
+    capturedFrames.length,
+    zeroTangentDist
+  );
 
   const cv = self.cv;
   const imageSize = new cv.Size(frameSize.width, frameSize.height);
@@ -220,15 +226,31 @@ export function calibrateCamera(
   const rvecs = new cv.MatVector();
   const tvecs = new cv.MatVector();
 
+  const stdDevInt = new cv.Mat();
+  const stdDevExt = new cv.Mat();
+  const perViewErrors = new cv.Mat();
+
+  const crit = new cv.TermCriteria(
+    cv.TermCriteria.COUNT + cv.TermCriteria.EPS,
+    30,
+    1e-6
+  );
+
+  const flags = zeroTangentDist ? cv.CALIB_ZERO_TANGENT_DIST : 0;
   // Calibrate the camera
-  const rms = cv.calibrateCamera(
+  const rms = cv.calibrateCameraExtended(
     objectPoints,
     imagePoints,
     imageSize,
     cameraMatrix,
     distCoeffs,
     rvecs,
-    tvecs
+    tvecs,
+    stdDevInt,
+    stdDevExt,
+    perViewErrors,
+    flags,
+    crit
   );
 
   // Get optimal new camera matrix
@@ -245,6 +267,7 @@ export function calibrateCamera(
     cameraMatrix: matToArray(cameraMatrix),
     distCoeffs: matToArray(distCoeffs)[0] || [],
     newCameraMatrix: matToArray(newCameraMatrix),
+    perViewErrors: matToArray(perViewErrors).map((row) => row[0]) as number[],
   };
 
   // Clean up
@@ -255,6 +278,9 @@ export function calibrateCamera(
   rvecs.delete();
   tvecs.delete();
   newCameraMatrix.delete();
+  stdDevInt.delete();
+  stdDevExt.delete();
+  perViewErrors.delete();
 
   return result;
 }

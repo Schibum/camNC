@@ -2,6 +2,7 @@ import { LoadingVideoOverlay } from '@/components/LoadingVideoOverlay';
 import { AlreadyCalibratedDialog } from '@/setup/already-calibrated-dialog';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { CalibrationResult, CameraCalibration } from '@wbcnc/camera-calibration';
+import { parseConnectionString } from '@wbcnc/go2webrtc/url-helpers';
 import { useVideoSource } from '@wbcnc/go2webrtc/use-video-source';
 import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
@@ -24,11 +25,21 @@ function toMatrix3(d: number[][]) {
   return new Matrix3().set(d[0][0], d[0][1], d[0][2], d[1][0], d[1][1], d[1][2], d[2][0], d[2][1], d[2][2]);
 }
 
+function useZeroTangentDist(url: string) {
+  const vidSrcType = parseConnectionString(url).type;
+  // Assume zero tangent distortion for webcams and phone (webrtc) sources.
+  if (vidSrcType === 'webcam' || vidSrcType === 'webrtc') {
+    return true;
+  }
+  return false;
+}
+
 function ConfiguredCameraCalibration() {
   use(ensureOpenCvIsLoaded());
   const { url, maxResolution } = Route.useLoaderData();
   const resolution = { width: maxResolution[0], height: maxResolution[1] };
   const { src } = useVideoSource(url);
+  const zeroTangentDist = useZeroTangentDist(url);
   const setCalibrationData = useStore(state => state.camSourceSetters.setCalibration);
   const navigate = useNavigate();
   const handleCalibrationComplete = (data: CalibrationResult) => {
@@ -50,8 +61,8 @@ function ConfiguredCameraCalibration() {
       onCalibrationConfirmed={handleCalibrationComplete}
       autoCapture={true}
       patternSize={{ width: 9, height: 6 }}
-      // stabilityThreshold={10}
       similarityThreshold={5}
+      zeroTangentDist={zeroTangentDist}
     />
   );
 }

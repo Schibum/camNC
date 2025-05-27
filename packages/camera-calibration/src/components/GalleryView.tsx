@@ -38,6 +38,11 @@ const GalleryItem: React.FC<GalleryItemProps> = ({
   onSelect,
   onDelete,
 }) => {
+  const calibrationRms = useCalibrationStore((s) => s.calibrationResult?.rms);
+  const isFrameErrHigh =
+    calibrationRms &&
+    frame.perViewError &&
+    frame.perViewError > calibrationRms * 1.5;
   return (
     <div
       key={frame.id}
@@ -61,8 +66,12 @@ const GalleryItem: React.FC<GalleryItemProps> = ({
           <Trash />
         </Button>
       </div>
-      <div className="gallery-item-info absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent text-white text-xs px-2 pb-1 pt-3 text-right rounded-b-lg">
-        {new Date(frame.timestamp).toLocaleTimeString()}
+      <div className="gallery-item-info absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent text-white text-xs px-2 pb-1 pt-3 text-right rounded-b-lg flex justify-between">
+        <div>{new Date(frame.timestamp).toLocaleTimeString()}</div>
+
+        <div className={isFrameErrHigh ? "text-red-400" : "text-white"}>
+          {frame.perViewError && "err: " + frame.perViewError.toFixed(2)}
+        </div>
       </div>
     </div>
   );

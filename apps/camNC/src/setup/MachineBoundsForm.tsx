@@ -55,10 +55,10 @@ export function MachineBoundsForm({ onConfirmed }: { onConfirmed: () => void }) 
   const setMachineBounds = useStore(state => state.camSourceSetters.setMachineBounds);
   const form = useForm({
     defaultValues: {
-      xmin: bounds?.min.x || 6,
-      xmax: bounds?.max.x || 600,
-      ymin: bounds?.min.y || 6,
-      ymax: bounds?.max.y || 1200,
+      xmin: bounds?.min.x ?? 6,
+      xmax: bounds?.max.x ?? 600,
+      ymin: bounds?.min.y ?? 6,
+      ymax: bounds?.max.y ?? 1200,
     },
     resolver: zodResolver(schema),
   });

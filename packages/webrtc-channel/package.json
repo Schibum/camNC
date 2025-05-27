@@ -12,10 +12,10 @@
   "packageManager": "pnpm@10.7.0",
   "dependencies": {
     "comlink": "^4.4.2",
-    "firebase": "^11.7.1",
+    "firebase": "^11.8.1",
     "loglevel": "^1.9.2",
     "mitt": "^3.0.1",
-    "playwright": "^1.51.1"
+    "playwright": "^1.52.0"
   },
   "devDependencies": {
     "@vitest/browser": "3.2.0-beta.1",

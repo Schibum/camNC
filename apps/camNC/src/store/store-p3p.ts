@@ -1,5 +1,9 @@
+import { calculateUndistortionMapsCached } from '@/calibration/rectifyMap';
+import { remapCv } from '@/calibration/remapCv';
 import { computeP3P, markerMachinePosToCv } from '@/calibration/solveP3P';
+import { averageVideoFrames } from '@/hooks/useStillFrameTexture';
 import { useCameraExtrinsics, useStore } from '@/store/store';
+import { acquireVideoSource, releaseVideoSource } from '@wbcnc/go2webrtc/use-video-source';
 import { cv2 } from '@wbcnc/load-opencv';
 import { cvToVector2, matrix3ToCV, vector3ToCV } from '../lib/three-cv';
 
@@ -45,4 +49,25 @@ export function useReprojectedMachineBounds() {
   Rcv.delete();
   tcv.delete();
   return pointsThree;
+}
+
+export async function getRemappedStillFrame(averageFrames = 25) {
+  const url = useStore.getState().camSource!.url;
+  const resolution = useStore.getState().camSource!.maxResolution;
+  const calibrationData = useStore.getState().camSource!.calibration!;
+  const [mapX, mapY] = calculateUndistortionMapsCached(calibrationData, resolution[0], resolution[1]);
+  const vidSrc = acquireVideoSource(url);
+  const { src } = await vidSrc.connectedPromise;
+  // TODO: use videoSource
+  const videoElem = document.createElement('video');
+  videoElem.muted = true;
+  if (typeof src === 'string') {
+    videoElem.src = src;
+  } else {
+    videoElem.srcObject = src;
+  }
+  await videoElem.play();
+  const imgData = await averageVideoFrames(videoElem, averageFrames);
+  releaseVideoSource(url);
+  return remapCv(imgData, mapX, mapY);
 }

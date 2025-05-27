@@ -19,11 +19,12 @@ interface PointSelectionStepProps {
 
 function ReprojectedMachineBounds() {
   const reprojectedPoints = useReprojectedMachineBounds();
+  if (!reprojectedPoints) return null;
   return (
     <>
       {reprojectedPoints.map((point, index) => {
         return (
-          <mesh key={index} position={[point.x, point.y, 0.1]}>
+          <mesh key={index} position={[point.x, point.y, -0.1]}>
             <ringGeometry args={[3, 4, 16]} />
             <meshBasicMaterial color="hotpink" wireframe={false} side={THREE.DoubleSide} />
           </mesh>
@@ -173,7 +174,7 @@ function PointsScene({ points, setPoints }: { points: Vector2[]; setPoints: (poi
       {/* Draw connection lines between points */}
       {points.length === 4 && !isDragging && <Line points={linePoints} color="yellow" lineWidth={2} />}
 
-      {points.length === 4 && !isDragging && <ReprojectedMachineBounds />}
+      {!isDragging && <ReprojectedMachineBounds />}
     </>
   );
 }
@@ -195,8 +196,11 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
     const reprojectionError = updateCameraExtrinsics();
     toast.success(`Updated camera extrinsics`, {
       description: `Reprojection error: ${reprojectionError.toFixed(2)}px (< 1px is very good)`,
+      action: {
+        label: 'Go to 2D view',
+        onClick: () => navigate({ to: '/' }),
+      },
     });
-    navigate({ to: '/' });
   };
 
   const handleReset = () => {
@@ -205,7 +209,9 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
 
   const handleMarkersDetected = (markers: Vector2[]) => {
     if (markers.length !== 4) {
-      toast.error('Detected ' + markers.length + ' markers, expected 4, ignoring');
+      toast.error('Detected ' + markers.length + ' markers, expected 4, ignoring', {
+        position: 'top-right',
+      });
       return;
     }
     toast.success('Detected 4 markers', { position: 'top-right' });

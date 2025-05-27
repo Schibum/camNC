@@ -22,9 +22,8 @@ type IMarker = {
 };
 
 // Returns markers in camera coordinates. Returns markers in order of id.
-export function detectAruco(matOrCanvas: HTMLCanvasElement | cv2.Mat) {
+export function detectAruco(img: cv2.Mat) {
   const startTime = performance.now();
-  const img = matOrCanvas instanceof HTMLCanvasElement ? cv2.imread(matOrCanvas) : matOrCanvas;
 
   // Convert to grayscale for detection
   const gray = new cv2.Mat();
@@ -58,9 +57,6 @@ export function detectAruco(matOrCanvas: HTMLCanvasElement | cv2.Mat) {
   ids.delete();
   rejected.delete();
   gray.delete();
-  if (matOrCanvas instanceof HTMLCanvasElement) {
-    img.delete();
-  }
   detector.delete();
 
   return markers;

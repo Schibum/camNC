@@ -1,10 +1,6 @@
 import * as Comlink from "comlink";
 import { api } from "../workers/calibrate.worker";
-import {
-  CalibrationResult,
-  CapturedFrame,
-  PatternSize,
-} from "./calibrationTypes";
+import { CalibrationResult } from "./calibrationTypes";
 
 export class CalibrateInWorker {
   readonly worker: Worker;
@@ -20,21 +16,13 @@ export class CalibrateInWorker {
   }
 
   async calibrate(
-    capturedFrames: CapturedFrame[],
-    patternSize: PatternSize,
-    frameSize: { width: number; height: number },
-    squareSize: number
+    ...opts: Parameters<typeof api.calibrate>
   ): Promise<CalibrationResult> {
     if (!this.isInitialized) {
       await this.workerProxy.init();
       this.isInitialized = true;
     }
-    return this.workerProxy.calibrate(
-      capturedFrames,
-      patternSize,
-      frameSize,
-      squareSize
-    );
+    return this.workerProxy.calibrate(...opts);
   }
 
   async terminate() {

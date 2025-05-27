@@ -35,6 +35,7 @@ export interface CalibrationSettings {
   squareSize?: number;
   autoCapture?: boolean;
   similarityThreshold?: number;
+  zeroTangentDist?: boolean;
 }
 
 // -----------------------------------------------------------------------------
@@ -89,6 +90,7 @@ interface SettingsSlice {
   similarityThreshold: number; // «minimum % novelty»
   isAutoCaptureEnabled: boolean;
   isBlurry: boolean;
+  zeroTangentDist: boolean;
   initializeSettings: (settings: CalibrationSettings) => void;
 }
 
@@ -366,12 +368,14 @@ const createSettingsSlice: StateCreator<
   similarityThreshold: DEFAULT_SIMILARITY_THRESHOLD,
   isAutoCaptureEnabled: true,
   isBlurry: false,
+  zeroTangentDist: false,
   initializeSettings: (s) =>
     set((st) => ({
       patternSize: s.patternSize ?? st.patternSize,
       squareSize: s.squareSize ?? st.squareSize,
       similarityThreshold: s.similarityThreshold ?? st.similarityThreshold,
       isAutoCaptureEnabled: s.autoCapture ?? st.isAutoCaptureEnabled,
+      zeroTangentDist: !!s.zeroTangentDist,
     })),
 });
 
@@ -388,22 +392,37 @@ const createCalibrationResultSlice: StateCreator<
   calibrationResult: null,
   isCalibrating: false,
   runCalibration: async () => {
-    const { capturedFrames, patternSize, frameWidth, frameHeight, squareSize } =
-      get();
-    const valid = capturedFrames.filter((f) => f.imageBlob);
-    if (valid.length < 3) {
+    const {
+      capturedFrames,
+      patternSize,
+      frameWidth,
+      frameHeight,
+      squareSize,
+      zeroTangentDist,
+    } = get();
+    const frames = capturedFrames.map((f) => ({
+      ...f,
+      // Blob not needed for calibration, don't sent to worker
+      imageBlob: null,
+    }));
+    if (frames.length < 3) {
       throw new Error("At least 3 valid frames required for calibration");
     }
     set({ isCalibrating: true });
     const worker = new CalibrateInWorker();
     try {
       const result = await worker.calibrate(
-        valid,
+        frames,
         patternSize,
         { width: frameWidth, height: frameHeight },
-        squareSize
+        squareSize,
+        zeroTangentDist
       );
-      set({ calibrationResult: result });
+      const updatedFrames = capturedFrames.map((f, idx) => ({
+        ...f,
+        perViewError: result.perViewErrors[idx],
+      }));
+      set({ calibrationResult: result, capturedFrames: updatedFrames });
     } finally {
       set({ isCalibrating: false });
       await worker.terminate();
