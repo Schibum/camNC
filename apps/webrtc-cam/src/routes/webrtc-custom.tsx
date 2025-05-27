@@ -2,7 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { zodValidator } from "@tanstack/zod-adapter";
 import { useTrysteroServer } from "@wbcnc/go2webrtc/trystero";
 import { z } from "zod";
-import { PortraitOrientation } from "../portrait-orientation";
+import {
+  PortraitLockButton,
+  PortraitOrientation,
+} from "../portrait-orientation";
 import { ServerCard } from "../server-card";
 import { streamFactory } from "../utils";
 

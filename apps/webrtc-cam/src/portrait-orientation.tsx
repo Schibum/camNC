@@ -1,5 +1,5 @@
 import { Button } from "@wbcnc/ui/components/button";
-import { RotateCcw } from "lucide-react";
+import { Lock, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { isMobile } from "react-device-detect";
 
@@ -20,9 +20,7 @@ type OrientationLockType =
   | "landscape-primary"
   | "landscape-secondary";
 
-function useOrientationLock() {
-  const [isLocked, setIsLocked] = useState(false);
-  const [lockFailed, setLockFailed] = useState(false);
+function useOrientation() {
   const [orientation, setOrientation] = useState<string>("portrait");
 
   useEffect(() => {
@@ -32,10 +30,6 @@ function useOrientationLock() {
     const updateOrientation = () => {
       if (screen?.orientation) {
         setOrientation(screen.orientation.type);
-      } else if (window.orientation !== undefined) {
-        // Fallback for older browsers
-        const angle = Math.abs(window.orientation);
-        setOrientation(angle === 0 || angle === 180 ? "portrait" : "landscape");
       }
     };
 
@@ -53,26 +47,6 @@ function useOrientationLock() {
       window.addEventListener("orientationchange", handleOrientationChange);
     }
 
-    // Try to lock orientation
-    const lockOrientation = async () => {
-      if (screen?.orientation?.lock) {
-        try {
-          await screen.orientation.lock("portrait-primary");
-          setIsLocked(true);
-          setLockFailed(false);
-        } catch (error) {
-          console.warn("Failed to lock orientation:", error);
-          setLockFailed(true);
-          setIsLocked(false);
-        }
-      } else {
-        setLockFailed(true);
-        setIsLocked(false);
-      }
-    };
-
-    lockOrientation();
-
     return () => {
       if (screen?.orientation) {
         screen.orientation.removeEventListener(
@@ -88,10 +62,10 @@ function useOrientationLock() {
     };
   }, []);
 
-  return { isLocked, lockFailed, orientation };
+  return orientation;
 }
 
-function OrientationOverlay({ onDismiss }: { onDismiss?: () => void }) {
+function OrientationOverlay() {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
       <div className="text-center text-white p-8 max-w-sm mx-auto">
@@ -104,25 +78,16 @@ function OrientationOverlay({ onDismiss }: { onDismiss?: () => void }) {
         <h2 className="text-2xl font-bold mb-4">Please Rotate Your Device</h2>
         <p className="text-lg mb-6">
           Portrait orientation is required to maintain consistent camera stream
-          resolution and prevent aspect ratio distortion.
+          resolution.
         </p>
-        {onDismiss && (
-          <Button
-            onClick={onDismiss}
-            variant="outline"
-            className="bg-white text-black"
-          >
-            Continue Anyway
-          </Button>
-        )}
+        <PortraitLockButton />
       </div>
     </div>
   );
 }
 
 export function PortraitOrientation() {
-  const { isLocked, lockFailed, orientation } = useOrientationLock();
-  const [overlayDismissed, setOverlayDismissed] = useState(false);
+  const orientation = useOrientation();
 
   // On desktop, render nothing
   if (!isMobile) {
@@ -130,10 +95,23 @@ export function PortraitOrientation() {
   }
 
   // On mobile, show overlay if orientation lock failed and device is in landscape
-  const shouldShowOverlay =
-    lockFailed && !overlayDismissed && orientation.includes("landscape");
+  const shouldShowOverlay = orientation.includes("landscape");
 
-  return shouldShowOverlay ? (
-    <OrientationOverlay onDismiss={() => setOverlayDismissed(true)} />
-  ) : null;
+  return shouldShowOverlay ? <OrientationOverlay /> : null;
+}
+
+export function PortraitLockButton() {
+  async function handleClick() {
+    await document.documentElement.requestFullscreen();
+    if (screen?.orientation?.lock) {
+      screen.orientation.lock("portrait-primary");
+    }
+  }
+  if (!isMobile || !screen.orientation?.lock) return null;
+  return (
+    <Button onClick={handleClick} className="text-xl px-12 py-6">
+      <Lock className="w-8 h-8 mr-3" />
+      Lock to Portrait
+    </Button>
+  );
 }
