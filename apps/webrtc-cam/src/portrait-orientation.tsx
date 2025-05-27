@@ -68,14 +68,16 @@ function useOrientation() {
 function OrientationOverlay() {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
-      <div className="text-center text-white p-8 max-w-sm mx-auto">
+      <div className="text-center text-white p-8 mx-auto">
         <div className="mb-6">
           <RotateCcw
             className="w-16 h-16 mx-auto mb-4 animate-spin"
             style={{ animationDuration: "3s" }}
           />
         </div>
-        <h2 className="text-2xl font-bold mb-4">Please Rotate Your Device</h2>
+        <h2 className="text-2xl font-bold mb-4">
+          Please Rotate Your Device and Lock Rotation
+        </h2>
         <p className="text-lg mb-6">
           Portrait orientation is required to maintain consistent camera stream
           resolution.
