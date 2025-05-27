@@ -129,18 +129,20 @@ async function getMaxResolution(stream: MediaStream) {
   let width = track.getSettings().width;
   let height = track.getSettings().height;
   if (!width || !height) throw new Error("No width or height found");
-  // HACK, seems like FF mobile flips width/height.
-  if (navigator.userAgent.includes("Firefox")) {
-    const video = document.createElement("video");
-    video.srcObject = stream;
-    await new Promise<void>((resolve) => {
-      video.onloadedmetadata = () => {
-        width = video.videoWidth;
-        height = video.videoHeight;
-        resolve();
-      };
-    });
+  // HACK, seems like mobile browsers may flip width/height depending on orientation.
+  // Assume portrait mode with height > width.
+  if (width > height) {
+    [width, height] = [height, width];
   }
+  // const video = document.createElement("video");
+  // video.srcObject = stream;
+  // await new Promise<void>((resolve) => {
+  //   video.onloadedmetadata = () => {
+  //     width = video.videoWidth;
+  //     height = video.videoHeight;
+  //     resolve();
+  //   };
+  // });
   return { width, height };
 }
 
