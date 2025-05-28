@@ -71,9 +71,7 @@ export class GridHeatmapTracker {
   }
 }
 
-import { ArrowRight } from "lucide-react";
-import { motion } from "motion/react";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useCalibrationStore } from "../store/calibrationStore";
 
 /**
@@ -124,30 +122,22 @@ export function GridHeatmapOverlay() {
 
         // Map hit count to 3 colors: red -> yellow -> green
         const getHitColor = (count: number): string => {
-          const alpha = 0.35;
+          const alpha = 0.2;
 
-          if (count === 0) return `rgba(239,68,68,${alpha})`; // red
+          if (count === 0) return `rgba(239,68,68,${alpha + 0.1})`; // red
           if (count === 1) return `rgba(251,191,36,${alpha})`; // yellow
           return `rgba(34,197,94,${alpha})`; // green for 2+
         };
 
         ctx.fillStyle = getHitColor(hit);
-        // rounded rect
         const x = c * cellW + 1;
         const y = r * cellH + 1;
         const w = cellW - 2;
         const h = cellH - 2;
-        const rrad = 6;
+
+        const rrad = 2;
         ctx.beginPath();
-        ctx.moveTo(x + rrad, y);
-        ctx.lineTo(x + w - rrad, y);
-        ctx.quadraticCurveTo(x + w, y, x + w, y + rrad);
-        ctx.lineTo(x + w, y + h - rrad);
-        ctx.quadraticCurveTo(x + w, y + h, x + w - rrad, y + h);
-        ctx.lineTo(x + rrad, y + h);
-        ctx.quadraticCurveTo(x, y + h, x, y + h - rrad);
-        ctx.lineTo(x, y + rrad);
-        ctx.quadraticCurveTo(x, y, x + rrad, y);
+        ctx.roundRect(x, y, w, h, rrad);
         ctx.closePath();
         ctx.fill();
       }
@@ -158,75 +148,9 @@ export function GridHeatmapOverlay() {
     <canvas
       ref={canvasRef}
       // className="w-full h-full filter blur-md"
-      className="absolute top-0 left-0 w-full h-full object-contain pointer-events-none fliter blur-md"
+      className="absolute top-0 left-0 w-full h-full object-contain pointer-events-none fliter "
       width={width}
       height={height}
     />
-  );
-}
-
-export function HeatmapArrowOverlay() {
-  const { bins, rows, cols, width, height } = useCalibrationStore(
-    (s) => s.heatmapTracker!
-  );
-  const tick = useCalibrationStore((s) => s.heatmapTick);
-  const currentCorners = useCalibrationStore((s) => s.currentCorners);
-
-  const centroid = useMemo(
-    () =>
-      currentCorners
-        ? {
-            x:
-              currentCorners.reduce((acc, c) => acc + c.x, 0) /
-              currentCorners.length,
-            y:
-              currentCorners.reduce((acc, c) => acc + c.y, 0) /
-              currentCorners.length,
-          }
-        : null,
-    [currentCorners]
-  );
-  console.log("centroid", centroid);
-
-  // arrow to nearest unseen
-  const arrow = useMemo(() => {
-    if (!centroid || !tick) return null;
-    let best: { cx: number; cy: number; dist: number; angle: number } | null =
-      null;
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        if (bins[r * cols + c] !== 0) continue;
-        const cxCell = (c + 0.5) * (width / cols);
-        const cyCell = (r + 0.5) * (height / rows);
-        const dx = cxCell - centroid.x;
-        const dy = cyCell - centroid.y;
-        const dist = Math.hypot(dx, dy);
-        const angle = Math.atan2(dy, dx) * (180 / Math.PI);
-        if (!best || dist < best.dist)
-          best = { cx: cxCell, cy: cyCell, dist, angle };
-      }
-    }
-    return best;
-  }, [bins, rows, cols, width, height, centroid, tick]);
-
-  if (!arrow) return null;
-
-  return (
-    <motion.div
-      className="absolute origin-left pointer-events-none"
-      style={{
-        top: centroid!.y,
-        left: centroid!.x,
-        rotate: `${arrow.angle}deg`,
-        width: `${arrow.dist}px`,
-      }}
-      animate={{ opacity: [0, 1, 0] }}
-      transition={{ duration: 1.2, repeat: Infinity }}
-    >
-      <ArrowRight
-        // strokeWidth={10}
-        className="h-40 w-full text-white drop-shadow"
-      />
-    </motion.div>
   );
 }

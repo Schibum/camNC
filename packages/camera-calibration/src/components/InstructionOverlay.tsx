@@ -33,7 +33,7 @@ export function InstructionOverlay() {
     }
 
     if (isBlurry) {
-      setMessage(<>😕 Chessboard is too blurry</>);
+      setMessage(<>😕 Chessboard is blurry, hold still</>);
     } else if (!currentCorners) {
       // Construct the message with the link around the dimensions
       setMessage(

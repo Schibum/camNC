@@ -1,1 +1,1 @@
-{"root":["./vite.config.ts","./src/routetree.gen.ts","./src/usefluidncserver.ts","./src/main.tsx","./src/server-card.tsx","./src/routes/$roomid.tsx","./src/routes/__root.tsx","../../packages/fluidnc-api/fluidnc-api.ts","../../packages/fluidnc-api/fluidnc-server.ts"],"version":"5.8.3"}
+{"root":["./vite.config.ts","./src/routetree.gen.ts","./src/usefluidncserver.ts","./src/main.tsx","./src/server-card.tsx","./src/routes/$roomid.tsx","./src/routes/__root.tsx"],"version":"5.8.3"}

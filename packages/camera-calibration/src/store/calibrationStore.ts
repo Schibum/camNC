@@ -15,8 +15,7 @@ import { createImageBlob } from "../lib/imageUtils";
 // Constants
 // -----------------------------------------------------------------------------
 
-// Smoothing factor for FPS calculation (lower value = smoother)
-const FPS_SMOOTHING_FACTOR = 0.8;
+// Constants section now empty, can be removed if no other constants are added
 
 // -----------------------------------------------------------------------------
 // Calibration‑settings interface (stability fields permanently removed)
@@ -61,18 +60,16 @@ interface ProcessingSlice {
   isBlurry: boolean;
   isUnique: boolean;
 
-  // FPS helpers
+  // FPS from worker
   detectionFps: number;
-  lastFrameProcessedTime: number;
 
   updateCorners: (
     corners: Corner[],
     imageData: ImageData,
-    isUnique: boolean
+    isUnique: boolean,
+    fps: number
   ) => void;
-  clearCorners: (isBlurry?: boolean) => void;
-  resetDetectionFps: () => void;
-  updateDetectionFps: () => void;
+  clearCorners: (isBlurry?: boolean, fps?: number) => void;
 }
 
 interface CaptureSlice {
@@ -192,8 +189,8 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
       currentFrameImageData: null,
       isBlurry: false,
       isUnique: false,
+      detectionFps: 0,
     });
-    get().resetDetectionFps();
   },
 
   stopCamera: () => {
@@ -214,8 +211,8 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
       currentCorners: null,
       currentFrameImageData: null,
       selectedFrameId: null,
+      detectionFps: 0,
     });
-    get().resetDetectionFps();
   },
 
   setFrameDimensions: (w, h) => set({ frameWidth: w, frameHeight: h }),
@@ -235,21 +232,18 @@ const createProcessingSlice: StateCreator<
   currentCorners: null,
   currentFrameImageData: null,
   detectionFps: 0,
-  lastFrameProcessedTime: 0,
   heatmapTracker: null,
   heatmapTick: 0,
   isBlurry: false,
   isUnique: false,
 
-  updateCorners: (corners, imageData, isUnique) => {
-    // FPS first
-    get().updateDetectionFps();
-
+  updateCorners: (corners, imageData, isUnique, fps) => {
     set({
       currentCorners: corners,
       currentFrameImageData: imageData,
       isUnique,
       isBlurry: false,
+      detectionFps: fps,
     });
 
     const { isAutoCaptureEnabled } = get();
@@ -260,29 +254,16 @@ const createProcessingSlice: StateCreator<
     }
   },
 
-  clearCorners: (isBlurry = false) =>
-    set({
+  clearCorners: (isBlurry = false, fps = 0) => {
+    const updates = {
       currentCorners: null,
       currentFrameImageData: null,
       isBlurry,
       isUnique: false,
-    }),
+      detectionFps: fps,
+    };
 
-  resetDetectionFps: () => set({ detectionFps: 0, lastFrameProcessedTime: 0 }),
-
-  updateDetectionFps: () => {
-    const { lastFrameProcessedTime, detectionFps } = get();
-    const now = performance.now();
-    const delta = now - lastFrameProcessedTime;
-
-    if (lastFrameProcessedTime > 0 && delta > 0) {
-      const raw = 1000 / delta;
-      const smoothed =
-        FPS_SMOOTHING_FACTOR * raw + (1 - FPS_SMOOTHING_FACTOR) * detectionFps;
-      set({ detectionFps: smoothed });
-    }
-
-    set({ lastFrameProcessedTime: now });
+    set(updates);
   },
 });
 

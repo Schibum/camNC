@@ -22,6 +22,10 @@ export class CornerFinderWorker {
   private patternSizeCv: cv2.Size | null = null;
   private poseGate: PoseUniquenessGate | null = null;
 
+  // FPS tracking
+  private lastFrameTime: number = 0;
+  private currentFps: number = 0;
+
   private _lapVariance(mat: cv2.Mat, mask?: cv2.Mat): number {
     const lap = new cv2.Mat();
     cv2.Laplacian(mat, lap, cv2.CV_64F);
@@ -90,7 +94,7 @@ export class CornerFinderWorker {
     shiftedHull.delete();
     hull.delete();
 
-    // console.log(`blur in chessboard: ${varLap}`);
+    console.log(`blur in chessboard: ${varLap}`);
 
     return varLap < BOARD_BLUR_THRESH;
   }
@@ -117,6 +121,14 @@ export class CornerFinderWorker {
     this.isProcessing = true;
 
     const t0 = performance.now();
+
+    // Calculate FPS at the start of frame processing
+    if (this.lastFrameTime > 0) {
+      const deltaTime = t0 - this.lastFrameTime;
+      this.currentFps = deltaTime > 0 ? 1000 / deltaTime : 0;
+    }
+    this.lastFrameTime = t0;
+
     const { imageData, width, height, patternWidth, patternHeight } = input;
 
     try {
@@ -152,11 +164,21 @@ export class CornerFinderWorker {
       );
       if (!found) {
         cornersPreview.delete();
-        return { corners: null, isBlurry: false, isUnique: false };
+        return {
+          corners: null,
+          isBlurry: false,
+          isUnique: false,
+          fps: this.currentFps,
+        };
       }
       if (this._isChessboardBlurry(this.grayMat!, cornersPreview)) {
         cornersPreview.delete();
-        return { corners: null, isBlurry: true, isUnique: false };
+        return {
+          corners: null,
+          isBlurry: true,
+          isUnique: false,
+          fps: this.currentFps,
+        };
       }
 
       for (let i = 0; i < cornersPreview.rows; ++i) {
@@ -186,7 +208,7 @@ export class CornerFinderWorker {
       );
       const corners = convertCorners(this.cornersMatFull);
       cornersPreview.delete();
-      return { corners, isBlurry: false, isUnique };
+      return { corners, isBlurry: false, isUnique, fps: this.currentFps };
     } finally {
       this.isProcessing = false;
       // console.log(`[CFW] ${(performance.now() - t0).toFixed(2)} ms`);
