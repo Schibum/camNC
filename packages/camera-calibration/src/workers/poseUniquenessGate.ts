@@ -106,7 +106,7 @@ export class PoseUniquenessGate {
       const score = rotWeight * rotDeg + traWeight * traDeg;
       minScore = Math.min(minScore, score);
     }
-    console.log(`[Pug] score: ${minScore}`);
+    // console.log(`[Pug] score: ${minScore}`);
 
     const unique = minScore > thresh;
 

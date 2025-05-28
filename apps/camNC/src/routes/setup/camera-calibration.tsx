@@ -61,7 +61,6 @@ function ConfiguredCameraCalibration() {
       onCalibrationConfirmed={handleCalibrationComplete}
       autoCapture={true}
       patternSize={{ width: 9, height: 6 }}
-      similarityThreshold={5}
       zeroTangentDist={zeroTangentDist}
     />
   );

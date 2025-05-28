@@ -1,6 +1,7 @@
 import { toast } from "@wbcnc/ui/components/sonner";
 import { v4 as uuidv4 } from "uuid";
 import { create, StateCreator } from "zustand";
+import { GridHeatmapTracker } from "../components/CoverageHeatmap";
 import { CalibrateInWorker } from "../lib/calibrateInWorker";
 import {
   CalibrationResult,
@@ -16,9 +17,6 @@ import { createImageBlob } from "../lib/imageUtils";
 
 // Smoothing factor for FPS calculation (lower value = smoother)
 const FPS_SMOOTHING_FACTOR = 0.8;
-// Default minimum percentage difference between a new detection and all
-// previously–captured frames (0‑100 scale)
-const DEFAULT_SIMILARITY_THRESHOLD = 5; // «at least 5 % different»
 
 // -----------------------------------------------------------------------------
 // Calibration‑settings interface (stability fields permanently removed)
@@ -33,7 +31,6 @@ export interface CalibrationSettings {
   patternSize?: PatternSize;
   squareSize?: number;
   autoCapture?: boolean;
-  similarityThreshold?: number;
   zeroTangentDist?: boolean;
 }
 
@@ -59,13 +56,14 @@ interface CameraSlice {
 interface ProcessingSlice {
   currentCorners: Corner[] | null;
   currentFrameImageData: ImageData | null;
+  heatmapTracker: GridHeatmapTracker | null;
+  heatmapTick: number;
+  isBlurry: boolean;
+  isUnique: boolean;
 
   // FPS helpers
   detectionFps: number;
   lastFrameProcessedTime: number;
-
-  // Uniqueness metric (0‑100 where 100 ⇒ completely novel)
-  uniquenessPercentage: number;
 
   updateCorners: (
     corners: Corner[],
@@ -90,9 +88,7 @@ interface CaptureSlice {
 interface SettingsSlice {
   patternSize: PatternSize;
   squareSize: number;
-  similarityThreshold: number; // «minimum % novelty»
   isAutoCaptureEnabled: boolean;
-  isBlurry: boolean;
   zeroTangentDist: boolean;
   initializeSettings: (settings: CalibrationSettings) => void;
 }
@@ -147,27 +143,32 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
     el.playsInline = true;
     el.muted = true;
 
-    el.addEventListener(
-      "loadedmetadata",
-      () => {
-        const vidRes = { width: el.videoWidth, height: el.videoHeight };
-        if (
-          resolution &&
-          getAspectRatio(resolution) !== getAspectRatio(vidRes)
-        ) {
-          toast.error("Aspect‑ratio mismatch", {
-            description: `Expected ${getAspectRatio(resolution)}, got ${getAspectRatio(vidRes)}. Make sure to lock device in portrait mode.`,
-            duration: Infinity,
-            closeButton: true,
-          });
-          throw new Error(
-            "Aspect‑ratio mismatch between provided and video element"
-          );
-        }
-        set({ frameWidth: vidRes.width, frameHeight: vidRes.height });
-      },
-      { once: true }
-    );
+    function onLoadedMetadata() {
+      const vidRes = { width: el.videoWidth, height: el.videoHeight };
+      if (resolution && getAspectRatio(resolution) !== getAspectRatio(vidRes)) {
+        toast.error("Aspect‑ratio mismatch", {
+          description: `Expected ${getAspectRatio(resolution)}, got ${getAspectRatio(vidRes)}. Make sure to lock device in portrait mode.`,
+          duration: Infinity,
+          closeButton: true,
+        });
+        throw new Error(
+          "Aspect‑ratio mismatch between provided and video element"
+        );
+      }
+      if (resolution)
+        set({ frameWidth: resolution.width, frameHeight: resolution.height });
+      else set({ frameWidth: vidRes.width, frameHeight: vidRes.height });
+      set({
+        heatmapTracker: new GridHeatmapTracker(
+          10,
+          10,
+          vidRes.width,
+          vidRes.height
+        ),
+      });
+    }
+
+    el.addEventListener("loadedmetadata", onLoadedMetadata, { once: true });
 
     if (typeof source === "string") {
       el.src = source;
@@ -189,7 +190,8 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
       selectedFrameId: null,
       currentCorners: null,
       currentFrameImageData: null,
-      uniquenessPercentage: 100,
+      isBlurry: false,
+      isUnique: false,
     });
     get().resetDetectionFps();
   },
@@ -207,10 +209,11 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
       isStreaming: false,
       frameWidth: 0,
       frameHeight: 0,
+      isBlurry: false,
+      isUnique: false,
       currentCorners: null,
       currentFrameImageData: null,
       selectedFrameId: null,
-      uniquenessPercentage: 100,
     });
     get().resetDetectionFps();
   },
@@ -222,10 +225,7 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
   },
 });
 
-// -----------------------------------------------------------------------------
-// Processing slice – adds uniqueness logic
-// -----------------------------------------------------------------------------
-
+// Processing slice
 const createProcessingSlice: StateCreator<
   CalibrationState,
   [],
@@ -236,34 +236,23 @@ const createProcessingSlice: StateCreator<
   currentFrameImageData: null,
   detectionFps: 0,
   lastFrameProcessedTime: 0,
-  uniquenessPercentage: 100,
+  heatmapTracker: null,
+  heatmapTick: 0,
+  isBlurry: false,
+  isUnique: false,
 
   updateCorners: (corners, imageData, isUnique) => {
     // FPS first
     get().updateDetectionFps();
 
-    set({ currentCorners: corners, currentFrameImageData: imageData });
+    set({
+      currentCorners: corners,
+      currentFrameImageData: imageData,
+      isUnique,
+      isBlurry: false,
+    });
 
-    const {
-      // capturedFrames,
-      // frameWidth,
-      // frameHeight,
-      // similarityThreshold,
-      isAutoCaptureEnabled,
-    } = get();
-
-    // // 1 · How novel is this detection compared with saved frames?
-    // const uniqueness = calculateSimilarityScore(
-    //   corners,
-    //   capturedFrames,
-    //   frameWidth,
-    //   frameHeight
-    // );
-    // const uniquenessPct = uniqueness * 100;
-    // set({ uniquenessPercentage: uniquenessPct, isBlurry: false });
-
-    // 2 · Fire capture if it clears the novelty bar
-    // if (isAutoCaptureEnabled && uniquenessPct >= similarityThreshold) {
+    const { isAutoCaptureEnabled } = get();
     if (isAutoCaptureEnabled && isUnique) {
       get()
         .captureFrame()
@@ -275,8 +264,8 @@ const createProcessingSlice: StateCreator<
     set({
       currentCorners: null,
       currentFrameImageData: null,
-      uniquenessPercentage: 100,
       isBlurry,
+      isUnique: false,
     }),
 
   resetDetectionFps: () => set({ detectionFps: 0, lastFrameProcessedTime: 0 }),
@@ -310,7 +299,7 @@ const createCaptureSlice: StateCreator<
   showGallery: false,
 
   captureFrame: async () => {
-    const { currentCorners, currentFrameImageData } = get();
+    const { currentCorners, currentFrameImageData, heatmapTracker } = get();
     if (!currentCorners) {
       toast.warning("No chessboard detected to capture", {
         id: "no-chessboard-detected",
@@ -318,9 +307,13 @@ const createCaptureSlice: StateCreator<
       return;
     }
     if (!currentFrameImageData) {
-      console.error("No ImageData available for capture");
-      return;
+      throw new Error("No ImageData available for capture");
     }
+    if (!heatmapTracker) {
+      throw new Error("No heatmap tracker available for capture");
+    }
+    heatmapTracker.addCorners(currentCorners);
+    set({ heatmapTick: get().heatmapTick + 1 });
 
     try {
       const blob = await createImageBlob(
@@ -337,7 +330,6 @@ const createCaptureSlice: StateCreator<
       };
       set((s) => ({
         capturedFrames: [...s.capturedFrames, frame],
-        uniquenessPercentage: 0,
       }));
       return id;
     } catch (err) {
@@ -350,17 +342,13 @@ const createCaptureSlice: StateCreator<
       capturedFrames: state.capturedFrames.filter((f) => f.id !== id),
       selectedFrameId:
         state.selectedFrameId === id ? null : state.selectedFrameId,
-      uniquenessPercentage: 100, // reset – next detection will recalc
     })),
 
   setShowGallery: (show) => set({ showGallery: show }),
   setSelectedFrame: (id) => set({ selectedFrameId: id }),
 });
 
-// -----------------------------------------------------------------------------
-// Settings slice – adds similarityThreshold back
-// -----------------------------------------------------------------------------
-
+// Settings slice
 const createSettingsSlice: StateCreator<
   CalibrationState,
   [],
@@ -369,24 +357,18 @@ const createSettingsSlice: StateCreator<
 > = (set) => ({
   patternSize: { width: 9, height: 6 },
   squareSize: 1.0,
-  similarityThreshold: DEFAULT_SIMILARITY_THRESHOLD,
   isAutoCaptureEnabled: true,
-  isBlurry: false,
   zeroTangentDist: false,
   initializeSettings: (s) =>
     set((st) => ({
       patternSize: s.patternSize ?? st.patternSize,
       squareSize: s.squareSize ?? st.squareSize,
-      similarityThreshold: s.similarityThreshold ?? st.similarityThreshold,
       isAutoCaptureEnabled: s.autoCapture ?? st.isAutoCaptureEnabled,
       zeroTangentDist: !!s.zeroTangentDist,
     })),
 });
 
-// -----------------------------------------------------------------------------
-// Calibration‑result slice (unchanged)
-// -----------------------------------------------------------------------------
-
+// Calibration‑result slice
 const createCalibrationResultSlice: StateCreator<
   CalibrationState,
   [],

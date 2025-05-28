@@ -11,9 +11,8 @@ export function useCalibrationMetrics() {
   // will re-render if any of these selected values change.
   const metrics = useCalibrationStore(
     useShallow((state) => ({
-      uniquenessPercentage: state.uniquenessPercentage,
+      isUnique: state.isUnique,
       detectionFps: state.detectionFps,
-      similarityThreshold: state.similarityThreshold,
     }))
   );
 
@@ -21,21 +20,17 @@ export function useCalibrationMetrics() {
 }
 
 export const StatusOverlay: React.FC = () => {
-  const { uniquenessPercentage, similarityThreshold, detectionFps } =
-    useCalibrationMetrics();
+  const { isUnique, detectionFps } = useCalibrationMetrics();
 
-  const isUniqueEnough = uniquenessPercentage >= similarityThreshold;
-
-  const uniquenessColor = isUniqueEnough ? "text-[#5cff5c]" : "text-[#ffb347]";
+  const uniquenessColor = isUnique ? "text-[#5cff5c]" : "text-[#ffb347]";
 
   return (
     <div className="absolute top-[20px] right-[20px] bg-black/70 text-white px-[15px] py-[10px] rounded-[8px] text-[14px] z-10">
       <div>
         Uniqueness:{" "}
         <span className={`font-bold ml-[5px] ${uniquenessColor}`}>
-          {Math.round(uniquenessPercentage)}%
+          {isUnique ? "Unique" : "Not unique"}
         </span>{" "}
-        {/* <span style={{ fontSize: '0.8em' }}>(Threshold: {similarityThreshold}%)</span> */}
       </div>
       <div>
         Detection FPS:{" "}

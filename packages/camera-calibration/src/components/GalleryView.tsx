@@ -46,7 +46,9 @@ const GalleryItem: React.FC<GalleryItemProps> = ({
   return (
     <div
       key={frame.id}
-      className="gallery-item group relative cursor-pointer transition-transform duration-200 ease-in-out hover:scale-[1.03]"
+      className={`gallery-item group relative cursor-pointer transition-transform duration-200 ease-in-out hover:scale-[1.03] ${
+        isFrameErrHigh ? "border-2 border-red-500 rounded-lg" : ""
+      }`}
       onClick={() => onSelect(frame.id)}
     >
       <div className="aspect-[4/3] w-full rounded-lg overflow-hidden">
