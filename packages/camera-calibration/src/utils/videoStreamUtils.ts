@@ -3,6 +3,7 @@
  */
 
 import * as Comlink from "comlink";
+import type { StreamCornerFinderWorkerAPI } from "../workers/streamCornerFinder.worker";
 
 /**
  * Converts a video URL to a MediaStream by capturing from a video element
@@ -103,9 +104,7 @@ export async function createVideoStreamProcessor(
  */
 export function attachMediaStreamTrackReplacer(
   mediaStream: MediaStream,
-  workerProxy: import("comlink").Remote<
-    import("../workers/streamCornerFinder.worker").StreamCornerFinderWorkerAPI
-  >
+  workerProxy: Comlink.Remote<StreamCornerFinderWorkerAPI>
 ): () => void {
   if (!isMediaStreamTrackProcessorSupported()) {
     console.warn(
