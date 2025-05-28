@@ -14,7 +14,6 @@ interface CameraCalibrationProps {
   autoCapture?: boolean;
   patternSize?: PatternSize;
   squareSize?: number;
-  similarityThreshold?: number;
   zeroTangentDist?: boolean;
 }
 
@@ -32,7 +31,6 @@ export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
   autoCapture = true,
   patternSize,
   squareSize,
-  similarityThreshold,
   zeroTangentDist = false,
 }) => {
   "use no memo";
@@ -56,7 +54,6 @@ export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
     initializeSettings({
       patternSize,
       squareSize,
-      similarityThreshold,
       autoCapture,
       zeroTangentDist,
     });
@@ -103,8 +100,7 @@ export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
         isFullyReady ? (
           <div className="camera-view-container relative w-full h-full flex items-center justify-center">
             <CameraView />
-
-            <InstructionOverlay similarityThreshold={similarityThreshold} />
+            <InstructionOverlay />
 
             <>
               <CaptureButton disabled={!isStreaming} />

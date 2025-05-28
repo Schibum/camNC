@@ -1,14 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useCalibrationStore } from "../store/calibrationStore";
 
-interface InstructionOverlayProps {
-  // Pass the similarity threshold configured in the parent
-  similarityThreshold?: number;
-}
-
-export const InstructionOverlay: React.FC<InstructionOverlayProps> = ({
-  similarityThreshold,
-}) => {
+export function InstructionOverlay() {
   // Local state for the message - changed type to React.ReactNode
   const [message, setMessage] = useState<React.ReactNode>(null);
 
@@ -22,9 +15,7 @@ export const InstructionOverlay: React.FC<InstructionOverlayProps> = ({
   const currentCorners = useCalibrationStore((state) => state.currentCorners);
   const patternSize = useCalibrationStore((state) => state.patternSize);
   const isBlurry = useCalibrationStore((state) => state.isBlurry);
-  const uniquenessPercentage = useCalibrationStore(
-    (state) => state.uniquenessPercentage
-  );
+  const isUnique = useCalibrationStore((state) => state.isUnique);
 
   // Determine overall readiness (same logic as in CameraCalibration)
   const isFullyReady = isStreaming && frameWidth > 0 && frameHeight > 0;
@@ -41,10 +32,8 @@ export const InstructionOverlay: React.FC<InstructionOverlayProps> = ({
       return;
     }
 
-    const simThresh =
-      typeof similarityThreshold === "number" ? similarityThreshold : 15;
     if (isBlurry) {
-      setMessage(<>😕 Chessboard is too blurry</>);
+      setMessage(<>😕 Chessboard is blurry, hold still</>);
     } else if (!currentCorners) {
       // Construct the message with the link around the dimensions
       setMessage(
@@ -62,7 +51,7 @@ export const InstructionOverlay: React.FC<InstructionOverlayProps> = ({
         </>
       );
       return;
-    } else if (uniquenessPercentage < simThresh) {
+    } else if (!isUnique) {
       setMessage(<>↗️ Move chessboard to new location</>);
     } else {
       setMessage(null); // Clear message if ready for capture
@@ -72,9 +61,8 @@ export const InstructionOverlay: React.FC<InstructionOverlayProps> = ({
     isFullyReady,
     currentCorners,
     patternSize,
-    uniquenessPercentage,
+    isUnique,
     isBlurry,
-    similarityThreshold, // Use prop value in dependency array
   ]);
 
   // Render the message div only if a message exists
@@ -87,4 +75,4 @@ export const InstructionOverlay: React.FC<InstructionOverlayProps> = ({
       {message}
     </div>
   );
-};
+}

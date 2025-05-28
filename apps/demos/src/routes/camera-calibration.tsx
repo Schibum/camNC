@@ -321,7 +321,6 @@ function App() {
             autoCapture={true}
             patternSize={{ width: 9, height: 6 }}
             // stabilityThreshold={10}
-            similarityThreshold={5}
           />
           <SettingsOverlay
             onSelectSource={handleSourceChange}

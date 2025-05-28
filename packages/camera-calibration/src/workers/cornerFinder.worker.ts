@@ -2,6 +2,7 @@ import { cv2, ensureOpenCvIsLoaded } from "@wbcnc/load-opencv";
 
 import * as Comlink from "comlink";
 import { convertCorners } from "../lib/calibrationCore";
+import { PoseUniquenessGate } from "./poseUniquenessGate";
 import { CornerFinderWorkerInput, CornerFinderWorkerOutput } from "./types";
 
 const FRAME_BLUR_THRESH = 400;
@@ -19,6 +20,11 @@ export class CornerFinderWorker {
   private grayMat: cv2.Mat | null = null;
   private cornersMatFull: cv2.Mat | null = null;
   private patternSizeCv: cv2.Size | null = null;
+  private poseGate: PoseUniquenessGate | null = null;
+
+  // FPS tracking
+  private lastFrameTime: number = 0;
+  private currentFps: number = 0;
 
   private _lapVariance(mat: cv2.Mat, mask?: cv2.Mat): number {
     const lap = new cv2.Mat();
@@ -88,7 +94,7 @@ export class CornerFinderWorker {
     shiftedHull.delete();
     hull.delete();
 
-    // console.log(`blur in chessboard: ${varLap}`);
+    console.log(`blur in chessboard: ${varLap}`);
 
     return varLap < BOARD_BLUR_THRESH;
   }
@@ -115,6 +121,14 @@ export class CornerFinderWorker {
     this.isProcessing = true;
 
     const t0 = performance.now();
+
+    // Calculate FPS at the start of frame processing
+    if (this.lastFrameTime > 0) {
+      const deltaTime = t0 - this.lastFrameTime;
+      this.currentFps = deltaTime > 0 ? 1000 / deltaTime : 0;
+    }
+    this.lastFrameTime = t0;
+
     const { imageData, width, height, patternWidth, patternHeight } = input;
 
     try {
@@ -150,12 +164,23 @@ export class CornerFinderWorker {
       );
       if (!found) {
         cornersPreview.delete();
-        return { corners: null, isBlurry: false };
+        return {
+          corners: null,
+          isBlurry: false,
+          isUnique: false,
+          fps: this.currentFps,
+        };
       }
       if (this._isChessboardBlurry(this.grayMat!, cornersPreview)) {
         cornersPreview.delete();
-        return { corners: null, isBlurry: true };
+        return {
+          corners: null,
+          isBlurry: true,
+          isUnique: false,
+          fps: this.currentFps,
+        };
       }
+
       for (let i = 0; i < cornersPreview.rows; ++i) {
         this.cornersMatFull!.data32F[2 * i]! = cornersPreview.data32F[2 * i]!;
         this.cornersMatFull!.data32F[2 * i + 1]! =
@@ -168,9 +193,22 @@ export class CornerFinderWorker {
         this.zeroZone,
         this.criteria
       );
+      // TODO: run this before upscaling?
+
+      if (!this.poseGate) {
+        this.poseGate = new PoseUniquenessGate(
+          { width: patternWidth, height: patternHeight },
+          1.0
+        );
+      }
+      const isUnique = this.poseGate.acceptDirect(
+        this.cornersMatFull!,
+        width,
+        height
+      );
       const corners = convertCorners(this.cornersMatFull);
       cornersPreview.delete();
-      return { corners, isBlurry: false };
+      return { corners, isBlurry: false, isUnique, fps: this.currentFps };
     } finally {
       this.isProcessing = false;
       // console.log(`[CFW] ${(performance.now() - t0).toFixed(2)} ms`);
