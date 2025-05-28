@@ -1,4 +1,3 @@
-import { useVideoProcessing } from "../hooks/useVideoProcessing";
 import { useCalibrationStore } from "../store/calibrationStore";
 import { ChessboardOverlay } from "./ChessboardOverlay";
 import { GridHeatmapOverlay } from "./CoverageHeatmap";
@@ -15,8 +14,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
   const { frameWidth, frameHeight, currentCorners, patternSize } =
     useCalibrationStore();
 
-  // Hook to handle the OpenCV video processing loop
-  useVideoProcessing();
+  // Video processing is now handled directly by the store via stream-based worker
 
   return (
     <div

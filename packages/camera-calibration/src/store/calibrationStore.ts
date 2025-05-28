@@ -1,4 +1,5 @@
 import { toast } from "@wbcnc/ui/components/sonner";
+import * as Comlink from "comlink";
 import { v4 as uuidv4 } from "uuid";
 import { create, StateCreator } from "zustand";
 import { GridHeatmapTracker } from "../components/CoverageHeatmap";
@@ -10,6 +11,12 @@ import {
   PatternSize,
 } from "../lib/calibrationTypes";
 import { createImageBlob } from "../lib/imageUtils";
+import { createVideoStreamProcessor } from "../utils/videoStreamUtils";
+import type {
+  CornerClearedEvent,
+  CornerDetectedEvent,
+  StreamCornerFinderWorkerAPI,
+} from "../workers/streamCornerFinder.worker";
 
 // -----------------------------------------------------------------------------
 // Constants
@@ -43,6 +50,9 @@ interface CameraSlice {
   frameWidth: number;
   frameHeight: number;
   isStreaming: boolean;
+  cornerWorker: Comlink.Remote<StreamCornerFinderWorkerAPI> | null;
+  workerCleanup: (() => void) | null;
+
   startCamera: (
     source: MediaStream | string,
     resolution?: Resolution
@@ -130,6 +140,8 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
   frameWidth: 0,
   frameHeight: 0,
   isStreaming: false,
+  cornerWorker: null,
+  workerCleanup: null,
 
   startCamera: async (source, resolution) => {
     // Ensure previous stream is stopped first
@@ -179,6 +191,70 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
 
     await el.play();
 
+    // Initialize the new stream-based corner finder worker
+    try {
+      const { patternSize } = get();
+      const frameSize = resolution || {
+        width: el.videoWidth,
+        height: el.videoHeight,
+      };
+
+      // Create video stream processor
+      const videoStream = await createVideoStreamProcessor(source);
+
+      // Create and initialize worker
+      const worker = new Worker(
+        new URL("../workers/streamCornerFinder.worker.ts", import.meta.url),
+        { type: "module" }
+      );
+      const workerProxy = Comlink.wrap<StreamCornerFinderWorkerAPI>(worker);
+
+      // Set up event handlers (pass directly to init)
+      const onCornersDetected = (data: CornerDetectedEvent) => {
+        get().updateCorners(
+          data.corners,
+          data.imageData,
+          data.isUnique,
+          data.fps
+        );
+      };
+
+      const onCornersCleared = (data: CornerClearedEvent) => {
+        get().clearCorners(data.isBlurry, data.fps);
+      };
+
+      // Initialize worker with stream and callbacks
+      await workerProxy.init(
+        Comlink.transfer(videoStream as any, [videoStream as any]),
+        patternSize,
+        frameSize,
+        Comlink.proxy(onCornersDetected),
+        Comlink.proxy(onCornersCleared)
+      );
+
+      // Start processing
+      await workerProxy.start();
+
+      // Set up cleanup function
+      const cleanup = () => {
+        console.log("[CalibrationStore] Cleaning up corner worker");
+        workerProxy.stop().catch(console.error);
+        worker.terminate();
+        if (typeof source !== "string" && source instanceof MediaStream) {
+          // Stop video tracks if we created a MediaStream
+          source.getVideoTracks().forEach((track) => track.stop());
+        }
+      };
+
+      set({ cornerWorker: workerProxy, workerCleanup: cleanup });
+    } catch (error) {
+      console.error(
+        "[CalibrationStore] Failed to initialize corner worker:",
+        error
+      );
+      // Continue without worker for now - could fall back to old method
+    }
+
     set({
       stream: source instanceof MediaStream ? source : null,
       videoElement: el,
@@ -194,7 +270,14 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
   },
 
   stopCamera: () => {
-    const { videoElement } = get();
+    const { videoElement, workerCleanup } = get();
+
+    // Clean up worker first
+    if (workerCleanup) {
+      workerCleanup();
+    }
+
+    // Clean up video element
     if (videoElement) {
       videoElement.pause();
       videoElement.srcObject = null;
@@ -212,6 +295,8 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
       currentFrameImageData: null,
       selectedFrameId: null,
       detectionFps: 0,
+      cornerWorker: null,
+      workerCleanup: null,
     });
   },
 
