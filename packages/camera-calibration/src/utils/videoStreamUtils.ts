@@ -2,6 +2,8 @@
  * Utility functions for handling video streams and conversion between different source types
  */
 
+import * as Comlink from "comlink";
+
 /**
  * Converts a video URL to a MediaStream by capturing from a video element
  * This is needed for worker-based processing which requires MediaStream
@@ -68,10 +70,15 @@ export async function urlToMediaStream(
 export async function createVideoStreamProcessor(
   source: MediaStream | string
 ): Promise<ReadableStream<VideoFrame>> {
-  let mediaStream: MediaStream;
+  // Ensure the browser supports the MediaStreamTrackProcessor API
+  if (!isMediaStreamTrackProcessorSupported()) {
+    throw new Error(
+      "MediaStreamTrackProcessor is not supported in this browser – required for calibration worker"
+    );
+  }
 
+  let mediaStream: MediaStream;
   if (typeof source === "string") {
-    // Convert URL to MediaStream
     mediaStream = await urlToMediaStream(source);
   } else {
     mediaStream = source;
@@ -82,11 +89,84 @@ export async function createVideoStreamProcessor(
     throw new Error("No video track found in MediaStream");
   }
 
-  // Use MediaStreamTrackProcessor to create a readable stream
   const processor = new (window as any).MediaStreamTrackProcessor({
     track: videoTrack,
   });
+
   return processor.readable;
+}
+
+/**
+ * Watches a MediaStream for video-track changes and asks the worker to switch
+ * to a new MediaStreamTrackProcessor when that happens. Returns a cleanup
+ * function to remove all listeners.
+ */
+export function attachMediaStreamTrackReplacer(
+  mediaStream: MediaStream,
+  workerProxy: import("comlink").Remote<
+    import("../workers/streamCornerFinder.worker").StreamCornerFinderWorkerAPI
+  >
+): () => void {
+  if (!isMediaStreamTrackProcessorSupported()) {
+    console.warn(
+      "MediaStreamTrackProcessor not supported – cannot attach track replacer"
+    );
+    return () => {};
+  }
+
+  let currentTrack: MediaStreamTrack | null =
+    mediaStream.getVideoTracks()[0] || null;
+
+  function handleEnded() {
+    // When the current track ends, try the newest available track
+    const tracks = mediaStream.getVideoTracks();
+    if (tracks.length > 0) {
+      sendTrackToWorker(tracks[tracks.length - 1]!);
+    }
+  }
+
+  async function sendTrackToWorker(track: MediaStreamTrack) {
+    if (!track) return;
+    if (track === currentTrack) return;
+    currentTrack = track;
+    try {
+      const processor = new (window as any).MediaStreamTrackProcessor({
+        track,
+      });
+      const readable = processor.readable as ReadableStream<VideoFrame>;
+      await workerProxy.replaceStream(
+        // Transfer ownership to the worker to avoid cloning overhead
+        Comlink.transfer(readable, [readable]) as any
+      );
+      // Listen for 'ended' on the newly adopted track so we can switch again.
+      track.addEventListener("ended", handleEnded, { once: true });
+      console.log("[attachMediaStreamTrackReplacer] Sent new stream to worker");
+    } catch (err) {
+      console.error("Failed to send new track to worker", err);
+    }
+  }
+
+  const handleAddTrack = (event: MediaStreamTrackEvent) => {
+    if (event.track.kind !== "video") return;
+    sendTrackToWorker(event.track);
+  };
+
+  mediaStream.addEventListener("addtrack", handleAddTrack);
+  mediaStream.addEventListener("removetrack", handleAddTrack);
+
+  // Attach 'ended' listener to current track
+  if (currentTrack) {
+    currentTrack.addEventListener("ended", handleEnded, { once: true });
+  }
+
+  // Cleanup function
+  return () => {
+    mediaStream.removeEventListener("addtrack", handleAddTrack);
+    mediaStream.removeEventListener("removetrack", handleAddTrack);
+    if (currentTrack) {
+      currentTrack.removeEventListener("ended", handleEnded);
+    }
+  };
 }
 
 /**

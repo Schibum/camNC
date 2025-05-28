@@ -348,6 +348,36 @@ export class StreamCornerFinderWorker {
       );
     }
   }
+
+  /**
+   * Replaces the currently-consumed VideoFrame stream with a new one.
+   * It is totally fine if a few frames are missed during the switch.
+   */
+  async replaceStream(stream: ReadableStream<VideoFrame>): Promise<void> {
+    if (!this.isInitialized) {
+      throw new Error("Worker not initialized – cannot replace stream");
+    }
+
+    // Cancel the current reader so any pending read() promises reject.
+    if (this.reader) {
+      try {
+        await this.reader.cancel();
+      } catch {
+        /* Ignore cancellation errors */
+      }
+    }
+
+    // Swap to the new reader. The processing loop will continue; on the next
+    // iteration it will pick up this.reader and read from the new track.
+    this.reader = stream.getReader();
+    this.isProcessing = true;
+    this.processFrameLoop().catch((error) => {
+      console.error("[StreamCornerFinderWorker] Processing loop error:", error);
+      this.isProcessing = false;
+    });
+
+    console.log("[StreamCornerFinderWorker] Replaced video stream reader");
+  }
 }
 
 const worker = new StreamCornerFinderWorker();

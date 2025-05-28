@@ -307,20 +307,31 @@ export const createClient = (options: ClientOptions) => {
         // Handle incoming streams
         room.onPeerStream((incomingStream: MediaStream) => {
           // Remove existing tracks
-          outputStream
-            .getTracks()
-            .forEach((track) => outputStream.removeTrack(track));
+          outputStream.getTracks().forEach((track) => {
+            outputStream.removeTrack(track);
+            // Does not seem to get fired automatically.
+            outputStream.dispatchEvent(
+              new MediaStreamTrackEvent("removetrack", {
+                track,
+              })
+            );
+          });
 
           // Add new tracks from incoming stream
-          incomingStream
-            .getTracks()
-            .forEach((track) => outputStream.addTrack(track));
+          incomingStream.getTracks().forEach((track) => {
+            outputStream.addTrack(track);
+            // Does not seem to get fired automatically.
+            outputStream.dispatchEvent(
+              new MediaStreamTrackEvent("addtrack", {
+                track,
+              })
+            );
+          });
 
           options.onStateChange?.(ClientState.STREAMING);
 
           resolve(outputStream);
         });
-
         console.log(`Client started with peer ID ${selfId}`);
       });
 

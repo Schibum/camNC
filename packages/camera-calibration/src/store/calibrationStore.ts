@@ -11,7 +11,10 @@ import {
   PatternSize,
 } from "../lib/calibrationTypes";
 import { createImageBlob } from "../lib/imageUtils";
-import { createVideoStreamProcessor } from "../utils/videoStreamUtils";
+import {
+  attachMediaStreamTrackReplacer,
+  createVideoStreamProcessor,
+} from "../utils/videoStreamUtils";
 import type {
   FrameEvent,
   StreamCornerFinderWorkerAPI,
@@ -244,10 +247,17 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
 
       await workerProxy.start();
 
+      // Attach automatic track-replacement if the source is a live MediaStream
+      let replacerCleanup: (() => void) | null = null;
+      if (source instanceof MediaStream) {
+        replacerCleanup = attachMediaStreamTrackReplacer(source, workerProxy);
+      }
+
       const cleanup = () => {
         console.log("[CalibrationStore] Cleaning up corner worker");
         workerProxy.stop().catch(console.error);
         worker.terminate();
+        replacerCleanup?.();
         // if (source instanceof MediaStream)
         //   source.getVideoTracks().forEach((t) => t.stop());
       };
