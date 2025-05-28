@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { CornerFinderWorker } from "./cornerFinder.worker";
+import {
+  StreamCornerFinderWorkerAPI,
+  type FrameEvent,
+} from "./streamCornerFinder.worker";
 
 import * as Comlink from "comlink";
 import imgPathBlurry from "../test_data/chessboard_blurry.jpg";
@@ -15,36 +18,86 @@ function loadImage(path: string) {
   });
 }
 
-async function getImageData(
-  path: string
-): Promise<{ imageData: ArrayBuffer; width: number; height: number }> {
-  const img = await loadImage(path);
+/**
+ * Creates a ReadableStream<VideoFrame> from a single image for testing
+ */
+async function createVideoFrameStreamFromImage(
+  imagePath: string
+): Promise<ReadableStream<VideoFrame>> {
+  const img = await loadImage(imagePath);
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Could not get canvas context");
+
   canvas.width = img.width;
   canvas.height = img.height;
-  ctx!.drawImage(img, 0, 0);
-  const { data, width, height } = ctx!.getImageData(
-    0,
-    0,
-    img.width,
-    img.height
-  );
-  return { imageData: data.buffer, width, height };
+  ctx.drawImage(img, 0, 0);
+
+  // Create a VideoFrame from the canvas
+  const videoFrame = new VideoFrame(canvas, {
+    timestamp: 0,
+  });
+
+  // Create a readable stream that emits this single frame
+  return new ReadableStream<VideoFrame>({
+    start(controller) {
+      controller.enqueue(videoFrame);
+      controller.close();
+    },
+  });
 }
 
-describe("CornerFinderWorker", () => {
-  let worker: Worker;
-  let workerProxy: Comlink.Remote<CornerFinderWorker>;
+/**
+ * Helper to test worker processing with a single image and expected result
+ */
+async function testWorkerWithImage(
+  workerProxy: Comlink.Remote<StreamCornerFinderWorkerAPI>,
+  imagePath: string,
+  expectedResult: FrameEvent["result"],
+  additionalValidation?: (data: FrameEvent) => void
+): Promise<void> {
+  const stream = await createVideoFrameStreamFromImage(imagePath);
+  const img = await loadImage(imagePath);
 
-  // Note: there seems to be some emscripten issue/race when not re-creating the
-  // worker for each test, so just avoid for now.
+  return new Promise<void>(async (resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error("Test timeout")), 5000);
+
+    const onFrameProcessed = (data: FrameEvent) => {
+      clearTimeout(timeout);
+      try {
+        expect(data.result).toBe(expectedResult);
+        if (additionalValidation) {
+          additionalValidation(data);
+        }
+        resolve();
+      } catch (error) {
+        reject(error);
+      }
+    };
+
+    await workerProxy.init(
+      Comlink.transfer(stream, [stream]),
+      { width: 9, height: 6 },
+      { width: img.width, height: img.height },
+      Comlink.proxy(onFrameProcessed)
+    );
+
+    await workerProxy.start();
+  });
+}
+
+describe("StreamCornerFinderWorker", () => {
+  let worker: Worker;
+  let workerProxy: Comlink.Remote<StreamCornerFinderWorkerAPI>;
+
   beforeEach(async () => {
-    worker = new Worker(new URL("./cornerFinder.worker.ts", import.meta.url), {
-      type: "module",
-    });
-    workerProxy = Comlink.wrap<CornerFinderWorker>(worker);
-    await workerProxy.init();
+    worker = new Worker(
+      new URL("./streamCornerFinder.worker.ts", import.meta.url),
+      {
+        type: "module",
+      }
+    );
+    workerProxy = Comlink.wrap<StreamCornerFinderWorkerAPI>(worker);
   });
 
   afterEach(() => {
@@ -52,43 +105,20 @@ describe("CornerFinderWorker", () => {
   });
 
   it("should find corners in a clear chessboard image", async () => {
-    const { imageData, width, height } = await getImageData(imgPathGood);
-    const result = await workerProxy.processFrame({
-      imageData,
-      width,
-      height,
-      patternWidth: 9, // Update pattern size as needed
-      patternHeight: 6,
+    await testWorkerWithImage(workerProxy, imgPathGood, "capture", (data) => {
+      if (data.result === "capture") {
+        expect(data.corners).not.toBeNull();
+        expect(Array.isArray(data.corners)).toBe(true);
+        expect(data.corners.length).toBe(9 * 6);
+      }
     });
-    expect(result.corners).not.toBeNull();
-    expect(Array.isArray(result.corners)).toBe(true);
-    expect(result.isBlurry).toBe(false);
-    expect((result.corners as any[]).length).toBe(9 * 6);
   });
 
   it("should return null corners for an image without a chessboard", async () => {
-    const { imageData, width, height } = await getImageData(imgNoChessboard);
-    const result = await workerProxy.processFrame({
-      imageData,
-      width,
-      height,
-      patternWidth: 9,
-      patternHeight: 6,
-    });
-    expect(result.corners).toBeNull();
-    expect(result.isBlurry).toBe(false);
+    await testWorkerWithImage(workerProxy, imgNoChessboard, "not_unique");
   });
 
   it("should detect blurry chessboard and return isBlurry true", async () => {
-    const { imageData, width, height } = await getImageData(imgPathBlurry);
-    const result = await workerProxy.processFrame({
-      imageData,
-      width,
-      height,
-      patternWidth: 9,
-      patternHeight: 6,
-    });
-    expect(result.corners).toBeNull();
-    expect(result.isBlurry).toBe(true);
+    await testWorkerWithImage(workerProxy, imgPathBlurry, "blurry");
   });
 });
