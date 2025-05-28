@@ -14,8 +14,7 @@ export function InstructionOverlay() {
   const frameHeight = useCalibrationStore((state) => state.frameHeight);
   const currentCorners = useCalibrationStore((state) => state.currentCorners);
   const patternSize = useCalibrationStore((state) => state.patternSize);
-  const isBlurry = useCalibrationStore((state) => state.isBlurry);
-  const isUnique = useCalibrationStore((state) => state.isUnique);
+  const rejectedReason = useCalibrationStore((state) => state.rejectedReason);
 
   // Determine overall readiness (same logic as in CameraCalibration)
   const isFullyReady = isStreaming && frameWidth > 0 && frameHeight > 0;
@@ -32,7 +31,7 @@ export function InstructionOverlay() {
       return;
     }
 
-    if (isBlurry) {
+    if (rejectedReason === "blurry") {
       setMessage(<>😕 Chessboard is blurry, hold still</>);
     } else if (!currentCorners) {
       // Construct the message with the link around the dimensions
@@ -51,8 +50,8 @@ export function InstructionOverlay() {
         </>
       );
       return;
-    } else if (!isUnique) {
-      setMessage(<>↗️ Move chessboard to new location</>);
+    } else if (rejectedReason === "not_unique") {
+      setMessage(<>↗️ Move or 🔄 rotate chessboard</>);
     } else {
       setMessage(null); // Clear message if ready for capture
     }
@@ -61,8 +60,7 @@ export function InstructionOverlay() {
     isFullyReady,
     currentCorners,
     patternSize,
-    isUnique,
-    isBlurry,
+    rejectedReason,
   ]);
 
   // Render the message div only if a message exists

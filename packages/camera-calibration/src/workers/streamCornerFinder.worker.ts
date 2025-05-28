@@ -4,42 +4,22 @@ import { convertCorners } from "../lib/calibrationCore";
 import { Corner } from "../lib/calibrationTypes";
 import { PoseUniquenessGate } from "./poseUniquenessGate";
 
-const FRAME_BLUR_THRESH = 400;
-const BOARD_BLUR_THRESH = 100;
+const BOARD_BLUR_THRESH = 80;
 
-/**
- * Event data emitted when corners are detected
- */
-export interface CornerDetectedEvent {
+export interface FrameCaptureEvent {
   corners: Corner[];
   imageData: ImageData;
-  isUnique: boolean;
+  fps: number;
+  result: "capture";
+}
+
+export interface FrameRejectedEvent {
+  corners?: Corner[];
+  result: "blurry" | "not_unique";
   fps: number;
 }
 
-/**
- * Event data emitted when corners are cleared (not found or blurry)
- */
-export interface CornerClearedEvent {
-  isBlurry: boolean;
-  fps: number;
-}
-
-/**
- * Worker API exposed via Comlink for stream-based corner detection
- */
-export interface StreamCornerFinderWorkerAPI {
-  init(
-    stream: ReadableStream<VideoFrame>,
-    patternSize: { width: number; height: number },
-    frameSize: { width: number; height: number },
-    onCornersDetected: (data: CornerDetectedEvent) => void,
-    onCornersCleared: (data: CornerClearedEvent) => void
-  ): Promise<void>;
-
-  start(): Promise<void>;
-  stop(): Promise<void>;
-}
+export type FrameEvent = FrameCaptureEvent | FrameRejectedEvent;
 
 /**
  * Converts a VideoFrame to ImageData using OffscreenCanvas
@@ -57,9 +37,10 @@ async function frameToImageData(
   return ctx.getImageData(0, 0, width, height);
 }
 
-export class StreamCornerFinderWorker implements StreamCornerFinderWorkerAPI {
+export class StreamCornerFinderWorker {
   private reader: ReadableStreamDefaultReader<VideoFrame> | null = null;
   private isProcessing = false;
+  private isPaused = false;
   private isInitialized = false;
 
   // OpenCV-related state
@@ -85,8 +66,7 @@ export class StreamCornerFinderWorker implements StreamCornerFinderWorkerAPI {
   private currentFps: number = 0;
 
   // Event handlers (set during init)
-  private onCornersDetected?: (data: CornerDetectedEvent) => void;
-  private onCornersCleared?: (data: CornerClearedEvent) => void;
+  private onFrameProcessed?: (data: FrameEvent) => void;
 
   private _lapVariance(mat: cv2.Mat, mask?: cv2.Mat): number {
     const lap = new cv2.Mat();
@@ -104,21 +84,6 @@ export class StreamCornerFinderWorker implements StreamCornerFinderWorkerAPI {
     mean.delete();
     std.delete();
     return varLap;
-  }
-
-  private _isBlurryFrame(gray: cv2.Mat): boolean {
-    let work = gray;
-    if (Math.max(gray.rows, gray.cols) > 640) {
-      const scale = 640 / Math.max(gray.rows, gray.cols);
-      work = new cv2.Mat();
-      cv2.resize(gray, work, new cv2.Size(0, 0), scale, scale, cv2.INTER_AREA);
-    }
-    const varLap = this._lapVariance(work);
-    const blurry = varLap < FRAME_BLUR_THRESH;
-
-    console.log(`blur in frame: ${varLap}`);
-    if (work !== gray) work.delete();
-    return blurry;
   }
 
   private _isChessboardBlurry(
@@ -155,7 +120,7 @@ export class StreamCornerFinderWorker implements StreamCornerFinderWorkerAPI {
     shiftedHull.delete();
     hull.delete();
 
-    console.log(`blur in chessboard: ${varLap}`);
+    // console.log(`blur in chessboard: ${varLap}`);
 
     return varLap < BOARD_BLUR_THRESH;
   }
@@ -164,8 +129,7 @@ export class StreamCornerFinderWorker implements StreamCornerFinderWorkerAPI {
     stream: ReadableStream<VideoFrame>,
     patternSize: { width: number; height: number },
     frameSize: { width: number; height: number },
-    onCornersDetected: (data: CornerDetectedEvent) => void,
-    onCornersCleared: (data: CornerClearedEvent) => void
+    onFrameProcessed: (data: FrameEvent) => void
   ): Promise<void> {
     if (this.isInitialized) {
       throw new Error("Worker already initialized");
@@ -215,8 +179,7 @@ export class StreamCornerFinderWorker implements StreamCornerFinderWorkerAPI {
     this.isInitialized = true;
     console.log("[StreamCornerFinderWorker] Initialized successfully");
 
-    this.onCornersDetected = onCornersDetected;
-    this.onCornersCleared = onCornersCleared;
+    this.onFrameProcessed = onFrameProcessed;
   }
 
   async start(): Promise<void> {
@@ -232,6 +195,7 @@ export class StreamCornerFinderWorker implements StreamCornerFinderWorkerAPI {
     }
 
     this.isProcessing = true;
+    this.isPaused = false;
     console.log("[StreamCornerFinderWorker] Starting processing loop");
 
     // Start the processing loop
@@ -244,11 +208,34 @@ export class StreamCornerFinderWorker implements StreamCornerFinderWorkerAPI {
   async stop(): Promise<void> {
     console.log("[StreamCornerFinderWorker] Stopping processing loop");
     this.isProcessing = false;
+    this.isPaused = false;
+  }
+
+  async pause(): Promise<void> {
+    console.log("[StreamCornerFinderWorker] Pausing processing");
+    this.isPaused = true;
+  }
+
+  async resume(): Promise<void> {
+    console.log("[StreamCornerFinderWorker] Resuming processing");
+    this.isPaused = false;
   }
 
   private async processFrameLoop(): Promise<void> {
     while (this.isProcessing && this.reader) {
       try {
+        // Skip processing if paused, but continue reading frames to avoid blocking the stream
+        if (this.isPaused) {
+          const { value: frame, done } = await this.reader.read();
+          if (done || !frame) {
+            console.log("[StreamCornerFinderWorker] Stream ended");
+            break;
+          }
+          // Close the frame without processing to free resources
+          frame.close();
+          continue;
+        }
+
         const { value: frame, done } = await this.reader.read();
         if (done || !frame) {
           console.log("[StreamCornerFinderWorker] Stream ended");
@@ -305,64 +292,53 @@ export class StreamCornerFinderWorker implements StreamCornerFinderWorkerAPI {
       cv2.cvtColor(this.srcMat, this.grayMat, cv2.COLOR_RGBA2GRAY);
 
       // Find chessboard corners
-      const cornersPreview = new cv2.Mat();
       const found = cv2.findChessboardCornersSB(
         this.grayMat,
         this.patternSizeCv,
-        cornersPreview,
+        this.cornersMatFull,
         0
       );
 
       if (!found) {
-        cornersPreview.delete();
-        this.onCornersCleared?.({
-          isBlurry: false,
+        this.onFrameProcessed?.({
+          result: "not_unique",
           fps: this.currentFps,
         });
         return;
       }
+
+      const corners = convertCorners(this.cornersMatFull);
 
       // Check if chessboard is blurry
-      if (this._isChessboardBlurry(this.grayMat, cornersPreview)) {
-        cornersPreview.delete();
-        this.onCornersCleared?.({
-          isBlurry: true,
+      if (this._isChessboardBlurry(this.grayMat, this.cornersMatFull)) {
+        this.onFrameProcessed?.({
+          corners,
+          result: "blurry",
           fps: this.currentFps,
         });
         return;
       }
 
-      // Refine corners
-      for (let i = 0; i < cornersPreview.rows; ++i) {
-        this.cornersMatFull.data32F[2 * i]! = cornersPreview.data32F[2 * i]!;
-        this.cornersMatFull.data32F[2 * i + 1]! =
-          cornersPreview.data32F[2 * i + 1]!;
-      }
-
-      cv2.cornerSubPix(
-        this.grayMat,
-        this.cornersMatFull,
-        this.winSize,
-        this.zeroZone,
-        this.criteria
-      );
-
       // Check uniqueness
-      const isUnique = this.poseGate.acceptDirect(
+      const isUnique = this.poseGate.isUnique(
         this.cornersMatFull,
         this.frameWidth,
         this.frameHeight
       );
 
-      // Convert corners and emit event
-      const corners = convertCorners(this.cornersMatFull);
+      if (!isUnique) {
+        this.onFrameProcessed?.({
+          corners,
+          result: "not_unique",
+          fps: this.currentFps,
+        });
+        return;
+      }
 
-      cornersPreview.delete();
-
-      this.onCornersDetected?.({
+      this.onFrameProcessed?.({
+        result: "capture",
         corners,
         imageData,
-        isUnique,
         fps: this.currentFps,
       });
     } catch (error) {
@@ -370,16 +346,14 @@ export class StreamCornerFinderWorker implements StreamCornerFinderWorkerAPI {
         "[StreamCornerFinderWorker] Error processing frame:",
         error
       );
-      this.onCornersCleared?.({
-        isBlurry: false,
-        fps: this.currentFps,
-      });
     }
   }
 }
 
 const worker = new StreamCornerFinderWorker();
 Comlink.expose(worker);
+
+export type StreamCornerFinderWorkerAPI = typeof worker;
 
 (self as any).onerror = (e: ErrorEvent) =>
   console.error("[StreamCornerFinderWorker] uncaught:", e);

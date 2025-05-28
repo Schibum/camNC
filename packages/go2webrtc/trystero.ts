@@ -182,7 +182,7 @@ export const createServer = (options: ServerOptions) => {
       };
 
       // Handle stream requests
-      onGetStream(async (__, peerId) => {
+      onGetStream(async (__: unknown, peerId: string) => {
         if (!room) return;
 
         if (!options.multipleStreams && streamCache) {
@@ -199,7 +199,7 @@ export const createServer = (options: ServerOptions) => {
       });
 
       // Handle role announcements
-      onRole(({ role, ts }, peerId) => {
+      onRole(({ role, ts }: { role: string; ts: number }, peerId: string) => {
         if (role === "server" && ts > joinTs && room) {
           console.log("There is a newer server, leaving...");
           options.onStateChange?.(ServerState.DISCONNECTED);
@@ -209,13 +209,13 @@ export const createServer = (options: ServerOptions) => {
       });
 
       // Announce server role when peers join
-      room.onPeerJoin((peerId) => {
+      room.onPeerJoin((peerId: string) => {
         console.log("server: peer joined", peerId);
         sendRole({ role: "server", ts: joinTs }, peerId);
       });
 
       // Clean up when peers leave
-      room.onPeerLeave((peerId) => {
+      room.onPeerLeave((peerId: string) => {
         console.log("server: peer left", peerId);
         cleanupIfEmpty();
         if (!streamCache) {
@@ -275,7 +275,7 @@ export const createClient = (options: ClientOptions) => {
       const outputStream = new MediaStream();
 
       // Handle role announcements
-      onRole(({ role }, peerId) => {
+      onRole(({ role }: { role: string }, peerId: string) => {
         if (role === "server") {
           console.log("client: got server", peerId);
           serverPeerId = peerId;
@@ -285,13 +285,13 @@ export const createClient = (options: ClientOptions) => {
       });
 
       // Announce client role when peers join
-      room.onPeerJoin((peerId) => {
+      room.onPeerJoin((peerId: string) => {
         console.log("client: peer joined", peerId);
         sendRole({ role: "client", ts: joinTs }, peerId);
       });
 
       // Handle peer leaving
-      room.onPeerLeave((peerId) => {
+      room.onPeerLeave((peerId: string) => {
         console.log("client: peer left", peerId);
         if (peerId === serverPeerId) {
           serverPeerId = null;
@@ -305,7 +305,7 @@ export const createClient = (options: ClientOptions) => {
         }
 
         // Handle incoming streams
-        room.onPeerStream((incomingStream) => {
+        room.onPeerStream((incomingStream: MediaStream) => {
           // Remove existing tracks
           outputStream
             .getTracks()
@@ -325,9 +325,11 @@ export const createClient = (options: ClientOptions) => {
       });
 
       let maxResolutionPromise = new Promise<IResolution>((resolve) => {
-        onMaxResolution(({ width, height }) => {
-          resolve({ width, height });
-        });
+        onMaxResolution(
+          ({ width, height }: { width: number; height: number }) => {
+            resolve({ width, height });
+          }
+        );
       });
 
       return {
