@@ -17,6 +17,7 @@
     "lucide-react": "^0.511.0",
     "motion": "^12.14.0",
     "react": "^19.1.0",
+    "react-device-detect": "^2.2.3",
     "react-dom": "^19.1.0",
     "tailwindcss": "^4.1.7",
     "uuid": "^11.1.0",

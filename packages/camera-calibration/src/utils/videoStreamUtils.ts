@@ -4,6 +4,7 @@
 
 import * as Comlink from "comlink";
 import type { StreamCornerFinderWorkerAPI } from "../workers/streamCornerFinder.worker";
+import "./media-stream-processor-polyfil";
 
 /**
  * Converts a video URL to a MediaStream by capturing from a video element
@@ -50,13 +51,13 @@ export async function urlToMediaStream(
   }
 
   // Capture the stream from canvas
-  const stream = canvas.captureStream(30); // 30 FPS
+  const stream = canvas.captureStream();
 
   // Draw video frames to canvas continuously
   function drawFrame() {
     if (!video.paused && !video.ended && ctx) {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      requestAnimationFrame(drawFrame);
+      video.requestVideoFrameCallback(drawFrame);
     }
   }
   drawFrame();
@@ -70,14 +71,7 @@ export async function urlToMediaStream(
  */
 export async function createVideoStreamProcessor(
   source: MediaStream | string
-): Promise<ReadableStream<VideoFrame>> {
-  // Ensure the browser supports the MediaStreamTrackProcessor API
-  if (!isMediaStreamTrackProcessorSupported()) {
-    throw new Error(
-      "MediaStreamTrackProcessor is not supported in this browser – required for calibration worker"
-    );
-  }
-
+): Promise<ReadableStream<VideoFrame> | MediaStreamTrack> {
   let mediaStream: MediaStream;
   if (typeof source === "string") {
     mediaStream = await urlToMediaStream(source);
@@ -90,11 +84,14 @@ export async function createVideoStreamProcessor(
     throw new Error("No video track found in MediaStream");
   }
 
-  const processor = new (window as any).MediaStreamTrackProcessor({
-    track: videoTrack,
-  });
-
-  return processor.readable;
+  if (isMediaStreamTrackProcessorSupported()) {
+    const processor = new (window as any).MediaStreamTrackProcessor({
+      track: videoTrack,
+    });
+    return processor.readable;
+  } else {
+    return videoTrack.clone();
+  }
 }
 
 /**
@@ -129,12 +126,16 @@ export function attachMediaStreamTrackReplacer(
     if (track === currentTrack) return;
     currentTrack = track;
     try {
-      const processor = new (window as any).MediaStreamTrackProcessor({
-        track,
-      });
-      const readable = processor.readable as ReadableStream<VideoFrame>;
+      let readable: ReadableStream<VideoFrame> | MediaStreamTrack;
+      if (isMediaStreamTrackProcessorSupported()) {
+        const processor = new (window as any).MediaStreamTrackProcessor({
+          track,
+        });
+        readable = processor.readable as ReadableStream<VideoFrame>;
+      } else {
+        readable = track;
+      }
       await workerProxy.replaceStream(
-        // Transfer ownership to the worker to avoid cloning overhead
         Comlink.transfer(readable, [readable]) as any
       );
       // Listen for 'ended' on the newly adopted track so we can switch again.

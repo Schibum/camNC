@@ -240,6 +240,7 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
 
       await workerProxy.init(
         Comlink.transfer(videoStream as any, [videoStream as any]),
+        // Comlink.transfer(videoStream, []),
         patternSize,
         frameSize,
         Comlink.proxy(get().onFrameProcessed)

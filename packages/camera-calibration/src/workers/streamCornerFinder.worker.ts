@@ -2,6 +2,7 @@ import { cv2, ensureOpenCvIsLoaded } from "@wbcnc/load-opencv";
 import * as Comlink from "comlink";
 import { convertCorners } from "../lib/calibrationCore";
 import { Corner } from "../lib/calibrationTypes";
+import { ensureReadableStream } from "../utils/ensureReadableStream";
 import { PoseUniquenessGate } from "./poseUniquenessGate";
 
 const BOARD_BLUR_THRESH = 80;
@@ -126,7 +127,7 @@ export class StreamCornerFinderWorker {
   }
 
   async init(
-    stream: ReadableStream<VideoFrame>,
+    stream: ReadableStream<VideoFrame> | MediaStreamTrack,
     patternSize: { width: number; height: number },
     frameSize: { width: number; height: number },
     onFrameProcessed: (data: FrameEvent) => void
@@ -174,7 +175,7 @@ export class StreamCornerFinderWorker {
     }
 
     // Set up stream reader
-    this.reader = stream.getReader();
+    this.reader = ensureReadableStream(stream).getReader();
 
     this.isInitialized = true;
     console.log("[StreamCornerFinderWorker] Initialized successfully");
@@ -353,7 +354,9 @@ export class StreamCornerFinderWorker {
    * Replaces the currently-consumed VideoFrame stream with a new one.
    * It is totally fine if a few frames are missed during the switch.
    */
-  async replaceStream(stream: ReadableStream<VideoFrame>): Promise<void> {
+  async replaceStream(
+    stream: ReadableStream<VideoFrame> | MediaStreamTrack
+  ): Promise<void> {
     if (!this.isInitialized) {
       throw new Error("Worker not initialized – cannot replace stream");
     }
@@ -369,7 +372,7 @@ export class StreamCornerFinderWorker {
 
     // Swap to the new reader. The processing loop will continue; on the next
     // iteration it will pick up this.reader and read from the new track.
-    this.reader = stream.getReader();
+    this.reader = ensureReadableStream(stream).getReader();
     this.isProcessing = true;
     this.processFrameLoop().catch((error) => {
       console.error("[StreamCornerFinderWorker] Processing loop error:", error);
