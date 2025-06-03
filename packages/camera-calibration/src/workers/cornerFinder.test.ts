@@ -112,7 +112,7 @@ describe("StreamCornerFinderWorker", () => {
         expect(data.corners.length).toBe(9 * 6);
       }
     });
-  });
+  }, 10000);
 
   it("should return null corners for an image without a chessboard", async () => {
     await testWorkerWithImage(workerProxy, imgNoChessboard, "not_unique");

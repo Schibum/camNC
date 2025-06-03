@@ -8,13 +8,13 @@ export function BoundsInfo() {
       <h3 className="text-sm font-medium">Toolpath Bounds</h3>
       <div className="grid gap-0.5 text-xs text-gray-600">
         <div>
-          X: [{bounds.min.x.toFixed(1)}, {bounds.max.x.toFixed(1)}]
+          X: [{bounds.min.x.toFixed(2)}, {bounds.max.x.toFixed(2)}]
         </div>
         <div>
-          Y: [{bounds.min.y.toFixed(1)}, {bounds.max.y.toFixed(1)}]
+          Y: [{bounds.min.y.toFixed(2)}, {bounds.max.y.toFixed(2)}]
         </div>
         <div>
-          Z: [{bounds.min.z.toFixed(1)}, {bounds.max.z.toFixed(1)}]
+          Z: [{bounds.min.z.toFixed(2)}, {bounds.max.z.toFixed(2)}]
         </div>
       </div>
     </div>
