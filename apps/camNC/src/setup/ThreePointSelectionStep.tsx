@@ -1,4 +1,4 @@
-import { UnskewedVideoMeshWithLoading } from '@/calibration/UnskewTsl';
+import { UnskewedVideoMesh } from '@/calibration/UnskewTsl';
 import { Draggable } from '@/scene/Draggable';
 import { PresentCanvas } from '@/scene/PresentCanvas';
 import { updateCameraExtrinsics, useReprojectedMachineBounds } from '@/store/store-p3p';
@@ -8,12 +8,13 @@ import { useNavigate } from '@tanstack/react-router';
 import { Button } from '@wbcnc/ui/components/button';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { toast } from '@wbcnc/ui/components/sonner';
-import React, { Suspense, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import { Vector2, Vector3 } from 'three';
-import { useCamResolution, useStore } from '../store/store';
+import { useArucoConfig, useCamResolution, useStore } from '../store/store';
 import { DetectArucosButton } from './DetectArucoButton';
 import { IMarker } from './detect-aruco';
+
 interface PointSelectionStepProps {
   onComplete: () => void;
 }
@@ -67,35 +68,77 @@ const Crosshair: React.FC<{
         <meshBasicMaterial color="green" transparent opacity={0} />
       </mesh>
       <Line
-        // onClick={stop}
         points={[
           [-size, 0, 0],
           [size, 0, 0],
-        ]} // Array of points, Array<Vector3 | Vector2 | [number, number, number] | [number, number] | number>
-        color="red" // Default
+        ]}
+        color={color}
         lineWidth={1}
       />
       <Line
-        // onClick={stop}
         points={[
           [0, -size, 0],
           [0, size, 0],
-        ]} // Array of points, Array<Vector3 | Vector2 | [number, number, number] | [number, number] | number>
-        color="red" // Default
+        ]}
+        color={color}
         lineWidth={1}
       />
     </group>
   );
 };
 
-const videoToMeshCoords = (point: Vector2): Vector3 => {
-  return new Vector3(point.x, point.y, -0.01); // Put points slightly in front of the mesh
+// Component to visualize a single aruco marker
+const ArucoMarkerVisualization: React.FC<{
+  marker: IMarker;
+  label: string;
+}> = ({ marker, label }) => {
+  // Create rectangle outline connecting the corners
+  const rectanglePoints = useMemo(() => {
+    return [
+      ...marker.corners.map(p => videoToMeshCoords(p)),
+      videoToMeshCoords(marker.corners[0]), // Close the loop
+    ];
+  }, [marker.corners]);
+
+  return (
+    <group>
+      {/* Rectangle outline */}
+      <Line points={rectanglePoints} color="hotpink" lineWidth={1} position={[0, 0, -0.1]} />
+      {/* Render corner crosshairs */}
+      {marker.corners.map((corner, index) => {
+        const pos = videoToMeshCoords(corner);
+        return <Crosshair key={index} position={[pos.x, pos.y, pos.z]} color={index === 0 ? 'blue' : 'red'} size={10} />;
+      })}
+
+      {/* Marker label */}
+      <Suspense>
+        <Text
+          rotation={[Math.PI, 0, 0]}
+          fontSize={20}
+          color="white"
+          outlineColor="black"
+          outlineWidth={1}
+          outlineBlur={1}
+          anchorX="center"
+          anchorY="middle"
+          // rotation={[Math.PI, 0, 0]}
+          position={[marker.corners[0].x, marker.corners[0].y - 30, -0.02]}>
+          {label}
+        </Text>
+      </Suspense>
+    </group>
+  );
 };
 
-// Component to render and interact with points
-function PointsScene({ points, setPoints }: { points: Vector2[]; setPoints: (points: Vector2[]) => void }) {
+const videoToMeshCoords = (point: Vector2): Vector3 => {
+  return new Vector3(point.x, point.y, -0.2);
+};
+
+// Component for manual point selection
+function ManualPointsScene({ points, setPoints }: { points: Vector2[]; setPoints: (points: Vector2[]) => void }) {
   const videoSize = useCamResolution();
   const [isDragging, setIsDragging] = useState(false);
+
   // Handle placing a new point by clicking on the mesh
   const handlePlacePoint = ({ point, ...e }: ThreeEvent<MouseEvent>) => {
     if (points.length >= 4) return;
@@ -125,11 +168,9 @@ function PointsScene({ points, setPoints }: { points: Vector2[]; setPoints: (poi
     setPoints(newPoints);
   };
 
-  // Render the UnskewedVideoMesh and the points
   return (
     <>
-      {/* Use primitive to properly attach the ref and event handlers */}
-      <UnskewedVideoMeshWithLoading />
+      <UnskewedVideoMesh />
 
       {/* Add a transparent plane overtop for click handling */}
       <mesh position={[videoSize[0] / 2, videoSize[1] / 2, -0.005]} onClick={handlePlacePoint} rotation={[Math.PI, 0, 0]}>
@@ -180,20 +221,47 @@ function PointsScene({ points, setPoints }: { points: Vector2[]; setPoints: (poi
   );
 }
 
+// Component for aruco marker visualization
+function ArucoPointsScene({ markers }: { markers: IMarker[] }) {
+  return (
+    <>
+      <UnskewedVideoMesh />
+
+      {/* Render aruco markers */}
+      {markers.map((marker, index) => {
+        const label = index < kPointLabels.length ? kPointLabels[index] : `Marker ${marker.id}`;
+        return <ArucoMarkerVisualization key={marker.id} marker={marker} label={label} />;
+      })}
+
+      <ReprojectedMachineBounds />
+    </>
+  );
+}
+
 export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) => {
+  const [markers, setMarkers] = useState<IMarker[]>([]);
+  const { useArucoMarkers } = useArucoConfig();
   const [points, setPoints] = useState<Vector2[]>(useStore(state => state.camSource!.markerPosInCam) || []);
   const setMachineBoundsInCam = useStore(state => state.camSourceSetters.setMachineBoundsInCam);
   const navigate = useNavigate();
 
+  useEffect(() => {
+    if (!useArucoMarkers && points.length > 4) {
+      setPoints([]);
+    }
+  }, [useArucoMarkers, points]);
+
   // Handle saving points
   const handleSave = () => {
-    if (points.length < 4) {
+    const pointsToSave = useArucoMarkers ? markers.flatMap(m => m.corners) : points;
+
+    if (pointsToSave.length < 4) {
       console.error('Must select exactly 4 points');
       return;
     }
-    console.log('points', points);
+    console.log('points', pointsToSave);
 
-    setMachineBoundsInCam(points);
+    setMachineBoundsInCam(pointsToSave);
     const reprojectionError = updateCameraExtrinsics();
     toast.success(`Updated camera extrinsics`, {
       description: `Reprojection error: ${reprojectionError.toFixed(2)}px (< 1px is very good)`,
@@ -206,18 +274,23 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
 
   const handleReset = () => {
     setPoints([]);
+    setMarkers([]);
   };
 
-  const handleMarkersDetected = (markers: IMarker[]) => {
-    if (markers.length !== 4) {
-      toast.error('Detected ' + markers.length + ' markers, expected 4, ignoring', {
+  const handleMarkersDetected = (detectedMarkers: IMarker[]) => {
+    if (detectedMarkers.length !== 4) {
+      toast.error('Detected ' + detectedMarkers.length + ' markers, expected 4, ignoring', {
         position: 'top-right',
       });
       return;
     }
     toast.success('Detected 4 markers', { position: 'top-right' });
-    setPoints(markers.flatMap(m => m.corners));
+
+    setMarkers(detectedMarkers);
   };
+
+  const currentPointCount = useArucoMarkers ? markers.length * 4 : points.length;
+  const canSave = useArucoMarkers ? markers.length >= 4 : points.length >= 4;
 
   return (
     <div className="w-full h-dvh flex flex-col gap-1 overflow-hidden">
@@ -225,18 +298,18 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
 
       <div className="flex-1 overflow-hidden">
         <PresentCanvas>
-          <PointsScene points={points} setPoints={setPoints} />
+          {useArucoMarkers ? <ArucoPointsScene markers={markers} /> : <ManualPointsScene points={points} setPoints={setPoints} />}
         </PresentCanvas>
       </div>
 
       <div className="absolute bottom-4 right-4 flex items-center justify-end gap-2 p-2 bg-white/80 rounded-lg shadow-sm">
-        <NextPointHint pointCount={points.length} />
+        {!useArucoMarkers && <NextPointHint pointCount={currentPointCount} />}
         {/* Action buttons for reset and save */}
         <DetectArucosButton onMarkersDetected={handleMarkersDetected} />
         <Button variant="secondary" onClick={handleReset}>
           Reset
         </Button>
-        <Button onClick={handleSave} disabled={points.length < 4}>
+        <Button onClick={handleSave} disabled={!canSave}>
           Save
         </Button>
       </div>
