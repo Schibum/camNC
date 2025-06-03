@@ -1,4 +1,5 @@
 import { toast } from "@wbcnc/ui/components/sonner";
+import * as Comlink from "comlink";
 import { v4 as uuidv4 } from "uuid";
 import { create, StateCreator } from "zustand";
 import { GridHeatmapTracker } from "../components/CoverageHeatmap";
@@ -10,6 +11,14 @@ import {
   PatternSize,
 } from "../lib/calibrationTypes";
 import { createImageBlob } from "../lib/imageUtils";
+import {
+  attachMediaStreamTrackReplacer,
+  createVideoStreamProcessor,
+} from "../utils/videoStreamUtils";
+import type {
+  FrameEvent,
+  StreamCornerFinderWorkerAPI,
+} from "../workers/streamCornerFinder.worker";
 
 // -----------------------------------------------------------------------------
 // Constants
@@ -43,33 +52,38 @@ interface CameraSlice {
   frameWidth: number;
   frameHeight: number;
   isStreaming: boolean;
+  cornerWorker: Comlink.Remote<StreamCornerFinderWorkerAPI> | null;
+  // Optional, externally provided max resolution of the stream.
+  maxResolution: Resolution | null;
+  workerCleanup: (() => void) | null;
+  // Promise for an in-flight startCamera call
+  startPromise: Promise<void> | null;
+  // Flag to indicate a stop was requested during start
+  stopRequested: boolean;
+
   startCamera: (
     source: MediaStream | string,
     resolution?: Resolution
   ) => Promise<void>;
   stopCamera: () => void;
+  pauseProcessing: () => Promise<void>;
+  resumeProcessing: () => Promise<void>;
   setFrameDimensions: (width: number, height: number) => void;
   resetCalibration: () => void;
+  onLoadedMetadata: (el: HTMLVideoElement, maxResolution?: Resolution) => void;
 }
+
+type RejectedReason = "blurry" | "not_unique";
 
 interface ProcessingSlice {
   currentCorners: Corner[] | null;
   currentFrameImageData: ImageData | null;
   heatmapTracker: GridHeatmapTracker | null;
   heatmapTick: number;
-  isBlurry: boolean;
-  isUnique: boolean;
-
+  rejectedReason: RejectedReason | null;
   // FPS from worker
   detectionFps: number;
-
-  updateCorners: (
-    corners: Corner[],
-    imageData: ImageData,
-    isUnique: boolean,
-    fps: number
-  ) => void;
-  clearCorners: (isBlurry?: boolean, fps?: number) => void;
+  onFrameProcessed: (data: FrameEvent) => void;
 }
 
 interface CaptureSlice {
@@ -130,42 +144,72 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
   frameWidth: 0,
   frameHeight: 0,
   isStreaming: false,
+  cornerWorker: null,
+  workerCleanup: null,
+  maxResolution: null,
+  startPromise: null,
+  stopRequested: false,
+
+  onLoadedMetadata: (el: HTMLVideoElement, maxResolution?: Resolution) => {
+    if (get().stopRequested) return;
+
+    const vidRes = { width: el.videoWidth, height: el.videoHeight };
+    if (
+      maxResolution &&
+      getAspectRatio(maxResolution) !== getAspectRatio(vidRes)
+    ) {
+      toast.error("Aspect‑ratio mismatch", {
+        description: `Expected ${getAspectRatio(maxResolution)}, got ${getAspectRatio(vidRes)}. Make sure to lock device in portrait mode.`,
+        duration: Infinity,
+        closeButton: true,
+      });
+      throw new Error(
+        "Aspect‑ratio mismatch between provided and video element"
+      );
+    }
+    if (maxResolution)
+      set({
+        frameWidth: maxResolution.width,
+        frameHeight: maxResolution.height,
+      });
+    else set({ frameWidth: vidRes.width, frameHeight: vidRes.height });
+    set({
+      heatmapTracker: new GridHeatmapTracker(
+        10,
+        10,
+        vidRes.width,
+        vidRes.height
+      ),
+    });
+  },
 
   startCamera: async (source, resolution) => {
-    // Ensure previous stream is stopped first
+    // Wait for any in-flight startCamera to complete
+    const prev = get().startPromise;
+    if (prev) await prev;
+
+    // Stop any active camera (resets state)
     get().stopCamera();
+
+    // Create new startPromise and reset stopRequested
+    let resolveStart!: () => void;
+    const startPromise = new Promise<void>((res) => {
+      resolveStart = res;
+    });
+    set({ startPromise, stopRequested: false });
 
     const el = document.createElement("video");
     el.autoplay = true;
     el.playsInline = true;
     el.muted = true;
 
-    function onLoadedMetadata() {
-      const vidRes = { width: el.videoWidth, height: el.videoHeight };
-      if (resolution && getAspectRatio(resolution) !== getAspectRatio(vidRes)) {
-        toast.error("Aspect‑ratio mismatch", {
-          description: `Expected ${getAspectRatio(resolution)}, got ${getAspectRatio(vidRes)}. Make sure to lock device in portrait mode.`,
-          duration: Infinity,
-          closeButton: true,
-        });
-        throw new Error(
-          "Aspect‑ratio mismatch between provided and video element"
-        );
-      }
-      if (resolution)
-        set({ frameWidth: resolution.width, frameHeight: resolution.height });
-      else set({ frameWidth: vidRes.width, frameHeight: vidRes.height });
-      set({
-        heatmapTracker: new GridHeatmapTracker(
-          10,
-          10,
-          vidRes.width,
-          vidRes.height
-        ),
-      });
-    }
-
-    el.addEventListener("loadedmetadata", onLoadedMetadata, { once: true });
+    el.addEventListener(
+      "loadedmetadata",
+      () => {
+        get().onLoadedMetadata(el, resolution);
+      },
+      { once: true }
+    );
 
     if (typeof source === "string") {
       el.src = source;
@@ -179,22 +223,86 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
 
     await el.play();
 
-    set({
-      stream: source instanceof MediaStream ? source : null,
-      videoElement: el,
-      isStreaming: true,
-      capturedFrames: [],
-      selectedFrameId: null,
-      currentCorners: null,
-      currentFrameImageData: null,
-      isBlurry: false,
-      isUnique: false,
-      detectionFps: 0,
-    });
+    try {
+      const { patternSize } = get();
+      const frameSize = resolution || {
+        width: el.videoWidth,
+        height: el.videoHeight,
+      };
+
+      const videoStream = await createVideoStreamProcessor(source);
+
+      const worker = new Worker(
+        new URL("../workers/streamCornerFinder.worker.ts", import.meta.url),
+        { type: "module" }
+      );
+      const workerProxy = Comlink.wrap<StreamCornerFinderWorkerAPI>(worker);
+
+      await workerProxy.init(
+        Comlink.transfer(videoStream as any, [videoStream as any]),
+        // Comlink.transfer(videoStream, []),
+        patternSize,
+        frameSize,
+        Comlink.proxy(get().onFrameProcessed)
+      );
+
+      await workerProxy.start();
+
+      // Attach automatic track-replacement if the source is a live MediaStream
+      let replacerCleanup: (() => void) | null = null;
+      if (source instanceof MediaStream) {
+        replacerCleanup = attachMediaStreamTrackReplacer(source, workerProxy);
+      }
+
+      const cleanup = () => {
+        console.log("[CalibrationStore] Cleaning up corner worker");
+        workerProxy.stop().catch(console.error);
+        worker.terminate();
+        replacerCleanup?.();
+        // if (source instanceof MediaStream)
+        //   source.getVideoTracks().forEach((t) => t.stop());
+      };
+
+      if (!get().stopRequested) {
+        set({
+          stream: source instanceof MediaStream ? source : null,
+          videoElement: el,
+          maxResolution: resolution,
+          isStreaming: true,
+          capturedFrames: [],
+          selectedFrameId: null,
+          currentCorners: null,
+          currentFrameImageData: null,
+          rejectedReason: null,
+          detectionFps: 0,
+          cornerWorker: workerProxy,
+          workerCleanup: cleanup,
+        });
+      } else {
+        cleanup();
+      }
+    } catch (error) {
+      console.error(
+        "[CalibrationStore] Failed to initialize corner worker:",
+        error
+      );
+    } finally {
+      resolveStart();
+      set({ startPromise: null });
+    }
   },
 
   stopCamera: () => {
-    const { videoElement } = get();
+    const { videoElement, workerCleanup } = get();
+    // Signal any in-flight startCamera to abort
+    set({ stopRequested: true });
+
+    // Clean up active worker if any
+    if (workerCleanup) {
+      workerCleanup();
+    }
+
+    // Clean up video element
     if (videoElement) {
       videoElement.pause();
       videoElement.srcObject = null;
@@ -206,13 +314,38 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
       isStreaming: false,
       frameWidth: 0,
       frameHeight: 0,
-      isBlurry: false,
-      isUnique: false,
+      rejectedReason: null,
       currentCorners: null,
       currentFrameImageData: null,
       selectedFrameId: null,
       detectionFps: 0,
+      cornerWorker: null,
+      workerCleanup: null,
     });
+  },
+
+  pauseProcessing: async () => {
+    const { cornerWorker } = get();
+    if (cornerWorker) {
+      try {
+        await cornerWorker.pause();
+        console.log("[CalibrationStore] Processing paused");
+      } catch (error) {
+        console.error("[CalibrationStore] Failed to pause processing:", error);
+      }
+    }
+  },
+
+  resumeProcessing: async () => {
+    const { cornerWorker } = get();
+    if (cornerWorker) {
+      try {
+        await cornerWorker.resume();
+        console.log("[CalibrationStore] Processing resumed");
+      } catch (error) {
+        console.error("[CalibrationStore] Failed to resume processing:", error);
+      }
+    }
   },
 
   setFrameDimensions: (w, h) => set({ frameWidth: w, frameHeight: h }),
@@ -234,36 +367,28 @@ const createProcessingSlice: StateCreator<
   detectionFps: 0,
   heatmapTracker: null,
   heatmapTick: 0,
-  isBlurry: false,
-  isUnique: false,
-
-  updateCorners: (corners, imageData, isUnique, fps) => {
-    set({
-      currentCorners: corners,
-      currentFrameImageData: imageData,
-      isUnique,
-      isBlurry: false,
-      detectionFps: fps,
-    });
-
-    const { isAutoCaptureEnabled } = get();
-    if (isAutoCaptureEnabled && isUnique) {
-      get()
-        .captureFrame()
-        .catch((e) => console.error("Auto‑capture failed", e));
+  rejectedReason: null,
+  onFrameProcessed: (data: FrameEvent) => {
+    if (data.result === "capture") {
+      set({
+        currentCorners: data.corners,
+        currentFrameImageData: data.imageData,
+        detectionFps: data.fps,
+        rejectedReason: null,
+      });
+      if (get().isAutoCaptureEnabled) {
+        get()
+          .captureFrame()
+          .catch((e) => console.error("Auto‑capture failed", e));
+      }
+    } else {
+      set({
+        currentCorners: data.corners,
+        currentFrameImageData: null,
+        rejectedReason: data.result,
+        detectionFps: data.fps,
+      });
     }
-  },
-
-  clearCorners: (isBlurry = false, fps = 0) => {
-    const updates = {
-      currentCorners: null,
-      currentFrameImageData: null,
-      isBlurry,
-      isUnique: false,
-      detectionFps: fps,
-    };
-
-    set(updates);
   },
 });
 

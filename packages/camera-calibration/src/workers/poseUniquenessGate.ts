@@ -68,11 +68,11 @@ export class PoseUniquenessGate {
 
   // returns true  ⇢  frame is sufficiently different & stored
   //   false ⇢  too similar, ignore
-  acceptDirect(
+  isUnique(
     cornersMat: cv2.Mat,
     frameW: number,
     frameH: number,
-    thresh = 90,
+    thresh = 180,
     rotWeight = 3,
     traWeight = 1
   ): boolean {

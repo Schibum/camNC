@@ -40,6 +40,10 @@ export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
   );
   const startCamera = useCalibrationStore((state) => state.startCamera);
   const stopCamera = useCalibrationStore((state) => state.stopCamera);
+  const pauseProcessing = useCalibrationStore((state) => state.pauseProcessing);
+  const resumeProcessing = useCalibrationStore(
+    (state) => state.resumeProcessing
+  );
   const setShowGallery = useCalibrationStore((state) => state.setShowGallery);
 
   // Select state primitives individually
@@ -89,6 +93,15 @@ export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
       stopCamera();
     };
   }, [src, startCamera, stopCamera, resolution]);
+
+  // Pause/resume processing based on gallery visibility
+  useEffect(() => {
+    if (showGallery) {
+      pauseProcessing();
+    } else {
+      resumeProcessing();
+    }
+  }, [showGallery, pauseProcessing, resumeProcessing]);
 
   if (!window.cv) {
     throw new Error("OpenCV is not loaded");

@@ -114,6 +114,8 @@ export function GridHeatmapOverlay() {
     const cellW = width / cols;
     const cellH = height / rows;
 
+    const maxHit = Math.min(5, Math.max(3, ...bins));
+    console.log(`maxHit: ${maxHit}`);
     // draw bins
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
@@ -122,10 +124,11 @@ export function GridHeatmapOverlay() {
 
         // Map hit count to 3 colors: red -> yellow -> green
         const getHitColor = (count: number): string => {
+          const normalized = count / maxHit;
           const alpha = 0.2;
 
-          if (count === 0) return `rgba(239,68,68,${alpha + 0.1})`; // red
-          if (count === 1) return `rgba(251,191,36,${alpha})`; // yellow
+          if (normalized <= 0.33) return `rgba(239,68,68,${alpha + 0.1})`; // red
+          if (normalized <= 0.66) return `rgba(251,191,36,${alpha})`; // yellow
           return `rgba(34,197,94,${alpha})`; // green for 2+
         };
 
