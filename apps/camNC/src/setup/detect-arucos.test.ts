@@ -35,13 +35,13 @@ describe('detectAruco', () => {
     const markers = detectAruco(img);
     img.delete();
     expect(markers.map(m => m.id)).toEqual([0, 1, 2, 3]);
-    expect(markers[0].origin.x).toBeCloseTo(53.5, 0.1);
-    expect(markers[0].origin.y).toBeCloseTo(204.7, 0.1);
-    expect(markers[1].origin.x).toBeCloseTo(3308.8, 0.1);
-    expect(markers[1].origin.y).toBeCloseTo(43.8, 0.1);
-    expect(markers[2].origin.x).toBeCloseTo(3380.4, 0.1);
-    expect(markers[2].origin.y).toBeCloseTo(1689.0, 0.1);
-    expect(markers[3].origin.x).toBeCloseTo(139.0, 0.1);
+    expect(markers[0].corners[0].x).toBeCloseTo(53.5, 0.1);
+    expect(markers[0].corners[0].y).toBeCloseTo(204.7, 0.1);
+    expect(markers[1].corners[0].x).toBeCloseTo(3308.8, 0.1);
+    expect(markers[1].corners[0].y).toBeCloseTo(43.8, 0.1);
+    expect(markers[2].corners[0].x).toBeCloseTo(3380.4, 0.1);
+    expect(markers[2].corners[0].y).toBeCloseTo(1689.0, 0.1);
+    expect(markers[3].corners[0].x).toBeCloseTo(139.0, 0.1);
   });
 
   it('should detect arucos on white', async () => {
@@ -49,10 +49,10 @@ describe('detectAruco', () => {
     const markers = detectAruco(img);
     img.delete();
     expect(markers.map(m => m.id)).toEqual([0, 1, 2, 3]);
-    expect(markers[0].origin.x).toBeCloseTo(11.5, 0.1);
-    expect(markers[0].origin.y).toBeCloseTo(112.3, 0.1);
-    expect(markers[1].origin.x).toBeCloseTo(111.7, 0.1);
-    expect(markers[1].origin.y).toBeCloseTo(108.7, 0.1);
-    expect(markers[2].origin.x).toBeCloseTo(215.6, 0.1);
+    expect(markers[0].corners[0].x).toBeCloseTo(11.5, 0.1);
+    expect(markers[0].corners[0].y).toBeCloseTo(112.3, 0.1);
+    expect(markers[1].corners[0].x).toBeCloseTo(111.7, 0.1);
+    expect(markers[1].corners[0].y).toBeCloseTo(108.7, 0.1);
+    expect(markers[2].corners[0].x).toBeCloseTo(215.6, 0.1);
   });
 });

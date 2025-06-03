@@ -19,7 +19,7 @@ export function DetectArucosButton({ onMarkersDetected }: { onMarkersDetected: (
     imgMat.delete();
     console.log('markers', markers);
     setIsDetecting(false);
-    const markerPosInCam = markers.map(m => m.origin);
+    const markerPosInCam = markers.map(m => m.corners[0]);
     // console.log('markersThree', markersThree);
     onMarkersDetected(markerPosInCam);
   };

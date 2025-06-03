@@ -34,7 +34,6 @@ export interface ICamSource {
   markerPosInCam?: Vector2[];
   calibration?: CalibrationData;
   extrinsics?: CameraExtrinsics;
-  // Optional marker positions in machine coordinates
   markerPositions?: Vector3[];
 }
 
