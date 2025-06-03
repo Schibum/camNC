@@ -13,6 +13,7 @@ import * as THREE from 'three';
 import { Vector2, Vector3 } from 'three';
 import { useCamResolution, useStore } from '../store/store';
 import { DetectArucosButton } from './DetectArucoButton';
+import { IMarker } from './detect-aruco';
 interface PointSelectionStepProps {
   onComplete: () => void;
 }
@@ -186,7 +187,7 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
 
   // Handle saving points
   const handleSave = () => {
-    if (points.length !== 4) {
+    if (points.length < 4) {
       console.error('Must select exactly 4 points');
       return;
     }
@@ -207,7 +208,7 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
     setPoints([]);
   };
 
-  const handleMarkersDetected = (markers: Vector2[]) => {
+  const handleMarkersDetected = (markers: IMarker[]) => {
     if (markers.length !== 4) {
       toast.error('Detected ' + markers.length + ' markers, expected 4, ignoring', {
         position: 'top-right',
@@ -215,7 +216,7 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
       return;
     }
     toast.success('Detected 4 markers', { position: 'top-right' });
-    setPoints(markers);
+    setPoints(markers.flatMap(m => m.corners));
   };
 
   return (
@@ -235,7 +236,7 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
         <Button variant="secondary" onClick={handleReset}>
           Reset
         </Button>
-        <Button onClick={handleSave} disabled={points.length !== 4}>
+        <Button onClick={handleSave} disabled={points.length < 4}>
           Save
         </Button>
       </div>

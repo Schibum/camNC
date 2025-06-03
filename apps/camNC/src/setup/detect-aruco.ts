@@ -16,7 +16,7 @@ function createDetector() {
   return detector;
 }
 
-type IMarker = {
+export type IMarker = {
   id: number;
   corners: Vector2[];
 };

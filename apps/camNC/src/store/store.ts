@@ -4,6 +4,7 @@ import { Box2, Matrix3, Vector2, Vector3 } from 'three';
 import { create, ExtractState } from 'zustand';
 import { combine, devtools, persist, PersistStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
+import { useShallow } from 'zustand/react/shallow';
 import { ParsedToolpath, parseGCode } from '../visualize/gcodeParsing';
 import { parseToolInfo } from '../visualize/guess-tools';
 
@@ -35,6 +36,9 @@ export interface ICamSource {
   calibration?: CalibrationData;
   extrinsics?: CameraExtrinsics;
   markerPositions?: Vector3[];
+  // ArUco marker configuration
+  useArucoMarkers?: boolean;
+  arucoTagSize?: number; // Size in mm of black border (excluding white border)
 }
 
 superjson.registerCustom<Box2, { min: number[]; max: number[] }>(
@@ -129,6 +133,11 @@ export const useStore = create(devtools(persist(immer(combine(
         if (!state.camSource) throw new Error('configure source first');
         state.camSource.markerPositions = markers;
       }),
+      setArucoConfig: (useArucoMarkers: boolean, arucoTagSize: number) => set(state => {
+        if (!state.camSource) throw new Error('configure source first');
+        state.camSource.useArucoMarkers = useArucoMarkers;
+        state.camSource.arucoTagSize = arucoTagSize;
+      }),
     },
     setIsToolpathSelected: (isSelected: boolean) => set(state => {
       state.isToolpathSelected = isSelected;
@@ -198,6 +207,15 @@ export const useSetShowStillFrame = () => useStore(state => state.setShowStillFr
 export const useMarkerPositions = () => useStore(state => state.camSource!.markerPositions!);
 // Hook to set marker positions
 export const useSetMarkerPositions = () => useStore(state => state.camSourceSetters.setMarkerPositions);
+// Hooks for ArUco configuration
+export const useArucoConfig = () =>
+  useStore(
+    useShallow(state => ({
+      useArucoMarkers: state.camSource?.useArucoMarkers ?? true,
+      arucoTagSize: state.camSource?.arucoTagSize ?? 30,
+    }))
+  );
+export const useSetArucoConfig = () => useStore(state => state.camSourceSetters.setArucoConfig);
 
 export const useToolpath = () => useStore(state => state.toolpath);
 export const useHasToolpath = () => useToolpath() !== null;

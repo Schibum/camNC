@@ -5,6 +5,7 @@ import { averageVideoFrames } from '@/hooks/useStillFrameTexture';
 import { useCameraExtrinsics, useStore } from '@/store/store';
 import { acquireVideoSource, releaseVideoSource } from '@wbcnc/go2webrtc/use-video-source';
 import { cv2 } from '@wbcnc/load-opencv';
+import { Vector3 } from 'three';
 import { cvToVector2, matrix3ToCV, vector3ToCV } from '../lib/three-cv';
 
 function getMarkerPosInCam() {
@@ -13,13 +14,23 @@ function getMarkerPosInCam() {
 
 function computeMarkerP3P() {
   const camSource = useStore.getState().camSource;
-  const mp = camSource!.markerPositions!;
+  if (!camSource) throw new Error();
+  let mp = camSource.markerPositions!;
+  if (camSource.useArucoMarkers) {
+    const as2 = camSource.arucoTagSize! / 2;
+    // Inflate aruco marker positions CW, top left first.
+    mp = mp.flatMap(m => {
+      return [new Vector3(-as2, as2, 0), new Vector3(as2, as2, 0), new Vector3(as2, -as2, 0), new Vector3(-as2, -as2, 0)].map(v =>
+        v.add(m)
+      );
+    });
+  }
+
   const calibrationData = camSource!.calibration!;
   return computeP3P(mp, getMarkerPosInCam(), calibrationData.new_camera_matrix);
 }
 
 export function updateCameraExtrinsics() {
-  // const setCameraExtrinsics = useSetCameraExtrinsics();
   const setCameraExtrinsics = useStore.getState().camSourceSetters.setExtrinsics;
   const { R, t, reprojectionError } = computeMarkerP3P();
   console.log('updated camera extrinsics', R, t, reprojectionError);

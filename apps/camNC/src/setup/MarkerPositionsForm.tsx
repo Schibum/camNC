@@ -1,12 +1,14 @@
-import { useSetMarkerPositions, useStore } from '@/store/store';
+import { useArucoConfig, useSetArucoConfig, useSetMarkerPositions, useStore } from '@/store/store';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@wbcnc/ui/components/button';
+import { Checkbox } from '@wbcnc/ui/components/checkbox';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@wbcnc/ui/components/form';
 import { Input } from '@wbcnc/ui/components/input';
 import { ExternalLink } from 'lucide-react';
 import { Control, useForm } from 'react-hook-form';
 import { Vector3 } from 'three';
 import z from 'zod';
+import { MarkerBoundsButton, calculateDefaultMargin, calculateMarkersWithMargin } from './MarkerBoundsButton';
 
 const markerSchema = z.object({
   x: z.coerce.number(),
@@ -16,6 +18,8 @@ const markerSchema = z.object({
 
 const schema = z.object({
   markers: z.tuple([markerSchema, markerSchema, markerSchema, markerSchema]),
+  useArucoMarkers: z.boolean(),
+  arucoTagSize: z.coerce.number().min(1).max(1000),
 });
 
 type MarkerFormData = z.infer<typeof schema>;
@@ -76,32 +80,40 @@ function MarkerFields({ control, index }: MarkerFieldsProps) {
 }
 
 export function MarkerPositionsForm({ onConfirmed }: { onConfirmed: () => void }) {
+  'use no memo';
   const bounds = useStore(state => state.camSource!.machineBounds!);
   const savedRaw = useStore(state => state.camSource?.markerPositions);
+  const arucoConfig = useArucoConfig();
   const setMarkerPositions = useSetMarkerPositions();
+  const setArucoConfig = useSetArucoConfig();
 
-  const machineDefaultMarkers = [
-    { x: bounds.min.x, y: bounds.min.y, z: 0 },
-    { x: bounds.min.x, y: bounds.max.y, z: 0 },
-    { x: bounds.max.x, y: bounds.max.y, z: 0 },
-    { x: bounds.max.x, y: bounds.min.y, z: 0 },
-  ];
+  // Calculate default markers with margin based on ArUco configuration
+  const defaultMargin = calculateDefaultMargin(arucoConfig.useArucoMarkers, arucoConfig.arucoTagSize);
+  const machineDefaultMarkers = calculateMarkersWithMargin(bounds, defaultMargin);
   const defaultMarkers = savedRaw ? savedRaw.map(v => ({ x: v.x, y: v.y, z: v.z })) : machineDefaultMarkers;
 
   const form = useForm<MarkerFormData>({
-    defaultValues: { markers: defaultMarkers } as MarkerFormData,
+    defaultValues: {
+      markers: defaultMarkers,
+      useArucoMarkers: arucoConfig.useArucoMarkers,
+      arucoTagSize: arucoConfig.arucoTagSize,
+    } as MarkerFormData,
     resolver: zodResolver(schema),
   });
 
   // Expose reset to restore machine-bound defaults
-  const { reset } = form;
-  function handleReset() {
-    reset({ markers: machineDefaultMarkers } as MarkerFormData);
+  const { watch } = form;
+  const watchUseArucoMarkers = watch('useArucoMarkers');
+  const watchArucoTagSize = watch('arucoTagSize');
+
+  function handleMarkerBoundsApply(markers: Array<{ x: number; y: number; z: number }>) {
+    form.setValue('markers', markers as any);
   }
 
   function onSubmit(data: MarkerFormData) {
     const vectors = data.markers.map(m => new Vector3(m.x, m.y, m.z));
     setMarkerPositions(vectors);
+    setArucoConfig(data.useArucoMarkers, data.arucoTagSize);
     onConfirmed();
   }
 
@@ -118,7 +130,14 @@ export function MarkerPositionsForm({ onConfirmed }: { onConfirmed: () => void }
             </p>
             <ul className="list-disc list-inside space-y-1 ml-4">
               <li>
-                Easiest setup is to engrave{' '}
+                Add four small 40x40mm pockets to the wasteboard and place printed{' '}
+                <a href="/aruco.pdf" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
+                  ArUco markers <ExternalLink className="size-4 inline-block" />
+                </a>{' '}
+                inside. They can be (re-)detected automatically (e.g. in case the camera or table moves).
+              </li>
+              <li>
+                Engrave{' '}
                 <a
                   href="https://vector76.github.io/gcode_tpgen/"
                   target="_blank"
@@ -128,28 +147,65 @@ export function MarkerPositionsForm({ onConfirmed }: { onConfirmed: () => void }
                 </a>{' '}
                 on the wasteboard at the machine bounds. Then select those manually in the camera view (next step).
               </li>
-              <li>
-                Place{' '}
-                <a href="/aruco.pdf" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
-                  ArUco markers <ExternalLink className="size-4 inline-block" />
-                </a>{' '}
-                next to the wasteboard at known machine coordinates. Harder to position accurately, but they can be (re-)detected
-                automatically (e.g. in case the camera or table moves).
-              </li>
             </ul>
           </div>
         </div>
+
+        <div className="space-y-4 mb-6">
+          <FormField
+            control={form.control}
+            name="useArucoMarkers"
+            render={({ field }) => (
+              <FormItem>
+                <div className="flex items-center space-x-2">
+                  <FormControl>
+                    <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                  </FormControl>
+                  <FormLabel className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    Use ArUco markers (automatic detection)
+                  </FormLabel>
+                </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {watchUseArucoMarkers && (
+            <FormField
+              control={form.control}
+              name="arucoTagSize"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>ArUco tag size (mm)</FormLabel>
+                  <FormControl>
+                    <Input {...field} type="number" placeholder="30" />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">Size of the black border in mm (excluding white border)</p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
+        </div>
+
+        <div>
+          <h3 className="font-medium mb-4">Marker Positions {watchUseArucoMarkers ? '(Centers of ArUco tags)' : ''}</h3>
+        </div>
+
         {markerIndices.map(i => (
-          <div key={i}>
-            <h3 className="font-medium mb-2">Marker {i}</h3>
+          <div key={i} className="space-y-2">
+            <p className="text-sm font-medium text-muted-foreground">Marker {i}</p>
             <MarkerFields control={form.control} index={i} />
           </div>
         ))}
 
         <div className="flex space-x-2 justify-end mt-8">
-          <Button variant="secondary" type="button" onClick={handleReset}>
-            Reset to machine bounds
-          </Button>
+          <MarkerBoundsButton
+            bounds={bounds}
+            useArucoMarkers={watchUseArucoMarkers}
+            arucoTagSize={watchArucoTagSize}
+            onApply={handleMarkerBoundsApply}
+          />
           <Button type="submit">Confirm</Button>
         </div>
       </form>

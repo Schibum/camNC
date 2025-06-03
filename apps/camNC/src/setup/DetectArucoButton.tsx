@@ -6,10 +6,10 @@ import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
 import { ScanQrCode } from 'lucide-react';
 import { use, useState } from 'react';
 import { Vector2 } from 'three';
-import { detectAruco } from './detect-aruco';
+import { detectAruco, IMarker } from './detect-aruco';
 
 const kNumFrames = 5;
-export function DetectArucosButton({ onMarkersDetected }: { onMarkersDetected: (markers: Vector2[]) => void }) {
+export function DetectArucosButton({ onMarkersDetected }: { onMarkersDetected: (markers: IMarker[]) => void }) {
   use(ensureOpenCvIsLoaded());
   const [isDetecting, setIsDetecting] = useState(false);
   const handleClick = async () => {
@@ -19,9 +19,12 @@ export function DetectArucosButton({ onMarkersDetected }: { onMarkersDetected: (
     imgMat.delete();
     console.log('markers', markers);
     setIsDetecting(false);
-    const markerPosInCam = markers.map(m => m.corners[0]);
+    const markerPosInCam = markers.map(m => {
+      const sum = m.corners.reduce((acc, corner) => acc.add(corner), new Vector2(0, 0));
+      return sum.divideScalar(m.corners.length);
+    });
     // console.log('markersThree', markersThree);
-    onMarkersDetected(markerPosInCam);
+    onMarkersDetected(markers);
   };
 
   return (

@@ -4,12 +4,12 @@ import { cvToMatrix3, cvToVector2, cvToVector3, matrix3ToCV } from '../lib/three
 
 // Return 3d machine bound points as 3d CV Mat
 export function markerMachinePosToCv(mp: Vector3[]) {
-  if (mp.length !== 4) {
-    throw new Error('Must have 4 marker positions');
+  if (mp.length < 4) {
+    throw new Error('Must have at least 4 marker positions');
   }
   // Create 3D object points (assuming z=0)
   // prettier-ignore
-  const objectPoints = cv2.matFromArray(4, 3, cv2.CV_64F,
+  const objectPoints = cv2.matFromArray(mp.length, 3, cv2.CV_64F,
     mp.flatMap(point => [point.x, point.y, point.z])
   );
   return objectPoints;
@@ -17,13 +17,12 @@ export function markerMachinePosToCv(mp: Vector3[]) {
 
 export function computeP3P(mp: Vector3[], markersInCam: Vector2[], newCamMatrix: Matrix3) {
   const objectPoints = markerMachinePosToCv(mp);
-  // prettier-ignore
-  const imagePoints = cv2.matFromArray(4, 2, cv2.CV_64F, [
-    markersInCam[0].x, markersInCam[0].y,
-    markersInCam[1].x, markersInCam[1].y,
-    markersInCam[2].x, markersInCam[2].y,
-    markersInCam[3].x, markersInCam[3].y,
-  ]);
+  const imagePoints = cv2.matFromArray(
+    markersInCam.length,
+    2,
+    cv2.CV_64F,
+    markersInCam.flatMap(m => [m.x, m.y])
+  );
 
   const cameraMatrix = matrix3ToCV(newCamMatrix);
 
