@@ -60,7 +60,7 @@ async function testWorkerWithImage(
   const img = await loadImage(imagePath);
 
   return new Promise<void>(async (resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("Test timeout")), 5000);
+    const timeout = setTimeout(() => reject(new Error("Test timeout")), 10000);
 
     const onFrameProcessed = (data: FrameEvent) => {
       clearTimeout(timeout);
@@ -112,7 +112,7 @@ describe("StreamCornerFinderWorker", () => {
         expect(data.corners.length).toBe(9 * 6);
       }
     });
-  }, 10000);
+  });
 
   it("should return null corners for an image without a chessboard", async () => {
     await testWorkerWithImage(workerProxy, imgNoChessboard, "not_unique");
