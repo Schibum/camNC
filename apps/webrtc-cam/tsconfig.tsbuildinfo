@@ -1,1 +1,0 @@
-{"root":["./vite.config.ts","./src/routetree.gen.ts","./src/utils.ts","./src/main.tsx","./src/portrait-orientation.tsx","./src/server-card.tsx","./src/routes/__root.tsx","./src/routes/webrtc-custom.tsx","./src/routes/webtorrent.tsx"],"version":"5.8.3"}
