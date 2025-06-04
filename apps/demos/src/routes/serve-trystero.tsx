@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { zodValidator } from "@tanstack/zod-adapter";
 import { useTrysteroServer } from "@wbcnc/go2webrtc/trystero";
-import { useWakeLock } from "@wbcnc/ui/hooks/use-wakelook";
+import { useWakeLock } from "@wbcnc/ui/hooks/use-wakelock";
 import { z } from "zod";
 
 const searchSchema = z.object({

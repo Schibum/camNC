@@ -8,7 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@wbcnc/ui/components/card";
-import { useWakeLock } from "@wbcnc/ui/hooks/use-wakelook";
+import { useWakeLock } from "@wbcnc/ui/hooks/use-wakelock";
 import { AlertTriangle } from "lucide-react";
 import { useCameraName } from "./utils";
 
