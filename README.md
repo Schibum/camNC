@@ -1,6 +1,8 @@
-# TODO
+# camNC Monorepo
 
-# camnc
+This repository is a pnpm/Turborepo workspace that contains the **camNC**
+application and a collection of supporting packages. The main app overlays CNC
+G-code on top of a camera feed so you can preview motion live.
 
 Camnc is a simple experimental web application that visualizes CNC G-code on a live camera feed (IP camera via [go2rtc](https://github.com/AlexxIT/go2rtc), old phone, webcam, etc.). It renders an orthographic 2D top-down view of the G-code on top of the camera image, adjusted for perspective effects through camera calibration and pose estimation.
 
@@ -21,3 +23,46 @@ Camnc is a simple experimental web application that visualizes CNC G-code on a l
 ## Usage
 
 To get started, open the application at [https://camnc.vercel.app/](https://camnc.vercel.app/).
+
+## Repository layout
+
+This workspace is split into two top‑level folders:
+
+- `apps/` – runnable applications.
+- `packages/` – reusable libraries and config used by the apps.
+
+### Apps
+
+- **camNC** – main camera overlay application.
+- **chessboard** – printable chessboard pattern for camera calibration.
+- **demos** – sandbox showcasing individual packages.
+- **fluidnc-integration** – prototype FluidNC control UI.
+- **webrtc-cam** – minimal browser client for go2rtc.
+
+### Packages
+
+- **camera-calibration** – React components for calibrating a camera.
+- **eslint-config** – shared eslint rules.
+- **fluidnc-api** – small API wrapper for FluidNC.
+- **go2webrtc** – utilities for connecting to go2rtc via WebRTC.
+- **load-opencv** – helper for loading OpenCV in the browser.
+- **public-config** – shared Firebase configuration.
+- **typescript-config** – common tsconfig presets.
+- **ui** – shared React UI components.
+- **webrtc-channel** – abstraction over WebRTC data channels.
+
+## Development
+
+Install dependencies and start all apps in dev mode:
+
+```bash
+pnpm install
+pnpm run dev
+```
+
+Other useful commands:
+
+```bash
+pnpm run lint   # run eslint across the workspace
+pnpm run test   # run vitest suites
+```
