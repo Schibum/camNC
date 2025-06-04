@@ -11,7 +11,7 @@
   "license": "Apache-2.0",
   "packageManager": "pnpm@10.7.0",
   "dependencies": {
-    "firebase": "^11.8.1"
+    "firebase": "catalog:"
   },
   "devDependencies": {
     "@wbcnc/typescript-config": "workspace:*"

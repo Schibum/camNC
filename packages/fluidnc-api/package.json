@@ -11,17 +11,17 @@
   "license": "Apache-2.0",
   "packageManager": "pnpm@10.7.0",
   "dependencies": {
-    "@preact/signals-react": "^3.2.0",
+    "@preact/signals-react": "catalog:",
     "@wbcnc/public-config": "workspace:*",
     "@wbcnc/webrtc-channel": "workspace:*",
-    "comlink": "^4.4.2",
-    "loglevel": "^1.9.2",
-    "mitt": "^3.0.1",
-    "playwright": "^1.52.0"
+    "comlink": "catalog:",
+    "loglevel": "catalog:",
+    "mitt": "catalog:",
+    "playwright": "catalog:"
   },
   "devDependencies": {
-    "@vitest/browser": "3.2.0",
+    "@vitest/browser": "catalog:",
     "@wbcnc/typescript-config": "workspace:*",
-    "vitest": "3.2.0"
+    "vitest": "catalog:"
   }
 }

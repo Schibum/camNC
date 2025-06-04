@@ -10,9 +10,9 @@
     "check-types": "turbo run check-types"
   },
   "devDependencies": {
-    "playwright": "^1.52.0",
-    "prettier": "^3.5.3",
-    "turbo": "^2.5.4",
+    "playwright": "catalog:",
+    "prettier": "catalog:",
+    "turbo": "catalog:",
     "typescript": "5.8.3"
   },
   "packageManager": "pnpm@10.7.0",
@@ -20,7 +20,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "vite-plugin-node-polyfills": "^0.23.0",
-    "vitest": "3.2.0"
+    "vite-plugin-node-polyfills": "catalog:",
+    "vitest": "catalog:"
   }
 }

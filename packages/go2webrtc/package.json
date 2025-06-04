@@ -11,12 +11,12 @@
   "license": "Apache-2.0",
   "packageManager": "pnpm@10.7.0",
   "dependencies": {
-    "@techstark/opencv-js": "4.10.0-release.1",
-    "@types/react": "^19.1.6",
-    "jotai": "^2.12.5",
-    "react": "^19.1.0",
-    "trystero": "^0.21.5",
-    "vitest": "3.2.0"
+    "@techstark/opencv-js": "catalog:",
+    "@types/react": "catalog:",
+    "jotai": "catalog:",
+    "react": "catalog:",
+    "trystero": "catalog:",
+    "vitest": "catalog:"
   },
   "devDependencies": {
     "@wbcnc/typescript-config": "workspace:*"
