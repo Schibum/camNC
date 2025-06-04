@@ -301,7 +301,7 @@ export class StreamCornerFinderWorker {
       );
 
       if (!found) {
-        this.onFrameProcessed?.({
+        this.onFrameProcessed!({
           result: "not_unique",
           fps: this.currentFps,
         });
@@ -312,7 +312,7 @@ export class StreamCornerFinderWorker {
 
       // Check if chessboard is blurry
       if (this._isChessboardBlurry(this.grayMat, this.cornersMatFull)) {
-        this.onFrameProcessed?.({
+        this.onFrameProcessed!({
           corners,
           result: "blurry",
           fps: this.currentFps,
@@ -328,7 +328,7 @@ export class StreamCornerFinderWorker {
       );
 
       if (!isUnique) {
-        this.onFrameProcessed?.({
+        this.onFrameProcessed!({
           corners,
           result: "not_unique",
           fps: this.currentFps,
@@ -336,7 +336,7 @@ export class StreamCornerFinderWorker {
         return;
       }
 
-      this.onFrameProcessed?.({
+      this.onFrameProcessed!({
         result: "capture",
         corners,
         imageData,
