@@ -1323,6 +1323,9 @@ importers:
       '@wbcnc/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
+      eslint:
+        specifier: 'catalog:'
+        version: 9.28.0(jiti@2.4.2)
       tailwindcss:
         specifier: 'catalog:'
         version: 4.1.8
