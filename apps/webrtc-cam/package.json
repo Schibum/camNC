@@ -10,9 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@tanstack/react-router": "^1.120.11",
-    "@tanstack/router-plugin": "^1.120.11",
-    "@tanstack/zod-adapter": "^1.120.11",
+    "@tanstack/react-router": "^1.120.15",
+    "@tanstack/router-plugin": "^1.120.15",
+    "@tanstack/zod-adapter": "^1.120.15",
     "@wbcnc/go2webrtc": "workspace:*",
     "lucide-react": "^0.511.0",
     "react": "^19.1.0",
@@ -20,24 +20,24 @@
     "react-dom": "^19.1.0",
     "vite-plugin-checker": "^0.9.3",
     "vite-tsconfig-paths": "^5.1.4",
-    "zod": "^3.25.30"
+    "zod": "^3.25.49"
   },
   "devDependencies": {
-    "@eslint/js": "^9.27.0",
-    "@tailwindcss/vite": "^4.1.7",
+    "@eslint/js": "^9.28.0",
+    "@tailwindcss/vite": "^4.1.8",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.5",
-    "@vitejs/plugin-react": "^4.5.0",
+    "@vitejs/plugin-react": "^4.5.1",
     "@wbcnc/eslint-config": "workspace:*",
     "@wbcnc/typescript-config": "workspace:*",
     "@wbcnc/ui": "workspace:*",
-    "eslint": "^9.27.0",
+    "eslint": "^9.28.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^16.2.0",
-    "tailwindcss": "^4.1.7",
+    "tailwindcss": "^4.1.8",
     "typescript": "~5.8.3",
-    "typescript-eslint": "^8.32.1",
+    "typescript-eslint": "^8.33.1",
     "vite": "^6.3.5"
   }
 }

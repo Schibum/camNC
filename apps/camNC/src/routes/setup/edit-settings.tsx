@@ -27,8 +27,10 @@ const innerSchema = z.object({
     t: z.array(z.number()).length(3),
   }),
   machineBounds: z.array(z.number()).length(4),
-  machineBoundsInCam: z.array(z.array(z.number()).length(2)).length(4),
+  machineBoundsInCam: z.array(z.array(z.number()).length(2)).optional(),
   markerPositions: z.array(z.array(z.number()).length(3)).length(4),
+  useArucoMarkers: z.boolean(),
+  arucoTagSize: z.number(),
 });
 
 const schema = z.object({
@@ -70,7 +72,9 @@ const schema = z.object({
           new Vector2().fromArray(data.machineBounds.slice(2, 4))
         ),
         markerPositions: data.markerPositions.map(p => new Vector3(...p)),
-        machineBoundsInCam: data.machineBoundsInCam,
+        machineBoundsInCam: data.machineBoundsInCam?.map(p => new Vector2(...p)),
+        useArucoMarkers: data.useArucoMarkers,
+        arucoTagSize: data.arucoTagSize,
       };
     }),
 });
@@ -90,7 +94,9 @@ function calibToJson(data: ICamSource) {
       },
       machineBounds: data.machineBounds?.min.toArray().concat(data.machineBounds?.max.toArray()),
       markerPositions: data.markerPositions?.map(p => p.toArray()),
-      machineBoundsInCam: data.markerPosInCam,
+      machineBoundsInCam: data.markerPosInCam?.map(p => p.toArray()),
+      useArucoMarkers: data.useArucoMarkers,
+      arucoTagSize: data.arucoTagSize,
     },
     null,
     2

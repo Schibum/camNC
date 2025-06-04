@@ -16,9 +16,9 @@ function createDetector() {
   return detector;
 }
 
-type IMarker = {
+export type IMarker = {
   id: number;
-  origin: Vector2;
+  corners: Vector2[];
 };
 
 // Returns markers in camera coordinates. Returns markers in order of id.
@@ -47,9 +47,9 @@ export function detectAruco(img: cv2.Mat) {
   const markers: IMarker[] = [];
   for (let i = 0; i < corners.size(); i++) {
     const points = corners.get(i);
-    const pt1 = new Vector2(points.data32F[0], points.data32F[1]);
+    const cornerVec = Array.from({ length: 4 }, (_, i) => new Vector2(points.data32F[i * 2], points.data32F[i * 2 + 1]));
     const idValue = ids.data32S[i];
-    markers.push({ id: idValue, origin: pt1 });
+    markers.push({ id: idValue, corners: cornerVec });
   }
   markers.sort((a, b) => a.id - b.id);
 
