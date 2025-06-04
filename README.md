@@ -35,7 +35,8 @@ Example overlays:
 <img width="473" alt="Screenshot 2025-06-04 at 11 52 41" src="https://github.com/user-attachments/assets/7de1504d-b0ca-4db3-bff7-a958a1131071" />
 
 
-![grid](https://github.com/user-attachments/assets/23cc3177-ea82-48a6-bf29-f3f3c2995b82)
+https://github.com/user-attachments/assets/a38d152a-4533-4eb4-9d5e-f3c68fd1d5c0
+
 
 
 This demonstrates engraving a cross positioned via drag-and-drop in the camera stream, aiming to align three successive crosses. The results show a Y-axis deviation of 1–2 mm, while the X-axis aligns well. The setup used an old Pixel 5 and a ~120×60 cm [MPCNC Lowrider V4](https://docs.v1e.com/lowrider/)  build, with a reprojection error of around 2:
