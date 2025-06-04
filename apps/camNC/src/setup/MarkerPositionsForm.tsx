@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@wbcnc/ui/components/button';
 import { Checkbox } from '@wbcnc/ui/components/checkbox';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@wbcnc/ui/components/form';
+import { Hint } from '@/components/Hint';
 import { Input } from '@wbcnc/ui/components/input';
 import { ExternalLink } from 'lucide-react';
 import { Control, useForm } from 'react-hook-form';
@@ -121,37 +122,33 @@ export function MarkerPositionsForm({ onConfirmed }: { onConfirmed: () => void }
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <div className="border-l-2 pl-2 mb-4 space-y-1">
-          <div className="text-sm">
-            <p className="mb-1 font-medium">Marker Placement</p>
-
-            <p className="mb-1">
-              You need to place 4 markers on or near the wasteboard so they're visible in the camera view. You can do this in either of the
-              following ways:
-            </p>
-            <ul className="list-disc list-inside space-y-1 ml-4">
-              <li>
-                Recommended: Add four small 40x40mm pockets to the wasteboard and place (3d) printed{' '}
-                <a href="/aruco.pdf" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
-                  ArUco markers <ExternalLink className="size-4 inline-block" />
-                </a>{' '}
-                inside. They can be (re-)detected automatically (e.g. in case the camera or table moves). <br />
-                Pocketing gcode for 3.175mm (1/8in) endmill can be generated below for the positions entered.
-              </li>
-              <li>
-                Engrave{' '}
-                <a
-                  href="https://vector76.github.io/gcode_tpgen/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-500 hover:underline">
-                  Squareness marks <ExternalLink className="size-4 inline-block" />
-                </a>{' '}
-                on the wasteboard at the machine bounds. Then select those manually in the camera view (next step).
-              </li>
-            </ul>
-          </div>
-        </div>
+        <Hint title="Marker Placement">
+          <p className="mb-1">
+            You need to place 4 markers on or near the wasteboard so they're visible in the camera view. You can do this in either of the
+            following ways:
+          </p>
+          <ul className="list-disc list-inside space-y-1 ml-4">
+            <li>
+              Recommended: Add four small 40x40mm pockets to the wasteboard and place (3d) printed{' '}
+              <a href="/aruco.pdf" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
+                ArUco markers <ExternalLink className="size-4 inline-block" />
+              </a>{' '}
+              inside. They can be (re-)detected automatically (e.g. in case the camera or table moves). <br />
+              Pocketing gcode for 3.175mm (1/8in) endmill can be generated below for the positions entered.
+            </li>
+            <li>
+              Engrave{' '}
+              <a
+                href="https://vector76.github.io/gcode_tpgen/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-500 hover:underline">
+                Squareness marks <ExternalLink className="size-4 inline-block" />
+              </a>{' '}
+              on the wasteboard at the machine bounds. Then select those manually in the camera view (next step).
+            </li>
+          </ul>
+        </Hint>
 
         <div className="space-y-4 mb-6">
           <FormField

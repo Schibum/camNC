@@ -9,6 +9,7 @@ import {
 } from '@wbcnc/go2webrtc/url-helpers';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@wbcnc/ui/components/tabs';
 import { useMemo, useState } from 'react';
+import { Hint } from '@/components/Hint';
 
 import { VideoDimensions } from '@wbcnc/go2webrtc/video-source';
 import { ConnectDialog } from './ConnectDialog';
@@ -60,6 +61,34 @@ export function VideoSourceSelection({ value = '', onChange }: { value?: string;
 
   return (
     <>
+      <Hint title="Camera Setup">
+        <p className="mb-1">
+          Position a camera above the machine so the full working area is visible. Repurposing an old phone works well and you can 3D print
+          <a
+            href="https://makerworld.com/en/models/1455114-ceiling-top-down-phone-mount-with-ball-joint#profileId-1516416"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-500 hover:underline mx-1">
+            this mount
+          </a>
+          for an easy setup.
+        </p>
+        <p className="mb-1">
+          A Reolink E1 Zoom is also suitable
+          <a
+            href="https://makerworld.com/en/models/1461605-reolink-e1-zoom-ceiling-down-mount-looking-down#profileId-1524062"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-500 hover:underline mx-1">
+            (mount)
+          </a>
+          , but it requires running
+          <a href="https://github.com/AlexxIT/go2rtc" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline mx-1">
+            go2rtc
+          </a>
+          as a gateway, e.g. on a Raspberry&nbsp;Pi&nbsp;Zero.
+        </p>
+      </Hint>
       <Tabs className="w-full" value={sourceType} onValueChange={setSourceType}>
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="webcam">Webcam</TabsTrigger>
