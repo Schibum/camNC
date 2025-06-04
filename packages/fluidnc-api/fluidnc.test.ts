@@ -3,7 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { FluidncClient } from "./fluidnc-client";
 import { FluidncServer } from "./fluidnc-server";
 
-// log.setDefaultLevel(log.levels.TRACE);
+/// log.setDefaultLevel(log.levels.TRACE);
 
 let apiMock = { cmd: vi.fn() };
 vi.mock("./fluidnc-api", () => {
