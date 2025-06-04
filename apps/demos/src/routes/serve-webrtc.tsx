@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { zodValidator } from "@tanstack/zod-adapter";
 import { PersistentWebRTCServer, ServerOptions } from "@wbcnc/go2webrtc/server";
-import { useWakeLock } from "@wbcnc/ui/hooks/use-wakelook";
+import { useWakeLock } from "@wbcnc/ui/hooks/use-wakelock";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 
