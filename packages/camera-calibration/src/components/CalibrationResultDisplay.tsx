@@ -39,7 +39,7 @@ export const CalibrationResultDisplay: React.FC = () => {
       </details>
       <details className="mt-2.5">
         <summary className="cursor-pointer font-bold">
-          New Camera Matrix (alpha 0.1)
+          New Camera Matrix (alpha 0.3)
         </summary>
         <pre className="bg-black/30 p-2.5 rounded mt-1 overflow-x-auto font-mono text-sm">
           {JSON.stringify(calibrationResult.newCameraMatrix, null, 2)}

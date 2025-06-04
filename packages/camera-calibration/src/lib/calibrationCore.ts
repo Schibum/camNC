@@ -258,7 +258,7 @@ export function calibrateCamera(
     cameraMatrix,
     distCoeffs,
     imageSize,
-    0.1
+    0.3
   );
 
   // Convert matrices to JS arrays
