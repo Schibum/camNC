@@ -12,20 +12,29 @@ function getMarkerPosInCam() {
   return useStore.getState().camSource!.markerPosInCam!;
 }
 
-function computeMarkerP3P() {
+// Get position of aruco marker corners if using aruco, calculated from center
+// positions and aruco size, otherwise just marker positions themselves.
+function getInflatedMarkerPositions() {
   const camSource = useStore.getState().camSource;
   if (!camSource) throw new Error();
-  let mp = camSource.markerPositions!;
+  const mp = camSource.markerPositions!;
   if (camSource.useArucoMarkers) {
     const as2 = camSource.arucoTagSize! / 2;
     // Inflate aruco marker positions CW, top left first.
-    mp = mp.flatMap(m => {
+    return mp.flatMap(m => {
       return [new Vector3(-as2, as2, 0), new Vector3(as2, as2, 0), new Vector3(as2, -as2, 0), new Vector3(-as2, -as2, 0)].map(v =>
         v.add(m)
       );
     });
+  } else {
+    return mp;
   }
+}
 
+function computeMarkerP3P() {
+  const camSource = useStore.getState().camSource;
+  if (!camSource) throw new Error();
+  const mp = getInflatedMarkerPositions();
   const calibrationData = camSource!.calibration!;
   return computeP3P(mp, getMarkerPosInCam(), calibrationData.new_camera_matrix);
 }
@@ -38,10 +47,10 @@ export function updateCameraExtrinsics() {
   return reprojectionError;
 }
 
-export function useReprojectedMachineBounds() {
+export function useReprojectedMarkerPositions() {
   const extrinsics = useCameraExtrinsics();
   const cameraMatrix = matrix3ToCV(useStore(state => state.camSource!.calibration!.new_camera_matrix));
-  const objectPoints = markerMachinePosToCv(useStore(state => state.camSource!.markerPositions!));
+  const objectPoints = markerMachinePosToCv(getInflatedMarkerPositions());
   if (!extrinsics) return [];
   const { R, t } = extrinsics;
   const Rcv = matrix3ToCV(R);

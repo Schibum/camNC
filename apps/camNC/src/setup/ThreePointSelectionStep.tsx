@@ -1,7 +1,7 @@
 import { UnskewedVideoMesh } from '@/calibration/UnskewTsl';
 import { Draggable } from '@/scene/Draggable';
 import { PresentCanvas } from '@/scene/PresentCanvas';
-import { updateCameraExtrinsics, useReprojectedMachineBounds } from '@/store/store-p3p';
+import { updateCameraExtrinsics, useReprojectedMarkerPositions } from '@/store/store-p3p';
 import { Line, Text } from '@react-three/drei';
 import { ThreeEvent } from '@react-three/fiber';
 import { useNavigate } from '@tanstack/react-router';
@@ -20,7 +20,7 @@ interface PointSelectionStepProps {
 }
 
 function ReprojectedMachineBounds() {
-  const reprojectedPoints = useReprojectedMachineBounds();
+  const reprojectedPoints = useReprojectedMarkerPositions();
   if (!reprojectedPoints) return null;
   return (
     <>
@@ -259,7 +259,6 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
       console.error('Must select exactly 4 points');
       return;
     }
-    console.log('points', pointsToSave);
 
     setMachineBoundsInCam(pointsToSave);
     const reprojectionError = updateCameraExtrinsics();

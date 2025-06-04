@@ -7,9 +7,11 @@ export function markerMachinePosToCv(mp: Vector3[]) {
   if (mp.length < 4) {
     throw new Error('Must have at least 4 marker positions');
   }
-  // Create 3D object points (assuming z=0)
-  // prettier-ignore
-  const objectPoints = cv2.matFromArray(mp.length, 3, cv2.CV_64F,
+  // Create 3D object points
+  const objectPoints = cv2.matFromArray(
+    mp.length,
+    3,
+    cv2.CV_64F,
     mp.flatMap(point => [point.x, point.y, point.z])
   );
   return objectPoints;
@@ -59,17 +61,12 @@ export function computeP3P(mp: Vector3[], markersInCam: Vector2[], newCamMatrix:
   const R = new cv2.Mat();
   cv2.Rodrigues(rvec, R);
 
-  // Convert OpenCV matrix to Three.js format
-  // Both OpenCV and Three.js Matrix3.set() use row-major order
   const threeR = cvToMatrix3(R);
   const threeT = cvToVector3(tvec);
 
   rvec.delete();
   tvec.delete();
   R.delete();
-
-  // threeR.set(0.04977487, 0.99875775, -0.00232803, 0.99862155, -0.04972894, 0.01679364, 0.01665701, -0.00316072, -0.99985627);
-  // threeT.set(-679.60095678, -273.72803363, 1258.42778199);
 
   return { R: threeR, t: threeT, reprojectionError };
 }

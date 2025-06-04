@@ -8,6 +8,7 @@ import { ExternalLink } from 'lucide-react';
 import { Control, useForm } from 'react-hook-form';
 import { Vector3 } from 'three';
 import z from 'zod';
+import { DownloadGcodeButton } from './DownloadGcodeButton';
 import { MarkerBoundsButton, calculateDefaultMargin, calculateMarkersWithMargin } from './MarkerBoundsButton';
 
 const markerSchema = z.object({
@@ -104,7 +105,7 @@ export function MarkerPositionsForm({ onConfirmed }: { onConfirmed: () => void }
   // Expose reset to restore machine-bound defaults
   const { watch } = form;
   const watchUseArucoMarkers = watch('useArucoMarkers');
-  const watchArucoTagSize = watch('arucoTagSize');
+  const watchArucoTagSize = parseInt(watch('arucoTagSize') + '');
 
   function handleMarkerBoundsApply(markers: Array<{ x: number; y: number; z: number }>) {
     form.setValue('markers', markers as any);
@@ -130,11 +131,12 @@ export function MarkerPositionsForm({ onConfirmed }: { onConfirmed: () => void }
             </p>
             <ul className="list-disc list-inside space-y-1 ml-4">
               <li>
-                Add four small 40x40mm pockets to the wasteboard and place printed{' '}
+                Recommended: Add four small 40x40mm pockets to the wasteboard and place (3d) printed{' '}
                 <a href="/aruco.pdf" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
                   ArUco markers <ExternalLink className="size-4 inline-block" />
                 </a>{' '}
-                inside. They can be (re-)detected automatically (e.g. in case the camera or table moves).
+                inside. They can be (re-)detected automatically (e.g. in case the camera or table moves). <br />
+                Pocketing gcode for 3.175mm (1/8in) endmill can be generated below for the positions entered.
               </li>
               <li>
                 Engrave{' '}
@@ -199,13 +201,16 @@ export function MarkerPositionsForm({ onConfirmed }: { onConfirmed: () => void }
           </div>
         ))}
 
-        <div className="flex space-x-2 justify-end mt-8">
+        <div className="flex space-x-2 justify-end mt-8 flex-wrap">
+          {watchUseArucoMarkers && <DownloadGcodeButton points={watch('markers')} tagSize={watchArucoTagSize} />}
           <MarkerBoundsButton
             bounds={bounds}
             useArucoMarkers={watchUseArucoMarkers}
             arucoTagSize={watchArucoTagSize}
             onApply={handleMarkerBoundsApply}
           />
+        </div>
+        <div className="flex space-x-2 justify-end mt-2">
           <Button type="submit">Confirm</Button>
         </div>
       </form>
