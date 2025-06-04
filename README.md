@@ -25,10 +25,24 @@ CamNC is a simple experimental web application that visualizes CNC G-code on a l
 
 To get started, open the application at [https://camnc.vercel.app/](https://camnc.vercel.app/).
 
-###  Example 
-This demonstrates engraving a cross positioned via drag-and-drop in the camera stream, aiming to align three successive crosses. The results show a Y-axis deviation of 1–2 mm, while the X-axis aligns well. The setup used an old Pixel 5 and a ~120×60 cm [MPCNC Lowrider V4](https://docs.v1e.com/lowrider/)  build, with a reprojection error of around 2
+###  Screenshots
+Original camera image from a Reolink E1 Zoom. Note the lens distortion and perspective - both is compensated, so you get an orthographic top down view instead for the overlays:
+
+<img width="1339" alt="Screenshot 2025-06-04 at 16 04 00" src="https://github.com/user-attachments/assets/39062592-b1a4-4a1c-abfd-be1a90b5517b" />
+
+Example overlays:
+
+<img width="473" alt="Screenshot 2025-06-04 at 11 52 41" src="https://github.com/user-attachments/assets/7de1504d-b0ca-4db3-bff7-a958a1131071" />
+
+
+![grid](https://github.com/user-attachments/assets/23cc3177-ea82-48a6-bf29-f3f3c2995b82)
+
+
+This demonstrates engraving a cross positioned via drag-and-drop in the camera stream, aiming to align three successive crosses. The results show a Y-axis deviation of 1–2 mm, while the X-axis aligns well. The setup used an old Pixel 5 and a ~120×60 cm [MPCNC Lowrider V4](https://docs.v1e.com/lowrider/)  build, with a reprojection error of around 2:
 
 https://github.com/user-attachments/assets/0c16f067-9cb2-4bc9-9941-f04e23f4bc24
+
+
 
 
 
