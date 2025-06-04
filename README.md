@@ -25,6 +25,13 @@ CamNC is a simple experimental web application that visualizes CNC G-code on a l
 
 To get started, open the application at [https://camnc.vercel.app/](https://camnc.vercel.app/).
 
+###  Example 
+This demonstrates engraving a cross positioned via drag-and-drop in the camera stream, aiming to align three successive crosses. The results show a Y-axis deviation of 1–2 mm, while the X-axis aligns well. The setup used an old Pixel 5 and a ~120×60 cm [MPCNC Lowrider V4](https://docs.v1e.com/lowrider/)  build, with a reprojection error of around 2
+
+https://github.com/user-attachments/assets/0c16f067-9cb2-4bc9-9941-f04e23f4bc24
+
+
+
 ## Repository layout
 
 This workspace is split into two top‑level folders:
