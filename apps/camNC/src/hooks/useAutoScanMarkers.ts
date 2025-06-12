@@ -1,10 +1,11 @@
 import * as Comlink from 'comlink';
 import { useEffect, useRef } from 'react';
-import { Vector2 } from 'three';
 
+import { IMarker } from '@/setup/detect-aruco';
 import { ICamSource, useStore } from '@/store/store';
 import { updateCameraExtrinsics } from '@/store/store-p3p';
 import type { MarkerScannerWorkerAPI } from '@/workers/markerScanner.worker';
+import { urlToMediaStream } from '@wbcnc/camera-calibration';
 import { acquireVideoSource, releaseVideoSource } from '@wbcnc/go2webrtc/use-video-source';
 import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { useRunInterval } from './useRunInterval';
@@ -12,26 +13,28 @@ import { useRunInterval } from './useRunInterval';
 /** Configuration for the automatic marker‑scanner. */
 export interface AutoScanOptions {
   intervalMs: number; // polling interval
-  firstScanDelayMs?: number; // initial delay (default 5 000 ms)
+  firstScanDelayMs?: number; // initial delay (default 5 000 ms)
   averageFrames?: number; // frames averaged inside the worker (default 5)
 }
 
 /**
  * React hook that periodically looks for a aruco tags
  * and updates machine bounds + extrinsics once it appears.
+ * Only runs when useArucoMarkers is enabled in the store.
  */
 export function useAutoScanMarkers({ intervalMs, firstScanDelayMs = 5_000, averageFrames = 5 }: AutoScanOptions): void {
   const serviceRef = useRef<MarkerScannerService | null>(null);
+  const useArucoMarkers = useStore(state => state.camSource?.useArucoMarkers ?? false);
 
-  async function onMarkersFound(points: Vector2[]) {
+  async function onMarkersFound(markers: IMarker[]) {
     await ensureOpenCvIsLoaded();
-    useStore.getState().camSourceSetters.setMachineBoundsInCam(points);
+    useStore.getState().camSourceSetters.setMarkerPosInCam(markers.flatMap(m => m.corners));
     updateCameraExtrinsics();
   }
 
   useRunInterval(
     async () => {
-      if (!serviceRef.current) return;
+      if (!serviceRef.current || !useArucoMarkers) return;
       await serviceRef.current.scan();
     },
     intervalMs,
@@ -39,6 +42,12 @@ export function useAutoScanMarkers({ intervalMs, firstScanDelayMs = 5_000, avera
   );
 
   useEffect(() => {
+    if (!useArucoMarkers) {
+      serviceRef.current?.dispose();
+      serviceRef.current = null;
+      return;
+    }
+
     const camSource = useStore.getState().camSource!;
     const service = new MarkerScannerService(camSource, averageFrames, onMarkersFound);
     serviceRef.current = service;
@@ -47,7 +56,7 @@ export function useAutoScanMarkers({ intervalMs, firstScanDelayMs = 5_000, avera
       serviceRef.current?.dispose();
       serviceRef.current = null;
     };
-  }, [averageFrames]);
+  }, [averageFrames, useArucoMarkers]);
 }
 
 class MarkerScannerService {
@@ -58,7 +67,7 @@ class MarkerScannerService {
   constructor(
     private readonly camSource: ICamSource,
     private readonly averageFrames: number,
-    private readonly onMarkersFound: (pts: Vector2[]) => void
+    private readonly onMarkersFound: (markers: IMarker[]) => void
   ) {}
 
   /** Bootstraps the Web Worker and prepares scanning. Call once after `new`. */
@@ -68,13 +77,12 @@ class MarkerScannerService {
     // Acquire shared video stream
     const videoHandle = acquireVideoSource(this.camSource.url);
     const { src } = await videoHandle.connectedPromise;
+    let mediaSource = src;
     if (typeof src === 'string') {
-      this.unsupportedSource = true;
-      console.warn('Worker-based marker scanner not available for URL sources');
-      return;
+      mediaSource = await urlToMediaStream(src);
     }
 
-    const mediaStream = src as MediaStream;
+    const mediaStream = mediaSource as MediaStream;
     const videoTrack = mediaStream.getVideoTracks()[0];
 
     // Chrome does not support sending VideoStreamTrack to workers yet, so conver to readable stream.
@@ -99,7 +107,6 @@ class MarkerScannerService {
     this.proxy = proxy;
     this.cleanupFn = () => {
       worker.terminate();
-      videoTrack.stop();
       releaseVideoSource(this.camSource.url);
       readable.cancel?.().catch(() => undefined);
     };
@@ -111,8 +118,7 @@ class MarkerScannerService {
     const markers = await this.proxy!.scan();
     const hasAllMarkers = markers.length === 4 && markers.every((m, i) => m.id === i);
     if (hasAllMarkers) {
-      const pts = markers.map(({ origin }) => new Vector2(origin.x, origin.y));
-      this.onMarkersFound(pts);
+      this.onMarkersFound(markers);
     }
   }
 

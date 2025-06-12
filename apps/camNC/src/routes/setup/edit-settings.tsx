@@ -6,6 +6,7 @@ import { Button } from '@wbcnc/ui/components/button';
 import { Card, CardContent } from '@wbcnc/ui/components/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@wbcnc/ui/components/form';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
+import { toast } from '@wbcnc/ui/components/sonner';
 import { Textarea } from '@wbcnc/ui/components/textarea';
 import { useForm } from 'react-hook-form';
 import superjson from 'superjson';
@@ -27,7 +28,7 @@ const innerSchema = z.object({
     t: z.array(z.number()).length(3),
   }),
   machineBounds: z.array(z.number()).length(4),
-  machineBoundsInCam: z.array(z.array(z.number()).length(2)).optional(),
+  markerPosInCam: z.array(z.array(z.number()).length(2)).optional(),
   markerPositions: z.array(z.array(z.number()).length(3)).length(4),
   useArucoMarkers: z.boolean(),
   arucoTagSize: z.number(),
@@ -72,7 +73,7 @@ const schema = z.object({
           new Vector2().fromArray(data.machineBounds.slice(2, 4))
         ),
         markerPositions: data.markerPositions.map(p => new Vector3(...p)),
-        machineBoundsInCam: data.machineBoundsInCam?.map(p => new Vector2(...p)),
+        markerPosInCam: data.markerPosInCam?.map(p => new Vector2(...p)),
         useArucoMarkers: data.useArucoMarkers,
         arucoTagSize: data.arucoTagSize,
       };
@@ -94,7 +95,7 @@ function calibToJson(data: ICamSource) {
       },
       machineBounds: data.machineBounds?.min.toArray().concat(data.machineBounds?.max.toArray()),
       markerPositions: data.markerPositions?.map(p => p.toArray()),
-      machineBoundsInCam: data.markerPosInCam?.map(p => p.toArray()),
+      markerPosInCam: data.markerPosInCam?.map(p => [p.x, p.y]), //.map(p => p.toArray()),
       useArucoMarkers: data.useArucoMarkers,
       arucoTagSize: data.arucoTagSize,
     },
@@ -108,6 +109,7 @@ function ExportButton() {
 
   function handleClick(e: React.MouseEvent<HTMLButtonElement>) {
     e.preventDefault();
+    console.log('exporting camSource', camSource);
     const json = superjson.stringify(camSource);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -153,7 +155,7 @@ function ImportButton({ onImport }: { onImport: (camSource: ICamSource) => void 
 
 function CalibrationSettingsForm() {
   const camSource = useCamSource();
-  const setCalibration = useStore(state => state.camSourceSetters.setCalibration);
+  const setCalibration = useStore(state => state.setCamSource);
   const form = useForm({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -161,8 +163,12 @@ function CalibrationSettingsForm() {
     },
   });
   function onSubmit({ json }: z.infer<typeof schema>) {
-    console.log('updating calibration data to ', json.calibration);
-    setCalibration(json.calibration);
+    console.log('updating calibration data to ', json);
+    if (camSource) {
+      setCalibration({ url: camSource.url, maxResolution: camSource.maxResolution, ...json });
+    } else {
+      toast.error('No camera source configured yet, cannot save');
+    }
   }
   return (
     <Form {...form}>

@@ -1,9 +1,9 @@
+import { Hint } from '@/components/Hint';
 import { useArucoConfig, useSetArucoConfig, useSetMarkerPositions, useStore } from '@/store/store';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@wbcnc/ui/components/button';
 import { Checkbox } from '@wbcnc/ui/components/checkbox';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@wbcnc/ui/components/form';
-import { Hint } from '@/components/Hint';
 import { Input } from '@wbcnc/ui/components/input';
 import { ExternalLink } from 'lucide-react';
 import { Control, useForm } from 'react-hook-form';
@@ -199,7 +199,9 @@ export function MarkerPositionsForm({ onConfirmed }: { onConfirmed: () => void }
         ))}
 
         <div className="flex space-x-2 justify-end mt-8 flex-wrap">
-          {watchUseArucoMarkers && <DownloadGcodeButton points={watch('markers')} tagSize={watchArucoTagSize} />}
+          {watchUseArucoMarkers && (
+            <DownloadGcodeButton points={watch('markers').map(m => markerSchema.parse(m))} tagSize={watchArucoTagSize} />
+          )}
           <MarkerBoundsButton
             bounds={bounds}
             useArucoMarkers={watchUseArucoMarkers}

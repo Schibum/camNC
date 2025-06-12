@@ -89,5 +89,5 @@ export async function getRemappedStillFrame(averageFrames = 25) {
   await videoElem.play();
   const imgData = await averageVideoFrames(videoElem, averageFrames);
   releaseVideoSource(url);
-  return remapCv(imgData, mapX, mapY);
+  return remapCv(imgData, resolution, mapX, mapY);
 }

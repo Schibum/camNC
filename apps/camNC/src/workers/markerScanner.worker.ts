@@ -2,7 +2,7 @@ import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import * as Comlink from 'comlink';
 import { calculateUndistortionMapsCached } from '../calibration/rectifyMap';
 import { remapCv } from '../calibration/remapCv';
-import { detectAruco } from '../setup/detect-aruco';
+import { detectAruco, IMarker } from '../setup/detect-aruco';
 import type { CalibrationData } from '../store/store';
 
 /**
@@ -15,7 +15,7 @@ export interface MarkerScannerWorkerAPI {
     resolution: [number, number],
     averageFrames: number
   ): Promise<void>;
-  scan(): Promise<{ id: number; origin: { x: number; y: number } }[]>;
+  scan(): Promise<IMarker[]>;
 }
 
 /**
@@ -125,7 +125,7 @@ class MarkerScannerWorker implements MarkerScannerWorkerAPI {
     this.reader = reader.getReader();
   }
 
-  async scan(): Promise<{ id: number; origin: { x: number; y: number } }[]> {
+  async scan(): Promise<IMarker[]> {
     console.debug('scanning markers in worker');
 
     if (!this.reader || !this.mapX || !this.mapY) {
@@ -136,14 +136,14 @@ class MarkerScannerWorker implements MarkerScannerWorkerAPI {
     const averageImage = await averageFrames(this.reader, this.averageFrames, this.width, this.height);
     if (!averageImage) return [];
     // Apply undistortion
-    const undistortedMat = remapCv(averageImage, this.mapX, this.mapY);
+    const undistortedMat = remapCv(averageImage, [this.width, this.height], this.mapX, this.mapY);
 
     // Detect markers
     const markers = detectAruco(undistortedMat);
     undistortedMat.delete();
 
     // Return simplified results
-    return simplifyMarkerResults(markers);
+    return markers;
   }
 }
 
