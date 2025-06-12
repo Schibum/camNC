@@ -1,5 +1,5 @@
 import { useCalibrationData, useCameraExtrinsics, useCamResolution, useNewCameraMatrix } from '@/store/store';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { calculateUndistortionMapsCached } from './rectifyMap';
 
@@ -81,7 +81,6 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
     }
   `;
 
-  // Set up all shader uniforms.
   const uniforms = useMemo(
     () => ({
       videoTexture: { value: texture },
@@ -92,8 +91,19 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
       R: { value: R },
       t: { value: t },
     }),
-    [texture, mapXTexture, mapYTexture, videoDimensions, K, R, t]
+    []
   );
+
+  // Update uniform values when dependencies change.
+  useEffect(() => {
+    uniforms.videoTexture.value = texture;
+    uniforms.mapXTexture.value = mapXTexture;
+    uniforms.mapYTexture.value = mapYTexture;
+    uniforms.resolution.value.set(videoDimensions[0], videoDimensions[1]);
+    uniforms.K.value = K;
+    uniforms.R.value = R;
+    uniforms.t.value = t;
+  }, [texture, mapXTexture, mapYTexture, videoDimensions, K, R, t, uniforms]);
 
   return <shaderMaterial vertexShader={vertexShader} fragmentShader={fragmentShader} uniforms={uniforms} />;
 } /**

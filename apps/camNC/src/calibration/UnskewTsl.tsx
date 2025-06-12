@@ -2,7 +2,7 @@ import { PresentCanvas } from '@/scene/PresentCanvas';
 import { useCalibrationData, useCamResolution, useVideoUrl } from '@/store/store';
 import { Text } from '@react-three/drei';
 import { type ThreeElements, useFrame } from '@react-three/fiber';
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useUnmapTextures } from './CameraShaderMaterial';
 import { useCameraTexture } from './useCameraTexture';
@@ -67,18 +67,29 @@ export function UnskewedVideoMesh({ ...props }: ThreeElements['mesh']) {
     return plane;
   }, [videoDimensions]);
 
+  // Create stable uniforms object that won't be recreated
+  const uniforms = useMemo(
+    () => ({
+      videoTexture: { value: videoTexture },
+      mapXTexture: { value: mapXTexture },
+      mapYTexture: { value: mapYTexture },
+      resolution: { value: new THREE.Vector2(videoDimensions[0], videoDimensions[1]) },
+    }),
+    // Empty dependency array - create uniforms only once
+    []
+  );
+
+  // Update uniform values when dependencies change
+  useEffect(() => {
+    uniforms.videoTexture.value = videoTexture;
+    uniforms.mapXTexture.value = mapXTexture;
+    uniforms.mapYTexture.value = mapYTexture;
+    uniforms.resolution.value.set(videoDimensions[0], videoDimensions[1]);
+  }, [videoTexture, mapXTexture, mapYTexture, videoDimensions, uniforms]);
+
   return (
     <mesh {...props} geometry={planeGeometry}>
-      <shaderMaterial
-        fragmentShader={fragmentShader}
-        vertexShader={vertexShader}
-        uniforms={{
-          videoTexture: { value: videoTexture },
-          mapXTexture: { value: mapXTexture },
-          mapYTexture: { value: mapYTexture },
-          resolution: { value: new THREE.Vector2(videoDimensions[0], videoDimensions[1]) },
-        }}
-      />
+      <shaderMaterial fragmentShader={fragmentShader} vertexShader={vertexShader} uniforms={uniforms} />
     </mesh>
   );
 }
