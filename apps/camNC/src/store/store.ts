@@ -65,7 +65,14 @@ superjson.registerCustom<Vector3, number[]>(
   },
   'Vector3'
 );
-
+superjson.registerCustom<Matrix3, number[]>(
+  {
+    isApplicable: value => value instanceof Matrix3,
+    serialize: value => value.toArray(),
+    deserialize: value => new Matrix3().fromArray(value),
+  },
+  'Matrix3'
+);
 const storage: PersistStorage<unknown> = {
   getItem: name => {
     const str = localStorage.getItem(name);

@@ -1,5 +1,5 @@
 import { useCalibrationData, useCameraExtrinsics, useCamResolution, useNewCameraMatrix } from '@/store/store';
-import React, { useMemo, useRef, useEffect } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { calculateUndistortionMapsCached } from './rectifyMap';
 
@@ -84,61 +84,29 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
     }
   `;
 
-  // Create stable uniforms object that won't be recreated
   const uniforms = useMemo(
     () => ({
       videoTexture: { value: texture },
       mapXTexture: { value: mapXTexture },
       mapYTexture: { value: mapYTexture },
       resolution: { value: new THREE.Vector2(videoDimensions[0], videoDimensions[1]) },
-      K: { value: K.clone() }, // Clone to avoid direct mutation
-      R: { value: R.clone() }, // Clone to avoid direct mutation
-      t: { value: t.clone() }, // Clone to avoid direct mutation
+      K: { value: K },
+      R: { value: R },
+      t: { value: t },
     }),
-    // Empty dependency array - create uniforms only once
     []
   );
 
-  // Update uniform values when dependencies change
+  // Update uniform values when dependencies change.
   useEffect(() => {
-    if (materialRef.current) {
-      materialRef.current.uniforms.videoTexture.value = texture;
-    }
-  }, [texture]);
-
-  useEffect(() => {
-    if (materialRef.current) {
-      materialRef.current.uniforms.mapXTexture.value = mapXTexture;
-      materialRef.current.uniforms.mapYTexture.value = mapYTexture;
-    }
-  }, [mapXTexture, mapYTexture]);
-
-  useEffect(() => {
-    if (materialRef.current) {
-      materialRef.current.uniforms.resolution.value.set(videoDimensions[0], videoDimensions[1]);
-    }
-  }, [videoDimensions]);
-
-  useEffect(() => {
-    if (materialRef.current) {
-      // Update the matrix values directly instead of replacing the object
-      materialRef.current.uniforms.K.value.copy(K);
-    }
-  }, [K]);
-
-  useEffect(() => {
-    if (materialRef.current) {
-      // Update the matrix values directly instead of replacing the object
-      materialRef.current.uniforms.R.value.copy(R);
-    }
-  }, [R]);
-
-  useEffect(() => {
-    if (materialRef.current) {
-      // Update the vector values directly instead of replacing the object
-      materialRef.current.uniforms.t.value.copy(t);
-    }
-  }, [t]);
+    uniforms.videoTexture.value = texture;
+    uniforms.mapXTexture.value = mapXTexture;
+    uniforms.mapYTexture.value = mapYTexture;
+    uniforms.resolution.value.set(videoDimensions[0], videoDimensions[1]);
+    uniforms.K.value = K;
+    uniforms.R.value = R;
+    uniforms.t.value = t;
+  }, [texture, mapXTexture, mapYTexture, videoDimensions, K, R, t, uniforms]);
 
   return <shaderMaterial ref={materialRef} vertexShader={vertexShader} fragmentShader={fragmentShader} uniforms={uniforms} />;
 } /**

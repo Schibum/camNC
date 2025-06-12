@@ -2,7 +2,7 @@ import { PresentCanvas } from '@/scene/PresentCanvas';
 import { useCalibrationData, useCamResolution, useVideoUrl } from '@/store/store';
 import { Text } from '@react-three/drei';
 import { type ThreeElements, useFrame } from '@react-three/fiber';
-import React, { useMemo, useRef, useEffect } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useUnmapTextures } from './CameraShaderMaterial';
 import { useCameraTexture } from './useCameraTexture';
@@ -104,12 +104,7 @@ export function UnskewedVideoMesh({ ...props }: ThreeElements['mesh']) {
 
   return (
     <mesh {...props} geometry={planeGeometry}>
-      <shaderMaterial
-        ref={materialRef}
-        fragmentShader={fragmentShader}
-        vertexShader={vertexShader}
-        uniforms={uniforms}
-      />
+      <shaderMaterial ref={materialRef} fragmentShader={fragmentShader} vertexShader={vertexShader} uniforms={uniforms} />
     </mesh>
   );
 }
