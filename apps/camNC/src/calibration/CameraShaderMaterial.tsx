@@ -1,5 +1,5 @@
 import { useCalibrationData, useCameraExtrinsics, useCamResolution, useNewCameraMatrix } from '@/store/store';
-import { useMemo } from 'react';
+import React, { useMemo, useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { calculateUndistortionMapsCached } from './rectifyMap';
 
@@ -12,6 +12,9 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
 
   // Precompute the undistortion maps (as textures).
   const [mapXTexture, mapYTexture] = useUnmapTextures();
+
+  // Create a ref to store the material reference
+  const materialRef = useRef<THREE.ShaderMaterial>(null);
 
   // Vertex shader: compute a world position from the vertex position.
   // Here we assume the plane is created with PlaneGeometry(width, height)
@@ -81,21 +84,63 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
     }
   `;
 
-  // Set up all shader uniforms.
+  // Create stable uniforms object that won't be recreated
   const uniforms = useMemo(
     () => ({
       videoTexture: { value: texture },
       mapXTexture: { value: mapXTexture },
       mapYTexture: { value: mapYTexture },
       resolution: { value: new THREE.Vector2(videoDimensions[0], videoDimensions[1]) },
-      K: { value: K },
-      R: { value: R },
-      t: { value: t },
+      K: { value: K.clone() }, // Clone to avoid direct mutation
+      R: { value: R.clone() }, // Clone to avoid direct mutation
+      t: { value: t.clone() }, // Clone to avoid direct mutation
     }),
-    [texture, mapXTexture, mapYTexture, videoDimensions, K, R, t]
+    // Empty dependency array - create uniforms only once
+    []
   );
 
-  return <shaderMaterial vertexShader={vertexShader} fragmentShader={fragmentShader} uniforms={uniforms} />;
+  // Update uniform values when dependencies change
+  useEffect(() => {
+    if (materialRef.current) {
+      materialRef.current.uniforms.videoTexture.value = texture;
+    }
+  }, [texture]);
+
+  useEffect(() => {
+    if (materialRef.current) {
+      materialRef.current.uniforms.mapXTexture.value = mapXTexture;
+      materialRef.current.uniforms.mapYTexture.value = mapYTexture;
+    }
+  }, [mapXTexture, mapYTexture]);
+
+  useEffect(() => {
+    if (materialRef.current) {
+      materialRef.current.uniforms.resolution.value.set(videoDimensions[0], videoDimensions[1]);
+    }
+  }, [videoDimensions]);
+
+  useEffect(() => {
+    if (materialRef.current) {
+      // Update the matrix values directly instead of replacing the object
+      materialRef.current.uniforms.K.value.copy(K);
+    }
+  }, [K]);
+
+  useEffect(() => {
+    if (materialRef.current) {
+      // Update the matrix values directly instead of replacing the object
+      materialRef.current.uniforms.R.value.copy(R);
+    }
+  }, [R]);
+
+  useEffect(() => {
+    if (materialRef.current) {
+      // Update the vector values directly instead of replacing the object
+      materialRef.current.uniforms.t.value.copy(t);
+    }
+  }, [t]);
+
+  return <shaderMaterial ref={materialRef} vertexShader={vertexShader} fragmentShader={fragmentShader} uniforms={uniforms} />;
 } /**
  * Precompute the undistortion maps (as textures).
  * @returns [mapXTexture, mapYTexture]

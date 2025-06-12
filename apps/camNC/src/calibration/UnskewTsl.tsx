@@ -2,7 +2,7 @@ import { PresentCanvas } from '@/scene/PresentCanvas';
 import { useCalibrationData, useCamResolution, useVideoUrl } from '@/store/store';
 import { Text } from '@react-three/drei';
 import { type ThreeElements, useFrame } from '@react-three/fiber';
-import { useMemo, useRef } from 'react';
+import React, { useMemo, useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { useUnmapTextures } from './CameraShaderMaterial';
 import { useCameraTexture } from './useCameraTexture';
@@ -13,6 +13,9 @@ export function UnskewedVideoMesh({ ...props }: ThreeElements['mesh']) {
   const videoTexture = useCameraTexture();
 
   const [mapXTexture, mapYTexture] = useUnmapTextures();
+
+  // Create a ref to store the material reference
+  const materialRef = useRef<THREE.ShaderMaterial>(null);
 
   // Basic GLSL shader for undistortion
   const vertexShader = /* glsl */ `
@@ -67,17 +70,45 @@ export function UnskewedVideoMesh({ ...props }: ThreeElements['mesh']) {
     return plane;
   }, [videoDimensions]);
 
+  // Create stable uniforms object that won't be recreated
+  const uniforms = useMemo(
+    () => ({
+      videoTexture: { value: videoTexture },
+      mapXTexture: { value: mapXTexture },
+      mapYTexture: { value: mapYTexture },
+      resolution: { value: new THREE.Vector2(videoDimensions[0], videoDimensions[1]) },
+    }),
+    // Empty dependency array - create uniforms only once
+    []
+  );
+
+  // Update uniform values when dependencies change
+  useEffect(() => {
+    if (materialRef.current) {
+      materialRef.current.uniforms.videoTexture.value = videoTexture;
+    }
+  }, [videoTexture]);
+
+  useEffect(() => {
+    if (materialRef.current) {
+      materialRef.current.uniforms.mapXTexture.value = mapXTexture;
+      materialRef.current.uniforms.mapYTexture.value = mapYTexture;
+    }
+  }, [mapXTexture, mapYTexture]);
+
+  useEffect(() => {
+    if (materialRef.current) {
+      materialRef.current.uniforms.resolution.value.set(videoDimensions[0], videoDimensions[1]);
+    }
+  }, [videoDimensions]);
+
   return (
     <mesh {...props} geometry={planeGeometry}>
       <shaderMaterial
+        ref={materialRef}
         fragmentShader={fragmentShader}
         vertexShader={vertexShader}
-        uniforms={{
-          videoTexture: { value: videoTexture },
-          mapXTexture: { value: mapXTexture },
-          mapYTexture: { value: mapYTexture },
-          resolution: { value: new THREE.Vector2(videoDimensions[0], videoDimensions[1]) },
-        }}
+        uniforms={uniforms}
       />
     </mesh>
   );
