@@ -1,7 +1,7 @@
 import * as Comlink from 'comlink';
 import { useEffect, useRef } from 'react';
-import { Vector2 } from 'three';
 
+import { IMarker } from '@/setup/detect-aruco';
 import { ICamSource, useStore } from '@/store/store';
 import { updateCameraExtrinsics } from '@/store/store-p3p';
 import type { MarkerScannerWorkerAPI } from '@/workers/markerScanner.worker';
@@ -23,9 +23,9 @@ export interface AutoScanOptions {
 export function useAutoScanMarkers({ intervalMs, firstScanDelayMs = 5_000, averageFrames = 5 }: AutoScanOptions): void {
   const serviceRef = useRef<MarkerScannerService | null>(null);
 
-  async function onMarkersFound(points: Vector2[]) {
+  async function onMarkersFound(markers: IMarker[]) {
     await ensureOpenCvIsLoaded();
-    useStore.getState().camSourceSetters.setMachineBoundsInCam(points);
+    useStore.getState().camSourceSetters.setMachineBoundsInCam(markers.flatMap(m => m.corners));
     updateCameraExtrinsics();
   }
 
@@ -58,7 +58,7 @@ class MarkerScannerService {
   constructor(
     private readonly camSource: ICamSource,
     private readonly averageFrames: number,
-    private readonly onMarkersFound: (pts: Vector2[]) => void
+    private readonly onMarkersFound: (markers: IMarker[]) => void
   ) {}
 
   /** Bootstraps the Web Worker and prepares scanning. Call once after `new`. */
@@ -111,8 +111,7 @@ class MarkerScannerService {
     const markers = await this.proxy!.scan();
     const hasAllMarkers = markers.length === 4 && markers.every((m, i) => m.id === i);
     if (hasAllMarkers) {
-      const pts = markers.map(({ origin }) => new Vector2(origin.x, origin.y));
-      this.onMarkersFound(pts);
+      this.onMarkersFound(markers);
     }
   }
 
