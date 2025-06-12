@@ -1,0 +1,20 @@
+---
+description:
+globs: *.tsx,*.ts
+alwaysApply: false
+---
+
+# React Components
+
+Keep components under 200 lines. Use Zustand for state management. Extract logic into custom hooks.
+
+Usage examples:
+
+- `function UserCard({ userId }: { userId: string }): JSX.Element`
+- `const user = useUserStore(state => state.getUser(userId))`
+- `const Component = memo(({ data }: Props) => <div>{data}</div>)`
+- Use useCallback for event handlers passed to child components
+- Use useMemo for expensive calculations: `const expensiveValue = useMemo(() => computeValue(data), [data])`
+- Extract complex logic: `const { items, loading, error } = useItemsLogic(userId)`
+- Prefer composition over inheritance
+- Use React.forwardRef for ref forwarding

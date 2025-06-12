@@ -1,0 +1,34 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+
+# React Performance
+
+Optimize for Core Web Vitals. Use React.lazy() for code splitting. Profile before optimizing.
+
+Code splitting:
+
+- `const LazyComponent = React.lazy(() => import('./Component'))`
+- `<Suspense fallback={<Loading />}><LazyComponent /></Suspense>`
+- Split at route level first, then by feature
+
+Memory optimization:
+
+- Clean up subscriptions in useEffect cleanup
+- Avoid creating objects/functions in render: `const config = useMemo(() => ({ key: value }), [value])`
+- Use useCallback for stable references: `const handleClick = useCallback(() => {}, [deps])`
+
+Bundle optimization:
+
+- Tree-shake unused code
+- Use dynamic imports for large libraries
+- Prefer named imports over default imports
+- Monitor bundle size with webpack-bundle-analyzer
+
+Performance monitoring:
+
+- Use React DevTools Profiler
+- Measure with Performance API
+- Set up Core Web Vitals tracking

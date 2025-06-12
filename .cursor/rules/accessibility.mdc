@@ -1,0 +1,40 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+
+# Accessibility (a11y)
+
+Follow WCAG 2.1 AA standards. Use semantic HTML. Test with screen readers and keyboard navigation.
+
+Semantic HTML:
+
+- Use `<button>` for actions, `<a>` for navigation
+- Proper heading hierarchy: `<h1>` → `<h2>` → `<h3>`
+- Use `<main>`, `<nav>`, `<aside>`, `<section>` landmarks
+
+ARIA attributes:
+
+- `aria-label` for buttons without text
+- `aria-describedby` for additional context
+- `aria-expanded` for collapsible content
+- `role="status"` for live regions
+
+Usage examples:
+
+- `<button aria-label="Close modal" onClick={onClose}><CloseIcon /></button>`
+- `<input aria-describedby="email-error" /><div id="email-error">Invalid email</div>`
+- `<div role="alert" aria-live="assertive">{errorMessage}</div>`
+
+Keyboard navigation:
+
+- All interactive elements must be focusable
+- Implement proper focus management
+- Use `tabIndex={-1}` for programmatic focus only
+- Provide visible focus indicators
+
+Color and contrast:
+
+- 4.5:1 contrast ratio for normal text
+- Don't rely on color alone for information

@@ -1,0 +1,14 @@
+---
+description:
+globs: *.tsx,*.ts
+alwaysApply: false
+---
+# TypeScript API Validation
+
+Use Zod for all API validation. Export types from schemas.
+
+Usage examples:
+
+- const UserSchema = z.object({ id: z.string(), email: z.string().email() })
+- export type User = z.infer<typeof UserSchema>
+- UserSchema.parse(data)

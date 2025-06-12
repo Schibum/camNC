@@ -1,0 +1,19 @@
+---
+description:
+globs: *.tsx,*.ts
+alwaysApply: false
+---
+
+# TypeScript Functions
+
+Keep functions pure and under 50 lines. Use composition patterns. Always type function parameters and return values.
+
+Usage examples:
+
+- `async function fetchUser(id: string): Promise<User>`
+- `const pipe = <T>(...fns: Array<(arg: T) => T>) => (value: T): T => fns.reduce((acc, fn) => fn(acc), value)`
+- `function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T>`
+- `function createValidator<T>(schema: z.ZodSchema<T>) => (data: unknown): T`
+- Use function overloads for multiple signatures
+- Prefer arrow functions for inline callbacks
+- Use readonly for immutable parameters: `function process(items: readonly Item[])`

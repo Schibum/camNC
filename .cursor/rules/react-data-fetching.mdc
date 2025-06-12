@@ -1,0 +1,14 @@
+---
+description:
+globs: *.tsx,*.ts
+---
+
+# React Data Fetching
+
+Use TanStack Query for all data fetching and caching.
+
+Usage examples:
+
+- const { data, isLoading } = useQuery({ queryKey: ['users'], queryFn: fetchUsers })
+- const mutation = useMutation({ mutationFn: createUser })
+- queryClient.invalidateQueries({ queryKey: ['users'] })

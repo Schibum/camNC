@@ -1,0 +1,40 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+
+# TypeScript Advanced Patterns
+
+Use conditional types, branded types, and mapped types for type safety. Leverage the type system for business logic.
+
+Generic constraints:
+
+- `function processArray<T extends { id: string }>(items: T[]): T[]`
+- `type KeysOfType<T, U> = { [K in keyof T]: T[K] extends U ? K : never }[keyof T]`
+
+Branded types:
+
+- `type UserId = string & { __brand: 'UserId' }`
+- `type Email = string & { __brand: 'Email' }`
+- `function createUserId(id: string): UserId { return id as UserId }`
+
+Discriminated unions:
+
+- `type ApiResponse<T> = { status: 'success'; data: T } | { status: 'error'; message: string }`
+- Always include discriminant field for exhaustive checking
+
+Conditional types:
+
+- `type NonNullable<T> = T extends null | undefined ? never : T`
+- `type FunctionPropertyNames<T> = { [K in keyof T]: T[K] extends Function ? K : never }[keyof T]`
+
+Template literal types:
+
+- `type EventName = \`on\${Capitalize<string>}\``
+- `type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'`
+
+Module declarations:
+
+- Place in `types/` directory
+- Use `.d.ts` files for ambient declarations only

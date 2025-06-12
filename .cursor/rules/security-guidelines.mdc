@@ -1,0 +1,44 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+
+# Security Guidelines
+
+Sanitize all user inputs. Use environment variables for secrets. Follow OWASP guidelines.
+
+XSS Prevention:
+
+- Never use `dangerouslySetInnerHTML` without sanitization
+- Use DOMPurify for HTML sanitization: `dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }}`
+- Validate and escape user inputs on both client and server
+- Use Content Security Policy (CSP) headers
+
+Environment variables:
+
+- Prefix client-side vars with `VITE_` or `NEXT_PUBLIC_`
+- Never commit secrets to version control
+- Use `.env.local` for local development secrets
+- Validate env vars at startup: `const API_KEY = process.env.VITE_API_KEY || throw new Error('Missing API_KEY')`
+
+API Security:
+
+- Always validate API responses with schemas (Zod)
+- Use HTTPS for all API calls
+- Implement proper CORS configuration
+- Use authentication tokens in headers, not URLs
+
+Input validation:
+
+- Validate on both client and server
+- Use allowlists instead of blocklists
+- Sanitize file uploads and validate file types
+- Implement rate limiting for API endpoints
+
+Authentication:
+
+- Store JWT tokens in httpOnly cookies when possible
+- Implement proper token refresh logic
+- Use secure session management
+- Implement logout on all tabs/windows

@@ -1,0 +1,29 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+
+# Testing Guidelines
+
+Use Vitest for unit/integration tests. Playwright for E2E. Follow AAA pattern (Arrange, Act, Assert).
+
+File organization:
+
+- `.test.tsx` for component tests, `.test.ts` for utility tests
+- `fixtures/` for test data, `mocks/` for mock implementations
+
+Usage examples:
+
+- `test('should render user name', () => { render(<UserCard user={mockUser} />); expect(screen.getByText('John')).toBeInTheDocument() })`
+- `await userEvent.click(screen.getByRole('button', { name: /submit/i }))`
+- Mock API calls: `vi.mocked(fetchUser).mockResolvedValue(mockUser)`
+- Custom render with providers: `renderWithProviders(<Component />)`
+
+Best practices:
+
+- Test behavior, not implementation
+- Use data-testid sparingly, prefer semantic queries
+- Test error states and loading states
+- Mock external dependencies at module boundary
+- One assertion per test when possible

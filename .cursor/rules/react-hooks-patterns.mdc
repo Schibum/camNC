@@ -1,0 +1,40 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+
+# React Hooks Patterns
+
+Follow Rules of Hooks. Use custom hooks for reusable logic. Keep hooks pure and predictable.
+
+Custom hook patterns:
+
+- `function useApi<T>(endpoint: string): { data: T | null; loading: boolean; error: Error | null }`
+- `function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T) => void]`
+- Always prefix with "use" and return consistent shape
+
+Dependency arrays:
+
+- Include all values from component scope used inside useEffect
+- Use ESLint plugin react-hooks/exhaustive-deps
+- Prefer useCallback for stable function references
+- Extract complex dependencies into useMemo
+
+Hook composition:
+
+- `const { user, loading } = useAuth(); const { posts } = usePosts(user?.id)`
+- Compose hooks for complex state logic
+- Use useReducer for related state updates
+
+Common patterns:
+
+- `useEffect(() => { const controller = new AbortController(); return () => controller.abort() }, [])`
+- `const deferredValue = useDeferredValue(searchQuery)`
+- `const [isPending, startTransition] = useTransition()`
+
+Anti-patterns to avoid:
+
+- Conditional hooks
+- Hooks inside loops or nested functions
+- Mutating state directly

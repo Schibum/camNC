@@ -1,0 +1,15 @@
+---
+description:
+globs: *.tsx,*.ts
+alwaysApply: false
+---
+
+# React Styling
+
+Use Tailwind for styling. Use Framer Motion for animations.
+
+Usage examples:
+
+- bg-card text-card-foreground
+- border-border rounded-lg p-4
+- whileHover={{ scale: 1.02 }}

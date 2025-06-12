@@ -1,0 +1,15 @@
+---
+description:
+globs: *.tsx,*.ts
+alwaysApply: false
+---
+
+# TypeScript Types
+
+Always use strict typing. Prefer interfaces and utility types.
+
+Usage examples:
+
+- interface User { id: string; email: string; }
+- type Status = 'pending' | 'approved' | 'rejected'
+- Pick<User, 'id' | 'email'>

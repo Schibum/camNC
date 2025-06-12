@@ -1,0 +1,29 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+
+# React Error Handling
+
+Use Error Boundaries for component-level error catching. Handle async errors explicitly.
+
+Usage examples:
+
+- `<ErrorBoundary fallback={<ErrorFallback />}><App /></ErrorBoundary>`
+- `const [error, setError] = useState<Error | null>(null)`
+- `try { await apiCall() } catch (error) { setError(error as Error) }`
+- Use React Query's `onError` for data fetching errors
+- Always provide user-friendly error messages
+- Log errors to monitoring service (e.g., Sentry)
+
+Error Boundary Pattern:
+
+```typescript
+class ErrorBoundary extends Component<PropsWithChildren<{fallback: ComponentType}>> {
+  state = { hasError: false, error: null }
+  static getDerivedStateFromError(error: Error) { return { hasError: true, error } }
+  componentDidCatch(error: Error, info: ErrorInfo) { console.error(error, info) }
+  render() { return this.state.hasError ? <this.props.fallback /> : this.props.children }
+}
+```

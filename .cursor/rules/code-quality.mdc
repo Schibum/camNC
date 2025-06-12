@@ -1,0 +1,44 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+
+# Code Quality Standards
+
+Write self-documenting code. Prioritize readability over cleverness. Use consistent patterns across the codebase.
+
+Code style:
+
+- Use Prettier for formatting
+- Use ESLint with TypeScript strict rules
+- Enable `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` in tsconfig
+- Use Husky for pre-commit hooks
+
+Documentation:
+
+- Write JSDoc for public APIs: `/** @param userId - The unique identifier for the user */`
+- Use meaningful variable names: `userAccountBalance` not `bal`
+- Prefer expressive code over comments
+- Document complex business logic and algorithms
+
+Error handling:
+
+- Fail fast with meaningful error messages
+- Use exhaustive type checking with switch statements
+- Always handle async errors explicitly
+- Provide user-friendly error messages
+
+Performance:
+
+- Profile before optimizing
+- Use lazy loading for large components
+- Implement proper loading states
+- Monitor Core Web Vitals
+
+Maintainability:
+
+- Follow SOLID principles
+- Use dependency injection for testability
+- Keep functions pure when possible
+- Extract constants and magic numbers

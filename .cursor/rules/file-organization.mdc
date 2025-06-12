@@ -1,0 +1,47 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+
+# File Organization
+
+Use feature-based folder structure. Co-locate related files. Follow consistent naming conventions.
+
+Folder structure:
+
+```
+src/
+  components/          # Reusable UI components
+    ui/               # Base design system components
+  features/           # Feature-specific code
+    auth/
+      components/     # Feature-specific components
+      hooks/         # Feature-specific hooks
+      types/         # Feature-specific types
+      api/           # Feature-specific API calls
+  lib/               # Shared utilities and configurations
+  types/             # Global type definitions
+  __tests__/         # Test utilities and global tests
+```
+
+Naming conventions:
+
+- PascalCase for components: `UserProfile.tsx`
+- camelCase for hooks, utilities: `useAuth.ts`, `formatDate.ts`
+- kebab-case for files/folders: `user-profile/`, `api-client.ts`
+- SCREAMING_SNAKE_CASE for constants: `API_ENDPOINTS.ts`
+
+Import/Export patterns:
+
+- Use index.ts files for clean imports: `export { UserProfile } from './UserProfile'`
+- Prefer named exports over default exports
+- Group imports: external → internal → relative
+- Use path mapping: `@/components`, `@/lib`, `@/types`
+
+File size guidelines:
+
+- Components: max 200 lines
+- Hooks: max 100 lines
+- Utilities: max 50 lines per function
+- Split large files by responsibility

@@ -1,0 +1,24 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+
+# TypeScript Error Patterns
+
+Use Result types and discriminated unions for error handling. Avoid throwing exceptions in business logic.
+
+Usage examples:
+
+- `type Result<T, E = Error> = { success: true; data: T } | { success: false; error: E }`
+- `function parseUser(data: unknown): Result<User, ValidationError>`
+- `if (!result.success) return handleError(result.error)`
+- Use branded types for domain errors: `type UserNotFoundError = Error & { __brand: 'UserNotFound' }`
+- Prefer exhaustive error handling with switch statements
+- Use `never` type to ensure all error cases are handled
+
+Never use:
+
+- Throwing exceptions in pure functions
+- Generic `any` or `unknown` for error types
+- Silent error swallowing
