@@ -14,9 +14,6 @@ export function UnskewedVideoMesh({ ...props }: ThreeElements['mesh']) {
 
   const [mapXTexture, mapYTexture] = useUnmapTextures();
 
-  // Create a ref to store the material reference
-  const materialRef = useRef<THREE.ShaderMaterial>(null);
-
   // Basic GLSL shader for undistortion
   const vertexShader = /* glsl */ `
     varying vec2 vUv;
@@ -84,27 +81,15 @@ export function UnskewedVideoMesh({ ...props }: ThreeElements['mesh']) {
 
   // Update uniform values when dependencies change
   useEffect(() => {
-    if (materialRef.current) {
-      materialRef.current.uniforms.videoTexture.value = videoTexture;
-    }
-  }, [videoTexture]);
-
-  useEffect(() => {
-    if (materialRef.current) {
-      materialRef.current.uniforms.mapXTexture.value = mapXTexture;
-      materialRef.current.uniforms.mapYTexture.value = mapYTexture;
-    }
-  }, [mapXTexture, mapYTexture]);
-
-  useEffect(() => {
-    if (materialRef.current) {
-      materialRef.current.uniforms.resolution.value.set(videoDimensions[0], videoDimensions[1]);
-    }
-  }, [videoDimensions]);
+    uniforms.videoTexture.value = videoTexture;
+    uniforms.mapXTexture.value = mapXTexture;
+    uniforms.mapYTexture.value = mapYTexture;
+    uniforms.resolution.value.set(videoDimensions[0], videoDimensions[1]);
+  }, [videoTexture, mapXTexture, mapYTexture, videoDimensions, uniforms]);
 
   return (
     <mesh {...props} geometry={planeGeometry}>
-      <shaderMaterial ref={materialRef} fragmentShader={fragmentShader} vertexShader={vertexShader} uniforms={uniforms} />
+      <shaderMaterial fragmentShader={fragmentShader} vertexShader={vertexShader} uniforms={uniforms} />
     </mesh>
   );
 }
