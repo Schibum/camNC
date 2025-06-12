@@ -5,6 +5,7 @@ import { IMarker } from '@/setup/detect-aruco';
 import { ICamSource, useStore } from '@/store/store';
 import { updateCameraExtrinsics } from '@/store/store-p3p';
 import type { MarkerScannerWorkerAPI } from '@/workers/markerScanner.worker';
+import { urlToMediaStream } from '@wbcnc/camera-calibration';
 import { acquireVideoSource, releaseVideoSource } from '@wbcnc/go2webrtc/use-video-source';
 import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { useRunInterval } from './useRunInterval';
@@ -25,7 +26,7 @@ export function useAutoScanMarkers({ intervalMs, firstScanDelayMs = 5_000, avera
 
   async function onMarkersFound(markers: IMarker[]) {
     await ensureOpenCvIsLoaded();
-    useStore.getState().camSourceSetters.setMachineBoundsInCam(markers.flatMap(m => m.corners));
+    useStore.getState().camSourceSetters.setMarkerPosInCam(markers.flatMap(m => m.corners));
     updateCameraExtrinsics();
   }
 
@@ -68,13 +69,12 @@ class MarkerScannerService {
     // Acquire shared video stream
     const videoHandle = acquireVideoSource(this.camSource.url);
     const { src } = await videoHandle.connectedPromise;
+    let mediaSource = src;
     if (typeof src === 'string') {
-      this.unsupportedSource = true;
-      console.warn('Worker-based marker scanner not available for URL sources');
-      return;
+      mediaSource = await urlToMediaStream(src);
     }
 
-    const mediaStream = src as MediaStream;
+    const mediaStream = mediaSource as MediaStream;
     const videoTrack = mediaStream.getVideoTracks()[0];
 
     // Chrome does not support sending VideoStreamTrack to workers yet, so conver to readable stream.

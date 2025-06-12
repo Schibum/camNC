@@ -132,7 +132,7 @@ export const useStore = create(devtools(persist(immer(combine(
         if (!state.camSource) throw new Error('configure source first');
         state.camSource.machineBounds = new Box2(new Vector2(xmin, ymin), new Vector2(xmax, ymax));
       }),
-      setMachineBoundsInCam: (points: Vector2[]) => set(state => {
+      setMarkerPosInCam: (points: Vector2[]) => set(state => {
         if (!state.camSource) throw new Error('configure source first');
         state.camSource.markerPosInCam = points;
       }),
