@@ -1,5 +1,5 @@
 import { useCalibrationData, useCameraExtrinsics, useCamResolution, useNewCameraMatrix } from '@/store/store';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { calculateUndistortionMapsCached } from './rectifyMap';
 
@@ -12,9 +12,6 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
 
   // Precompute the undistortion maps (as textures).
   const [mapXTexture, mapYTexture] = useUnmapTextures();
-
-  // Create a ref to store the material reference
-  const materialRef = useRef<THREE.ShaderMaterial>(null);
 
   // Vertex shader: compute a world position from the vertex position.
   // Here we assume the plane is created with PlaneGeometry(width, height)
@@ -108,7 +105,7 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
     uniforms.t.value = t;
   }, [texture, mapXTexture, mapYTexture, videoDimensions, K, R, t, uniforms]);
 
-  return <shaderMaterial ref={materialRef} vertexShader={vertexShader} fragmentShader={fragmentShader} uniforms={uniforms} />;
+  return <shaderMaterial vertexShader={vertexShader} fragmentShader={fragmentShader} uniforms={uniforms} />;
 } /**
  * Precompute the undistortion maps (as textures).
  * @returns [mapXTexture, mapYTexture]
