@@ -99,7 +99,6 @@ class MarkerScannerService {
     this.proxy = proxy;
     this.cleanupFn = () => {
       worker.terminate();
-      videoTrack.stop();
       releaseVideoSource(this.camSource.url);
       readable.cancel?.().catch(() => undefined);
     };
