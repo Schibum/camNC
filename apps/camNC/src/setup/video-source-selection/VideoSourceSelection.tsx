@@ -6,6 +6,7 @@ import {
   WebcamConnectionParams,
   WebrtcConnectionParams,
   WebtorrentConnectionParams,
+  Go2rtcConnectionParams,
 } from '@wbcnc/go2webrtc/url-helpers';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@wbcnc/ui/components/tabs';
 import { useMemo, useState } from 'react';
@@ -14,6 +15,7 @@ import { Hint } from '@/components/Hint';
 import { VideoDimensions } from '@wbcnc/go2webrtc/video-source';
 import { ConnectDialog } from './ConnectDialog';
 import { Go2RtcTab } from './Go2RtcTab';
+import { Go2RtcApiTab } from './Go2RtcApiTab';
 import { PhoneTab } from './PhoneTab';
 import { UrlTab } from './UrlTab';
 import { WebcamTab } from './WebcamTab';
@@ -58,6 +60,8 @@ export function VideoSourceSelection({ value = '', onChange }: { value?: string;
   const webrtcDefaults: WebrtcConnectionParams = defaults?.type === 'webrtc' ? defaults : getStableWebrtcDefaults();
   const webcamDefaults: WebcamConnectionParams =
     defaults?.type === 'webcam' ? defaults : { type: 'webcam' as const, deviceId: '', idealWidth: 4096, idealHeight: 2160 };
+  const go2rtcDefaults: Go2rtcConnectionParams =
+    defaults?.type === 'go2rtc' ? defaults : { type: 'go2rtc' as const, host: 'localhost:1984', src: 'camera1' };
 
   return (
     <>
@@ -83,17 +87,22 @@ export function VideoSourceSelection({ value = '', onChange }: { value?: string;
             (mount)
           </a>
           , but it requires running
-          <a href="https://github.com/AlexxIT/go2rtc" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline mx-1">
+          <a
+            href="https://github.com/AlexxIT/go2rtc"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-500 hover:underline mx-1">
             go2rtc
           </a>
           as a gateway, e.g. on a Raspberry&nbsp;Pi&nbsp;Zero.
         </p>
       </Hint>
       <Tabs className="w-full" value={sourceType} onValueChange={setSourceType}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="webcam">Webcam</TabsTrigger>
           <TabsTrigger value="webrtc">Phone</TabsTrigger>
           <TabsTrigger value="webtorrent">IP Camera</TabsTrigger>
+          <TabsTrigger value="go2rtc">go2rtc</TabsTrigger>
           <TabsTrigger value="url">URL</TabsTrigger>
         </TabsList>
         <TabsContent value="webcam">
@@ -104,6 +113,9 @@ export function VideoSourceSelection({ value = '', onChange }: { value?: string;
         </TabsContent>
         <TabsContent value="webtorrent">
           <Go2RtcTab defaults={webtorrentDefaults} onConnect={onConnect} />
+        </TabsContent>
+        <TabsContent value="go2rtc">
+          <Go2RtcApiTab defaults={go2rtcDefaults} onConnect={onConnect} />
         </TabsContent>
         <TabsContent value="url">
           <UrlTab defaults={urlDefaults} onConnect={onConnect} />

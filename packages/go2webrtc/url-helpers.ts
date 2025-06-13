@@ -1,4 +1,4 @@
-const rtcSchemas = ["webtorrent:", "webrtc:"] as const;
+const rtcSchemas = ["webtorrent:", "webrtc:", "go2rtc:"] as const;
 export type RtcSchema = (typeof rtcSchemas)[number];
 
 export interface WebrtcConnectionParams {
@@ -25,14 +25,21 @@ export interface WebcamConnectionParams {
   idealHeight?: number;
 }
 
+export interface Go2rtcConnectionParams {
+  type: "go2rtc";
+  host: string;
+  src: string;
+}
+
 export type RtcConnectionParams =
   | WebrtcConnectionParams
   | WebtorrentConnectionParams
   | UrlConnectionParams
-  | WebcamConnectionParams;
+  | WebcamConnectionParams
+  | Go2rtcConnectionParams;
 
 export function parseConnectionString(
-  connectionString: string
+  connectionString: string,
 ): RtcConnectionParams {
   const url = new URL(connectionString);
   let params = url.searchParams;
@@ -49,6 +56,14 @@ export function parseConnectionString(
         };
       }
       throw new Error("missing share or pwd");
+    case "go2rtc:": {
+      const host = params.get("host");
+      const src = params.get("src");
+      if (host && src) {
+        return { type: "go2rtc", host, src };
+      }
+      throw new Error("missing host or src");
+    }
     case "webcam:":
       const deviceId = params.get("deviceId");
       const width = params.get("width");
@@ -76,6 +91,8 @@ export function buildConnectionUrl(params: RtcConnectionParams) {
       return buildRtcConnectionUrl(params);
     case "webtorrent":
       return buildRtcConnectionUrl(params);
+    case "go2rtc":
+      return buildGo2rtcConnectionUrl(params);
     case "webcam":
       return buildWebcamConnectionUrl(params);
     case "url":
@@ -108,6 +125,11 @@ function buildWebcamConnectionUrl({
     ...(idealHeight ? { height: idealHeight.toString() } : {}),
   });
   return `webcam:?${params.toString()}`;
+}
+
+function buildGo2rtcConnectionUrl({ host, src }: Go2rtcConnectionParams) {
+  const params = new URLSearchParams({ host, src });
+  return `go2rtc:?${params.toString()}`;
 }
 
 export function genRandomWebtorrent() {
