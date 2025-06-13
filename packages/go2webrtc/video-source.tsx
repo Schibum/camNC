@@ -67,8 +67,7 @@ function webtorrentVideoSource(params: WebtorrentConnectionParams): VideoSource 
 
 function webrtcVideoSource(params: WebrtcConnectionParams): VideoSource {
   const client = createClient({
-    share: params.share,
-    pwd: params.pwd,
+    accessToken: params.accessToken,
     onStateChange: state => {
       console.debug('webrtcVideoSource state', state);
     },

@@ -13,11 +13,10 @@ describe('url-helpers', () => {
       });
     });
     it('should parse webrtc urls', () => {
-      const url = 'webrtc:?share=ts&pwd=tp';
+      const url = 'webrtc:?accessToken=token123';
       const result = parseConnectionString(url);
       expect(result).toEqual({
-        share: 'ts',
-        pwd: 'tp',
+        accessToken: 'token123',
         type: 'webrtc',
       });
     });
@@ -69,6 +68,13 @@ describe('url-helpers', () => {
         type: 'webtorrent',
       });
       expect(url).toEqual('webtorrent:?share=test&pwd=test');
+    });
+    it('should build webrtc urls', () => {
+      const url = buildConnectionUrl({
+        type: 'webrtc',
+        accessToken: 'abc',
+      });
+      expect(url).toEqual('webrtc:?accessToken=abc');
     });
     it('should build webcam urls', () => {
       const url = buildConnectionUrl({

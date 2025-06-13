@@ -9,8 +9,7 @@ function ServeWebrtcQR({ params }: { params: WebrtcConnectionParams }) {
   const { SVG } = useQRCode();
 
   const searchParams = new URLSearchParams({
-    share: params.share,
-    pwd: params.pwd,
+    accessToken: params.accessToken,
   });
   const url = `${SERVE_URL}?${searchParams.toString()}`;
   return <SVG text={url} />;

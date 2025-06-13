@@ -20,7 +20,7 @@ export const Route = createFileRoute('/go2webrtc')({
 const SERVE_URL_WEBTORRENT = 'https://camnc-webrtc-cam.vercel.app/webtorrent';
 const SERVE_URL_TRYSTERO = 'https://camnc-webrtc-cam.vercel.app/webrtc-custom';
 
-type ParsedValues = { share: string; pwd: string };
+type ParsedValues = { accessToken: string };
 
 function parseConnectionString(raw: string): ParsedValues | null {
   const webtorrentPrefix = 'webtorrent:?';
@@ -37,16 +37,15 @@ function parseConnectionString(raw: string): ParsedValues | null {
 
   try {
     const params = new URLSearchParams(paramsString);
-    const share = params.get('share');
-    const pwd = params.get('pwd');
-    return share && pwd ? { share, pwd } : null;
+    const accessToken = params.get('accessToken') || params.get('share');
+    return accessToken ? { accessToken } : null;
   } catch {
     return null;
   }
 }
 
 const connectionStringSchema = z.string().refine(v => parseConnectionString(v) !== null, {
-  message: 'Invalid format. Expected: [prefix]?share=...&pwd=...',
+  message: 'Invalid format. Expected: [prefix]?accessToken=...',
 });
 
 const formSchema = z.object({
@@ -97,8 +96,8 @@ function useWebRTCStreaming(videoRef: RefObject<HTMLVideoElement | null>) {
       if (method === 'webtorrent') {
         try {
           const { stream } = await connect({
-            share: values.share,
-            pwd: values.pwd,
+            share: values.accessToken, // webtorrent still expects share/pwd
+            pwd: 'pwd',
             onStatusUpdate(update) {
               toast.info('Status', {
                 description: update,
@@ -120,8 +119,7 @@ function useWebRTCStreaming(videoRef: RefObject<HTMLVideoElement | null>) {
         /* webrtc+custom */
         try {
           const client = createClient({
-            share: values.share,
-            pwd: values.pwd,
+            accessToken: values.accessToken,
             onStateChange: state => {
               toast.info('Status', {
                 description: `Trystero: ${state}`,
@@ -165,8 +163,8 @@ export function ConnectionQR({ method, connectionString }: { method: FormValues[
   const { SVG } = useQRCode();
   if (!parsed) return null;
 
-  const { share, pwd } = parsed;
-  const params = new URLSearchParams({ share, pwd });
+  const accessToken = (parsed as any).accessToken ?? (parsed as any).share;
+  const params = new URLSearchParams({ accessToken });
   const baseUrl = method === 'webtorrent' ? SERVE_URL_WEBTORRENT : SERVE_URL_TRYSTERO;
   const url = `${baseUrl}?${params.toString()}`;
   return <SVG text={url} />;
@@ -233,7 +231,7 @@ export function ConnectForm({
     }
   }
 
-  const placeholder = currentMethod === 'webtorrent' ? 'webtorrent:?share=...&pwd=...' : 'webrtc+custom://?share=...&pwd=...';
+  const placeholder = currentMethod === 'webtorrent' ? 'webtorrent:?share=...&pwd=...' : 'webrtc+custom://?accessToken=...';
 
   const description =
     currentMethod === 'webtorrent' ? 'Paste the full webtorrent connection string.' : 'Paste the full webrtc+custom connection string.';
