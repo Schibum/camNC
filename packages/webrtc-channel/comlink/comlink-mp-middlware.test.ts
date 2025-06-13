@@ -11,7 +11,7 @@ describe("Comlink MessagePort middleware", () => {
       const native = port.postMessage.bind(port);
       port.postMessage = (msg: any, xfer: any = []) => {
         expect(xfer.length, "postMessage MUST NOT use the transfer list").toBe(
-          0
+          0,
         );
         native(msg);
       };
@@ -40,7 +40,7 @@ describe("Comlink MessagePort middleware", () => {
     const result = await remoteApi.someFn(
       proxy((x: number) => {
         received = x;
-      })
+      }),
     );
 
     expect(result).toBe("done");

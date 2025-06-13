@@ -17,7 +17,7 @@ export class FluidncClient {
       maxPeers: 1,
     });
     this.peering.on("peerConnected", ({ peerId, peer }) =>
-      this.onPeerConnected(peerId, peer)
+      this.onPeerConnected(peerId, peer),
     );
   }
 

@@ -3,7 +3,7 @@ import { useCalibrationStore } from "../store/calibrationStore";
 
 export const CalibrationResultDisplay: React.FC = () => {
   const calibrationResult = useCalibrationStore(
-    (state) => state.calibrationResult
+    (state) => state.calibrationResult,
   );
 
   if (!calibrationResult) {

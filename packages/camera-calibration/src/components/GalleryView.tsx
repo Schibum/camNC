@@ -115,10 +115,10 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
   }, [selectedFrameId]);
 
   const selectedIndex = capturedFrames.findIndex(
-    (f) => f.id === selectedFrameId
+    (f) => f.id === selectedFrameId,
   );
   const prevSelectedIndex = capturedFrames.findIndex(
-    (f) => f.id === prevSelectedIdRef.current
+    (f) => f.id === prevSelectedIdRef.current,
   );
 
   // Calculate direction: 1 for next, -1 for prev, 0 for initial/close
@@ -150,7 +150,7 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
       }
       setSelectedFrameId(capturedFrames[nextIndex]!.id);
     },
-    [capturedFrames, selectedIndex]
+    [capturedFrames, selectedIndex],
   );
 
   const handleFrameDelete = (id: string, e?: React.MouseEvent) => {

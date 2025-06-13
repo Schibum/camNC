@@ -13,7 +13,7 @@ export const Route = createFileRoute("/webrtc-channel/$room")({
   validateSearch: zodValidator(
     z.object({
       server: z.boolean().optional(),
-    })
+    }),
   ),
 });
 
@@ -32,7 +32,7 @@ function useRoom(roomId: string) {
     () =>
       new RolePeering(roomId, selfRole, otherRole, {
         maxPeers: selfRole == "client" ? 1 : Infinity,
-      })
+      }),
   );
   useEffect(() => {
     messaging.join();

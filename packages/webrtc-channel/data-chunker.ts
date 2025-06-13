@@ -40,7 +40,7 @@ export default function createChunkedPort(
     bufferedAmount?: number;
     bufferedAmountLowThreshold?: number;
   },
-  opts: { chunkSize?: number } = {}
+  opts: { chunkSize?: number } = {},
 ): MessagePort {
   const chunkSize = Math.max(256, opts.chunkSize ?? CHUNK_SIZE);
   let nonce = 0; // uint8 rollover is fine for one tab‑lifetime

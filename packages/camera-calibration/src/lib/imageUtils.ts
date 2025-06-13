@@ -11,7 +11,7 @@
 export function getCanvasBlob(
   canvas: HTMLCanvasElement,
   type?: string,
-  quality?: any
+  quality?: any,
 ): Promise<Blob | null> {
   return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
 }
@@ -27,7 +27,7 @@ export function getCanvasBlob(
 export async function createImageBlob(
   source: ImageData,
   type: string = "image/jpeg",
-  quality: number = 0.9
+  quality: number = 0.9,
 ): Promise<Blob> {
   const canvas = document.createElement("canvas");
   const width = source.width;
@@ -52,7 +52,7 @@ export async function createImageBlob(
 
   if (!blob) {
     throw new Error(
-      "[createImageBlob] Failed to create blob from canvas (getCanvasBlob returned null)."
+      "[createImageBlob] Failed to create blob from canvas (getCanvasBlob returned null).",
     );
   }
 

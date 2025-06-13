@@ -28,7 +28,7 @@ export function convertCorners(corners: any): Corner[] {
  */
 export function createObjectPoints(
   patternSize: PatternSize,
-  squareSize: number = 1.0
+  squareSize: number = 1.0,
 ): any {
   const { width, height } = patternSize;
   const numCorners = width * height;
@@ -110,13 +110,13 @@ export function calculateCornerMetrics(corners: Corner[]): CornerMetrics {
  */
 export function calculateMovement(
   current: CornerMetrics,
-  previous: CornerMetrics
+  previous: CornerMetrics,
 ): number {
   // Calculate centroid movement
   const centerDiffX = current.centerX - previous.centerX;
   const centerDiffY = current.centerY - previous.centerY;
   const centerDist = Math.sqrt(
-    centerDiffX * centerDiffX + centerDiffY * centerDiffY
+    centerDiffX * centerDiffX + centerDiffY * centerDiffY,
   );
 
   // We could incorporate other measures like aspect ratio difference, but
@@ -132,7 +132,7 @@ export function calculateSimilarityScore(
   currentCorners: Corner[],
   previousCaptures: CapturedFrame[],
   frameWidth: number,
-  frameHeight: number
+  frameHeight: number,
 ): number {
   if (previousCaptures.length === 0) {
     return 1.0; // Completely unique
@@ -150,7 +150,7 @@ export function calculateSimilarityScore(
     const centerDistY =
       Math.abs(currentMetrics.centerY - existingMetrics.centerY) / frameHeight;
     const centerDist = Math.sqrt(
-      centerDistX * centerDistX + centerDistY * centerDistY
+      centerDistX * centerDistX + centerDistY * centerDistY,
     );
 
     // Calculate difference in orientation and spread
@@ -186,7 +186,7 @@ export function calibrateCamera(
   patternSize: PatternSize,
   frameSize: { width: number; height: number },
   squareSize: number = 1.0,
-  zeroTangentDist = false
+  zeroTangentDist = false,
 ): CalibrationResult {
   if (capturedFrames.length < 3) {
     throw new Error("At least 3 frames required for calibration");
@@ -194,7 +194,7 @@ export function calibrateCamera(
   console.log(
     "calibrateCamera: %d frames, zeroTangentDist: %s",
     capturedFrames.length,
-    zeroTangentDist
+    zeroTangentDist,
   );
 
   const cv = self.cv;
@@ -233,7 +233,7 @@ export function calibrateCamera(
   const crit = new cv.TermCriteria(
     cv.TermCriteria.COUNT + cv.TermCriteria.EPS,
     30,
-    1e-6
+    1e-6,
   );
 
   const flags = zeroTangentDist ? cv.CALIB_ZERO_TANGENT_DIST : 0;
@@ -250,7 +250,7 @@ export function calibrateCamera(
     stdDevExt,
     perViewErrors,
     flags,
-    crit
+    crit,
   );
 
   // Get optimal new camera matrix
@@ -258,7 +258,7 @@ export function calibrateCamera(
     cameraMatrix,
     distCoeffs,
     imageSize,
-    0.3
+    0.3,
   );
 
   // Convert matrices to JS arrays

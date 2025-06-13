@@ -53,7 +53,7 @@ describe("ChunkedMessagePort", () => {
     const { a, b } = createPeers();
 
     const received = new Promise<any>(
-      (res) => (b.onmessage = (e) => res(e.data))
+      (res) => (b.onmessage = (e) => res(e.data)),
     );
     a.postMessage({ hi: "world" });
 

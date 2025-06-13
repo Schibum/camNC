@@ -8,7 +8,7 @@ import "./media-stream-processor-polyfil";
  * @returns A ReadableStream<VideoFrame>.
  */
 export function ensureReadableStream(
-  trackOrReadable: MediaStreamTrack | ReadableStream<VideoFrame>
+  trackOrReadable: MediaStreamTrack | ReadableStream<VideoFrame>,
 ): ReadableStream<VideoFrame> {
   if (trackOrReadable instanceof ReadableStream) {
     return trackOrReadable;

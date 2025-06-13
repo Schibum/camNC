@@ -103,7 +103,7 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const getStream = async (
   options: ServerOptions,
   streamCache: MediaStream | null,
-  streamPromise: Promise<MediaStream> | null
+  streamPromise: Promise<MediaStream> | null,
 ): Promise<{
   stream: MediaStream;
   streamPromise: Promise<MediaStream> | null;
@@ -313,7 +313,7 @@ export const createClient = (options: ClientOptions) => {
             outputStream.dispatchEvent(
               new MediaStreamTrackEvent("removetrack", {
                 track,
-              })
+              }),
             );
           });
 
@@ -324,7 +324,7 @@ export const createClient = (options: ClientOptions) => {
             outputStream.dispatchEvent(
               new MediaStreamTrackEvent("addtrack", {
                 track,
-              })
+              }),
             );
           });
 
@@ -339,7 +339,7 @@ export const createClient = (options: ClientOptions) => {
         onMaxResolution(
           ({ width, height }: { width: number; height: number }) => {
             resolve({ width, height });
-          }
+          },
         );
       });
 
@@ -375,7 +375,7 @@ export function useTrysteroServer(options: ServerOptions) {
     createServer({
       ...options,
       onStateChange: setServerState,
-    })
+    }),
   );
 
   useEffect(() => {
@@ -398,13 +398,13 @@ export function useTrysteroServer(options: ServerOptions) {
  */
 export function useTrysteroClient(options: ClientOptions) {
   const [clientState, setClientState] = useState<ClientState>(
-    ClientState.DISCONNECTED
+    ClientState.DISCONNECTED,
   );
   const clientRef = useRef(
     createClient({
       ...options,
       onStateChange: setClientState,
-    })
+    }),
   );
   const [stream, setStream] = useState<MediaStream | null>(null);
 

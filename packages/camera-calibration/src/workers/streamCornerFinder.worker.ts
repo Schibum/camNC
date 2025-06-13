@@ -29,7 +29,7 @@ async function frameToImageData(
   frame: VideoFrame,
   width: number,
   height: number,
-  ctx: OffscreenCanvasRenderingContext2D
+  ctx: OffscreenCanvasRenderingContext2D,
 ): Promise<ImageData> {
   const bitmap = await createImageBitmap(frame);
   ctx.drawImage(bitmap, 0, 0, width, height);
@@ -89,7 +89,7 @@ export class StreamCornerFinderWorker {
 
   private _isChessboardBlurry(
     grayPreview: cv2.Mat,
-    cornersPreview: cv2.Mat
+    cornersPreview: cv2.Mat,
   ): boolean {
     const pts = new cv2.Mat();
     cornersPreview.convertTo(pts, cv2.CV_32SC2);
@@ -130,7 +130,7 @@ export class StreamCornerFinderWorker {
     stream: ReadableStream<VideoFrame> | MediaStreamTrack,
     patternSize: { width: number; height: number },
     frameSize: { width: number; height: number },
-    onFrameProcessed: (data: FrameEvent) => void
+    onFrameProcessed: (data: FrameEvent) => void,
   ): Promise<void> {
     if (this.isInitialized) {
       throw new Error("Worker already initialized");
@@ -142,7 +142,7 @@ export class StreamCornerFinderWorker {
     this.criteria = new cv2.TermCriteria(
       (cv2 as any).TERM_CRITERIA_EPS + (cv2 as any).TERM_CRITERIA_MAX_ITER,
       30,
-      0.001
+      0.001,
     );
     this.zeroZone = new cv2.Size(-1, -1);
     this.winSize = new cv2.Size(11, 11);
@@ -165,7 +165,7 @@ export class StreamCornerFinderWorker {
     // Set up offscreen canvas for video frame processing
     this.offscreenCanvas = new OffscreenCanvas(
       this.frameWidth,
-      this.frameHeight
+      this.frameHeight,
     );
     this.ctx = this.offscreenCanvas.getContext("2d", {
       willReadFrequently: true,
@@ -190,7 +190,7 @@ export class StreamCornerFinderWorker {
 
     if (this.isProcessing) {
       console.warn(
-        "[StreamCornerFinderWorker] Already processing, ignoring start request"
+        "[StreamCornerFinderWorker] Already processing, ignoring start request",
       );
       return;
     }
@@ -247,7 +247,7 @@ export class StreamCornerFinderWorker {
       } catch (error) {
         console.error(
           "[StreamCornerFinderWorker] Error in processing loop:",
-          error
+          error,
         );
         // Continue processing on errors to maintain robustness
       }
@@ -285,7 +285,7 @@ export class StreamCornerFinderWorker {
         frame,
         this.frameWidth,
         this.frameHeight,
-        this.ctx
+        this.ctx,
       );
 
       // Set up OpenCV matrices
@@ -297,7 +297,7 @@ export class StreamCornerFinderWorker {
         this.grayMat,
         this.patternSizeCv,
         this.cornersMatFull,
-        0
+        0,
       );
 
       if (!found) {
@@ -324,7 +324,7 @@ export class StreamCornerFinderWorker {
       const isUnique = this.poseGate.isUnique(
         this.cornersMatFull,
         this.frameWidth,
-        this.frameHeight
+        this.frameHeight,
       );
 
       if (!isUnique) {
@@ -345,7 +345,7 @@ export class StreamCornerFinderWorker {
     } catch (error) {
       console.error(
         "[StreamCornerFinderWorker] Error processing frame:",
-        error
+        error,
       );
     }
   }
@@ -355,7 +355,7 @@ export class StreamCornerFinderWorker {
    * It is totally fine if a few frames are missed during the switch.
    */
   async replaceStream(
-    stream: ReadableStream<VideoFrame> | MediaStreamTrack
+    stream: ReadableStream<VideoFrame> | MediaStreamTrack,
   ): Promise<void> {
     if (!this.isInitialized) {
       throw new Error("Worker not initialized – cannot replace stream");

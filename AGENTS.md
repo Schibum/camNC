@@ -20,5 +20,3 @@ This repository is a pnpm/Turborepo workspace using TypeScript and React.
 - All source code is written in modern ES modules and TypeScript.
 - Use the existing ESLint configuration by running `pnpm run lint`.
 - Do not commit build artifacts or `node_modules` directories.
-
-

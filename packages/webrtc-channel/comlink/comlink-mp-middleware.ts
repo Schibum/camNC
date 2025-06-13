@@ -37,7 +37,7 @@ class VirtualMessagePort extends EventTarget implements Endpoint {
     null;
   constructor(
     private readonly tx: (f: PortFrame) => void,
-    readonly portId: string
+    readonly portId: string,
   ) {
     super();
   }
@@ -85,11 +85,11 @@ export function comlinkMpMiddleware(phys: Endpoint): Endpoint {
           port.addEventListener("message", (ev) =>
             phys.postMessage(
               { __mpx__: true, portId: id, payload: ev.data },
-              []
-            )
+              [],
+            ),
           );
           port.addEventListener("close", () =>
-            phys.postMessage({ __mpx__: true, portId: id, close: true }, [])
+            phys.postMessage({ __mpx__: true, portId: id, close: true }, []),
           );
           port.start?.();
 

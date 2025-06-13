@@ -88,7 +88,7 @@ function useWebRTCStreaming(videoRef: RefObject<HTMLVideoElement | null>) {
     async (
       values: ParsedValues,
       method: FormValues["method"],
-      preferredCodec?: string
+      preferredCodec?: string,
     ) => {
       console.log(`connecting using ${method}`, values);
 
@@ -162,7 +162,7 @@ function useWebRTCStreaming(videoRef: RefObject<HTMLVideoElement | null>) {
         }
       }
     },
-    [videoRef]
+    [videoRef],
   );
 
   return { connectStream, codecInfo };
@@ -241,7 +241,7 @@ export function ConnectForm({
   onConnect: (
     values: ParsedValues,
     method: FormValues["method"],
-    preferredCodec?: string
+    preferredCodec?: string,
   ) => void;
 }) {
   const form = useForm<FormValues>({
@@ -268,7 +268,7 @@ export function ConnectForm({
       onConnect(
         parsed,
         values.method,
-        values.preferredCodec === "auto" ? undefined : values.preferredCodec
+        values.preferredCodec === "auto" ? undefined : values.preferredCodec,
       );
     }
   }
@@ -310,7 +310,7 @@ export function ConnectForm({
                       const params = new URLSearchParams(parsed).toString();
                       form.setValue(
                         "connectionString",
-                        `${newPrefix}${params}`
+                        `${newPrefix}${params}`,
                       );
                     } else {
                       form.setValue("connectionString", "");

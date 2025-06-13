@@ -44,10 +44,10 @@ export const cv2 = new Proxy(
     get: (target, prop) => {
       if (!win.cv) {
         throw new Error(
-          "OpenCV is not loaded. Call ensureOpenCvIsLoaded() first."
+          "OpenCV is not loaded. Call ensureOpenCvIsLoaded() first.",
         );
       }
       return win.cv[prop as keyof typeof cv];
     },
-  }
+  },
 ) as typeof cv;

@@ -136,7 +136,7 @@ export class PersistentWebRTCServer {
     try {
       this.infoHash = await calculateInfoHash(this.options.share);
       console.log(
-        `Calculated infoHash: ${this.infoHash} for share: ${this.options.share}`
+        `Calculated infoHash: ${this.infoHash} for share: ${this.options.share}`,
       );
       this.connectToTracker();
     } catch (error) {
@@ -206,7 +206,7 @@ export class PersistentWebRTCServer {
 
     this._setStatus(
       "connecting_tracker",
-      `Attempting connection to ${this.options.tracker}`
+      `Attempting connection to ${this.options.tracker}`,
     );
     console.log(`Connecting to tracker: ${this.options.tracker}`);
 
@@ -233,14 +233,14 @@ export class PersistentWebRTCServer {
     clearInterval(this.trackerAnnounceTimerId);
     this.trackerAnnounceTimerId = setInterval(
       () => this.announceToTracker(),
-      this.options.trackerAnnounceInterval
+      this.options.trackerAnnounceInterval,
     );
 
     this._setStatus("waiting_offer");
   }
 
   private announceToTracker(
-    extraParams: Partial<TrackerAnnounceRequest> = {}
+    extraParams: Partial<TrackerAnnounceRequest> = {},
   ): void {
     if (!this.trackerWs || this.trackerWs.readyState !== WebSocket.OPEN) {
       console.warn("Cannot announce, tracker WebSocket not open.");
@@ -282,7 +282,7 @@ export class PersistentWebRTCServer {
           return;
         }
         console.log(
-          `Received offer from peer ${offerMsg.peer_id} with offer_id ${offerMsg.offer_id}`
+          `Received offer from peer ${offerMsg.peer_id} with offer_id ${offerMsg.offer_id}`,
         );
         this._setStatus("received_offer", `From peer ${offerMsg.peer_id}`);
         this.processOffer(offerMsg);
@@ -292,13 +292,13 @@ export class PersistentWebRTCServer {
           const newIntervalMs = interval * 1000;
           if (newIntervalMs !== this.options.trackerAnnounceInterval) {
             console.log(
-              `Tracker suggested announce interval: ${interval}s. Adjusting periodic announce.`
+              `Tracker suggested announce interval: ${interval}s. Adjusting periodic announce.`,
             );
             this.options.trackerAnnounceInterval = newIntervalMs;
             clearInterval(this.trackerAnnounceTimerId);
             this.trackerAnnounceTimerId = setInterval(
               () => this.announceToTracker(),
-              this.options.trackerAnnounceInterval
+              this.options.trackerAnnounceInterval,
             );
           }
         }
@@ -308,7 +308,7 @@ export class PersistentWebRTCServer {
         "Error processing tracker message:",
         error,
         "Data:",
-        event.data
+        event.data,
       );
       this._setStatus("error", "Failed to parse tracker message");
     }
@@ -324,7 +324,7 @@ export class PersistentWebRTCServer {
 
   private handleTrackerClose(event: CloseEvent): void {
     console.log(
-      `Tracker WebSocket closed. Code: ${event.code}, Reason: ${event.reason || "No reason given"}`
+      `Tracker WebSocket closed. Code: ${event.code}, Reason: ${event.reason || "No reason given"}`,
     );
     this.trackerWs = null;
     clearInterval(this.trackerAnnounceTimerId);
@@ -333,7 +333,7 @@ export class PersistentWebRTCServer {
     if (this.isRunning) {
       this._setStatus(
         "connecting_tracker",
-        "Connection lost, attempting reconnect..."
+        "Connection lost, attempting reconnect...",
       );
       this.scheduleTrackerReconnect();
     } else {
@@ -349,13 +349,13 @@ export class PersistentWebRTCServer {
 
     const delay = this.currentReconnectDelay;
     console.log(
-      `Scheduling tracker reconnection attempt in ${delay / 1000} seconds...`
+      `Scheduling tracker reconnection attempt in ${delay / 1000} seconds...`,
     );
 
     this.trackerReconnectTimerId = setTimeout(() => {
       this.currentReconnectDelay = Math.min(
         this.currentReconnectDelay * 2,
-        this.options.trackerReconnectMaxDelay
+        this.options.trackerReconnectMaxDelay,
       );
       this.connectToTracker();
     }, delay);
@@ -379,7 +379,7 @@ export class PersistentWebRTCServer {
 
     if (this.peerConnections.has(remotePeerId)) {
       console.log(
-        `Cleaning up existing connection for reconnecting peer ${remotePeerId}`
+        `Cleaning up existing connection for reconnecting peer ${remotePeerId}`,
       );
       this._cleanupPeerConnection(remotePeerId);
     }
@@ -390,12 +390,12 @@ export class PersistentWebRTCServer {
     try {
       this._setStatus(
         "creating_peer_connection",
-        `Processing offer from ${remotePeerId}`
+        `Processing offer from ${remotePeerId}`,
       );
       cryptoHelper = await cipher(
         this.options.share,
         this.options.pwd,
-        offer_id
+        offer_id,
       );
 
       const offerSdp = await cryptoHelper.decrypt(offer.sdp);
@@ -419,7 +419,7 @@ export class PersistentWebRTCServer {
 
       this.peerConnections.set(remotePeerId, pc);
       console.log(
-        `Peer connection created for ${remotePeerId}, waiting for ICE.`
+        `Peer connection created for ${remotePeerId}, waiting for ICE.`,
       );
 
       const answerSdp = await this._waitForIceGathering(pc, remotePeerId);
@@ -442,7 +442,7 @@ export class PersistentWebRTCServer {
         console.log(`Answer sent to tracker for peer ${remotePeerId}`);
       } else {
         console.warn(
-          `Could not send answer to ${remotePeerId}, tracker disconnected.`
+          `Could not send answer to ${remotePeerId}, tracker disconnected.`,
         );
         throw new Error("Tracker disconnected before answer could be sent.");
       }
@@ -460,7 +460,7 @@ export class PersistentWebRTCServer {
 
   private _setupPeerConnectionListeners(
     pc: RTCPeerConnection,
-    remotePeerId: string
+    remotePeerId: string,
   ): void {
     pc.onicecandidate = () => {};
 
@@ -478,17 +478,17 @@ export class PersistentWebRTCServer {
         case "disconnected":
           this._setStatus(
             "peer_disconnected",
-            `Peer ${remotePeerId} disconnected`
+            `Peer ${remotePeerId} disconnected`,
           );
           console.warn(
-            `Peer ${remotePeerId} disconnected. Waiting for potential recovery or failure.`
+            `Peer ${remotePeerId} disconnected. Waiting for potential recovery or failure.`,
           );
           break;
         case "failed":
           console.error(`Peer ${remotePeerId} connection failed.`);
           this._setStatus(
             "peer_failed",
-            `Peer ${remotePeerId} connection failed`
+            `Peer ${remotePeerId} connection failed`,
           );
           this._cleanupPeerConnection(remotePeerId);
           if (this.trackerWs?.readyState === WebSocket.OPEN) {
@@ -538,7 +538,7 @@ export class PersistentWebRTCServer {
 
       if (this.peerConnections.size === 0 && this.stream && this.isRunning) {
         console.log(
-          "Last peer disconnected, stopping and disposing media stream..."
+          "Last peer disconnected, stopping and disposing media stream...",
         );
         this.stream.getTracks().forEach((track) => track.stop());
         this.stream = null;
@@ -557,14 +557,14 @@ export class PersistentWebRTCServer {
 
   private async _waitForIceGathering(
     pc: RTCPeerConnection,
-    remotePeerId: string
+    remotePeerId: string,
   ): Promise<string> {
     return new Promise((resolve, reject) => {
       if (!pc.localDescription) {
         return reject(
           new Error(
-            `Local description not set before ICE gathering for peer ${remotePeerId}.`
-          )
+            `Local description not set before ICE gathering for peer ${remotePeerId}.`,
+          ),
         );
       }
       if (pc.iceGatheringState === "complete") {
@@ -584,7 +584,7 @@ export class PersistentWebRTCServer {
 
       const onTimeout = () => {
         console.warn(
-          `ICE gathering timed out after ${timeoutDuration}ms for peer ${remotePeerId}. Using potentially incomplete SDP.`
+          `ICE gathering timed out after ${timeoutDuration}ms for peer ${remotePeerId}. Using potentially incomplete SDP.`,
         );
         cleanup();
         resolve(pc.localDescription!.sdp);
@@ -595,15 +595,15 @@ export class PersistentWebRTCServer {
           cleanup();
           reject(
             new Error(
-              `Peer connection failed during ICE gathering for ${remotePeerId}.`
-            )
+              `Peer connection failed during ICE gathering for ${remotePeerId}.`,
+            ),
           );
         } else if (pc.connectionState === "closed") {
           cleanup();
           reject(
             new Error(
-              `Peer connection closed during ICE gathering for ${remotePeerId}.`
-            )
+              `Peer connection closed during ICE gathering for ${remotePeerId}.`,
+            ),
           );
         }
       };
@@ -613,7 +613,7 @@ export class PersistentWebRTCServer {
         pc.removeEventListener("icegatheringstatechange", onIceGatheringChange);
         pc.removeEventListener(
           "connectionstatechange",
-          onConnectionStateChange
+          onConnectionStateChange,
         );
       };
 

@@ -34,12 +34,7 @@ export const GCodeSelector: React.FC<GCodeSelectorProps> = ({ onChange }) => {
         <label htmlFor="gcode-select" className="text-sm font-medium">
           Select GCode:
         </label>
-        <select
-          id="gcode-select"
-          className="p-1 rounded-md border border-gray-300"
-          value={selectedGCode.name}
-          onChange={handleGCodeChange}
-        >
+        <select id="gcode-select" className="p-1 rounded-md border border-gray-300" value={selectedGCode.name} onChange={handleGCodeChange}>
           {gcodeOptions.map(option => (
             <option key={option.name} value={option.name}>
               {option.name}

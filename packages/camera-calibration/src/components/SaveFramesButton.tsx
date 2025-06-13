@@ -48,7 +48,7 @@ export const SaveFramesButton = () => {
         } catch (writeError: any) {
           console.error(
             `Error adding frame ${i} (${fileName}) to zip:`,
-            writeError
+            writeError,
           );
           setError(`Error adding ${fileName} to zip: ${writeError.message}`);
           // Close zip writer if error occurs during add

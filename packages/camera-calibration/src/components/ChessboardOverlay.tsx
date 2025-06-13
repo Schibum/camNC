@@ -17,13 +17,13 @@ export function drawChessboardCorners(
   patternSize: PatternSize,
   scale: number,
   lineWidth = 4,
-  pointSize = 6
+  pointSize = 6,
 ): void {
   const { width: patternWidth, height: patternHeight } = patternSize;
 
   if (corners.length !== patternWidth * patternHeight) {
     console.warn(
-      `[drawChessboardCorners] Mismatch between corners length (${corners.length}) and pattern size (${patternWidth}x${patternHeight})`
+      `[drawChessboardCorners] Mismatch between corners length (${corners.length}) and pattern size (${patternWidth}x${patternHeight})`,
     );
     return; // Don't draw if data seems inconsistent
   }
@@ -108,7 +108,7 @@ export const ChessboardOverlay: React.FC<ChessboardOverlayProps> = ({
         patternSize,
         scale,
         lineWidth,
-        pointSize
+        pointSize,
       );
     }
   }, [corners, frameWidth, frameHeight, patternSize, lineWidth, pointSize]);

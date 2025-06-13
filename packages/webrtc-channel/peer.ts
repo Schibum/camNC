@@ -91,7 +91,7 @@ export default class Peer {
           port2.close();
           resolve();
         },
-        { once: true, signal: this.signal }
+        { once: true, signal: this.signal },
       );
     });
     let dataChannelReady = new Promise<void>((resolve) => {
@@ -100,11 +100,11 @@ export default class Peer {
         () => {
           resolve();
         },
-        { once: true, signal: this.signal }
+        { once: true, signal: this.signal },
       );
     });
     this.ready = Promise.all([internalDataChannelReady, dataChannelReady]).then(
-      () => {}
+      () => {},
     );
 
     /* Outbound ICE */
@@ -112,7 +112,7 @@ export default class Peer {
       "icecandidate",
       ({ candidate }) =>
         candidate && this.send({ candidate: candidate.toJSON() }),
-      { signal: this.signal }
+      { signal: this.signal },
     );
 
     /* Abort on ICE failure */
@@ -124,7 +124,7 @@ export default class Peer {
           this.abortCtrl.abort();
         }
       },
-      { signal: this.signal }
+      { signal: this.signal },
     );
 
     /* negotiationneeded */
@@ -141,7 +141,7 @@ export default class Peer {
           this.makingOffer = false;
         }
       },
-      { signal: this.signal }
+      { signal: this.signal },
     );
     this.pc.addEventListener("connectionstatechange", () => {
       log.debug("connectionstatechange", this.pc.connectionState);
@@ -216,7 +216,7 @@ export default class Peer {
       ) {
         log.warn(
           "Ignoring unexpected answer in signalingState=",
-          this.pc.signalingState
+          this.pc.signalingState,
         );
         return;
       }

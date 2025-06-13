@@ -63,7 +63,7 @@ interface CameraSlice {
 
   startCamera: (
     source: MediaStream | string,
-    resolution?: Resolution
+    resolution?: Resolution,
   ) => Promise<void>;
   stopCamera: () => void;
   pauseProcessing: () => Promise<void>;
@@ -137,7 +137,7 @@ function getAspectRatio({ width, height }: Resolution) {
 
 const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
   set,
-  get
+  get,
 ) => ({
   stream: null,
   videoElement: null,
@@ -164,7 +164,7 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
         closeButton: true,
       });
       throw new Error(
-        "Aspect‑ratio mismatch between provided and video element"
+        "Aspect‑ratio mismatch between provided and video element",
       );
     }
     if (maxResolution)
@@ -178,7 +178,7 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
         10,
         10,
         vidRes.width,
-        vidRes.height
+        vidRes.height,
       ),
     });
   },
@@ -208,7 +208,7 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
       () => {
         get().onLoadedMetadata(el, resolution);
       },
-      { once: true }
+      { once: true },
     );
 
     if (typeof source === "string") {
@@ -234,7 +234,7 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
 
       const worker = new Worker(
         new URL("../workers/streamCornerFinder.worker.ts", import.meta.url),
-        { type: "module" }
+        { type: "module" },
       );
       const workerProxy = Comlink.wrap<StreamCornerFinderWorkerAPI>(worker);
 
@@ -243,7 +243,7 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
         // Comlink.transfer(videoStream, []),
         patternSize,
         frameSize,
-        Comlink.proxy(get().onFrameProcessed)
+        Comlink.proxy(get().onFrameProcessed),
       );
 
       await workerProxy.start();
@@ -284,7 +284,7 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
     } catch (error) {
       console.error(
         "[CalibrationStore] Failed to initialize corner worker:",
-        error
+        error,
       );
     } finally {
       resolveStart();
@@ -425,7 +425,7 @@ const createCaptureSlice: StateCreator<
       const blob = await createImageBlob(
         currentFrameImageData,
         "image/jpeg",
-        0.9
+        0.9,
       );
       const id = uuidv4();
       const frame: CapturedFrame = {
@@ -508,7 +508,7 @@ const createCalibrationResultSlice: StateCreator<
         patternSize,
         { width: frameWidth, height: frameHeight },
         squareSize,
-        zeroTangentDist
+        zeroTangentDist,
       );
       const updatedFrames = capturedFrames.map((f, idx) => ({
         ...f,

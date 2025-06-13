@@ -51,12 +51,12 @@ function useOrientation() {
       if (screen?.orientation) {
         screen.orientation.removeEventListener(
           "change",
-          handleOrientationChange
+          handleOrientationChange,
         );
       } else {
         window.removeEventListener(
           "orientationchange",
-          handleOrientationChange
+          handleOrientationChange,
         );
       }
     };

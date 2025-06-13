@@ -16,8 +16,7 @@ function SetupComponent() {
             activeProps={{
               className: 'font-bold border-b-2 border-blue-500',
             }}
-            className="p-2 text-center hover:bg-gray-50"
-          >
+            className="p-2 text-center hover:bg-gray-50">
             Camera URL
           </Link>
           <Link
@@ -25,8 +24,7 @@ function SetupComponent() {
             activeProps={{
               className: 'font-bold border-b-2 border-blue-500',
             }}
-            className="p-2 text-center hover:bg-gray-50"
-          >
+            className="p-2 text-center hover:bg-gray-50">
             Machine Bounds
           </Link>
         </div>

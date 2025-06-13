@@ -21,7 +21,7 @@ export function PageHeader({
     <header
       className={cn(
         "flex h-10 shrink-0 items-center gap-2 z-10 bg-white/80 rounded-br-lg",
-        className
+        className,
       )}
     >
       <div className="flex items-center gap-2 px-4">

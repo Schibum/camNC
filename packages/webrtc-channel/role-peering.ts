@@ -27,7 +27,7 @@ export class RolePeering {
     private readonly roomId: string,
     private readonly selfRole: string,
     private readonly toRole: string,
-    private readonly opts: { maxPeers: number } = { maxPeers: Infinity }
+    private readonly opts: { maxPeers: number } = { maxPeers: Infinity },
   ) {
     this.isInitiator = this.shallBeInitiator();
     log.debug("isInitiator", this.isInitiator);
@@ -60,7 +60,7 @@ export class RolePeering {
         await peer.ready;
         log.debug("sending message to", peerId);
         peer.dataChannel.send(message);
-      })
+      }),
     );
   }
 

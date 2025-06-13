@@ -27,7 +27,7 @@ export class GridHeatmapTracker {
     readonly rows: number,
     readonly cols: number,
     readonly width: number,
-    readonly height: number
+    readonly height: number,
   ) {
     if (rows < 1 || cols < 1) {
       throw new Error("rows & cols must be ≥ 1");

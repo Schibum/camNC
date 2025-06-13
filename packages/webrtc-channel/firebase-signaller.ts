@@ -67,7 +67,7 @@ export class FirebaseSignaller {
     const db = this.initDatabase();
     this._roomRef = child(
       ref(db, this.opts.rootPath ?? "__signaller__"),
-      roomId
+      roomId,
     );
     this._selfRef = child(this._roomRef, this.peerId);
 
@@ -128,7 +128,7 @@ export class FirebaseSignaller {
             peerId: presence.peerId,
             role: presence.role,
           });
-      })
+      }),
     );
   }
 
@@ -164,9 +164,9 @@ export class FirebaseSignaller {
             processMessage(fromPeerId, msgSnap.key!, msgSnap.val());
             // would tre-trigger top onChildAdded if it removes the last item
             // remove(msgSnap.ref).catch(() => void 0);
-          })
+          }),
         );
-      })
+      }),
     );
   }
 

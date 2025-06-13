@@ -31,18 +31,18 @@ export interface VideoSource {
 
 async function withTimeout<T>(
   promise: Promise<T>,
-  timeout: number
+  timeout: number,
 ): Promise<T> {
   return Promise.race<T>([
     promise,
     new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Timeout")), timeout)
+      setTimeout(() => reject(new Error("Timeout")), timeout),
     ),
   ]);
 }
 
 function webtorrentVideoSource(
-  params: WebtorrentConnectionParams
+  params: WebtorrentConnectionParams,
 ): VideoSource {
   let connectPromise = connectTorrent({
     share: params.share,

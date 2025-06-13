@@ -149,7 +149,7 @@ export class FluidncApi {
    */
   private sendRequest(
     message: any,
-    progressCallback?: (progress: number) => void
+    progressCallback?: (progress: number) => void,
   ): Promise<any> {
     message.id = this.generateUniqueId();
     const id = message.id;
@@ -237,7 +237,7 @@ export class FluidncApi {
     content: any,
     path: string,
     filename: string,
-    progressCallback?: (progress: number) => void
+    progressCallback?: (progress: number) => void,
   ): Promise<any> {
     const message = {
       type: "upload",
@@ -264,7 +264,7 @@ export class FluidncApi {
   public async download(
     url: string,
     args?: any,
-    progressCallback?: (progress: number) => void
+    progressCallback?: (progress: number) => void,
   ): Promise<string> {
     const message = {
       type: "download",

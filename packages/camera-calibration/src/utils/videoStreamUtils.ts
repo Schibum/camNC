@@ -12,7 +12,7 @@ import "./media-stream-processor-polyfil";
  */
 export async function urlToMediaStream(
   url: string,
-  resolution?: { width: number; height: number }
+  resolution?: { width: number; height: number },
 ): Promise<MediaStream> {
   // Create a video element to capture the stream
   const video = document.createElement("video");
@@ -29,7 +29,7 @@ export async function urlToMediaStream(
       () => {
         video.play().then(resolve).catch(reject);
       },
-      { once: true }
+      { once: true },
     );
     video.addEventListener("error", reject, { once: true });
   });
@@ -70,7 +70,7 @@ export async function urlToMediaStream(
  * This abstracts the creation of video processors for worker consumption
  */
 export async function createVideoStreamProcessor(
-  source: MediaStream | string
+  source: MediaStream | string,
 ): Promise<ReadableStream<VideoFrame> | MediaStreamTrack> {
   let mediaStream: MediaStream;
   if (typeof source === "string") {
@@ -101,11 +101,11 @@ export async function createVideoStreamProcessor(
  */
 export function attachMediaStreamTrackReplacer(
   mediaStream: MediaStream,
-  workerProxy: Comlink.Remote<StreamCornerFinderWorkerAPI>
+  workerProxy: Comlink.Remote<StreamCornerFinderWorkerAPI>,
 ): () => void {
   if (!isMediaStreamTrackProcessorSupported()) {
     console.warn(
-      "MediaStreamTrackProcessor not supported – cannot attach track replacer"
+      "MediaStreamTrackProcessor not supported – cannot attach track replacer",
     );
     return () => {};
   }
@@ -136,7 +136,7 @@ export function attachMediaStreamTrackReplacer(
         readable = track;
       }
       await workerProxy.replaceStream(
-        Comlink.transfer(readable, [readable]) as any
+        Comlink.transfer(readable, [readable]) as any,
       );
       // Listen for 'ended' on the newly adopted track so we can switch again.
       track.addEventListener("ended", handleEnded, { once: true });

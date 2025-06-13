@@ -22,24 +22,24 @@ function decode(buffer: ArrayBuffer): string {
 export async function cipher(
   share: string,
   pwd: string,
-  nonce?: string
+  nonce?: string,
 ): Promise<CryptoHelper> {
   nonce = nonce || (Date.now() * 1_000_000).toString(36);
   const hashBuffer = await crypto.subtle.digest("SHA-256", encode(share));
   const ivData = await crypto.subtle.digest(
     "SHA-256",
-    encode(share + ":" + nonce)
+    encode(share + ":" + nonce),
   );
   const keyData = await crypto.subtle.digest(
     "SHA-256",
-    encode(nonce + ":" + pwd)
+    encode(nonce + ":" + pwd),
   );
   const key = await crypto.subtle.importKey(
     "raw",
     keyData,
     { name: "AES-GCM" },
     false,
-    ["encrypt", "decrypt"]
+    ["encrypt", "decrypt"],
   );
   return {
     hash: btoa(decode(hashBuffer)),
@@ -52,13 +52,13 @@ export async function cipher(
           additionalData: encode(nonce),
         },
         key,
-        encode(plaintext)
+        encode(plaintext),
       );
       return btoa(decode(ciphertextBuffer));
     },
     decrypt: async (ciphertext: string) => {
       const ciphertextArray = Uint8Array.from(atob(ciphertext), (c) =>
-        c.charCodeAt(0)
+        c.charCodeAt(0),
       );
       const plaintextBuffer = await crypto.subtle.decrypt(
         {
@@ -67,7 +67,7 @@ export async function cipher(
           additionalData: encode(nonce),
         },
         key,
-        ciphertextArray
+        ciphertextArray,
       );
       return decode(plaintextBuffer);
     },

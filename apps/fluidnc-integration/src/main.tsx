@@ -32,6 +32,6 @@ createRoot(document.getElementById("root")!).render(
   // <StrictMode>
   <ThemeProvider defaultTheme="light">
     <RouterProvider router={router} />
-  </ThemeProvider>
+  </ThemeProvider>,
   // </StrictMode>
 );

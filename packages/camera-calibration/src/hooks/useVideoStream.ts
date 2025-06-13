@@ -24,7 +24,7 @@ export function useVideoStream(videoRef: RefObject<HTMLVideoElement | null>) {
           // Log potential errors (e.g., autoplay restrictions)
           console.warn(
             "[useVideoStream] Error attempting to play video:",
-            error
+            error,
           );
         });
       }

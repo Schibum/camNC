@@ -36,21 +36,21 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
       value: controlledValue,
       ...props
     },
-    ref
+    ref,
   ) => {
     const internalRef = useRef<HTMLInputElement>(null); // Create an internal ref
 
     const combinedRef = ref || internalRef; // Use provided ref or internal ref
 
     const [value, setValue] = useState<number | undefined>(
-      controlledValue ?? defaultValue
+      controlledValue ?? defaultValue,
     );
 
     const handleIncrement = useCallback(() => {
       setValue((prev) =>
         prev === undefined
           ? (stepper ?? 1)
-          : Math.min(prev + (stepper ?? 1), max)
+          : Math.min(prev + (stepper ?? 1), max),
       );
     }, [stepper, max]);
 
@@ -58,7 +58,7 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
       setValue((prev) =>
         prev === undefined
           ? -(stepper ?? 1)
-          : Math.max(prev - (stepper ?? 1), min)
+          : Math.max(prev - (stepper ?? 1), min),
       );
     }, [stepper, min]);
 
@@ -159,7 +159,7 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
         </div> */}
       </div>
     );
-  }
+  },
 );
 
 NumberInput.displayName = "NumberInput";

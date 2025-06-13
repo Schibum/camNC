@@ -7,7 +7,7 @@ export function InstructionOverlay() {
 
   // Select needed state individually
   const isAutoCaptureEnabled = useCalibrationStore(
-    (state) => state.isAutoCaptureEnabled
+    (state) => state.isAutoCaptureEnabled,
   );
   const isStreaming = useCalibrationStore((state) => state.isStreaming);
   const frameWidth = useCalibrationStore((state) => state.frameWidth);
@@ -47,7 +47,7 @@ export function InstructionOverlay() {
             {`${patternSize.width}x${patternSize.height} chessboard`}
           </a>{" "}
           to camera
-        </>
+        </>,
       );
       return;
     } else if (rejectedReason === "not_unique") {

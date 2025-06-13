@@ -32,7 +32,7 @@ export type RtcConnectionParams =
   | WebcamConnectionParams;
 
 export function parseConnectionString(
-  connectionString: string
+  connectionString: string,
 ): RtcConnectionParams {
   const url = new URL(connectionString);
   let params = url.searchParams;

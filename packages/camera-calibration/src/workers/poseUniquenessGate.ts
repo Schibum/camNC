@@ -20,7 +20,7 @@ export class PoseUniquenessGate {
 
   constructor(
     readonly pattern: PatternSize,
-    readonly squareSize = 1.0
+    readonly squareSize = 1.0,
   ) {
     this.diag = Math.hypot(pattern.width - 1, pattern.height - 1) * squareSize;
     this.objPts = createObjectPoints(pattern, squareSize); // keep forever
@@ -74,7 +74,7 @@ export class PoseUniquenessGate {
     frameH: number,
     thresh = 180,
     rotWeight = 3,
-    traWeight = 1
+    traWeight = 1,
   ): boolean {
     // Update camera matrix if frame dimensions changed
     this.updateCameraMatrix(frameW, frameH);
@@ -89,7 +89,7 @@ export class PoseUniquenessGate {
       rvec,
       tvec,
       false,
-      (cv2 as any).SOLVEPNP_SQPNP
+      (cv2 as any).SOLVEPNP_SQPNP,
     );
 
     // first ever pose → accept unconditionally

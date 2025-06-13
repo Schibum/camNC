@@ -15,7 +15,7 @@ export class FluidncServer {
   constructor(public readonly accessToken: string) {
     this.peering = new RolePeering(accessToken, "server", "client");
     this.peering.on("peerConnected", ({ peerId, peer }) =>
-      this.onPeerConnected(peerId, peer)
+      this.onPeerConnected(peerId, peer),
     );
   }
 

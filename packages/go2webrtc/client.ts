@@ -39,7 +39,7 @@ const kPreferredCodecs = ["video/H264", "video/VP8", "video/VP9", "video/AV1"];
  * @returns A Promise that resolves with a MediaStream containing the received video.
  */
 export async function connect(
-  options: ConnectOptions
+  options: ConnectOptions,
 ): Promise<{ stream: MediaStream; pc: RTCPeerConnection }> {
   const {
     share,
@@ -186,7 +186,7 @@ async function createPeerConnection(): Promise<{
 
 function setCodecPreferences(
   pc: RTCPeerConnection,
-  preferredCodecMime?: string
+  preferredCodecMime?: string,
 ) {
   function sortByMimeTypes(codecs: RTCRtpCodec[], preferredOrder: string[]) {
     return codecs.sort((a, b) => {
@@ -220,7 +220,7 @@ function setCodecPreferences(
 async function getOffer(
   pc: RTCPeerConnection,
   timeoutMs: number = 5000,
-  debounceMs = 1000
+  debounceMs = 1000,
 ): Promise<string> {
   try {
     const offer = await pc.createOffer();
@@ -237,7 +237,7 @@ async function getOffer(
       return pc.localDescription.sdp;
     } else {
       throw new Error(
-        "Failed to generate offer: No local description found after ICE process."
+        "Failed to generate offer: No local description found after ICE process.",
       );
     }
   } catch (err) {
@@ -261,7 +261,7 @@ async function getOffer(
 function waitForDebouncedIce(
   pc: RTCPeerConnection,
   debounceMs: number,
-  overallTimeoutMs: number
+  overallTimeoutMs: number,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -272,7 +272,7 @@ function waitForDebouncedIce(
       pc.removeEventListener("icecandidate", handleIceCandidate);
       pc.removeEventListener(
         "icegatheringstatechange",
-        handleIceGatheringStateChange
+        handleIceGatheringStateChange,
       );
       if (debounceTimeout) clearTimeout(debounceTimeout);
       if (overallTimeout) clearTimeout(overallTimeout);
@@ -290,7 +290,7 @@ function waitForDebouncedIce(
         ["srflx", "relay"].includes(e.candidate.type)
       ) {
         console.log(
-          "First srflx/relay candidate seen. Starting debounce mechanism."
+          "First srflx/relay candidate seen. Starting debounce mechanism.",
         );
         hasSeenSrflxOrRelay = true;
       }
@@ -310,7 +310,7 @@ function waitForDebouncedIce(
       } else if (!e.candidate) {
         // Null candidate signifies the end marker, but we rely on 'complete' state.
         console.log(
-          "Null candidate received (helper), end of candidates marker."
+          "Null candidate received (helper), end of candidates marker.",
         );
       }
     };
@@ -332,7 +332,7 @@ function waitForDebouncedIce(
     pc.addEventListener("icecandidate", handleIceCandidate);
     pc.addEventListener(
       "icegatheringstatechange",
-      handleIceGatheringStateChange
+      handleIceGatheringStateChange,
     );
 
     // Overall timeout

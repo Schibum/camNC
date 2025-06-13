@@ -10,7 +10,7 @@ export class CalibrateInWorker {
   constructor() {
     this.worker = new Worker(
       new URL("../workers/calibrate.worker.ts", import.meta.url),
-      { type: "module" }
+      { type: "module" },
     );
     this.workerProxy = Comlink.wrap(this.worker);
   }
