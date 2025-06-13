@@ -109,11 +109,11 @@ export function VideoSourceSelection({ value = '', onChange }: { value?: string;
           <TabsTrigger value="webrtc" className="flex-auto whitespace-normal">
             Phone
           </TabsTrigger>
-          <TabsTrigger value="webtorrent" className="flex-auto whitespace-normal">
-            go2rtc (webtorrent)
-          </TabsTrigger>
           <TabsTrigger value="go2rtc" className="flex-auto whitespace-normal">
             go2rtc (local)
+          </TabsTrigger>
+          <TabsTrigger value="webtorrent" className="flex-auto whitespace-normal">
+            go2rtc (webtorrent)
           </TabsTrigger>
           <TabsTrigger value="url" className="flex-auto whitespace-normal">
             URL
@@ -125,11 +125,11 @@ export function VideoSourceSelection({ value = '', onChange }: { value?: string;
         <TabsContent value="webrtc">
           <PhoneTab defaults={webrtcDefaults} onConnect={onConnect} />
         </TabsContent>
-        <TabsContent value="webtorrent">
-          <Go2RtcWebtorrentTab defaults={webtorrentDefaults} onConnect={onConnect} />
-        </TabsContent>
         <TabsContent value="go2rtc">
           <Go2RtcLocalTab defaults={go2rtcDefaults} onConnect={onConnect} />
+        </TabsContent>
+        <TabsContent value="webtorrent">
+          <Go2RtcWebtorrentTab defaults={webtorrentDefaults} onConnect={onConnect} />
         </TabsContent>
         <TabsContent value="url">
           <UrlTab defaults={urlDefaults} onConnect={onConnect} />

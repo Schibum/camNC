@@ -32,12 +32,13 @@ export function Go2RtcLocalTab({
       <CardHeader>
         <CardTitle>go2rtc (local)</CardTitle>
         <CardDescription>
-          Connect directly to a stream provided by{' '}
+          Use any IP camera via{' '}
           <a className="text-blue-500 hover:underline" href="https://github.com/AlexxIT/go2rtc" target="_blank" rel="noreferrer">
             go2rtc
             <ExternalLink className="size-4 inline-block" />
           </a>
-          . Preferred option for lower latency.
+          . Connect directly to go2rtc using the webrtc api. Preferred option for lower connection latency and reliability over webtorrent.
+          For use on iOS, webtorrent is easier to setup though (no need to deal with SSL setup for go2rtc).
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
