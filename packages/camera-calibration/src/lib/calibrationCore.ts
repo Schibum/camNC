@@ -1,10 +1,4 @@
-import {
-  CalibrationResult,
-  CapturedFrame,
-  Corner,
-  CornerMetrics,
-  PatternSize,
-} from "./calibrationTypes";
+import { CalibrationResult, CapturedFrame, Corner, CornerMetrics, PatternSize } from './calibrationTypes';
 
 /**
  * Converts corners from OpenCV format to our simpler format
@@ -26,10 +20,7 @@ export function convertCorners(corners: any): Corner[] {
 /**
  * Creates a set of 3D object points for the calibration pattern
  */
-export function createObjectPoints(
-  patternSize: PatternSize,
-  squareSize: number = 1.0
-): any {
+export function createObjectPoints(patternSize: PatternSize, squareSize: number = 1.0): any {
   const { width, height } = patternSize;
   const numCorners = width * height;
   const cv = self.cv;
@@ -52,7 +43,7 @@ export function createObjectPoints(
  */
 export function calculateCornerMetrics(corners: Corner[]): CornerMetrics {
   if (corners.length === 0) {
-    throw new Error("No corners provided for metrics calculation");
+    throw new Error('No corners provided for metrics calculation');
   }
 
   const numCorners = corners.length;
@@ -108,16 +99,11 @@ export function calculateCornerMetrics(corners: Corner[]): CornerMetrics {
 /**
  * Calculate movement between two corner metrics
  */
-export function calculateMovement(
-  current: CornerMetrics,
-  previous: CornerMetrics
-): number {
+export function calculateMovement(current: CornerMetrics, previous: CornerMetrics): number {
   // Calculate centroid movement
   const centerDiffX = current.centerX - previous.centerX;
   const centerDiffY = current.centerY - previous.centerY;
-  const centerDist = Math.sqrt(
-    centerDiffX * centerDiffX + centerDiffY * centerDiffY
-  );
+  const centerDist = Math.sqrt(centerDiffX * centerDiffX + centerDiffY * centerDiffY);
 
   // We could incorporate other measures like aspect ratio difference, but
   // center distance is the most direct measure of movement
@@ -145,28 +131,21 @@ export function calculateSimilarityScore(
     const existingMetrics = calculateCornerMetrics(capture.corners);
 
     // Calculate normalized distance between centroids
-    const centerDistX =
-      Math.abs(currentMetrics.centerX - existingMetrics.centerX) / frameWidth;
-    const centerDistY =
-      Math.abs(currentMetrics.centerY - existingMetrics.centerY) / frameHeight;
-    const centerDist = Math.sqrt(
-      centerDistX * centerDistX + centerDistY * centerDistY
-    );
+    const centerDistX = Math.abs(currentMetrics.centerX - existingMetrics.centerX) / frameWidth;
+    const centerDistY = Math.abs(currentMetrics.centerY - existingMetrics.centerY) / frameHeight;
+    const centerDist = Math.sqrt(centerDistX * centerDistX + centerDistY * centerDistY);
 
     // Calculate difference in orientation and spread
     const aspectRatioDiff =
       Math.abs(currentMetrics.aspectRatio - existingMetrics.aspectRatio) /
       Math.max(currentMetrics.aspectRatio, existingMetrics.aspectRatio);
 
-    const stdDevDiffX =
-      Math.abs(currentMetrics.stdDevX - existingMetrics.stdDevX) / frameWidth;
-    const stdDevDiffY =
-      Math.abs(currentMetrics.stdDevY - existingMetrics.stdDevY) / frameHeight;
+    const stdDevDiffX = Math.abs(currentMetrics.stdDevX - existingMetrics.stdDevX) / frameWidth;
+    const stdDevDiffY = Math.abs(currentMetrics.stdDevY - existingMetrics.stdDevY) / frameHeight;
     const stdDevDiff = (stdDevDiffX + stdDevDiffY) / 2;
 
     // Combined similarity score (lower is more similar)
-    const similarityScore =
-      centerDist * 0.5 + aspectRatioDiff * 0.3 + stdDevDiff * 0.2;
+    const similarityScore = centerDist * 0.5 + aspectRatioDiff * 0.3 + stdDevDiff * 0.2;
 
     // Track the highest similarity
     if (1 - similarityScore > highestSimilarity) {
@@ -189,13 +168,9 @@ export function calibrateCamera(
   zeroTangentDist = false
 ): CalibrationResult {
   if (capturedFrames.length < 3) {
-    throw new Error("At least 3 frames required for calibration");
+    throw new Error('At least 3 frames required for calibration');
   }
-  console.log(
-    "calibrateCamera: %d frames, zeroTangentDist: %s",
-    capturedFrames.length,
-    zeroTangentDist
-  );
+  console.log('calibrateCamera: %d frames, zeroTangentDist: %s', capturedFrames.length, zeroTangentDist);
 
   const cv = self.cv;
   const imageSize = new cv.Size(frameSize.width, frameSize.height);
@@ -210,7 +185,7 @@ export function calibrateCamera(
     objectPoints.push_back(objp);
   });
 
-  capturedFrames.forEach((frame) => {
+  capturedFrames.forEach(frame => {
     // Convert our corner format back to OpenCV format
     const points = new cv.Mat(frame.corners.length, 1, cv.CV_32FC2);
     frame.corners.forEach((corner, i) => {
@@ -230,11 +205,7 @@ export function calibrateCamera(
   const stdDevExt = new cv.Mat();
   const perViewErrors = new cv.Mat();
 
-  const crit = new cv.TermCriteria(
-    cv.TermCriteria.COUNT + cv.TermCriteria.EPS,
-    30,
-    1e-6
-  );
+  const crit = new cv.TermCriteria(cv.TermCriteria.COUNT + cv.TermCriteria.EPS, 30, 1e-6);
 
   const flags = zeroTangentDist ? cv.CALIB_ZERO_TANGENT_DIST : 0;
   // Calibrate the camera
@@ -254,12 +225,7 @@ export function calibrateCamera(
   );
 
   // Get optimal new camera matrix
-  const newCameraMatrix = cv.getOptimalNewCameraMatrix(
-    cameraMatrix,
-    distCoeffs,
-    imageSize,
-    0.3
-  );
+  const newCameraMatrix = cv.getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 0.3);
 
   // Convert matrices to JS arrays
   const result: CalibrationResult = {
@@ -267,7 +233,7 @@ export function calibrateCamera(
     cameraMatrix: matToArray(cameraMatrix),
     distCoeffs: matToArray(distCoeffs)[0] || [],
     newCameraMatrix: matToArray(newCameraMatrix),
-    perViewErrors: matToArray(perViewErrors).map((row) => row[0]) as number[],
+    perViewErrors: matToArray(perViewErrors).map(row => row[0]) as number[],
   };
 
   // Clean up
@@ -296,9 +262,7 @@ function matToArray(mat: any): number[][] {
   for (let i = 0; i < rows; i++) {
     const row: number[] = [];
     for (let j = 0; j < cols; j++) {
-      const value = mat.data64F
-        ? mat.data64F[i * cols + j]
-        : mat.data32F[i * cols + j];
+      const value = mat.data64F ? mat.data64F[i * cols + j] : mat.data32F[i * cols + j];
       row.push(value);
     }
     result.push(row);

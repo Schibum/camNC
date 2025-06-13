@@ -1,18 +1,16 @@
-import { expose, proxy, wrap } from "comlink";
-import { describe, expect, it } from "vitest";
-import { comlinkMpMiddleware } from "./comlink-mp-middleware";
+import { expose, proxy, wrap } from 'comlink';
+import { describe, expect, it } from 'vitest';
+import { comlinkMpMiddleware } from './comlink-mp-middleware';
 
-describe("Comlink MessagePort middleware", () => {
-  it("round-trips a callback with zero MessagePort transfers", async () => {
+describe('Comlink MessagePort middleware', () => {
+  it('round-trips a callback with zero MessagePort transfers', async () => {
     const { port1, port2 } = new MessageChannel();
 
     //   patch postMessage so test fails if transferables are attempted
     function guard(port: MessagePort) {
       const native = port.postMessage.bind(port);
       port.postMessage = (msg: any, xfer: any = []) => {
-        expect(xfer.length, "postMessage MUST NOT use the transfer list").toBe(
-          0
-        );
+        expect(xfer.length, 'postMessage MUST NOT use the transfer list').toBe(0);
         native(msg);
       };
       return port;
@@ -28,7 +26,7 @@ describe("Comlink MessagePort middleware", () => {
     const remoteImpl = {
       async someFn(cb: (n: number) => void) {
         cb(42);
-        return "done";
+        return 'done';
       },
     };
     expose(remoteImpl, jsonEpB);
@@ -43,7 +41,7 @@ describe("Comlink MessagePort middleware", () => {
       })
     );
 
-    expect(result).toBe("done");
+    expect(result).toBe('done');
     expect(received).toBe(42);
   });
 });

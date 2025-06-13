@@ -27,6 +27,10 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Check formatting
+        run: pnpm run check-format
+      - name: Run linting
+        run: pnpm run lint
       - name: Install Playwright Browsers
         run: pnpm exec playwright install --with-deps chromium #--no-shell
       - name: Run tests

@@ -6,7 +6,7 @@ export interface CryptoHelper {
 }
 
 function encode(str: string): Uint8Array {
-  return Uint8Array.from(str, (c) => c.charCodeAt(0));
+  return Uint8Array.from(str, c => c.charCodeAt(0));
 }
 
 function decode(buffer: ArrayBuffer): string {
@@ -19,35 +19,19 @@ function decode(buffer: ArrayBuffer): string {
  * @param pwd The password.
  * @param nonce Optional nonce.
  */
-export async function cipher(
-  share: string,
-  pwd: string,
-  nonce?: string
-): Promise<CryptoHelper> {
+export async function cipher(share: string, pwd: string, nonce?: string): Promise<CryptoHelper> {
   nonce = nonce || (Date.now() * 1_000_000).toString(36);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", encode(share));
-  const ivData = await crypto.subtle.digest(
-    "SHA-256",
-    encode(share + ":" + nonce)
-  );
-  const keyData = await crypto.subtle.digest(
-    "SHA-256",
-    encode(nonce + ":" + pwd)
-  );
-  const key = await crypto.subtle.importKey(
-    "raw",
-    keyData,
-    { name: "AES-GCM" },
-    false,
-    ["encrypt", "decrypt"]
-  );
+  const hashBuffer = await crypto.subtle.digest('SHA-256', encode(share));
+  const ivData = await crypto.subtle.digest('SHA-256', encode(share + ':' + nonce));
+  const keyData = await crypto.subtle.digest('SHA-256', encode(nonce + ':' + pwd));
+  const key = await crypto.subtle.importKey('raw', keyData, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
   return {
     hash: btoa(decode(hashBuffer)),
     nonce: nonce,
     encrypt: async (plaintext: string) => {
       const ciphertextBuffer = await crypto.subtle.encrypt(
         {
-          name: "AES-GCM",
+          name: 'AES-GCM',
           iv: new Uint8Array(ivData.slice(0, 12)),
           additionalData: encode(nonce),
         },
@@ -57,12 +41,10 @@ export async function cipher(
       return btoa(decode(ciphertextBuffer));
     },
     decrypt: async (ciphertext: string) => {
-      const ciphertextArray = Uint8Array.from(atob(ciphertext), (c) =>
-        c.charCodeAt(0)
-      );
+      const ciphertextArray = Uint8Array.from(atob(ciphertext), c => c.charCodeAt(0));
       const plaintextBuffer = await crypto.subtle.decrypt(
         {
-          name: "AES-GCM",
+          name: 'AES-GCM',
           iv: new Uint8Array(ivData.slice(0, 12)),
           additionalData: encode(nonce),
         },

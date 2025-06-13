@@ -1,8 +1,8 @@
-import { Button } from "@wbcnc/ui/components/button";
-import * as zip from "@zip.js/zip.js";
-import { Save } from "lucide-react";
-import { useState } from "react";
-import { useCalibrationStore } from "../store/calibrationStore";
+import { Button } from '@wbcnc/ui/components/button';
+import * as zip from '@zip.js/zip.js';
+import { Save } from 'lucide-react';
+import { useState } from 'react';
+import { useCalibrationStore } from '../store/calibrationStore';
 
 // Helper function to convert a Blob to a JPEG Blob via Canvas
 // Remove the convertToJpegBlob function as it's no longer needed
@@ -19,7 +19,7 @@ export const SaveFramesButton = () => {
 
   const handleSaveFrames = async () => {
     if (capturedFrames.length === 0) {
-      setError("No frames to save.");
+      setError('No frames to save.');
       return;
     }
 
@@ -31,13 +31,13 @@ export const SaveFramesButton = () => {
 
     try {
       // 1. Create Zip writer
-      zipFileWriter = new zip.BlobWriter("application/zip");
+      zipFileWriter = new zip.BlobWriter('application/zip');
       zipWriter = new zip.ZipWriter(zipFileWriter);
 
       // 2. Iterate and add each frame to the zip
       for (let i = 0; i < capturedFrames.length; i++) {
         const frame = capturedFrames[i]!;
-        const fileName = `frame_${String(i).padStart(2, "0")}.jpg`;
+        const fileName = `frame_${String(i).padStart(2, '0')}.jpg`;
 
         try {
           // Use the blob directly as it is already JPEG
@@ -46,10 +46,7 @@ export const SaveFramesButton = () => {
           // Ensure blob exists before adding
           await zipWriter.add(fileName, new zip.BlobReader(imageBlob));
         } catch (writeError: any) {
-          console.error(
-            `Error adding frame ${i} (${fileName}) to zip:`,
-            writeError
-          );
+          console.error(`Error adding frame ${i} (${fileName}) to zip:`, writeError);
           setError(`Error adding ${fileName} to zip: ${writeError.message}`);
           // Close zip writer if error occurs during add
           if (zipWriter) {
@@ -65,24 +62,24 @@ export const SaveFramesButton = () => {
         const zipBlob = await zipWriter.close();
 
         // Create a download link
-        const link = document.createElement("a");
+        const link = document.createElement('a');
         objectUrl = URL.createObjectURL(zipBlob);
         link.href = objectUrl;
-        link.download = "calibration_frames.zip";
+        link.download = 'calibration_frames.zip';
         document.body.appendChild(link); // Required for Firefox
         link.click();
         document.body.removeChild(link);
 
-        console.log("Frames zip file prepared for download.");
+        console.log('Frames zip file prepared for download.');
       }
     } catch (err: any) {
-      console.error("Error creating zip file or initiating download:", err);
+      console.error('Error creating zip file or initiating download:', err);
       setError(`Failed to create zip file: ${err.message}`);
       // Ensure zip writer is closed even if initialization failed somehow
       if (zipWriter) {
         try {
           await zipWriter.close();
-        } catch (closeErr) {
+        } catch {
           /* Ignore */
         }
       }
@@ -97,13 +94,9 @@ export const SaveFramesButton = () => {
 
   return (
     <div className="flex flex-col items-end">
-      <Button
-        onClick={handleSaveFrames}
-        disabled={isSaving || capturedFrames.length === 0}
-        variant="secondary"
-      >
+      <Button onClick={handleSaveFrames} disabled={isSaving || capturedFrames.length === 0} variant="secondary">
         <Save />
-        {isSaving ? "Saving..." : "Export"}
+        {isSaving ? 'Saving...' : 'Export'}
       </Button>
       {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
     </div>

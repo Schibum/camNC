@@ -1,8 +1,7 @@
 import { PresentCanvas } from '@/scene/PresentCanvas';
 import { useCalibrationData, useCamResolution, useVideoUrl } from '@/store/store';
-import { Text } from '@react-three/drei';
-import { type ThreeElements, useFrame } from '@react-three/fiber';
-import { useEffect, useMemo, useRef } from 'react';
+import { type ThreeElements } from '@react-three/fiber';
+import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { useUnmapTextures } from './CameraShaderMaterial';
 import { useCameraTexture } from './useCameraTexture';
@@ -75,7 +74,7 @@ export function UnskewedVideoMesh({ ...props }: ThreeElements['mesh']) {
       mapYTexture: { value: mapYTexture },
       resolution: { value: new THREE.Vector2(videoDimensions[0], videoDimensions[1]) },
     }),
-    // Empty dependency array - create uniforms only once
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
@@ -98,49 +97,7 @@ export function UnskewedVideoMesh({ ...props }: ThreeElements['mesh']) {
 UnskewedVideoMesh.displayName = 'UnskewedVideoMesh';
 
 export function UnskewedVideoMeshWithLoading() {
-  return (
-    // <Suspense fallback={<AnimatedLoadingMesh />}>
-    <UnskewedVideoMesh />
-    // </Suspense>
-  );
-}
-
-function AnimatedLoadingMesh() {
-  const videoDimensions = useCamResolution();
-  const planeGeometry = useMemo(() => new THREE.PlaneGeometry(videoDimensions[0], videoDimensions[1]), [videoDimensions]);
-  const spinnerRef = useRef<THREE.Mesh>(null!);
-  useFrame(({ clock }) => {
-    if (spinnerRef.current) {
-      const t = clock.getElapsedTime();
-      // rotate around Y so motion is visible from top
-      spinnerRef.current.rotation.y = t;
-      // cycle through hues for a rainbow effect
-      const material = spinnerRef.current.material as THREE.MeshBasicMaterial;
-      material.color.setHSL((t * 0.1) % 1, 0.8, 0.5);
-    }
-  });
-  return (
-    <group>
-      {/* Background plane matching video geometry */}
-      <mesh geometry={planeGeometry}>
-        <meshBasicMaterial color="black" transparent opacity={0.5} />
-      </mesh>
-      {/* Tilted and dynamically colored spinner on top of plane */}
-      <mesh ref={spinnerRef} position={[0, 0, 0.1]} rotation={[Math.PI / 4, 0, 0]}>
-        <torusGeometry
-          args={[Math.min(videoDimensions[0], videoDimensions[1]) * 0.1, Math.min(videoDimensions[0], videoDimensions[1]) * 0.02, 16, 100]}
-        />
-        <meshBasicMaterial color="white" />
-      </mesh>
-      {/* Loading text */}
-      <Text
-        position={[0, -videoDimensions[1] * 0.45, 0.1]}
-        fontSize={Math.min(videoDimensions[0], videoDimensions[1]) * 0.05}
-        color="white">
-        Loading video...
-      </Text>
-    </group>
-  );
+  return <UnskewedVideoMesh />;
 }
 
 // Main component

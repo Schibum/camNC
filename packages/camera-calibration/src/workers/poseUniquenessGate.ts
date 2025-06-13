@@ -1,9 +1,9 @@
 /* ------------------------------------------------------------------
    PoseUniquenessGate  –  keep only frames whose (R,t) differs enough
    ------------------------------------------------------------------ */
-import { cv2 } from "@wbcnc/load-opencv";
-import { createObjectPoints } from "../lib/calibrationCore";
-import { PatternSize } from "../lib/calibrationTypes";
+import { cv2 } from '@wbcnc/load-opencv';
+import { createObjectPoints } from '../lib/calibrationCore';
+import { PatternSize } from '../lib/calibrationTypes';
 
 interface Pose {
   rvec: cv2.Mat;
@@ -28,7 +28,7 @@ export class PoseUniquenessGate {
 
   /** throw away all remembered poses (e.g. between sessions) */
   reset(): void {
-    this.poses.forEach((p) => {
+    this.poses.forEach(p => {
       p.rvec.delete();
       p.tvec.delete();
     });
@@ -50,17 +50,7 @@ export class PoseUniquenessGate {
     if (this.frameW !== frameW || this.frameH !== frameH) {
       this.K?.delete();
       const fGuess = Math.max(frameW, frameH);
-      this.K = cv2.matFromArray(3, 3, cv2.CV_64F, [
-        fGuess,
-        0,
-        frameW / 2,
-        0,
-        fGuess,
-        frameH / 2,
-        0,
-        0,
-        1,
-      ]);
+      this.K = cv2.matFromArray(3, 3, cv2.CV_64F, [fGuess, 0, frameW / 2, 0, fGuess, frameH / 2, 0, 0, 1]);
       this.frameW = frameW;
       this.frameH = frameH;
     }
@@ -68,29 +58,13 @@ export class PoseUniquenessGate {
 
   // returns true  ⇢  frame is sufficiently different & stored
   //   false ⇢  too similar, ignore
-  isUnique(
-    cornersMat: cv2.Mat,
-    frameW: number,
-    frameH: number,
-    thresh = 180,
-    rotWeight = 3,
-    traWeight = 1
-  ): boolean {
+  isUnique(cornersMat: cv2.Mat, frameW: number, frameH: number, thresh = 180, rotWeight = 3, traWeight = 1): boolean {
     // Update camera matrix if frame dimensions changed
     this.updateCameraMatrix(frameW, frameH);
 
     const rvec = new cv2.Mat();
     const tvec = new cv2.Mat();
-    cv2.solvePnP(
-      this.objPts,
-      cornersMat,
-      this.K!,
-      new cv2.Mat(),
-      rvec,
-      tvec,
-      false,
-      (cv2 as any).SOLVEPNP_SQPNP
-    );
+    cv2.solvePnP(this.objPts, cornersMat, this.K!, new cv2.Mat(), rvec, tvec, false, (cv2 as any).SOLVEPNP_SQPNP);
 
     // first ever pose → accept unconditionally
     if (this.poses.length === 0) {

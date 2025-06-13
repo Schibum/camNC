@@ -1,6 +1,6 @@
-import { ensureOpenCvIsLoaded } from "@wbcnc/load-opencv";
-import * as Comlink from "comlink";
-import { calibrateCamera } from "../lib/calibrationCore";
+import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
+import * as Comlink from 'comlink';
+import { calibrateCamera } from '../lib/calibrationCore';
 
 export const api = {
   init: async () => {

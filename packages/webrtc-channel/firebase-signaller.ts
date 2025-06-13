@@ -1,4 +1,4 @@
-import { FirebaseApp } from "firebase/app";
+import { FirebaseApp } from 'firebase/app';
 import {
   child,
   Database,
@@ -12,8 +12,8 @@ import {
   remove,
   serverTimestamp,
   set,
-} from "firebase/database";
-import mitt, { Emitter } from "mitt";
+} from 'firebase/database';
+import mitt, { Emitter } from 'mitt';
 
 export interface FirebaseSignallerOptions {
   /** Pre‑initialised Firebase *App* (browser or Node). */
@@ -31,7 +31,7 @@ export interface PeerInfo {
 
 /** Event map for our small `mitt` bus. */
 type Events = {
-  "peer-joined": PeerInfo;
+  'peer-joined': PeerInfo;
   signal: { from: string; data: unknown };
 };
 
@@ -42,9 +42,9 @@ export class FirebaseSignaller {
   public role?: string;
 
   /* Event API – re‑exported from mitt */
-  public readonly on: Emitter<Events>["on"];
-  public readonly off: Emitter<Events>["off"];
-  public readonly emit: Emitter<Events>["emit"];
+  public readonly on: Emitter<Events>['on'];
+  public readonly off: Emitter<Events>['off'];
+  public readonly emit: Emitter<Events>['emit'];
 
   constructor(private readonly opts: FirebaseSignallerOptions = {}) {
     const bus = mitt<Events>();
@@ -54,21 +54,18 @@ export class FirebaseSignaller {
 
     this.peerId = FirebaseSignaller.generateId();
     // HACK, this seems to prevent connections if set.
-    localStorage.removeItem("firebase:previous_websocket_failure");
+    localStorage.removeItem('firebase:previous_websocket_failure');
   }
 
   /** Join (or create) a room and start signalling. */
-  async join(roomId: string, role = "default"): Promise<void> {
-    if (this._roomRef) throw new Error("This instance already joined a room");
+  async join(roomId: string, role = 'default'): Promise<void> {
+    if (this._roomRef) throw new Error('This instance already joined a room');
 
     this._roomId = roomId;
     this.role = role;
 
     const db = this.initDatabase();
-    this._roomRef = child(
-      ref(db, this.opts.rootPath ?? "__signaller__"),
-      roomId
-    );
+    this._roomRef = child(ref(db, this.opts.rootPath ?? '__signaller__'), roomId);
     this._selfRef = child(this._roomRef, this.peerId);
 
     await remove(this._selfRef).catch(() => void 0); // clear potential leftovers
@@ -84,7 +81,7 @@ export class FirebaseSignaller {
 
   /** Send a WebRTC signal to `targetPeerId`. */
   async sendMessage<T>(targetPeerId: string, data: T): Promise<void> {
-    if (!this._roomRef) throw new Error("join() must be called first");
+    if (!this._roomRef) throw new Error('join() must be called first');
 
     const msgRef = push(child(this._roomRef, `${targetPeerId}/${this.peerId}`));
     onDisconnect(msgRef).remove();
@@ -119,12 +116,12 @@ export class FirebaseSignaller {
     if (!this._roomRef) return;
 
     this._unsubs.push(
-      onChildAdded(this._roomRef, (snap) => {
+      onChildAdded(this._roomRef, snap => {
         if (snap.key === this.peerId) return; // ignore self
 
-        const presence = snap.child("_").val() as PeerInfo | null;
+        const presence = snap.child('_').val() as PeerInfo | null;
         if (presence)
-          this.emit("peer-joined", {
+          this.emit('peer-joined', {
             peerId: presence.peerId,
             role: presence.role,
           });
@@ -145,13 +142,13 @@ export class FirebaseSignaller {
       }
       processed[fromPeerId][key] = true;
 
-      this.emit("signal", { from: fromPeerId, data: val });
+      this.emit('signal', { from: fromPeerId, data: val });
     };
 
     this._unsubs.push(
-      onChildAdded(this._selfRef, (peerDirSnap) => {
+      onChildAdded(this._selfRef, peerDirSnap => {
         const fromPeerId = peerDirSnap.key!;
-        if (fromPeerId === "_") return; // skip presence marker
+        if (fromPeerId === '_') return; // skip presence marker
 
         // Workaround: In some rare cases onChildAdded does not seem to get
         // triggered for existing items.
@@ -160,7 +157,7 @@ export class FirebaseSignaller {
         }
 
         this._unsubs.push(
-          onChildAdded(peerDirSnap.ref, (msgSnap) => {
+          onChildAdded(peerDirSnap.ref, msgSnap => {
             processMessage(fromPeerId, msgSnap.key!, msgSnap.val());
             // would tre-trigger top onChildAdded if it removes the last item
             // remove(msgSnap.ref).catch(() => void 0);
@@ -180,11 +177,10 @@ export class FirebaseSignaller {
 
   /** Generate a cryptographically strong random ID. */
   private static generateId(): string {
-    if (typeof crypto !== "undefined" && "randomUUID" in crypto)
-      return crypto.randomUUID();
+    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
 
     const bytes = new Uint8Array(16);
     self.crypto.getRandomValues(bytes);
-    return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+    return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
   }
 }

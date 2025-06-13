@@ -83,7 +83,11 @@ export function VideoSourceSelection({ value = '', onChange }: { value?: string;
             (mount)
           </a>
           , but it requires running
-          <a href="https://github.com/AlexxIT/go2rtc" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline mx-1">
+          <a
+            href="https://github.com/AlexxIT/go2rtc"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-500 hover:underline mx-1">
             go2rtc
           </a>
           as a gateway, e.g. on a Raspberry&nbsp;Pi&nbsp;Zero.

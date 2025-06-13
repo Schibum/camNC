@@ -1,16 +1,11 @@
-import { AlertDescription, AlertTitle } from "@wbcnc/ui/components/alert";
+import { AlertDescription, AlertTitle } from '@wbcnc/ui/components/alert';
 
-import { Alert } from "@wbcnc/ui/components/alert";
-import { Button } from "@wbcnc/ui/components/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@wbcnc/ui/components/card";
-import { useWakeLock } from "@wbcnc/ui/hooks/use-wakelock";
-import { AlertTriangle } from "lucide-react";
-import { useCameraName } from "./utils";
+import { Alert } from '@wbcnc/ui/components/alert';
+import { Button } from '@wbcnc/ui/components/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@wbcnc/ui/components/card';
+import { useWakeLock } from '@wbcnc/ui/hooks/use-wakelock';
+import { AlertTriangle } from 'lucide-react';
+import { useCameraName } from './utils';
 
 export function ServerCard({ status }: { status: string }) {
   const { wakeLock, requestWakeLock } = useWakeLock();
@@ -19,9 +14,7 @@ export function ServerCard({ status }: { status: string }) {
   return (
     <Card className="w-full max-w-md mx-auto mt-10">
       <CardHeader>
-        <CardTitle className="text-2xl font-bold text-center">
-          WebRTC Camera Stream
-        </CardTitle>
+        <CardTitle className="text-2xl font-bold text-center">WebRTC Camera Stream</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <p>
@@ -36,8 +29,7 @@ export function ServerCard({ status }: { status: string }) {
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Wake Lock Inactive</AlertTitle>
             <AlertDescription>
-              To prevent the screen from turning off during streaming, please
-              activate the wake lock.
+              To prevent the screen from turning off during streaming, please activate the wake lock.
               <Button onClick={requestWakeLock} className="mt-2">
                 Request Wake Lock
               </Button>
