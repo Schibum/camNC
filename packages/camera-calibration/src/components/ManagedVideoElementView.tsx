@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from "react";
-import { useCalibrationStore } from "../store/calibrationStore";
+import React, { useEffect, useRef } from 'react';
+import { useCalibrationStore } from '../store/calibrationStore';
 
 /**
  * A React component that renders the HTMLVideoElement managed by the
@@ -11,7 +11,7 @@ import { useCalibrationStore } from "../store/calibrationStore";
  */
 export const ManagedVideoElementView: React.FC = () => {
   // Get the video element instance from the store
-  const videoElement = useCalibrationStore((state) => state.videoElement);
+  const videoElement = useCalibrationStore(state => state.videoElement);
   // Create a ref for the container div where the video element will be placed
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -20,7 +20,7 @@ export const ManagedVideoElementView: React.FC = () => {
 
     // Ensure the container ref is available
     if (!container) {
-      console.warn("[ManagedVideoView] Container ref not available.");
+      console.warn('[ManagedVideoView] Container ref not available.');
       return;
     }
 
@@ -29,15 +29,13 @@ export const ManagedVideoElementView: React.FC = () => {
       // Check if it's already in the *correct* container. This prevents
       // trying to append it if it's already there (e.g., on re-render).
       if (!container.contains(videoElement)) {
-        console.log(
-          "[ManagedVideoView] Appending video element from store to container.",
-        );
+        console.log('[ManagedVideoView] Appending video element from store to container.');
         // Ensure it's not somewhere else unexpectedly before appending
         videoElement.remove(); // Remove from previous parent, if any
         // Apply styles needed for display within this component
-        videoElement.style.width = "100%";
-        videoElement.style.height = "100%";
-        videoElement.style.objectFit = "contain";
+        videoElement.style.width = '100%';
+        videoElement.style.height = '100%';
+        videoElement.style.objectFit = 'contain';
         // Append the managed video element to our container div
         container.appendChild(videoElement);
         videoElement.play();
@@ -49,9 +47,7 @@ export const ManagedVideoElementView: React.FC = () => {
       // Simple approach: Clear all children if videoElement is null.
       // More robust: Find the specific video element if multiple children could exist.
       if (container.firstChild) {
-        console.log(
-          "[ManagedVideoView] Video element in store is null, removing child from container.",
-        );
+        console.log('[ManagedVideoView] Video element in store is null, removing child from container.');
         // Remove all children - assumes the video was the only child
         while (container.firstChild) {
           container.removeChild(container.firstChild);
@@ -64,9 +60,7 @@ export const ManagedVideoElementView: React.FC = () => {
       if (container && videoElement && container.contains(videoElement)) {
         // When the component unmounts, detach the video element from its container
         // but DO NOT destroy the videoElement itself, as it's managed by the store.
-        console.log(
-          "[ManagedVideoView] Detaching video element from container on unmount.",
-        );
+        console.log('[ManagedVideoView] Detaching video element from container on unmount.');
         container.removeChild(videoElement);
       }
     };

@@ -27,10 +27,10 @@ export class GridHeatmapTracker {
     readonly rows: number,
     readonly cols: number,
     readonly width: number,
-    readonly height: number,
+    readonly height: number
   ) {
     if (rows < 1 || cols < 1) {
-      throw new Error("rows & cols must be ≥ 1");
+      throw new Error('rows & cols must be ≥ 1');
     }
     this.bins = new Uint8Array(rows * cols);
   }
@@ -67,12 +67,12 @@ export class GridHeatmapTracker {
 
   /** true when full coverage */
   isComplete() {
-    return !Array.from(this.bins).some((v) => v === 0);
+    return !Array.from(this.bins).some(v => v === 0);
   }
 }
 
-import { useEffect, useRef } from "react";
-import { useCalibrationStore } from "../store/calibrationStore";
+import { useEffect, useRef } from 'react';
+import { useCalibrationStore } from '../store/calibrationStore';
 
 /**
  * GridHeatmapOverlay
@@ -91,17 +91,17 @@ export interface GridHeatmapOverlayProps {
 
 export function GridHeatmapOverlay() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const tracker = useCalibrationStore((s) => s.heatmapTracker);
-  const tick = useCalibrationStore((s) => s.heatmapTick);
+  const tracker = useCalibrationStore(s => s.heatmapTracker);
+  const tick = useCalibrationStore(s => s.heatmapTick);
   if (!tracker) {
-    throw new Error("No heatmap tracker available");
+    throw new Error('No heatmap tracker available');
   }
   const { bins, rows, cols, width, height } = tracker;
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext('2d');
     if (!ctx) return;
     const dpr = 1; // window.devicePixelRatio || 1;
     // canvas.width = frameW * dpr;

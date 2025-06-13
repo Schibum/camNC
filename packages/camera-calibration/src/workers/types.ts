@@ -1,4 +1,4 @@
-import { Corner } from "../lib/calibrationTypes";
+import { Corner } from '../lib/calibrationTypes';
 
 export interface CornerFinderWorkerInput {
   width: number;
@@ -18,11 +18,9 @@ export interface CornerFinderWorkerOutput {
 // Note: With Comlink, errors are thrown directly rather than returned as part of the response
 // This interface is kept for backward compatibility with existing code that might expect it
 export interface CornerFinderWorkerOutputError {
-  type: "error";
+  type: 'error';
   message: string;
 }
 
 // This type is kept for backward compatibility
-export type CornerFinderWorkerOutputLegacy =
-  | CornerFinderWorkerOutput
-  | CornerFinderWorkerOutputError;
+export type CornerFinderWorkerOutputLegacy = CornerFinderWorkerOutput | CornerFinderWorkerOutputError;

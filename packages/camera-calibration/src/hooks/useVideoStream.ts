@@ -1,5 +1,5 @@
-import { RefObject, useEffect } from "react";
-import { useCalibrationStore } from "../store/calibrationStore";
+import { RefObject, useEffect } from 'react';
+import { useCalibrationStore } from '../store/calibrationStore';
 
 /**
  * Custom hook to connect a MediaStream from the Zustand store to a video element.
@@ -8,7 +8,7 @@ import { useCalibrationStore } from "../store/calibrationStore";
  */
 export function useVideoStream(videoRef: RefObject<HTMLVideoElement | null>) {
   // Subscribe to stream changes in the store
-  const stream = useCalibrationStore((state) => state.stream);
+  const stream = useCalibrationStore(state => state.stream);
 
   useEffect(() => {
     const videoElement = videoRef.current;
@@ -16,22 +16,19 @@ export function useVideoStream(videoRef: RefObject<HTMLVideoElement | null>) {
     if (videoElement && stream) {
       // If the element exists and the stream exists
       if (videoElement.srcObject !== stream) {
-        console.log("[useVideoStream] Attaching stream to video element.");
+        console.log('[useVideoStream] Attaching stream to video element.');
         // Assign the stream from the store to the video element
         videoElement.srcObject = stream;
         // Attempt to play the video
-        videoElement.play().catch((error) => {
+        videoElement.play().catch(error => {
           // Log potential errors (e.g., autoplay restrictions)
-          console.warn(
-            "[useVideoStream] Error attempting to play video:",
-            error,
-          );
+          console.warn('[useVideoStream] Error attempting to play video:', error);
         });
       }
     } else if (videoElement && !stream) {
       // If the element exists but the stream is null (e.g., stopped)
       if (videoElement.srcObject) {
-        console.log("[useVideoStream] Clearing srcObject as stream is null.");
+        console.log('[useVideoStream] Clearing srcObject as stream is null.');
         // Clear the srcObject if the stream is gone
         videoElement.srcObject = null;
       }

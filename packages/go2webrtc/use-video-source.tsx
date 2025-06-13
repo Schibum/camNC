@@ -1,5 +1,5 @@
-import { use, useEffect, useMemo } from "react";
-import { VideoSource, videoSource } from "./video-source";
+import { use, useEffect, useMemo } from 'react';
+import { VideoSource, videoSource } from './video-source';
 
 let keepAliveMs = 5_000; // 5 seconds, tweak to taste
 

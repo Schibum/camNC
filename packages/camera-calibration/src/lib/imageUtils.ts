@@ -8,12 +8,8 @@
  * @param quality Optional image quality.
  * @returns Promise resolving to the Blob or null.
  */
-export function getCanvasBlob(
-  canvas: HTMLCanvasElement,
-  type?: string,
-  quality?: any,
-): Promise<Blob | null> {
-  return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
+export function getCanvasBlob(canvas: HTMLCanvasElement, type?: string, quality?: any): Promise<Blob | null> {
+  return new Promise(resolve => canvas.toBlob(resolve, type, quality));
 }
 
 /**
@@ -24,25 +20,21 @@ export function getCanvasBlob(
  * @returns A Promise resolving to the Blob.
  * @throws Error if creation fails.
  */
-export async function createImageBlob(
-  source: ImageData,
-  type: string = "image/jpeg",
-  quality: number = 0.9,
-): Promise<Blob> {
-  const canvas = document.createElement("canvas");
+export async function createImageBlob(source: ImageData, type: string = 'image/jpeg', quality: number = 0.9): Promise<Blob> {
+  const canvas = document.createElement('canvas');
   const width = source.width;
   const height = source.height;
 
   if (width === 0 || height === 0) {
-    throw new Error("[createImageBlob] Invalid dimensions in ImageData.");
+    throw new Error('[createImageBlob] Invalid dimensions in ImageData.');
   }
 
   canvas.width = width;
   canvas.height = height;
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext('2d');
 
   if (!ctx) {
-    throw new Error("[createImageBlob] Could not get canvas context.");
+    throw new Error('[createImageBlob] Could not get canvas context.');
   }
 
   ctx.putImageData(source, 0, 0);
@@ -51,9 +43,7 @@ export async function createImageBlob(
   const blob = await getCanvasBlob(canvas, type, quality);
 
   if (!blob) {
-    throw new Error(
-      "[createImageBlob] Failed to create blob from canvas (getCanvasBlob returned null).",
-    );
+    throw new Error('[createImageBlob] Failed to create blob from canvas (getCanvasBlob returned null).');
   }
 
   return blob;

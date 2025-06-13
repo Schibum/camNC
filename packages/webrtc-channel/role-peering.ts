@@ -1,8 +1,8 @@
-import mitt, { Emitter } from "mitt";
-import { FirebaseSignaller, PeerInfo } from "./firebase-signaller";
-import Peer from "./peer";
+import mitt, { Emitter } from 'mitt';
+import { FirebaseSignaller, PeerInfo } from './firebase-signaller';
+import Peer from './peer';
 
-import log from "loglevel";
+import log from 'loglevel';
 
 type Events = {
   message: any;
@@ -19,18 +19,18 @@ export class RolePeering {
   private peers = new Map<string, Peer>();
   private readonly isInitiator: boolean;
 
-  public readonly on: Emitter<Events>["on"];
-  public readonly off: Emitter<Events>["off"];
-  public readonly emit: Emitter<Events>["emit"];
+  public readonly on: Emitter<Events>['on'];
+  public readonly off: Emitter<Events>['off'];
+  public readonly emit: Emitter<Events>['emit'];
 
   constructor(
     private readonly roomId: string,
     private readonly selfRole: string,
     private readonly toRole: string,
-    private readonly opts: { maxPeers: number } = { maxPeers: Infinity },
+    private readonly opts: { maxPeers: number } = { maxPeers: Infinity }
   ) {
     this.isInitiator = this.shallBeInitiator();
-    log.debug("isInitiator", this.isInitiator);
+    log.debug('isInitiator', this.isInitiator);
 
     const bus = mitt<Events>();
     this.on = bus.on;
@@ -39,7 +39,7 @@ export class RolePeering {
   }
 
   async destroy() {
-    log.debug("destroying");
+    log.debug('destroying');
     await this.signaller?.disconnect();
     for (const peer of this.peers.values()) {
       peer.destroy();
@@ -47,9 +47,9 @@ export class RolePeering {
   }
 
   async join() {
-    if (this.signaller) throw new Error("Already joined");
+    if (this.signaller) throw new Error('Already joined');
     this.signaller = new FirebaseSignaller();
-    this.signaller.on("peer-joined", (ev) => this.onPeerJoined(ev));
+    this.signaller.on('peer-joined', ev => this.onPeerJoined(ev));
     await this.signaller.join(this.roomId, this.selfRole);
   }
 
@@ -58,63 +58,63 @@ export class RolePeering {
       Array.from(this.peers.entries()).map(async ([peerId, peer]) => {
         if (toPeerId && peerId !== toPeerId) return;
         await peer.ready;
-        log.debug("sending message to", peerId);
+        log.debug('sending message to', peerId);
         peer.dataChannel.send(message);
-      }),
+      })
     );
   }
 
   private onPeerJoined(peerInfo: PeerInfo) {
-    log.debug("onPeerJoined", peerInfo);
+    log.debug('onPeerJoined', peerInfo);
     if (peerInfo.role != this.toRole) return;
     if (this.peers.size >= this.opts.maxPeers) return;
     if (!this.signaller) {
-      log.warn("peer joined, but no signaller, skipping");
+      log.warn('peer joined, but no signaller, skipping');
       return;
     }
     let peer = new Peer({ isInitiator: this.isInitiator });
-    log.debug("adding handlers for signalling");
-    peer.signalingPort.onmessage = (ev) => {
+    log.debug('adding handlers for signalling');
+    peer.signalingPort.onmessage = ev => {
       this.signaller?.sendMessage(peerInfo.peerId, ev.data);
     };
-    this.signaller.on("signal", (ev) => {
+    this.signaller.on('signal', ev => {
       if (ev.from !== peerInfo.peerId) return;
       peer.signalingPort.postMessage(ev.data);
     });
     this.peers.set(peerInfo.peerId, peer);
     peer.ready.then(() => this.onPeerReady(peerInfo.peerId));
-    peer.on("close", () => this.onPeerClosed(peerInfo.peerId));
-    peer.dataChannel.addEventListener("message", (ev) => {
-      log.debug("message from", peerInfo.peerId, ev.data);
-      this.emit("message", ev.data);
+    peer.on('close', () => this.onPeerClosed(peerInfo.peerId));
+    peer.dataChannel.addEventListener('message', ev => {
+      log.debug('message from', peerInfo.peerId, ev.data);
+      this.emit('message', ev.data);
     });
   }
 
   private onPeerClosed(peerId: string) {
-    log.debug("peer closed", peerId);
+    log.debug('peer closed', peerId);
     this.peers.delete(peerId);
     this.autoOpenCloseSignalling();
   }
 
   private onPeerReady(peerId: string) {
     let peer = this.peers.get(peerId);
-    if (!peer) throw new Error("peer not found once ready");
-    log.debug("peer ready", peerId);
+    if (!peer) throw new Error('peer not found once ready');
+    log.debug('peer ready', peerId);
     this.autoOpenCloseSignalling();
-    this.emit("peerConnected", { peerId, peer });
+    this.emit('peerConnected', { peerId, peer });
   }
 
   private async autoOpenCloseSignalling() {
     if (this.peers.size >= this.opts.maxPeers) {
-      log.debug("autoOpenCloseSignalling: closing signalling");
+      log.debug('autoOpenCloseSignalling: closing signalling');
       if (this.signaller) {
         this.signaller.disconnect();
         this.signaller = undefined;
       }
     } else if (!this.signaller) {
-      log.debug("autoOpenCloseSignalling: opening signalling");
+      log.debug('autoOpenCloseSignalling: opening signalling');
       this.signaller = new FirebaseSignaller();
-      this.signaller.on("peer-joined", (ev) => this.onPeerJoined(ev));
+      this.signaller.on('peer-joined', ev => this.onPeerJoined(ev));
       await this.signaller.join(this.roomId, this.selfRole);
     }
   }

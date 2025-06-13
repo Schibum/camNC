@@ -1,6 +1,6 @@
-import * as Comlink from "comlink";
-import { api } from "../workers/calibrate.worker";
-import { CalibrationResult } from "./calibrationTypes";
+import * as Comlink from 'comlink';
+import { api } from '../workers/calibrate.worker';
+import { CalibrationResult } from './calibrationTypes';
 
 export class CalibrateInWorker {
   readonly worker: Worker;
@@ -8,16 +8,11 @@ export class CalibrateInWorker {
   private isInitialized = false;
 
   constructor() {
-    this.worker = new Worker(
-      new URL("../workers/calibrate.worker.ts", import.meta.url),
-      { type: "module" },
-    );
+    this.worker = new Worker(new URL('../workers/calibrate.worker.ts', import.meta.url), { type: 'module' });
     this.workerProxy = Comlink.wrap(this.worker);
   }
 
-  async calibrate(
-    ...opts: Parameters<typeof api.calibrate>
-  ): Promise<CalibrationResult> {
+  async calibrate(...opts: Parameters<typeof api.calibrate>): Promise<CalibrationResult> {
     if (!this.isInitialized) {
       await this.workerProxy.init();
       this.isInitialized = true;

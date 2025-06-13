@@ -1,9 +1,9 @@
-import { cv2, ensureOpenCvIsLoaded } from "@wbcnc/load-opencv";
-import * as Comlink from "comlink";
-import { convertCorners } from "../lib/calibrationCore";
-import { Corner } from "../lib/calibrationTypes";
-import { ensureReadableStream } from "../utils/ensureReadableStream";
-import { PoseUniquenessGate } from "./poseUniquenessGate";
+import { cv2, ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
+import * as Comlink from 'comlink';
+import { convertCorners } from '../lib/calibrationCore';
+import { Corner } from '../lib/calibrationTypes';
+import { ensureReadableStream } from '../utils/ensureReadableStream';
+import { PoseUniquenessGate } from './poseUniquenessGate';
 
 const BOARD_BLUR_THRESH = 80;
 
@@ -11,12 +11,12 @@ export interface FrameCaptureEvent {
   corners: Corner[];
   imageData: ImageData;
   fps: number;
-  result: "capture";
+  result: 'capture';
 }
 
 export interface FrameRejectedEvent {
   corners?: Corner[];
-  result: "blurry" | "not_unique";
+  result: 'blurry' | 'not_unique';
   fps: number;
 }
 
@@ -29,7 +29,7 @@ async function frameToImageData(
   frame: VideoFrame,
   width: number,
   height: number,
-  ctx: OffscreenCanvasRenderingContext2D,
+  ctx: OffscreenCanvasRenderingContext2D
 ): Promise<ImageData> {
   const bitmap = await createImageBitmap(frame);
   ctx.drawImage(bitmap, 0, 0, width, height);
@@ -87,10 +87,7 @@ export class StreamCornerFinderWorker {
     return varLap;
   }
 
-  private _isChessboardBlurry(
-    grayPreview: cv2.Mat,
-    cornersPreview: cv2.Mat,
-  ): boolean {
+  private _isChessboardBlurry(grayPreview: cv2.Mat, cornersPreview: cv2.Mat): boolean {
     const pts = new cv2.Mat();
     cornersPreview.convertTo(pts, cv2.CV_32SC2);
     const hull = new cv2.Mat();
@@ -130,20 +127,16 @@ export class StreamCornerFinderWorker {
     stream: ReadableStream<VideoFrame> | MediaStreamTrack,
     patternSize: { width: number; height: number },
     frameSize: { width: number; height: number },
-    onFrameProcessed: (data: FrameEvent) => void,
+    onFrameProcessed: (data: FrameEvent) => void
   ): Promise<void> {
     if (this.isInitialized) {
-      throw new Error("Worker already initialized");
+      throw new Error('Worker already initialized');
     }
 
     // Initialize OpenCV
     await ensureOpenCvIsLoaded();
 
-    this.criteria = new cv2.TermCriteria(
-      (cv2 as any).TERM_CRITERIA_EPS + (cv2 as any).TERM_CRITERIA_MAX_ITER,
-      30,
-      0.001,
-    );
+    this.criteria = new cv2.TermCriteria((cv2 as any).TERM_CRITERIA_EPS + (cv2 as any).TERM_CRITERIA_MAX_ITER, 30, 0.001);
     this.zeroZone = new cv2.Size(-1, -1);
     this.winSize = new cv2.Size(11, 11);
 
@@ -163,62 +156,57 @@ export class StreamCornerFinderWorker {
     this.poseGate = new PoseUniquenessGate(patternSize, 1.0);
 
     // Set up offscreen canvas for video frame processing
-    this.offscreenCanvas = new OffscreenCanvas(
-      this.frameWidth,
-      this.frameHeight,
-    );
-    this.ctx = this.offscreenCanvas.getContext("2d", {
+    this.offscreenCanvas = new OffscreenCanvas(this.frameWidth, this.frameHeight);
+    this.ctx = this.offscreenCanvas.getContext('2d', {
       willReadFrequently: true,
     });
     if (!this.ctx) {
-      throw new Error("Could not get OffscreenCanvas 2D context");
+      throw new Error('Could not get OffscreenCanvas 2D context');
     }
 
     // Set up stream reader
     this.reader = ensureReadableStream(stream).getReader();
 
     this.isInitialized = true;
-    console.log("[StreamCornerFinderWorker] Initialized successfully");
+    console.log('[StreamCornerFinderWorker] Initialized successfully');
 
     this.onFrameProcessed = onFrameProcessed;
   }
 
   async start(): Promise<void> {
     if (!this.isInitialized || !this.reader) {
-      throw new Error("Worker not initialized");
+      throw new Error('Worker not initialized');
     }
 
     if (this.isProcessing) {
-      console.warn(
-        "[StreamCornerFinderWorker] Already processing, ignoring start request",
-      );
+      console.warn('[StreamCornerFinderWorker] Already processing, ignoring start request');
       return;
     }
 
     this.isProcessing = true;
     this.isPaused = false;
-    console.log("[StreamCornerFinderWorker] Starting processing loop");
+    console.log('[StreamCornerFinderWorker] Starting processing loop');
 
     // Start the processing loop
-    this.processFrameLoop().catch((error) => {
-      console.error("[StreamCornerFinderWorker] Processing loop error:", error);
+    this.processFrameLoop().catch(error => {
+      console.error('[StreamCornerFinderWorker] Processing loop error:', error);
       this.isProcessing = false;
     });
   }
 
   async stop(): Promise<void> {
-    console.log("[StreamCornerFinderWorker] Stopping processing loop");
+    console.log('[StreamCornerFinderWorker] Stopping processing loop');
     this.isProcessing = false;
     this.isPaused = false;
   }
 
   async pause(): Promise<void> {
-    console.log("[StreamCornerFinderWorker] Pausing processing");
+    console.log('[StreamCornerFinderWorker] Pausing processing');
     this.isPaused = true;
   }
 
   async resume(): Promise<void> {
-    console.log("[StreamCornerFinderWorker] Resuming processing");
+    console.log('[StreamCornerFinderWorker] Resuming processing');
     this.isPaused = false;
   }
 
@@ -229,7 +217,7 @@ export class StreamCornerFinderWorker {
         if (this.isPaused) {
           const { value: frame, done } = await this.reader.read();
           if (done || !frame) {
-            console.log("[StreamCornerFinderWorker] Stream ended");
+            console.log('[StreamCornerFinderWorker] Stream ended');
             break;
           }
           // Close the frame without processing to free resources
@@ -239,21 +227,18 @@ export class StreamCornerFinderWorker {
 
         const { value: frame, done } = await this.reader.read();
         if (done || !frame) {
-          console.log("[StreamCornerFinderWorker] Stream ended");
+          console.log('[StreamCornerFinderWorker] Stream ended');
           break;
         }
 
         await this.processFrame(frame);
       } catch (error) {
-        console.error(
-          "[StreamCornerFinderWorker] Error in processing loop:",
-          error,
-        );
+        console.error('[StreamCornerFinderWorker] Error in processing loop:', error);
         // Continue processing on errors to maintain robustness
       }
     }
 
-    console.log("[StreamCornerFinderWorker] Processing loop ended");
+    console.log('[StreamCornerFinderWorker] Processing loop ended');
     this.isProcessing = false;
   }
 
@@ -267,42 +252,25 @@ export class StreamCornerFinderWorker {
     }
     this.lastFrameTime = t0;
 
-    if (
-      !this.ctx ||
-      !this.srcMat ||
-      !this.grayMat ||
-      !this.cornersMatFull ||
-      !this.patternSizeCv ||
-      !this.poseGate
-    ) {
+    if (!this.ctx || !this.srcMat || !this.grayMat || !this.cornersMatFull || !this.patternSizeCv || !this.poseGate) {
       frame.close();
       return;
     }
 
     try {
       // Convert VideoFrame to ImageData
-      const imageData = await frameToImageData(
-        frame,
-        this.frameWidth,
-        this.frameHeight,
-        this.ctx,
-      );
+      const imageData = await frameToImageData(frame, this.frameWidth, this.frameHeight, this.ctx);
 
       // Set up OpenCV matrices
       this.srcMat.data.set(new Uint8ClampedArray(imageData.data));
       cv2.cvtColor(this.srcMat, this.grayMat, cv2.COLOR_RGBA2GRAY);
 
       // Find chessboard corners
-      const found = cv2.findChessboardCornersSB(
-        this.grayMat,
-        this.patternSizeCv,
-        this.cornersMatFull,
-        0,
-      );
+      const found = cv2.findChessboardCornersSB(this.grayMat, this.patternSizeCv, this.cornersMatFull, 0);
 
       if (!found) {
         this.onFrameProcessed!({
-          result: "not_unique",
+          result: 'not_unique',
           fps: this.currentFps,
         });
         return;
@@ -314,39 +282,32 @@ export class StreamCornerFinderWorker {
       if (this._isChessboardBlurry(this.grayMat, this.cornersMatFull)) {
         this.onFrameProcessed!({
           corners,
-          result: "blurry",
+          result: 'blurry',
           fps: this.currentFps,
         });
         return;
       }
 
       // Check uniqueness
-      const isUnique = this.poseGate.isUnique(
-        this.cornersMatFull,
-        this.frameWidth,
-        this.frameHeight,
-      );
+      const isUnique = this.poseGate.isUnique(this.cornersMatFull, this.frameWidth, this.frameHeight);
 
       if (!isUnique) {
         this.onFrameProcessed!({
           corners,
-          result: "not_unique",
+          result: 'not_unique',
           fps: this.currentFps,
         });
         return;
       }
 
       this.onFrameProcessed!({
-        result: "capture",
+        result: 'capture',
         corners,
         imageData,
         fps: this.currentFps,
       });
     } catch (error) {
-      console.error(
-        "[StreamCornerFinderWorker] Error processing frame:",
-        error,
-      );
+      console.error('[StreamCornerFinderWorker] Error processing frame:', error);
     }
   }
 
@@ -354,11 +315,9 @@ export class StreamCornerFinderWorker {
    * Replaces the currently-consumed VideoFrame stream with a new one.
    * It is totally fine if a few frames are missed during the switch.
    */
-  async replaceStream(
-    stream: ReadableStream<VideoFrame> | MediaStreamTrack,
-  ): Promise<void> {
+  async replaceStream(stream: ReadableStream<VideoFrame> | MediaStreamTrack): Promise<void> {
     if (!this.isInitialized) {
-      throw new Error("Worker not initialized – cannot replace stream");
+      throw new Error('Worker not initialized – cannot replace stream');
     }
 
     // Cancel the current reader so any pending read() promises reject.
@@ -374,12 +333,12 @@ export class StreamCornerFinderWorker {
     // iteration it will pick up this.reader and read from the new track.
     this.reader = ensureReadableStream(stream).getReader();
     this.isProcessing = true;
-    this.processFrameLoop().catch((error) => {
-      console.error("[StreamCornerFinderWorker] Processing loop error:", error);
+    this.processFrameLoop().catch(error => {
+      console.error('[StreamCornerFinderWorker] Processing loop error:', error);
       this.isProcessing = false;
     });
 
-    console.log("[StreamCornerFinderWorker] Replaced video stream reader");
+    console.log('[StreamCornerFinderWorker] Replaced video stream reader');
   }
 }
 
@@ -388,5 +347,4 @@ Comlink.expose(worker);
 
 export type StreamCornerFinderWorkerAPI = typeof worker;
 
-(self as any).onerror = (e: ErrorEvent) =>
-  console.error("[StreamCornerFinderWorker] uncaught:", e);
+(self as any).onerror = (e: ErrorEvent) => console.error('[StreamCornerFinderWorker] uncaught:', e);

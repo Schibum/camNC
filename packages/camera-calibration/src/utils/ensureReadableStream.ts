@@ -1,5 +1,5 @@
 // For FF
-import "./media-stream-processor-polyfil";
+import './media-stream-processor-polyfil';
 /// <reference lib="webworker" />
 
 /**
@@ -7,9 +7,7 @@ import "./media-stream-processor-polyfil";
  * @param trackOrReadable - The MediaStreamTrack or ReadableStream<VideoFrame> to convert.
  * @returns A ReadableStream<VideoFrame>.
  */
-export function ensureReadableStream(
-  trackOrReadable: MediaStreamTrack | ReadableStream<VideoFrame>,
-): ReadableStream<VideoFrame> {
+export function ensureReadableStream(trackOrReadable: MediaStreamTrack | ReadableStream<VideoFrame>): ReadableStream<VideoFrame> {
   if (trackOrReadable instanceof ReadableStream) {
     return trackOrReadable;
   } else {

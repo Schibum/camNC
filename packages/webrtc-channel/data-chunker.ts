@@ -33,14 +33,11 @@ const CHUNK_SIZE = 16 * 1024 - HEADER; // 16 KiB minus header
 
 // ----------------------------------------------------------------------------
 export default function createChunkedPort(
-  channel: Pick<
-    RTCDataChannel,
-    "send" | "addEventListener" | "removeEventListener" | "readyState"
-  > & {
+  channel: Pick<RTCDataChannel, 'send' | 'addEventListener' | 'removeEventListener' | 'readyState'> & {
     bufferedAmount?: number;
     bufferedAmountLowThreshold?: number;
   },
-  opts: { chunkSize?: number } = {},
+  opts: { chunkSize?: number } = {}
 ): MessagePort {
   const chunkSize = Math.max(256, opts.chunkSize ?? CHUNK_SIZE);
   let nonce = 0; // uint8 rollover is fine for one tab‑lifetime
@@ -52,7 +49,7 @@ export default function createChunkedPort(
   const { port1: appPort, port2: workerPort } = new MessageChannel();
 
   // -- Outgoing -----------------------------------------------------------
-  workerPort.addEventListener("message", async (e) => {
+  workerPort.addEventListener('message', async e => {
     // console.log("xxmessage", e.data);
     const id = (nonce = (nonce + 1) & 0xff);
     const json = JSON.stringify(e.data);
@@ -69,20 +66,20 @@ export default function createChunkedPort(
 
       // simple back‑pressure – wait for lowThreshold drain if configured
       if (
-        typeof channel.bufferedAmount === "number" &&
-        typeof channel.bufferedAmountLowThreshold === "number" &&
+        typeof channel.bufferedAmount === 'number' &&
+        typeof channel.bufferedAmountLowThreshold === 'number' &&
         channel.bufferedAmount > channel.bufferedAmountLowThreshold
       ) {
-        await new Promise<void>((res) => {
+        await new Promise<void>(res => {
           const h = () => {
-            channel.removeEventListener("bufferedamountlow", h as any);
+            channel.removeEventListener('bufferedamountlow', h as any);
             res();
           };
-          channel.addEventListener("bufferedamountlow", h as any);
+          channel.addEventListener('bufferedamountlow', h as any);
         });
       }
 
-      if (channel.readyState !== "open") {
+      if (channel.readyState !== 'open') {
         // Just ignore, Comlink does send a release event when the channel is already closed
         return;
       }
@@ -93,7 +90,7 @@ export default function createChunkedPort(
   appPort.start();
 
   // -- Incoming -----------------------------------------------------------
-  channel.addEventListener("message", (evt: MessageEvent<ArrayBuffer>) => {
+  channel.addEventListener('message', (evt: MessageEvent<ArrayBuffer>) => {
     // console.log("message", evt.data);
     const data = new Uint8Array(evt.data);
     const id = data[0];
