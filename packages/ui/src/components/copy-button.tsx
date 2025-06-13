@@ -1,7 +1,7 @@
-import { CheckIcon, ClipboardIcon } from "lucide-react";
-import * as React from "react";
+import { CheckIcon, ClipboardIcon } from 'lucide-react';
+import * as React from 'react';
 
-import { Button, ButtonProps } from "@wbcnc/ui/components/button";
+import { Button, ButtonProps } from '@wbcnc/ui/components/button';
 
 export async function copyToClipboardWithMeta(value: string) {
   navigator.clipboard.writeText(value);
@@ -9,15 +9,8 @@ export async function copyToClipboardWithMeta(value: string) {
 
 interface CopyButtonProps extends ButtonProps {
   value: string;
-  src?: string;
 }
-export function CopyButton({
-  value,
-  className,
-  src,
-  variant = "ghost",
-  ...props
-}: CopyButtonProps) {
+export function CopyButton({ value, variant = 'ghost', ...props }: CopyButtonProps) {
   const [hasCopied, setHasCopied] = React.useState(false);
 
   React.useEffect(() => {
@@ -34,8 +27,7 @@ export function CopyButton({
         copyToClipboardWithMeta(value);
         setHasCopied(true);
       }}
-      {...props}
-    >
+      {...props}>
       <span className="sr-only">Copy</span>
       {hasCopied ? <CheckIcon /> : <ClipboardIcon />}
     </Button>

@@ -11,14 +11,14 @@
  * - Returns MessagePort (real or virtual) to Comlink for built-in "proxy" TransferHandler
  */
 
-import type { Endpoint } from "comlink";
+import type { Endpoint } from 'comlink';
 
 /* Comlink’s enum value for “HANDLER” (duplicated here to avoid import soup) */
-const HANDLER = "HANDLER";
+const HANDLER = 'HANDLER';
 
 interface WireProxyValue {
   type: typeof HANDLER;
-  name: "proxy";
+  name: 'proxy';
   value: any; // MessagePort during outbound, Stub during inbound
 }
 
@@ -33,8 +33,7 @@ const genId = () => crypto.randomUUID();
 
 /* The only virtual object we ever instantiate                        */
 class VirtualMessagePort extends EventTarget implements Endpoint {
-  onmessage: ((this: VirtualMessagePort, ev: MessageEvent) => any) | null =
-    null;
+  onmessage: ((this: VirtualMessagePort, ev: MessageEvent) => any) | null = null;
   constructor(
     private readonly tx: (f: PortFrame) => void,
     readonly portId: string
@@ -47,10 +46,10 @@ class VirtualMessagePort extends EventTarget implements Endpoint {
   start() {} // no-op – mirrors real MessagePort
   close() {
     this.tx({ __mpx__: true, portId: this.portId, close: true });
-    this.dispatchEvent(new Event("close"));
+    this.dispatchEvent(new Event('close'));
   }
   /* internal */ _in(d: any) {
-    const ev = new MessageEvent("message", { data: d });
+    const ev = new MessageEvent('message', { data: d });
     this.onmessage?.call(this, ev);
     this.dispatchEvent(ev);
   }
@@ -75,22 +74,15 @@ export function comlinkMpMiddleware(phys: Endpoint): Endpoint {
     /* a) scan argumentList (Comlink only puts ports there) */
     if (Array.isArray(patched.argumentList)) {
       patched.argumentList = patched.argumentList.map((wv: WireProxyValue) => {
-        if (wv.type === HANDLER && wv.name === "proxy") {
+        if (wv.type === HANDLER && wv.name === 'proxy') {
           const port = xfer[xp++] as MessagePort;
           const id = genId();
           portTable.set(id, port);
 
           /* tap outgoing traffic of the *real* MessagePort so that the
              virtual twin on the other side receives it */
-          port.addEventListener("message", (ev) =>
-            phys.postMessage(
-              { __mpx__: true, portId: id, payload: ev.data },
-              []
-            )
-          );
-          port.addEventListener("close", () =>
-            phys.postMessage({ __mpx__: true, portId: id, close: true }, [])
-          );
+          port.addEventListener('message', ev => phys.postMessage({ __mpx__: true, portId: id, payload: ev.data }, []));
+          port.addEventListener('close', () => phys.postMessage({ __mpx__: true, portId: id, close: true }, []));
           port.start?.();
 
           return { ...wv, value: { __stub__: id } }; // JSON-safe stub
@@ -100,11 +92,7 @@ export function comlinkMpMiddleware(phys: Endpoint): Endpoint {
     }
 
     /* b) SET messages carry a single value (rare, but fix it too) */
-    if (
-      patched.type === 1 /* SET */ &&
-      patched.value &&
-      (patched.value as WireProxyValue).type === HANDLER
-    ) {
+    if (patched.type === 1 /* SET */ && patched.value && (patched.value as WireProxyValue).type === HANDLER) {
       const port = xfer[xp++] as MessagePort;
       const id = genId();
       portTable.set(id, port);
@@ -115,8 +103,8 @@ export function comlinkMpMiddleware(phys: Endpoint): Endpoint {
   }
 
   /* -- inbound ---------------------------------------------------- */
-  phys.addEventListener("message", (ev: Event) => {
-    if (!(ev instanceof MessageEvent)) throw new Error("Expected MessageEvent");
+  phys.addEventListener('message', (ev: Event) => {
+    if (!(ev instanceof MessageEvent)) throw new Error('Expected MessageEvent');
     const d = ev.data;
 
     /* 1. mux frames for MessagePort traffic --------------------- */
@@ -125,10 +113,10 @@ export function comlinkMpMiddleware(phys: Endpoint): Endpoint {
       const p = portTable.get(f.portId);
       if (!p) return; // unknown … ignore
       if (f.close) {
-        (p as any).dispatchEvent(new Event("close"));
+        (p as any).dispatchEvent(new Event('close'));
         portTable.delete(f.portId);
       } else {
-        if ("_in" in p) (p as VirtualMessagePort)._in(f.payload);
+        if ('_in' in p) (p as VirtualMessagePort)._in(f.payload);
         else (p as MessagePort).postMessage(f.payload);
       }
       return;
@@ -139,12 +127,12 @@ export function comlinkMpMiddleware(phys: Endpoint): Endpoint {
 
     function revive(wv: any): any {
       if (Array.isArray(wv)) return wv.map(revive);
-      if (wv && typeof wv === "object") {
+      if (wv && typeof wv === 'object') {
         if (wv.__stub__) {
           const id = wv.__stub__ as string;
           let port = portTable.get(id);
           if (!port) {
-            port = new VirtualMessagePort((f) => phys.postMessage(f, []), id);
+            port = new VirtualMessagePort(f => phys.postMessage(f, []), id);
             portTable.set(id, port);
           }
           transferBack.push(port);
@@ -159,7 +147,7 @@ export function comlinkMpMiddleware(phys: Endpoint): Endpoint {
 
     const msgForComlink = revive(d);
     /* forward to the local Comlink actor */
-    const evt = new MessageEvent("message", { data: msgForComlink });
+    const evt = new MessageEvent('message', { data: msgForComlink });
     for (const f of lsn) f(evt);
   });
 

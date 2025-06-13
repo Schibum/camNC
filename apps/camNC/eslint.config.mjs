@@ -1,4 +1,4 @@
-import { config } from "@wbcnc/eslint-config/react-internal";
+import { config as baseConfig } from '@wbcnc/eslint-config/react-internal';
 
-// /** @type {import("eslint").Linter.Config} */
-export default config;
+// /** @type {import("eslint").Linter.FlatConfig[]} */
+export default [...baseConfig];

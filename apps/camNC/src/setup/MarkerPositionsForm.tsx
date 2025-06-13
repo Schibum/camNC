@@ -124,8 +124,8 @@ export function MarkerPositionsForm({ onConfirmed }: { onConfirmed: () => void }
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <Hint title="Marker Placement">
           <p className="mb-1">
-            You need to place 4 markers on or near the wasteboard so they're visible in the camera view. You can do this in either of the
-            following ways:
+            You need to place 4 markers on or near the wasteboard so they&apos;re visible in the camera view. You can do this in either of
+            the following ways:
           </p>
           <ul className="list-disc list-inside space-y-1 ml-4">
             <li>

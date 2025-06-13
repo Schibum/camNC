@@ -3,12 +3,12 @@
 // Also see here: https://esp3d.io/ESP3D/Version_3.X/documentation/api/webhandlers/
 // And here: https://github.com/luc-github/ESP3D-WEBUI/blob/3.0/extensions_samples/API.md
 
-import mitt from "mitt";
+import mitt from 'mitt';
 
 export interface ModalConfig {
   title: string;
   id: string; // e.g. 'simple_modal', 'confirm_modal', etc.
-  style: "default" | "question" | "input" | "fields";
+  style: 'default' | 'question' | 'input' | 'fields';
   bt1Txt?: string;
   response1?: string;
   bt2Txt?: string;
@@ -16,7 +16,7 @@ export interface ModalConfig {
   hideclose?: boolean;
   overlay?: boolean;
   text?: string;
-  validation?: "bt1" | "bt2";
+  validation?: 'bt1' | 'bt2';
   fields?: any[];
 }
 
@@ -73,7 +73,7 @@ export class FluidncApi {
    * @param responseTimeout Timeout in milliseconds to wait for a response (default: 5000 ms)
    */
   constructor(private responseTimeout: number = 5000) {
-    window.addEventListener("message", this.handleMessage.bind(this));
+    window.addEventListener('message', this.handleMessage.bind(this));
   }
 
   /**
@@ -81,7 +81,7 @@ export class FluidncApi {
    */
   private handleMessage(event: MessageEvent): void {
     const message = event.data;
-    if (message.type === "stream") {
+    if (message.type === 'stream') {
       return this.onStreamMessage(message);
     }
     if (!message || !message.id) return;
@@ -95,18 +95,15 @@ export class FluidncApi {
 
     // Check for progress, success, or error status.
     if (responseData.status) {
-      if (responseData.status === "progress") {
-        if (
-          pending.progressCallback &&
-          typeof responseData.progress !== "undefined"
-        ) {
+      if (responseData.status === 'progress') {
+        if (pending.progressCallback && typeof responseData.progress !== 'undefined') {
           pending.progressCallback(Number(responseData.progress));
         }
         // Keep waiting for the final message.
         return;
-      } else if (responseData.status === "success") {
+      } else if (responseData.status === 'success') {
         let data = responseData.response;
-        if (typeof data === "string") {
+        if (typeof data === 'string') {
           try {
             data = JSON.parse(data);
           } catch {
@@ -114,8 +111,8 @@ export class FluidncApi {
           }
         }
         pending.resolve(data);
-      } else if (responseData.status === "error") {
-        pending.reject(responseData.error || "Unknown error");
+      } else if (responseData.status === 'error') {
+        pending.reject(responseData.error || 'Unknown error');
       }
     } else {
       // For responses without a status property (e.g. modal or translation).
@@ -128,17 +125,17 @@ export class FluidncApi {
 
   // Hack to make fix typing with comlink
   public onStream(callback: (message: { content: string }) => void): void {
-    console.warn("onStream", callback);
-    this.events.on("stream", callback);
+    console.warn('onStream', callback);
+    this.events.on('stream', callback);
   }
 
   public offStream(callback: (message: { content: string }) => void): void {
-    this.events.off("stream", callback);
+    this.events.off('stream', callback);
   }
 
   // Just expose stream contents as events.
-  private onStreamMessage(message: { type: "stream"; content: string }): void {
-    this.events.emit("stream", { content: message.content });
+  private onStreamMessage(message: { type: 'stream'; content: string }): void {
+    this.events.emit('stream', { content: message.content });
   }
 
   /**
@@ -147,16 +144,13 @@ export class FluidncApi {
    * @param message The message object.
    * @param progressCallback Optional callback for progress updates.
    */
-  private sendRequest(
-    message: any,
-    progressCallback?: (progress: number) => void
-  ): Promise<any> {
+  private sendRequest(message: any, progressCallback?: (progress: number) => void): Promise<any> {
     message.id = this.generateUniqueId();
     const id = message.id;
     return new Promise<any>((resolve, reject) => {
       const timeout = window.setTimeout(() => {
         FluidncApi.pendingRequests.delete(id);
-        reject(new Error("Timeout waiting for response"));
+        reject(new Error('Timeout waiting for response'));
       }, this.responseTimeout);
       FluidncApi.pendingRequests.set(id, {
         resolve,
@@ -165,7 +159,7 @@ export class FluidncApi {
         progressCallback,
         type: message.type,
       });
-      window.parent.postMessage(message, "*");
+      window.parent.postMessage(message, '*');
     });
   }
 
@@ -176,14 +170,14 @@ export class FluidncApi {
    */
   private sendMessage(message: any): void {
     message.id = this.generateUniqueId();
-    window.parent.postMessage(message, "*");
+    window.parent.postMessage(message, '*');
   }
 
   /**
    * Generates a unique id to correlate requests and responses.
    */
   private generateUniqueId(): string {
-    return "req_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
+    return 'req_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
   }
 
   /* ====================================
@@ -197,10 +191,10 @@ export class FluidncApi {
    * @returns A Promise that resolves with the command response.
    */
   public cmd(content: string): Promise<any> {
-    console.warn("CMD called", content);
+    console.warn('CMD called', content);
     const message = {
-      type: "cmd",
-      target: "webui",
+      type: 'cmd',
+      target: 'webui',
       content,
     };
     return this.sendRequest(message);
@@ -215,8 +209,8 @@ export class FluidncApi {
    */
   public query(url: string, args: any): Promise<any> {
     const message = {
-      type: "query",
-      target: "webui",
+      type: 'query',
+      target: 'webui',
       url,
       args,
     };
@@ -233,23 +227,18 @@ export class FluidncApi {
    * @param progressCallback Optional callback for progress updates.
    * @returns A Promise that resolves with the upload response.
    */
-  public async upload(
-    content: any,
-    path: string,
-    filename: string,
-    progressCallback?: (progress: number) => void
-  ): Promise<any> {
+  public async upload(content: any, path: string, filename: string, progressCallback?: (progress: number) => void): Promise<any> {
     const message = {
-      type: "upload",
-      target: "webui",
-      url: "/upload",
+      type: 'upload',
+      target: 'webui',
+      url: '/upload',
       content,
       size: content.length,
       path,
       filename,
     };
     let res = await this.sendRequest(message, progressCallback);
-    console.warn("upload result", res);
+    console.warn('upload result', res);
     return res;
   }
 
@@ -261,14 +250,10 @@ export class FluidncApi {
    * @param progressCallback Optional callback for progress updates.
    * @returns A Promise that resolves with the downloaded file (e.g. as a blob).
    */
-  public async download(
-    url: string,
-    args?: any,
-    progressCallback?: (progress: number) => void
-  ): Promise<string> {
+  public async download(url: string, args?: any, progressCallback?: (progress: number) => void): Promise<string> {
     const message = {
-      type: "download",
-      target: "webui",
+      type: 'download',
+      target: 'webui',
       url,
       args,
     };
@@ -284,8 +269,8 @@ export class FluidncApi {
    */
   public translate(text: string): Promise<any> {
     const message = {
-      type: "translate",
-      target: "webui",
+      type: 'translate',
+      target: 'webui',
       content: text,
     };
     return this.sendRequest(message);
@@ -298,9 +283,9 @@ export class FluidncApi {
    */
   public translateAll(): Promise<any> {
     const message = {
-      type: "translate",
-      target: "webui",
-      all: "true",
+      type: 'translate',
+      target: 'webui',
+      all: 'true',
     };
     return this.sendRequest(message);
   }
@@ -313,8 +298,8 @@ export class FluidncApi {
    */
   public capabilities(capability: string): Promise<any> {
     const message = {
-      type: "capabilities",
-      target: "webui",
+      type: 'capabilities',
+      target: 'webui',
       // Although the docs use the capability as the id, we auto-generate one.
       // The backend should echo the same id as sent.
       capability,
@@ -330,8 +315,8 @@ export class FluidncApi {
    */
   public saveExtensionSettings(settings: object): Promise<any> {
     const message = {
-      type: "extensionsData",
-      target: "webui",
+      type: 'extensionsData',
+      target: 'webui',
       content: JSON.stringify(settings),
     };
     return this.sendRequest(message);
@@ -345,8 +330,8 @@ export class FluidncApi {
    */
   public icon(iconName: string): Promise<any> {
     const message = {
-      type: "icon",
-      target: "webui",
+      type: 'icon',
+      target: 'webui',
       // Instead of a custom id, the icon name is passed in the message.
       icon: iconName,
     };
@@ -361,8 +346,8 @@ export class FluidncApi {
    */
   public modal(config: ModalConfig): Promise<any> {
     const message = {
-      type: "modal",
-      target: "webui",
+      type: 'modal',
+      target: 'webui',
       content: config,
     };
     return this.sendRequest(message);
@@ -380,8 +365,8 @@ export class FluidncApi {
    */
   public sound(content: string, seq?: Array<{ f: number; d: number }>): void {
     const message: any = {
-      type: "sound",
-      target: "webui",
+      type: 'sound',
+      target: 'webui',
       content,
     };
     if (seq) {
@@ -395,13 +380,10 @@ export class FluidncApi {
    *
    * @param toastContent An object with toast text and type (e.g. { text: "This is a success", type: "success" }).
    */
-  public toast(toastContent: {
-    text: string;
-    type: "success" | "error" | "default";
-  }): void {
+  public toast(toastContent: { text: string; type: 'success' | 'error' | 'default' }): void {
     const message = {
-      type: "toast",
-      target: "webui",
+      type: 'toast',
+      target: 'webui',
       content: toastContent,
     };
     this.sendMessage(message);
@@ -415,8 +397,8 @@ export class FluidncApi {
    */
   public dispatch(content: any, targetId: string): void {
     const message = {
-      type: "dispatch",
-      target: "webui",
+      type: 'dispatch',
+      target: 'webui',
       content,
       targetid: targetId,
     };

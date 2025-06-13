@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     globals: false,
@@ -8,14 +8,14 @@ export default defineConfig({
       screenshotFailures: false,
       enabled: true,
       headless: true,
-      provider: "playwright",
-      instances: [{ browser: "chromium" }],
+      provider: 'playwright',
+      instances: [{ browser: 'chromium' }],
     },
   },
   server: {
     headers: {
-      "Cross-Origin-Opener-Policy": "same-origin",
-      "Cross-Origin-Embedder-Policy": "require-corp",
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
     },
   },
 });

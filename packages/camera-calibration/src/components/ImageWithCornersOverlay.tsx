@@ -15,7 +15,7 @@ export const ImageWithCornersOverlay: React.FC<ImageWithCornersOverlayProps> = (
   corners,
   className = '',
   cornerColor = '#ff00ff',
-  cornerSize = 5
+  cornerSize = 5,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageUrl = useObjectURL(imageBlob);
@@ -55,7 +55,5 @@ export const ImageWithCornersOverlay: React.FC<ImageWithCornersOverlayProps> = (
     return <div className="text-center text-gray-400">Loading image...</div>;
   }
 
-  return (
-    <canvas ref={canvasRef} className={className} />
-  );
+  return <canvas ref={canvasRef} className={className} />;
 };

@@ -1,5 +1,5 @@
-import { FluidncServer } from "@wbcnc/fluidnc-api/fluidnc-server";
-import { useEffect, useState } from "react";
+import { FluidncServer } from '@wbcnc/fluidnc-api/fluidnc-server';
+import { useEffect, useState } from 'react';
 
 export function useFluidncServer(roomId: string) {
   const [server, setServer] = useState<FluidncServer | null>(null);

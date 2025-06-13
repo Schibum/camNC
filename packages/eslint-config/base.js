@@ -1,6 +1,7 @@
 import js from "@eslint/js";
 import eslintConfigPrettier from "eslint-config-prettier";
 import turboPlugin from "eslint-plugin-turbo";
+import { globalIgnores } from "eslint/config";
 import tseslint from "typescript-eslint";
 // @ts-ignore
 import onlyWarn from "eslint-plugin-only-warn";
@@ -30,4 +31,9 @@ export const config = [
   {
     ignores: ["dist/**"],
   },
+  globalIgnores([
+    "src/opencv_js.js",
+    "public/opencv.js",
+    "public/opencv_js.js",
+  ]),
 ];

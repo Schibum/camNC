@@ -1,6 +1,7 @@
 import { connect as connectTorrent } from "./client";
 import { createClient } from "./trystero";
 import { connectGo2RtcWs } from "./go2rtc-ws";
+
 import {
   RtcConnectionParams,
   UrlConnectionParams,
@@ -9,7 +10,7 @@ import {
   WebtorrentConnectionParams,
   Go2rtcConnectionParams,
   parseConnectionString,
-} from "./url-helpers";
+} from './url-helpers';
 
 export interface VideoDimensions {
   width: number;
@@ -46,21 +47,22 @@ async function withTimeout<T>(
 function webtorrentVideoSource(
   params: WebtorrentConnectionParams,
 ): VideoSource {
+
   let connectPromise = connectTorrent({
     share: params.share,
     pwd: params.pwd,
     onStatusUpdate(status) {
-      console.debug("webtorrentVideoSource status", status);
+      console.debug('webtorrentVideoSource status', status);
     },
     onCodecInfo(codec) {
-      console.debug("webtorrentVideoSource codec", codec);
+      console.debug('webtorrentVideoSource codec', codec);
     },
   });
 
   async function dispose() {
     try {
       const { stream, pc } = await connectPromise;
-      stream.getTracks().forEach((track) => track.stop());
+      stream.getTracks().forEach(track => track.stop());
       pc.close();
     } catch (error) {}
   }
@@ -78,8 +80,8 @@ function webrtcVideoSource(params: WebrtcConnectionParams): VideoSource {
   const client = createClient({
     share: params.share,
     pwd: params.pwd,
-    onStateChange: (state) => {
-      console.debug("webrtcVideoSource state", state);
+    onStateChange: state => {
+      console.debug('webrtcVideoSource state', state);
     },
   });
 
@@ -140,7 +142,7 @@ function webcamVideoSource(params: WebcamConnectionParams): VideoSource {
     });
     const videoTrack = stream.getVideoTracks()[0];
     if (!videoTrack) {
-      throw new Error("No video track found");
+      throw new Error('No video track found');
     }
     let maxResolution: VideoDimensions | undefined;
     let width = videoTrack.getSettings().width;
@@ -156,7 +158,7 @@ function webcamVideoSource(params: WebcamConnectionParams): VideoSource {
   async function dispose() {
     try {
       const { src } = await connectedPromise;
-      src.getTracks().forEach((track) => track.stop());
+      src.getTracks().forEach(track => track.stop());
     } catch (error) {}
   }
 
@@ -172,17 +174,17 @@ function webcamVideoSource(params: WebcamConnectionParams): VideoSource {
 export function videoSource(url: string): VideoSource {
   const rtcParams = parseConnectionString(url);
   switch (rtcParams.type) {
-    case "webtorrent":
+    case 'webtorrent':
       return webtorrentVideoSource(rtcParams);
-    case "webrtc":
+    case 'webrtc':
       return webrtcVideoSource(rtcParams);
     case "go2rtc":
       return go2rtcVideoSource(rtcParams);
     case "url":
       return urlVideoSource(rtcParams);
-    case "webcam":
+    case 'webcam':
       return webcamVideoSource(rtcParams);
     default:
-      throw new Error("Unsupported protocol");
+      throw new Error('Unsupported protocol');
   }
 }

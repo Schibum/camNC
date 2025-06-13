@@ -1,10 +1,5 @@
-import { FluidncServer } from "@wbcnc/fluidnc-api/fluidnc-server";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@wbcnc/ui/components/card";
+import { FluidncServer } from '@wbcnc/fluidnc-api/fluidnc-server';
+import { Card, CardContent, CardHeader, CardTitle } from '@wbcnc/ui/components/card';
 
 export function ServerCard({ server }: { server: FluidncServer }) {
   return (
@@ -17,11 +12,8 @@ export function ServerCard({ server }: { server: FluidncServer }) {
           <p className="text-sm text-gray-500">Connection Status</p>
           <span
             className={`inline-block mt-1 px-3 py-1 text-xs font-semibold rounded-full ${
-              server.numConnected.value === 0
-                ? "bg-red-100 text-red-800"
-                : "bg-green-100 text-green-800"
-            }`}
-          >
+              server.numConnected.value === 0 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+            }`}>
             {server.numConnected.value} connected
           </span>
         </div>

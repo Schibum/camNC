@@ -1,9 +1,8 @@
-import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
-import { NumericFormat, NumericFormatProps } from "react-number-format";
-import { Input } from "./input";
+import { forwardRef, useEffect, useRef, useState } from 'react';
+import { NumericFormat, NumericFormatProps } from 'react-number-format';
+import { Input } from './input';
 
-export interface NumberInputProps
-  extends Omit<NumericFormatProps, "value" | "onValueChange"> {
+export interface NumberInputProps extends Omit<NumericFormatProps, 'value' | 'onValueChange'> {
   stepper?: number;
   thousandSeparator?: string;
   placeholder?: string;
@@ -22,7 +21,6 @@ export interface NumberInputProps
 export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
   (
     {
-      stepper,
       thousandSeparator,
       placeholder,
       defaultValue,
@@ -42,15 +40,14 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
 
     const combinedRef = ref || internalRef; // Use provided ref or internal ref
 
-    const [value, setValue] = useState<number | undefined>(
-      controlledValue ?? defaultValue
-    );
+    const [value, setValue] = useState<number | undefined>(controlledValue ?? defaultValue);
 
+    /*
     const handleIncrement = useCallback(() => {
       setValue((prev) =>
         prev === undefined
           ? (stepper ?? 1)
-          : Math.min(prev + (stepper ?? 1), max)
+          : Math.min(prev + (stepper ?? 1), max),
       );
     }, [stepper, max]);
 
@@ -58,9 +55,10 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
       setValue((prev) =>
         prev === undefined
           ? -(stepper ?? 1)
-          : Math.max(prev - (stepper ?? 1), min)
+          : Math.max(prev - (stepper ?? 1), min),
       );
     }, [stepper, min]);
+    */
 
     // useEffect(() => {
     //   const handleKeyDown = (e: KeyboardEvent) => {
@@ -89,12 +87,8 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
       }
     }, [controlledValue]);
 
-    const handleChange = (values: {
-      value: string;
-      floatValue: number | undefined;
-    }) => {
-      const newValue =
-        values.floatValue === undefined ? undefined : values.floatValue;
+    const handleChange = (values: { value: string; floatValue: number | undefined }) => {
+      const newValue = values.floatValue === undefined ? undefined : values.floatValue;
       setValue(newValue);
       if (onValueChange) {
         onValueChange(newValue);
@@ -105,12 +99,10 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
       if (value !== undefined) {
         if (value < min) {
           setValue(min);
-          (ref as React.RefObject<HTMLInputElement>).current!.value =
-            String(min);
+          (ref as React.RefObject<HTMLInputElement>).current!.value = String(min);
         } else if (value > max) {
           setValue(max);
-          (ref as React.RefObject<HTMLInputElement>).current!.value =
-            String(max);
+          (ref as React.RefObject<HTMLInputElement>).current!.value = String(max);
         }
       }
     };
@@ -162,4 +154,4 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
   }
 );
 
-NumberInput.displayName = "NumberInput";
+NumberInput.displayName = 'NumberInput';

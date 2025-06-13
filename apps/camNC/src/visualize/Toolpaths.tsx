@@ -34,6 +34,7 @@ function getZHeightColors(toolpath: ParsedToolpath) {
   return colors;
 }
 
+/*
 function getTimeColors(toolpath: ParsedToolpath) {
   const colors = new Array(toolpath.pathPoints.length * 3);
   for (let i = 0; i < toolpath.pathPoints.length; i++) {
@@ -44,6 +45,7 @@ function getTimeColors(toolpath: ParsedToolpath) {
   }
   return colors;
 }
+*/
 
 export const Toolpaths: React.FC = () => {
   const toolpath = useStore(s => s.toolpath);
@@ -134,8 +136,7 @@ function UseableMachineSpaceOutline() {
   return <Line depthTest={false} renderOrder={1000} points={corners} color="#0cd20c" linewidth={1} dashed dashSize={5} gapSize={5} />;
 }
 
-interface GCodeVisualizerProps {}
-export const GCodeVisualizer: React.FC<GCodeVisualizerProps> = () => {
+export const GCodeVisualizer: React.FC = () => {
   const toolpath = useStore(s => s.toolpath);
   const setIsToolpathSelected = useStore(s => s.setIsToolpathSelected);
   const setIsToolpathHovered = useStore(s => s.setIsToolpathHovered);

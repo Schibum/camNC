@@ -1,20 +1,17 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { zodValidator } from "@tanstack/zod-adapter";
-import { useTrysteroServer } from "@wbcnc/go2webrtc/trystero";
-import { z } from "zod";
-import {
-  PortraitLockButton,
-  PortraitOrientation,
-} from "../portrait-orientation";
-import { ServerCard } from "../server-card";
-import { streamFactory } from "../utils";
+import { createFileRoute } from '@tanstack/react-router';
+import { zodValidator } from '@tanstack/zod-adapter';
+import { useTrysteroServer } from '@wbcnc/go2webrtc/trystero';
+import { z } from 'zod';
+import { PortraitOrientation } from '../portrait-orientation';
+import { ServerCard } from '../server-card';
+import { streamFactory } from '../utils';
 
 const searchSchema = z.object({
-  share: z.string().min(10).catch(""),
-  pwd: z.string().min(10).catch(""),
+  share: z.string().min(10).catch(''),
+  pwd: z.string().min(10).catch(''),
 });
 
-export const Route = createFileRoute("/webrtc-custom")({
+export const Route = createFileRoute('/webrtc-custom')({
   component: RouteComponent,
   validateSearch: zodValidator(searchSchema),
 });

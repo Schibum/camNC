@@ -1,24 +1,13 @@
-import { toast } from "@wbcnc/ui/components/sonner";
-import * as Comlink from "comlink";
-import { v4 as uuidv4 } from "uuid";
-import { create, StateCreator } from "zustand";
-import { GridHeatmapTracker } from "../components/CoverageHeatmap";
-import { CalibrateInWorker } from "../lib/calibrateInWorker";
-import {
-  CalibrationResult,
-  CapturedFrame,
-  Corner,
-  PatternSize,
-} from "../lib/calibrationTypes";
-import { createImageBlob } from "../lib/imageUtils";
-import {
-  attachMediaStreamTrackReplacer,
-  createVideoStreamProcessor,
-} from "../utils/videoStreamUtils";
-import type {
-  FrameEvent,
-  StreamCornerFinderWorkerAPI,
-} from "../workers/streamCornerFinder.worker";
+import { toast } from '@wbcnc/ui/components/sonner';
+import * as Comlink from 'comlink';
+import { v4 as uuidv4 } from 'uuid';
+import { create, StateCreator } from 'zustand';
+import { GridHeatmapTracker } from '../components/CoverageHeatmap';
+import { CalibrateInWorker } from '../lib/calibrateInWorker';
+import { CalibrationResult, CapturedFrame, Corner, PatternSize } from '../lib/calibrationTypes';
+import { createImageBlob } from '../lib/imageUtils';
+import { attachMediaStreamTrackReplacer, createVideoStreamProcessor } from '../utils/videoStreamUtils';
+import type { FrameEvent, StreamCornerFinderWorkerAPI } from '../workers/streamCornerFinder.worker';
 
 // -----------------------------------------------------------------------------
 // Constants
@@ -61,10 +50,7 @@ interface CameraSlice {
   // Flag to indicate a stop was requested during start
   stopRequested: boolean;
 
-  startCamera: (
-    source: MediaStream | string,
-    resolution?: Resolution
-  ) => Promise<void>;
+  startCamera: (source: MediaStream | string, resolution?: Resolution) => Promise<void>;
   stopCamera: () => void;
   pauseProcessing: () => Promise<void>;
   resumeProcessing: () => Promise<void>;
@@ -73,7 +59,7 @@ interface CameraSlice {
   onLoadedMetadata: (el: HTMLVideoElement, maxResolution?: Resolution) => void;
 }
 
-type RejectedReason = "blurry" | "not_unique";
+type RejectedReason = 'blurry' | 'not_unique';
 
 interface ProcessingSlice {
   currentCorners: Corner[] | null;
@@ -115,11 +101,7 @@ interface CalibrationResultSlice {
 // Combined store type
 // -----------------------------------------------------------------------------
 
-type CalibrationState = CameraSlice &
-  ProcessingSlice &
-  CaptureSlice &
-  SettingsSlice &
-  CalibrationResultSlice;
+type CalibrationState = CameraSlice & ProcessingSlice & CaptureSlice & SettingsSlice & CalibrationResultSlice;
 
 // -----------------------------------------------------------------------------
 // Helpers
@@ -135,10 +117,7 @@ function getAspectRatio({ width, height }: Resolution) {
 // Camera slice (unchanged except for import removal)
 // -----------------------------------------------------------------------------
 
-const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
-  set,
-  get
-) => ({
+const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (set, get) => ({
   stream: null,
   videoElement: null,
   frameWidth: 0,
@@ -154,18 +133,13 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
     if (get().stopRequested) return;
 
     const vidRes = { width: el.videoWidth, height: el.videoHeight };
-    if (
-      maxResolution &&
-      getAspectRatio(maxResolution) !== getAspectRatio(vidRes)
-    ) {
-      toast.error("Aspect‑ratio mismatch", {
+    if (maxResolution && getAspectRatio(maxResolution) !== getAspectRatio(vidRes)) {
+      toast.error('Aspect‑ratio mismatch', {
         description: `Expected ${getAspectRatio(maxResolution)}, got ${getAspectRatio(vidRes)}. Make sure to lock device in portrait mode.`,
         duration: Infinity,
         closeButton: true,
       });
-      throw new Error(
-        "Aspect‑ratio mismatch between provided and video element"
-      );
+      throw new Error('Aspect‑ratio mismatch between provided and video element');
     }
     if (maxResolution)
       set({
@@ -174,12 +148,7 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
       });
     else set({ frameWidth: vidRes.width, frameHeight: vidRes.height });
     set({
-      heatmapTracker: new GridHeatmapTracker(
-        10,
-        10,
-        vidRes.width,
-        vidRes.height
-      ),
+      heatmapTracker: new GridHeatmapTracker(10, 10, vidRes.width, vidRes.height),
     });
   },
 
@@ -193,30 +162,30 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
 
     // Create new startPromise and reset stopRequested
     let resolveStart!: () => void;
-    const startPromise = new Promise<void>((res) => {
+    const startPromise = new Promise<void>(res => {
       resolveStart = res;
     });
     set({ startPromise, stopRequested: false });
 
-    const el = document.createElement("video");
+    const el = document.createElement('video');
     el.autoplay = true;
     el.playsInline = true;
     el.muted = true;
 
     el.addEventListener(
-      "loadedmetadata",
+      'loadedmetadata',
       () => {
         get().onLoadedMetadata(el, resolution);
       },
       { once: true }
     );
 
-    if (typeof source === "string") {
+    if (typeof source === 'string') {
       el.src = source;
-      el.crossOrigin = "anonymous";
+      el.crossOrigin = 'anonymous';
     } else {
       if (!source.active || source.getVideoTracks().length === 0) {
-        throw new Error("Invalid MediaStream provided to startCamera");
+        throw new Error('Invalid MediaStream provided to startCamera');
       }
       el.srcObject = source;
     }
@@ -232,10 +201,7 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
 
       const videoStream = await createVideoStreamProcessor(source);
 
-      const worker = new Worker(
-        new URL("../workers/streamCornerFinder.worker.ts", import.meta.url),
-        { type: "module" }
-      );
+      const worker = new Worker(new URL('../workers/streamCornerFinder.worker.ts', import.meta.url), { type: 'module' });
       const workerProxy = Comlink.wrap<StreamCornerFinderWorkerAPI>(worker);
 
       await workerProxy.init(
@@ -255,7 +221,7 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
       }
 
       const cleanup = () => {
-        console.log("[CalibrationStore] Cleaning up corner worker");
+        console.log('[CalibrationStore] Cleaning up corner worker');
         workerProxy.stop().catch(console.error);
         worker.terminate();
         replacerCleanup?.();
@@ -282,10 +248,7 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
         cleanup();
       }
     } catch (error) {
-      console.error(
-        "[CalibrationStore] Failed to initialize corner worker:",
-        error
-      );
+      console.error('[CalibrationStore] Failed to initialize corner worker:', error);
     } finally {
       resolveStart();
       set({ startPromise: null });
@@ -329,9 +292,9 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
     if (cornerWorker) {
       try {
         await cornerWorker.pause();
-        console.log("[CalibrationStore] Processing paused");
+        console.log('[CalibrationStore] Processing paused');
       } catch (error) {
-        console.error("[CalibrationStore] Failed to pause processing:", error);
+        console.error('[CalibrationStore] Failed to pause processing:', error);
       }
     }
   },
@@ -341,9 +304,9 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
     if (cornerWorker) {
       try {
         await cornerWorker.resume();
-        console.log("[CalibrationStore] Processing resumed");
+        console.log('[CalibrationStore] Processing resumed');
       } catch (error) {
-        console.error("[CalibrationStore] Failed to resume processing:", error);
+        console.error('[CalibrationStore] Failed to resume processing:', error);
       }
     }
   },
@@ -356,12 +319,7 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
 });
 
 // Processing slice
-const createProcessingSlice: StateCreator<
-  CalibrationState,
-  [],
-  [],
-  ProcessingSlice
-> = (set, get) => ({
+const createProcessingSlice: StateCreator<CalibrationState, [], [], ProcessingSlice> = (set, get) => ({
   currentCorners: null,
   currentFrameImageData: null,
   detectionFps: 0,
@@ -369,7 +327,7 @@ const createProcessingSlice: StateCreator<
   heatmapTick: 0,
   rejectedReason: null,
   onFrameProcessed: (data: FrameEvent) => {
-    if (data.result === "capture") {
+    if (data.result === 'capture') {
       set({
         currentCorners: data.corners,
         currentFrameImageData: data.imageData,
@@ -379,7 +337,7 @@ const createProcessingSlice: StateCreator<
       if (get().isAutoCaptureEnabled) {
         get()
           .captureFrame()
-          .catch((e) => console.error("Auto‑capture failed", e));
+          .catch(e => console.error('Auto‑capture failed', e));
       }
     } else {
       set({
@@ -394,12 +352,7 @@ const createProcessingSlice: StateCreator<
 
 // Capture slice (unchanged except for uniqueness reset after delete)
 
-const createCaptureSlice: StateCreator<
-  CalibrationState,
-  [],
-  [],
-  CaptureSlice
-> = (set, get) => ({
+const createCaptureSlice: StateCreator<CalibrationState, [], [], CaptureSlice> = (set, get) => ({
   capturedFrames: [],
   selectedFrameId: null,
   showGallery: false,
@@ -407,26 +360,22 @@ const createCaptureSlice: StateCreator<
   captureFrame: async () => {
     const { currentCorners, currentFrameImageData, heatmapTracker } = get();
     if (!currentCorners) {
-      toast.warning("No chessboard detected to capture", {
-        id: "no-chessboard-detected",
+      toast.warning('No chessboard detected to capture', {
+        id: 'no-chessboard-detected',
       });
       return;
     }
     if (!currentFrameImageData) {
-      throw new Error("No ImageData available for capture");
+      throw new Error('No ImageData available for capture');
     }
     if (!heatmapTracker) {
-      throw new Error("No heatmap tracker available for capture");
+      throw new Error('No heatmap tracker available for capture');
     }
     heatmapTracker.addCorners(currentCorners);
     set({ heatmapTick: get().heatmapTick + 1 });
 
     try {
-      const blob = await createImageBlob(
-        currentFrameImageData,
-        "image/jpeg",
-        0.9
-      );
+      const blob = await createImageBlob(currentFrameImageData, 'image/jpeg', 0.9);
       const id = uuidv4();
       const frame: CapturedFrame = {
         id,
@@ -434,39 +383,33 @@ const createCaptureSlice: StateCreator<
         corners: currentCorners,
         timestamp: Date.now(),
       };
-      set((s) => ({
+      set(s => ({
         capturedFrames: [...s.capturedFrames, frame],
       }));
       return id;
     } catch (err) {
-      console.error("Error creating image blob", err);
+      console.error('Error creating image blob', err);
     }
   },
 
-  deleteFrame: (id) =>
-    set((state) => ({
-      capturedFrames: state.capturedFrames.filter((f) => f.id !== id),
-      selectedFrameId:
-        state.selectedFrameId === id ? null : state.selectedFrameId,
+  deleteFrame: id =>
+    set(state => ({
+      capturedFrames: state.capturedFrames.filter(f => f.id !== id),
+      selectedFrameId: state.selectedFrameId === id ? null : state.selectedFrameId,
     })),
 
-  setShowGallery: (show) => set({ showGallery: show }),
-  setSelectedFrame: (id) => set({ selectedFrameId: id }),
+  setShowGallery: show => set({ showGallery: show }),
+  setSelectedFrame: id => set({ selectedFrameId: id }),
 });
 
 // Settings slice
-const createSettingsSlice: StateCreator<
-  CalibrationState,
-  [],
-  [],
-  SettingsSlice
-> = (set) => ({
+const createSettingsSlice: StateCreator<CalibrationState, [], [], SettingsSlice> = set => ({
   patternSize: { width: 9, height: 6 },
   squareSize: 1.0,
   isAutoCaptureEnabled: true,
   zeroTangentDist: false,
-  initializeSettings: (s) =>
-    set((st) => ({
+  initializeSettings: s =>
+    set(st => ({
       patternSize: s.patternSize ?? st.patternSize,
       squareSize: s.squareSize ?? st.squareSize,
       isAutoCaptureEnabled: s.autoCapture ?? st.isAutoCaptureEnabled,
@@ -475,41 +418,23 @@ const createSettingsSlice: StateCreator<
 });
 
 // Calibration‑result slice
-const createCalibrationResultSlice: StateCreator<
-  CalibrationState,
-  [],
-  [],
-  CalibrationResultSlice
-> = (set, get) => ({
+const createCalibrationResultSlice: StateCreator<CalibrationState, [], [], CalibrationResultSlice> = (set, get) => ({
   calibrationResult: null,
   isCalibrating: false,
   runCalibration: async () => {
-    const {
-      capturedFrames,
-      patternSize,
-      frameWidth,
-      frameHeight,
-      squareSize,
-      zeroTangentDist,
-    } = get();
-    const frames = capturedFrames.map((f) => ({
+    const { capturedFrames, patternSize, frameWidth, frameHeight, squareSize, zeroTangentDist } = get();
+    const frames = capturedFrames.map(f => ({
       ...f,
       // Blob not needed for calibration, don't sent to worker
       imageBlob: null,
     }));
     if (frames.length < 3) {
-      throw new Error("At least 3 valid frames required for calibration");
+      throw new Error('At least 3 valid frames required for calibration');
     }
     set({ isCalibrating: true });
     const worker = new CalibrateInWorker();
     try {
-      const result = await worker.calibrate(
-        frames,
-        patternSize,
-        { width: frameWidth, height: frameHeight },
-        squareSize,
-        zeroTangentDist
-      );
+      const result = await worker.calibrate(frames, patternSize, { width: frameWidth, height: frameHeight }, squareSize, zeroTangentDist);
       const updatedFrames = capturedFrames.map((f, idx) => ({
         ...f,
         perViewError: result.perViewErrors[idx],
@@ -521,8 +446,7 @@ const createCalibrationResultSlice: StateCreator<
     }
   },
 
-  resetCalibration: () =>
-    set({ capturedFrames: [], selectedFrameId: null, calibrationResult: null }),
+  resetCalibration: () => set({ capturedFrames: [], selectedFrameId: null, calibrationResult: null }),
 });
 
 // -----------------------------------------------------------------------------

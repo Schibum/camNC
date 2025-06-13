@@ -20,8 +20,8 @@ export const ManagedVideoElementView: React.FC = () => {
 
     // Ensure the container ref is available
     if (!container) {
-        console.warn('[ManagedVideoView] Container ref not available.');
-        return;
+      console.warn('[ManagedVideoView] Container ref not available.');
+      return;
     }
 
     if (videoElement) {
@@ -29,16 +29,16 @@ export const ManagedVideoElementView: React.FC = () => {
       // Check if it's already in the *correct* container. This prevents
       // trying to append it if it's already there (e.g., on re-render).
       if (!container.contains(videoElement)) {
-          console.log('[ManagedVideoView] Appending video element from store to container.');
-          // Ensure it's not somewhere else unexpectedly before appending
-          videoElement.remove(); // Remove from previous parent, if any
-          // Apply styles needed for display within this component
-          videoElement.style.width = '100%';
-          videoElement.style.height = '100%';
-          videoElement.style.objectFit = 'contain';
-          // Append the managed video element to our container div
-          container.appendChild(videoElement);
-          videoElement.play();
+        console.log('[ManagedVideoView] Appending video element from store to container.');
+        // Ensure it's not somewhere else unexpectedly before appending
+        videoElement.remove(); // Remove from previous parent, if any
+        // Apply styles needed for display within this component
+        videoElement.style.width = '100%';
+        videoElement.style.height = '100%';
+        videoElement.style.objectFit = 'contain';
+        // Append the managed video element to our container div
+        container.appendChild(videoElement);
+        videoElement.play();
       }
     } else {
       // If the video element in the store is null (e.g., camera stopped):
@@ -47,22 +47,21 @@ export const ManagedVideoElementView: React.FC = () => {
       // Simple approach: Clear all children if videoElement is null.
       // More robust: Find the specific video element if multiple children could exist.
       if (container.firstChild) {
-           console.log('[ManagedVideoView] Video element in store is null, removing child from container.');
-           // Remove all children - assumes the video was the only child
-           while (container.firstChild) {
-               container.removeChild(container.firstChild);
-           }
+        console.log('[ManagedVideoView] Video element in store is null, removing child from container.');
+        // Remove all children - assumes the video was the only child
+        while (container.firstChild) {
+          container.removeChild(container.firstChild);
+        }
       }
     }
 
     // Cleanup function for when the component unmounts
     return () => {
-      const currentContainer = containerRef.current; // Capture ref value
-      if (currentContainer && videoElement && currentContainer.contains(videoElement)) {
+      if (container && videoElement && container.contains(videoElement)) {
         // When the component unmounts, detach the video element from its container
         // but DO NOT destroy the videoElement itself, as it's managed by the store.
         console.log('[ManagedVideoView] Detaching video element from container on unmount.');
-        currentContainer.removeChild(videoElement);
+        container.removeChild(videoElement);
       }
     };
     // Re-run the effect if the videoElement instance in the store changes
@@ -70,9 +69,9 @@ export const ManagedVideoElementView: React.FC = () => {
 
   // Render the container div, the video element will be added imperatively by the useEffect
   return (
-      <div
-          ref={containerRef}
-          className="managed-video-container w-full h-full bg-black" // Use Tailwind classes
-      />
+    <div
+      ref={containerRef}
+      className="managed-video-container w-full h-full bg-black" // Use Tailwind classes
+    />
   );
 };

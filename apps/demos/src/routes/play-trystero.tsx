@@ -1,37 +1,35 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { ClientState, useTrysteroClient } from "@wbcnc/go2webrtc/trystero";
-import { LoadingSpinner } from "@wbcnc/ui/components/loading-spinner";
-import { useEffect, useRef } from "react";
+import { createFileRoute } from '@tanstack/react-router';
+import { ClientState, useTrysteroClient } from '@wbcnc/go2webrtc/trystero';
+import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
+import { useEffect, useRef } from 'react';
 
-export const Route = createFileRoute("/play-trystero")({
+export const Route = createFileRoute('/play-trystero')({
   component: RouteComponent,
 });
 
 function RouteComponent() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const { clientState, stream } = useTrysteroClient({
-    share: "test",
-    pwd: "test",
+    share: 'test',
+    pwd: 'test',
   });
 
   // Connect the stream to the video element when it's available
   useEffect(() => {
     if (videoRef.current && stream) {
       videoRef.current.srcObject = stream;
-      videoRef.current
-        .play()
-        .catch((err) => console.error("Failed to play video:", err));
+      videoRef.current.play().catch(err => console.error('Failed to play video:', err));
 
       // Set up event listeners for debugging
-      stream.addEventListener("removetrack", () => {
-        console.log("track removed");
+      stream.addEventListener('removetrack', () => {
+        console.log('track removed');
       });
-      stream.getTracks().forEach((track) => {
-        track.addEventListener("mute", () => {
-          console.log("track muted");
+      stream.getTracks().forEach(track => {
+        track.addEventListener('mute', () => {
+          console.log('track muted');
         });
-        track.addEventListener("ended", () => {
-          console.log("track ended");
+        track.addEventListener('ended', () => {
+          console.log('track ended');
         });
       });
     }

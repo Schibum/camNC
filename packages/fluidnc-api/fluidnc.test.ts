@@ -1,18 +1,18 @@
-import { initFbApp } from "@wbcnc/public-config/firebase";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { FluidncClient } from "./fluidnc-client";
-import { FluidncServer } from "./fluidnc-server";
+import { initFbApp } from '@wbcnc/public-config/firebase';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { FluidncClient } from './fluidnc-client';
+import { FluidncServer } from './fluidnc-server';
 
 /// log.setDefaultLevel(log.levels.TRACE);
 
 let apiMock = { cmd: vi.fn() };
-vi.mock("./fluidnc-api", () => {
+vi.mock('./fluidnc-api', () => {
   return {
     FluidncApi: vi.fn(() => apiMock),
   };
 });
 
-describe("FluidNcClient ↔ FluidNcServer integration", () => {
+describe('FluidNcClient ↔ FluidNcServer integration', () => {
   beforeAll(() => {
     initFbApp();
   });
@@ -20,7 +20,7 @@ describe("FluidNcClient ↔ FluidNcServer integration", () => {
     vi.clearAllMocks();
   });
 
-  it("will route client.cmd(...) through Comlink to Server.fluidApi.cmd", async () => {
+  it('will route client.cmd(...) through Comlink to Server.fluidApi.cmd', async () => {
     const roomId = crypto.randomUUID();
     const client = new FluidncClient(roomId);
     const server = new FluidncServer(roomId);
@@ -34,11 +34,11 @@ describe("FluidNcClient ↔ FluidNcServer integration", () => {
     await vi.waitUntil(() => server.numConnected.value === 1);
     await vi.waitUntil(() => client.api);
 
-    apiMock.cmd.mockReturnValue("treturn");
-    expect(await client.api!.cmd("cmd1")).toEqual("treturn");
-    expect(apiMock.cmd).toHaveBeenCalledWith("cmd1");
-    await client.api!.cmd("cmd2");
-    expect(apiMock.cmd).toHaveBeenCalledWith("cmd2");
+    apiMock.cmd.mockReturnValue('treturn');
+    expect(await client.api!.cmd('cmd1')).toEqual('treturn');
+    expect(apiMock.cmd).toHaveBeenCalledWith('cmd1');
+    await client.api!.cmd('cmd2');
+    expect(apiMock.cmd).toHaveBeenCalledWith('cmd2');
     expect(apiMock.cmd).toHaveBeenCalledTimes(2);
   });
 });

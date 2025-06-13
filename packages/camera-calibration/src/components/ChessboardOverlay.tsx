@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
-import { Corner, PatternSize } from "../lib/calibrationTypes";
+/* eslint-disable react-refresh/only-export-components */
+import { useEffect, useRef } from 'react';
+import { Corner, PatternSize } from '../lib/calibrationTypes';
 
 /**
  * Draws chessboard corners and connecting lines onto a canvas context.
@@ -28,9 +29,9 @@ export function drawChessboardCorners(
     return; // Don't draw if data seems inconsistent
   }
 
-  ctx.strokeStyle = "lightgreen";
+  ctx.strokeStyle = 'lightgreen';
   ctx.lineWidth = lineWidth;
-  ctx.fillStyle = "hotpink";
+  ctx.fillStyle = 'hotpink';
 
   // Draw lines horizontally
   for (let row = 0; row < patternHeight; row++) {
@@ -61,7 +62,7 @@ export function drawChessboardCorners(
   }
 
   // Draw corner points
-  corners.forEach((corner) => {
+  corners.forEach(corner => {
     ctx.beginPath();
     ctx.arc(corner.x * scale, corner.y * scale, pointSize, 0, 2 * Math.PI);
     ctx.fill();
@@ -89,11 +90,10 @@ export const ChessboardOverlay: React.FC<ChessboardOverlayProps> = ({
 
   // Effect to draw corners onto the canvas when they update
   useEffect(() => {
-    if (!canvasRef.current || !frameWidth || !frameHeight || !patternSize)
-      return;
+    if (!canvasRef.current || !frameWidth || !frameHeight || !patternSize) return;
 
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     // Clear canvas before drawing
@@ -102,14 +102,7 @@ export const ChessboardOverlay: React.FC<ChessboardOverlayProps> = ({
     // Draw corners if they exist
     if (corners && corners.length > 0) {
       const scale = canvas.width / frameWidth;
-      drawChessboardCorners(
-        ctx,
-        corners,
-        patternSize,
-        scale,
-        lineWidth,
-        pointSize
-      );
+      drawChessboardCorners(ctx, corners, patternSize, scale, lineWidth, pointSize);
     }
   }, [corners, frameWidth, frameHeight, patternSize, lineWidth, pointSize]);
 

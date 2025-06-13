@@ -1,4 +1,4 @@
-import { cipher, CryptoHelper } from "./cipher";
+import { cipher, CryptoHelper } from './cipher';
 
 export interface ServerOptions {
   share: string;
@@ -20,16 +20,16 @@ interface TrackerMessageBase {
 }
 
 interface TrackerAnnounceRequest extends TrackerMessageBase {
-  action: "announce";
+  action: 'announce';
   numwant: number;
   uploaded?: number;
   downloaded?: number;
   left?: number;
-  event?: "started" | "stopped" | "completed";
+  event?: 'started' | 'stopped' | 'completed';
 }
 
 interface TrackerAnnounceResponse extends TrackerMessageBase {
-  action: "announce";
+  action: 'announce';
   interval?: number;
   complete?: number;
   incomplete?: number;
@@ -47,26 +47,26 @@ interface TrackerOfferMessage {
 }
 
 interface TrackerAnswerMessage extends TrackerMessageBase {
-  action: "announce";
+  action: 'announce';
   to_peer_id: string;
   offer_id: string;
   answer: {
-    type: "answer";
+    type: 'answer';
     sdp: string;
   };
 }
 
 interface TrackerOfferDetails {
-  type: "offer";
+  type: 'offer';
   sdp: string;
 }
 
 async function calculateInfoHash(share: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(share);
-  const hashBuffer = await window.crypto.subtle.digest("SHA-256", data);
+  const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashString = hashArray.map((b) => String.fromCharCode(b)).join("");
+  const hashString = hashArray.map(b => String.fromCharCode(b)).join('');
   return btoa(hashString);
 }
 
@@ -75,17 +75,15 @@ export class PersistentWebRTCServer {
   private options: Required<ServerOptions>;
   private trackerWs: WebSocket | null = null;
   private peerConnections: Map<string, RTCPeerConnection> = new Map();
-  private infoHash: string = "";
-  private peerId: string = "";
+  private infoHash: string = '';
+  private peerId: string = '';
   private trackerReconnectTimerId: any = null;
   private trackerAnnounceTimerId: any = null;
   private currentReconnectDelay: number;
   private isRunning: boolean = false;
 
-  private static readonly DEFAULT_TRACKER = "wss://tracker.openwebtorrent.com/";
-  private static readonly DEFAULT_ICE_SERVERS = [
-    { urls: "stun:stun.l.google.com:19302" },
-  ];
+  private static readonly DEFAULT_TRACKER = 'wss://tracker.openwebtorrent.com/';
+  private static readonly DEFAULT_ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
   private static readonly DEFAULT_ICE_GATHERING_TIMEOUT = 3000;
   private static readonly DEFAULT_TRACKER_RECONNECT_MIN_DELAY = 1000;
   private static readonly DEFAULT_TRACKER_RECONNECT_MAX_DELAY = 30000;
@@ -95,63 +93,52 @@ export class PersistentWebRTCServer {
     this.options = {
       tracker: options.tracker ?? PersistentWebRTCServer.DEFAULT_TRACKER,
       onStatusUpdate: options.onStatusUpdate ?? (() => {}),
-      iceServers:
-        options.iceServers ?? PersistentWebRTCServer.DEFAULT_ICE_SERVERS,
-      iceGatheringTimeout:
-        options.iceGatheringTimeout ??
-        PersistentWebRTCServer.DEFAULT_ICE_GATHERING_TIMEOUT,
-      trackerReconnectMinDelay:
-        options.trackerReconnectMinDelay ??
-        PersistentWebRTCServer.DEFAULT_TRACKER_RECONNECT_MIN_DELAY,
-      trackerReconnectMaxDelay:
-        options.trackerReconnectMaxDelay ??
-        PersistentWebRTCServer.DEFAULT_TRACKER_RECONNECT_MAX_DELAY,
-      trackerAnnounceInterval:
-        options.trackerAnnounceInterval ??
-        PersistentWebRTCServer.DEFAULT_TRACKER_ANNOUNCE_INTERVAL,
+      iceServers: options.iceServers ?? PersistentWebRTCServer.DEFAULT_ICE_SERVERS,
+      iceGatheringTimeout: options.iceGatheringTimeout ?? PersistentWebRTCServer.DEFAULT_ICE_GATHERING_TIMEOUT,
+      trackerReconnectMinDelay: options.trackerReconnectMinDelay ?? PersistentWebRTCServer.DEFAULT_TRACKER_RECONNECT_MIN_DELAY,
+      trackerReconnectMaxDelay: options.trackerReconnectMaxDelay ?? PersistentWebRTCServer.DEFAULT_TRACKER_RECONNECT_MAX_DELAY,
+      trackerAnnounceInterval: options.trackerAnnounceInterval ?? PersistentWebRTCServer.DEFAULT_TRACKER_ANNOUNCE_INTERVAL,
       ...options,
     };
     this.peerId = this._generatePeerId();
     this.currentReconnectDelay = this.options.trackerReconnectMinDelay;
-    this._setStatus("idle");
+    this._setStatus('idle');
   }
 
   private _setStatus(status: string, details?: string) {
-    this.options.onStatusUpdate(status + (details ? `: ${details}` : ""));
+    this.options.onStatusUpdate(status + (details ? `: ${details}` : ''));
   }
 
   private _generatePeerId(): string {
-    return "-TS0001-" + Math.random().toString(36).substring(2, 15);
+    return '-TS0001-' + Math.random().toString(36).substring(2, 15);
   }
 
   async start(): Promise<void> {
     if (this.isRunning) {
-      console.warn("Server is already running.");
+      console.warn('Server is already running.');
       return;
     }
     this.isRunning = true;
-    this._setStatus("preparing");
-    console.log("Starting WebRTC server...");
+    this._setStatus('preparing');
+    console.log('Starting WebRTC server...');
 
     try {
       this.infoHash = await calculateInfoHash(this.options.share);
-      console.log(
-        `Calculated infoHash: ${this.infoHash} for share: ${this.options.share}`
-      );
+      console.log(`Calculated infoHash: ${this.infoHash} for share: ${this.options.share}`);
       this.connectToTracker();
     } catch (error) {
-      console.error("Failed to calculate infoHash:", error);
-      this._setStatus("error", "Failed to calculate infoHash");
+      console.error('Failed to calculate infoHash:', error);
+      this._setStatus('error', 'Failed to calculate infoHash');
       this.isRunning = false;
     }
   }
 
   stop(): void {
     if (!this.isRunning) {
-      console.warn("Server is not running.");
+      console.warn('Server is not running.');
       return;
     }
-    console.log("Stopping WebRTC server...");
+    console.log('Stopping WebRTC server...');
     this.isRunning = false;
 
     clearTimeout(this.trackerReconnectTimerId);
@@ -174,23 +161,23 @@ export class PersistentWebRTCServer {
       this._cleanupPeerConnection(peerId);
     });
     this.peerConnections.clear();
-    console.log("All peer connections closed.");
+    console.log('All peer connections closed.');
 
     if (this.stream) {
-      console.log("Stopping media stream tracks...");
-      this.stream.getTracks().forEach((track) => track.stop());
+      console.log('Stopping media stream tracks...');
+      this.stream.getTracks().forEach(track => track.stop());
       this.stream = null;
-      console.log("Media stream tracks stopped.");
+      console.log('Media stream tracks stopped.');
     }
 
-    this._setStatus("idle");
+    this._setStatus('idle');
   }
 
   private connectToTracker(): void {
     if (!this.isRunning) return;
 
     if (this.trackerWs && this.trackerWs.readyState === WebSocket.CONNECTING) {
-      console.log("Tracker connection attempt already in progress.");
+      console.log('Tracker connection attempt already in progress.');
       return;
     }
     if (this.trackerWs) {
@@ -204,10 +191,7 @@ export class PersistentWebRTCServer {
       this.trackerWs = null;
     }
 
-    this._setStatus(
-      "connecting_tracker",
-      `Attempting connection to ${this.options.tracker}`
-    );
+    this._setStatus('connecting_tracker', `Attempting connection to ${this.options.tracker}`);
     console.log(`Connecting to tracker: ${this.options.tracker}`);
 
     try {
@@ -217,38 +201,33 @@ export class PersistentWebRTCServer {
       this.trackerWs.onerror = this.handleTrackerError.bind(this);
       this.trackerWs.onclose = this.handleTrackerClose.bind(this);
     } catch (error) {
-      console.error("Failed to create WebSocket:", error);
-      this._setStatus("error", "Failed to create WebSocket");
+      console.error('Failed to create WebSocket:', error);
+      this._setStatus('error', 'Failed to create WebSocket');
       this.scheduleTrackerReconnect();
     }
   }
 
   private handleTrackerOpen(): void {
-    console.log("Connected to tracker.");
-    this._setStatus("connected_tracker");
+    console.log('Connected to tracker.');
+    this._setStatus('connected_tracker');
     this.currentReconnectDelay = this.options.trackerReconnectMinDelay;
 
-    this.announceToTracker({ event: "started" });
+    this.announceToTracker({ event: 'started' });
 
     clearInterval(this.trackerAnnounceTimerId);
-    this.trackerAnnounceTimerId = setInterval(
-      () => this.announceToTracker(),
-      this.options.trackerAnnounceInterval
-    );
+    this.trackerAnnounceTimerId = setInterval(() => this.announceToTracker(), this.options.trackerAnnounceInterval);
 
-    this._setStatus("waiting_offer");
+    this._setStatus('waiting_offer');
   }
 
-  private announceToTracker(
-    extraParams: Partial<TrackerAnnounceRequest> = {}
-  ): void {
+  private announceToTracker(extraParams: Partial<TrackerAnnounceRequest> = {}): void {
     if (!this.trackerWs || this.trackerWs.readyState !== WebSocket.OPEN) {
-      console.warn("Cannot announce, tracker WebSocket not open.");
+      console.warn('Cannot announce, tracker WebSocket not open.');
       return;
     }
 
     const announcement: TrackerAnnounceRequest = {
-      action: "announce",
+      action: 'announce',
       info_hash: this.infoHash,
       peer_id: this.peerId,
       numwant: 10,
@@ -261,7 +240,7 @@ export class PersistentWebRTCServer {
     try {
       this.trackerWs.send(JSON.stringify(announcement));
     } catch (error) {
-      console.error("Failed to send announce message:", error);
+      console.error('Failed to send announce message:', error);
       if (this.trackerWs && this.trackerWs.readyState === WebSocket.OPEN) {
         this.trackerWs.close();
       }
@@ -271,74 +250,52 @@ export class PersistentWebRTCServer {
   private handleTrackerMessage(event: MessageEvent): void {
     try {
       const msg = JSON.parse(event.data);
-      if (
-        msg.info_hash === this.infoHash &&
-        msg.offer &&
-        msg.offer_id &&
-        msg.peer_id
-      ) {
+      if (msg.info_hash === this.infoHash && msg.offer && msg.offer_id && msg.peer_id) {
         const offerMsg = msg as TrackerOfferMessage;
         if (offerMsg.peer_id === this.peerId) {
           return;
         }
-        console.log(
-          `Received offer from peer ${offerMsg.peer_id} with offer_id ${offerMsg.offer_id}`
-        );
-        this._setStatus("received_offer", `From peer ${offerMsg.peer_id}`);
+        console.log(`Received offer from peer ${offerMsg.peer_id} with offer_id ${offerMsg.offer_id}`);
+        this._setStatus('received_offer', `From peer ${offerMsg.peer_id}`);
         this.processOffer(offerMsg);
       } else if (msg.interval) {
         const interval = parseInt(msg.interval, 10);
         if (!isNaN(interval) && interval > 0) {
           const newIntervalMs = interval * 1000;
           if (newIntervalMs !== this.options.trackerAnnounceInterval) {
-            console.log(
-              `Tracker suggested announce interval: ${interval}s. Adjusting periodic announce.`
-            );
+            console.log(`Tracker suggested announce interval: ${interval}s. Adjusting periodic announce.`);
             this.options.trackerAnnounceInterval = newIntervalMs;
             clearInterval(this.trackerAnnounceTimerId);
-            this.trackerAnnounceTimerId = setInterval(
-              () => this.announceToTracker(),
-              this.options.trackerAnnounceInterval
-            );
+            this.trackerAnnounceTimerId = setInterval(() => this.announceToTracker(), this.options.trackerAnnounceInterval);
           }
         }
       }
     } catch (error) {
-      console.error(
-        "Error processing tracker message:",
-        error,
-        "Data:",
-        event.data
-      );
-      this._setStatus("error", "Failed to parse tracker message");
+      console.error('Error processing tracker message:', error, 'Data:', event.data);
+      this._setStatus('error', 'Failed to parse tracker message');
     }
   }
 
   private handleTrackerError(event: Event): void {
-    console.error("Tracker WebSocket error:", event);
-    this._setStatus("error", "Tracker WebSocket error");
+    console.error('Tracker WebSocket error:', event);
+    this._setStatus('error', 'Tracker WebSocket error');
     if (this.trackerWs && this.trackerWs.readyState !== WebSocket.CLOSED) {
       this.trackerWs.close();
     }
   }
 
   private handleTrackerClose(event: CloseEvent): void {
-    console.log(
-      `Tracker WebSocket closed. Code: ${event.code}, Reason: ${event.reason || "No reason given"}`
-    );
+    console.log(`Tracker WebSocket closed. Code: ${event.code}, Reason: ${event.reason || 'No reason given'}`);
     this.trackerWs = null;
     clearInterval(this.trackerAnnounceTimerId);
     this.trackerAnnounceTimerId = null;
 
     if (this.isRunning) {
-      this._setStatus(
-        "connecting_tracker",
-        "Connection lost, attempting reconnect..."
-      );
+      this._setStatus('connecting_tracker', 'Connection lost, attempting reconnect...');
       this.scheduleTrackerReconnect();
     } else {
-      console.log("Tracker WebSocket closed during server shutdown.");
-      this._setStatus("idle");
+      console.log('Tracker WebSocket closed during server shutdown.');
+      this._setStatus('idle');
     }
   }
 
@@ -348,15 +305,10 @@ export class PersistentWebRTCServer {
     clearTimeout(this.trackerReconnectTimerId);
 
     const delay = this.currentReconnectDelay;
-    console.log(
-      `Scheduling tracker reconnection attempt in ${delay / 1000} seconds...`
-    );
+    console.log(`Scheduling tracker reconnection attempt in ${delay / 1000} seconds...`);
 
     this.trackerReconnectTimerId = setTimeout(() => {
-      this.currentReconnectDelay = Math.min(
-        this.currentReconnectDelay * 2,
-        this.options.trackerReconnectMaxDelay
-      );
+      this.currentReconnectDelay = Math.min(this.currentReconnectDelay * 2, this.options.trackerReconnectMaxDelay);
       this.connectToTracker();
     }, delay);
   }
@@ -366,21 +318,19 @@ export class PersistentWebRTCServer {
 
     if (!this.stream) {
       try {
-        this._setStatus("creating_media_stream");
-        console.log("First peer connection attempt, creating media stream...");
+        this._setStatus('creating_media_stream');
+        console.log('First peer connection attempt, creating media stream...');
         this.stream = await this.options.streamFactory();
-        console.log("Media stream created successfully.");
+        console.log('Media stream created successfully.');
       } catch (error) {
-        console.error("Failed to create media stream:", error);
-        this._setStatus("error", "Failed to create media stream");
+        console.error('Failed to create media stream:', error);
+        this._setStatus('error', 'Failed to create media stream');
         return;
       }
     }
 
     if (this.peerConnections.has(remotePeerId)) {
-      console.log(
-        `Cleaning up existing connection for reconnecting peer ${remotePeerId}`
-      );
+      console.log(`Cleaning up existing connection for reconnecting peer ${remotePeerId}`);
       this._cleanupPeerConnection(remotePeerId);
     }
 
@@ -388,15 +338,8 @@ export class PersistentWebRTCServer {
     let cryptoHelper: CryptoHelper;
 
     try {
-      this._setStatus(
-        "creating_peer_connection",
-        `Processing offer from ${remotePeerId}`
-      );
-      cryptoHelper = await cipher(
-        this.options.share,
-        this.options.pwd,
-        offer_id
-      );
+      this._setStatus('creating_peer_connection', `Processing offer from ${remotePeerId}`);
+      cryptoHelper = await cipher(this.options.share, this.options.pwd, offer_id);
 
       const offerSdp = await cryptoHelper.decrypt(offer.sdp);
 
@@ -405,63 +348,56 @@ export class PersistentWebRTCServer {
       this._setupPeerConnectionListeners(pc, remotePeerId);
 
       const currentStream = this.stream!;
-      currentStream.getTracks().forEach((track) => {
+      currentStream.getTracks().forEach(track => {
         if (pc) {
           pc.addTrack(track, currentStream);
         }
       });
 
-      await pc.setRemoteDescription({ type: "offer", sdp: offerSdp });
+      await pc.setRemoteDescription({ type: 'offer', sdp: offerSdp });
 
-      this._setStatus("creating_answer", `For peer ${remotePeerId}`);
+      this._setStatus('creating_answer', `For peer ${remotePeerId}`);
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
       this.peerConnections.set(remotePeerId, pc);
-      console.log(
-        `Peer connection created for ${remotePeerId}, waiting for ICE.`
-      );
+      console.log(`Peer connection created for ${remotePeerId}, waiting for ICE.`);
 
       const answerSdp = await this._waitForIceGathering(pc, remotePeerId);
       console.log(`ICE gathering complete for ${remotePeerId}.`);
 
-      this._setStatus("sending_answer", `To peer ${remotePeerId}`);
+      this._setStatus('sending_answer', `To peer ${remotePeerId}`);
       const encryptedAnswer = await cryptoHelper.encrypt(answerSdp);
 
       const response: TrackerAnswerMessage = {
-        action: "announce",
+        action: 'announce',
         info_hash: this.infoHash,
         peer_id: this.peerId,
         to_peer_id: remotePeerId,
         offer_id: offer_id,
-        answer: { type: "answer", sdp: encryptedAnswer },
+        answer: { type: 'answer', sdp: encryptedAnswer },
       };
 
       if (this.trackerWs && this.trackerWs.readyState === WebSocket.OPEN) {
         this.trackerWs.send(JSON.stringify(response));
         console.log(`Answer sent to tracker for peer ${remotePeerId}`);
       } else {
-        console.warn(
-          `Could not send answer to ${remotePeerId}, tracker disconnected.`
-        );
-        throw new Error("Tracker disconnected before answer could be sent.");
+        console.warn(`Could not send answer to ${remotePeerId}, tracker disconnected.`);
+        throw new Error('Tracker disconnected before answer could be sent.');
       }
     } catch (error) {
       console.error(`Error processing offer from ${remotePeerId}:`, error);
-      this._setStatus("error", `Failed to process offer from ${remotePeerId}`);
+      this._setStatus('error', `Failed to process offer from ${remotePeerId}`);
       if (pc || this.peerConnections.has(remotePeerId)) {
         this._cleanupPeerConnection(remotePeerId);
       }
       if (this.trackerWs?.readyState === WebSocket.OPEN) {
-        this._setStatus("waiting_offer");
+        this._setStatus('waiting_offer');
       }
     }
   }
 
-  private _setupPeerConnectionListeners(
-    pc: RTCPeerConnection,
-    remotePeerId: string
-  ): void {
+  private _setupPeerConnectionListeners(pc: RTCPeerConnection, remotePeerId: string): void {
     pc.onicecandidate = () => {};
 
     pc.onicegatheringstatechange = () => {};
@@ -472,41 +408,30 @@ export class PersistentWebRTCServer {
       const state = pc.connectionState;
       console.log(`Peer ${remotePeerId} connection state changed: ${state}`);
       switch (state) {
-        case "connected":
-          this._setStatus("peer_connected", `Peer ${remotePeerId} connected`);
+        case 'connected':
+          this._setStatus('peer_connected', `Peer ${remotePeerId} connected`);
           break;
-        case "disconnected":
-          this._setStatus(
-            "peer_disconnected",
-            `Peer ${remotePeerId} disconnected`
-          );
-          console.warn(
-            `Peer ${remotePeerId} disconnected. Waiting for potential recovery or failure.`
-          );
+        case 'disconnected':
+          this._setStatus('peer_disconnected', `Peer ${remotePeerId} disconnected`);
+          console.warn(`Peer ${remotePeerId} disconnected. Waiting for potential recovery or failure.`);
           break;
-        case "failed":
+        case 'failed':
           console.error(`Peer ${remotePeerId} connection failed.`);
-          this._setStatus(
-            "peer_failed",
-            `Peer ${remotePeerId} connection failed`
-          );
+          this._setStatus('peer_failed', `Peer ${remotePeerId} connection failed`);
           this._cleanupPeerConnection(remotePeerId);
           if (this.trackerWs?.readyState === WebSocket.OPEN) {
-            this._setStatus("waiting_offer");
+            this._setStatus('waiting_offer');
           }
           break;
-        case "closed":
+        case 'closed':
           console.log(`Peer ${remotePeerId} connection closed.`);
           this._cleanupPeerConnection(remotePeerId);
-          if (
-            this.peerConnections.size === 0 &&
-            this.trackerWs?.readyState === WebSocket.OPEN
-          ) {
-            this._setStatus("waiting_offer");
+          if (this.peerConnections.size === 0 && this.trackerWs?.readyState === WebSocket.OPEN) {
+            this._setStatus('waiting_offer');
           }
           break;
-        case "new":
-        case "connecting":
+        case 'new':
+        case 'connecting':
           break;
       }
     };
@@ -521,7 +446,7 @@ export class PersistentWebRTCServer {
       pc.onconnectionstatechange = null;
       pc.ontrack = null;
 
-      pc.getSenders().forEach((sender) => {
+      pc.getSenders().forEach(sender => {
         try {
           pc.removeTrack(sender);
         } catch (e) {
@@ -529,7 +454,7 @@ export class PersistentWebRTCServer {
         }
       });
 
-      if (pc.connectionState !== "closed") {
+      if (pc.connectionState !== 'closed') {
         pc.close();
       }
 
@@ -537,37 +462,24 @@ export class PersistentWebRTCServer {
       console.log(`Connection for peer ${remotePeerId} removed.`);
 
       if (this.peerConnections.size === 0 && this.stream && this.isRunning) {
-        console.log(
-          "Last peer disconnected, stopping and disposing media stream..."
-        );
-        this.stream.getTracks().forEach((track) => track.stop());
+        console.log('Last peer disconnected, stopping and disposing media stream...');
+        this.stream.getTracks().forEach(track => track.stop());
         this.stream = null;
-        console.log("Media stream disposed.");
+        console.log('Media stream disposed.');
       }
 
-      if (
-        this.peerConnections.size === 0 &&
-        this.isRunning &&
-        this.trackerWs?.readyState === WebSocket.OPEN
-      ) {
-        this._setStatus("waiting_offer", "Last peer disconnected");
+      if (this.peerConnections.size === 0 && this.isRunning && this.trackerWs?.readyState === WebSocket.OPEN) {
+        this._setStatus('waiting_offer', 'Last peer disconnected');
       }
     }
   }
 
-  private async _waitForIceGathering(
-    pc: RTCPeerConnection,
-    remotePeerId: string
-  ): Promise<string> {
+  private async _waitForIceGathering(pc: RTCPeerConnection, remotePeerId: string): Promise<string> {
     return new Promise((resolve, reject) => {
       if (!pc.localDescription) {
-        return reject(
-          new Error(
-            `Local description not set before ICE gathering for peer ${remotePeerId}.`
-          )
-        );
+        return reject(new Error(`Local description not set before ICE gathering for peer ${remotePeerId}.`));
       }
-      if (pc.iceGatheringState === "complete") {
+      if (pc.iceGatheringState === 'complete') {
         resolve(pc.localDescription.sdp);
         return;
       }
@@ -576,49 +488,36 @@ export class PersistentWebRTCServer {
       let timeoutHandle: any = null;
 
       const onIceGatheringChange = () => {
-        if (pc.iceGatheringState === "complete") {
+        if (pc.iceGatheringState === 'complete') {
           cleanup();
           resolve(pc.localDescription!.sdp);
         }
       };
 
       const onTimeout = () => {
-        console.warn(
-          `ICE gathering timed out after ${timeoutDuration}ms for peer ${remotePeerId}. Using potentially incomplete SDP.`
-        );
+        console.warn(`ICE gathering timed out after ${timeoutDuration}ms for peer ${remotePeerId}. Using potentially incomplete SDP.`);
         cleanup();
         resolve(pc.localDescription!.sdp);
       };
 
       const onConnectionStateChange = () => {
-        if (pc.connectionState === "failed") {
+        if (pc.connectionState === 'failed') {
           cleanup();
-          reject(
-            new Error(
-              `Peer connection failed during ICE gathering for ${remotePeerId}.`
-            )
-          );
-        } else if (pc.connectionState === "closed") {
+          reject(new Error(`Peer connection failed during ICE gathering for ${remotePeerId}.`));
+        } else if (pc.connectionState === 'closed') {
           cleanup();
-          reject(
-            new Error(
-              `Peer connection closed during ICE gathering for ${remotePeerId}.`
-            )
-          );
+          reject(new Error(`Peer connection closed during ICE gathering for ${remotePeerId}.`));
         }
       };
 
       const cleanup = () => {
         clearTimeout(timeoutHandle);
-        pc.removeEventListener("icegatheringstatechange", onIceGatheringChange);
-        pc.removeEventListener(
-          "connectionstatechange",
-          onConnectionStateChange
-        );
+        pc.removeEventListener('icegatheringstatechange', onIceGatheringChange);
+        pc.removeEventListener('connectionstatechange', onConnectionStateChange);
       };
 
-      pc.addEventListener("icegatheringstatechange", onIceGatheringChange);
-      pc.addEventListener("connectionstatechange", onConnectionStateChange);
+      pc.addEventListener('icegatheringstatechange', onIceGatheringChange);
+      pc.addEventListener('connectionstatechange', onConnectionStateChange);
       timeoutHandle = setTimeout(onTimeout, timeoutDuration);
     });
   }

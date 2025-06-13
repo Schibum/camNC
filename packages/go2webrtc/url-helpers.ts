@@ -2,24 +2,24 @@ const rtcSchemas = ["webtorrent:", "webrtc:", "go2rtc:"] as const;
 export type RtcSchema = (typeof rtcSchemas)[number];
 
 export interface WebrtcConnectionParams {
-  type: "webrtc";
+  type: 'webrtc';
   share: string;
   pwd: string;
 }
 
 export interface WebtorrentConnectionParams {
-  type: "webtorrent";
+  type: 'webtorrent';
   share: string;
   pwd: string;
 }
 
 export interface UrlConnectionParams {
-  type: "url";
+  type: 'url';
   url: string;
 }
 
 export interface WebcamConnectionParams {
-  type: "webcam";
+  type: 'webcam';
   deviceId: string;
   idealWidth?: number;
   idealHeight?: number;
@@ -41,18 +41,19 @@ export type RtcConnectionParams =
 export function parseConnectionString(
   connectionString: string,
 ): RtcConnectionParams {
+
   const url = new URL(connectionString);
   let params = url.searchParams;
   switch (url.protocol) {
-    case "webrtc:":
-    case "webtorrent:":
-      const share = params.get("share");
-      const pwd = params.get("pwd");
+    case 'webrtc:':
+    case 'webtorrent:':
+      const share = params.get('share');
+      const pwd = params.get('pwd');
       if (share && pwd) {
         return {
           share,
           pwd,
-          type: url.protocol === "webrtc:" ? "webrtc" : "webtorrent",
+          type: url.protocol === 'webrtc:' ? 'webrtc' : 'webtorrent',
         };
       }
       throw new Error("missing share or pwd");
@@ -68,45 +69,43 @@ export function parseConnectionString(
       const deviceId = params.get("deviceId");
       const width = params.get("width");
       const height = params.get("height");
+
       if (deviceId) {
         return {
-          type: "webcam",
+          type: 'webcam',
           deviceId,
           idealWidth: width ? parseInt(width) : undefined,
           idealHeight: height ? parseInt(height) : undefined,
         };
       }
-      throw new Error("missing deviceId");
-    case "https:":
-    case "http:":
-      return { type: "url", url: connectionString };
+      throw new Error('missing deviceId');
+    case 'https:':
+    case 'http:':
+      return { type: 'url', url: connectionString };
     default:
-      throw new Error("unsupported protocol");
+      throw new Error('unsupported protocol');
   }
 }
 
 export function buildConnectionUrl(params: RtcConnectionParams) {
   switch (params.type) {
-    case "webrtc":
+    case 'webrtc':
       return buildRtcConnectionUrl(params);
-    case "webtorrent":
+    case 'webtorrent':
       return buildRtcConnectionUrl(params);
     case "go2rtc":
       return buildGo2rtcConnectionUrl(params);
     case "webcam":
+
       return buildWebcamConnectionUrl(params);
-    case "url":
+    case 'url':
       return params.url;
     default:
-      throw new Error("unsupported connection type");
+      throw new Error('unsupported connection type');
   }
 }
 
-function buildRtcConnectionUrl({
-  share,
-  pwd,
-  type,
-}: WebrtcConnectionParams | WebtorrentConnectionParams) {
+function buildRtcConnectionUrl({ share, pwd, type }: WebrtcConnectionParams | WebtorrentConnectionParams) {
   let params = new URLSearchParams({
     share,
     pwd,
@@ -114,11 +113,7 @@ function buildRtcConnectionUrl({
   return `${type}:?${params.toString()}`;
 }
 
-function buildWebcamConnectionUrl({
-  deviceId,
-  idealWidth,
-  idealHeight,
-}: WebcamConnectionParams) {
+function buildWebcamConnectionUrl({ deviceId, idealWidth, idealHeight }: WebcamConnectionParams) {
   let params = new URLSearchParams({
     deviceId,
     ...(idealWidth ? { width: idealWidth.toString() } : {}),
@@ -135,21 +130,20 @@ function buildGo2rtcConnectionUrl({ host, src }: Go2rtcConnectionParams) {
 export function genRandomWebtorrent() {
   const share = generatePassword(16);
   const pwd = generatePassword(16);
-  return buildRtcConnectionUrl({ share, pwd, type: "webtorrent" });
+  return buildRtcConnectionUrl({ share, pwd, type: 'webtorrent' });
 }
 
 export function genRandomWebrtc() {
   const share = generatePassword(16);
   const pwd = generatePassword(16);
-  return buildRtcConnectionUrl({ share, pwd, type: "webrtc" });
+  return buildRtcConnectionUrl({ share, pwd, type: 'webrtc' });
 }
 
 export function generatePassword(length: number = 16) {
-  const characterSet =
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.~";
+  const characterSet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.~';
   const randomValues = new Uint8Array(length);
   crypto.getRandomValues(randomValues);
   return Array.from(randomValues)
-    .map((byte) => characterSet[byte % characterSet.length])
-    .join("");
+    .map(byte => characterSet[byte % characterSet.length])
+    .join('');
 }

@@ -1,14 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { zodValidator } from "@tanstack/zod-adapter";
-import { Button } from "@wbcnc/ui/components/button";
-import { RolePeering } from "@wbcnc/webrtc-channel/role-peering";
-import log from "loglevel";
-import { useEffect, useState } from "react";
-import { z } from "zod";
+import { createFileRoute } from '@tanstack/react-router';
+import { zodValidator } from '@tanstack/zod-adapter';
+import { Button } from '@wbcnc/ui/components/button';
+import { RolePeering } from '@wbcnc/webrtc-channel/role-peering';
+import log from 'loglevel';
+import { useEffect, useState } from 'react';
+import { z } from 'zod';
 
 log.setDefaultLevel(log.levels.DEBUG);
 
-export const Route = createFileRoute("/webrtc-channel/$room")({
+export const Route = createFileRoute('/webrtc-channel/$room')({
   component: RouteComponent,
   validateSearch: zodValidator(
     z.object({
@@ -20,18 +20,18 @@ export const Route = createFileRoute("/webrtc-channel/$room")({
 function useRoles() {
   const { server } = Route.useSearch();
   if (server) {
-    return ["server", "client"] as const;
+    return ['server', 'client'] as const;
   }
-  return ["client", "server"] as const;
+  return ['client', 'server'] as const;
 }
 
 function useRoom(roomId: string) {
   const [selfRole, otherRole] = useRoles();
-  console.log("selfRole", selfRole, "otherRole", otherRole);
+  console.log('selfRole', selfRole, 'otherRole', otherRole);
   const [messaging] = useState(
     () =>
       new RolePeering(roomId, selfRole, otherRole, {
-        maxPeers: selfRole == "client" ? 1 : Infinity,
+        maxPeers: selfRole == 'client' ? 1 : Infinity,
       })
   );
   useEffect(() => {
@@ -49,9 +49,9 @@ function RouteComponent() {
   const [messages, setMessages] = useState<string[]>([]);
 
   useEffect(() => {
-    messaging.on("message", (event) => {
-      console.log("message from other peer", event);
-      setMessages((prev) => [...prev, event]);
+    messaging.on('message', event => {
+      console.log('message from other peer', event);
+      setMessages(prev => [...prev, event]);
     });
   }, [messaging]);
 
