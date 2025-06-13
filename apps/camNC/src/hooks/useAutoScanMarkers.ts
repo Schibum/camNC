@@ -22,7 +22,7 @@ export interface AutoScanOptions {
  * and updates machine bounds + extrinsics once it appears.
  * Only runs when useArucoMarkers is enabled in the store.
  */
-export function useAutoScanMarkers({ intervalMs, firstScanDelayMs = 5_000, averageFrames = 5 }: AutoScanOptions): void {
+export function useAutoScanMarkers({ intervalMs, firstScanDelayMs = 5_000, averageFrames = 1 }: AutoScanOptions): void {
   const serviceRef = useRef<MarkerScannerService | null>(null);
   const useArucoMarkers = useStore(state => state.camSource?.useArucoMarkers ?? false);
 
