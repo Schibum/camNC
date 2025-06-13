@@ -33,12 +33,14 @@ const CHUNK_SIZE = 16 * 1024 - HEADER; // 16 KiB minus header
 
 // ----------------------------------------------------------------------------
 export default function createChunkedPort(
-  channel: Pick<RTCDataChannel, 'send' | 'addEventListener' | 'removeEventListener' | 'readyState'> & {
+  channel: Pick<RTCDataChannel, 'send' | 'addEventListener' | 'removeEventListener' | 'readyState' | 'binaryType'> & {
     bufferedAmount?: number;
     bufferedAmountLowThreshold?: number;
   },
   opts: { chunkSize?: number } = {}
 ): MessagePort {
+  // FF seems to default to blog for some reason.
+  channel.binaryType = 'arraybuffer';
   const chunkSize = Math.max(256, opts.chunkSize ?? CHUNK_SIZE);
   let nonce = 0; // uint8 rollover is fine for one tab‑lifetime
 
