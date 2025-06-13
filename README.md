@@ -21,16 +21,6 @@ CamNC is a simple experimental web application that visualizes CNC G-code on a l
   - IP camera. Requires [go2rtc](https://github.com/AlexxIT/go2rtc) gateway to expose stream in a compatible way. Go2rtc can run on a Raspberry Pi Zero or any local machine.
 
     - [Reolink E1 Zoom 3d print model](https://makerworld.com/en/models/1461605-reolink-e1-zoom-ceiling-down-mount-looking-down#profileId-1524062)
-    - Enable the WebRTC API in `go2rtc.yaml`:
-
-      ```yaml
-      api:
-        origin: '*'
-      ```
-
-      Use plain HTTP (ws://) only on `localhost` or when launching Chrome with
-      `--unsafely-treat-insecure-origin-as-secure=http://<host>`. HTTPS/wss is
-      supported as well.
 
 - (Optional) CNC controller with [FluidNC WebUI v3](http://wiki.fluidnc.com/en/features/webui). Does not work offline ATM, so fulidNC needs to run in STA mode.
 
