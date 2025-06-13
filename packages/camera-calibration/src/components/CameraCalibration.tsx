@@ -36,13 +36,13 @@ export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
   "use no memo";
   // Select actions (references are generally stable)
   const initializeSettings = useCalibrationStore(
-    (state) => state.initializeSettings,
+    (state) => state.initializeSettings
   );
   const startCamera = useCalibrationStore((state) => state.startCamera);
   const stopCamera = useCalibrationStore((state) => state.stopCamera);
   const pauseProcessing = useCalibrationStore((state) => state.pauseProcessing);
   const resumeProcessing = useCalibrationStore(
-    (state) => state.resumeProcessing,
+    (state) => state.resumeProcessing
   );
   const setShowGallery = useCalibrationStore((state) => state.setShowGallery);
 
@@ -61,6 +61,7 @@ export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
       autoCapture,
       zeroTangentDist,
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -73,13 +74,13 @@ export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
 
       try {
         console.log(
-          "[CameraCalibration] Valid src provided. Calling store.startCamera.",
+          "[CameraCalibration] Valid src provided. Calling store.startCamera."
         );
         await startCamera(src, resolution);
       } catch (storeError) {
         console.error(
           "[CameraCalibration] Store failed to start camera with provided src:",
-          storeError,
+          storeError
         );
       }
     };
@@ -88,7 +89,7 @@ export const CameraCalibration: React.FC<CameraCalibrationProps> = ({
 
     return () => {
       console.log(
-        "[CameraCalibration] Cleanup: Calling store.stopCamera (element cleanup).",
+        "[CameraCalibration] Cleanup: Calling store.stopCamera (element cleanup)."
       );
       stopCamera();
     };

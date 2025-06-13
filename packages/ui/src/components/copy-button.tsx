@@ -9,12 +9,9 @@ export async function copyToClipboardWithMeta(value: string) {
 
 interface CopyButtonProps extends ButtonProps {
   value: string;
-  src?: string;
 }
 export function CopyButton({
   value,
-  className,
-  src,
   variant = "ghost",
   ...props
 }: CopyButtonProps) {

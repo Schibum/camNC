@@ -1,5 +1,6 @@
 // Mozilla polyfill for MediaStreamTrackProcessor
 // From https://jan-ivar.github.io/polyfills/mediastreamtrackprocessor.js
+/* eslint-disable */
 // @ts-nocheck
 
 import { isFirefox } from "react-device-detect";
@@ -25,7 +26,7 @@ if (!self.MediaStreamTrackProcessor && isFirefox) {
             this.track = track;
             this.canvas = new OffscreenCanvas(
               this.video.videoWidth,
-              this.video.videoHeight,
+              this.video.videoHeight
             );
             this.ctx = this.canvas.getContext("2d", { desynchronized: true });
             this.t1 = performance.now();
@@ -40,7 +41,7 @@ if (!self.MediaStreamTrackProcessor && isFirefox) {
             this.t1 = performance.now();
             this.ctx.drawImage(this.video, 0, 0);
             controller.enqueue(
-              new VideoFrame(this.canvas, { timestamp: this.t1 }),
+              new VideoFrame(this.canvas, { timestamp: this.t1 })
             );
           },
         });

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useEffect, useRef } from "react";
 import { Corner, PatternSize } from "../lib/calibrationTypes";
 

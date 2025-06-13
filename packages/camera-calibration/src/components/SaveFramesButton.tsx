@@ -82,7 +82,7 @@ export const SaveFramesButton = () => {
       if (zipWriter) {
         try {
           await zipWriter.close();
-        } catch (closeErr) {
+        } catch {
           /* Ignore */
         }
       }

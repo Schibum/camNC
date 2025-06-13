@@ -59,7 +59,7 @@ async function testWorkerWithImage(
   const stream = await createVideoFrameStreamFromImage(imagePath);
   const img = await loadImage(imagePath);
 
-  return new Promise<void>(async (resolve, reject) => {
+  return new Promise<void>((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error("Test timeout")), 10000);
 
     const onFrameProcessed = (data: FrameEvent) => {

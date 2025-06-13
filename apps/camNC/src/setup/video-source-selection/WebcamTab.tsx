@@ -35,6 +35,8 @@ export function WebcamTab({
       }
     }
     getDevices();
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Automatically pick first device if none selected

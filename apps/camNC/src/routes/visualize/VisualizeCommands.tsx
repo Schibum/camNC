@@ -5,5 +5,5 @@ export const Route = createFileRoute('/visualize/VisualizeCommands')({
 });
 
 function RouteComponent() {
-  return <div>Hello "/visualize/VisualizeCommands"!</div>;
+  return <div>Hello &quot;/visualize/VisualizeCommands&quot;!</div>;
 }

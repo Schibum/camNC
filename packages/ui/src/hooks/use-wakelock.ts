@@ -13,12 +13,15 @@ export function useWakeLock() {
           setWakeLock(null); // Reset wakeLock variable when released
         });
       })
-      .catch((err) => {});
+      .catch((err) => {
+        console.error(err);
+      });
     return () => {
       if (wakeLock) {
         wakeLock.release();
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
     requestWakeLock();

@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { CameraCalibration } from "@wbcnc/camera-calibration";
 import { ensureOpenCvIsLoaded } from "@wbcnc/load-opencv";
 import { Check, Settings } from "lucide-react";
-import { use, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useState } from "react";
 // import "./index.css";
 
 export const Route = createFileRoute("/camera-calibration")({
@@ -35,9 +35,10 @@ function SettingsOverlay({
     if (isOpen) {
       loadVideoDevices();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  const loadVideoDevices = async () => {
+  const loadVideoDevices = useCallback(async () => {
     try {
       // First request permission to access devices
       await navigator.mediaDevices.getUserMedia({ video: true });
@@ -45,7 +46,7 @@ function SettingsOverlay({
       // Then enumerate devices
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoInputs = devices.filter(
-        (device) => device.kind === "videoinput",
+        (device) => device.kind === "videoinput"
       );
       setVideoDevices(videoInputs);
 
@@ -56,7 +57,8 @@ function SettingsOverlay({
     } catch (err) {
       console.error("Error enumerating video devices:", err);
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleDeviceSelect = async (deviceId: string) => {
     setIsLoading(true);
@@ -64,7 +66,7 @@ function SettingsOverlay({
       // Check if user is on mobile device
       const isMobile =
         /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-          navigator.userAgent,
+          navigator.userAgent
         );
 
       // Set resolution based on device type
@@ -90,7 +92,7 @@ function SettingsOverlay({
     } catch (err) {
       console.error(
         "Error accessing camera at high resolution, trying lower resolution",
-        err,
+        err
       );
       try {
         // Fallback to standard resolution
@@ -105,7 +107,7 @@ function SettingsOverlay({
       } catch (fallbackErr) {
         console.error("Error accessing camera", fallbackErr);
         alert(
-          "Could not access the selected camera. Please try another device.",
+          "Could not access the selected camera. Please try another device."
         );
       }
     } finally {
@@ -218,7 +220,7 @@ function SettingsOverlay({
 
 function App() {
   const [videoSource, setVideoSource] = useState<MediaStream | string | null>(
-    null,
+    null
   );
   const [sourceType, setSourceType] = useState<"webcam" | "url" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -229,7 +231,7 @@ function App() {
       try {
         const isMobile =
           /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-            navigator.userAgent,
+            navigator.userAgent
           );
 
         // Set resolution based on device type
@@ -252,7 +254,7 @@ function App() {
       } catch (err) {
         console.error(
           "Error accessing camera at high resolution, trying lower resolution",
-          err,
+          err
         );
         try {
           // Fallback to standard resolution with any camera
@@ -264,7 +266,7 @@ function App() {
         } catch (fallbackErr) {
           console.error("Error accessing camera", fallbackErr);
           setError(
-            "Could not access camera. Please ensure camera access is allowed.",
+            "Could not access camera. Please ensure camera access is allowed."
           );
         }
       }
@@ -278,6 +280,7 @@ function App() {
         videoSource.getTracks().forEach((track) => track.stop());
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Handle source change

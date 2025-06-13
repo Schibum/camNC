@@ -21,7 +21,7 @@ export const CaptureButton: React.FC<CaptureButtonProps> = ({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [disabled]);
+  }, [disabled, captureFrame]);
 
   return (
     <button
