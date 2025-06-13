@@ -74,7 +74,8 @@ export function UnskewedVideoMesh({ ...props }: ThreeElements['mesh']) {
       mapYTexture: { value: mapYTexture },
       resolution: { value: new THREE.Vector2(videoDimensions[0], videoDimensions[1]) },
     }),
-    [videoTexture, mapXTexture, mapYTexture, videoDimensions]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
   );
 
   // Update uniform values when dependencies change
