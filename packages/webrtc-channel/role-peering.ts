@@ -120,6 +120,7 @@ export class RolePeering {
   }
 
   private shallBeInitiator() {
-    return this.selfRole.localeCompare(this.toRole) < 0;
+    // in a 'client' 'server' setting, where server streams media to client, server should be initiator.
+    return this.selfRole.localeCompare(this.toRole) > 0;
   }
 }

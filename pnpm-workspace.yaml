@@ -1,8 +1,6 @@
 packages:
   - apps/*
   - packages/*
-patchedDependencies:
-  trystero: patches/trystero.patch
 catalog:
   "@eslint/js": ^9.28.0
   "@hookform/devtools": ^4.4.0

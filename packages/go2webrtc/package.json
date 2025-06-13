@@ -15,7 +15,9 @@
     "@types/react": "catalog:",
     "jotai": "catalog:",
     "react": "catalog:",
-    "trystero": "catalog:",
+    "@wbcnc/webrtc-channel": "workspace:*",
+    "comlink": "catalog:",
+    "loglevel": "catalog:",
     "vitest": "catalog:"
   },
   "devDependencies": {

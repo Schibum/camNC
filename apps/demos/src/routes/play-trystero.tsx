@@ -10,8 +10,7 @@ export const Route = createFileRoute('/play-trystero')({
 function RouteComponent() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const { clientState, stream } = useTrysteroClient({
-    share: 'test',
-    pwd: 'test',
+    accessToken: 'test',
   });
 
   // Connect the stream to the video element when it's available

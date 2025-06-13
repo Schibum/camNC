@@ -7,8 +7,7 @@ import { ServerCard } from '../server-card';
 import { streamFactory } from '../utils';
 
 const searchSchema = z.object({
-  share: z.string().min(10).catch(''),
-  pwd: z.string().min(10).catch(''),
+  accessToken: z.string().min(10).catch(''),
 });
 
 export const Route = createFileRoute('/webrtc-custom')({
@@ -16,10 +15,9 @@ export const Route = createFileRoute('/webrtc-custom')({
   validateSearch: zodValidator(searchSchema),
 });
 
-function RtcServer({ share, pwd }: { share: string; pwd: string }) {
+function RtcServer({ accessToken }: { accessToken: string }) {
   const { serverState } = useTrysteroServer({
-    share,
-    pwd,
+    accessToken,
     streamFactory: streamFactory,
   });
 
@@ -27,14 +25,14 @@ function RtcServer({ share, pwd }: { share: string; pwd: string }) {
 }
 
 function RouteComponent() {
-  const { share, pwd } = Route.useSearch();
-  if (!share || !pwd) {
-    return <div>No share or pwd search params</div>;
+  const { accessToken } = Route.useSearch();
+  if (!accessToken) {
+    return <div>No accessToken search param</div>;
   }
   return (
     <div>
       <PortraitOrientation />
-      <RtcServer share={share} pwd={pwd} />
+      <RtcServer accessToken={accessToken} />
     </div>
   );
 }

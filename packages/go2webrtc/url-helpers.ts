@@ -3,8 +3,7 @@ export type RtcSchema = (typeof rtcSchemas)[number];
 
 export interface WebrtcConnectionParams {
   type: 'webrtc';
-  share: string;
-  pwd: string;
+  accessToken: string;
 }
 
 export interface WebtorrentConnectionParams {
@@ -42,18 +41,21 @@ export function parseConnectionString(connectionString: string): RtcConnectionPa
   const url = new URL(connectionString);
   let params = url.searchParams;
   switch (url.protocol) {
-    case 'webrtc:':
-    case 'webtorrent:':
+    case 'webrtc:': {
+      const accessToken = params.get('accessToken') || params.get('token') || params.get('share');
+      if (accessToken) {
+        return { type: 'webrtc', accessToken };
+      }
+      throw new Error('missing accessToken');
+    }
+    case 'webtorrent:': {
       const share = params.get('share');
       const pwd = params.get('pwd');
       if (share && pwd) {
-        return {
-          share,
-          pwd,
-          type: url.protocol === 'webrtc:' ? 'webrtc' : 'webtorrent',
-        };
+        return { type: 'webtorrent', share, pwd };
       }
       throw new Error('missing share or pwd');
+    }
     case 'go2rtc:': {
       const host = params.get('host');
       const src = params.get('src');
@@ -87,7 +89,7 @@ export function parseConnectionString(connectionString: string): RtcConnectionPa
 export function buildConnectionUrl(params: RtcConnectionParams) {
   switch (params.type) {
     case 'webrtc':
-      return buildRtcConnectionUrl(params);
+      return buildWebrtcConnectionUrl(params);
     case 'webtorrent':
       return buildRtcConnectionUrl(params);
     case 'go2rtc':
@@ -101,12 +103,14 @@ export function buildConnectionUrl(params: RtcConnectionParams) {
   }
 }
 
-function buildRtcConnectionUrl({ share, pwd, type }: WebrtcConnectionParams | WebtorrentConnectionParams) {
-  let params = new URLSearchParams({
-    share,
-    pwd,
-  });
+function buildRtcConnectionUrl({ share, pwd, type }: WebtorrentConnectionParams) {
+  const params = new URLSearchParams({ share, pwd });
   return `${type}:?${params.toString()}`;
+}
+
+function buildWebrtcConnectionUrl({ accessToken }: WebrtcConnectionParams) {
+  const params = new URLSearchParams({ accessToken });
+  return `webrtc:?${params.toString()}`;
 }
 
 function buildWebcamConnectionUrl({ deviceId, idealWidth, idealHeight }: WebcamConnectionParams) {
@@ -130,9 +134,8 @@ export function genRandomWebtorrent() {
 }
 
 export function genRandomWebrtc() {
-  const share = generatePassword(16);
-  const pwd = generatePassword(16);
-  return buildRtcConnectionUrl({ share, pwd, type: 'webrtc' });
+  const accessToken = generatePassword(16);
+  return buildWebrtcConnectionUrl({ type: 'webrtc', accessToken });
 }
 
 export function generatePassword(length: number = 16) {

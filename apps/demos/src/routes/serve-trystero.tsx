@@ -5,8 +5,7 @@ import { useWakeLock } from '@wbcnc/ui/hooks/use-wakelock';
 import { z } from 'zod';
 
 const searchSchema = z.object({
-  share: z.string().catch('test'),
-  pwd: z.string().catch('test'),
+  accessToken: z.string().catch('test'),
 });
 
 export const Route = createFileRoute('/serve-trystero')({
@@ -34,11 +33,10 @@ const streamFactory = async () => {
 };
 
 function RouteComponent() {
-  const { share, pwd } = Route.useSearch();
-  console.log('share', share, 'pwd', pwd);
+  const { accessToken } = Route.useSearch();
+  console.log('accessToken', accessToken);
   const { serverState } = useTrysteroServer({
-    share,
-    pwd,
+    accessToken,
     streamFactory: streamFactory,
   });
   useWakeLock();
