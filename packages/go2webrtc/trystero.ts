@@ -174,39 +174,38 @@ export const createClient = (options: ClientOptions) => {
 
 export function useTrysteroServer(options: ServerOptions) {
   const [serverState, setServerState] = useState<ServerState>(ServerState.IDLE);
-  const serverRef = useRef(
-    createServer({
-      ...options,
-      onStateChange: setServerState,
-    })
-  );
+  const serverRef = useRef<ReturnType<typeof createServer> | null>(null);
 
   useEffect(() => {
-    const server = serverRef.current;
+    const server = createServer({
+      ...options,
+      onStateChange: setServerState,
+    });
     server.connect();
+    serverRef.current = server;
     return () => {
       server.disconnect();
+      serverRef.current = null;
     };
   }, [options.accessToken]);
 
   return {
     serverState,
-    disconnect: () => serverRef.current.disconnect(),
+    disconnect: () => serverRef.current?.disconnect(),
   };
 }
 
 export function useTrysteroClient(options: ClientOptions) {
   const [clientState, setClientState] = useState<ClientState>(ClientState.DISCONNECTED);
-  const clientRef = useRef(
-    createClient({
-      ...options,
-      onStateChange: setClientState,
-    })
-  );
+  const clientRef = useRef<ReturnType<typeof createClient> | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
 
   useEffect(() => {
-    const client = clientRef.current;
+    const client = createClient({
+      ...options,
+      onStateChange: setClientState,
+    });
+    clientRef.current = client;
     const connectAndGetStream = async () => {
       try {
         const { stream } = await client.connect();
@@ -218,12 +217,13 @@ export function useTrysteroClient(options: ClientOptions) {
     connectAndGetStream();
     return () => {
       client.disconnect();
+      clientRef.current = null;
     };
   }, [options.accessToken]);
 
   return {
     clientState,
     stream,
-    disconnect: () => clientRef.current.disconnect(),
+    disconnect: () => clientRef.current?.disconnect(),
   };
 }

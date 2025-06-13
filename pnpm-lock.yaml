@@ -955,6 +955,9 @@ importers:
       '@wbcnc/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
+      '@wbcnc/public-config':
+        specifier: workspace:*
+        version: link:../../packages/public-config
       '@wbcnc/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config

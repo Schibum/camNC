@@ -29,6 +29,7 @@
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "@wbcnc/eslint-config": "workspace:*",
+    "@wbcnc/public-config": "workspace:*",
     "@wbcnc/typescript-config": "workspace:*",
     "@wbcnc/ui": "workspace:*",
     "eslint": "catalog:",
