@@ -242,7 +242,7 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
   const [markers, setMarkers] = useState<IMarker[]>([]);
   const { useArucoMarkers } = useArucoConfig();
   const [points, setPoints] = useState<Vector2[]>(useStore(state => state.camSource!.markerPosInCam) || []);
-  const setMachineBoundsInCam = useStore(state => state.camSourceSetters.setMachineBoundsInCam);
+  const setMarkerPosInCam = useStore(state => state.camSourceSetters.setMarkerPosInCam);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -260,7 +260,7 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) =
       return;
     }
 
-    setMachineBoundsInCam(pointsToSave);
+    setMarkerPosInCam(pointsToSave);
     const reprojectionError = updateCameraExtrinsics();
     toast.success(`Updated camera extrinsics`, {
       description: `Reprojection error: ${reprojectionError.toFixed(2)}px (< 1px is very good)`,
