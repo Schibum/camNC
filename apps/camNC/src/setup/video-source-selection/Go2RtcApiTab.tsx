@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@wbcn
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@wbcnc/ui/components/form';
 import { Input } from '@wbcnc/ui/components/input';
 import { Textarea } from '@wbcnc/ui/components/textarea';
+import { ExternalLink } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -29,8 +30,15 @@ export function Go2RtcApiTab({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>go2rtc WebRTC API</CardTitle>
-        <CardDescription>Connect directly to a stream provided by go2rtc.</CardDescription>
+        <CardTitle>go2rtc (local)</CardTitle>
+        <CardDescription>
+          Connect directly to a stream provided by{' '}
+          <a className="text-blue-500 hover:underline" href="https://github.com/AlexxIT/go2rtc" target="_blank" rel="noreferrer">
+            go2rtc
+            <ExternalLink className="size-4 inline-block" />
+          </a>
+          . Preferred option for lower latency.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <Form {...form}>

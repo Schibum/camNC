@@ -1,21 +1,21 @@
+import { Hint } from '@/components/Hint';
 import {
   buildConnectionUrl,
   genRandomWebrtc,
+  Go2rtcConnectionParams,
   parseConnectionString,
   RtcConnectionParams,
   WebcamConnectionParams,
   WebrtcConnectionParams,
   WebtorrentConnectionParams,
-  Go2rtcConnectionParams,
 } from '@wbcnc/go2webrtc/url-helpers';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@wbcnc/ui/components/tabs';
 import { useMemo, useState } from 'react';
-import { Hint } from '@/components/Hint';
 
 import { VideoDimensions } from '@wbcnc/go2webrtc/video-source';
 import { ConnectDialog } from './ConnectDialog';
-import { Go2RtcTab } from './Go2RtcTab';
-import { Go2RtcApiTab } from './Go2RtcApiTab';
+import { Go2RtcLocalTab } from './Go2RtcLocalTab';
+import { Go2RtcWebtorrentTab } from './Go2RtcWebtorrentTab';
 import { PhoneTab } from './PhoneTab';
 import { UrlTab } from './UrlTab';
 import { WebcamTab } from './WebcamTab';
@@ -96,14 +96,28 @@ export function VideoSourceSelection({ value = '', onChange }: { value?: string;
           </a>
           as a gateway, e.g. on a Raspberry&nbsp;Pi&nbsp;Zero.
         </p>
+        <p className="mb-1">
+          <strong>Note:</strong> Prefer the local go2rtc version when possible, since it has lower connection latency and does not depend on
+          torrent tracker uptime.
+        </p>
       </Hint>
       <Tabs className="w-full" value={sourceType} onValueChange={setSourceType}>
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="webcam">Webcam</TabsTrigger>
-          <TabsTrigger value="webrtc">Phone</TabsTrigger>
-          <TabsTrigger value="webtorrent">IP Camera</TabsTrigger>
-          <TabsTrigger value="go2rtc">go2rtc</TabsTrigger>
-          <TabsTrigger value="url">URL</TabsTrigger>
+        <TabsList className="w-full">
+          <TabsTrigger value="webcam" className="flex-auto whitespace-normal">
+            Webcam
+          </TabsTrigger>
+          <TabsTrigger value="webrtc" className="flex-auto whitespace-normal">
+            Phone
+          </TabsTrigger>
+          <TabsTrigger value="webtorrent" className="flex-auto whitespace-normal">
+            go2rtc (webtorrent)
+          </TabsTrigger>
+          <TabsTrigger value="go2rtc" className="flex-auto whitespace-normal">
+            go2rtc (local)
+          </TabsTrigger>
+          <TabsTrigger value="url" className="flex-auto whitespace-normal">
+            URL
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="webcam">
           <WebcamTab defaults={webcamDefaults} onSubmit={onSubmit} />
@@ -112,10 +126,10 @@ export function VideoSourceSelection({ value = '', onChange }: { value?: string;
           <PhoneTab defaults={webrtcDefaults} onConnect={onConnect} />
         </TabsContent>
         <TabsContent value="webtorrent">
-          <Go2RtcTab defaults={webtorrentDefaults} onConnect={onConnect} />
+          <Go2RtcWebtorrentTab defaults={webtorrentDefaults} onConnect={onConnect} />
         </TabsContent>
         <TabsContent value="go2rtc">
-          <Go2RtcApiTab defaults={go2rtcDefaults} onConnect={onConnect} />
+          <Go2RtcLocalTab defaults={go2rtcDefaults} onConnect={onConnect} />
         </TabsContent>
         <TabsContent value="url">
           <UrlTab defaults={urlDefaults} onConnect={onConnect} />
