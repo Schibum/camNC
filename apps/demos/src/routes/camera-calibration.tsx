@@ -280,7 +280,8 @@ function App() {
         videoSource.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [videoSource]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Handle source change
   const handleSourceChange = (source: MediaStream | string | null) => {
