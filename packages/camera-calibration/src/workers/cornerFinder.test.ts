@@ -22,7 +22,7 @@ function loadImage(path: string) {
  * Creates a ReadableStream<VideoFrame> from a single image for testing
  */
 async function createVideoFrameStreamFromImage(
-  imagePath: string,
+  imagePath: string
 ): Promise<ReadableStream<VideoFrame>> {
   const img = await loadImage(imagePath);
   const canvas = document.createElement("canvas");
@@ -54,12 +54,13 @@ async function testWorkerWithImage(
   workerProxy: Comlink.Remote<StreamCornerFinderWorkerAPI>,
   imagePath: string,
   expectedResult: FrameEvent["result"],
-  additionalValidation?: (data: FrameEvent) => void,
+  additionalValidation?: (data: FrameEvent) => void
 ): Promise<void> {
   const stream = await createVideoFrameStreamFromImage(imagePath);
   const img = await loadImage(imagePath);
 
-  return new Promise<void>((resolve, reject) => {
+  // eslint-disable-next-line no-async-promise-executor
+  return new Promise<void>(async (resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error("Test timeout")), 10000);
 
     const onFrameProcessed = (data: FrameEvent) => {
@@ -79,7 +80,7 @@ async function testWorkerWithImage(
       Comlink.transfer(stream, [stream]),
       { width: 9, height: 6 },
       { width: img.width, height: img.height },
-      Comlink.proxy(onFrameProcessed),
+      Comlink.proxy(onFrameProcessed)
     );
 
     await workerProxy.start();
@@ -95,7 +96,7 @@ describe("StreamCornerFinderWorker", () => {
       new URL("./streamCornerFinder.worker.ts", import.meta.url),
       {
         type: "module",
-      },
+      }
     );
     workerProxy = Comlink.wrap<StreamCornerFinderWorkerAPI>(worker);
   });
