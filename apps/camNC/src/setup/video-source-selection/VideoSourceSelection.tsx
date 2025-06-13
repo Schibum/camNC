@@ -39,7 +39,16 @@ export interface IOnChangeArgs {
 }
 
 export function VideoSourceSelection({ value = '', onChange }: { value?: string; onChange: (value: IOnChangeArgs) => void }) {
-  const defaults = useMemo(() => (value ? parseConnectionString(value) : undefined), [value]);
+  const defaults = useMemo(() => {
+    try {
+      if (value) {
+        return parseConnectionString(value);
+      }
+    } catch {
+      // ignore
+    }
+    return undefined;
+  }, [value]);
 
   const [sourceType, setSourceType] = useState<string>(defaults?.type || 'webrtc');
   const [connectParams, setConnectParams] = useState<RtcConnectionParams | null>(null);

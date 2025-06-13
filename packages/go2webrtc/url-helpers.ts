@@ -42,7 +42,7 @@ export function parseConnectionString(connectionString: string): RtcConnectionPa
   let params = url.searchParams;
   switch (url.protocol) {
     case 'webrtc:': {
-      const accessToken = params.get('accessToken') || params.get('token') || params.get('share');
+      const accessToken = params.get('accessToken');
       if (accessToken) {
         return { type: 'webrtc', accessToken };
       }
