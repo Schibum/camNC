@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { CameraCalibration } from "@wbcnc/camera-calibration";
 import { ensureOpenCvIsLoaded } from "@wbcnc/load-opencv";
 import { Check, Settings } from "lucide-react";
-import { use, useEffect, useState, useCallback } from "react";
+import { use, useCallback, useEffect, useState } from "react";
 // import "./index.css";
 
 export const Route = createFileRoute("/camera-calibration")({
@@ -57,7 +57,8 @@ function SettingsOverlay({
     } catch (err) {
       console.error("Error enumerating video devices:", err);
     }
-  }, [selectedDeviceId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleDeviceSelect = async (deviceId: string) => {
     setIsLoading(true);
