@@ -61,18 +61,13 @@ export const ManagedVideoElementView: React.FC = () => {
 
     // Cleanup function for when the component unmounts
     return () => {
-      const currentContainer = containerRef.current; // Capture ref value
-      if (
-        currentContainer &&
-        videoElement &&
-        currentContainer.contains(videoElement)
-      ) {
+      if (container && videoElement && container.contains(videoElement)) {
         // When the component unmounts, detach the video element from its container
         // but DO NOT destroy the videoElement itself, as it's managed by the store.
         console.log(
           "[ManagedVideoView] Detaching video element from container on unmount.",
         );
-        currentContainer.removeChild(videoElement);
+        container.removeChild(videoElement);
       }
     };
     // Re-run the effect if the videoElement instance in the store changes

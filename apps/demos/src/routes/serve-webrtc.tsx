@@ -45,7 +45,7 @@ function useWebRTCServer(options: ServerOptions) {
       server.stop();
       console.log("WebRTC Server stopped.");
     };
-  }, []); // Empty dependency array ensures this runs only once on mount and cleanup on unmount
+  }, [options]);
 }
 
 // Just reload the app code periodically to ensure that the latest code is used.

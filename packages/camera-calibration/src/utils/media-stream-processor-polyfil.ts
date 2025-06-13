@@ -1,6 +1,5 @@
 // Mozilla polyfill for MediaStreamTrackProcessor
 // From https://jan-ivar.github.io/polyfills/mediastreamtrackprocessor.js
-// @ts-nocheck
 
 import { isFirefox } from "react-device-detect";
 
@@ -15,7 +14,7 @@ if (!self.MediaStreamTrackProcessor && isFirefox) {
     constructor({ track }) {
       if (track.kind == "video") {
         this.readable = new ReadableStream({
-          async start(controller) {
+          async start() {
             this.video = document.createElement("video");
             this.video.srcObject = new MediaStream([track]);
             await Promise.all([

@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useRef, useState } from "react";
 import { NumericFormat, NumericFormatProps } from "react-number-format";
 import { Input } from "./input";
 
@@ -22,7 +22,6 @@ export interface NumberInputProps
 export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
   (
     {
-      stepper,
       thousandSeparator,
       placeholder,
       defaultValue,
@@ -46,6 +45,7 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
       controlledValue ?? defaultValue,
     );
 
+    /*
     const handleIncrement = useCallback(() => {
       setValue((prev) =>
         prev === undefined
@@ -61,6 +61,7 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
           : Math.max(prev - (stepper ?? 1), min),
       );
     }, [stepper, min]);
+    */
 
     // useEffect(() => {
     //   const handleKeyDown = (e: KeyboardEvent) => {

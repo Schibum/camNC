@@ -186,7 +186,7 @@ function ManualPointsScene({ points, setPoints }: { points: Vector2[]; setPoints
             key={index}
             position={pos}
             rotation={[Math.PI, 0, 0]}
-            onDragStart={event => {
+            onDragStart={() => {
               setIsDragging(true);
             }}
             onDragEnd={event => {
@@ -238,7 +238,7 @@ function ArucoPointsScene({ markers }: { markers: IMarker[] }) {
   );
 }
 
-export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = ({}) => {
+export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = () => {
   const [markers, setMarkers] = useState<IMarker[]>([]);
   const { useArucoMarkers } = useArucoConfig();
   const [points, setPoints] = useState<Vector2[]>(useStore(state => state.camSource!.markerPosInCam) || []);

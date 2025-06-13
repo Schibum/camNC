@@ -1,7 +1,7 @@
 import { immerable } from 'immer';
 import superjson from 'superjson';
 import { Box2, Matrix3, Vector2, Vector3 } from 'three';
-import { create, ExtractState } from 'zustand';
+import { create } from 'zustand';
 import { combine, devtools, persist, PersistStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import { useShallow } from 'zustand/react/shallow';
@@ -89,8 +89,6 @@ const storage: PersistStorage<unknown> = {
 (Vector2 as any)[immerable] = true;
 // Should we create slices? see https://github.com/pmndrs/zustand/discussions/2195#discussioncomment-7614103
 
-type TStore = ExtractState<typeof useStore>;
-
 // prettier-ignore
 export const useStore = create(devtools(persist(immer(combine(
   {
@@ -106,7 +104,7 @@ export const useStore = create(devtools(persist(immer(combine(
     showStillFrame: false,
     fluidncToken: crypto.randomUUID() as string,
   },
-  (set, get) => ({
+  (set) => ({
     setToolpathOffset: (offset: Vector3) => set(state => {
       state.toolpathOffset = offset;
     }),

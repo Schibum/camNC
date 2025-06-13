@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useCalibrationData, useCameraExtrinsics, useCamResolution, useNewCameraMatrix } from '@/store/store';
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
@@ -91,6 +92,7 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
       R: { value: R },
       t: { value: t },
     }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 

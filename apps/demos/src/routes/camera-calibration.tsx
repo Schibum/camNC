@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { CameraCalibration } from "@wbcnc/camera-calibration";
 import { ensureOpenCvIsLoaded } from "@wbcnc/load-opencv";
 import { Check, Settings } from "lucide-react";
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useState, useCallback } from "react";
 // import "./index.css";
 
 export const Route = createFileRoute("/camera-calibration")({
@@ -35,9 +35,9 @@ function SettingsOverlay({
     if (isOpen) {
       loadVideoDevices();
     }
-  }, [isOpen]);
+  }, [isOpen, loadVideoDevices]);
 
-  const loadVideoDevices = async () => {
+  const loadVideoDevices = useCallback(async () => {
     try {
       // First request permission to access devices
       await navigator.mediaDevices.getUserMedia({ video: true });
@@ -56,7 +56,7 @@ function SettingsOverlay({
     } catch (err) {
       console.error("Error enumerating video devices:", err);
     }
-  };
+  }, [selectedDeviceId]);
 
   const handleDeviceSelect = async (deviceId: string) => {
     setIsLoading(true);
@@ -278,7 +278,7 @@ function App() {
         videoSource.getTracks().forEach((track) => track.stop());
       }
     };
-  }, []);
+  }, [videoSource]);
 
   // Handle source change
   const handleSourceChange = (source: MediaStream | string | null) => {

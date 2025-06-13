@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { RouterProvider, createRouter } from '@tanstack/react-router';
 import { setKeepAliveTime } from '@wbcnc/go2webrtc/use-video-source';
 import { initFbApp } from '@wbcnc/public-config/firebase';

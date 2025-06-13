@@ -11,7 +11,7 @@ const ReactCompilerConfig = {
   target: "19",
 };
 // https://vitejs.dev/config/
-export default defineConfig(({ command, ...params }) => {
+export default defineConfig(() => {
   const plugins: PluginOption[] = [
     TanStackRouterVite({ target: "react", autoCodeSplitting: true }),
     react({

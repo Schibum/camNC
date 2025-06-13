@@ -1,10 +1,11 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 export const cv2 = {
-  matFromArray: (rows: number, cols: number, type: number, data: number[]) => ({
+  matFromArray: (_rows: number, _cols: number, _type: number, data: number[]) => ({
     data32F: new Float32Array(data),
     delete: () => {},
   }),
   Mat: {
-    zeros: (rows: number, cols: number, type: number) => ({
+    zeros: (_rows: number, _cols: number, _type: number) => ({
       data32F: new Float32Array(5).fill(0),
       delete: () => {},
     }),

@@ -1,4 +1,3 @@
-import { ITuple } from '@/store/store';
 // import _cv from '@techstark/opencv-js';
 import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { Matrix3, Vector2, Vector3 } from 'three';
@@ -16,7 +15,6 @@ describe('computeP3P', () => {
 
   it('should compute P3P solution with valid inputs', () => {
     // Define inputs based on Python example
-    const dimensions: ITuple = [2560, 1920]; // Image dimensions
 
     // Machine bounds (in machine coordinates)
     const mp = [new Vector3(0, 0, 0), new Vector3(0, 1243, 0), new Vector3(623, 1243, 0), new Vector3(623, 0, 0)];
