@@ -1,6 +1,6 @@
-import { connect as connectTorrent } from "./client";
-import { createClient } from "./trystero";
-import { connectGo2RtcWs } from "./go2rtc-ws";
+import { connect as connectTorrent } from './client';
+import { createClient } from './trystero';
+import { connectGo2RtcWs } from './go2rtc-ws';
 
 import {
   RtcConnectionParams,
@@ -32,22 +32,11 @@ export interface VideoSource {
   dispose: () => Promise<void>;
 }
 
-async function withTimeout<T>(
-  promise: Promise<T>,
-  timeout: number,
-): Promise<T> {
-  return Promise.race<T>([
-    promise,
-    new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Timeout")), timeout),
-    ),
-  ]);
+async function withTimeout<T>(promise: Promise<T>, timeout: number): Promise<T> {
+  return Promise.race<T>([promise, new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout))]);
 }
 
-function webtorrentVideoSource(
-  params: WebtorrentConnectionParams,
-): VideoSource {
-
+function webtorrentVideoSource(params: WebtorrentConnectionParams): VideoSource {
   let connectPromise = connectTorrent({
     share: params.share,
     pwd: params.pwd,
@@ -108,7 +97,7 @@ function go2rtcVideoSource(params: Go2rtcConnectionParams): VideoSource {
   async function dispose() {
     try {
       const { stream, pc } = await connectPromise;
-      stream.getTracks().forEach((t) => t.stop());
+      stream.getTracks().forEach(t => t.stop());
       pc.close();
     } catch {}
   }
@@ -178,9 +167,9 @@ export function videoSource(url: string): VideoSource {
       return webtorrentVideoSource(rtcParams);
     case 'webrtc':
       return webrtcVideoSource(rtcParams);
-    case "go2rtc":
+    case 'go2rtc':
       return go2rtcVideoSource(rtcParams);
-    case "url":
+    case 'url':
       return urlVideoSource(rtcParams);
     case 'webcam':
       return webcamVideoSource(rtcParams);

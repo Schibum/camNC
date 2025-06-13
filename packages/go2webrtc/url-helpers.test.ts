@@ -21,17 +21,17 @@ describe('url-helpers', () => {
         type: 'webrtc',
       });
     });
-    it("should parse go2rtc urls", () => {
-      const url = "go2rtc:?host=localhost:1984&src=camera1";
+    it('should parse go2rtc urls', () => {
+      const url = 'go2rtc:?host=localhost:1984&src=camera1';
       const result = parseConnectionString(url);
       expect(result).toEqual({
-        type: "go2rtc",
-        host: "localhost:1984",
-        src: "camera1",
+        type: 'go2rtc',
+        host: 'localhost:1984',
+        src: 'camera1',
       });
     });
-    it("should parse webcam urls", () => {
-      const url = "webcam:?deviceId=123";
+    it('should parse webcam urls', () => {
+      const url = 'webcam:?deviceId=123';
 
       const result = parseConnectionString(url);
       expect(result).toEqual({
@@ -78,13 +78,13 @@ describe('url-helpers', () => {
       });
       expect(url).toEqual('webcam:?deviceId=123&width=1024');
     });
-    it("should build go2rtc urls", () => {
+    it('should build go2rtc urls', () => {
       const url = buildConnectionUrl({
-        type: "go2rtc",
-        host: "localhost:1984",
-        src: "camera1",
+        type: 'go2rtc',
+        host: 'localhost:1984',
+        src: 'camera1',
       });
-      expect(url).toEqual("go2rtc:?host=localhost%3A1984&src=camera1");
+      expect(url).toEqual('go2rtc:?host=localhost%3A1984&src=camera1');
     });
   });
 });

@@ -1,4 +1,4 @@
-const rtcSchemas = ["webtorrent:", "webrtc:", "go2rtc:"] as const;
+const rtcSchemas = ['webtorrent:', 'webrtc:', 'go2rtc:'] as const;
 export type RtcSchema = (typeof rtcSchemas)[number];
 
 export interface WebrtcConnectionParams {
@@ -26,7 +26,7 @@ export interface WebcamConnectionParams {
 }
 
 export interface Go2rtcConnectionParams {
-  type: "go2rtc";
+  type: 'go2rtc';
   host: string;
   src: string;
 }
@@ -38,10 +38,7 @@ export type RtcConnectionParams =
   | WebcamConnectionParams
   | Go2rtcConnectionParams;
 
-export function parseConnectionString(
-  connectionString: string,
-): RtcConnectionParams {
-
+export function parseConnectionString(connectionString: string): RtcConnectionParams {
   const url = new URL(connectionString);
   let params = url.searchParams;
   switch (url.protocol) {
@@ -56,19 +53,19 @@ export function parseConnectionString(
           type: url.protocol === 'webrtc:' ? 'webrtc' : 'webtorrent',
         };
       }
-      throw new Error("missing share or pwd");
-    case "go2rtc:": {
-      const host = params.get("host");
-      const src = params.get("src");
+      throw new Error('missing share or pwd');
+    case 'go2rtc:': {
+      const host = params.get('host');
+      const src = params.get('src');
       if (host && src) {
-        return { type: "go2rtc", host, src };
+        return { type: 'go2rtc', host, src };
       }
-      throw new Error("missing host or src");
+      throw new Error('missing host or src');
     }
-    case "webcam:":
-      const deviceId = params.get("deviceId");
-      const width = params.get("width");
-      const height = params.get("height");
+    case 'webcam:':
+      const deviceId = params.get('deviceId');
+      const width = params.get('width');
+      const height = params.get('height');
 
       if (deviceId) {
         return {
@@ -93,10 +90,9 @@ export function buildConnectionUrl(params: RtcConnectionParams) {
       return buildRtcConnectionUrl(params);
     case 'webtorrent':
       return buildRtcConnectionUrl(params);
-    case "go2rtc":
+    case 'go2rtc':
       return buildGo2rtcConnectionUrl(params);
-    case "webcam":
-
+    case 'webcam':
       return buildWebcamConnectionUrl(params);
     case 'url':
       return params.url;

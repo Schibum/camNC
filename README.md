@@ -25,7 +25,7 @@ CamNC is a simple experimental web application that visualizes CNC G-code on a l
 
       ```yaml
       api:
-        origin: "*"
+        origin: '*'
       ```
 
       Use plain HTTP (ws://) only on `localhost` or when launching Chrome with
