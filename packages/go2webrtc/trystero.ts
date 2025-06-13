@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
-import * as Comlink from 'comlink';
-import log from 'loglevel';
 import { comlinkMpMiddleware } from '@wbcnc/webrtc-channel/comlink/comlink-mp-middleware';
 import createChunkedPort from '@wbcnc/webrtc-channel/data-chunker';
 import Peer from '@wbcnc/webrtc-channel/peer';
 import { RolePeering } from '@wbcnc/webrtc-channel/role-peering';
+import * as Comlink from 'comlink';
+import log from 'loglevel';
+import { useEffect, useRef, useState } from 'react';
 
 export enum ServerState {
   IDLE = 'idle',
@@ -35,17 +35,6 @@ export interface IResolution {
   width: number;
   height: number;
 }
-
-function createSerializer() {
-  let last: Promise<unknown> = Promise.resolve();
-  return async <R>(fn: () => Promise<R>): Promise<R> => {
-    const res = last.then(fn).catch(fn);
-    last = res.catch(() => {});
-    return res;
-  };
-}
-
-const serializer = createSerializer();
 
 async function getMaxResolution(stream: MediaStream) {
   const track = stream.getVideoTracks()[0];
@@ -108,11 +97,11 @@ export const createServer = (options: ServerOptions) => {
 
   return {
     connect: async () => {
-      await serializer(() => peering.join());
+      await peering.join();
       options.onStateChange?.(ServerState.IDLE);
     },
     disconnect: async () => {
-      await serializer(() => peering.destroy());
+      await peering.destroy();
       cleanupStream();
       options.onStateChange?.(ServerState.DISCONNECTED);
     },
@@ -133,7 +122,7 @@ export const createClient = (options: ClientOptions) => {
   return {
     connect: async (): Promise<IConnectResult> => {
       options.onStateChange?.(ClientState.CONNECTING);
-      await serializer(() => peering.join());
+      await peering.join();
 
       const outputStream = new MediaStream();
       let resolveStream: (s: MediaStream) => void;
@@ -176,7 +165,7 @@ export const createClient = (options: ClientOptions) => {
       };
     },
     disconnect: async () => {
-      await serializer(() => peering.destroy());
+      await peering.destroy();
       serverPeer = null;
       options.onStateChange?.(ClientState.DISCONNECTED);
     },

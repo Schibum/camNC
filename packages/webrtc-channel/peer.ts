@@ -142,8 +142,8 @@ export default class Peer {
       log.debug('dataChannel closed');
       this.destroy();
     });
-    this.dataChannel.addEventListener('error', () => {
-      log.debug('dataChannel error');
+    this.dataChannel.addEventListener('error', err => {
+      log.debug('dataChannel error', err);
       this.destroy();
     });
   }

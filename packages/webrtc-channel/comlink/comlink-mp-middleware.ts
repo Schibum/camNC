@@ -62,8 +62,8 @@ export function comlinkMpMiddleware(phys: Endpoint): Endpoint {
   const lsn = new Set<(ev: MessageEvent) => void>();
 
   /* -- outbound -------------------------------------------------- */
-  function postMessage(msg: any, xfer: Transferable[]) {
-    if (!xfer.length) {
+  function postMessage(msg: any, xfer?: Transferable[]) {
+    if (!xfer || !xfer.length) {
       phys.postMessage(msg, []); // fast path: no MessagePorts
       return;
     }
