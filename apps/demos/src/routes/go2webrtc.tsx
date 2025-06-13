@@ -163,7 +163,7 @@ export function ConnectionQR({ method, connectionString }: { method: FormValues[
   const { SVG } = useQRCode();
   if (!parsed) return null;
 
-  const accessToken = (parsed as any).accessToken ?? (parsed as any).share;
+  const accessToken = parsed.accessToken;
   const params = new URLSearchParams({ accessToken });
   const baseUrl = method === 'webtorrent' ? SERVE_URL_WEBTORRENT : SERVE_URL_TRYSTERO;
   const url = `${baseUrl}?${params.toString()}`;

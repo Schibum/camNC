@@ -6,9 +6,6 @@
       "@/*": [
         "./*"
       ],
-      "@wbcnc/webrtc-channel/*": [
-        "../webrtc-channel/*"
-      ]
     },
     "jsx": "react-jsx",
     "jsxImportSource": "react",

@@ -1,4 +1,3 @@
-import { comlinkMpMiddleware } from '@wbcnc/webrtc-channel/comlink/comlink-mp-middleware';
 import createChunkedPort from '@wbcnc/webrtc-channel/data-chunker';
 import Peer from '@wbcnc/webrtc-channel/peer';
 import { RolePeering } from '@wbcnc/webrtc-channel/role-peering';
@@ -83,7 +82,7 @@ export const createServer = (options: ServerOptions) => {
         return getMaxResolution(stream);
       },
     };
-    Comlink.expose(api, comlinkMpMiddleware(port));
+    Comlink.expose(api, port);
   }
 
   peering.on('peerConnected', ({ peerId, peer }: { peerId: string; peer: Peer }) => {
@@ -142,7 +141,7 @@ export const createClient = (options: ClientOptions) => {
           options.onStateChange?.(ClientState.CONNECTING);
         });
         const port = createChunkedPort(peer.dataChannel);
-        const remote = Comlink.wrap<{ getStream: () => Promise<IResolution> }>(comlinkMpMiddleware(port));
+        const remote = Comlink.wrap<{ getStream: () => Promise<IResolution> }>(port);
         peer.pc.addEventListener('track', (ev: RTCTrackEvent) => {
           outputStream.getTracks().forEach(t => {
             outputStream.removeTrack(t);
