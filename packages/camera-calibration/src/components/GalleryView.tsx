@@ -1,10 +1,9 @@
-import { animated, config as springConfig, useTransition } from '@react-spring/web'; // Import config and SpringValue
+import { animated } from '@react-spring/web';
 import { CalibrationResult } from '@wbcnc/camera-calibration';
 import { Button } from '@wbcnc/ui/components/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@wbcnc/ui/components/dialog'; // Added Dialog imports
 import { Trash } from 'lucide-react';
-import type { CSSProperties } from 'react'; // Import CSSProperties for style typing
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { CapturedFrame } from '../lib/calibrationTypes';
 import { useCalibrationStore } from '../store/calibrationStore';
 import { CalibrationResultDisplay } from './CalibrationResultDisplay'; // Import the new component
@@ -74,26 +73,8 @@ export const GalleryView: React.FC<GalleryViewProps> = ({ onClose, isOpen, onCal
   const calibrationResult = useCalibrationStore(s => s.calibrationResult);
 
   const [selectedFrameId, setSelectedFrameId] = useState<string | null>(null);
-  const prevSelectedIdRef = useRef<string | null>(null);
-  const directionRef = useRef(0); // Ref to store direction for leave animation
-
-  useEffect(() => {
-    prevSelectedIdRef.current = selectedFrameId;
-  }, [selectedFrameId]);
 
   const selectedIndex = capturedFrames.findIndex(f => f.id === selectedFrameId);
-  const prevSelectedIndex = capturedFrames.findIndex(f => f.id === prevSelectedIdRef.current);
-
-  // Calculate direction: 1 for next, -1 for prev, 0 for initial/close
-  const calculateDirection = () => {
-    if (selectedIndex === -1 || prevSelectedIndex === -1) return 0; // Initial open or close
-    if (selectedIndex === 0 && prevSelectedIndex === capturedFrames.length - 1) return 1; // Wrap around next
-    if (selectedIndex === capturedFrames.length - 1 && prevSelectedIndex === 0) return -1; // Wrap around prev
-    return selectedIndex > prevSelectedIndex ? 1 : -1;
-  };
-
-  const direction = calculateDirection();
-  directionRef.current = direction; // Store current direction
 
   const handleFrameSelect = (id: string) => {
     setSelectedFrameId(id);
@@ -138,31 +119,7 @@ export const GalleryView: React.FC<GalleryViewProps> = ({ onClose, isOpen, onCal
     return capturedFrames.find(f => f.id === id) || null;
   };
 
-  // Define transitions
-  const transitions = useTransition(getFrameById(selectedFrameId), {
-    from: item => {
-      const dir = directionRef.current; // Use direction from ref
-      return {
-        opacity: 0,
-        transform: item ? `translateX(${dir === 0 ? 0 : dir * 100}%)` : 'translateX(0%)',
-        position: 'absolute' as const, // Use 'as const' for type safety
-      };
-    },
-    enter: {
-      opacity: 1,
-      transform: 'translateX(0%)',
-    },
-    leave: () => {
-      const dir = directionRef.current; // Use direction from ref
-      return {
-        opacity: 0,
-        transform: `translateX(${dir === 0 ? 0 : dir * -100}%)`,
-        position: 'absolute' as const,
-      };
-    },
-    config: springConfig.default,
-    keys: item => item?.id ?? 'null', // Provide a key, handle null case
-  });
+  const selectedFrame = getFrameById(selectedFrameId);
 
   return (
     <div className="gallery-view absolute inset-0 bg-black/95 z-20 p-5 overflow-y-auto text-white flex flex-col">
@@ -206,23 +163,25 @@ export const GalleryView: React.FC<GalleryViewProps> = ({ onClose, isOpen, onCal
               </>
             )}
 
-            {transitions((style: CSSProperties, item: CapturedFrame | null) => {
-              return item ? (
-                <AnimatedDiv
-                  style={{
-                    ...style,
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    zIndex: 30,
-                    backgroundColor: 'hsl(var(--background))',
-                  }}>
-                  <FrameDetailView frame={item} onClose={handleDetailClose} onNavigate={handleNavigate} onDelete={handleDetailDelete} />
-                </AnimatedDiv>
-              ) : null;
-            })}
+            {selectedFrame && (
+              <AnimatedDiv
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  zIndex: 30,
+                  backgroundColor: 'hsl(var(--background))',
+                }}>
+                <FrameDetailView
+                  frame={selectedFrame}
+                  onClose={handleDetailClose}
+                  onNavigate={handleNavigate}
+                  onDelete={handleDetailDelete}
+                />
+              </AnimatedDiv>
+            )}
           </div>
         </DialogContent>
       </Dialog>
