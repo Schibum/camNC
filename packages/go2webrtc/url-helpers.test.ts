@@ -83,7 +83,7 @@ describe("url-helpers", () => {
         host: "localhost:1984",
         src: "camera1",
       });
-      expect(url).toEqual("go2rtc:?host=localhost:1984&src=camera1");
+      expect(url).toEqual("go2rtc:?host=localhost%3A1984&src=camera1");
     });
   });
 });

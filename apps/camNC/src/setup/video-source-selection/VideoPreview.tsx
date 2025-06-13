@@ -2,6 +2,7 @@ import { useVideoSource } from '@wbcnc/go2webrtc/use-video-source';
 import { VideoDimensions } from '@wbcnc/go2webrtc/video-source';
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
 import { Suspense, useImperativeHandle, useLayoutEffect, useRef } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
 
 export interface VideoPreviewRef {
   getMaxResolution: () => VideoDimensions;
@@ -10,13 +11,16 @@ export interface VideoPreviewRef {
 export type VideoPreviewProps = {
   connectionUrl: string;
   ref?: React.Ref<VideoPreviewRef>;
+  onError?: () => void;
 } & Omit<React.VideoHTMLAttributes<HTMLVideoElement>, 'src'>;
 
-export const VideoPreview = ({ connectionUrl, ref, ...props }: VideoPreviewProps) => {
+export const VideoPreview = ({ connectionUrl, ref, onError, ...props }: VideoPreviewProps) => {
   return (
-    <Suspense fallback={<LoadingSpinner className="size-20" />}>
-      <VideoPreviewInner ref={ref} connectionUrl={connectionUrl} {...props} />
-    </Suspense>
+    <ErrorBoundary onError={onError} fallback={<div className="flex items-center justify-center w-full h-full min-h-[200px]" />}>
+      <Suspense fallback={<LoadingSpinner className="size-20" />}>
+        <VideoPreviewInner ref={ref} connectionUrl={connectionUrl} onError={onError} {...props} />
+      </Suspense>
+    </ErrorBoundary>
   );
 };
 

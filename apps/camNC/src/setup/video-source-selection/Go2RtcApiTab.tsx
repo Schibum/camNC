@@ -9,7 +9,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 const schema = z.object({
-  host: z.string().min(1),
+  host: z.string().min(1).url(),
   src: z.string().min(1),
   type: z.literal('go2rtc'),
 });
@@ -65,8 +65,9 @@ export function Go2RtcApiTab({
               <div className="text-sm text-muted-foreground">Example config:</div>
               <Textarea readOnly className="h-20" value={'api:\n  origin: "*"'} />
               <p className="text-sm text-muted-foreground">
-                Run go2rtc on <code>localhost</code> or whitelist the host with Chrome&apos;s
-                <code>--unsafely-treat-insecure-origin-as-secure</code> flag when using plain HTTP. HTTPS/wss is also supported.
+                Run go2rtc on <code>localhost</code> or whitelist the host with Chrome&apos;s{' '}
+                <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code> flag when using plain HTTP. HTTPS/wss is also
+                supported.
               </p>
             </div>
             <Button type="submit">Connect</Button>

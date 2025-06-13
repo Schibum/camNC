@@ -18,7 +18,7 @@ export async function connectGo2RtcWs(options: Go2RtcWsOptions): Promise<{
 
   const transceiver = pc.addTransceiver("video", { direction: "recvonly" });
   const stream = new MediaStream(
-    transceiver.receiver.track ? [transceiver.receiver.track] : [],
+    transceiver.receiver.track ? [transceiver.receiver.track] : []
   );
   let maxResolution: { width: number; height: number } | undefined;
   const updateResolution = () => {
@@ -41,7 +41,7 @@ export async function connectGo2RtcWs(options: Go2RtcWsOptions): Promise<{
     }
   }
   const ws = new WebSocket(
-    `${base.replace(/\/$/, "")}/api/ws?src=${encodeURIComponent(options.src)}`,
+    `${base.replace(/\/$/, "")}/api/ws?src=${encodeURIComponent(options.src)}`
   );
 
   return new Promise((resolve, reject) => {
