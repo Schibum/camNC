@@ -1,11 +1,14 @@
 import { connect as connectTorrent } from './client';
 import { createClient } from './trystero';
+import { connectGo2RtcWs } from './go2rtc-ws';
+
 import {
   RtcConnectionParams,
   UrlConnectionParams,
   WebcamConnectionParams,
   WebrtcConnectionParams,
   WebtorrentConnectionParams,
+  Go2rtcConnectionParams,
   parseConnectionString,
 } from './url-helpers';
 
@@ -85,6 +88,30 @@ function webrtcVideoSource(params: WebrtcConnectionParams): VideoSource {
   };
 }
 
+function go2rtcVideoSource(params: Go2rtcConnectionParams): VideoSource {
+  const connectPromise = connectGo2RtcWs({
+    host: params.host,
+    src: params.src,
+  });
+
+  async function dispose() {
+    try {
+      const { stream, pc } = await connectPromise;
+      stream.getTracks().forEach(t => t.stop());
+      pc.close();
+    } catch {}
+  }
+
+  return {
+    connectedPromise: connectPromise.then(({ stream, maxResolution }) => ({
+      src: stream,
+      maxResolution,
+    })),
+    params,
+    dispose,
+  };
+}
+
 function urlVideoSource(params: UrlConnectionParams): VideoSource {
   return {
     connectedPromise: Promise.resolve({ src: params.url }),
@@ -140,6 +167,8 @@ export function videoSource(url: string): VideoSource {
       return webtorrentVideoSource(rtcParams);
     case 'webrtc':
       return webrtcVideoSource(rtcParams);
+    case 'go2rtc':
+      return go2rtcVideoSource(rtcParams);
     case 'url':
       return urlVideoSource(rtcParams);
     case 'webcam':

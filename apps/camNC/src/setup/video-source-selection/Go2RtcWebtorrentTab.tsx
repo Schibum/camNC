@@ -47,7 +47,7 @@ function Rtc2GoConfigTextarea({ form }: { form: UseFormReturn<z.infer<typeof go2
     </div>
   );
 }
-export function Go2RtcTab({
+export function Go2RtcWebtorrentTab({
   defaults,
   onConnect,
 }: {
@@ -72,7 +72,7 @@ export function Go2RtcTab({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>IP Camera via go2rtc</CardTitle>
+        <CardTitle>go2rtc (webtorrent)</CardTitle>
         <CardDescription>
           Use any IP camera via{' '}
           <a

@@ -95,6 +95,7 @@ function calibToJson(data: ICamSource) {
       },
       machineBounds: data.machineBounds?.min.toArray().concat(data.machineBounds?.max.toArray()),
       markerPositions: data.markerPositions?.map(p => p.toArray()),
+
       markerPosInCam: data.markerPosInCam?.map(p => [p.x, p.y]), //.map(p => p.toArray()),
       useArucoMarkers: data.useArucoMarkers,
       arucoTagSize: data.arucoTagSize,
