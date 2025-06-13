@@ -45,7 +45,8 @@ function useWebRTCServer(options: ServerOptions) {
       server.stop();
       console.log("WebRTC Server stopped.");
     };
-  }, [options]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array ensures this runs only once on mount and cleanup on unmount
 }
 
 // Just reload the app code periodically to ensure that the latest code is used.

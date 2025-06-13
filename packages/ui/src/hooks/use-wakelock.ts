@@ -21,7 +21,8 @@ export function useWakeLock() {
         wakeLock.release();
       }
     };
-  }, [wakeLock]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => {
     requestWakeLock();
   }, [requestWakeLock]);
