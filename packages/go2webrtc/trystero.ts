@@ -5,6 +5,7 @@ import { RolePeering } from '@wbcnc/webrtc-channel/role-peering';
 import * as Comlink from 'comlink';
 import log from 'loglevel';
 import { useEffect, useRef, useState } from 'react';
+import { createSerializer } from './asyncSerializer';
 
 export enum ServerState {
   IDLE = 'idle',
@@ -172,20 +173,24 @@ export const createClient = (options: ClientOptions) => {
   };
 };
 
+// Global serializer guarantees that connect / disconnect operations run sequentially
+const serialize = createSerializer();
+
 export function useTrysteroServer(options: ServerOptions) {
   const [serverState, setServerState] = useState<ServerState>(ServerState.IDLE);
   const serverRef = useRef<ReturnType<typeof createServer> | null>(null);
 
   useEffect(() => {
-    const server = createServer({
+    const srv = createServer({
       ...options,
       onStateChange: setServerState,
     });
-    server.connect();
-    serverRef.current = server;
+    serverRef.current = srv;
+    serialize(() => srv.connect());
+
     return () => {
-      server.disconnect();
-      serverRef.current = null;
+      serialize(() => srv.disconnect());
+      if (serverRef.current === srv) serverRef.current = null;
     };
   }, [options.accessToken]);
 
@@ -197,27 +202,29 @@ export function useTrysteroServer(options: ServerOptions) {
 
 export function useTrysteroClient(options: ClientOptions) {
   const [clientState, setClientState] = useState<ClientState>(ClientState.DISCONNECTED);
-  const clientRef = useRef<ReturnType<typeof createClient> | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const clientRef = useRef<ReturnType<typeof createClient> | null>(null);
 
   useEffect(() => {
-    const client = createClient({
+    const cl = createClient({
       ...options,
       onStateChange: setClientState,
     });
-    clientRef.current = client;
-    const connectAndGetStream = async () => {
+    clientRef.current = cl;
+
+    serialize(async () => {
       try {
-        const { stream } = await client.connect();
+        const { stream } = await cl.connect();
         setStream(stream);
       } catch (error) {
         console.error('Failed to connect:', error);
       }
-    };
-    connectAndGetStream();
+    });
+
     return () => {
-      client.disconnect();
-      clientRef.current = null;
+      serialize(() => cl.disconnect());
+      if (clientRef.current === cl) clientRef.current = null;
+      setStream(null);
     };
   }, [options.accessToken]);
 

@@ -915,6 +915,9 @@ importers:
       '@wbcnc/go2webrtc':
         specifier: workspace:*
         version: link:../../packages/go2webrtc
+      loglevel:
+        specifier: 'catalog:'
+        version: 1.9.2
       lucide-react:
         specifier: 'catalog:'
         version: 0.511.0(react@19.1.0)

@@ -14,6 +14,7 @@
     "@tanstack/router-plugin": "catalog:",
     "@tanstack/zod-adapter": "catalog:",
     "@wbcnc/go2webrtc": "workspace:*",
+    "loglevel": "catalog:",
     "lucide-react": "catalog:",
     "react": "catalog:",
     "react-device-detect": "catalog:",
