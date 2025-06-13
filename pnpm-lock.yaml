@@ -1323,6 +1323,33 @@ importers:
       '@wbcnc/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
+      eslint:
+        specifier: 'catalog:'
+        version: 9.28.0(jiti@2.4.2)
+      eslint-config-prettier:
+        specifier: 'catalog:'
+        version: 10.1.5(eslint@9.28.0(jiti@2.4.2))
+      eslint-import-resolver-typescript:
+        specifier: 'catalog:'
+        version: 4.4.2(eslint-plugin-import@2.31.0)(eslint@9.28.0(jiti@2.4.2))
+      eslint-plugin-import:
+        specifier: 'catalog:'
+        version: 2.31.0(@typescript-eslint/parser@8.33.1(eslint@9.28.0(jiti@2.4.2))(typescript@5.8.3))(eslint-import-resolver-typescript@4.4.2)(eslint@9.28.0(jiti@2.4.2))
+      eslint-plugin-jsx-a11y:
+        specifier: 'catalog:'
+        version: 6.10.2(eslint@9.28.0(jiti@2.4.2))
+      eslint-plugin-prettier:
+        specifier: 'catalog:'
+        version: 5.4.1(eslint-config-prettier@10.1.5(eslint@9.28.0(jiti@2.4.2)))(eslint@9.28.0(jiti@2.4.2))(prettier@3.5.3)
+      eslint-plugin-react:
+        specifier: 'catalog:'
+        version: 7.37.5(eslint@9.28.0(jiti@2.4.2))
+      eslint-plugin-react-hooks:
+        specifier: 6.0.0-rc1
+        version: 6.0.0-rc1(eslint@9.28.0(jiti@2.4.2))
+      eslint-plugin-unused-imports:
+        specifier: 'catalog:'
+        version: 4.1.4(@typescript-eslint/eslint-plugin@8.33.1(@typescript-eslint/parser@8.33.1(eslint@9.28.0(jiti@2.4.2))(typescript@5.8.3))(eslint@9.28.0(jiti@2.4.2))(typescript@5.8.3))(eslint@9.28.0(jiti@2.4.2))
       tailwindcss:
         specifier: 'catalog:'
         version: 4.1.8
