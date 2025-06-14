@@ -1,17 +1,15 @@
 import { UnskewedVideoMesh } from '@/calibration/UnskewTsl';
-import { Draggable } from '@/scene/Draggable';
 import { PresentCanvas } from '@/scene/PresentCanvas';
 import { updateCameraExtrinsics, useReprojectedMarkerPositions } from '@/store/store-p3p';
 import { Line, Text } from '@react-three/drei';
-import { ThreeEvent } from '@react-three/fiber';
 import { useNavigate } from '@tanstack/react-router';
 import { Button } from '@wbcnc/ui/components/button';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { toast } from '@wbcnc/ui/components/sonner';
-import React, { Suspense, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import { Vector2, Vector3 } from 'three';
-import { useArucoConfig, useCamResolution, useStore } from '../store/store';
+import { useStore } from '../store/store';
 import { DetectArucosButton } from './DetectArucoButton';
 import { IMarker } from './detect-aruco';
 
@@ -42,18 +40,6 @@ const kPointLabels = [
   'Marker 2: near (xmax, ymax)',
   'Marker 3: near (xmax, ymin)',
 ];
-
-const NextPointHint: React.FC<{ pointCount: number }> = ({ pointCount }) => {
-  if (pointCount >= 4) {
-    return null;
-  }
-
-  const getNextPointLabel = () => {
-    return pointCount < 4 ? kPointLabels[pointCount] : null;
-  };
-
-  return <div>Select position of {getNextPointLabel()}</div>;
-};
 
 // A crosshair component to show at each point
 const Crosshair: React.FC<{
@@ -134,93 +120,6 @@ const videoToMeshCoords = (point: Vector2): Vector3 => {
   return new Vector3(point.x, point.y, -0.2);
 };
 
-// Component for manual point selection
-function ManualPointsScene({ points, setPoints }: { points: Vector2[]; setPoints: (points: Vector2[]) => void }) {
-  const videoSize = useCamResolution();
-  const [isDragging, setIsDragging] = useState(false);
-
-  // Handle placing a new point by clicking on the mesh
-  const handlePlacePoint = ({ point, ...e }: ThreeEvent<MouseEvent>) => {
-    if (points.length >= 4) return;
-
-    // Stop event propagation
-    e.stopPropagation();
-
-    setPoints([...points, new Vector2(point.x, point.y)]);
-  };
-
-  // Create line points for the calibration rectangle
-  const linePoints = useMemo(() => {
-    if (points.length !== 4) return [];
-
-    return [
-      ...points.map(p => videoToMeshCoords(p)),
-      videoToMeshCoords(points[0]), // Close the loop
-    ];
-  }, [points]);
-
-  // Handle point drag end
-  const handlePointDragEnd = (index: number, position: THREE.Vector3) => {
-    console.log('handlePointDragEnd', index, position);
-
-    const newPoints = [...points];
-    newPoints[index] = new Vector2(position.x, position.y);
-    setPoints(newPoints);
-  };
-
-  return (
-    <>
-      <UnskewedVideoMesh />
-
-      {/* Add a transparent plane overtop for click handling */}
-      <mesh position={[videoSize[0] / 2, videoSize[1] / 2, -0.005]} onClick={handlePlacePoint} rotation={[Math.PI, 0, 0]}>
-        <planeGeometry args={[videoSize[0], videoSize[1]]} />
-        <meshBasicMaterial transparent opacity={0} />
-      </mesh>
-
-      {/* Render points as draggable crosshairs */}
-      {points.map((point, index) => {
-        const pos = videoToMeshCoords(point);
-        return (
-          <Draggable
-            key={index}
-            position={pos}
-            rotation={[Math.PI, 0, 0]}
-            onDragStart={() => {
-              setIsDragging(true);
-            }}
-            onDragEnd={event => {
-              const worldPosition = new THREE.Vector3();
-              event.eventObject.getWorldPosition(worldPosition);
-              handlePointDragEnd(index, worldPosition);
-              setIsDragging(false);
-            }}>
-            <Crosshair position={[0, 0, 0]} color={index % 2 === 0 ? '#4287f5' : '#f54242'} size={25} />
-            <Suspense>
-              <Text
-                fontSize={40}
-                color="white"
-                outlineColor="black"
-                outlineWidth={1}
-                outlineBlur={1}
-                anchorX="center"
-                anchorY="middle"
-                position={[0, 50, 0]}>
-                {kPointLabels[index]}
-              </Text>
-            </Suspense>
-          </Draggable>
-        );
-      })}
-
-      {/* Draw connection lines between points */}
-      {points.length === 4 && !isDragging && <Line points={linePoints} color="yellow" lineWidth={2} />}
-
-      {!isDragging && <ReprojectedMachineBounds />}
-    </>
-  );
-}
-
 // Component for aruco marker visualization
 function ArucoPointsScene({ markers }: { markers: IMarker[] }) {
   return (
@@ -240,20 +139,12 @@ function ArucoPointsScene({ markers }: { markers: IMarker[] }) {
 
 export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = () => {
   const [markers, setMarkers] = useState<IMarker[]>([]);
-  const { useArucoMarkers } = useArucoConfig();
-  const [points, setPoints] = useState<Vector2[]>(useStore(state => state.camSource!.markerPosInCam) || []);
   const setMarkerPosInCam = useStore(state => state.camSourceSetters.setMarkerPosInCam);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!useArucoMarkers && points.length > 4) {
-      setPoints([]);
-    }
-  }, [useArucoMarkers, points]);
-
   // Handle saving points
   const handleSave = () => {
-    const pointsToSave = useArucoMarkers ? markers.flatMap(m => m.corners) : points;
+    const pointsToSave = markers.flatMap(m => m.corners);
 
     if (pointsToSave.length < 4) {
       console.error('Must select exactly 4 points');
@@ -272,7 +163,6 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = () => 
   };
 
   const handleReset = () => {
-    setPoints([]);
     setMarkers([]);
   };
 
@@ -288,8 +178,7 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = () => 
     setMarkers(detectedMarkers);
   };
 
-  const currentPointCount = useArucoMarkers ? markers.length * 4 : points.length;
-  const canSave = useArucoMarkers ? markers.length >= 4 : points.length >= 4;
+  const canSave = markers.length >= 4;
 
   return (
     <div className="w-full h-dvh flex flex-col gap-1 overflow-hidden">
@@ -297,12 +186,11 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = () => 
 
       <div className="flex-1 overflow-hidden">
         <PresentCanvas>
-          {useArucoMarkers ? <ArucoPointsScene markers={markers} /> : <ManualPointsScene points={points} setPoints={setPoints} />}
+          <ArucoPointsScene markers={markers} />
         </PresentCanvas>
       </div>
 
       <div className="absolute bottom-4 right-4 flex items-center justify-end gap-2 p-2 bg-white/80 rounded-lg shadow-sm">
-        {!useArucoMarkers && <NextPointHint pointCount={currentPointCount} />}
         {/* Action buttons for reset and save */}
         <DetectArucosButton onMarkersDetected={handleMarkersDetected} />
         <Button variant="secondary" onClick={handleReset}>

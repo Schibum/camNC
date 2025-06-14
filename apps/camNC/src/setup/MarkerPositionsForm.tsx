@@ -1,8 +1,7 @@
 import { Hint } from '@/components/Hint';
-import { useArucoConfig, useSetArucoConfig, useSetMarkerPositions, useStore } from '@/store/store';
+import { useArucoTagSize, useSetArucoTagSize, useSetMarkerPositions, useStore } from '@/store/store';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@wbcnc/ui/components/button';
-import { Checkbox } from '@wbcnc/ui/components/checkbox';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@wbcnc/ui/components/form';
 import { Input } from '@wbcnc/ui/components/input';
 import { ExternalLink } from 'lucide-react';
@@ -20,7 +19,6 @@ const markerSchema = z.object({
 
 const schema = z.object({
   markers: z.tuple([markerSchema, markerSchema, markerSchema, markerSchema]),
-  useArucoMarkers: z.boolean(),
   arucoTagSize: z.coerce.number().min(1).max(1000),
 });
 
@@ -85,27 +83,25 @@ export function MarkerPositionsForm({ onConfirmed }: { onConfirmed: () => void }
   'use no memo';
   const bounds = useStore(state => state.camSource!.machineBounds!);
   const savedRaw = useStore(state => state.camSource?.markerPositions);
-  const arucoConfig = useArucoConfig();
+  const arucoTagSize = useArucoTagSize();
   const setMarkerPositions = useSetMarkerPositions();
-  const setArucoConfig = useSetArucoConfig();
+  const setArucoTagSize = useSetArucoTagSize();
 
   // Calculate default markers with margin based on ArUco configuration
-  const defaultMargin = calculateDefaultMargin(arucoConfig.useArucoMarkers, arucoConfig.arucoTagSize);
+  const defaultMargin = calculateDefaultMargin(arucoTagSize);
   const machineDefaultMarkers = calculateMarkersWithMargin(bounds, defaultMargin);
   const defaultMarkers = savedRaw ? savedRaw.map(v => ({ x: v.x, y: v.y, z: v.z })) : machineDefaultMarkers;
 
   const form = useForm<MarkerFormData>({
     defaultValues: {
       markers: defaultMarkers,
-      useArucoMarkers: arucoConfig.useArucoMarkers,
-      arucoTagSize: arucoConfig.arucoTagSize,
+      arucoTagSize: arucoTagSize,
     } as MarkerFormData,
     resolver: zodResolver(schema),
   });
 
   // Expose reset to restore machine-bound defaults
   const { watch } = form;
-  const watchUseArucoMarkers = watch('useArucoMarkers');
   const watchArucoTagSize = parseInt(watch('arucoTagSize') + '');
 
   function handleMarkerBoundsApply(markers: Array<{ x: number; y: number; z: number }>) {
@@ -115,7 +111,7 @@ export function MarkerPositionsForm({ onConfirmed }: { onConfirmed: () => void }
   function onSubmit(data: MarkerFormData) {
     const vectors = data.markers.map(m => new Vector3(m.x, m.y, m.z));
     setMarkerPositions(vectors);
-    setArucoConfig(data.useArucoMarkers, data.arucoTagSize);
+    setArucoTagSize(data.arucoTagSize);
     onConfirmed();
   }
 
@@ -136,59 +132,28 @@ export function MarkerPositionsForm({ onConfirmed }: { onConfirmed: () => void }
               inside. They can be (re-)detected automatically (e.g. in case the camera or table moves). <br />
               Pocketing gcode for 3.175mm (1/8in) endmill can be generated below for the positions entered.
             </li>
-            <li>
-              Engrave{' '}
-              <a
-                href="https://vector76.github.io/gcode_tpgen/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-500 hover:underline">
-                Squareness marks <ExternalLink className="size-4 inline-block" />
-              </a>{' '}
-              on the wasteboard at the machine bounds. Then select those manually in the camera view (next step).
-            </li>
           </ul>
         </Hint>
 
         <div className="space-y-4 mb-6">
           <FormField
             control={form.control}
-            name="useArucoMarkers"
+            name="arucoTagSize"
             render={({ field }) => (
               <FormItem>
-                <div className="flex items-center space-x-2">
-                  <FormControl>
-                    <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                  </FormControl>
-                  <FormLabel className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                    Use ArUco markers (automatic detection)
-                  </FormLabel>
-                </div>
+                <FormLabel>ArUco tag size (mm)</FormLabel>
+                <FormControl>
+                  <Input {...field} type="number" placeholder="30" />
+                </FormControl>
+                <p className="text-xs text-muted-foreground">Size of the black border in mm (excluding white border)</p>
                 <FormMessage />
               </FormItem>
             )}
           />
-
-          {watchUseArucoMarkers && (
-            <FormField
-              control={form.control}
-              name="arucoTagSize"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>ArUco tag size (mm)</FormLabel>
-                  <FormControl>
-                    <Input {...field} type="number" placeholder="30" />
-                  </FormControl>
-                  <p className="text-xs text-muted-foreground">Size of the black border in mm (excluding white border)</p>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          )}
         </div>
 
         <div>
-          <h3 className="font-medium mb-4">Marker Positions {watchUseArucoMarkers ? '(Centers of ArUco tags)' : ''}</h3>
+          <h3 className="font-medium mb-4">Marker Positions (Centers of ArUco tags)</h3>
         </div>
 
         {markerIndices.map(i => (
@@ -199,15 +164,8 @@ export function MarkerPositionsForm({ onConfirmed }: { onConfirmed: () => void }
         ))}
 
         <div className="flex space-x-2 justify-end mt-8 flex-wrap">
-          {watchUseArucoMarkers && (
-            <DownloadGcodeButton points={watch('markers').map(m => markerSchema.parse(m))} tagSize={watchArucoTagSize} />
-          )}
-          <MarkerBoundsButton
-            bounds={bounds}
-            useArucoMarkers={watchUseArucoMarkers}
-            arucoTagSize={watchArucoTagSize}
-            onApply={handleMarkerBoundsApply}
-          />
+          <DownloadGcodeButton points={watch('markers').map(m => markerSchema.parse(m))} tagSize={watchArucoTagSize} />
+          <MarkerBoundsButton bounds={bounds} arucoTagSize={watchArucoTagSize} onApply={handleMarkerBoundsApply} />
         </div>
         <div className="flex space-x-2 justify-end mt-2">
           <Button type="submit">Confirm</Button>

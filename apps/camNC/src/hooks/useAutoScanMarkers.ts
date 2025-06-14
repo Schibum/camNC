@@ -18,13 +18,11 @@ export interface AutoScanOptions {
 }
 
 /**
- * React hook that periodically looks for a aruco tags
- * and updates machine bounds + extrinsics once it appears.
- * Only runs when useArucoMarkers is enabled in the store.
+ * React hook that periodically looks for aruco tags
+ * and updates machine bounds and extrinsics once all markers appear.
  */
 export function useAutoScanMarkers({ intervalMs, firstScanDelayMs = 5_000, averageFrames = 1 }: AutoScanOptions): void {
   const serviceRef = useRef<MarkerScannerService | null>(null);
-  const useArucoMarkers = useStore(state => state.camSource?.useArucoMarkers ?? false);
 
   async function onMarkersFound(markers: IMarker[]) {
     await ensureOpenCvIsLoaded();
@@ -34,7 +32,7 @@ export function useAutoScanMarkers({ intervalMs, firstScanDelayMs = 5_000, avera
 
   useRunInterval(
     async () => {
-      if (!serviceRef.current || !useArucoMarkers) return;
+      if (!serviceRef.current) return;
       await serviceRef.current.scan();
     },
     intervalMs,
@@ -42,12 +40,6 @@ export function useAutoScanMarkers({ intervalMs, firstScanDelayMs = 5_000, avera
   );
 
   useEffect(() => {
-    if (!useArucoMarkers) {
-      serviceRef.current?.dispose();
-      serviceRef.current = null;
-      return;
-    }
-
     const camSource = useStore.getState().camSource!;
     const service = new MarkerScannerService(camSource, averageFrames, onMarkersFound);
     serviceRef.current = service;
@@ -56,7 +48,7 @@ export function useAutoScanMarkers({ intervalMs, firstScanDelayMs = 5_000, avera
       serviceRef.current?.dispose();
       serviceRef.current = null;
     };
-  }, [averageFrames, useArucoMarkers]);
+  }, [averageFrames]);
 }
 
 class MarkerScannerService {

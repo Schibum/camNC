@@ -25,13 +25,12 @@ type MarginFormData = z.infer<typeof marginSchema>;
 
 interface MarkerBoundsButtonProps {
   bounds: Box2;
-  useArucoMarkers: boolean;
   arucoTagSize: number;
   onApply: (markers: Array<{ x: number; y: number; z: number }>) => void;
 }
 
-export function calculateDefaultMargin(useArucoMarkers: boolean, arucoTagSize: number): number {
-  return useArucoMarkers ? arucoTagSize / 2 + 5 : 0;
+export function calculateDefaultMargin(arucoTagSize: number): number {
+  return arucoTagSize / 2 + 5;
 }
 
 export function calculateMarkersWithMargin(bounds: Box2, margin: number, z = -3.2): Array<{ x: number; y: number; z: number }> {
@@ -43,9 +42,9 @@ export function calculateMarkersWithMargin(bounds: Box2, margin: number, z = -3.
   ];
 }
 
-export function MarkerBoundsButton({ bounds, useArucoMarkers, arucoTagSize, onApply }: MarkerBoundsButtonProps) {
+export function MarkerBoundsButton({ bounds, arucoTagSize, onApply }: MarkerBoundsButtonProps) {
   const [open, setOpen] = useState(false);
-  const defaultMargin = calculateDefaultMargin(useArucoMarkers, arucoTagSize);
+  const defaultMargin = calculateDefaultMargin(arucoTagSize);
 
   const form = useForm<MarginFormData>({
     defaultValues: { margin: defaultMargin },
@@ -62,7 +61,7 @@ export function MarkerBoundsButton({ bounds, useArucoMarkers, arucoTagSize, onAp
     setOpen(newOpen);
     if (newOpen) {
       // Reset form to current default when opening
-      form.reset({ margin: calculateDefaultMargin(useArucoMarkers, arucoTagSize) });
+      form.reset({ margin: calculateDefaultMargin(arucoTagSize) });
     }
   }
 
@@ -95,11 +94,7 @@ export function MarkerBoundsButton({ bounds, useArucoMarkers, arucoTagSize, onAp
                   <FormControl>
                     <Input {...field} type="number" placeholder={String(defaultMargin)} />
                   </FormControl>
-                  <p className="text-xs text-muted-foreground">
-                    {useArucoMarkers
-                      ? `Default: ${defaultMargin}mm (tag size/2 + 5mm clearance)`
-                      : 'Distance inward from machine bounds edges'}
-                  </p>
+                  <p className="text-xs text-muted-foreground">{`Default: ${defaultMargin}mm (tag size/2 + 5mm clearance)`}</p>
                   <FormMessage />
                 </FormItem>
               )}
