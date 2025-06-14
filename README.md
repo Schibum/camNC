@@ -9,7 +9,7 @@ CamNC is a simple experimental web application that visualizes CNC G-code on a l
 
 - Overlay live G-code preview on a camera feed with perspective correction
 - Integrated calibration tool (OpenCV) to estimate camera intrinsics
-- Perspective-n-Point (PnP) pose estimation using machined wasteboard markers or ArUco markers
+- Perspective-n-Point (PnP) pose estimation using ArUco markers
 - Interactive zeroing and jogging via integration with FluidNC WebUI v3
 
 ## Requirements

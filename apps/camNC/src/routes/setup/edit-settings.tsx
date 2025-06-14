@@ -30,7 +30,6 @@ const innerSchema = z.object({
   machineBounds: z.array(z.number()).length(4),
   markerPosInCam: z.array(z.array(z.number()).length(2)).optional(),
   markerPositions: z.array(z.array(z.number()).length(3)).length(4),
-  useArucoMarkers: z.boolean(),
   arucoTagSize: z.number(),
 });
 
@@ -74,7 +73,6 @@ const schema = z.object({
         ),
         markerPositions: data.markerPositions.map(p => new Vector3(...p)),
         markerPosInCam: data.markerPosInCam?.map(p => new Vector2(...p)),
-        useArucoMarkers: data.useArucoMarkers,
         arucoTagSize: data.arucoTagSize,
       };
     }),
@@ -97,7 +95,6 @@ function calibToJson(data: ICamSource) {
       markerPositions: data.markerPositions?.map(p => p.toArray()),
 
       markerPosInCam: data.markerPosInCam?.map(p => [p.x, p.y]), //.map(p => p.toArray()),
-      useArucoMarkers: data.useArucoMarkers,
       arucoTagSize: data.arucoTagSize,
     },
     null,

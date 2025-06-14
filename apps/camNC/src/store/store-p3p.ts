@@ -18,17 +18,11 @@ function getInflatedMarkerPositions() {
   const camSource = useStore.getState().camSource;
   if (!camSource) throw new Error();
   const mp = camSource.markerPositions!;
-  if (camSource.useArucoMarkers) {
-    const as2 = camSource.arucoTagSize! / 2;
-    // Inflate aruco marker positions CW, top left first.
-    return mp.flatMap(m => {
-      return [new Vector3(-as2, as2, 0), new Vector3(as2, as2, 0), new Vector3(as2, -as2, 0), new Vector3(-as2, -as2, 0)].map(v =>
-        v.add(m)
-      );
-    });
-  } else {
-    return mp;
-  }
+  const as2 = camSource.arucoTagSize! / 2;
+  // Inflate aruco marker positions CW, top left first.
+  return mp.flatMap(m => {
+    return [new Vector3(-as2, as2, 0), new Vector3(as2, as2, 0), new Vector3(as2, -as2, 0), new Vector3(-as2, -as2, 0)].map(v => v.add(m));
+  });
 }
 
 function computeMarkerP3P() {
