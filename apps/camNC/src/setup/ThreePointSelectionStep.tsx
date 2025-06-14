@@ -142,7 +142,6 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = () => 
   const setMarkerPosInCam = useStore(state => state.camSourceSetters.setMarkerPosInCam);
   const navigate = useNavigate();
 
-
   // Handle saving points
   const handleSave = () => {
     const pointsToSave = markers.flatMap(m => m.corners);
