@@ -141,14 +141,11 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
       });
       throw new Error('Aspect‑ratio mismatch between provided and video element');
     }
-    if (maxResolution)
-      set({
-        frameWidth: maxResolution.width,
-        frameHeight: maxResolution.height,
-      });
-    else set({ frameWidth: vidRes.width, frameHeight: vidRes.height });
+    const frameRes = maxResolution ?? vidRes;
     set({
-      heatmapTracker: new GridHeatmapTracker(10, 10, vidRes.width, vidRes.height),
+      frameWidth: frameRes.width,
+      frameHeight: frameRes.height,
+      heatmapTracker: new GridHeatmapTracker(10, 10, frameRes.width, frameRes.height),
     });
   },
 
