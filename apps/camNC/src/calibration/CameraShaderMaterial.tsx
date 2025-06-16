@@ -4,7 +4,15 @@ import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { calculateUndistortionMapsCached } from './rectifyMap';
 
-export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
+export function CameraShaderMaterial({
+  texture,
+  displacementMap,
+  displacementScale = 0,
+}: {
+  texture: THREE.Texture;
+  displacementMap?: THREE.Texture;
+  displacementScale?: number;
+}) {
   // These are your extrinsics (rotation and translation) from world to camera space.
   const { R, t } = useCameraExtrinsics();
   // Get your intrinsic matrix via your custom hook.
@@ -20,17 +28,20 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
   // We pass that world position (in pixel units) as a varying to the fragment shader.
   const vertexShader = /* glsl */ `
     uniform vec2 resolution;
+    uniform sampler2D displacementMap;
+    uniform float displacementScale;
     varying vec2 vUv;
     varying vec3 worldPos;
     void main() {
       vUv = uv;
-      // For a centered plane, position.xy is already in a coordinate space that spans -resolution/2..resolution/2.
-      // If your geometry is not centered, adjust accordingly.
-      // worldPos = position.xy;
-      vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-      // vec4 worldPosition = vec4(position, 1.0);
+      vec3 displaced = position;
+      if (displacementScale != 0.0) {
+        float disp = texture2D(displacementMap, uv).r * displacementScale;
+        displaced += normal * disp;
+      }
+      vec4 worldPosition = modelMatrix * vec4(displaced, 1.0);
       worldPos = worldPosition.xyz;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      gl_Position = projectionMatrix * modelViewMatrix * worldPosition;
     }
   `;
 
@@ -87,6 +98,8 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
       videoTexture: { value: texture },
       mapXTexture: { value: mapXTexture },
       mapYTexture: { value: mapYTexture },
+      displacementMap: { value: displacementMap ?? new THREE.Texture() },
+      displacementScale: { value: displacementScale },
       resolution: { value: new THREE.Vector2(videoDimensions[0], videoDimensions[1]) },
       K: { value: K },
       R: { value: R },
@@ -101,11 +114,13 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
     uniforms.videoTexture.value = texture;
     uniforms.mapXTexture.value = mapXTexture;
     uniforms.mapYTexture.value = mapYTexture;
+    uniforms.displacementMap.value = displacementMap ?? uniforms.displacementMap.value;
+    uniforms.displacementScale.value = displacementScale;
     uniforms.resolution.value.set(videoDimensions[0], videoDimensions[1]);
     uniforms.K.value = K;
     uniforms.R.value = R;
     uniforms.t.value = t;
-  }, [texture, mapXTexture, mapYTexture, videoDimensions, K, R, t, uniforms]);
+  }, [texture, mapXTexture, mapYTexture, displacementMap, displacementScale, videoDimensions, K, R, t, uniforms]);
 
   return <shaderMaterial vertexShader={vertexShader} fragmentShader={fragmentShader} uniforms={uniforms} />;
 } /**

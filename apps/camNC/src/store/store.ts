@@ -99,6 +99,8 @@ export const useStore = create(devtools(persist(immer(combine(
     isToolpathHovered: false,
     toolpathOffset: new Vector3(0, 0, 0),
     stockHeight: 0,
+    stockMask: null as any,
+    isSelectingStock: false,
     showStillFrame: false,
     fluidncToken: crypto.randomUUID() as string,
   },
@@ -153,6 +155,12 @@ export const useStore = create(devtools(persist(immer(combine(
     }),
     setStockHeight: (height: number) => set(state => {
       state.stockHeight = height;
+    }),
+    setStockMask: (mask: any) => set(state => {
+      state.stockMask = mask;
+    }),
+    setIsSelectingStock: (v: boolean) => set(state => {
+      state.isSelectingStock = v;
     }),
     // Update Toolpath from GCode
     updateToolpath: (gcode: string) => set(state => {
@@ -216,3 +224,7 @@ export const useSetArucoTagSize = () => useStore(state => state.camSourceSetters
 
 export const useToolpath = () => useStore(state => state.toolpath);
 export const useHasToolpath = () => useToolpath() !== null;
+export const useStockMask = () => useStore(state => state.stockMask);
+export const useSetStockMask = () => useStore(state => state.setStockMask);
+export const useIsSelectingStock = () => useStore(state => state.isSelectingStock);
+export const useSetIsSelectingStock = () => useStore(state => state.setIsSelectingStock);

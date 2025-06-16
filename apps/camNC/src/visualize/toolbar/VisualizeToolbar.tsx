@@ -11,12 +11,13 @@ import {
 } from '@wbcnc/ui/components/dialog';
 import { NumberInputWithLabel } from '@wbcnc/ui/components/NumberInputWithLabel';
 import { Popover, PopoverContent, PopoverTrigger } from '@wbcnc/ui/components/popover';
-import { Diameter, FolderOpen, Info, MonitorPause, MonitorPlay, Palette, PencilRuler } from 'lucide-react';
+import { BoxSelect, Diameter, FolderOpen, Info, MonitorPause, MonitorPlay, Palette, PencilRuler } from 'lucide-react';
 import { useState } from 'react';
 import { BoundsInfo } from '../BoundsInfo';
 import { ZDepthLegend } from '../ZDepthLegend';
 import { FluidncButton } from './FluidncButton';
 import { TooltipIconButton } from './TooltipIconButton';
+import { useStockSelection } from '@/hooks/useStockSelection';
 
 function PlayPauseButton() {
   const showStillFrame = useShowStillFrame();
@@ -121,6 +122,11 @@ function StockHeightDialogButton() {
   );
 }
 
+function StockSelectionButton() {
+  const { start } = useStockSelection();
+  return <TooltipIconButton label="Select Stock" icon={<BoxSelect />} shortcut="s" onClick={() => start()} />;
+}
+
 function ToolDiameterDialogButton() {
   const toolDiameter = useStore(s => s.toolDiameter);
   const [open, setOpen] = useState(false);
@@ -218,6 +224,7 @@ export function VisualizeToolbar() {
       <PlayPauseButton />
       <ToolDiameterDialogButton />
       <StockHeightDialogButton />
+      <StockSelectionButton />
       <ColorLegendButton />
       <BoundsInfoButton />
       <FluidncButton />

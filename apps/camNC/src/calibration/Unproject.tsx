@@ -7,7 +7,13 @@ import * as THREE from 'three';
 import { CameraShaderMaterial } from './CameraShaderMaterial';
 import { useCameraTexture } from './useCameraTexture';
 
-export const UnprojectVideoMesh = ({ overSize = 50, ref, ...props }: { overSize?: number } & ThreeElements['mesh']) => {
+export const UnprojectVideoMesh = ({
+  overSize = 50,
+  displacementMap,
+  displacementScale = 0,
+  ref,
+  ...props
+}: { overSize?: number; displacementMap?: THREE.Texture; displacementScale?: number } & ThreeElements['mesh']) => {
   const machineSize = useMachineSize();
   const useStillFrame = useShowStillFrame();
   const [stillFrameTexture, updateStillFrameTexture] = useStillFrameTexture();
@@ -28,9 +34,14 @@ export const UnprojectVideoMesh = ({ overSize = 50, ref, ...props }: { overSize?
   return (
     <mesh ref={ref} geometry={planeGeometry} {...props}>
       {useStillFrame ? (
-        <CameraShaderMaterial key="stillFrame" texture={stillFrameTexture} />
+        <CameraShaderMaterial
+          key="stillFrame"
+          texture={stillFrameTexture}
+          displacementMap={displacementMap}
+          displacementScale={displacementScale}
+        />
       ) : (
-        <CameraShaderMaterial key="video" texture={videoTexture} />
+        <CameraShaderMaterial key="video" texture={videoTexture} displacementMap={displacementMap} displacementScale={displacementScale} />
       )}
     </mesh>
   );

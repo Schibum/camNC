@@ -21,6 +21,7 @@
     "node": ">=18"
   },
   "dependencies": {
+    "@huggingface/transformers": "^3.5.2",
     "vite-plugin-node-polyfills": "catalog:",
     "vitest": "catalog:"
   }

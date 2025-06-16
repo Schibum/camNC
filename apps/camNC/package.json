@@ -15,6 +15,7 @@
   "dependencies": {
     "@hookform/devtools": "catalog:",
     "@hookform/resolvers": "catalog:",
+    "@huggingface/transformers": "^3.5.2",
     "@preact/signals-react": "catalog:",
     "@preact/signals-react-transform": "catalog:",
     "@radix-ui/react-avatar": "catalog:",

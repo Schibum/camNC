@@ -1,5 +1,7 @@
 import { UnprojectVideoMesh } from '@/calibration/Unproject';
 import { useAutoScanMarkers } from '@/hooks/useAutoScanMarkers';
+import { useStockSelection } from '@/hooks/useStockSelection';
+import { useIsSelectingStock, useStockMask } from '@/store/store';
 import { getCncApi } from '@/lib/fluidnc/fluidnc-singleton';
 import { PresentCanvas } from '@/scene/PresentCanvas';
 import { GCodeVisualizer } from '@/visualize/Toolpaths';
@@ -20,15 +22,18 @@ export const Route = createFileRoute('/visualize/2DView')({
   },
 });
 
-const UnprojectVideoMeshWithStockHeight = ({ ...props }: ThreeElements['mesh']) => {
+const UnprojectVideoMeshWithStock = ({ ...props }: ThreeElements['mesh']) => {
   const stockHeight = useStore(s => s.stockHeight);
-  return <UnprojectVideoMesh position-z={stockHeight} {...props} />;
+  const mask = useStockMask();
+  return <UnprojectVideoMesh displacementMap={mask ?? undefined} displacementScale={stockHeight} {...props} />;
 };
-UnprojectVideoMeshWithStockHeight.displayName = 'UnprojectVideoMeshWithStockHeight';
+UnprojectVideoMeshWithStock.displayName = 'UnprojectVideoMeshWithStock';
 
 function VisualizeComponent() {
   const cncApi = getCncApi();
   useAutoScanMarkers({ intervalMs: 3_000 });
+  const { select } = useStockSelection();
+  const selecting = useIsSelectingStock();
 
   function onDbClick(event: ThreeEvent<MouseEvent>) {
     console.log('onDbClick', event.unprojectedPoint);
@@ -41,6 +46,12 @@ function VisualizeComponent() {
     toast.success(`Jogging to ${point.x.toFixed(2)}, ${point.y.toFixed(2)}`);
   }
 
+  function onClickMesh(event: ThreeEvent<MouseEvent>) {
+    if (selecting) {
+      select(event.unprojectedPoint.clone());
+    }
+  }
+
   return (
     <div className="relative w-full h-full">
       <PageHeader title="Top View (Orthographic)" className="absolute pr-2 flex-wrap h-auto p-1">
@@ -51,7 +62,7 @@ function VisualizeComponent() {
       <div className="w-full h-dvh absolute top-0 left-0">
         <PresentCanvas worldScale="machine">
           {/* <group rotation={[0, 0, Math.PI / 2]}> */}
-          <UnprojectVideoMeshWithStockHeight onDoubleClick={onDbClick} />
+          <UnprojectVideoMeshWithStock onDoubleClick={onDbClick} onClick={onClickMesh} />
           <GCodeVisualizer />
           {/* </group> */}
 
