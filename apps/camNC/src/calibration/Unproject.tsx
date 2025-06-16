@@ -12,8 +12,14 @@ export const UnprojectVideoMesh = ({
   displacementMap,
   displacementScale = 0,
   ref,
+  segments = 1,
   ...props
-}: { overSize?: number; displacementMap?: THREE.Texture; displacementScale?: number } & ThreeElements['mesh']) => {
+}: {
+  overSize?: number;
+  displacementMap?: THREE.Texture;
+  displacementScale?: number;
+  segments?: number;
+} & ThreeElements['mesh']) => {
   const machineSize = useMachineSize();
   const useStillFrame = useShowStillFrame();
   const [stillFrameTexture, updateStillFrameTexture] = useStillFrameTexture();
@@ -25,11 +31,11 @@ export const UnprojectVideoMesh = ({
 
   // Create a centered plane geometry matching the video dimensions.
   const planeGeometry = useMemo(() => {
-    // PlaneGeometry(width, height) is centered at (0,0) by default.
-    const plane = new THREE.PlaneGeometry(machineSize.x + overSize, machineSize.y + overSize);
+    // PlaneGeometry(width, height, widthSegments, heightSegments) is centered at (0,0) by default.
+    const plane = new THREE.PlaneGeometry(machineSize.x + overSize, machineSize.y + overSize, segments, segments);
     plane.translate(machineSize.x / 2, machineSize.y / 2, 0);
     return plane;
-  }, [machineSize, overSize]);
+  }, [machineSize, overSize, segments]);
 
   return (
     <mesh ref={ref} geometry={planeGeometry} {...props}>

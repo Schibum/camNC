@@ -13,6 +13,7 @@ export function CameraShaderMaterial({
   displacementMap?: THREE.Texture;
   displacementScale?: number;
 }) {
+  console.log('displacementMap', displacementMap, displacementScale);
   // These are your extrinsics (rotation and translation) from world to camera space.
   const { R, t } = useCameraExtrinsics();
   // Get your intrinsic matrix via your custom hook.
@@ -30,16 +31,12 @@ export function CameraShaderMaterial({
     uniform vec2 resolution;
     uniform sampler2D displacementMap;
     uniform float displacementScale;
+    uniform bool hasDisplacementMap;
     varying vec2 vUv;
     varying vec3 worldPos;
     void main() {
       vUv = uv;
-      vec3 displaced = position;
-      if (displacementScale != 0.0) {
-        float disp = texture2D(displacementMap, uv).r * displacementScale;
-        displaced += normal * disp;
-      }
-      vec4 worldPosition = modelMatrix * vec4(displaced, 1.0);
+      vec4 worldPosition = modelMatrix * vec4(position, 1.0);
       worldPos = worldPosition.xyz;
       gl_Position = projectionMatrix * modelViewMatrix * worldPosition;
     }
@@ -56,6 +53,9 @@ export function CameraShaderMaterial({
     uniform mat3 K;
     uniform mat3 R;
     uniform vec3 t;
+    uniform bool hasDisplacementMap;
+    uniform sampler2D displacementMap;
+    uniform float displacementScale;
     varying vec2 vUv;
     varying vec3 worldPos;
 
@@ -78,18 +78,37 @@ export function CameraShaderMaterial({
       return color;
     }
 
-    void main() {
-      // Transform world point into camera space.
-      vec3 pCam = R * worldPos + t;
+    float sampleRemappedDisplacement(vec2 uv) {
+      vec2 remappedUV = remapTextureUv(uv);
+      // Outside bounds → no displacement.
+      if(remappedUV.x < 0.0 || remappedUV.x > 1.0 || remappedUV.y < 0.0 || remappedUV.y > 1.0) {
+        return 0.0;
+      }
+      return texture2D(displacementMap, vec2( remappedUV.x, 1.0 - remappedUV.y )).r;
+    }
 
-      // Project into the camera image plane using the intrinsic matrix.
+    void main() {
+      // First: project original worldPos to image to get undistorted UV for displacement lookup.
+      vec3 pCam0 = R * worldPos + t;
+      vec3 pImg0 = K * pCam0;
+      vec2 undistUV0 = (pImg0.xy / pImg0.z) / resolution;
+
+      // Sample displacement map after remapping.
+      float dispVal = hasDisplacementMap ? sampleRemappedDisplacement(undistUV0) : 1.0;
+      float disp = displacementScale != 0.0 ? dispVal * displacementScale : 0.0;
+
+      // Apply displacement along +Z of world (assuming plane normal).
+      vec3 displacedWorld = worldPos + vec3(0.0, 0.0, disp);
+
+      // Recalculate projection with displaced point.
+      vec3 pCam = R * displacedWorld + t;
       vec3 pImage = K * pCam;
       vec2 idealUV = pImage.xy / pImage.z;
-      // idealUV is in pixel coordinates for the undistorted image.
-      // Normalize to [0,1] using the resolution.
       vec2 undistortedUV = idealUV / resolution;
-      // Use the undistortion maps to recover the distorted image coordinate.
+
+      // Sample video texture.
       gl_FragColor = sampleRemappedTexture(undistortedUV);
+      gl_FragColor.r = hasDisplacementMap ? texture2D(displacementMap, undistortedUV).r : 1.0;
     }
   `;
 
@@ -100,6 +119,7 @@ export function CameraShaderMaterial({
       mapYTexture: { value: mapYTexture },
       displacementMap: { value: displacementMap ?? new THREE.Texture() },
       displacementScale: { value: displacementScale },
+      hasDisplacementMap: { value: Boolean(displacementMap) },
       resolution: { value: new THREE.Vector2(videoDimensions[0], videoDimensions[1]) },
       K: { value: K },
       R: { value: R },
@@ -116,6 +136,7 @@ export function CameraShaderMaterial({
     uniforms.mapYTexture.value = mapYTexture;
     uniforms.displacementMap.value = displacementMap ?? uniforms.displacementMap.value;
     uniforms.displacementScale.value = displacementScale;
+    uniforms.hasDisplacementMap.value = Boolean(displacementMap);
     uniforms.resolution.value.set(videoDimensions[0], videoDimensions[1]);
     uniforms.K.value = K;
     uniforms.R.value = R;

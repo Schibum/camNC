@@ -103,6 +103,7 @@ export const useStore = create(devtools(persist(immer(combine(
     isSelectingStock: false,
     showStillFrame: false,
     fluidncToken: crypto.randomUUID() as string,
+    depthData: null as { data: Float32Array; width: number; height: number } | null,
   },
   (set) => ({
     setToolpathOffset: (offset: Vector3) => set(state => {
@@ -175,6 +176,10 @@ export const useStore = create(devtools(persist(immer(combine(
     setFluidncToken: (token: string) => set(state => {
       state.fluidncToken = token;
     }),
+    setDepthData: (depth: { data: Float32Array; width: number; height: number } | null) =>
+      set(state => {
+        state.depthData = depth;
+      }),
   })
 )), {
   name: 'settings',
@@ -228,3 +233,7 @@ export const useStockMask = () => useStore(state => state.stockMask);
 export const useSetStockMask = () => useStore(state => state.setStockMask);
 export const useIsSelectingStock = () => useStore(state => state.isSelectingStock);
 export const useSetIsSelectingStock = () => useStore(state => state.setIsSelectingStock);
+
+// Depth estimation data
+export const useDepthData = () => useStore(state => state.depthData);
+export const useSetDepthData = () => useStore(state => state.setDepthData);

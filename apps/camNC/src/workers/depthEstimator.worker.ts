@@ -1,5 +1,5 @@
+import { AutoImageProcessor, AutoModel, RawImage } from '@huggingface/transformers';
 import * as Comlink from 'comlink';
-import { AutoModel, AutoImageProcessor, RawImage } from '@huggingface/transformers';
 
 export interface DepthResult {
   data: Float32Array;
