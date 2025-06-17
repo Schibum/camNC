@@ -7,7 +7,7 @@ import { isFirefox } from 'react-device-detect';
 
 // Note: Chrome has native support, but only on the main thread against spec.
 // Firefox has no support and does not support transferable tracks.
-// Safari has native support on the worker thread and does suppor transferable tracks.
+// Safari has native support on the worker thread and does support transferable tracks.
 // Only add this polyfill for Firefox. Prefer using transferable tracks on
 // Safari (used when not present on the main thread).
 if (!self.MediaStreamTrackProcessor && isFirefox) {

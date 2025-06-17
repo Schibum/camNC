@@ -5,7 +5,7 @@ import { IMarker } from '@/setup/detect-aruco';
 import { ICamSource, useStore } from '@/store/store';
 import { updateCameraExtrinsics } from '@/store/store-p3p';
 import type { MarkerScannerWorkerAPI } from '@/workers/markerScanner.worker';
-import { urlToMediaStream } from '@wbcnc/camera-calibration';
+import { createVideoStreamProcessor, attachMediaStreamTrackReplacer } from '@wbcnc/video-worker-utils';
 import { acquireVideoSource, releaseVideoSource } from '@wbcnc/go2webrtc/use-video-source';
 import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { useRunInterval } from './useRunInterval';
@@ -67,17 +67,9 @@ class MarkerScannerService {
     // Acquire shared video stream
     const videoHandle = acquireVideoSource(this.camSource.url);
     const { src } = await videoHandle.connectedPromise;
-    let mediaSource = src;
-    if (typeof src === 'string') {
-      mediaSource = await urlToMediaStream(src);
-    }
 
-    const mediaStream = mediaSource as MediaStream;
-    const videoTrack = mediaStream.getVideoTracks()[0];
-
-    // Chrome does not support sending VideoStreamTrack to workers yet, so conver to readable stream.
-    const processor = new (window as any).MediaStreamTrackProcessor({ track: videoTrack });
-    const readable = processor.readable;
+    const processed = await createVideoStreamProcessor(src);
+    const mediaStream = src instanceof MediaStream ? src : null;
 
     // Spawn worker as ESM
     const worker = new Worker(new URL('../workers/markerScanner.worker.ts', import.meta.url), {
@@ -86,14 +78,21 @@ class MarkerScannerService {
     const proxy = Comlink.wrap<MarkerScannerWorkerAPI>(worker);
 
     // Hand the stream to the worker
-    await proxy.init(Comlink.transfer(readable as any, [readable as any]), this.camSource.calibration!, this.camSource.maxResolution);
+    await proxy.init(Comlink.transfer(processed as any, [processed as any]), this.camSource.calibration!, this.camSource.maxResolution);
 
-    // Store proxy + cleanup
+    let replacerCleanup: (() => void) | null = null;
+    if (mediaStream) {
+      replacerCleanup = attachMediaStreamTrackReplacer(mediaStream, proxy);
+    }
+
     this.proxy = proxy;
     this.cleanupFn = () => {
       worker.terminate();
       releaseVideoSource(this.camSource.url);
-      readable.cancel?.().catch(() => undefined);
+      replacerCleanup?.();
+      if (processed instanceof ReadableStream) {
+        processed.cancel?.().catch(() => undefined);
+      }
     };
   }
 

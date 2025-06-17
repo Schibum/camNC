@@ -1,0 +1,22 @@
+{
+  "extends": "@wbcnc/typescript-config/base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    },
+    "skipLibCheck": true,
+    "noEmit": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler"
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

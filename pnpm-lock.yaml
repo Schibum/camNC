@@ -468,6 +468,9 @@ importers:
       '@wbcnc/public-config':
         specifier: workspace:*
         version: link:../../packages/public-config
+      '@wbcnc/video-worker-utils':
+        specifier: workspace:*
+        version: link:../../packages/video-worker-utils
       '@webgpu/types':
         specifier: 'catalog:'
         version: 0.1.61
@@ -1003,6 +1006,9 @@ importers:
       '@types/uuid':
         specifier: 'catalog:'
         version: 10.0.0
+      '@wbcnc/video-worker-utils':
+        specifier: workspace:*
+        version: link:../video-worker-utils
       '@zip.js/zip.js':
         specifier: 'catalog:'
         version: 2.7.62
@@ -1360,6 +1366,19 @@ importers:
       typescript:
         specifier: ^5.8.3
         version: 5.8.3
+
+  packages/video-worker-utils:
+    dependencies:
+      comlink:
+        specifier: 'catalog:'
+        version: 4.4.2
+      react-device-detect:
+        specifier: 'catalog:'
+        version: 2.2.3(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+    devDependencies:
+      '@wbcnc/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
 
   packages/webrtc-channel:
     dependencies:
