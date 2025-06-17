@@ -14,14 +14,13 @@ import { useRunInterval } from './useRunInterval';
 export interface AutoScanOptions {
   intervalMs: number; // polling interval
   firstScanDelayMs?: number; // initial delay (default 5 000 ms)
-  averageFrames?: number; // frames averaged inside the worker (default 5)
 }
 
 /**
  * React hook that periodically looks for aruco tags
  * and updates machine bounds and extrinsics once all markers appear.
  */
-export function useAutoScanMarkers({ intervalMs, firstScanDelayMs = 5_000, averageFrames = 1 }: AutoScanOptions): void {
+export function useAutoScanMarkers({ intervalMs, firstScanDelayMs = 5_000 }: AutoScanOptions): void {
   const serviceRef = useRef<MarkerScannerService | null>(null);
 
   async function onMarkersFound(markers: IMarker[]) {
@@ -41,14 +40,14 @@ export function useAutoScanMarkers({ intervalMs, firstScanDelayMs = 5_000, avera
 
   useEffect(() => {
     const camSource = useStore.getState().camSource!;
-    const service = new MarkerScannerService(camSource, averageFrames, onMarkersFound);
+    const service = new MarkerScannerService(camSource, onMarkersFound);
     serviceRef.current = service;
 
     return () => {
       serviceRef.current?.dispose();
       serviceRef.current = null;
     };
-  }, [averageFrames]);
+  }, []);
 }
 
 class MarkerScannerService {
@@ -58,7 +57,6 @@ class MarkerScannerService {
 
   constructor(
     private readonly camSource: ICamSource,
-    private readonly averageFrames: number,
     private readonly onMarkersFound: (markers: IMarker[]) => void
   ) {}
 
@@ -88,12 +86,7 @@ class MarkerScannerService {
     const proxy = Comlink.wrap<MarkerScannerWorkerAPI>(worker);
 
     // Hand the stream to the worker
-    await proxy.init(
-      Comlink.transfer(readable as any, [readable as any]),
-      this.camSource.calibration!,
-      this.camSource.maxResolution,
-      this.averageFrames
-    );
+    await proxy.init(Comlink.transfer(readable as any, [readable as any]), this.camSource.calibration!, this.camSource.maxResolution);
 
     // Store proxy + cleanup
     this.proxy = proxy;
