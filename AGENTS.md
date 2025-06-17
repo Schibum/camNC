@@ -29,12 +29,12 @@ This repository is a pnpm/Turborepo workspace using TypeScript and React.
 
 ## Commit Messages
 
-- Follow the Conventional Commits style (`feat:`, `fix:`, `chore:`, `docs:` etc.).
+- Follow the Conventional Commits style (`feat(<project_name>):`, `fix<project_name>:`, `chore<project_name>:`, `docs<project_name>:` etc.).
 - Write concise summaries in the imperative mood (e.g. "fix: update worker config").
 
 ## Pull Requests
 
-- Title format: `[<project_name>] <Title>`
+- Title format: `feat/fix/chore/docs(<project_name>) <Title>`
 
 ## Code Style
 
