@@ -1,4 +1,4 @@
-// For FF
+// For Firefox polyfill
 import './media-stream-processor-polyfil';
 /// <reference lib="webworker" />
 

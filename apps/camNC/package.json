@@ -41,6 +41,7 @@
     "@wbcnc/go2webrtc": "workspace:*",
     "@wbcnc/load-opencv": "workspace:*",
     "@wbcnc/public-config": "workspace:*",
+    "@wbcnc/video-worker-utils": "workspace:*",
     "@webgpu/types": "catalog:",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",

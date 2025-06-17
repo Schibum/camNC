@@ -1,0 +1,16 @@
+{
+  "name": "@wbcnc/video-worker-utils",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "comlink": "catalog:",
+    "react-device-detect": "catalog:"
+  },
+  "devDependencies": {
+    "@wbcnc/typescript-config": "workspace:*"
+  }
+}

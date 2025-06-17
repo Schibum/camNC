@@ -21,7 +21,8 @@
     "react-dom": "catalog:",
     "tailwindcss": "catalog:",
     "uuid": "catalog:",
-    "zustand": "catalog:"
+    "zustand": "catalog:",
+    "@wbcnc/video-worker-utils": "workspace:*"
   },
   "exports": {
     ".": "./src/index.ts"

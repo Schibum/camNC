@@ -4,12 +4,18 @@ import { calculateUndistortionMapsCached } from '../calibration/rectifyMap';
 import { remapCv } from '../calibration/remapCv';
 import { detectAruco, IMarker } from '../setup/detect-aruco';
 import type { CalibrationData } from '../store/store';
+import { ensureReadableStream } from '@wbcnc/video-worker-utils';
 
 /**
  * Worker API exposed via Comlink.
  */
 export interface MarkerScannerWorkerAPI {
-  init(reader: ReadableStream<VideoFrame>, calibrationData: CalibrationData, resolution: [number, number]): Promise<void>;
+  init(
+    stream: ReadableStream<VideoFrame> | MediaStreamTrack,
+    calibrationData: CalibrationData,
+    resolution: [number, number]
+  ): Promise<void>;
+  replaceStream(stream: ReadableStream<VideoFrame> | MediaStreamTrack): Promise<void>;
   scan(): Promise<IMarker[]>;
 }
 
@@ -43,7 +49,7 @@ class MarkerScannerWorker implements MarkerScannerWorkerAPI {
   private height = 0;
   private ctx: OffscreenCanvasRenderingContext2D | null = null;
 
-  async init(reader: ReadableStream<VideoFrame>, calibrationData: CalibrationData, resolution: [number, number]) {
+  async init(stream: ReadableStream<VideoFrame> | MediaStreamTrack, calibrationData: CalibrationData, resolution: [number, number]) {
     await ensureOpenCvIsLoaded();
 
     this.width = resolution[0];
@@ -58,7 +64,18 @@ class MarkerScannerWorker implements MarkerScannerWorkerAPI {
     this.mapX = map1;
     this.mapY = map2;
 
-    this.reader = reader.getReader();
+    this.reader = ensureReadableStream(stream).getReader();
+  }
+
+  async replaceStream(stream: ReadableStream<VideoFrame> | MediaStreamTrack): Promise<void> {
+    if (this.reader) {
+      try {
+        await this.reader.cancel();
+      } catch {
+        /* ignore */
+      }
+    }
+    this.reader = ensureReadableStream(stream).getReader();
   }
 
   async scan(): Promise<IMarker[]> {
