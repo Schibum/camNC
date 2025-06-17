@@ -782,6 +782,9 @@ importers:
       '@wbcnc/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
+      '@webgpu/types':
+        specifier: 'catalog:'
+        version: 0.1.61
       eslint:
         specifier: 'catalog:'
         version: 9.28.0(jiti@2.4.2)
@@ -970,6 +973,9 @@ importers:
       '@wbcnc/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@webgpu/types':
+        specifier: 'catalog:'
+        version: 0.1.61
       eslint:
         specifier: 'catalog:'
         version: 9.28.0(jiti@2.4.2)
@@ -1070,6 +1076,9 @@ importers:
       '@wbcnc/ui':
         specifier: workspace:*
         version: link:../ui
+      '@webgpu/types':
+        specifier: 'catalog:'
+        version: 0.1.61
       eslint:
         specifier: 'catalog:'
         version: 9.28.0(jiti@2.4.2)
@@ -1369,13 +1378,22 @@ importers:
 
   packages/video-worker-utils:
     dependencies:
+      '@webgpu/types':
+        specifier: 'catalog:'
+        version: 0.1.61
       comlink:
         specifier: 'catalog:'
         version: 4.4.2
       react-device-detect:
         specifier: 'catalog:'
         version: 2.2.3(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      three:
+        specifier: 'catalog:'
+        version: 0.177.0
     devDependencies:
+      '@types/three':
+        specifier: 'catalog:'
+        version: 0.177.0
       '@wbcnc/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config

@@ -113,7 +113,8 @@
     "vite-plugin-checker": "catalog:",
     "vite-plugin-node-polyfills": "catalog:",
     "vite-plugin-singlefile": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "@webgpu/types": "catalog:"
   },
   "version": "1.0.0",
   "description": "<h2 align=\"center\">   <img height=\"256\" width=\"256\" src=\"./src/assets/preact.svg\"> </h2>",

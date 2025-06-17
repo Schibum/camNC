@@ -8,9 +8,12 @@
   },
   "dependencies": {
     "comlink": "catalog:",
-    "react-device-detect": "catalog:"
+    "react-device-detect": "catalog:",
+    "three": "catalog:",
+    "@webgpu/types": "catalog:"
   },
   "devDependencies": {
-    "@wbcnc/typescript-config": "workspace:*"
+    "@wbcnc/typescript-config": "workspace:*",
+    "@types/three": "catalog:"
   }
 }

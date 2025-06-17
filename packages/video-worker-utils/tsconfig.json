@@ -10,7 +10,9 @@
     "skipLibCheck": true,
     "noEmit": true,
     "module": "ESNext",
-    "moduleResolution": "bundler"
+    "moduleResolution": "bundler",
+    "types": ["@webgpu/types"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "WebGPU"]
   },
   "include": [
     "**/*.ts",
