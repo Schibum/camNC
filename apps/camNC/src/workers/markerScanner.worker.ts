@@ -68,13 +68,13 @@ class MarkerScannerWorker implements MarkerScannerWorkerAPI {
   }
 
   async replaceStream(stream: ReadableStream<VideoFrame> | MediaStreamTrack): Promise<void> {
-      if (this.reader) {
-        try {
-          await this.reader.cancel();
-        } catch {
-          /* ignore */
-        }
+    if (this.reader) {
+      try {
+        await this.reader.cancel();
+      } catch {
+        /* ignore */
       }
+    }
     this.reader = ensureReadableStream(stream).getReader();
   }
 
