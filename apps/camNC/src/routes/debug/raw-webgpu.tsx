@@ -1,65 +1,45 @@
-import { useCameraExtrinsics, useNewCameraMatrix, useStore, useVideoUrl } from '@/store/store';
+import { useCalibrationData, useCamResolution, useVideoUrl } from '@/store/store';
 import { createFileRoute } from '@tanstack/react-router';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
-import {
-  createVideoStreamProcessor,
-  generateCamToMachineMatrix,
-  type StepConfig,
-  type VideoPipelineWorkerAPI,
-} from '@wbcnc/video-worker-utils';
+import { createVideoStreamProcessor, type StepConfig, type VideoPipelineWorkerAPI } from '@wbcnc/video-worker-utils';
 import * as Comlink from 'comlink';
 import { useEffect, useRef } from 'react';
 
-export const Route = createFileRoute('/debug/remap-webgpu')({
-  component: RouteComponent,
+export const Route = createFileRoute('/debug/raw-webgpu')({
+  component: RawWebGPURoute,
 });
 
-function RouteComponent() {
+function RawWebGPURoute() {
   const videoUrl = useVideoUrl();
-  const K = useNewCameraMatrix();
-  const { R, t } = useCameraExtrinsics();
-  const bounds = useStore(state => state.camSource!.machineBounds!);
-
+  const calibration = useCalibrationData();
+  const camRes = useCamResolution();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     if (!videoRef.current || !canvasRef.current) return;
-
     const ctx = canvasRef.current.getContext('bitmaprenderer');
     if (!ctx) return;
-
-    const params = {
-      K: K,
-      R: R,
-      t: t,
-    };
-    const camToMachMat = Float32Array.from(generateCamToMachineMatrix(params));
-
-    const machineWidth = bounds.max.x - bounds.min.x;
-    const machineHeight = bounds.max.y - bounds.min.y;
-    const outWidth = 512;
-    const outHeight = Math.round((outWidth * machineHeight) / machineWidth);
-
-    const camToMachineParams = {
-      outputSize: [outWidth, outHeight],
-      machineBounds: [bounds.min.x, bounds.min.y, bounds.max.x, bounds.max.y],
-      matrix: camToMachMat,
-    } as const;
 
     const workerUrl = new URL('../../../../../packages/video-worker-utils/src/videoPipeline.worker.ts', import.meta.url);
     const worker = new Worker(workerUrl, { type: 'module' });
     const proxy = Comlink.wrap<VideoPipelineWorkerAPI>(worker);
 
     let stream: ReadableStream<VideoFrame> | MediaStreamTrack;
-
     let running = true;
 
     const setup = async () => {
       stream = await createVideoStreamProcessor(videoUrl);
-      await proxy.init(Comlink.transfer(stream as any, [stream as any]), [
-        { type: 'camToMachine', params: camToMachineParams } as StepConfig,
-      ]);
+      const undistortParams = {
+        outputSize: camRes,
+        cameraMatrix: calibration.calibration_matrix,
+        newCameraMatrix: calibration.new_camera_matrix,
+        distCoeffs: calibration.distortion_coefficients,
+      } as const;
+
+      const steps: StepConfig[] = [{ type: 'undistort', params: undistortParams }];
+
+      await proxy.init(Comlink.transfer(stream as any, [stream as any]), steps);
 
       const render = async () => {
         if (!running) return;
@@ -78,17 +58,17 @@ function RouteComponent() {
       worker.terminate();
       if (stream instanceof ReadableStream) stream.cancel().catch(() => undefined);
     };
-  }, [videoUrl, bounds, K, R, t]);
+  }, [videoUrl, calibration, camRes]);
 
   return (
     <div className="relative w-full h-full p-4 space-y-4">
-      <PageHeader title="WebGPU Remap Debug" className="absolute" />
+      <PageHeader title="WebGPU Raw Video Debug" className="absolute" />
       <video ref={videoRef} src={videoUrl} autoPlay playsInline muted className="hidden" />
       <div className="flex gap-4 pt-16">
-        <canvas ref={canvasRef} width={512} height={512} className="border" />
+        <canvas ref={canvasRef} width={camRes[0] * 0.4} height={camRes[1] * 0.4} className="border" />
       </div>
     </div>
   );
 }
 
-export default RouteComponent;
+export default RawWebGPURoute;

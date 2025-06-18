@@ -1,6 +1,5 @@
 import * as Comlink from 'comlink';
 import { ensureReadableStream } from './ensureReadableStream';
-import type { ReplaceableStreamWorker } from './videoStreamUtils';
 import {
   CamToMachineStep,
   MachineToCamStep,
@@ -9,11 +8,12 @@ import {
   type UndistortParams,
   type WebGPUPipelineStep,
 } from './remapPipeline';
+import type { ReplaceableStreamWorker } from './videoStreamUtils';
 
-export interface StepConfig {
-  type: 'undistort' | 'camToMachine' | 'machineToCam';
-  params: any;
-}
+export type StepConfig =
+  | { type: 'undistort'; params: UndistortParams }
+  | { type: 'camToMachine'; params: RemapStepParams }
+  | { type: 'machineToCam'; params: RemapStepParams };
 
 export interface VideoPipelineWorkerAPI extends ReplaceableStreamWorker {
   init(stream: ReadableStream<VideoFrame> | MediaStreamTrack, steps: StepConfig[]): Promise<void>;
@@ -28,6 +28,56 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
   private ctx: GPUCanvasContext | null = null;
   private outWidth = 0;
   private outHeight = 0;
+  private blitPipeline: GPURenderPipeline | null = null;
+  private blitSampler: GPUSampler | null = null;
+  private blitLayout: GPUBindGroupLayout | null = null;
+
+  // Helper to create or reconfigure the canvas once we know the target size
+  private setupCanvas(width: number, height: number) {
+    if (!this.device) throw new Error('GPU device not ready');
+    this.canvas = new OffscreenCanvas(width, height);
+    this.ctx = this.canvas.getContext('webgpu');
+    if (!this.ctx) throw new Error('Failed to get WebGPU context');
+    const format: GPUTextureFormat = 'rgba8unorm';
+    this.ctx.configure({
+      device: this.device,
+      format,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST,
+      alphaMode: 'opaque',
+    });
+
+    // Blit pipeline only needs to be created once (depends on format).
+    if (!this.blitPipeline) {
+      const shader = this.device.createShaderModule({
+        code: `@group(0) @binding(0) var srcTex: texture_2d<f32>;
+@group(0) @binding(1) var samp: sampler;
+
+struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, };
+
+@vertex fn vs_main(@builtin(vertex_index) vid: u32) -> VOut {
+  var positions = array<vec2<f32>, 6>(
+    vec2<f32>(-1.0, -1.0), vec2<f32>( 1.0, -1.0), vec2<f32>(-1.0,  1.0),
+    vec2<f32>(-1.0,  1.0), vec2<f32>( 1.0, -1.0), vec2<f32>( 1.0,  1.0),
+  );
+  var uvs = array<vec2<f32>, 6>(
+    vec2<f32>(0.0, 1.0), vec2<f32>(1.0, 1.0), vec2<f32>(0.0, 0.0),
+    vec2<f32>(0.0, 0.0), vec2<f32>(1.0, 1.0), vec2<f32>(1.0, 0.0),
+  );
+  var out: VOut; out.pos = vec4<f32>(positions[vid], 0.0, 1.0); out.uv = uvs[vid]; return out;
+}
+
+@fragment fn fs_main(in: VOut) -> @location(0) vec4<f32> { return textureSample(srcTex, samp, in.uv); }`,
+      });
+      this.blitPipeline = this.device.createRenderPipeline({
+        layout: 'auto',
+        vertex: { module: shader, entryPoint: 'vs_main' },
+        fragment: { module: shader, entryPoint: 'fs_main', targets: [{ format }] },
+        primitive: { topology: 'triangle-list' },
+      });
+      this.blitLayout = this.blitPipeline.getBindGroupLayout(0);
+      this.blitSampler = this.device.createSampler();
+    }
+  }
 
   async init(stream: ReadableStream<VideoFrame> | MediaStreamTrack, steps: StepConfig[]): Promise<void> {
     if (!navigator.gpu) throw new Error('WebGPU not supported');
@@ -39,27 +89,26 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
     this.steps = steps.map(cfg => {
       switch (cfg.type) {
         case 'camToMachine':
-          this.outWidth = (cfg.params as RemapStepParams).outputSize[0];
-          this.outHeight = (cfg.params as RemapStepParams).outputSize[1];
+          this.outWidth = cfg.params.outputSize[0];
+          this.outHeight = cfg.params.outputSize[1];
           return new CamToMachineStep(this.device!, cfg.params as RemapStepParams);
         case 'machineToCam':
-          this.outWidth = (cfg.params as RemapStepParams).outputSize[0];
-          this.outHeight = (cfg.params as RemapStepParams).outputSize[1];
+          this.outWidth = cfg.params.outputSize[0];
+          this.outHeight = cfg.params.outputSize[1];
           return new MachineToCamStep(this.device!, cfg.params as RemapStepParams);
         case 'undistort':
-          this.outWidth = (cfg.params as UndistortParams).outputSize[0];
-          this.outHeight = (cfg.params as UndistortParams).outputSize[1];
+          this.outWidth = cfg.params.outputSize[0];
+          this.outHeight = cfg.params.outputSize[1];
           return new UndistortStep(this.device!, cfg.params as UndistortParams);
         default:
           throw new Error('Unknown step type');
       }
     });
 
-    this.canvas = new OffscreenCanvas(this.outWidth, this.outHeight);
-    this.ctx = this.canvas.getContext('webgpu');
-    if (!this.ctx) throw new Error('Failed to get WebGPU context');
-    const format = navigator.gpu.getPreferredCanvasFormat();
-    this.ctx.configure({ device: this.device, format, alphaMode: 'opaque' });
+    // Only set up the canvas now if we already know the output dimensions (i.e., steps not empty).
+    if (this.outWidth > 0 && this.outHeight > 0) {
+      this.setupCanvas(this.outWidth, this.outHeight);
+    }
   }
 
   async replaceStream(stream: ReadableStream<VideoFrame> | MediaStreamTrack): Promise<void> {
@@ -74,16 +123,23 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
   }
 
   async process(): Promise<ImageBitmap> {
-    if (!this.reader || !this.device || !this.ctx) throw new Error('Worker not initialized');
+    if (!this.reader || !this.device) throw new Error('Worker not initialized');
     const { value: frame, done } = await this.reader.read();
     if (done || !frame) throw new Error('Stream ended');
     const width = frame.displayWidth || frame.codedWidth;
     const height = frame.displayHeight || frame.codedHeight;
 
+    // Lazily create the canvas & blit pipeline once we know frame size (for raw pass-through).
+    if (!this.ctx) {
+      this.outWidth = width;
+      this.outHeight = height;
+      this.setupCanvas(width, height);
+    }
+
     const srcTex = this.device.createTexture({
       size: [width, height],
       format: 'rgba8unorm',
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC | GPUTextureUsage.RENDER_ATTACHMENT,
     });
     this.device.queue.copyExternalImageToTexture({ source: frame }, { texture: srcTex }, [width, height]);
     frame.close();
@@ -95,8 +151,32 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
       tex = next;
     }
 
+    // Render pass blit: sample the final texture and draw onto the canvas swap texture.
     const encoder = this.device.createCommandEncoder();
-    encoder.copyTextureToTexture({ texture: tex }, { texture: this.ctx.getCurrentTexture() }, [this.outWidth, this.outHeight]);
+    const view = this.ctx!.getCurrentTexture().createView();
+    const bindGroup = this.device.createBindGroup({
+      layout: this.blitLayout!,
+      entries: [
+        { binding: 0, resource: tex.createView() },
+        { binding: 1, resource: this.blitSampler! },
+      ],
+    });
+
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view,
+          loadOp: 'clear',
+          storeOp: 'store',
+          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+        },
+      ],
+    });
+    pass.setPipeline(this.blitPipeline!);
+    pass.setBindGroup(0, bindGroup);
+    pass.draw(6);
+    pass.end();
+
     this.device.queue.submit([encoder.finish()]);
     const bitmap = await this.canvas!.transferToImageBitmap();
     tex.destroy();

@@ -117,7 +117,8 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     const dst = this.device.createTexture({
       size: [width, height],
       format: 'rgba8unorm',
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING,
+      usage:
+        GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
     });
 
     const uniformData = new Float32Array(16);
@@ -252,34 +253,42 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     const dst = this.device.createTexture({
       size: [width, height],
       format: 'rgba8unorm',
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING,
+      usage:
+        GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
     });
 
-    const uniformData = new Float32Array(9 + 9 + 9 + 4 + 1);
-    let offset = 0;
+    // Std140 layout: each column of mat3x3 is vec4<f32>
+    const PAD = 0;
+    const packMat3 = (m: Matrix3, dst: number[], base: number) => {
+      const e = m.elements; // column-major 9 values
+      for (let c = 0; c < 3; c++) {
+        dst[base + c * 4 + 0] = Number(e[c * 3 + 0]);
+        dst[base + c * 4 + 1] = Number(e[c * 3 + 1]);
+        dst[base + c * 4 + 2] = Number(e[c * 3 + 2]);
+        dst[base + c * 4 + 3] = PAD; // padding
+      }
+    };
 
-    // cameraMatrix (3×3)
-    uniformData.set(this.params.cameraMatrix.elements, offset);
-    offset += 9;
+    const floats: number[] = new Array(44).fill(0);
+    let base = 0;
+    packMat3(this.params.cameraMatrix, floats, base); // 12 floats
+    base += 12;
+    packMat3(this.params.newCameraMatrix, floats, base);
+    base += 12;
+    packMat3(this.params.R ?? new Matrix3().identity(), floats, base);
+    base += 12;
 
-    // newCameraMatrix (3×3)
-    uniformData.set(this.params.newCameraMatrix.elements, offset);
-    offset += 9;
+    // distCoeffs vec4
+    const getCoeff = (i: number): number => (this.params.distCoeffs[i] !== undefined ? this.params.distCoeffs[i]! : 0);
+    floats[base++] = getCoeff(0);
+    floats[base++] = getCoeff(1);
+    floats[base++] = getCoeff(2);
+    floats[base++] = getCoeff(3);
 
-    // Rectification matrix R (3×3)
-    uniformData.set((this.params.R ?? new Matrix3().identity()).elements, offset);
-    offset += 9;
+    // k3 scalar occupies next float; remaining padding floats already zero.
+    floats[base] = getCoeff(4);
 
-    // Distortion coefficients k1,k2,p1,p2,k3 (pad with zeros if missing)
-    const k1 = this.params.distCoeffs[0] ?? 0;
-    const k2 = this.params.distCoeffs[1] ?? 0;
-    const p1 = this.params.distCoeffs[2] ?? 0;
-    const p2 = this.params.distCoeffs[3] ?? 0;
-    const k3 = this.params.distCoeffs[4] ?? 0;
-
-    uniformData.set([k1, k2, p1, p2], offset);
-    offset += 4;
-    uniformData.set([k3], offset);
+    const uniformData = new Float32Array(floats);
 
     const uniformBuffer = this.device.createBuffer({
       size: uniformData.byteLength,

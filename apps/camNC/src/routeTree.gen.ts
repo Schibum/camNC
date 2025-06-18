@@ -27,6 +27,8 @@ import { Route as SetupCameraCalibrationImport } from './routes/setup/camera-cal
 import { Route as DebugUnprojectImport } from './routes/debug/unproject'
 import { Route as DebugUndistort2Import } from './routes/debug/undistort2'
 import { Route as DebugRemapWebgpuImport } from './routes/debug/remap-webgpu'
+import { Route as DebugRawWebgpuImport } from './routes/debug/raw-webgpu'
+import { Route as DebugMachineToCamWebgpuImport } from './routes/debug/machine-to-cam-webgpu'
 
 // Create/Update Routes
 
@@ -128,6 +130,18 @@ const DebugRemapWebgpuRoute = DebugRemapWebgpuImport.update({
   getParentRoute: () => rootRoute,
 } as any)
 
+const DebugRawWebgpuRoute = DebugRawWebgpuImport.update({
+  id: '/debug/raw-webgpu',
+  path: '/debug/raw-webgpu',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const DebugMachineToCamWebgpuRoute = DebugMachineToCamWebgpuImport.update({
+  id: '/debug/machine-to-cam-webgpu',
+  path: '/debug/machine-to-cam-webgpu',
+  getParentRoute: () => rootRoute,
+} as any)
+
 // Populate the FileRoutesByPath interface
 
 declare module '@tanstack/react-router' {
@@ -137,6 +151,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexImport
+      parentRoute: typeof rootRoute
+    }
+    '/debug/machine-to-cam-webgpu': {
+      id: '/debug/machine-to-cam-webgpu'
+      path: '/debug/machine-to-cam-webgpu'
+      fullPath: '/debug/machine-to-cam-webgpu'
+      preLoaderRoute: typeof DebugMachineToCamWebgpuImport
+      parentRoute: typeof rootRoute
+    }
+    '/debug/raw-webgpu': {
+      id: '/debug/raw-webgpu'
+      path: '/debug/raw-webgpu'
+      fullPath: '/debug/raw-webgpu'
+      preLoaderRoute: typeof DebugRawWebgpuImport
       parentRoute: typeof rootRoute
     }
     '/debug/remap-webgpu': {
@@ -251,6 +279,8 @@ declare module '@tanstack/react-router' {
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/debug/machine-to-cam-webgpu': typeof DebugMachineToCamWebgpuRoute
+  '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
   '/debug/remap-webgpu': typeof DebugRemapWebgpuRoute
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
@@ -270,6 +300,8 @@ export interface FileRoutesByFullPath {
 
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/debug/machine-to-cam-webgpu': typeof DebugMachineToCamWebgpuRoute
+  '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
   '/debug/remap-webgpu': typeof DebugRemapWebgpuRoute
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
@@ -290,6 +322,8 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRoute
   '/': typeof IndexRoute
+  '/debug/machine-to-cam-webgpu': typeof DebugMachineToCamWebgpuRoute
+  '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
   '/debug/remap-webgpu': typeof DebugRemapWebgpuRoute
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
@@ -311,6 +345,8 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/debug/machine-to-cam-webgpu'
+    | '/debug/raw-webgpu'
     | '/debug/remap-webgpu'
     | '/debug/undistort2'
     | '/debug/unproject'
@@ -329,6 +365,8 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/debug/machine-to-cam-webgpu'
+    | '/debug/raw-webgpu'
     | '/debug/remap-webgpu'
     | '/debug/undistort2'
     | '/debug/unproject'
@@ -347,6 +385,8 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/debug/machine-to-cam-webgpu'
+    | '/debug/raw-webgpu'
     | '/debug/remap-webgpu'
     | '/debug/undistort2'
     | '/debug/unproject'
@@ -367,6 +407,8 @@ export interface FileRouteTypes {
 
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DebugMachineToCamWebgpuRoute: typeof DebugMachineToCamWebgpuRoute
+  DebugRawWebgpuRoute: typeof DebugRawWebgpuRoute
   DebugRemapWebgpuRoute: typeof DebugRemapWebgpuRoute
   DebugUndistort2Route: typeof DebugUndistort2Route
   DebugUnprojectRoute: typeof DebugUnprojectRoute
@@ -386,6 +428,8 @@ export interface RootRouteChildren {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DebugMachineToCamWebgpuRoute: DebugMachineToCamWebgpuRoute,
+  DebugRawWebgpuRoute: DebugRawWebgpuRoute,
   DebugRemapWebgpuRoute: DebugRemapWebgpuRoute,
   DebugUndistort2Route: DebugUndistort2Route,
   DebugUnprojectRoute: DebugUnprojectRoute,
@@ -414,6 +458,8 @@ export const routeTree = rootRoute
       "filePath": "__root.tsx",
       "children": [
         "/",
+        "/debug/machine-to-cam-webgpu",
+        "/debug/raw-webgpu",
         "/debug/remap-webgpu",
         "/debug/undistort2",
         "/debug/unproject",
@@ -433,6 +479,12 @@ export const routeTree = rootRoute
     },
     "/": {
       "filePath": "index.tsx"
+    },
+    "/debug/machine-to-cam-webgpu": {
+      "filePath": "debug/machine-to-cam-webgpu.tsx"
+    },
+    "/debug/raw-webgpu": {
+      "filePath": "debug/raw-webgpu.tsx"
     },
     "/debug/remap-webgpu": {
       "filePath": "debug/remap-webgpu.tsx"
