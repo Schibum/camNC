@@ -1,14 +1,14 @@
+import { useCameraExtrinsics, useCamResolution, useNewCameraMatrix, useStore, useVideoUrl } from '@/store/store';
+import { createFileRoute } from '@tanstack/react-router';
+import { PageHeader } from '@wbcnc/ui/components/page-header';
 import {
   createVideoStreamProcessor,
-  type StepConfig,
-  type VideoPipelineWorkerAPI,
   generateCamToMachineMatrix,
   generateMachineToCamMatrix,
+  type StepConfig,
+  type VideoPipelineWorkerAPI,
 } from '@wbcnc/video-worker-utils';
 import * as Comlink from 'comlink';
-import { createFileRoute } from '@tanstack/react-router';
-import { useCameraExtrinsics, useNewCameraMatrix, useCamResolution, useVideoUrl, useStore } from '@/store/store';
-import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { useEffect, useRef } from 'react';
 
 export const Route = createFileRoute('/debug/remap-webgpu')({
@@ -34,9 +34,9 @@ function RouteComponent() {
     if (!ctx1 || !ctx2) return;
 
     const params = {
-      K: Float32Array.from(K.toArray()),
-      R: Float32Array.from(R.toArray()),
-      t: Float32Array.from(t.toArray()),
+      K: K,
+      R: R,
+      t: t,
     };
     const camToMachMat = Float32Array.from(generateCamToMachineMatrix(params));
     const machToCamMat = Float32Array.from(generateMachineToCamMatrix(params));

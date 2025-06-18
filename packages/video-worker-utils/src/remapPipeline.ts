@@ -1,6 +1,6 @@
 /// <reference types="@webgpu/types" />
 
-import { Matrix3 } from 'three';
+import { Matrix3, Vector3 } from 'three';
 
 export interface WebGPUPipelineStep {
   process(texture: GPUTexture): Promise<GPUTexture>;
@@ -13,24 +13,25 @@ export interface RemapStepParams {
 }
 
 interface MatrixParams {
-  K: Float32Array;
-  R: Float32Array;
-  t: Float32Array;
+  // camera intrinsics
+  K: Matrix3;
+  // camera extrinsics
+  R: Matrix3;
+  t: Vector3;
 }
 
 function computeMatrix({ K, R, t }: MatrixParams): Matrix3 {
-  const extr = new Matrix3().set(
-    Number(R[0]),
-    Number(R[3]),
-    Number(t[0]),
-    Number(R[1]),
-    Number(R[4]),
-    Number(t[1]),
-    Number(R[2]),
-    Number(R[5]),
-    Number(t[2])
-  );
-  return new Matrix3().multiplyMatrices(new Matrix3().fromArray(K), extr);
+  // Start with a copy of the rotation matrix (column-major storage).
+  const extr = R.clone();
+
+  // Put the translation vector into the third column → [r₁ r₂ t].
+  const e = extr.elements; // [n11,n21,n31,n12,n22,n32,n13,n23,n33]
+  e[6] = t.x; // n13
+  e[7] = t.y; // n23
+  e[8] = t.z; // n33
+
+  // Final 3 × 3 homography: H = K · extr
+  return K.clone().multiply(extr);
 }
 
 export function generateCamToMachineMatrix(params: MatrixParams) {
@@ -169,10 +170,10 @@ export class MachineToCamStep extends BaseRemapStep {
 
 export interface UndistortParams {
   outputSize: [number, number];
-  cameraMatrix: Float32Array; // 3x3
-  newCameraMatrix: Float32Array; // 3x3
-  distCoeffs: Float32Array; // [k1,k2,p1,p2,k3]
-  R?: Float32Array; // 3x3 rectification matrix
+  cameraMatrix: Matrix3;
+  newCameraMatrix: Matrix3;
+  distCoeffs: number[];
+  R?: Matrix3; // 3x3 rectification matrix
 }
 
 export class UndistortStep implements WebGPUPipelineStep {
@@ -183,7 +184,7 @@ export class UndistortStep implements WebGPUPipelineStep {
 
   constructor(device: GPUDevice, params: UndistortParams) {
     this.device = device;
-    this.params = { ...params, R: params.R ?? Float32Array.from([1, 0, 0, 0, 1, 0, 0, 0, 1]) };
+    this.params = { ...params, R: params.R ?? new Matrix3().identity() };
     this.pipeline = this.createPipeline();
   }
 
@@ -256,15 +257,29 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     const uniformData = new Float32Array(9 + 9 + 9 + 4 + 1);
     let offset = 0;
-    uniformData.set(this.params.cameraMatrix, offset);
+
+    // cameraMatrix (3×3)
+    uniformData.set(this.params.cameraMatrix.elements, offset);
     offset += 9;
-    uniformData.set(this.params.newCameraMatrix, offset);
+
+    // newCameraMatrix (3×3)
+    uniformData.set(this.params.newCameraMatrix.elements, offset);
     offset += 9;
-    uniformData.set(this.params.R!, offset);
+
+    // Rectification matrix R (3×3)
+    uniformData.set((this.params.R ?? new Matrix3().identity()).elements, offset);
     offset += 9;
-    uniformData.set(this.params.distCoeffs.subarray(0, 4), offset);
+
+    // Distortion coefficients k1,k2,p1,p2,k3 (pad with zeros if missing)
+    const k1 = this.params.distCoeffs[0] ?? 0;
+    const k2 = this.params.distCoeffs[1] ?? 0;
+    const p1 = this.params.distCoeffs[2] ?? 0;
+    const p2 = this.params.distCoeffs[3] ?? 0;
+    const k3 = this.params.distCoeffs[4] ?? 0;
+
+    uniformData.set([k1, k2, p1, p2], offset);
     offset += 4;
-    uniformData[offset] = this.params.distCoeffs[4] || 0;
+    uniformData.set([k3], offset);
 
     const uniformBuffer = this.device.createBuffer({
       size: uniformData.byteLength,
