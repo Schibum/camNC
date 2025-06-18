@@ -25,12 +25,12 @@ function RawWebGPURoute() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const [mode, setMode] = useState<'none' | 'undistort' | 'camToMachine' | 'machineToCam'>('none');
+  const [mode, setMode] = useState<'none' | 'undistort' | 'camToMachine' | 'machineToCam' | 'depth'>('none');
 
   // Derived output size for cam→machine step (shared in effect + JSX)
   const machineWidth = bounds.max.x - bounds.min.x;
   const machineHeight = bounds.max.y - bounds.min.y ? bounds.max.y - bounds.min.y : 1;
-  const outWidth = 1024;
+  const outWidth = 512;
   const outHeight = Math.round((outWidth * machineHeight) / machineWidth);
 
   useEffect(() => {
@@ -89,6 +89,12 @@ function RawWebGPURoute() {
         steps.push({ type: 'machineToCam', params: machineToCamParams });
       }
 
+      if (mode === 'depth') {
+        steps.push({ type: 'camToMachine', params: camToMachineParams });
+        steps.push({ type: 'depth', params: { outputSize: [outWidth, outHeight] } });
+        steps.push({ type: 'machineToCam', params: machineToCamParams });
+      }
+
       console.log('steps', steps);
       await proxy.init(Comlink.transfer(stream as any, [stream as any]), steps);
 
@@ -126,6 +132,7 @@ function RawWebGPURoute() {
             <SelectItem value="undistort">Undistort</SelectItem>
             <SelectItem value="camToMachine">Cam → Machine</SelectItem>
             <SelectItem value="machineToCam">Machine → Cam</SelectItem>
+            <SelectItem value="depth">Cam → Machine → Depth</SelectItem>
           </SelectContent>
         </Select>
       </div>

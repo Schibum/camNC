@@ -1,4 +1,5 @@
 import * as Comlink from 'comlink';
+import { DepthEstimationStep, type DepthEstimationParams } from './depthPipeline';
 import { ensureReadableStream } from './ensureReadableStream';
 import {
   CamToMachineStep,
@@ -13,7 +14,8 @@ import type { ReplaceableStreamWorker } from './videoStreamUtils';
 export type StepConfig =
   | { type: 'undistort'; params: UndistortParams }
   | { type: 'camToMachine'; params: RemapStepParams }
-  | { type: 'machineToCam'; params: RemapStepParams };
+  | { type: 'machineToCam'; params: RemapStepParams }
+  | { type: 'depth'; params: DepthEstimationParams };
 
 export interface VideoPipelineWorkerAPI extends ReplaceableStreamWorker {
   init(stream: ReadableStream<VideoFrame> | MediaStreamTrack, steps: StepConfig[]): Promise<void>;
@@ -100,6 +102,10 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, };
           this.outWidth = cfg.params.outputSize[0];
           this.outHeight = cfg.params.outputSize[1];
           return new UndistortStep(this.device!, cfg.params);
+        case 'depth':
+          this.outWidth = cfg.params.outputSize[0];
+          this.outHeight = cfg.params.outputSize[1];
+          return new DepthEstimationStep(this.device!, cfg.params);
         default:
           throw new Error('Unknown step type');
       }

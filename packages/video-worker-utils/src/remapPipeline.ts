@@ -348,130 +348,27 @@ export interface UndistortParams {
   R?: Matrix3; // 3x3 rectification matrix
 }
 
+// Undistort is now just a special case of CamToMachineStep with identity
+// transform and bounds equal to output pixel extents.
 export class UndistortStep implements WebGPUPipelineStep {
-  private device: GPUDevice;
-  private pipeline: GPUComputePipeline;
-  private bindGroup: GPUBindGroup | null = null;
-  private params: UndistortParams;
+  private inner: CamToMachineStep;
 
   constructor(device: GPUDevice, params: UndistortParams) {
-    this.device = device;
-    this.params = { ...params, R: params.R ?? new Matrix3().identity() };
-    this.pipeline = this.createPipeline();
+    const [w, h] = params.outputSize;
+    const identity = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1]);
+    const innerParams: RemapStepParams = {
+      outputSize: params.outputSize,
+      machineBounds: [0, 0, w, h],
+      matrix: identity,
+      cameraMatrix: params.cameraMatrix,
+      newCameraMatrix: params.newCameraMatrix,
+      distCoeffs: params.distCoeffs,
+      R: params.R,
+    } as RemapStepParams;
+    this.inner = new CamToMachineStep(device, innerParams);
   }
 
-  private shaderCode(): string {
-    return `struct Params {
-  cameraMatrix : mat3x3<f32>,
-  newCameraMatrix : mat3x3<f32>,
-  R : mat3x3<f32>,
-  distCoeffs : vec4<f32>,
-  k3 : f32,
-};
-
-@group(0) @binding(0) var srcTex: texture_2d<f32>;
-@group(0) @binding(1) var samp: sampler;
-@group(0) @binding(2) var<uniform> params: Params;
-@group(0) @binding(3) var dstTex: texture_storage_2d<rgba8unorm, write>;
-
-${UNDISTORT_WGSL}
-
-@compute @workgroup_size(8,8)
-fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
-  let dstSize = textureDimensions(dstTex);
-  if (gid.x >= dstSize.x || gid.y >= dstSize.y) { return; }
-  let srcSize = textureDimensions(srcTex);
-  let u = f32(gid.x) + 0.5;
-  let v = f32(gid.y) + 0.5;
-  let srcPos = undistort_uv(u, v);
-  var srcX = srcPos.x;
-  var srcY = srcPos.y;
-  var color : vec4<f32> = vec4f(0.0,0.0,0.0,1.0);
-  if (srcX >= 0.0 && srcY >= 0.0 && srcX < f32(srcSize.x) && srcY < f32(srcSize.y)) {
-    let uv = vec2<f32>(srcX, srcY) / vec2<f32>(f32(srcSize.x), f32(srcSize.y));
-    color = textureSampleLevel(srcTex, samp, uv, 0.0);
-  }
-  textureStore(dstTex, vec2<i32>(i32(gid.x), i32(gid.y)), color);
-}`;
-  }
-
-  private createPipeline(): GPUComputePipeline {
-    const shader = this.device.createShaderModule({ code: this.shaderCode() });
-    return this.device.createComputePipeline({
-      layout: 'auto',
-      compute: { module: shader, entryPoint: 'main' },
-    });
-  }
-
-  async process(texture: GPUTexture): Promise<GPUTexture> {
-    const [width, height] = this.params.outputSize;
-    const dst = this.device.createTexture({
-      size: [width, height],
-      format: 'rgba8unorm',
-      usage:
-        GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
-    });
-
-    // Std140 layout: each column of mat3x3 is vec4<f32>
-    const PAD = 0;
-    const packMat3 = (m: Matrix3, dst: number[], base: number) => {
-      const e = m.elements; // column-major 9 values
-      for (let c = 0; c < 3; c++) {
-        dst[base + c * 4 + 0] = Number(e[c * 3 + 0]);
-        dst[base + c * 4 + 1] = Number(e[c * 3 + 1]);
-        dst[base + c * 4 + 2] = Number(e[c * 3 + 2]);
-        dst[base + c * 4 + 3] = PAD; // padding
-      }
-    };
-
-    const floats: number[] = new Array(44).fill(0);
-    let base = 0;
-    packMat3(this.params.cameraMatrix, floats, base); // 12 floats
-    base += 12;
-    packMat3(this.params.newCameraMatrix, floats, base);
-    base += 12;
-    packMat3(this.params.R ?? new Matrix3().identity(), floats, base);
-    base += 12;
-
-    // distCoeffs vec4
-    const getCoeff = (i: number): number => (this.params.distCoeffs[i] !== undefined ? this.params.distCoeffs[i]! : 0);
-    floats[base++] = getCoeff(0);
-    floats[base++] = getCoeff(1);
-    floats[base++] = getCoeff(2);
-    floats[base++] = getCoeff(3);
-
-    // k3 scalar occupies next float; remaining padding floats already zero.
-    floats[base] = getCoeff(4);
-
-    const uniformData = new Float32Array(floats);
-
-    const uniformBuffer = this.device.createBuffer({
-      size: uniformData.byteLength,
-      usage: GPUBufferUsage.UNIFORM,
-      mappedAtCreation: true,
-    });
-    new Float32Array(uniformBuffer.getMappedRange()).set(uniformData);
-    uniformBuffer.unmap();
-
-    this.bindGroup = this.device.createBindGroup({
-      layout: this.pipeline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: texture.createView() },
-        { binding: 1, resource: this.device.createSampler() },
-        { binding: 2, resource: { buffer: uniformBuffer } },
-        { binding: 3, resource: dst.createView() },
-      ],
-    });
-
-    const commandEncoder = this.device.createCommandEncoder();
-    const pass = commandEncoder.beginComputePass();
-    pass.setPipeline(this.pipeline);
-    pass.setBindGroup(0, this.bindGroup);
-    const workgroupsX = Math.ceil(width / 8);
-    const workgroupsY = Math.ceil(height / 8);
-    pass.dispatchWorkgroups(workgroupsX, workgroupsY);
-    pass.end();
-    this.device.queue.submit([commandEncoder.finish()]);
-    return dst;
+  process(texture: GPUTexture): Promise<GPUTexture> {
+    return this.inner.process(texture);
   }
 }
