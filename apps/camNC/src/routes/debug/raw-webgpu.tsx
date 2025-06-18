@@ -30,7 +30,7 @@ function RawWebGPURoute() {
   // Derived output size for cam→machine step (shared in effect + JSX)
   const machineWidth = bounds.max.x - bounds.min.x;
   const machineHeight = bounds.max.y - bounds.min.y ? bounds.max.y - bounds.min.y : 1;
-  const outWidth = 256;
+  const outWidth = 1024;
   const outHeight = Math.round((outWidth * machineHeight) / machineWidth);
 
   useEffect(() => {
