@@ -93,10 +93,8 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
       vec3 pImage = K * pCam;
       vec2 idealUV = pImage.xy / pImage.z;
       // idealUV is in pixel coordinates for the undistorted image.
-      // Normalize to [0,1] using the resolution.
-      vec2 undistortedUV = idealUV / resolution;
       // Apply distortion correction and sample the video texture.
-      gl_FragColor = sampleDistortedTexture(undistortedUV);
+      gl_FragColor = sampleDistortedTexture(idealUV);
     }
   `;
 
