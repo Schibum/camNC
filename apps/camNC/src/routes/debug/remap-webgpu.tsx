@@ -1,18 +1,19 @@
-import { CamToMachineStep, MachineToCamStep, generateCamToMachineMatrix, generateMachineToCamMatrix } from '@wbcnc/video-worker-utils';
+import {
+  createVideoStreamProcessor,
+  type StepConfig,
+  type VideoPipelineWorkerAPI,
+  generateCamToMachineMatrix,
+  generateMachineToCamMatrix,
+} from '@wbcnc/video-worker-utils';
+import * as Comlink from 'comlink';
 import { createFileRoute } from '@tanstack/react-router';
 import { useCameraExtrinsics, useNewCameraMatrix, useCamResolution, useVideoUrl, useStore } from '@/store/store';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 
 export const Route = createFileRoute('/debug/remap-webgpu')({
   component: RouteComponent,
 });
-
-function present(device: GPUDevice, texture: GPUTexture, ctx: GPUCanvasContext, width: number, height: number) {
-  const encoder = device.createCommandEncoder();
-  encoder.copyTextureToTexture({ texture }, { texture: ctx.getCurrentTexture() }, [width, height]);
-  device.queue.submit([encoder.finish()]);
-}
 
 function RouteComponent() {
   const videoUrl = useVideoUrl();
@@ -25,22 +26,12 @@ function RouteComponent() {
   const camToMachineCanvas = useRef<HTMLCanvasElement>(null);
   const backCanvas = useRef<HTMLCanvasElement>(null);
 
-  const [device, setDevice] = useState<GPUDevice | null>(null);
-
   useEffect(() => {
-    if (!navigator.gpu) return;
-    navigator.gpu.requestAdapter().then(ad => ad?.requestDevice().then(setDevice));
-  }, []);
+    if (!videoRef.current || !camToMachineCanvas.current || !backCanvas.current) return;
 
-  useEffect(() => {
-    if (!device || !videoRef.current || !camToMachineCanvas.current || !backCanvas.current) return;
-
-    const ctx1 = camToMachineCanvas.current.getContext('webgpu') as GPUCanvasContext | null;
-    const ctx2 = backCanvas.current.getContext('webgpu') as GPUCanvasContext | null;
+    const ctx1 = camToMachineCanvas.current.getContext('bitmaprenderer');
+    const ctx2 = backCanvas.current.getContext('bitmaprenderer');
     if (!ctx1 || !ctx2) return;
-    const format = navigator.gpu.getPreferredCanvasFormat();
-    ctx1.configure({ device, format, alphaMode: 'opaque' });
-    ctx2.configure({ device, format, alphaMode: 'opaque' });
 
     const params = {
       K: Float32Array.from(K.toArray()),
@@ -55,47 +46,63 @@ function RouteComponent() {
     const outWidth = 512;
     const outHeight = Math.round((outWidth * machineHeight) / machineWidth);
 
-    const camToMachine = new CamToMachineStep(device, {
+    const camToMachineParams = {
       outputSize: [outWidth, outHeight],
       machineBounds: [bounds.min.x, bounds.min.y, bounds.max.x, bounds.max.y],
       matrix: camToMachMat,
-    });
+    } as const;
 
     const margin = 10;
-    const machineToCam = new MachineToCamStep(device, {
+    const machineToCamParams = {
       outputSize: camRes,
       machineBounds: [bounds.min.x - margin, bounds.min.y - margin, bounds.max.x + margin, bounds.max.y + margin],
       matrix: machToCamMat,
-    });
+    } as const;
+
+    const workerUrl = new URL('../../../../../packages/video-worker-utils/src/videoPipeline.worker.ts', import.meta.url);
+    const worker1 = new Worker(workerUrl, { type: 'module' });
+    const worker2 = new Worker(workerUrl, { type: 'module' });
+    const proxy1 = Comlink.wrap<VideoPipelineWorkerAPI>(worker1);
+    const proxy2 = Comlink.wrap<VideoPipelineWorkerAPI>(worker2);
+
+    let stream1: ReadableStream<VideoFrame> | MediaStreamTrack;
+    let stream2: ReadableStream<VideoFrame> | MediaStreamTrack;
 
     let running = true;
-    const process = async () => {
-      if (!running) return;
-      const vid = videoRef.current!;
-      if (!vid.videoWidth || !vid.videoHeight) {
-        requestAnimationFrame(process);
-        return;
-      }
-      const srcTex = device.createTexture({
-        size: [vid.videoWidth, vid.videoHeight],
-        format: 'rgba8unorm',
-        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
-      });
-      device.queue.copyExternalImageToTexture({ source: vid }, { texture: srcTex }, [vid.videoWidth, vid.videoHeight]);
-      const machineTex = await camToMachine.process(srcTex);
-      present(device, machineTex, ctx1, outWidth, outHeight);
-      const backTex = await machineToCam.process(machineTex);
-      present(device, backTex, ctx2, camRes[0], camRes[1]);
-      srcTex.destroy();
-      machineTex.destroy();
-      backTex.destroy();
-      requestAnimationFrame(process);
+
+    const setup = async () => {
+      stream1 = await createVideoStreamProcessor(videoUrl);
+      stream2 = await createVideoStreamProcessor(videoUrl);
+      await proxy1.init(Comlink.transfer(stream1 as any, [stream1 as any]), [
+        { type: 'camToMachine', params: camToMachineParams } as StepConfig,
+      ]);
+      await proxy2.init(Comlink.transfer(stream2 as any, [stream2 as any]), [
+        { type: 'camToMachine', params: camToMachineParams } as StepConfig,
+        { type: 'machineToCam', params: machineToCamParams } as StepConfig,
+      ]);
+
+      const render = async () => {
+        if (!running) return;
+        const [bmp1, bmp2] = await Promise.all([proxy1.process(), proxy2.process()]);
+        ctx1.transferFromImageBitmap(bmp1);
+        ctx2.transferFromImageBitmap(bmp2);
+        bmp1.close();
+        bmp2.close();
+        requestAnimationFrame(render);
+      };
+      requestAnimationFrame(render);
     };
-    requestAnimationFrame(process);
+
+    setup();
+
     return () => {
       running = false;
+      worker1.terminate();
+      worker2.terminate();
+      if (stream1 instanceof ReadableStream) stream1.cancel().catch(() => undefined);
+      if (stream2 instanceof ReadableStream) stream2.cancel().catch(() => undefined);
     };
-  }, [device, bounds, K, R, t, camRes]);
+  }, [videoUrl, bounds, K, R, t, camRes]);
 
   return (
     <div className="relative w-full h-full p-4 space-y-4">
