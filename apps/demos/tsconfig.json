@@ -22,7 +22,7 @@
     // "checkJs": true,
     /* React Config */
     // "lib": ["ESNext", "DOM"],
-    // "types": []
+    "types": ["@webgpu/types"]
   },
   "include": [
     "next-env.d.ts",

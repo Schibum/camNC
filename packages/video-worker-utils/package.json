@@ -7,10 +7,14 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@huggingface/transformers": "^3.5.2",
+    "@webgpu/types": "catalog:",
     "comlink": "catalog:",
-    "react-device-detect": "catalog:"
+    "react-device-detect": "catalog:",
+    "three": "catalog:"
   },
   "devDependencies": {
+    "@types/three": "catalog:",
     "@wbcnc/typescript-config": "workspace:*"
   }
 }

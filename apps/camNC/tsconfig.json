@@ -24,7 +24,8 @@
     ],
     "types": [
       "@vitest/browser/providers/playwright",
-      "vite/client"
+      "vite/client",
+      "@webgpu/types"
     ],
   },
   "include": [
