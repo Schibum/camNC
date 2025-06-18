@@ -54,11 +54,49 @@ class BaseRemapStep implements WebGPUPipelineStep {
   }
 
   private shaderCode(direction: 'camToMachine' | 'machineToCam'): string {
-    const common = `struct Params {\n  matrix : mat3x3<f32>,\n  bounds : vec4<f32>,\n};\n\n@group(0) @binding(0) var srcTex: texture_2d<f32>;\n@group(0) @binding(1) var samp: sampler;\n@group(0) @binding(2) var<uniform> params: Params;\n@group(0) @binding(3) var dstTex: texture_storage_2d<rgba8unorm, write>;`;
-    const camToMachine = `let xRange = params.bounds.z - params.bounds.x;\n  let yRange = params.bounds.w - params.bounds.y;\n  let X = params.bounds.x + (f32(gid.x) + 0.5) / f32(dstSize.x) * xRange;\n  let Y = params.bounds.y + (f32(gid.y) + 0.5) / f32(dstSize.y) * yRange;\n  let p = params.matrix * vec3<f32>(X, Y, 1.0);\n  let sx = p.x / p.z;\n  let sy = p.y / p.z;\n  if (sx >= 0.0 && sy >= 0.0 && sx < f32(srcSize.x) && sy < f32(srcSize.y)) {\n    let uv = vec2<f32>(sx, sy) / vec2<f32>(f32(srcSize.x), f32(srcSize.y));\n    color = textureSampleLevel(srcTex, samp, uv, 0.0);\n  }`;
-    const machineToCam = `let p = params.matrix * vec3<f32>(f32(gid.x) + 0.5, f32(gid.y) + 0.5, 1.0);\n  let X = p.x / p.z;\n  let Y = p.y / p.z;\n  let mx = (X - params.bounds.x) / (params.bounds.z - params.bounds.x);\n  let my = (Y - params.bounds.y) / (params.bounds.w - params.bounds.y);\n  let sx = mx * f32(srcSize.x);\n  let sy = my * f32(srcSize.y);\n  if (sx >= 0.0 && sy >= 0.0 && sx < f32(srcSize.x) && sy < f32(srcSize.y)) {\n    let uv = vec2<f32>(sx, sy) / vec2<f32>(f32(srcSize.x), f32(srcSize.y));\n    color = textureSampleLevel(srcTex, samp, uv, 0.0);\n  }`;
+    const common = `struct Params {
+  matrix : mat3x3<f32>,
+  bounds : vec4<f32>,
+};
+
+@group(0) @binding(0) var srcTex: texture_2d<f32>;
+@group(0) @binding(1) var samp: sampler;
+@group(0) @binding(2) var<uniform> params: Params;
+@group(0) @binding(3) var dstTex: texture_storage_2d<rgba8unorm, write>;`;
+    const camToMachine = `let xRange = params.bounds.z - params.bounds.x;
+  let yRange = params.bounds.w - params.bounds.y;
+  let X = params.bounds.x + (f32(gid.x) + 0.5) / f32(dstSize.x) * xRange;
+  let Y = params.bounds.y + (f32(gid.y) + 0.5) / f32(dstSize.y) * yRange;
+  let p = params.matrix * vec3<f32>(X, Y, 1.0);
+  let sx = p.x / p.z;
+  let sy = p.y / p.z;
+  if (sx >= 0.0 && sy >= 0.0 && sx < f32(srcSize.x) && sy < f32(srcSize.y)) {
+    let uv = vec2<f32>(sx, sy) / vec2<f32>(f32(srcSize.x), f32(srcSize.y));
+    color = textureSampleLevel(srcTex, samp, uv, 0.0);
+  }`;
+    const machineToCam = `let p = params.matrix * vec3<f32>(f32(gid.x) + 0.5, f32(gid.y) + 0.5, 1.0);
+  let X = p.x / p.z;
+  let Y = p.y / p.z;
+  let mx = (X - params.bounds.x) / (params.bounds.z - params.bounds.x);
+  let my = (Y - params.bounds.y) / (params.bounds.w - params.bounds.y);
+  let sx = mx * f32(srcSize.x);
+  let sy = my * f32(srcSize.y);
+  if (sx >= 0.0 && sy >= 0.0 && sx < f32(srcSize.x) && sy < f32(srcSize.y)) {
+    let uv = vec2<f32>(sx, sy) / vec2<f32>(f32(srcSize.x), f32(srcSize.y));
+    color = textureSampleLevel(srcTex, samp, uv, 0.0);
+  }`;
     const body = direction === 'camToMachine' ? camToMachine : machineToCam;
-    return `${common}\n\n@compute @workgroup_size(8,8)\nfn main(@builtin(global_invocation_id) gid: vec3<u32>) {\n  let dstSize = textureDimensions(dstTex);\n  if (gid.x >= dstSize.x || gid.y >= dstSize.y) { return; }\n  let srcSize = textureDimensions(srcTex);\n  var color : vec4<f32> = vec4f(0.0,0.0,0.0,1.0);\n  ${body}\n  textureStore(dstTex, vec2<i32>(i32(gid.x), i32(gid.y)), color);\n}`;
+    return `${common}
+
+@compute @workgroup_size(8,8)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+  let dstSize = textureDimensions(dstTex);
+  if (gid.x >= dstSize.x || gid.y >= dstSize.y) { return; }
+  let srcSize = textureDimensions(srcTex);
+  var color : vec4<f32> = vec4f(0.0,0.0,0.0,1.0);
+  ${body}
+  textureStore(dstTex, vec2<i32>(i32(gid.x), i32(gid.y)), color);
+}`;
   }
 
   private createPipeline(direction: 'camToMachine' | 'machineToCam'): GPUComputePipeline {
