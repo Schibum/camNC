@@ -11,8 +11,8 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
   const K = useNewCameraMatrix();
   const videoDimensions = useCamResolution();
 
-  // Precompute the undistortion maps (as textures).
-  const [mapXTexture, mapYTexture] = useUnmapTextures();
+  // Camera calibration for distortion correction
+  const calibrationData = useCalibrationData();
 
   // Vertex shader: compute a world position from the vertex position.
   // Here we assume the plane is created with PlaneGeometry(width, height)
@@ -36,33 +36,51 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
 
   // Fragment shader: use the worldPos from the vertex shader,
   // then compute the corresponding pixel in the camera image via intrinsics/extrinsics,
-  // and finally use the undistortion maps to sample the video texture.
+  // and apply distortion correction directly in the shader.
   const fragmentShader = /* glsl */ `
     uniform sampler2D videoTexture;
-    uniform sampler2D mapXTexture;
-    uniform sampler2D mapYTexture;
     uniform vec2 resolution;
     uniform mat3 K;
+    uniform mat3 Kdist;
+    uniform vec3 distRadial;
+    uniform vec2 distTangential;
     uniform mat3 R;
     uniform vec3 t;
     varying vec2 vUv;
     varying vec3 worldPos;
 
-    // Use the undistortion maps to recover the distorted image coordinate, elliminating lens distortion.
-    vec2 remapTextureUv(vec2 uv) {
-      float mapX = texture2D(mapXTexture, uv).r;
-      float mapY = texture2D(mapYTexture, uv).r;
-      return vec2(mapX, mapY) / resolution;
+    vec2 distortPoint(vec2 undistortedPixel) {
+      float fx_n = K[0][0];
+      float fy_n = K[1][1];
+      float cx_n = K[2][0];
+      float cy_n = K[2][1];
+
+      float fx_d = Kdist[0][0];
+      float fy_d = Kdist[1][1];
+      float cx_d = Kdist[2][0];
+      float cy_d = Kdist[2][1];
+
+      float x = (undistortedPixel.x - cx_n) / fx_n;
+      float y = (undistortedPixel.y - cy_n) / fy_n;
+
+      float r2 = x * x + y * y;
+      float radial = 1.0 + distRadial.x * r2 + distRadial.y * r2 * r2 + distRadial.z * r2 * r2 * r2;
+      float deltaX = 2.0 * distTangential.x * x * y + distTangential.y * (r2 + 2.0 * x * x);
+      float deltaY = distTangential.x * (r2 + 2.0 * y * y) + 2.0 * distTangential.y * x * y;
+      float xDistorted = x * radial + deltaX;
+      float yDistorted = y * radial + deltaY;
+
+      float u = fx_d * xDistorted + cx_d;
+      float v = fy_d * yDistorted + cy_d;
+      return vec2(u, v);
     }
 
-    vec4 sampleRemappedTexture(vec2 uv) {
-      vec2 remappedUV = remapTextureUv(uv);
+    vec4 sampleDistortedTexture(vec2 undistortedPixel) {
+      vec2 distorted = distortPoint(undistortedPixel);
+      vec2 uv = distorted / resolution;
       vec4 color = vec4(0.0);
-      // Only sample if the remapped UVs are within bounds.
-      if(remappedUV.x >= 0.0 && remappedUV.x <= 1.0 &&
-         remappedUV.y >= 0.0 && remappedUV.y <= 1.0) {
-        // Flip Y (assuming default case texture.flipY = true)
-        color = texture2D(videoTexture, vec2( remappedUV.x, 1.0 - remappedUV.y));
+      if(uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0) {
+        color = texture2D(videoTexture, vec2(uv.x, 1.0 - uv.y));
       }
       return color;
     }
@@ -77,18 +95,27 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
       // idealUV is in pixel coordinates for the undistorted image.
       // Normalize to [0,1] using the resolution.
       vec2 undistortedUV = idealUV / resolution;
-      // Use the undistortion maps to recover the distorted image coordinate.
-      gl_FragColor = sampleRemappedTexture(undistortedUV);
+      // Apply distortion correction and sample the video texture.
+      gl_FragColor = sampleDistortedTexture(undistortedUV);
     }
   `;
 
   const uniforms = useMemo(
     () => ({
       videoTexture: { value: texture },
-      mapXTexture: { value: mapXTexture },
-      mapYTexture: { value: mapYTexture },
       resolution: { value: new THREE.Vector2(videoDimensions[0], videoDimensions[1]) },
       K: { value: K },
+      Kdist: { value: calibrationData.calibration_matrix },
+      distRadial: {
+        value: new THREE.Vector3(
+          calibrationData.distortion_coefficients[0] || 0,
+          calibrationData.distortion_coefficients[1] || 0,
+          calibrationData.distortion_coefficients[4] || 0
+        ),
+      },
+      distTangential: {
+        value: new THREE.Vector2(calibrationData.distortion_coefficients[2] || 0, calibrationData.distortion_coefficients[3] || 0),
+      },
       R: { value: R },
       t: { value: t },
     }),
@@ -99,13 +126,18 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
   // Update uniform values when dependencies change.
   useEffect(() => {
     uniforms.videoTexture.value = texture;
-    uniforms.mapXTexture.value = mapXTexture;
-    uniforms.mapYTexture.value = mapYTexture;
     uniforms.resolution.value.set(videoDimensions[0], videoDimensions[1]);
     uniforms.K.value = K;
+    uniforms.Kdist.value = calibrationData.calibration_matrix;
+    uniforms.distRadial.value.set(
+      calibrationData.distortion_coefficients[0] || 0,
+      calibrationData.distortion_coefficients[1] || 0,
+      calibrationData.distortion_coefficients[4] || 0
+    );
+    uniforms.distTangential.value.set(calibrationData.distortion_coefficients[2] || 0, calibrationData.distortion_coefficients[3] || 0);
     uniforms.R.value = R;
     uniforms.t.value = t;
-  }, [texture, mapXTexture, mapYTexture, videoDimensions, K, R, t, uniforms]);
+  }, [texture, videoDimensions, K, R, t, calibrationData, uniforms]);
 
   return <shaderMaterial vertexShader={vertexShader} fragmentShader={fragmentShader} uniforms={uniforms} />;
 } /**
