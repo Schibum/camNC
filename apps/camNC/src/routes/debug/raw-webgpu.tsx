@@ -1,5 +1,6 @@
 import { useCalibrationData, useCameraExtrinsics, useCamResolution, useStore, useVideoUrl } from '@/store/store';
 import { createFileRoute } from '@tanstack/react-router';
+import { useVideoSource } from '@wbcnc/go2webrtc/use-video-source';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wbcnc/ui/components/select';
 import {
@@ -17,12 +18,11 @@ export const Route = createFileRoute('/debug/raw-webgpu')({
 });
 
 function RawWebGPURoute() {
-  const videoUrl = useVideoUrl();
+  const { src: vidSource } = useVideoSource(useVideoUrl());
   const calibration = useCalibrationData();
   const camRes = useCamResolution();
   const { R, t } = useCameraExtrinsics();
   const bounds = useStore(state => state.camSource!.machineBounds!);
-  const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [mode, setMode] = useState<'none' | 'undistort' | 'camToMachine' | 'machineToCam' | 'depth'>('none');
@@ -30,11 +30,11 @@ function RawWebGPURoute() {
   // Derived output size for cam→machine step (shared in effect + JSX)
   const machineWidth = bounds.max.x - bounds.min.x;
   const machineHeight = bounds.max.y - bounds.min.y ? bounds.max.y - bounds.min.y : 1;
-  const outWidth = 512;
+  const outWidth = 256;
   const outHeight = Math.round((outWidth * machineHeight) / machineWidth);
 
   useEffect(() => {
-    if (!videoRef.current || !canvasRef.current) return;
+    if (!canvasRef.current) return;
     const ctx = canvasRef.current.getContext('bitmaprenderer');
     if (!ctx) return;
 
@@ -46,7 +46,7 @@ function RawWebGPURoute() {
     let running = true;
 
     const setup = async () => {
-      stream = await createVideoStreamProcessor(videoUrl);
+      stream = await createVideoStreamProcessor(vidSource);
       const undistortParams = {
         outputSize: camRes,
         cameraMatrix: calibration.calibration_matrix,
@@ -115,12 +115,11 @@ function RawWebGPURoute() {
       worker.terminate();
       if (stream instanceof ReadableStream) stream.cancel().catch(() => undefined);
     };
-  }, [videoUrl, calibration, camRes, R, t, bounds, mode]);
+  }, [vidSource, calibration, camRes, R, t, bounds, mode]);
 
   return (
     <div className="relative w-full h-full p-4 space-y-4">
       <PageHeader title="WebGPU Raw Video Debug" className="absolute" />
-      <video ref={videoRef} src={videoUrl} autoPlay playsInline muted className="hidden" />
       <div className="flex items-center gap-4 pt-15">
         <span className="text-sm font-medium">Processing:</span>
         <Select value={mode} onValueChange={val => setMode(val as any)}>
