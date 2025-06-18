@@ -166,3 +166,133 @@ export class MachineToCamStep extends BaseRemapStep {
     super(device, params, 'machineToCam');
   }
 }
+
+export interface UndistortParams {
+  outputSize: [number, number];
+  cameraMatrix: Float32Array; // 3x3
+  newCameraMatrix: Float32Array; // 3x3
+  distCoeffs: Float32Array; // [k1,k2,p1,p2,k3]
+  R?: Float32Array; // 3x3 rectification matrix
+}
+
+export class UndistortStep implements WebGPUPipelineStep {
+  private device: GPUDevice;
+  private pipeline: GPUComputePipeline;
+  private bindGroup: GPUBindGroup | null = null;
+  private params: UndistortParams;
+
+  constructor(device: GPUDevice, params: UndistortParams) {
+    this.device = device;
+    this.params = { ...params, R: params.R ?? Float32Array.from([1, 0, 0, 0, 1, 0, 0, 0, 1]) };
+    this.pipeline = this.createPipeline();
+  }
+
+  private shaderCode(): string {
+    return `struct Params {
+  cameraMatrix : mat3x3<f32>,
+  newCameraMatrix : mat3x3<f32>,
+  R : mat3x3<f32>,
+  distCoeffs : vec4<f32>,
+  k3 : f32,
+};
+
+@group(0) @binding(0) var srcTex: texture_2d<f32>;
+@group(0) @binding(1) var samp: sampler;
+@group(0) @binding(2) var<uniform> params: Params;
+@group(0) @binding(3) var dstTex: texture_storage_2d<rgba8unorm, write>;
+
+@compute @workgroup_size(8,8)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+  let dstSize = textureDimensions(dstTex);
+  if (gid.x >= dstSize.x || gid.y >= dstSize.y) { return; }
+  let srcSize = textureDimensions(srcTex);
+  let u = f32(gid.x) + 0.5;
+  let v = f32(gid.y) + 0.5;
+  let fx_new = params.newCameraMatrix[0][0];
+  let fy_new = params.newCameraMatrix[1][1];
+  let cx_new = params.newCameraMatrix[2][0];
+  let cy_new = params.newCameraMatrix[2][1];
+  var nx = (u - cx_new) / fx_new;
+  var ny = (v - cy_new) / fy_new;
+  var vec = params.R * vec3<f32>(nx, ny, 1.0);
+  var x = vec.x / vec.z;
+  var y = vec.y / vec.z;
+  var r2 = x * x + y * y;
+  var radial = 1.0 + params.distCoeffs.x * r2 + params.distCoeffs.y * r2 * r2 + params.k3 * r2 * r2 * r2;
+  var deltaX = 2.0 * params.distCoeffs.z * x * y + params.distCoeffs.w * (r2 + 2.0 * x * x);
+  var deltaY = params.distCoeffs.z * (r2 + 2.0 * y * y) + 2.0 * params.distCoeffs.w * x * y;
+  var xd = x * radial + deltaX;
+  var yd = y * radial + deltaY;
+  let fx = params.cameraMatrix[0][0];
+  let fy = params.cameraMatrix[1][1];
+  let cx = params.cameraMatrix[2][0];
+  let cy = params.cameraMatrix[2][1];
+  var srcX = fx * xd + cx;
+  var srcY = fy * yd + cy;
+  var color : vec4<f32> = vec4f(0.0,0.0,0.0,1.0);
+  if (srcX >= 0.0 && srcY >= 0.0 && srcX < f32(srcSize.x) && srcY < f32(srcSize.y)) {
+    let uv = vec2<f32>(srcX, srcY) / vec2<f32>(f32(srcSize.x), f32(srcSize.y));
+    color = textureSampleLevel(srcTex, samp, uv, 0.0);
+  }
+  textureStore(dstTex, vec2<i32>(i32(gid.x), i32(gid.y)), color);
+}`;
+  }
+
+  private createPipeline(): GPUComputePipeline {
+    const shader = this.device.createShaderModule({ code: this.shaderCode() });
+    return this.device.createComputePipeline({
+      layout: 'auto',
+      compute: { module: shader, entryPoint: 'main' },
+    });
+  }
+
+  async process(texture: GPUTexture): Promise<GPUTexture> {
+    const [width, height] = this.params.outputSize;
+    const dst = this.device.createTexture({
+      size: [width, height],
+      format: 'rgba8unorm',
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING,
+    });
+
+    const uniformData = new Float32Array(9 + 9 + 9 + 4 + 1);
+    let offset = 0;
+    uniformData.set(this.params.cameraMatrix, offset);
+    offset += 9;
+    uniformData.set(this.params.newCameraMatrix, offset);
+    offset += 9;
+    uniformData.set(this.params.R!, offset);
+    offset += 9;
+    uniformData.set(this.params.distCoeffs.subarray(0, 4), offset);
+    offset += 4;
+    uniformData[offset] = this.params.distCoeffs[4] || 0;
+
+    const uniformBuffer = this.device.createBuffer({
+      size: uniformData.byteLength,
+      usage: GPUBufferUsage.UNIFORM,
+      mappedAtCreation: true,
+    });
+    new Float32Array(uniformBuffer.getMappedRange()).set(uniformData);
+    uniformBuffer.unmap();
+
+    this.bindGroup = this.device.createBindGroup({
+      layout: this.pipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: texture.createView() },
+        { binding: 1, resource: this.device.createSampler() },
+        { binding: 2, resource: { buffer: uniformBuffer } },
+        { binding: 3, resource: dst.createView() },
+      ],
+    });
+
+    const commandEncoder = this.device.createCommandEncoder();
+    const pass = commandEncoder.beginComputePass();
+    pass.setPipeline(this.pipeline);
+    pass.setBindGroup(0, this.bindGroup);
+    const workgroupsX = Math.ceil(width / 8);
+    const workgroupsY = Math.ceil(height / 8);
+    pass.dispatchWorkgroups(workgroupsX, workgroupsY);
+    pass.end();
+    this.device.queue.submit([commandEncoder.finish()]);
+    return dst;
+  }
+}
