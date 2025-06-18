@@ -91,15 +91,15 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, };
         case 'camToMachine':
           this.outWidth = cfg.params.outputSize[0];
           this.outHeight = cfg.params.outputSize[1];
-          return new CamToMachineStep(this.device!, cfg.params as RemapStepParams);
+          return new CamToMachineStep(this.device!, cfg.params);
         case 'machineToCam':
           this.outWidth = cfg.params.outputSize[0];
           this.outHeight = cfg.params.outputSize[1];
-          return new MachineToCamStep(this.device!, cfg.params as RemapStepParams);
+          return new MachineToCamStep(this.device!, cfg.params);
         case 'undistort':
           this.outWidth = cfg.params.outputSize[0];
           this.outHeight = cfg.params.outputSize[1];
-          return new UndistortStep(this.device!, cfg.params as UndistortParams);
+          return new UndistortStep(this.device!, cfg.params);
         default:
           throw new Error('Unknown step type');
       }

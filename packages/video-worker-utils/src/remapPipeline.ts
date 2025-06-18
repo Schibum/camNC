@@ -10,6 +10,10 @@ export interface RemapStepParams {
   outputSize: [number, number];
   machineBounds: [number, number, number, number];
   matrix: Float32Array; // 3x3 transform
+  cameraMatrix?: Matrix3;
+  newCameraMatrix?: Matrix3;
+  distCoeffs?: number[];
+  R?: Matrix3; // Optional rectification matrix
 }
 
 interface MatrixParams {
@@ -42,19 +46,204 @@ export function generateMachineToCamMatrix(params: MatrixParams) {
   return computeMatrix(params).invert().toArray();
 }
 
-class BaseRemapStep implements WebGPUPipelineStep {
+// Shared WGSL snippet that converts an undistorted pixel coordinate (u,v)
+// to its raw camera sensor coordinate taking distortion into account.
+// It uses the global `params` uniform (camera matrices + distortion).
+const UNDISTORT_WGSL = `
+fn undistort_uv(u: f32, v: f32) -> vec2<f32> {
+  let fx_new = params.newCameraMatrix[0][0];
+  let fy_new = params.newCameraMatrix[1][1];
+  let cx_new = params.newCameraMatrix[2][0];
+  let cy_new = params.newCameraMatrix[2][1];
+  var nx = (u - cx_new) / fx_new;
+  var ny = (v - cy_new) / fy_new;
+  var vec = params.R * vec3<f32>(nx, ny, 1.0);
+  var x = vec.x / vec.z;
+  var y = vec.y / vec.z;
+  var r2 = x * x + y * y;
+  var radial = 1.0 + params.distCoeffs.x * r2 + params.distCoeffs.y * r2 * r2 + params.k3 * r2 * r2 * r2;
+  var deltaX = 2.0 * params.distCoeffs.z * x * y + params.distCoeffs.w * (r2 + 2.0 * x * x);
+  var deltaY = params.distCoeffs.z * (r2 + 2.0 * y * y) + 2.0 * params.distCoeffs.w * x * y;
+  var xd = x * radial + deltaX;
+  var yd = y * radial + deltaY;
+  let fx = params.cameraMatrix[0][0];
+  let fy = params.cameraMatrix[1][1];
+  let cx = params.cameraMatrix[2][0];
+  let cy = params.cameraMatrix[2][1];
+  var srcX = fx * xd + cx;
+  var srcY = fy * yd + cy;
+  return vec2<f32>(srcX, srcY);
+}`;
+
+export class CamToMachineStep implements WebGPUPipelineStep {
+  private device: GPUDevice;
+  private pipeline: GPUComputePipeline;
+  private bindGroup: GPUBindGroup | null = null;
+  private params: Required<RemapStepParams>;
+
+  constructor(device: GPUDevice, params: RemapStepParams) {
+    // Ensure that all additional undistort params are provided.
+    const { cameraMatrix, newCameraMatrix, distCoeffs } = params;
+    if (!cameraMatrix || !newCameraMatrix || !distCoeffs) {
+      throw new Error('CamToMachineStep requires cameraMatrix, newCameraMatrix and distCoeffs');
+    }
+    this.device = device;
+    this.params = {
+      ...params,
+      R: params.R ?? new Matrix3().identity(),
+      cameraMatrix,
+      newCameraMatrix,
+      distCoeffs,
+    } as Required<RemapStepParams>; // Make TS happy – we ensured properties exist above.
+    this.pipeline = this.createPipeline();
+  }
+
+  private shaderCode(): string {
+    return `struct Params {
+  // cam→machine part
+  matrix : mat3x3<f32>,
+  bounds : vec4<f32>,
+
+  // undistort part (mirrors UndistortStep)
+  cameraMatrix : mat3x3<f32>,
+  newCameraMatrix : mat3x3<f32>,
+  R : mat3x3<f32>,
+  distCoeffs : vec4<f32>,
+  k3 : f32,
+};
+
+@group(0) @binding(0) var srcTex: texture_2d<f32>; // raw camera frame
+@group(0) @binding(1) var samp: sampler;
+@group(0) @binding(2) var<uniform> params: Params;
+@group(0) @binding(3) var dstTex: texture_storage_2d<rgba8unorm, write>;
+
+${UNDISTORT_WGSL}
+
+@compute @workgroup_size(8,8)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+  let dstSize = textureDimensions(dstTex);
+  if (gid.x >= dstSize.x || gid.y >= dstSize.y) { return; }
+  let srcSize = textureDimensions(srcTex);
+
+  // ==== Phase 1: machine → undistorted pixel (u,v) ====
+  let xRange = params.bounds.z - params.bounds.x;
+  let yRange = params.bounds.w - params.bounds.y;
+  let X = params.bounds.x + (f32(gid.x) + 0.5) / f32(dstSize.x) * xRange;
+  let Y = params.bounds.y + (f32(gid.y) + 0.5) / f32(dstSize.y) * yRange;
+  let p = params.matrix * vec3<f32>(X, Y, 1.0);
+  let u = p.x / p.z;
+  let v = p.y / p.z;
+
+  // ==== Phase 2: use shared undistort helper to map to raw camera coords ====
+  let srcPos = undistort_uv(u, v);
+  var srcX = srcPos.x;
+  var srcY = srcPos.y;
+
+  var color : vec4<f32> = vec4f(0.0,0.0,0.0,1.0);
+  if (srcX >= 0.0 && srcY >= 0.0 && srcX < f32(srcSize.x) && srcY < f32(srcSize.y)) {
+    let uv = vec2<f32>(srcX, srcY) / vec2<f32>(f32(srcSize.x), f32(srcSize.y));
+    color = textureSampleLevel(srcTex, samp, uv, 0.0);
+  }
+  textureStore(dstTex, vec2<i32>(i32(gid.x), i32(gid.y)), color);
+}`;
+  }
+
+  private createPipeline(): GPUComputePipeline {
+    const shader = this.device.createShaderModule({ code: this.shaderCode() });
+    return this.device.createComputePipeline({ layout: 'auto', compute: { module: shader, entryPoint: 'main' } });
+  }
+
+  async process(texture: GPUTexture): Promise<GPUTexture> {
+    const [width, height] = this.params.outputSize;
+    const dst = this.device.createTexture({
+      size: [width, height],
+      format: 'rgba8unorm',
+      usage:
+        GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+    });
+
+    // Allocate 64 floats (256 bytes) to satisfy most alignment constraints.
+    const floats: number[] = new Array(64).fill(0);
+
+    // Helper to pack a mat3x3 (column-major) into vec4 columns (std140).
+    const packMat3 = (e: Readonly<Float32Array | number[]>, offset: number) => {
+      for (let c = 0; c < 3; c++) {
+        floats[offset + c * 4 + 0] = Number(e[c * 3 + 0]);
+        floats[offset + c * 4 + 1] = Number(e[c * 3 + 1]);
+        floats[offset + c * 4 + 2] = Number(e[c * 3 + 2]);
+        // padding slot at +3 remains 0
+      }
+    };
+
+    let base = 0;
+    packMat3(this.params.matrix, base); // cam→machine matrix
+    base += 12;
+    // bounds vec4
+    floats[base + 0] = this.params.machineBounds[0];
+    floats[base + 1] = this.params.machineBounds[1];
+    floats[base + 2] = this.params.machineBounds[2];
+    floats[base + 3] = this.params.machineBounds[3];
+    base += 4;
+    // cameraMatrix, newCameraMatrix, R
+    packMat3(this.params.cameraMatrix.elements, base);
+    base += 12;
+    packMat3(this.params.newCameraMatrix.elements, base);
+    base += 12;
+    packMat3((this.params.R ?? new Matrix3().identity()).elements, base);
+    base += 12;
+    // distCoeffs vec4
+    const getCoeff = (i: number) => (this.params.distCoeffs[i] !== undefined ? this.params.distCoeffs[i]! : 0);
+    floats[base++] = getCoeff(0);
+    floats[base++] = getCoeff(1);
+    floats[base++] = getCoeff(2);
+    floats[base++] = getCoeff(3);
+    // k3
+    floats[base++] = getCoeff(4);
+
+    const uniformData = new Float32Array(floats);
+    const uniformBuffer = this.device.createBuffer({
+      size: uniformData.byteLength,
+      usage: GPUBufferUsage.UNIFORM,
+      mappedAtCreation: true,
+    });
+    new Float32Array(uniformBuffer.getMappedRange()).set(uniformData);
+    uniformBuffer.unmap();
+
+    this.bindGroup = this.device.createBindGroup({
+      layout: this.pipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: texture.createView() },
+        { binding: 1, resource: this.device.createSampler() },
+        { binding: 2, resource: { buffer: uniformBuffer } },
+        { binding: 3, resource: dst.createView() },
+      ],
+    });
+
+    const commandEncoder = this.device.createCommandEncoder();
+    const pass = commandEncoder.beginComputePass();
+    pass.setPipeline(this.pipeline);
+    pass.setBindGroup(0, this.bindGroup);
+    pass.dispatchWorkgroups(Math.ceil(width / 8), Math.ceil(height / 8));
+    pass.end();
+    this.device.queue.submit([commandEncoder.finish()]);
+
+    return dst;
+  }
+}
+
+export class MachineToCamStep implements WebGPUPipelineStep {
   private device: GPUDevice;
   private pipeline: GPUComputePipeline;
   private bindGroup: GPUBindGroup | null = null;
   private params: RemapStepParams;
 
-  constructor(device: GPUDevice, params: RemapStepParams, direction: 'camToMachine' | 'machineToCam') {
+  constructor(device: GPUDevice, params: RemapStepParams) {
     this.device = device;
     this.params = params;
-    this.pipeline = this.createPipeline(direction);
+    this.pipeline = this.createPipeline();
   }
 
-  private shaderCode(direction: 'camToMachine' | 'machineToCam'): string {
+  private shaderCode(): string {
     const common = `struct Params {
   matrix : mat3x3<f32>,
   bounds : vec4<f32>,
@@ -64,17 +253,6 @@ class BaseRemapStep implements WebGPUPipelineStep {
 @group(0) @binding(1) var samp: sampler;
 @group(0) @binding(2) var<uniform> params: Params;
 @group(0) @binding(3) var dstTex: texture_storage_2d<rgba8unorm, write>;`;
-    const camToMachine = `let xRange = params.bounds.z - params.bounds.x;
-  let yRange = params.bounds.w - params.bounds.y;
-  let X = params.bounds.x + (f32(gid.x) + 0.5) / f32(dstSize.x) * xRange;
-  let Y = params.bounds.y + (f32(gid.y) + 0.5) / f32(dstSize.y) * yRange;
-  let p = params.matrix * vec3<f32>(X, Y, 1.0);
-  let sx = p.x / p.z;
-  let sy = p.y / p.z;
-  if (sx >= 0.0 && sy >= 0.0 && sx < f32(srcSize.x) && sy < f32(srcSize.y)) {
-    let uv = vec2<f32>(sx, sy) / vec2<f32>(f32(srcSize.x), f32(srcSize.y));
-    color = textureSampleLevel(srcTex, samp, uv, 0.0);
-  }`;
     const machineToCam = `let p = params.matrix * vec3<f32>(f32(gid.x) + 0.5, f32(gid.y) + 0.5, 1.0);
   let X = p.x / p.z;
   let Y = p.y / p.z;
@@ -86,7 +264,6 @@ class BaseRemapStep implements WebGPUPipelineStep {
     let uv = vec2<f32>(sx, sy) / vec2<f32>(f32(srcSize.x), f32(srcSize.y));
     color = textureSampleLevel(srcTex, samp, uv, 0.0);
   }`;
-    const body = direction === 'camToMachine' ? camToMachine : machineToCam;
     return `${common}
 
 @compute @workgroup_size(8,8)
@@ -95,14 +272,13 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   if (gid.x >= dstSize.x || gid.y >= dstSize.y) { return; }
   let srcSize = textureDimensions(srcTex);
   var color : vec4<f32> = vec4f(0.0,0.0,0.0,1.0);
-  ${body}
+  ${machineToCam}
   textureStore(dstTex, vec2<i32>(i32(gid.x), i32(gid.y)), color);
 }`;
   }
 
-  private createPipeline(direction: 'camToMachine' | 'machineToCam'): GPUComputePipeline {
-    const shader = this.device.createShaderModule({ code: this.shaderCode(direction) });
-
+  private createPipeline(): GPUComputePipeline {
+    const shader = this.device.createShaderModule({ code: this.shaderCode() });
     return this.device.createComputePipeline({
       layout: 'auto',
       compute: {
@@ -121,9 +297,16 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
         GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
     });
 
+    // Pack mat3x3 into 3 vec4 columns (std140) = 12 floats, then bounds vec4.
     const uniformData = new Float32Array(16);
-    uniformData.set(this.params.matrix, 0);
-    uniformData.set(this.params.machineBounds, 9);
+    const m = this.params.matrix;
+    for (let c = 0; c < 3; c++) {
+      uniformData[c * 4 + 0] = Number(m[c * 3 + 0]);
+      uniformData[c * 4 + 1] = Number(m[c * 3 + 1]);
+      uniformData[c * 4 + 2] = Number(m[c * 3 + 2]);
+      uniformData[c * 4 + 3] = 0.0; // padding
+    }
+    uniformData.set(this.params.machineBounds, 12);
 
     const uniformBuffer = this.device.createBuffer({
       size: uniformData.byteLength,
@@ -154,18 +337,6 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     this.device.queue.submit([commandEncoder.finish()]);
 
     return dst;
-  }
-}
-
-export class CamToMachineStep extends BaseRemapStep {
-  constructor(device: GPUDevice, params: RemapStepParams) {
-    super(device, params, 'camToMachine');
-  }
-}
-
-export class MachineToCamStep extends BaseRemapStep {
-  constructor(device: GPUDevice, params: RemapStepParams) {
-    super(device, params, 'machineToCam');
   }
 }
 
@@ -203,6 +374,8 @@ export class UndistortStep implements WebGPUPipelineStep {
 @group(0) @binding(2) var<uniform> params: Params;
 @group(0) @binding(3) var dstTex: texture_storage_2d<rgba8unorm, write>;
 
+${UNDISTORT_WGSL}
+
 @compute @workgroup_size(8,8)
 fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   let dstSize = textureDimensions(dstTex);
@@ -210,27 +383,9 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   let srcSize = textureDimensions(srcTex);
   let u = f32(gid.x) + 0.5;
   let v = f32(gid.y) + 0.5;
-  let fx_new = params.newCameraMatrix[0][0];
-  let fy_new = params.newCameraMatrix[1][1];
-  let cx_new = params.newCameraMatrix[2][0];
-  let cy_new = params.newCameraMatrix[2][1];
-  var nx = (u - cx_new) / fx_new;
-  var ny = (v - cy_new) / fy_new;
-  var vec = params.R * vec3<f32>(nx, ny, 1.0);
-  var x = vec.x / vec.z;
-  var y = vec.y / vec.z;
-  var r2 = x * x + y * y;
-  var radial = 1.0 + params.distCoeffs.x * r2 + params.distCoeffs.y * r2 * r2 + params.k3 * r2 * r2 * r2;
-  var deltaX = 2.0 * params.distCoeffs.z * x * y + params.distCoeffs.w * (r2 + 2.0 * x * x);
-  var deltaY = params.distCoeffs.z * (r2 + 2.0 * y * y) + 2.0 * params.distCoeffs.w * x * y;
-  var xd = x * radial + deltaX;
-  var yd = y * radial + deltaY;
-  let fx = params.cameraMatrix[0][0];
-  let fy = params.cameraMatrix[1][1];
-  let cx = params.cameraMatrix[2][0];
-  let cy = params.cameraMatrix[2][1];
-  var srcX = fx * xd + cx;
-  var srcY = fy * yd + cy;
+  let srcPos = undistort_uv(u, v);
+  var srcX = srcPos.x;
+  var srcY = srcPos.y;
   var color : vec4<f32> = vec4f(0.0,0.0,0.0,1.0);
   if (srcX >= 0.0 && srcY >= 0.0 && srcX < f32(srcSize.x) && srcY < f32(srcSize.y)) {
     let uv = vec2<f32>(srcX, srcY) / vec2<f32>(f32(srcSize.x), f32(srcSize.y));
