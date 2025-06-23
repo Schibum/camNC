@@ -1,21 +1,19 @@
+import { RemapStepParams } from '@/depth/remapPipeline';
+import { Config, VideoPipelineWorkerAPI } from '@/depth/videoPipeline.worker';
 import { useCalibrationData, useCameraExtrinsics, useCamResolution, useStore, useVideoUrl } from '@/store/store';
 import { createFileRoute } from '@tanstack/react-router';
 import { useVideoSource } from '@wbcnc/go2webrtc/use-video-source';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wbcnc/ui/components/select';
-import {
-  createVideoStreamProcessor,
-  generateCamToMachineMatrix,
-  generateMachineToCamMatrix,
-  type StepConfig,
-  type VideoPipelineWorkerAPI,
-} from '@wbcnc/video-worker-utils';
+import { createVideoStreamProcessor, registerThreeJsTransferHandlers } from '@wbcnc/video-worker-utils';
 import * as Comlink from 'comlink';
 import { useEffect, useRef, useState } from 'react';
 
 export const Route = createFileRoute('/debug/raw-webgpu')({
   component: RawWebGPURoute,
 });
+
+registerThreeJsTransferHandlers();
 
 function RawWebGPURoute() {
   const { src: vidSource } = useVideoSource(useVideoUrl());
@@ -26,6 +24,7 @@ function RawWebGPURoute() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [mode, setMode] = useState<'none' | 'undistort' | 'camToMachine' | 'machineToCam' | 'depth'>('none');
+  const [displaySize, setDisplaySize] = useState<[number, number]>([1024, 1024]);
 
   // Derived output size for cam→machine step (shared in effect + JSX)
   const machineWidth = bounds.max.x - bounds.min.x;
@@ -38,7 +37,7 @@ function RawWebGPURoute() {
     const ctx = canvasRef.current.getContext('bitmaprenderer');
     if (!ctx) return;
 
-    const workerUrl = new URL('../../../../../packages/video-worker-utils/src/videoPipeline.worker.ts', import.meta.url);
+    const workerUrl = new URL('../../depth/videoPipeline.worker.ts', import.meta.url);
     const worker = new Worker(workerUrl, { type: 'module' });
     const proxy = Comlink.wrap<VideoPipelineWorkerAPI>(worker);
 
@@ -47,56 +46,44 @@ function RawWebGPURoute() {
 
     const setup = async () => {
       stream = await createVideoStreamProcessor(vidSource);
-      const undistortParams = {
-        outputSize: camRes,
-        cameraMatrix: calibration.calibration_matrix,
-        newCameraMatrix: calibration.new_camera_matrix,
-        distCoeffs: calibration.distortion_coefficients,
-      } as const;
-
-      const steps: StepConfig[] = [];
-
-      if (mode === 'undistort') {
-        steps.push({ type: 'undistort', params: undistortParams });
-      }
-
-      const camToMachMat = Float32Array.from(generateCamToMachineMatrix({ K: calibration.new_camera_matrix, R, t }));
-
-      const machToCamMat = Float32Array.from(generateMachineToCamMatrix({ K: calibration.new_camera_matrix, R, t }));
 
       const margin = 20;
-      const camToMachineParams: StepConfig['params'] = {
+      const params: RemapStepParams = {
         outputSize: [outWidth, outHeight],
         machineBounds: [bounds.min.x - margin, bounds.min.y - margin, bounds.max.x + margin, bounds.max.y + margin],
-        matrix: camToMachMat,
         cameraMatrix: calibration.calibration_matrix,
         newCameraMatrix: calibration.new_camera_matrix,
         distCoeffs: calibration.distortion_coefficients,
+        R: R,
+        t: t,
       };
 
-      const machineToCamParams: StepConfig['params'] = {
-        outputSize: camRes,
-        machineBounds: [bounds.min.x - margin, bounds.min.y - margin, bounds.max.x + margin, bounds.max.y + margin],
-        matrix: machToCamMat,
-      };
-
-      if (mode === 'camToMachine') {
-        steps.push({ type: 'camToMachine', params: camToMachineParams });
+      let cfg: Config | null = null;
+      switch (mode) {
+        case 'camToMachine':
+          cfg = { mode: 'camToMachine', params: params };
+          break;
+        case 'machineToCam':
+          params.outputSize = camRes;
+          cfg = { mode: 'machineToCam', params: params };
+          break;
+        case 'depth':
+          params.outputSize = camRes;
+          cfg = { mode: 'depth', params: params };
+          break;
+        case 'undistort':
+          params.outputSize = camRes;
+          cfg = { mode: 'undistort', params: params };
+          break;
+        case 'none':
+          cfg = { mode: 'none' };
+          break;
+        default:
+          throw new Error('Invalid mode');
       }
 
-      if (mode === 'machineToCam') {
-        steps.push({ type: 'camToMachine', params: camToMachineParams });
-        steps.push({ type: 'machineToCam', params: machineToCamParams });
-      }
-
-      if (mode === 'depth') {
-        steps.push({ type: 'camToMachine', params: camToMachineParams });
-        steps.push({ type: 'depth', params: { outputSize: [outWidth, outHeight] } });
-        steps.push({ type: 'machineToCam', params: machineToCamParams });
-      }
-
-      console.log('steps', steps);
-      await proxy.init(Comlink.transfer(stream as any, [stream as any]), steps);
+      setDisplaySize(cfg.mode === 'none' ? camRes : cfg.params.outputSize);
+      await proxy.init(Comlink.transfer(stream as any, [stream as any]), cfg);
 
       const render = async () => {
         if (!running) return;
@@ -136,7 +123,7 @@ function RawWebGPURoute() {
         </Select>
       </div>
       <div className="flex gap-4 pt-4">
-        <canvas ref={canvasRef} width={camRes[0] * 0.5} height={camRes[1] * 0.5} className="border" />
+        <canvas ref={canvasRef} width={displaySize[0] * 0.5} height={displaySize[1] * 0.5} className="border" />
       </div>
     </div>
   );

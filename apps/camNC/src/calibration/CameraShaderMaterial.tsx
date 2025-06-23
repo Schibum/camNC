@@ -15,8 +15,6 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
   const [mapXTexture, mapYTexture] = useUnmapTextures();
 
   // Vertex shader: compute a world position from the vertex position.
-  // Here we assume the plane is created with PlaneGeometry(width, height)
-  // which by default is centered at (0,0) (i.e. spanning -width/2 .. width/2).
   // We pass that world position (in pixel units) as a varying to the fragment shader.
   const vertexShader = /* glsl */ `
     uniform vec2 resolution;
@@ -24,9 +22,6 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
     varying vec3 worldPos;
     void main() {
       vUv = uv;
-      // For a centered plane, position.xy is already in a coordinate space that spans -resolution/2..resolution/2.
-      // If your geometry is not centered, adjust accordingly.
-      // worldPos = position.xy;
       vec4 worldPosition = modelMatrix * vec4(position, 1.0);
       // vec4 worldPosition = vec4(position, 1.0);
       worldPos = worldPosition.xyz;
@@ -77,6 +72,9 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
       // idealUV is in pixel coordinates for the undistorted image.
       // Normalize to [0,1] using the resolution.
       vec2 undistortedUV = idealUV / resolution;
+
+      // TODO: lookup worldPos in depth map here, if > threshold (masked),
+      //  then sample undistorted cachedTexture instead?
       // Use the undistortion maps to recover the distorted image coordinate.
       gl_FragColor = sampleRemappedTexture(undistortedUV);
     }

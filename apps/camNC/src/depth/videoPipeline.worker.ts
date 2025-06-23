@@ -1,31 +1,24 @@
+import { ensureReadableStream, registerThreeJsTransferHandlers, ReplaceableStreamWorker } from '@wbcnc/video-worker-utils';
 import * as Comlink from 'comlink';
-import { DepthEstimationStep, type DepthEstimationParams } from './depthPipeline';
-import { ensureReadableStream } from './ensureReadableStream';
-import {
-  CamToMachineStep,
-  MachineToCamStep,
-  UndistortStep,
-  type RemapStepParams,
-  type UndistortParams,
-  type WebGPUPipelineStep,
-} from './remapPipeline';
-import type { ReplaceableStreamWorker } from './videoStreamUtils';
+import { DepthEstimationStep } from './depthPipeline';
+import { CamToMachineStep, MachineToCamStep, RemapStepParams, UndistortParams, UndistortStep } from './remapPipeline';
 
-export type StepConfig =
-  | { type: 'undistort'; params: UndistortParams }
-  | { type: 'camToMachine'; params: RemapStepParams }
-  | { type: 'machineToCam'; params: RemapStepParams }
-  | { type: 'depth'; params: DepthEstimationParams };
+export type Mode = 'undistort' | 'camToMachine' | 'machineToCam' | 'depth';
+export type Config =
+  | { mode: 'undistort'; params: UndistortParams }
+  | { mode: 'camToMachine'; params: RemapStepParams }
+  | { mode: 'machineToCam'; params: RemapStepParams }
+  | { mode: 'depth'; params: RemapStepParams }
+  | { mode: 'none' };
 
 export interface VideoPipelineWorkerAPI extends ReplaceableStreamWorker {
-  init(stream: ReadableStream<VideoFrame> | MediaStreamTrack, steps: StepConfig[]): Promise<void>;
+  init(stream: ReadableStream<VideoFrame> | MediaStreamTrack, cfg: Config): Promise<void>;
   process(): Promise<ImageBitmap>;
 }
 
 class VideoPipelineWorker implements VideoPipelineWorkerAPI {
   private reader: ReadableStreamDefaultReader<VideoFrame> | null = null;
   private device: GPUDevice | null = null;
-  private steps: WebGPUPipelineStep[] = [];
   private canvas: OffscreenCanvas | null = null;
   private ctx: GPUCanvasContext | null = null;
   private outWidth = 0;
@@ -33,6 +26,7 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
   private blitPipeline: GPURenderPipeline | null = null;
   private blitSampler: GPUSampler | null = null;
   private blitLayout: GPUBindGroupLayout | null = null;
+  private cfg: Config | null = null;
 
   // Helper to create or reconfigure the canvas once we know the target size
   private setupCanvas(width: number, height: number) {
@@ -81,35 +75,14 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, };
     }
   }
 
-  async init(stream: ReadableStream<VideoFrame> | MediaStreamTrack, steps: StepConfig[]): Promise<void> {
+  async init(stream: ReadableStream<VideoFrame> | MediaStreamTrack, cfg: Config): Promise<void> {
     if (!navigator.gpu) throw new Error('WebGPU not supported');
     const adapter = await navigator.gpu.requestAdapter();
     if (!adapter) throw new Error('No GPU adapter');
     this.device = await adapter.requestDevice();
     this.reader = ensureReadableStream(stream).getReader();
 
-    this.steps = steps.map(cfg => {
-      switch (cfg.type) {
-        case 'camToMachine':
-          this.outWidth = cfg.params.outputSize[0];
-          this.outHeight = cfg.params.outputSize[1];
-          return new CamToMachineStep(this.device!, cfg.params);
-        case 'machineToCam':
-          this.outWidth = cfg.params.outputSize[0];
-          this.outHeight = cfg.params.outputSize[1];
-          return new MachineToCamStep(this.device!, cfg.params);
-        case 'undistort':
-          this.outWidth = cfg.params.outputSize[0];
-          this.outHeight = cfg.params.outputSize[1];
-          return new UndistortStep(this.device!, cfg.params);
-        case 'depth':
-          this.outWidth = cfg.params.outputSize[0];
-          this.outHeight = cfg.params.outputSize[1];
-          return new DepthEstimationStep(this.device!, cfg.params);
-        default:
-          throw new Error('Unknown step type');
-      }
-    });
+    this.cfg = cfg;
 
     // Only set up the canvas now if we already know the output dimensions (i.e., steps not empty).
     if (this.outWidth > 0 && this.outHeight > 0) {
@@ -129,7 +102,7 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, };
   }
 
   async process(): Promise<ImageBitmap> {
-    if (!this.reader || !this.device) throw new Error('Worker not initialized');
+    if (!this.reader || !this.device || !this.cfg) throw new Error('Worker not initialized');
     const { value: frame, done } = await this.reader.read();
     if (done || !frame) throw new Error('Stream ended');
     const width = frame.displayWidth || frame.codedWidth;
@@ -151,10 +124,27 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, };
     frame.close();
 
     let tex = srcTex;
-    for (const step of this.steps) {
-      const next = await step.process(tex);
-      tex.destroy();
-      tex = next;
+    const depthSize = [512, 512] as [number, number];
+    switch (this.cfg.mode) {
+      case 'undistort':
+        tex = await new UndistortStep(this.device, this.cfg.params).process(tex);
+        break;
+      case 'camToMachine':
+        tex = await new CamToMachineStep(this.device, this.cfg.params).process(tex);
+        break;
+      case 'machineToCam':
+        tex = await new CamToMachineStep(this.device, this.cfg.params).process(tex);
+        tex = await new MachineToCamStep(this.device, this.cfg.params).process(tex);
+        break;
+      case 'depth':
+        tex = await new DepthEstimationStep(this.device, { outputSize: this.cfg.params.outputSize }).process(
+          await new CamToMachineStep(this.device, { ...this.cfg.params, outputSize: depthSize }).process(tex),
+          tex
+        );
+        tex = await new MachineToCamStep(this.device, this.cfg.params).process(tex);
+        break;
+      case 'none':
+        break;
     }
 
     // Render pass blit: sample the final texture and draw onto the canvas swap texture.
@@ -190,6 +180,7 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, };
   }
 }
 
+registerThreeJsTransferHandlers();
 const worker = new VideoPipelineWorker();
 Comlink.expose(worker);
 

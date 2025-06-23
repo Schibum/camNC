@@ -11,12 +11,23 @@
     "noEmit": true,
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "types": ["@webgpu/types"],
-    "lib": ["ES2022", "DOM", "DOM.Iterable", "WebGPU"]
+    "types": [
+      "@webgpu/types"
+    ],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable",
+      "WebGPU"
+    ]
   },
   "include": [
     "**/*.ts",
-    "**/*.tsx"
+    "**/*.tsx",
+    "../../apps/camNC/src/depth/videoPipeline.worker.ts",
+    "../../apps/camNC/src/depth/textureConverters.ts",
+    "../../apps/camNC/src/depth/remapPipeline.ts",
+    "../../apps/camNC/src/depth/depthPipeline.ts"
   ],
   "exclude": [
     "node_modules"

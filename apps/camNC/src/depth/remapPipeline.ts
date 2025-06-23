@@ -9,11 +9,15 @@ export interface WebGPUPipelineStep {
 export interface RemapStepParams {
   outputSize: [number, number];
   machineBounds: [number, number, number, number];
-  matrix: Float32Array; // 3x3 transform
-  cameraMatrix?: Matrix3;
-  newCameraMatrix?: Matrix3;
-  distCoeffs?: number[];
-  R?: Matrix3; // Optional rectification matrix
+  // intrinsics
+  cameraMatrix: Matrix3;
+  newCameraMatrix: Matrix3;
+  distCoeffs: number[];
+  // extrinsics
+  R: Matrix3;
+  t: Vector3;
+  // optional, computed from intrinsics and extrinsics if not provided
+  combinedProjectionMatrix?: Matrix3;
 }
 
 interface MatrixParams {
@@ -24,6 +28,7 @@ interface MatrixParams {
   t: Vector3;
 }
 
+// Combined projection matrix: machine → camera.
 function computeMatrix({ K, R, t }: MatrixParams): Matrix3 {
   // Start with a copy of the rotation matrix (column-major storage).
   const extr = R.clone();
@@ -57,7 +62,7 @@ fn undistort_uv(u: f32, v: f32) -> vec2<f32> {
   let cy_new = params.newCameraMatrix[2][1];
   var nx = (u - cx_new) / fx_new;
   var ny = (v - cy_new) / fy_new;
-  var vec = params.R * vec3<f32>(nx, ny, 1.0);
+  var vec = vec3<f32>(nx, ny, 1.0);
   var x = vec.x / vec.z;
   var y = vec.y / vec.z;
   var r2 = x * x + y * y;
@@ -79,22 +84,11 @@ export class CamToMachineStep implements WebGPUPipelineStep {
   private device: GPUDevice;
   private pipeline: GPUComputePipeline;
   private bindGroup: GPUBindGroup | null = null;
-  private params: Required<RemapStepParams>;
+  private params: RemapStepParams;
 
   constructor(device: GPUDevice, params: RemapStepParams) {
-    // Ensure that all additional undistort params are provided.
-    const { cameraMatrix, newCameraMatrix, distCoeffs } = params;
-    if (!cameraMatrix || !newCameraMatrix || !distCoeffs) {
-      throw new Error('CamToMachineStep requires cameraMatrix, newCameraMatrix and distCoeffs');
-    }
     this.device = device;
-    this.params = {
-      ...params,
-      R: params.R ?? new Matrix3().identity(),
-      cameraMatrix,
-      newCameraMatrix,
-      distCoeffs,
-    } as Required<RemapStepParams>; // Make TS happy – we ensured properties exist above.
+    this.params = params;
     this.pipeline = this.createPipeline();
   }
 
@@ -107,7 +101,6 @@ export class CamToMachineStep implements WebGPUPipelineStep {
   // undistort part (mirrors UndistortStep)
   cameraMatrix : mat3x3<f32>,
   newCameraMatrix : mat3x3<f32>,
-  R : mat3x3<f32>,
   distCoeffs : vec4<f32>,
   k3 : f32,
 };
@@ -175,8 +168,13 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
       }
     };
 
+    const camToMachMat = Float32Array.from(
+      this.params.combinedProjectionMatrix
+        ? this.params.combinedProjectionMatrix.toArray()
+        : generateCamToMachineMatrix({ K: this.params.newCameraMatrix, R: this.params.R, t: this.params.t })
+    );
     let base = 0;
-    packMat3(this.params.matrix, base); // cam→machine matrix
+    packMat3(camToMachMat, base); // cam→machine matrix
     base += 12;
     // bounds vec4
     floats[base + 0] = this.params.machineBounds[0];
@@ -188,8 +186,6 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     packMat3(this.params.cameraMatrix.elements, base);
     base += 12;
     packMat3(this.params.newCameraMatrix.elements, base);
-    base += 12;
-    packMat3((this.params.R ?? new Matrix3().identity()).elements, base);
     base += 12;
     // distCoeffs vec4
     const getCoeff = (i: number) => (this.params.distCoeffs[i] !== undefined ? this.params.distCoeffs[i]! : 0);
@@ -299,7 +295,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     // Pack mat3x3 into 3 vec4 columns (std140) = 12 floats, then bounds vec4.
     const uniformData = new Float32Array(16);
-    const m = this.params.matrix;
+    const m = generateMachineToCamMatrix({ K: this.params.newCameraMatrix, R: this.params.R, t: this.params.t });
     for (let c = 0; c < 3; c++) {
       uniformData[c * 4 + 0] = Number(m[c * 3 + 0]);
       uniformData[c * 4 + 1] = Number(m[c * 3 + 1]);
@@ -345,7 +341,6 @@ export interface UndistortParams {
   cameraMatrix: Matrix3;
   newCameraMatrix: Matrix3;
   distCoeffs: number[];
-  R?: Matrix3; // 3x3 rectification matrix
 }
 
 // Undistort is now just a special case of CamToMachineStep with identity
@@ -355,15 +350,16 @@ export class UndistortStep implements WebGPUPipelineStep {
 
   constructor(device: GPUDevice, params: UndistortParams) {
     const [w, h] = params.outputSize;
-    const identity = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1]);
+    const identity = new Matrix3().identity();
     const innerParams: RemapStepParams = {
       outputSize: params.outputSize,
       machineBounds: [0, 0, w, h],
-      matrix: identity,
+      combinedProjectionMatrix: identity,
       cameraMatrix: params.cameraMatrix,
       newCameraMatrix: params.newCameraMatrix,
       distCoeffs: params.distCoeffs,
-      R: params.R,
+      R: identity,
+      t: new Vector3(0, 0, 0),
     } as RemapStepParams;
     this.inner = new CamToMachineStep(device, innerParams);
   }

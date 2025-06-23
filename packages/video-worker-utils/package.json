@@ -7,10 +7,9 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@huggingface/transformers": "^3.5.2",
-    "@webgpu/types": "catalog:",
     "comlink": "catalog:",
     "react-device-detect": "catalog:",
+    "superjson": "catalog:",
     "three": "catalog:"
   },
   "devDependencies": {

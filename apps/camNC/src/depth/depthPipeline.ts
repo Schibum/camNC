@@ -1,6 +1,5 @@
 import { Pipeline, pipeline, RawImage } from '@huggingface/transformers';
 
-import type { WebGPUPipelineStep } from './remapPipeline';
 import { gpuTextureToRawImage, rawImageToGPUTexture } from './textureConverters';
 
 export interface DepthEstimationParams {
@@ -22,7 +21,7 @@ export interface DepthEstimationParams {
  *    normalized grayscale in RGBA8) so that subsequent GPU-based steps or the blitting logic can
  *    continue to work unchanged.
  */
-export class DepthEstimationStep implements WebGPUPipelineStep {
+export class DepthEstimationStep {
   private device: GPUDevice;
   private params: DepthEstimationParams;
   // Lazily initialised transformers.js pipeline
@@ -85,27 +84,28 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     return this.maskPipeline;
   }
 
-  async process(texture: GPUTexture): Promise<GPUTexture> {
-    const [width, height] = this.params.outputSize;
+  async process(machineTexture: GPUTexture, colorTexture: GPUTexture): Promise<GPUTexture> {
+    console.log('outSize', this.params.outputSize, 'textDim', machineTexture.width, machineTexture.height);
 
     // ==== Phase 1: GPUTexture -> RawImage (for depth estimator) ====
-    const image = await gpuTextureToRawImage(this.device, texture, width, height);
+    const image = await gpuTextureToRawImage(this.device, machineTexture, machineTexture.width, machineTexture.height);
 
     const estimator = await this.getEstimator();
     const t0 = performance.now();
     const result = await estimator(image);
     console.log(`Depth estimation took ${performance.now() - t0}ms`);
 
-    // depthOutput is single-channel, encoded in RGBA (all channels equal)
+    // depthOutput is single-channel, so pixel data length = width*height (Uint8 values 0-255)
     const depthOutput = result.depth as RawImage;
+    console.log('depthOutput', depthOutput);
 
     // ==== Phase 2: Build histogram on CPU to find dominant depth ====
     const bins = this.params.histogramBins ?? 64;
     const binCounts = new Uint32Array(bins);
-    const rgba = depthOutput.rgba();
-    const dataArray = rgba.data as Uint8ClampedArray;
-    for (let i = 0; i < dataArray.length; i += 4) {
-      const val = dataArray[i] ?? 0; // R channel in 0-255, fallback to 0
+    // Access raw pixel buffer directly (single channel)
+    const grayData = depthOutput.data as Uint8ClampedArray;
+    for (let i = 0; i < grayData.length; i++) {
+      const val = grayData[i]!; // 0-255
       const idx = Math.min(bins - 1, (val * bins) >> 8); // fast floor(val/256*bins)
       binCounts[idx]!++;
     }
@@ -124,8 +124,10 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     const depthTex = await rawImageToGPUTexture(this.device, depthOutput);
 
     // ==== Phase 4: Apply binary mask using compute shader ====
+    const outWidth = this.params.outputSize[0];
+    const outHeight = this.params.outputSize[1];
     const dst = this.device.createTexture({
-      size: [width, height],
+      size: [outWidth, outHeight],
       format: 'rgba8unorm',
       usage:
         GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC | GPUTextureUsage.RENDER_ATTACHMENT,
@@ -146,7 +148,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     const bindGroup = this.device.createBindGroup({
       layout: pipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: texture.createView() }, // original colour image
+        { binding: 0, resource: colorTexture.createView() }, // original colour image
         { binding: 1, resource: depthTex.createView() },
         { binding: 2, resource: this.maskSampler! },
         { binding: 3, resource: { buffer: uniformBuffer } },
@@ -158,7 +160,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
     const pass = encoder.beginComputePass();
     pass.setPipeline(pipeline);
     pass.setBindGroup(0, bindGroup);
-    pass.dispatchWorkgroups(Math.ceil(width / 8), Math.ceil(height / 8));
+    pass.dispatchWorkgroups(Math.ceil(outWidth / 8), Math.ceil(outHeight / 8));
     pass.end();
     this.device.queue.submit([encoder.finish()]);
 
