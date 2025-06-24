@@ -1,6 +1,7 @@
 /// <reference types="@webgpu/types" />
 
 import { Matrix3, Vector3 } from 'three';
+import { createRemapUniform } from './webgpu-helpers';
 
 export interface WebGPUPipelineStep {
   process(texture: GPUTexture): Promise<GPUTexture>;
@@ -155,55 +156,13 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
         GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
     });
 
-    // Allocate 64 floats (256 bytes) to satisfy most alignment constraints.
-    const floats: number[] = new Array(64).fill(0);
-
-    // Helper to pack a mat3x3 (column-major) into vec4 columns (std140).
-    const packMat3 = (e: Readonly<Float32Array | number[]>, offset: number) => {
-      for (let c = 0; c < 3; c++) {
-        floats[offset + c * 4 + 0] = Number(e[c * 3 + 0]);
-        floats[offset + c * 4 + 1] = Number(e[c * 3 + 1]);
-        floats[offset + c * 4 + 2] = Number(e[c * 3 + 2]);
-        // padding slot at +3 remains 0
-      }
-    };
-
-    const camToMachMat = Float32Array.from(
-      this.params.combinedProjectionMatrix
-        ? this.params.combinedProjectionMatrix.toArray()
-        : generateCamToMachineMatrix({ K: this.params.newCameraMatrix, R: this.params.R, t: this.params.t })
-    );
-    let base = 0;
-    packMat3(camToMachMat, base); // cam→machine matrix
-    base += 12;
-    // bounds vec4
-    floats[base + 0] = this.params.machineBounds[0];
-    floats[base + 1] = this.params.machineBounds[1];
-    floats[base + 2] = this.params.machineBounds[2];
-    floats[base + 3] = this.params.machineBounds[3];
-    base += 4;
-    // cameraMatrix, newCameraMatrix, R
-    packMat3(this.params.cameraMatrix.elements, base);
-    base += 12;
-    packMat3(this.params.newCameraMatrix.elements, base);
-    base += 12;
-    // distCoeffs vec4
-    const getCoeff = (i: number) => (this.params.distCoeffs[i] !== undefined ? this.params.distCoeffs[i]! : 0);
-    floats[base++] = getCoeff(0);
-    floats[base++] = getCoeff(1);
-    floats[base++] = getCoeff(2);
-    floats[base++] = getCoeff(3);
-    // k3
-    floats[base++] = getCoeff(4);
-
-    const uniformData = new Float32Array(floats);
+    const uniformData = createRemapUniform(this.params);
     const uniformBuffer = this.device.createBuffer({
+      label: 'CamToMachineStep uniform buffer',
       size: uniformData.byteLength,
-      usage: GPUBufferUsage.UNIFORM,
-      mappedAtCreation: true,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
-    new Float32Array(uniformBuffer.getMappedRange()).set(uniformData);
-    uniformBuffer.unmap();
+    this.device.queue.writeBuffer(uniformBuffer, 0, uniformData);
 
     this.bindGroup = this.device.createBindGroup({
       layout: this.pipeline.getBindGroupLayout(0),

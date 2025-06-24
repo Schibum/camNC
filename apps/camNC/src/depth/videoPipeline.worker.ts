@@ -1,5 +1,6 @@
 import { ensureReadableStream, registerThreeJsTransferHandlers, ReplaceableStreamWorker } from '@wbcnc/video-worker-utils';
 import * as Comlink from 'comlink';
+import { CachedBgUpdater } from './cachedBgUpdater';
 import { DepthEstimationStep } from './depthPipeline';
 import { CamToMachineStep, MachineToCamStep, RemapStepParams, UndistortParams, UndistortStep } from './remapPipeline';
 
@@ -125,26 +126,21 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, };
 
     let tex = srcTex;
     const depthSize = [512, 512] as [number, number];
-    switch (this.cfg.mode) {
-      case 'undistort':
-        tex = await new UndistortStep(this.device, this.cfg.params).process(tex);
-        break;
-      case 'camToMachine':
-        tex = await new CamToMachineStep(this.device, this.cfg.params).process(tex);
-        break;
-      case 'machineToCam':
-        tex = await new CamToMachineStep(this.device, this.cfg.params).process(tex);
-        tex = await new MachineToCamStep(this.device, this.cfg.params).process(tex);
-        break;
-      case 'depth':
-        tex = await new DepthEstimationStep(this.device, { outputSize: this.cfg.params.outputSize }).process(
-          await new CamToMachineStep(this.device, { ...this.cfg.params, outputSize: depthSize }).process(tex),
-          tex
-        );
-        tex = await new MachineToCamStep(this.device, this.cfg.params).process(tex);
-        break;
-      case 'none':
-        break;
+    if (this.cfg.mode === 'undistort') {
+      tex = await new UndistortStep(this.device, this.cfg.params).process(tex);
+    } else if (this.cfg.mode === 'camToMachine') {
+      tex = await new CamToMachineStep(this.device, this.cfg.params).process(tex);
+    } else if (this.cfg.mode === 'machineToCam') {
+      tex = await new CamToMachineStep(this.device, this.cfg.params).process(tex);
+      tex = await new MachineToCamStep(this.device, this.cfg.params).process(tex);
+    } else if (this.cfg.mode === 'depth') {
+      const depthOutput = await new DepthEstimationStep(this.device, { outputSize: this.cfg.params.outputSize }).process(
+        await new CamToMachineStep(this.device, { ...this.cfg.params, outputSize: depthSize }).process(tex)
+      );
+      tex = await new CachedBgUpdater(this.device, this.cfg.params).update(tex, depthOutput);
+      // tex = await new MachineToCamStep(this.device, this.cfg.params).process(tex);
+    } else if (this.cfg.mode === 'none') {
+      // No processing needed
     }
 
     // Render pass blit: sample the final texture and draw onto the canvas swap texture.
