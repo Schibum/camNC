@@ -13,9 +13,9 @@
     "test:browser": "vitest --workspace=vitest.workspace.ts"
   },
   "dependencies": {
-    "@huggingface/transformers": "^3.5.2",
     "@hookform/devtools": "catalog:",
     "@hookform/resolvers": "catalog:",
+    "@huggingface/transformers": "^3.5.2",
     "@preact/signals-react": "catalog:",
     "@preact/signals-react-transform": "catalog:",
     "@radix-ui/react-avatar": "catalog:",
@@ -75,6 +75,7 @@
     "tw-animate-css": "catalog:",
     "vite-tsconfig-paths": "catalog:",
     "vitest-browser-react": "catalog:",
+    "webgpu-utils": "^1.10.3",
     "yaml": "catalog:",
     "zod": "catalog:",
     "zustand": "catalog:"
@@ -97,6 +98,7 @@
     "@wbcnc/eslint-config": "workspace:*",
     "@wbcnc/typescript-config": "workspace:*",
     "@wbcnc/ui": "workspace:*",
+    "@webgpu/types": "catalog:",
     "babel-plugin-react-compiler": "catalog:",
     "eslint": "catalog:",
     "eslint-config-prettier": "catalog:",
@@ -114,8 +116,7 @@
     "vite-plugin-checker": "catalog:",
     "vite-plugin-node-polyfills": "catalog:",
     "vite-plugin-singlefile": "catalog:",
-    "vitest": "catalog:",
-    "@webgpu/types": "catalog:"
+    "vitest": "catalog:"
   },
   "version": "1.0.0",
   "description": "<h2 align=\"center\">   <img height=\"256\" width=\"256\" src=\"./src/assets/preact.svg\"> </h2>",

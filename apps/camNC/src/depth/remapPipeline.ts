@@ -1,6 +1,7 @@
 /// <reference types="@webgpu/types" />
 
 import { Matrix3, Vector3 } from 'three';
+import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { createRemapUniform } from './webgpu-helpers';
 
 export interface WebGPUPipelineStep {
@@ -45,7 +46,7 @@ function computeMatrix({ K, R, t }: MatrixParams): Matrix3 {
 }
 
 export function generateCamToMachineMatrix(params: MatrixParams) {
-  return computeMatrix(params).toArray();
+  return computeMatrix(params);
 }
 
 export function generateMachineToCamMatrix(params: MatrixParams) {
@@ -155,14 +156,17 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
       usage:
         GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
     });
+    const defs = makeShaderDataDefinitions(this.shaderCode());
+    const paramsValues = makeStructuredView(defs.uniforms.params);
 
-    const uniformData = createRemapUniform(this.params);
+    createRemapUniform(this.params, paramsValues);
+    console.log('paramsValues', new Float32Array(paramsValues.arrayBuffer));
     const uniformBuffer = this.device.createBuffer({
       label: 'CamToMachineStep uniform buffer',
-      size: uniformData.byteLength,
+      size: paramsValues.arrayBuffer.byteLength,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
-    this.device.queue.writeBuffer(uniformBuffer, 0, uniformData);
+    this.device.queue.writeBuffer(uniformBuffer, 0, paramsValues.arrayBuffer);
 
     this.bindGroup = this.device.createBindGroup({
       layout: this.pipeline.getBindGroupLayout(0),

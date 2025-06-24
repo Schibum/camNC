@@ -1,3 +1,5 @@
+import { Matrix3 } from 'three';
+import { StructuredView } from 'webgpu-utils';
 import { generateCamToMachineMatrix, RemapStepParams } from './remapPipeline';
 
 // Helper to pack a mat3x3 (column-major) into vec4 columns (std140).
@@ -10,33 +12,46 @@ export function packMat3(e: Readonly<Float32Array | number[]>, offset: number, o
   }
 }
 
-export function createRemapUniform(params: RemapStepParams): Float32Array {
-  const floats = new Float32Array(64);
+function padMat3(mat: Matrix3) {
+  return [
+    mat.elements[0],
+    mat.elements[1],
+    mat.elements[2],
+    0,
+    mat.elements[3],
+    mat.elements[4],
+    mat.elements[5],
+    0,
+    mat.elements[6],
+    mat.elements[7],
+    mat.elements[8],
+    0,
+  ];
+}
 
-  const camToMachMat = Float32Array.from(
-    params.combinedProjectionMatrix
-      ? params.combinedProjectionMatrix.toArray()
-      : generateCamToMachineMatrix({ K: params.newCameraMatrix, R: params.R, t: params.t })
-  );
-  let base = 0;
-  packMat3(camToMachMat, base, floats); // cam→machine matrix
-  base += 12;
-  // bounds vec4
-  floats.set(params.machineBounds, base);
-  base += 4;
-  // cameraMatrix, newCameraMatrix, R
-  packMat3(params.cameraMatrix.elements, base, floats);
-  base += 12;
-  packMat3(params.newCameraMatrix.elements, base, floats);
-  base += 12;
-  // distCoeffs vec4
-  const getCoeff = (i: number) => (params.distCoeffs[i] !== undefined ? params.distCoeffs[i]! : 0);
-  floats[base++] = getCoeff(0);
-  floats[base++] = getCoeff(1);
-  floats[base++] = getCoeff(2);
-  floats[base++] = getCoeff(3);
-  // k3
-  floats[base++] = getCoeff(4);
+/*
+struct Params {
+  // cam→machine part
+  matrix : mat3x3<f32>,
+  bounds : vec4<f32>,
 
-  return floats;
+  // undistort part (mirrors UndistortStep)
+  cameraMatrix : mat3x3<f32>,
+  newCameraMatrix : mat3x3<f32>,
+  distCoeffs : vec4<f32>,
+  k3 : f32,
+};*/
+export function createRemapUniform(params: RemapStepParams, paramsValues: StructuredView) {
+  paramsValues.set({
+    matrix: padMat3(
+      params.combinedProjectionMatrix
+        ? params.combinedProjectionMatrix
+        : generateCamToMachineMatrix({ K: params.newCameraMatrix, R: params.R, t: params.t })
+    ),
+    bounds: params.machineBounds,
+    cameraMatrix: padMat3(params.cameraMatrix),
+    newCameraMatrix: padMat3(params.newCameraMatrix),
+    distCoeffs: params.distCoeffs.slice(0, 4),
+    k3: params.distCoeffs[4] !== undefined ? params.distCoeffs[4]! : 0,
+  });
 }
