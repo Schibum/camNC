@@ -26,3 +26,17 @@ fn undistort_uv(u: f32, v: f32) -> vec2<f32> {
   var srcY = fy * yd + cy;
   return vec2<f32>(srcX, srcY);
 }`;
+
+export const REMAP_PARAMS_STRUCT = `
+struct RemapParams {
+  // cam→machine part
+  matrix : mat3x3<f32>,
+  bounds : vec4<f32>,
+
+  // undistort part (mirrors UndistortStep)
+  cameraMatrix : mat3x3<f32>,
+  newCameraMatrix : mat3x3<f32>,
+  distCoeffs : vec4<f32>,
+  k3 : f32,
+};
+`;

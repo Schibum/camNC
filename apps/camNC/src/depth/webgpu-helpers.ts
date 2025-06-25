@@ -1,6 +1,6 @@
 import { Matrix3 } from 'three';
 import { StructuredView } from 'webgpu-utils';
-import { generateCamToMachineMatrix, RemapStepParams } from './remapPipeline';
+import { RemapStepParams } from './remapPipeline';
 
 // Helper to pack a mat3x3 (column-major) into vec4 columns (std140).
 export function packMat3(e: Readonly<Float32Array | number[]>, offset: number, outBuffer: Float32Array) {
@@ -12,6 +12,7 @@ export function packMat3(e: Readonly<Float32Array | number[]>, offset: number, o
   }
 }
 
+// Helper to pack a mat3x3 (column-major) into vec4 columns (std140).
 function padMat3(mat: Matrix3) {
   return [
     mat.elements[0],
@@ -43,15 +44,34 @@ struct Params {
 };*/
 export function createRemapUniform(params: RemapStepParams, paramsValues: StructuredView) {
   paramsValues.set({
-    matrix: padMat3(
-      params.combinedProjectionMatrix
-        ? params.combinedProjectionMatrix
-        : generateCamToMachineMatrix({ K: params.newCameraMatrix, R: params.R, t: params.t })
-    ),
+    matrix: padMat3(params.combinedProjectionMatrix ?? generateCamToMachineMatrix(params)),
     bounds: params.machineBounds,
     cameraMatrix: padMat3(params.cameraMatrix),
     newCameraMatrix: padMat3(params.newCameraMatrix),
     distCoeffs: params.distCoeffs.slice(0, 4),
     k3: params.distCoeffs[4] !== undefined ? params.distCoeffs[4]! : 0,
   });
+}
+
+// Combined projection matrix: machine → camera.
+function computeMatrix({ R, t, newCameraMatrix }: RemapStepParams): Matrix3 {
+  // Start with a copy of the rotation matrix (column-major storage).
+  const extr = R.clone();
+
+  // Put the translation vector into the third column → [r₁ r₂ t].
+  const e = extr.elements; // [n11,n21,n31,n12,n22,n32,n13,n23,n33]
+  e[6] = t.x; // n13
+  e[7] = t.y; // n23
+  e[8] = t.z; // n33
+
+  // Final 3 × 3 homography: H = K · extr
+  return newCameraMatrix.clone().multiply(extr);
+}
+
+export function generateCamToMachineMatrix(params: RemapStepParams) {
+  return computeMatrix(params);
+}
+
+export function generateMachineToCamMatrix(params: RemapStepParams) {
+  return computeMatrix(params).invert().toArray();
 }

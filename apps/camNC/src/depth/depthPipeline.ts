@@ -59,9 +59,10 @@ export class DepthEstimationStep {
     const result = await estimator(image);
     console.log(`Depth estimation took ${performance.now() - t0}ms`);
 
+    // Note: histogram logic could be done on the GPU, but just takes ~2ms on CPU anyway.
     // depthOutput is single-channel, so pixel data length = width*height (Uint8 values 0-255)
     const depthOutput = result.depth as RawImage;
-    console.log('depthOutput', depthOutput);
+    // console.log('depthOutput', depthOutput);
 
     // ==== Phase 2: Build histogram on CPU to find dominant depth ====
     const bins = this.params.histogramBins ?? 64;
@@ -73,12 +74,12 @@ export class DepthEstimationStep {
       const idx = Math.min(bins - 1, (val * bins) >> 8); // fast floor(val/256*bins)
       binCounts[idx]!++;
     }
-    console.log('binCounts', binCounts);
+    // console.log('binCounts', binCounts);
     let peakIdx = 0;
     for (let i = 1; i < bins; i++) {
       if (binCounts[i]! > binCounts[peakIdx]!) peakIdx = i;
     }
-    console.log('peakIdx', peakIdx);
+    // console.log('peakIdx', peakIdx);
     const offset = this.params.thresholdOffset ?? 0.05;
     let threshold = (peakIdx + 0.5) / bins + offset; // convert to 0-1 and add offset
     if (threshold > 1.0) threshold = 1.0;
