@@ -28,11 +28,13 @@ export class CamToMachineStep implements WebGPUPipelineStep {
   private pipeline: GPUComputePipeline;
   private bindGroup: GPUBindGroup | null = null;
   private params: RemapStepParams;
+  private sampler: GPUSampler;
 
   constructor(device: GPUDevice, params: RemapStepParams) {
     this.device = device;
     this.params = params;
     this.pipeline = this.createPipeline();
+    this.sampler = this.device.createSampler();
   }
 
   private shaderCode(): string {
@@ -103,7 +105,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
       layout: this.pipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: camTexture.createView() },
-        { binding: 1, resource: this.device.createSampler() },
+        { binding: 1, resource: this.sampler },
         { binding: 2, resource: { buffer: uniformBuffer } },
         { binding: 3, resource: dst.createView() },
       ],
@@ -117,6 +119,8 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     pass.end();
     this.device.queue.submit([commandEncoder.finish()]);
 
+    uniformBuffer.destroy();
+
     return dst;
   }
 }
@@ -126,11 +130,13 @@ export class MachineToCamStep implements WebGPUPipelineStep {
   private pipeline: GPUComputePipeline;
   private bindGroup: GPUBindGroup | null = null;
   private params: RemapStepParams;
+  private sampler: GPUSampler;
 
   constructor(device: GPUDevice, params: RemapStepParams) {
     this.device = device;
     this.params = params;
     this.pipeline = this.createPipeline();
+    this.sampler = this.device.createSampler();
   }
 
   private shaderCode(): string {
@@ -209,7 +215,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
       layout: this.pipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: texture.createView() },
-        { binding: 1, resource: this.device.createSampler() },
+        { binding: 1, resource: this.sampler },
         { binding: 2, resource: { buffer: uniformBuffer } },
         { binding: 3, resource: dst.createView() },
       ],
@@ -224,6 +230,8 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     pass.dispatchWorkgroups(workgroupsX, workgroupsY);
     pass.end();
     this.device.queue.submit([commandEncoder.finish()]);
+
+    uniformBuffer.destroy();
 
     return dst;
   }

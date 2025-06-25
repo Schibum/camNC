@@ -1,5 +1,6 @@
 import { RemapStepParams } from '@/depth/remapPipeline';
 import { Config, VideoPipelineWorkerAPI } from '@/depth/videoPipeline.worker';
+import { useAutoScanMarkers } from '@/hooks/useAutoScanMarkers';
 import { useCalibrationData, useCameraExtrinsics, useCamResolution, useStore, useVideoUrl } from '@/store/store';
 import { createFileRoute } from '@tanstack/react-router';
 import { useVideoSource } from '@wbcnc/go2webrtc/use-video-source';
@@ -16,6 +17,7 @@ export const Route = createFileRoute('/debug/raw-webgpu')({
 registerThreeJsTransferHandlers();
 
 function RawWebGPURoute() {
+  useAutoScanMarkers({ intervalMs: 5000 });
   const { src: vidSource } = useVideoSource(useVideoUrl());
   const calibration = useCalibrationData();
   const camRes = useCamResolution();

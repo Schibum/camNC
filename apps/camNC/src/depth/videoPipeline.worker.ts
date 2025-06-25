@@ -29,6 +29,21 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
   private blitLayout: GPUBindGroupLayout | null = null;
   private cfg: Config | null = null;
 
+  // Cached step instances to avoid per-frame pipeline creation
+  private undistortStep?: UndistortStep;
+  private camToMachineStep?: CamToMachineStep;
+  private machineToCamStep?: MachineToCamStep;
+  private depthPrepStep?: CamToMachineStep;
+  private cachedBgUpdater?: CachedBgUpdater;
+  private depthEstimator?: DepthEstimationStep;
+
+  /** Helper: run transform producing a new texture, destroy the old one, return new. */
+  private async replaceTex(current: GPUTexture, transform: (src: GPUTexture) => Promise<GPUTexture>): Promise<GPUTexture> {
+    const next = await transform(current);
+    current.destroy();
+    return next;
+  }
+
   // Helper to create or reconfigure the canvas once we know the target size
   private setupCanvas(width: number, height: number) {
     if (!this.device) throw new Error('GPU device not ready');
@@ -128,18 +143,42 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, };
     const depthSize = [512, 512] as [number, number];
     try {
       if (this.cfg.mode === 'undistort') {
-        tex = await new UndistortStep(this.device, this.cfg.params).process(tex);
+        if (!this.undistortStep) {
+          this.undistortStep = new UndistortStep(this.device, this.cfg.params);
+        }
+        tex = await this.replaceTex(tex, t => this.undistortStep!.process(t));
       } else if (this.cfg.mode === 'camToMachine') {
-        tex = await new CamToMachineStep(this.device, this.cfg.params).process(tex);
+        if (!this.camToMachineStep) {
+          this.camToMachineStep = new CamToMachineStep(this.device, this.cfg.params);
+        }
+        tex = await this.replaceTex(tex, t => this.camToMachineStep!.process(t));
       } else if (this.cfg.mode === 'machineToCam') {
-        tex = await new CamToMachineStep(this.device, this.cfg.params).process(tex);
-        tex = await new MachineToCamStep(this.device, this.cfg.params).process(tex);
+        if (!this.camToMachineStep) {
+          this.camToMachineStep = new CamToMachineStep(this.device, this.cfg.params);
+        }
+        if (!this.machineToCamStep) {
+          this.machineToCamStep = new MachineToCamStep(this.device, this.cfg.params);
+        }
+        tex = await this.replaceTex(tex, t => this.camToMachineStep!.process(t));
+        tex = await this.replaceTex(tex, t => this.machineToCamStep!.process(t));
       } else if (this.cfg.mode === 'depth') {
-        const depthOutput = await new DepthEstimationStep(this.device, { outputSize: this.cfg.params.outputSize }).process(
-          await new CamToMachineStep(this.device, { ...this.cfg.params, outputSize: depthSize }).process(tex)
-        );
-        tex = await new CachedBgUpdater(this.device, this.cfg.params).update(tex, depthOutput);
-        // tex = await new MachineToCamStep(this.device, this.cfg.params).process(tex);
+        if (!this.depthPrepStep) {
+          this.depthPrepStep = new CamToMachineStep(this.device, {
+            ...this.cfg.params,
+            outputSize: depthSize,
+          });
+        }
+        if (!this.depthEstimator) {
+          this.depthEstimator = new DepthEstimationStep(this.device, { outputSize: this.cfg.params.outputSize });
+        }
+        if (!this.cachedBgUpdater) {
+          this.cachedBgUpdater = new CachedBgUpdater(this.device, this.cfg.params);
+        }
+
+        const machineTex = await this.depthPrepStep.process(tex);
+        const depthOutput = await this.depthEstimator.process(machineTex);
+        tex = await this.replaceTex(tex, t => this.cachedBgUpdater!.update(t, depthOutput));
+        machineTex.destroy();
       } else if (this.cfg.mode === 'none') {
         // No processing needed
       }

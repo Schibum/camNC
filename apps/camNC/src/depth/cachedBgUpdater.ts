@@ -56,10 +56,10 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
       outCol = textureSampleLevel(colorTex, samp, uvUndist, 0.0);
     }
 
-    outCol = vec4f(depth, depth, depth, 1.0);
-    if (depth > bgParams.flatDepthMin && depth < bgParams.flatDepthMax) {
-      outCol.r = 1.0;
-    }
+    // outCol = vec4f(depth, depth, depth, 1.0);
+    // if (depth > bgParams.flatDepthMin && depth < bgParams.flatDepthMax) {
+    //   outCol.r = 1.0;
+    // }
     // outCol.r = depth;
     // outCol = vec4f(depth, depth, depth, 1.0);
   }
@@ -147,6 +147,8 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
 
     // Clean-up temporary GPU resources.
     depthTex.destroy();
+    remapUniformBuffer.destroy();
+    thresholdUniformBuffer.destroy();
 
     return dst;
   }
