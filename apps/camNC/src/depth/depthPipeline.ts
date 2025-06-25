@@ -13,6 +13,8 @@ export interface DepthEstimationParams {
 export interface DepthOutput {
   depth: RawImage;
   threshold: number;
+  flatDepthMin: number;
+  flatDepthMax: number;
 }
 
 /**
@@ -65,7 +67,7 @@ export class DepthEstimationStep {
     // console.log('depthOutput', depthOutput);
 
     // ==== Phase 2: Build histogram on CPU to find dominant depth ====
-    const bins = this.params.histogramBins ?? 64;
+    const bins = this.params.histogramBins ?? 7;
     const binCounts = new Uint32Array(bins);
     // Access raw pixel buffer directly (single channel)
     const grayData = depthOutput.data as Uint8ClampedArray;
@@ -79,14 +81,18 @@ export class DepthEstimationStep {
     for (let i = 1; i < bins; i++) {
       if (binCounts[i]! > binCounts[peakIdx]!) peakIdx = i;
     }
+    console.log('bins', binCounts, 'peakIdx', peakIdx);
     // console.log('peakIdx', peakIdx);
     const offset = this.params.thresholdOffset ?? 0.05;
-    let threshold = (peakIdx + 0.5) / bins + offset; // convert to 0-1 and add offset
+    const flatDepth = (peakIdx + 0.5) / bins;
+    let threshold = flatDepth + offset; // convert to 0-1 and add offset
     if (threshold > 1.0) threshold = 1.0;
     // threshold = 0;
 
     return {
       depth: depthOutput,
+      flatDepthMin: flatDepth - 0.5 / bins,
+      flatDepthMax: flatDepth + 0.5 / bins,
       threshold,
     };
   }

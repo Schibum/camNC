@@ -1,7 +1,7 @@
 // Shared WGSL snippet that converts an undistorted pixel coordinate (u,v)
 // to its raw camera sensor coordinate taking distortion into account.
 // It uses the global `params` uniform (camera matrices + distortion).
-export const UNDISTORT_WGSL = `
+export const UNDISTORT_WGSL = /* wgsl */ `
 fn undistort_uv(u: f32, v: f32) -> vec2<f32> {
   let fx_new = params.newCameraMatrix[0][0];
   let fy_new = params.newCameraMatrix[1][1];
@@ -27,7 +27,7 @@ fn undistort_uv(u: f32, v: f32) -> vec2<f32> {
   return vec2<f32>(srcX, srcY);
 }`;
 
-export const REMAP_PARAMS_STRUCT = `
+export const REMAP_PARAMS_STRUCT = /* wgsl */ `
 struct RemapParams {
   // cam→machine part
   matrix : mat3x3<f32>,

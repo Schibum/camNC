@@ -126,21 +126,26 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, };
 
     let tex = srcTex;
     const depthSize = [512, 512] as [number, number];
-    if (this.cfg.mode === 'undistort') {
-      tex = await new UndistortStep(this.device, this.cfg.params).process(tex);
-    } else if (this.cfg.mode === 'camToMachine') {
-      tex = await new CamToMachineStep(this.device, this.cfg.params).process(tex);
-    } else if (this.cfg.mode === 'machineToCam') {
-      tex = await new CamToMachineStep(this.device, this.cfg.params).process(tex);
-      tex = await new MachineToCamStep(this.device, this.cfg.params).process(tex);
-    } else if (this.cfg.mode === 'depth') {
-      const depthOutput = await new DepthEstimationStep(this.device, { outputSize: this.cfg.params.outputSize }).process(
-        await new CamToMachineStep(this.device, { ...this.cfg.params, outputSize: depthSize }).process(tex)
-      );
-      tex = await new CachedBgUpdater(this.device, this.cfg.params).update(tex, depthOutput);
-      // tex = await new MachineToCamStep(this.device, this.cfg.params).process(tex);
-    } else if (this.cfg.mode === 'none') {
-      // No processing needed
+    try {
+      if (this.cfg.mode === 'undistort') {
+        tex = await new UndistortStep(this.device, this.cfg.params).process(tex);
+      } else if (this.cfg.mode === 'camToMachine') {
+        tex = await new CamToMachineStep(this.device, this.cfg.params).process(tex);
+      } else if (this.cfg.mode === 'machineToCam') {
+        tex = await new CamToMachineStep(this.device, this.cfg.params).process(tex);
+        tex = await new MachineToCamStep(this.device, this.cfg.params).process(tex);
+      } else if (this.cfg.mode === 'depth') {
+        const depthOutput = await new DepthEstimationStep(this.device, { outputSize: this.cfg.params.outputSize }).process(
+          await new CamToMachineStep(this.device, { ...this.cfg.params, outputSize: depthSize }).process(tex)
+        );
+        tex = await new CachedBgUpdater(this.device, this.cfg.params).update(tex, depthOutput);
+        // tex = await new MachineToCamStep(this.device, this.cfg.params).process(tex);
+      } else if (this.cfg.mode === 'none') {
+        // No processing needed
+      }
+    } catch (e) {
+      console.error('Error in processing:', e);
+      throw new Error('Error in processing');
     }
 
     // Render pass blit: sample the final texture and draw onto the canvas swap texture.

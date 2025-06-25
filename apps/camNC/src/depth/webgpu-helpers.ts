@@ -3,30 +3,12 @@ import { StructuredView } from 'webgpu-utils';
 import { RemapStepParams } from './remapPipeline';
 
 // Helper to pack a mat3x3 (column-major) into vec4 columns (std140).
-export function packMat3(e: Readonly<Float32Array | number[]>, offset: number, outBuffer: Float32Array) {
-  for (let c = 0; c < 3; c++) {
-    outBuffer[offset + c * 4 + 0] = e[c * 3 + 0];
-    outBuffer[offset + c * 4 + 1] = e[c * 3 + 1];
-    outBuffer[offset + c * 4 + 2] = e[c * 3 + 2];
-    // padding slot at +3 remains 0
-  }
-}
-
-// Helper to pack a mat3x3 (column-major) into vec4 columns (std140).
-function padMat3(mat: Matrix3) {
+export function padMat3(mat: Matrix3) {
+  // prettier-ignore
   return [
-    mat.elements[0],
-    mat.elements[1],
-    mat.elements[2],
-    0,
-    mat.elements[3],
-    mat.elements[4],
-    mat.elements[5],
-    0,
-    mat.elements[6],
-    mat.elements[7],
-    mat.elements[8],
-    0,
+    mat.elements[0], mat.elements[1], mat.elements[2], 0,
+    mat.elements[3], mat.elements[4], mat.elements[5], 0,
+    mat.elements[6], mat.elements[7], mat.elements[8], 0,
   ];
 }
 
@@ -68,10 +50,12 @@ function computeMatrix({ R, t, newCameraMatrix }: RemapStepParams): Matrix3 {
   return newCameraMatrix.clone().multiply(extr);
 }
 
+// For converting a camera frame to a machine frame. The matrix projects machine -> camera, not the inverse as the name suggests.
 export function generateCamToMachineMatrix(params: RemapStepParams) {
   return computeMatrix(params);
 }
 
+// For converting a machine frame to a camera frame. The matrix projects camera -> machine, not the inverse as the name suggests.
 export function generateMachineToCamMatrix(params: RemapStepParams) {
-  return computeMatrix(params).invert().toArray();
+  return computeMatrix(params).invert();
 }

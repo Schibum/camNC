@@ -3,7 +3,7 @@
 import { Matrix3, Vector3 } from 'three';
 import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { REMAP_PARAMS_STRUCT, UNDISTORT_WGSL } from './sharedShaders';
-import { createRemapUniform, generateMachineToCamMatrix } from './webgpu-helpers';
+import { createRemapUniform, generateMachineToCamMatrix, padMat3 } from './webgpu-helpers';
 
 export interface WebGPUPipelineStep {
   process(texture: GPUTexture): Promise<GPUTexture>;
@@ -36,7 +36,7 @@ export class CamToMachineStep implements WebGPUPipelineStep {
   }
 
   private shaderCode(): string {
-    return `
+    return /* wgsl */ `
 ${REMAP_PARAMS_STRUCT}
 
 @group(0) @binding(0) var srcTex: texture_2d<f32>; // raw camera frame
@@ -134,7 +134,7 @@ export class MachineToCamStep implements WebGPUPipelineStep {
   }
 
   private shaderCode(): string {
-    const common = `struct Params {
+    const common = /* wgsl */ `struct Params {
   matrix : mat3x3<f32>,
   bounds : vec4<f32>,
 };
@@ -143,7 +143,8 @@ export class MachineToCamStep implements WebGPUPipelineStep {
 @group(0) @binding(1) var samp: sampler;
 @group(0) @binding(2) var<uniform> params: Params;
 @group(0) @binding(3) var dstTex: texture_storage_2d<rgba8unorm, write>;`;
-    const machineToCam = `let p = params.matrix * vec3<f32>(f32(gid.x) + 0.5, f32(gid.y) + 0.5, 1.0);
+    const machineToCam = /* wgsl */ `
+  let p = params.matrix * vec3<f32>(f32(gid.x) + 0.5, f32(gid.y) + 0.5, 1.0);
   let X = p.x / p.z;
   let Y = p.y / p.z;
   let mx = (X - params.bounds.x) / (params.bounds.z - params.bounds.x);
@@ -154,7 +155,7 @@ export class MachineToCamStep implements WebGPUPipelineStep {
     let uv = vec2<f32>(sx, sy) / vec2<f32>(f32(srcSize.x), f32(srcSize.y));
     color = textureSampleLevel(srcTex, samp, uv, 0.0);
   }`;
-    return `${common}
+    return /* wgsl */ `${common}
 
 @compute @workgroup_size(8,8)
 fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
@@ -181,32 +182,30 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   async process(texture: GPUTexture): Promise<GPUTexture> {
     const [width, height] = this.params.outputSize;
     const dst = this.device.createTexture({
+      label: 'MachineToCamStep output texture',
       size: [width, height],
       format: 'rgba8unorm',
       usage:
         GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
     });
 
-    // Pack mat3x3 into 3 vec4 columns (std140) = 12 floats, then bounds vec4.
-    const uniformData = new Float32Array(16);
-    const m = generateMachineToCamMatrix(this.params);
-    for (let c = 0; c < 3; c++) {
-      uniformData[c * 4 + 0] = Number(m[c * 3 + 0]);
-      uniformData[c * 4 + 1] = Number(m[c * 3 + 1]);
-      uniformData[c * 4 + 2] = Number(m[c * 3 + 2]);
-      uniformData[c * 4 + 3] = 0.0; // padding
-    }
-    uniformData.set(this.params.machineBounds, 12);
+    const defs = makeShaderDataDefinitions(this.shaderCode());
+    const paramsValues = makeStructuredView(defs.uniforms.params);
+
+    paramsValues.set({
+      matrix: padMat3(generateMachineToCamMatrix(this.params)),
+      bounds: this.params.machineBounds,
+    });
 
     const uniformBuffer = this.device.createBuffer({
-      size: uniformData.byteLength,
-      usage: GPUBufferUsage.UNIFORM,
-      mappedAtCreation: true,
+      label: 'MachineToCamStep uniform buffer',
+      size: paramsValues.arrayBuffer.byteLength,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
-    new Float32Array(uniformBuffer.getMappedRange()).set(uniformData);
-    uniformBuffer.unmap();
+    this.device.queue.writeBuffer(uniformBuffer, 0, paramsValues.arrayBuffer);
 
     this.bindGroup = this.device.createBindGroup({
+      label: 'MachineToCamStep bind group',
       layout: this.pipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: texture.createView() },
