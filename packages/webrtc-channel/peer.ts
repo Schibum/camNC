@@ -111,6 +111,7 @@ export default class Peer {
         log.debug('iceconnectionstatechange', this.pc.iceConnectionState);
         if (['failed', 'disconnected'].includes(this.pc.iceConnectionState)) {
           this.abortCtrl.abort();
+          this.destroy();
         }
       },
       { signal: this.signal }
