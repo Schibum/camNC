@@ -189,19 +189,7 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, };
         if (!this.cachedBgUpdater) {
           this.cachedBgUpdater = new CachedBgUpdater(this.device, this.cfg.params);
         }
-
-        const machineTex = await this.depthPrepStep.process(tex);
-        const depthOutput = await this.depthEstimator.process(machineTex);
-
-        if (!this.maskInflationStep) {
-          this.maskInflationStep = new MaskInflationStep(this.device!);
-        }
-        let t0 = performance.now();
-        const maskTex = await this.maskInflationStep.process(depthOutput);
-        console.log('maskInflation', performance.now() - t0);
-
         const maskDim = 512;
-        t0 = performance.now();
         if (!this.maskWarpStep) {
           this.maskWarpStep = new MachineToCamStep(
             this.device,
@@ -212,6 +200,18 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, };
             [width / maskDim, height / maskDim]
           );
         }
+        if (!this.maskInflationStep) {
+          this.maskInflationStep = new MaskInflationStep(this.device!);
+        }
+
+        const machineTex = await this.depthPrepStep.process(tex);
+        const depthOutput = await this.depthEstimator.process(machineTex);
+
+        let t0 = performance.now();
+        const maskTex = await this.maskInflationStep.process(depthOutput);
+        console.log('maskInflation', performance.now() - t0);
+
+        t0 = performance.now();
         const camMaskTex = await this.maskWarpStep.process(maskTex);
         console.log('maskWarpStep', performance.now() - t0);
         t0 = performance.now();
