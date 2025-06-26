@@ -154,13 +154,13 @@ export class FirebaseSignaller {
         // triggered for existing items.
         for (const [key, val] of Object.entries(peerDirSnap.val())) {
           processMessage(fromPeerId, key, val);
-          remove(child(peerDirSnap.ref, key)).catch(() => void 0);
         }
 
         this._unsubs.push(
           onChildAdded(peerDirSnap.ref, msgSnap => {
             processMessage(fromPeerId, msgSnap.key!, msgSnap.val());
-            remove(msgSnap.ref).catch(() => void 0);
+            // would re-trigger top onChildAdded if it removes the last item
+            // remove(msgSnap.ref).catch(() => void 0);
           })
         );
       })
