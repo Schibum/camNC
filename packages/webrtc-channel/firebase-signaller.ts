@@ -159,7 +159,7 @@ export class FirebaseSignaller {
         this._unsubs.push(
           onChildAdded(peerDirSnap.ref, msgSnap => {
             processMessage(fromPeerId, msgSnap.key!, msgSnap.val());
-            // would tre-trigger top onChildAdded if it removes the last item
+            // would re-trigger top onChildAdded if it removes the last item
             // remove(msgSnap.ref).catch(() => void 0);
           })
         );

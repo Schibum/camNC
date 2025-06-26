@@ -108,7 +108,7 @@ export class RolePeering {
     if (this.peers.size >= this.opts.maxPeers) {
       log.debug('autoOpenCloseSignalling: closing signalling');
       if (this.signaller) {
-        this.signaller.disconnect();
+        await this.signaller.disconnect();
         this.signaller = undefined;
       }
     } else if (!this.signaller) {
