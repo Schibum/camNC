@@ -151,6 +151,7 @@ export default class Peer {
 
   destroy() {
     if (this.destroyed) return;
+    this.abortCtrl.abort();
     this.emit('close');
     this.destroyed = true;
     log.debug('destroying peer');
