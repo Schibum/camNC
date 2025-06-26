@@ -135,7 +135,7 @@ export default class Peer {
     );
     this.pc.addEventListener('connectionstatechange', () => {
       log.debug('connectionstatechange', this.pc.connectionState);
-      if (['failed', 'disconnected'].includes(this.pc.connectionState)) {
+      if (['failed', 'disconnected', 'closed'].includes(this.pc.connectionState)) {
         this.destroy();
       }
     });
