@@ -104,7 +104,7 @@ function RawWebGPURoute() {
       worker.terminate();
       if (stream instanceof ReadableStream) stream.cancel().catch(() => undefined);
     };
-  }, [vidSource, calibration, camRes, R, t, bounds, mode]);
+  }, [vidSource, calibration, camRes, bounds, mode]);
 
   return (
     <div className="relative w-full h-full p-4 space-y-4">

@@ -26,7 +26,8 @@ ${UNDISTORT_WGSL}
 @group(0) @binding(2) var samp      : sampler;
 @group(0) @binding(3) var<uniform> params : RemapParams;
 @group(0) @binding(4) var<uniform> bgParams : BgParams;
-@group(0) @binding(5) var dstTex  : texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(5) var cachedBgTex: texture_2d<f32>;
+@group(0) @binding(6) var dstTex  : texture_storage_2d<rgba8unorm, write>;
 
 @compute @workgroup_size(8,8)
 fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
@@ -51,9 +52,11 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
   if (srcPos.x >= 0.0 && srcPos.y >= 0.0 && srcPos.x < f32(size.x) && srcPos.y < f32(size.y) &&
     uvDepth.x >= 0.0 && uvDepth.y >= 0.0 && uvDepth.x <= 1.0 && uvDepth.y <= 1.0) {
 
+    let uvUndist = vec2<f32>(srcPos.x, srcPos.y) / vec2<f32>(f32(size.x), f32(size.y));
     if (depth <= bgParams.threshold) {
-      let uvUndist = vec2<f32>(srcPos.x, srcPos.y) / vec2<f32>(f32(size.x), f32(size.y));
       outCol = textureSampleLevel(colorTex, samp, uvUndist, 0.0);
+    } else {
+      outCol = textureSampleLevel(cachedBgTex, samp, uv, 0.0);
     }
 
     // outCol = vec4f(depth, depth, depth, 1.0);
@@ -82,11 +85,11 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
       compute: { module: shader, entryPoint: 'main' },
     });
 
-    this.maskSampler = this.device.createSampler();
+    this.maskSampler = this.device.createSampler({ label: 'CachedBgUpdater sampler' });
     return this.maskPipeline;
   }
 
-  async update(frame: GPUTexture, { depth, threshold, flatDepthMin, flatDepthMax }: DepthOutput) {
+  async update(frame: GPUTexture, { depth, threshold, flatDepthMin, flatDepthMax }: DepthOutput, cachedBg: GPUTexture) {
     const depthTex = await rawImageToGPUTexture(this.device, depth);
     depthTex.label = 'CachedBgUpdater depth texture';
 
@@ -133,7 +136,8 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
         { binding: 2, resource: this.maskSampler! },
         { binding: 3, resource: { buffer: remapUniformBuffer } },
         { binding: 4, resource: { buffer: thresholdUniformBuffer } },
-        { binding: 5, resource: dst.createView() },
+        { binding: 5, resource: cachedBg.createView() },
+        { binding: 6, resource: dst.createView() },
       ],
     });
 

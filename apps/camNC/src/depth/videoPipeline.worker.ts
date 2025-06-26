@@ -17,6 +17,13 @@ export interface VideoPipelineWorkerAPI extends ReplaceableStreamWorker {
   process(): Promise<ImageBitmap>;
 }
 
+/** Helper: run transform producing a new texture, destroy the old one, return new. */
+async function replaceTex(current: GPUTexture, transform: (src: GPUTexture) => Promise<GPUTexture>): Promise<GPUTexture> {
+  const next = await transform(current);
+  current.destroy();
+  return next;
+}
+
 class VideoPipelineWorker implements VideoPipelineWorkerAPI {
   private reader: ReadableStreamDefaultReader<VideoFrame> | null = null;
   private device: GPUDevice | null = null;
@@ -37,12 +44,7 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
   private cachedBgUpdater?: CachedBgUpdater;
   private depthEstimator?: DepthEstimationStep;
 
-  /** Helper: run transform producing a new texture, destroy the old one, return new. */
-  private async replaceTex(current: GPUTexture, transform: (src: GPUTexture) => Promise<GPUTexture>): Promise<GPUTexture> {
-    const next = await transform(current);
-    current.destroy();
-    return next;
-  }
+  private cachedBg: GPUTexture | null = null;
 
   // Helper to create or reconfigure the canvas once we know the target size
   private setupCanvas(width: number, height: number) {
@@ -137,6 +139,16 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, };
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC | GPUTextureUsage.RENDER_ATTACHMENT,
     });
     this.device.queue.copyExternalImageToTexture({ source: frame }, { texture: srcTex }, [width, height]);
+
+    if (!this.cachedBg) {
+      this.cachedBg = this.device.createTexture({
+        size: [width, height],
+        format: 'rgba8unorm',
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC | GPUTextureUsage.RENDER_ATTACHMENT,
+      });
+      // Initialize cached background with the first frame
+      this.device.queue.copyExternalImageToTexture({ source: frame }, { texture: srcTex }, [width, height]);
+    }
     frame.close();
 
     let tex = srcTex;
@@ -146,12 +158,12 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, };
         if (!this.undistortStep) {
           this.undistortStep = new UndistortStep(this.device, this.cfg.params);
         }
-        tex = await this.replaceTex(tex, t => this.undistortStep!.process(t));
+        tex = await replaceTex(tex, t => this.undistortStep!.process(t));
       } else if (this.cfg.mode === 'camToMachine') {
         if (!this.camToMachineStep) {
           this.camToMachineStep = new CamToMachineStep(this.device, this.cfg.params);
         }
-        tex = await this.replaceTex(tex, t => this.camToMachineStep!.process(t));
+        tex = await replaceTex(tex, t => this.camToMachineStep!.process(t));
       } else if (this.cfg.mode === 'machineToCam') {
         if (!this.camToMachineStep) {
           this.camToMachineStep = new CamToMachineStep(this.device, this.cfg.params);
@@ -159,8 +171,8 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, };
         if (!this.machineToCamStep) {
           this.machineToCamStep = new MachineToCamStep(this.device, this.cfg.params);
         }
-        tex = await this.replaceTex(tex, t => this.camToMachineStep!.process(t));
-        tex = await this.replaceTex(tex, t => this.machineToCamStep!.process(t));
+        tex = await replaceTex(tex, t => this.camToMachineStep!.process(t));
+        tex = await replaceTex(tex, t => this.machineToCamStep!.process(t));
       } else if (this.cfg.mode === 'depth') {
         if (!this.depthPrepStep) {
           this.depthPrepStep = new CamToMachineStep(this.device, {
@@ -177,8 +189,13 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, };
 
         const machineTex = await this.depthPrepStep.process(tex);
         const depthOutput = await this.depthEstimator.process(machineTex);
-        tex = await this.replaceTex(tex, t => this.cachedBgUpdater!.update(t, depthOutput));
+        tex = await replaceTex(tex, t => this.cachedBgUpdater!.update(t, depthOutput, this.cachedBg!));
         machineTex.destroy();
+
+        // Copy the updated frame to the cached background
+        const copyEncoder = this.device.createCommandEncoder();
+        copyEncoder.copyTextureToTexture({ texture: tex }, { texture: this.cachedBg! }, [tex.width, tex.height]);
+        this.device.queue.submit([copyEncoder.finish()]);
       } else if (this.cfg.mode === 'none') {
         // No processing needed
       }
