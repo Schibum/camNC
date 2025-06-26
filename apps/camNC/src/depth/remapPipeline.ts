@@ -131,10 +131,12 @@ export class MachineToCamStep implements WebGPUPipelineStep {
   private bindGroup: GPUBindGroup | null = null;
   private params: RemapStepParams;
   private sampler: GPUSampler;
+  private scale: [number, number];
 
-  constructor(device: GPUDevice, params: RemapStepParams) {
+  constructor(device: GPUDevice, params: RemapStepParams, scale: [number, number] = [1, 1]) {
     this.device = device;
     this.params = params;
+    this.scale = scale;
     this.pipeline = this.createPipeline();
     this.sampler = this.device.createSampler();
   }
@@ -143,6 +145,7 @@ export class MachineToCamStep implements WebGPUPipelineStep {
     const common = /* wgsl */ `struct Params {
   matrix : mat3x3<f32>,
   bounds : vec4<f32>,
+  scale  : vec2<f32>,
 };
 
 @group(0) @binding(0) var srcTex: texture_2d<f32>;
@@ -150,7 +153,9 @@ export class MachineToCamStep implements WebGPUPipelineStep {
 @group(0) @binding(2) var<uniform> params: Params;
 @group(0) @binding(3) var dstTex: texture_storage_2d<rgba8unorm, write>;`;
     const machineToCam = /* wgsl */ `
-  let p = params.matrix * vec3<f32>(f32(gid.x) + 0.5, f32(gid.y) + 0.5, 1.0);
+  let camX = (f32(gid.x) + 0.5) * params.scale.x;
+  let camY = (f32(gid.y) + 0.5) * params.scale.y;
+  let p = params.matrix * vec3<f32>(camX, camY, 1.0);
   let X = p.x / p.z;
   let Y = p.y / p.z;
   let mx = (X - params.bounds.x) / (params.bounds.z - params.bounds.x);
@@ -201,6 +206,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     paramsValues.set({
       matrix: padMat3(generateMachineToCamMatrix(this.params)),
       bounds: this.params.machineBounds,
+      scale: this.scale,
     });
 
     const uniformBuffer = this.device.createBuffer({

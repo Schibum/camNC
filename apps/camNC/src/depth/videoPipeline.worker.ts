@@ -2,6 +2,7 @@ import { ensureReadableStream, registerThreeJsTransferHandlers, ReplaceableStrea
 import * as Comlink from 'comlink';
 import { CachedBgUpdater } from './cachedBgUpdater';
 import { DepthEstimationStep } from './depthPipeline';
+import { MaskInflationStep } from './maskInflationStep';
 import { CamToMachineStep, MachineToCamStep, RemapStepParams, UndistortParams, UndistortStep } from './remapPipeline';
 
 export type Mode = 'undistort' | 'camToMachine' | 'machineToCam' | 'depth';
@@ -43,6 +44,8 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
   private depthPrepStep?: CamToMachineStep;
   private cachedBgUpdater?: CachedBgUpdater;
   private depthEstimator?: DepthEstimationStep;
+  private maskInflationStep?: MaskInflationStep;
+  private maskWarpStep?: MachineToCamStep;
 
   private cachedBg: GPUTexture | null = null;
 
@@ -189,8 +192,34 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, };
 
         const machineTex = await this.depthPrepStep.process(tex);
         const depthOutput = await this.depthEstimator.process(machineTex);
-        tex = await replaceTex(tex, t => this.cachedBgUpdater!.update(t, depthOutput, this.cachedBg!));
-        machineTex.destroy();
+
+        if (!this.maskInflationStep) {
+          this.maskInflationStep = new MaskInflationStep(this.device!);
+        }
+        let t0 = performance.now();
+        const maskTex = await this.maskInflationStep.process(depthOutput);
+        console.log('maskInflation', performance.now() - t0);
+
+        const maskDim = 512;
+        t0 = performance.now();
+        if (!this.maskWarpStep) {
+          this.maskWarpStep = new MachineToCamStep(
+            this.device,
+            {
+              ...this.cfg.params,
+              outputSize: [maskDim, maskDim],
+            },
+            [width / maskDim, height / maskDim]
+          );
+        }
+        const camMaskTex = await this.maskWarpStep.process(maskTex);
+        console.log('maskWarpStep', performance.now() - t0);
+        t0 = performance.now();
+        tex = await replaceTex(tex, t => this.cachedBgUpdater!.update(t, camMaskTex, this.cachedBg!));
+        console.log('cachedBgUpdater', performance.now() - t0);
+
+        camMaskTex.destroy();
+        maskTex.destroy();
 
         // Copy the updated frame to the cached background
         const copyEncoder = this.device.createCommandEncoder();
