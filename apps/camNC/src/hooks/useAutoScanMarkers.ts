@@ -5,9 +5,9 @@ import { IMarker } from '@/setup/detect-aruco';
 import { ICamSource, useStore } from '@/store/store';
 import { updateCameraExtrinsics } from '@/store/store-p3p';
 import type { MarkerScannerWorkerAPI } from '@/workers/markerScanner.worker';
-import { createVideoStreamProcessor, attachMediaStreamTrackReplacer } from '@wbcnc/video-worker-utils';
 import { acquireVideoSource, releaseVideoSource } from '@wbcnc/go2webrtc/use-video-source';
 import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
+import { attachMediaStreamTrackReplacer, createVideoStreamProcessor, registerThreeJsTransferHandlers } from '@wbcnc/video-worker-utils';
 import { useRunInterval } from './useRunInterval';
 
 /** Configuration for the automatic marker‑scanner. */
@@ -63,6 +63,8 @@ class MarkerScannerService {
   /** Bootstraps the Web Worker and prepares scanning. Call once after `new`. */
   async init(): Promise<void> {
     if (this.proxy || this.unsupportedSource) return; // already initialised
+
+    registerThreeJsTransferHandlers();
 
     // Acquire shared video stream
     const videoHandle = acquireVideoSource(this.camSource.url);

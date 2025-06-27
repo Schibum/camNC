@@ -15,6 +15,7 @@
   "dependencies": {
     "@hookform/devtools": "catalog:",
     "@hookform/resolvers": "catalog:",
+    "@huggingface/transformers": "^3.5.2",
     "@preact/signals-react": "catalog:",
     "@preact/signals-react-transform": "catalog:",
     "@radix-ui/react-avatar": "catalog:",
@@ -74,6 +75,7 @@
     "tw-animate-css": "catalog:",
     "vite-tsconfig-paths": "catalog:",
     "vitest-browser-react": "catalog:",
+    "webgpu-utils": "^1.10.3",
     "yaml": "catalog:",
     "zod": "catalog:",
     "zustand": "catalog:"
@@ -96,6 +98,7 @@
     "@wbcnc/eslint-config": "workspace:*",
     "@wbcnc/typescript-config": "workspace:*",
     "@wbcnc/ui": "workspace:*",
+    "@webgpu/types": "catalog:",
     "babel-plugin-react-compiler": "catalog:",
     "eslint": "catalog:",
     "eslint-config-prettier": "catalog:",

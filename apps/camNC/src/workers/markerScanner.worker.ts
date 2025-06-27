@@ -1,10 +1,12 @@
 import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
+import { ensureReadableStream, registerThreeJsTransferHandlers } from '@wbcnc/video-worker-utils';
 import * as Comlink from 'comlink';
 import { calculateUndistortionMapsCached } from '../calibration/rectifyMap';
 import { remapCv } from '../calibration/remapCv';
 import { detectAruco, IMarker } from '../setup/detect-aruco';
 import type { CalibrationData } from '../store/store';
-import { ensureReadableStream } from '@wbcnc/video-worker-utils';
+
+registerThreeJsTransferHandlers();
 
 /**
  * Worker API exposed via Comlink.

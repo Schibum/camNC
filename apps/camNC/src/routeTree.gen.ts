@@ -26,6 +26,7 @@ import { Route as SetupEditSettingsImport } from './routes/setup/edit-settings'
 import { Route as SetupCameraCalibrationImport } from './routes/setup/camera-calibration'
 import { Route as DebugUnprojectImport } from './routes/debug/unproject'
 import { Route as DebugUndistort2Import } from './routes/debug/undistort2'
+import { Route as DebugRawWebgpuImport } from './routes/debug/raw-webgpu'
 
 // Create/Update Routes
 
@@ -121,6 +122,12 @@ const DebugUndistort2Route = DebugUndistort2Import.update({
   getParentRoute: () => rootRoute,
 } as any)
 
+const DebugRawWebgpuRoute = DebugRawWebgpuImport.update({
+  id: '/debug/raw-webgpu',
+  path: '/debug/raw-webgpu',
+  getParentRoute: () => rootRoute,
+} as any)
+
 // Populate the FileRoutesByPath interface
 
 declare module '@tanstack/react-router' {
@@ -130,6 +137,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexImport
+      parentRoute: typeof rootRoute
+    }
+    '/debug/raw-webgpu': {
+      id: '/debug/raw-webgpu'
+      path: '/debug/raw-webgpu'
+      fullPath: '/debug/raw-webgpu'
+      preLoaderRoute: typeof DebugRawWebgpuImport
       parentRoute: typeof rootRoute
     }
     '/debug/undistort2': {
@@ -237,6 +251,7 @@ declare module '@tanstack/react-router' {
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
@@ -255,6 +270,7 @@ export interface FileRoutesByFullPath {
 
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
@@ -274,6 +290,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRoute
   '/': typeof IndexRoute
+  '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
@@ -294,6 +311,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/debug/raw-webgpu'
     | '/debug/undistort2'
     | '/debug/unproject'
     | '/setup/camera-calibration'
@@ -311,6 +329,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/debug/raw-webgpu'
     | '/debug/undistort2'
     | '/debug/unproject'
     | '/setup/camera-calibration'
@@ -328,6 +347,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/debug/raw-webgpu'
     | '/debug/undistort2'
     | '/debug/unproject'
     | '/setup/camera-calibration'
@@ -347,6 +367,7 @@ export interface FileRouteTypes {
 
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DebugRawWebgpuRoute: typeof DebugRawWebgpuRoute
   DebugUndistort2Route: typeof DebugUndistort2Route
   DebugUnprojectRoute: typeof DebugUnprojectRoute
   SetupCameraCalibrationRoute: typeof SetupCameraCalibrationRoute
@@ -365,6 +386,7 @@ export interface RootRouteChildren {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DebugRawWebgpuRoute: DebugRawWebgpuRoute,
   DebugUndistort2Route: DebugUndistort2Route,
   DebugUnprojectRoute: DebugUnprojectRoute,
   SetupCameraCalibrationRoute: SetupCameraCalibrationRoute,
@@ -392,6 +414,7 @@ export const routeTree = rootRoute
       "filePath": "__root.tsx",
       "children": [
         "/",
+        "/debug/raw-webgpu",
         "/debug/undistort2",
         "/debug/unproject",
         "/setup/camera-calibration",
@@ -410,6 +433,9 @@ export const routeTree = rootRoute
     },
     "/": {
       "filePath": "index.tsx"
+    },
+    "/debug/raw-webgpu": {
+      "filePath": "debug/raw-webgpu.tsx"
     },
     "/debug/undistort2": {
       "filePath": "debug/undistort2.tsx"
