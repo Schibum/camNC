@@ -16,7 +16,7 @@ export class MaskInflationStep {
   /**
    * @param margin Number of screen-space pixels by which the mask should be inflated (defaults to 10).
    */
-  constructor(device: GPUDevice, margin: number = 10) {
+  constructor(device: GPUDevice, margin: number = 50) {
     this.device = device;
     this.margin = Math.max(0, Math.floor(margin));
   }

@@ -25,7 +25,7 @@ function RawWebGPURoute() {
   const bounds = useStore(state => state.camSource!.machineBounds!);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const [mode, setMode] = useState<'none' | 'undistort' | 'camToMachine' | 'machineToCam' | 'depth'>('none');
+  const [mode, setMode] = useState<'none' | 'undistort' | 'camToMachine' | 'machineToCam' | 'depth'>('depth');
   const [displaySize, setDisplaySize] = useState<[number, number]>([1024, 1024]);
 
   // Derived output size for cam→machine step (shared in effect + JSX)

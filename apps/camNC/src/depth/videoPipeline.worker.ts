@@ -2,6 +2,7 @@ import { ensureReadableStream, registerThreeJsTransferHandlers, ReplaceableStrea
 import * as Comlink from 'comlink';
 import { CachedBgUpdater } from './cachedBgUpdater';
 import { DepthEstimationStep } from './depthPipeline';
+import { GaussianBlurStep } from './gaussianBlurStep';
 import { MaskInflationStep } from './maskInflationStep';
 import { CamToMachineStep, MachineToCamStep, RemapStepParams, UndistortParams, UndistortStep } from './remapPipeline';
 
@@ -45,6 +46,7 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
   private cachedBgUpdater?: CachedBgUpdater;
   private depthEstimator?: DepthEstimationStep;
   private maskInflationStep?: MaskInflationStep;
+  private gaussianBlurStep?: GaussianBlurStep;
   private maskWarpStep?: MachineToCamStep;
 
   private cachedBg: GPUTexture | null = null;
@@ -150,7 +152,7 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, };
         usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC | GPUTextureUsage.RENDER_ATTACHMENT,
       });
       // Initialize cached background with the first frame
-      this.device.queue.copyExternalImageToTexture({ source: frame }, { texture: srcTex }, [width, height]);
+      this.device.queue.copyExternalImageToTexture({ source: frame }, { texture: this.cachedBg }, [width, height]);
     }
     frame.close();
 
@@ -184,7 +186,7 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, };
           });
         }
         if (!this.depthEstimator) {
-          this.depthEstimator = new DepthEstimationStep(this.device, { outputSize: this.cfg.params.outputSize });
+          this.depthEstimator = new DepthEstimationStep(this.device);
         }
         if (!this.cachedBgUpdater) {
           this.cachedBgUpdater = new CachedBgUpdater(this.device, this.cfg.params);
@@ -211,15 +213,29 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, };
         const maskTex = await this.maskInflationStep.process(depthOutput);
         console.log('maskInflation', performance.now() - t0);
 
+        // --- Gaussian blur step (machine space) ---
+        if (!this.gaussianBlurStep) {
+          this.gaussianBlurStep = new GaussianBlurStep(this.device!);
+        }
+
+        // Warp blurred mask back to camera space
         t0 = performance.now();
         const camMaskTex = await this.maskWarpStep.process(maskTex);
         console.log('maskWarpStep', performance.now() - t0);
+        maskTex.destroy();
+
         t0 = performance.now();
-        tex = await replaceTex(tex, t => this.cachedBgUpdater!.update(t, camMaskTex, this.cachedBg!));
-        console.log('cachedBgUpdater', performance.now() - t0);
+        const blurredMaskTex = await this.gaussianBlurStep.process(camMaskTex);
+        console.log('gaussianBlur', performance.now() - t0);
 
         camMaskTex.destroy();
-        maskTex.destroy();
+
+        t0 = performance.now();
+        // tex = blurredMaskTex;
+        tex = await replaceTex(tex, t => this.cachedBgUpdater!.update(t, blurredMaskTex, this.cachedBg!));
+        console.log('cachedBgUpdater', performance.now() - t0);
+
+        blurredMaskTex.destroy();
 
         // Copy the updated frame to the cached background
         const copyEncoder = this.device.createCommandEncoder();

@@ -37,11 +37,7 @@ export class CachedBgUpdater {
       let uvUndist = vec2<f32>(srcPos.x, srcPos.y) / vec2<f32>(f32(size.x), f32(size.y));
       let maskVal = textureSampleLevel(maskTex, samp, uv, 0.0).r;
 
-      if (maskVal > 0.5) {
-        outCol = textureSampleLevel(colorTex, samp, uvUndist, 0.0);
-      } else {
-        outCol = textureSampleLevel(cachedBgTex, samp, uv, 0.0);
-      }
+      outCol = maskVal * textureSampleLevel(colorTex, samp, uvUndist, 0.0) + (1.0 - maskVal) * textureSampleLevel(cachedBgTex, samp, uv, 0.0);
     }
     textureStore(dstTex, vec2<i32>(i32(gid.x), i32(gid.y)), outCol);
   }`;
@@ -62,7 +58,13 @@ export class CachedBgUpdater {
       compute: { module: shader, entryPoint: 'main' },
     });
 
-    this.maskSampler = this.device.createSampler({ label: 'CachedBgUpdater sampler' });
+    this.maskSampler = this.device.createSampler({
+      label: 'CachedBgUpdater sampler',
+      magFilter: 'linear',
+      minFilter: 'linear',
+      addressModeU: 'clamp-to-edge',
+      addressModeV: 'clamp-to-edge',
+    });
     return this.maskPipeline;
   }
 

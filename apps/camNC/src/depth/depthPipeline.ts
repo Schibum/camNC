@@ -3,7 +3,6 @@ import { Pipeline, pipeline, RawImage } from '@huggingface/transformers';
 import { gpuTextureToRawImage } from './textureConverters';
 
 export interface DepthEstimationParams {
-  outputSize: [number, number];
   /** Optional: number of histogram bins used to find peak depth. Defaults to 64. */
   histogramBins?: number;
   /** Optional: offset added (in the 0-1 depth domain) to the detected peak before thresholding. Defaults to 0.05. */
@@ -34,7 +33,7 @@ export class DepthEstimationStep {
   // Lazily initialised transformers.js pipeline
   private depthEstimatorPromise: Promise<Pipeline> | null = null;
 
-  constructor(device: GPUDevice, params: DepthEstimationParams) {
+  constructor(device: GPUDevice, params: DepthEstimationParams = {}) {
     this.device = device;
     this.params = params;
   }
@@ -51,7 +50,7 @@ export class DepthEstimationStep {
   }
 
   async process(machineTexture: GPUTexture): Promise<DepthOutput> {
-    console.log('outSize', this.params.outputSize, 'textDim', machineTexture.width, machineTexture.height);
+    console.log('textDim', machineTexture.width, machineTexture.height);
 
     // ==== Phase 1: GPUTexture -> RawImage (for depth estimator) ====
     const image = await gpuTextureToRawImage(this.device, machineTexture, machineTexture.width, machineTexture.height);
