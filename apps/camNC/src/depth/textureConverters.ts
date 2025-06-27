@@ -65,6 +65,7 @@ export async function rawImageToGPUTexture(device: GPUDevice, raw: RawImage, usa
     //       })();
 
     const texture = device.createTexture({
+      label: 'rawImageToGPUTexture',
       size: [width, height],
       format: 'r8unorm',
       usage:
@@ -82,6 +83,7 @@ export async function rawImageToGPUTexture(device: GPUDevice, raw: RawImage, usa
   const bitmap = await createImageBitmap(imageData);
 
   const texture = device.createTexture({
+    label: 'rawImageToGPUTexture',
     size: [rgba.width, rgba.height],
     format: 'rgba8unorm',
     usage:

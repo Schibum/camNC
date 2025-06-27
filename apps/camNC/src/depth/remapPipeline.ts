@@ -85,10 +85,10 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   async process(camTexture: GPUTexture): Promise<GPUTexture> {
     const [width, height] = this.params.outputSize;
     const dst = this.device.createTexture({
+      label: 'CamToMachineStep output texture',
       size: [width, height],
       format: 'rgba8unorm',
-      usage:
-        GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING,
     });
     const defs = makeShaderDataDefinitions(this.shaderCode());
     const paramsValues = makeStructuredView(defs.uniforms.params);
@@ -196,8 +196,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
       label: 'MachineToCamStep output texture',
       size: [width, height],
       format: 'rgba8unorm',
-      usage:
-        GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING,
     });
 
     const defs = makeShaderDataDefinitions(this.shaderCode());

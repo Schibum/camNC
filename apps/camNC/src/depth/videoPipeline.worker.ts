@@ -51,6 +51,147 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
 
   private cachedBg: GPUTexture | null = null;
 
+  /** Utility to ensure GPU device is present */
+  private ensureDevice(): GPUDevice {
+    if (!this.device) throw new Error('GPU device not ready');
+    return this.device;
+  }
+
+  /** Lazily create / return UndistortStep */
+  private getUndistortStep(params: UndistortParams): UndistortStep {
+    if (!this.undistortStep) {
+      this.undistortStep = new UndistortStep(this.ensureDevice(), params);
+    }
+    return this.undistortStep;
+  }
+
+  /** Lazily create / return CamToMachineStep */
+  private getCamToMachineStep(params: RemapStepParams): CamToMachineStep {
+    if (!this.camToMachineStep) {
+      this.camToMachineStep = new CamToMachineStep(this.ensureDevice(), params);
+    }
+    return this.camToMachineStep;
+  }
+
+  /** Lazily create / return MachineToCamStep */
+  private getMachineToCamStep(params: RemapStepParams, scale?: [number, number]): MachineToCamStep {
+    if (!this.machineToCamStep) {
+      this.machineToCamStep = new MachineToCamStep(this.ensureDevice(), params, scale);
+    }
+    return this.machineToCamStep;
+  }
+
+  /** Lazily create / return depth preparatory CamToMachineStep (machine-space) */
+  private getDepthPrepStep(params: RemapStepParams): CamToMachineStep {
+    if (!this.depthPrepStep) {
+      this.depthPrepStep = new CamToMachineStep(this.ensureDevice(), params);
+    }
+    return this.depthPrepStep;
+  }
+
+  /** Lazily create / return DepthEstimationStep */
+  private getDepthEstimator(): DepthEstimationStep {
+    if (!this.depthEstimator) {
+      this.depthEstimator = new DepthEstimationStep(this.ensureDevice());
+    }
+    return this.depthEstimator;
+  }
+
+  /** Lazily create / return CachedBgUpdater */
+  private getCachedBgUpdater(params: RemapStepParams): CachedBgUpdater {
+    if (!this.cachedBgUpdater) {
+      this.cachedBgUpdater = new CachedBgUpdater(this.ensureDevice(), params);
+    }
+    return this.cachedBgUpdater;
+  }
+
+  /** Lazily create / return MaskInflationStep */
+  private getMaskInflationStep(): MaskInflationStep {
+    if (!this.maskInflationStep) {
+      this.maskInflationStep = new MaskInflationStep(this.ensureDevice());
+    }
+    return this.maskInflationStep;
+  }
+
+  /** Lazily create / return GaussianBlurStep */
+  private getGaussianBlurStep(): GaussianBlurStep {
+    if (!this.gaussianBlurStep) {
+      this.gaussianBlurStep = new GaussianBlurStep(this.ensureDevice());
+    }
+    return this.gaussianBlurStep;
+  }
+
+  /** Lazily create / return mask warp step (Machine -> Cam) */
+  private getMaskWarpStep(params: RemapStepParams, scale: [number, number]): MachineToCamStep {
+    if (!this.maskWarpStep) {
+      this.maskWarpStep = new MachineToCamStep(this.ensureDevice(), params, scale);
+    }
+    return this.maskWarpStep;
+  }
+
+  /* --- Mode specific processing helpers --- */
+  private async runUndistort(tex: GPUTexture, params: UndistortParams): Promise<GPUTexture> {
+    const step = this.getUndistortStep(params);
+    return replaceTex(tex, t => step.process(t));
+  }
+
+  private async runCamToMachine(tex: GPUTexture, params: RemapStepParams): Promise<GPUTexture> {
+    const step = this.getCamToMachineStep(params);
+    return replaceTex(tex, t => step.process(t));
+  }
+
+  private async runMachineToCam(tex: GPUTexture, params: RemapStepParams): Promise<GPUTexture> {
+    const camToMachine = this.getCamToMachineStep(params);
+    const machineToCam = this.getMachineToCamStep(params);
+    tex = await replaceTex(tex, t => camToMachine.process(t));
+    return replaceTex(tex, t => machineToCam.process(t));
+  }
+
+  private async runDepth(tex: GPUTexture, params: RemapStepParams, width: number, height: number): Promise<GPUTexture> {
+    const depthSize: [number, number] = [512, 512];
+    const prepStep = this.getDepthPrepStep({
+      ...params,
+      outputSize: depthSize,
+    });
+    const depthEstimator = this.getDepthEstimator();
+    const bgUpdater = this.getCachedBgUpdater(params);
+
+    const maskDim = 512;
+    const maskWarp = this.getMaskWarpStep({ ...params, outputSize: [maskDim, maskDim] }, [width / maskDim, height / maskDim]);
+    const maskInflation = this.getMaskInflationStep();
+    const gaussianBlur = this.getGaussianBlurStep();
+
+    const machineTex = await prepStep.process(tex);
+    const depthOutput = await depthEstimator.process(machineTex);
+
+    let t0 = performance.now();
+    const maskTex = await maskInflation.process(depthOutput);
+    console.log('maskInflation', performance.now() - t0);
+
+    // Warp blurred mask back to camera space
+    t0 = performance.now();
+    const camMaskTex = await maskWarp.process(maskTex);
+    console.log('maskWarpStep', performance.now() - t0);
+    maskTex.destroy();
+
+    t0 = performance.now();
+    const blurredMaskTex = await gaussianBlur.process(camMaskTex);
+    console.log('gaussianBlur', performance.now() - t0);
+    camMaskTex.destroy();
+
+    t0 = performance.now();
+    const updatedTex = await replaceTex(tex, t => bgUpdater.update(t, blurredMaskTex, this.cachedBg!));
+    console.log('cachedBgUpdater', performance.now() - t0);
+    blurredMaskTex.destroy();
+
+    // Update cached background
+    const copyEncoder = this.ensureDevice().createCommandEncoder();
+    copyEncoder.copyTextureToTexture({ texture: updatedTex }, { texture: this.cachedBg! }, [updatedTex.width, updatedTex.height]);
+    this.ensureDevice().queue.submit([copyEncoder.finish()]);
+
+    return updatedTex;
+  }
+
   // Helper to create or reconfigure the canvas once we know the target size
   private setupCanvas(width: number, height: number) {
     if (!this.device) throw new Error('GPU device not ready');
@@ -126,6 +267,7 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, };
 
   async process(): Promise<ImageBitmap> {
     if (!this.reader || !this.device || !this.cfg) throw new Error('Worker not initialized');
+    const t0All = performance.now();
     const { value: frame, done } = await this.reader.read();
     if (done || !frame) throw new Error('Stream ended');
     const width = frame.displayWidth || frame.codedWidth;
@@ -139,108 +281,36 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, };
     }
 
     const srcTex = this.device.createTexture({
+      label: 'srcTex',
       size: [width, height],
       format: 'rgba8unorm',
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC | GPUTextureUsage.RENDER_ATTACHMENT,
     });
     this.device.queue.copyExternalImageToTexture({ source: frame }, { texture: srcTex }, [width, height]);
 
-    if (!this.cachedBg) {
-      this.cachedBg = this.device.createTexture({
-        size: [width, height],
-        format: 'rgba8unorm',
-        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC | GPUTextureUsage.RENDER_ATTACHMENT,
-      });
+    if (!this.cachedBg && this.cfg.mode === 'depth') {
+      // this.cachedBg = this.device.createTexture({
+      //   size: [width, height],
+      //   format: 'rgba8unorm',
+      //   usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC | GPUTextureUsage.RENDER_ATTACHMENT,
+      // });
+
+      this.cachedBg = await this.getUndistortStep(this.cfg.params).process(srcTex);
       // Initialize cached background with the first frame
-      this.device.queue.copyExternalImageToTexture({ source: frame }, { texture: this.cachedBg }, [width, height]);
+      // this.device.queue.copyExternalImageToTexture({ source: frame }, { texture: this.cachedBg }, [width, height]);
     }
     frame.close();
 
     let tex = srcTex;
-    const depthSize = [512, 512] as [number, number];
     try {
       if (this.cfg.mode === 'undistort') {
-        if (!this.undistortStep) {
-          this.undistortStep = new UndistortStep(this.device, this.cfg.params);
-        }
-        tex = await replaceTex(tex, t => this.undistortStep!.process(t));
+        tex = await this.runUndistort(tex, this.cfg.params);
       } else if (this.cfg.mode === 'camToMachine') {
-        if (!this.camToMachineStep) {
-          this.camToMachineStep = new CamToMachineStep(this.device, this.cfg.params);
-        }
-        tex = await replaceTex(tex, t => this.camToMachineStep!.process(t));
+        tex = await this.runCamToMachine(tex, this.cfg.params);
       } else if (this.cfg.mode === 'machineToCam') {
-        if (!this.camToMachineStep) {
-          this.camToMachineStep = new CamToMachineStep(this.device, this.cfg.params);
-        }
-        if (!this.machineToCamStep) {
-          this.machineToCamStep = new MachineToCamStep(this.device, this.cfg.params);
-        }
-        tex = await replaceTex(tex, t => this.camToMachineStep!.process(t));
-        tex = await replaceTex(tex, t => this.machineToCamStep!.process(t));
+        tex = await this.runMachineToCam(tex, this.cfg.params);
       } else if (this.cfg.mode === 'depth') {
-        if (!this.depthPrepStep) {
-          this.depthPrepStep = new CamToMachineStep(this.device, {
-            ...this.cfg.params,
-            outputSize: depthSize,
-          });
-        }
-        if (!this.depthEstimator) {
-          this.depthEstimator = new DepthEstimationStep(this.device);
-        }
-        if (!this.cachedBgUpdater) {
-          this.cachedBgUpdater = new CachedBgUpdater(this.device, this.cfg.params);
-        }
-        const maskDim = 512;
-        if (!this.maskWarpStep) {
-          this.maskWarpStep = new MachineToCamStep(
-            this.device,
-            {
-              ...this.cfg.params,
-              outputSize: [maskDim, maskDim],
-            },
-            [width / maskDim, height / maskDim]
-          );
-        }
-        if (!this.maskInflationStep) {
-          this.maskInflationStep = new MaskInflationStep(this.device!);
-        }
-
-        const machineTex = await this.depthPrepStep.process(tex);
-        const depthOutput = await this.depthEstimator.process(machineTex);
-
-        let t0 = performance.now();
-        const maskTex = await this.maskInflationStep.process(depthOutput);
-        console.log('maskInflation', performance.now() - t0);
-
-        // --- Gaussian blur step (machine space) ---
-        if (!this.gaussianBlurStep) {
-          this.gaussianBlurStep = new GaussianBlurStep(this.device!);
-        }
-
-        // Warp blurred mask back to camera space
-        t0 = performance.now();
-        const camMaskTex = await this.maskWarpStep.process(maskTex);
-        console.log('maskWarpStep', performance.now() - t0);
-        maskTex.destroy();
-
-        t0 = performance.now();
-        const blurredMaskTex = await this.gaussianBlurStep.process(camMaskTex);
-        console.log('gaussianBlur', performance.now() - t0);
-
-        camMaskTex.destroy();
-
-        t0 = performance.now();
-        // tex = blurredMaskTex;
-        tex = await replaceTex(tex, t => this.cachedBgUpdater!.update(t, blurredMaskTex, this.cachedBg!));
-        console.log('cachedBgUpdater', performance.now() - t0);
-
-        blurredMaskTex.destroy();
-
-        // Copy the updated frame to the cached background
-        const copyEncoder = this.device.createCommandEncoder();
-        copyEncoder.copyTextureToTexture({ texture: tex }, { texture: this.cachedBg! }, [tex.width, tex.height]);
-        this.device.queue.submit([copyEncoder.finish()]);
+        tex = await this.runDepth(tex, this.cfg.params, width, height);
       } else if (this.cfg.mode === 'none') {
         // No processing needed
       }
@@ -278,6 +348,7 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, };
     this.device.queue.submit([encoder.finish()]);
     const bitmap = await this.canvas!.transferToImageBitmap();
     tex.destroy();
+    console.log('total time', performance.now() - t0All);
     return bitmap;
   }
 }
