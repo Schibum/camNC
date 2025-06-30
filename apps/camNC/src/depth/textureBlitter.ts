@@ -8,7 +8,7 @@ export class TextureBlitter {
   private readonly sampler: GPUSampler;
   private readonly layout: GPUBindGroupLayout;
 
-  constructor(device: GPUDevice, width: number, height: number, format: GPUTextureFormat = 'rgba8unorm') {
+  constructor(device: GPUDevice, width: number, height: number, format: GPUTextureFormat = navigator.gpu.getPreferredCanvasFormat()) {
     this.device = device;
     this.format = format;
 

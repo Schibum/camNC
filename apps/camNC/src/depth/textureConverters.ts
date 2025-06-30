@@ -1,6 +1,14 @@
 import { RawImage } from '@huggingface/transformers';
 
 /**
+ * @fileoverview (slow) Helpers for converting between GPUTextures and
+ * RawImages. Ideally we'd keep everything on the GPU instead, but
+ * transformers.js doesn't support that yet (preprocessing is done on CPU, while
+ * ONNX runtime itself would support GPU inputs:
+ * https://onnxruntime.ai/docs/tutorials/web/ep-webgpu.html#create-input-tensor-from-a-gpu-buffer).
+ * */
+
+/**
  * Reads back a GPUTexture containing an `rgba8unorm` image into a `RawImage` that can be
  * consumed by transformers.js pipelines. WebGPU alignment rules require each row to be padded
  * to a 256-byte boundary, so this helper takes care of unpacking the padded buffer into a tightly
@@ -104,13 +112,10 @@ async function _readTextureToPackedUint8ClampedArray(
   const bytesPerRow = Math.ceil((width * bytesPerPixel) / 256) * 256; // WebGPU alignment requirement
   const bufferSize = bytesPerRow * height;
 
-  let t0 = performance.now();
   const readBuffer = device.createBuffer({
     size: bufferSize,
     usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
   });
-  console.log('createBuffer', performance.now() - t0);
-  t0 = performance.now();
   const encoder = device.createCommandEncoder();
   encoder.copyTextureToBuffer(
     { texture },
@@ -118,11 +123,8 @@ async function _readTextureToPackedUint8ClampedArray(
     { width, height, depthOrArrayLayers: 1 }
   );
   device.queue.submit([encoder.finish()]);
-  console.log('submit', performance.now() - t0);
-  t0 = performance.now();
   await readBuffer.mapAsync(GPUMapMode.READ);
   const mapped = new Uint8Array(readBuffer.getMappedRange());
-  console.log('mapAsync', performance.now() - t0);
   // Remove row padding.
   const packed = new Uint8ClampedArray(width * height * bytesPerPixel);
   for (let y = 0; y < height; y++) {
@@ -130,7 +132,6 @@ async function _readTextureToPackedUint8ClampedArray(
     const dstStart = y * width * bytesPerPixel;
     packed.set(mapped.subarray(srcStart, srcStart + width * bytesPerPixel), dstStart);
   }
-  console.log('unmap', performance.now() - t0);
   readBuffer.unmap();
   readBuffer.destroy();
 

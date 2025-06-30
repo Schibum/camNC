@@ -1,11 +1,17 @@
 import { ensureReadableStream, registerThreeJsTransferHandlers, ReplaceableStreamWorker } from '@wbcnc/video-worker-utils';
 import * as Comlink from 'comlink';
+import log from 'loglevel';
 import { CachedBgUpdater } from './cachedBgUpdater';
 import { DepthEstimationStep } from './depthPipeline';
 import { GaussianBlurStep } from './gaussianBlurStep';
 import { MaskInflationStep } from './maskInflationStep';
 import { CamToMachineStep, MachineToCamStep, RemapStepParams, UndistortParams, UndistortStep } from './remapPipeline';
 import { TextureBlitter } from './textureBlitter';
+
+// Number of pixels by which the mask used to compute the cached background should be inflated.
+const kBgUpdateMaskMargin = 50;
+// Number of pixels by which the mask used to render the final output should be inflated.
+const kRenderMaskMargin = 10;
 
 export type Mode = 'undistort' | 'camToMachine' | 'machineToCam' | 'depth';
 export type Config =
@@ -44,7 +50,8 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
   private depthPrepStep?: CamToMachineStep;
   private cachedBgUpdater?: CachedBgUpdater;
   private depthEstimator?: DepthEstimationStep;
-  private maskInflationStep?: MaskInflationStep;
+  private bgMaskInflationStep?: MaskInflationStep;
+  private renderMaskInflationStep?: MaskInflationStep;
   private gaussianBlurStep?: GaussianBlurStep;
   private maskWarpStep?: MachineToCamStep;
 
@@ -96,7 +103,6 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
     return this.depthEstimator;
   }
 
-  /** Lazily create / return CachedBgUpdater */
   private getCachedBgUpdater(params: RemapStepParams): CachedBgUpdater {
     if (!this.cachedBgUpdater) {
       this.cachedBgUpdater = new CachedBgUpdater(this.ensureDevice(), params);
@@ -104,15 +110,20 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
     return this.cachedBgUpdater;
   }
 
-  /** Lazily create / return MaskInflationStep */
-  private getMaskInflationStep(): MaskInflationStep {
-    if (!this.maskInflationStep) {
-      this.maskInflationStep = new MaskInflationStep(this.ensureDevice());
+  private getBgMaskInflationStep(): MaskInflationStep {
+    if (!this.bgMaskInflationStep) {
+      this.bgMaskInflationStep = new MaskInflationStep(this.ensureDevice(), kBgUpdateMaskMargin);
     }
-    return this.maskInflationStep;
+    return this.bgMaskInflationStep;
   }
 
-  /** Lazily create / return GaussianBlurStep */
+  private getRenderMaskInflationStep(): MaskInflationStep {
+    if (!this.renderMaskInflationStep) {
+      this.renderMaskInflationStep = new MaskInflationStep(this.ensureDevice(), kRenderMaskMargin);
+    }
+    return this.renderMaskInflationStep;
+  }
+
   private getGaussianBlurStep(): GaussianBlurStep {
     if (!this.gaussianBlurStep) {
       this.gaussianBlurStep = new GaussianBlurStep(this.ensureDevice());
@@ -120,7 +131,6 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
     return this.gaussianBlurStep;
   }
 
-  /** Lazily create / return mask warp step (Machine -> Cam) */
   private getMaskWarpStep(params: RemapStepParams, scale: [number, number]): MachineToCamStep {
     if (!this.maskWarpStep) {
       this.maskWarpStep = new MachineToCamStep(this.ensureDevice(), params, scale);
@@ -151,41 +161,44 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
     // https://huggingface.co/depth-anything/Depth-Anything-V2-Small-hf/blob/main/preprocessor_config.json
     const scale = Math.max(width / 518, height / 518);
     const depthSize: [number, number] = [Math.ceil(width / scale / 14) * 14, Math.ceil(height / scale / 14) * 14];
-    console.log('depthSize', depthSize);
+    log.debug('depthSize', depthSize);
     const prepStep = this.getDepthPrepStep({
       ...params,
       outputSize: depthSize,
     });
-    const depthEstimator = this.getDepthEstimator();
     const bgUpdater = this.getCachedBgUpdater(params);
 
     const maskSize = depthSize;
     const maskWarp = this.getMaskWarpStep({ ...params, outputSize: maskSize }, [width / maskSize[0], height / maskSize[1]]);
-    const maskInflation = this.getMaskInflationStep();
     const gaussianBlur = this.getGaussianBlurStep();
 
     let t0 = performance.now();
     const machineTex = await prepStep.process(tex);
-    console.log('prepStep', performance.now() - t0);
+    log.debug('prepStep', performance.now() - t0);
     t0 = performance.now();
-    const depthOutput = await depthEstimator.process(machineTex);
-    console.log('depthEstimator', performance.now() - t0);
+    const depthOutput = await this.getDepthEstimator().process(machineTex);
+    log.debug('depthEstimator', performance.now() - t0);
 
-    const maskTex = await maskInflation.process(depthOutput);
-    console.log('maskInflation', performance.now() - t0);
+    const bgMaskTex = await this.getBgMaskInflationStep().process(depthOutput);
+    log.debug('bgMaskInflation', performance.now() - t0);
 
-    // Warp blurred mask back to camera space
+    const renderMaskTex = await this.getRenderMaskInflationStep().process(depthOutput);
+    log.debug('renderMaskInflation', performance.now() - t0);
+
+    // Warp blurred masks back to camera space
     t0 = performance.now();
-    const camMaskTex = await maskWarp.process(maskTex);
-    console.log('maskWarpStep', performance.now() - t0);
+    const camMaskTex = await maskWarp.process(bgMaskTex);
+    const camRenderMaskTex = await maskWarp.process(renderMaskTex);
+    log.debug('maskWarpStep', performance.now() - t0);
 
     t0 = performance.now();
     const blurredMaskTex = await gaussianBlur.process(camMaskTex);
-    console.log('gaussianBlur', performance.now() - t0);
+    const blurredRenderMaskTex = await gaussianBlur.process(camRenderMaskTex);
+    log.debug('gaussianBlur', performance.now() - t0);
 
     t0 = performance.now();
     const updatedTex = await replaceTex(tex, t => bgUpdater.update(t, blurredMaskTex, this.cachedBg!));
-    console.log('cachedBgUpdater', performance.now() - t0);
+    log.debug('cachedBgUpdater', performance.now() - t0);
 
     // Update cached background
     const copyEncoder = this.ensureDevice().createCommandEncoder();
@@ -271,7 +284,7 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
     }
 
     const bitmap = this.blitter.blit(updatedTex);
-    console.log('total time', performance.now() - t0All);
+    log.debug('total time', performance.now() - t0All);
     this.lastFrameTime = performance.now();
     return bitmap;
   }

@@ -1,5 +1,6 @@
 import { Pipeline, pipeline, RawImage } from '@huggingface/transformers';
 
+import log from 'loglevel';
 import { gpuTextureToRawImage } from './textureConverters';
 
 export interface DepthEstimationParams {
@@ -50,20 +51,20 @@ export class DepthEstimationStep {
   }
 
   async process(machineTexture: GPUTexture): Promise<DepthOutput> {
-    console.log('textDim', machineTexture.width, machineTexture.height);
+    log.debug('textDim', machineTexture.width, machineTexture.height);
 
     // ==== Phase 1: GPUTexture -> RawImage (for depth estimator) ====
     let t0 = performance.now();
     const image = await gpuTextureToRawImage(this.device, machineTexture, machineTexture.width, machineTexture.height);
-    console.log('gpuTextureToRawImage', performance.now() - t0);
+    log.debug('gpuTextureToRawImage', performance.now() - t0);
 
     t0 = performance.now();
     const estimator = await this.getEstimator();
-    console.log('getEstimator', performance.now() - t0);
+    log.debug('getEstimator', performance.now() - t0);
 
     t0 = performance.now();
     const result = await estimator(image);
-    console.log(`Depth estimation took ${performance.now() - t0}ms`);
+    log.debug(`Depth estimation took ${performance.now() - t0}ms`);
 
     t0 = performance.now();
     // Note: histogram logic could be done on the GPU, but just takes ~2ms on CPU anyway.
@@ -86,7 +87,7 @@ export class DepthEstimationStep {
     for (let i = 1; i < bins; i++) {
       if (binCounts[i]! > binCounts[peakIdx]!) peakIdx = i;
     }
-    console.log('bins', binCounts, 'peakIdx', peakIdx);
+    log.debug('bins', binCounts, 'peakIdx', peakIdx);
     // console.log('peakIdx', peakIdx);
     const binSize = 1.0 / bins;
     const offset = this.params.thresholdOffset ?? 2 * binSize;
@@ -94,7 +95,7 @@ export class DepthEstimationStep {
     let threshold = flatDepth + offset; // convert to 0-1 and add offset
     if (threshold > 1.0) threshold = 1.0;
     // threshold = 0;
-    console.log('finding threshold took', performance.now() - t0);
+    log.debug('finding threshold took', performance.now() - t0);
 
     return {
       depth: depthOutput,
