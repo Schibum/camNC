@@ -121,18 +121,18 @@ export class GaussianBlurStep {
       });
     }
 
-    if (!this.dstTex || this.dstTex.width !== width || this.dstTex.height !== height) {
-      this.dstTex?.destroy();
-      this.dstTex = this.device.createTexture({
-        label: 'GaussianBlurStep output (vertical)',
-        size: [width, height],
-        format: 'rgba8unorm',
-        usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC,
-      });
-    }
+    // if (!this.dstTex || this.dstTex.width !== width || this.dstTex.height !== height) {
+    // this.dstTex?.destroy();
+    const dstTex = this.device.createTexture({
+      label: 'GaussianBlurStep output (vertical)',
+      size: [width, height],
+      format: 'rgba8unorm',
+      usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC,
+    });
+    // }
 
     const tmpTex = this.tmpTex!;
-    const dstTex = this.dstTex!;
+    // const dstTex = this.dstTex!;
 
     // Pass 1: horizontal
     const hPipe = this.getPipeline('h');
@@ -179,12 +179,6 @@ export class GaussianBlurStep {
     }
 
     this.device.queue.submit([encoder.finish()]);
-
-    // NOTE: we purposely do NOT destroy `tmpTex` & `dstTex` — they are part of
-    // the step's internal ping-pong pool and will be reused next frame.  The
-    // caller receives `dstTex`; once they are done with it they *may* call
-    // `.destroy()`.  Because we alternate between two textures, we will not
-    // attempt to reuse a texture that might still be in use by the caller.
 
     return dstTex;
   }

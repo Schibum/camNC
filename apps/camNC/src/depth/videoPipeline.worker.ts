@@ -11,7 +11,7 @@ import { TextureBlitter } from './textureBlitter';
 // Number of pixels by which the mask used to compute the cached background should be inflated.
 const kBgUpdateMaskMargin = 50;
 // Number of pixels by which the mask used to render the final output should be inflated.
-const kRenderMaskMargin = 10;
+const kRenderMaskMargin = 5;
 
 export type Mode = 'undistort' | 'camToMachine' | 'machineToCam' | 'depth';
 export type Config =
@@ -183,7 +183,7 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
     log.debug('bgMaskInflation', performance.now() - t0);
 
     const renderMaskTex = await this.getRenderMaskInflationStep().process(depthOutput);
-    log.debug('renderMaskInflation', performance.now() - t0);
+    // log.debug('renderMaskInflation', performance.now() - t0);
 
     // Warp blurred masks back to camera space
     t0 = performance.now();
@@ -197,15 +197,22 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
     log.debug('gaussianBlur', performance.now() - t0);
 
     t0 = performance.now();
-    const updatedTex = await replaceTex(tex, t => bgUpdater.update(t, blurredMaskTex, this.cachedBg!));
+    const updatedBg = await bgUpdater.update(tex, blurredMaskTex, this.cachedBg!);
+    blurredMaskTex.destroy();
     log.debug('cachedBgUpdater', performance.now() - t0);
-
     // Update cached background
     const copyEncoder = this.ensureDevice().createCommandEncoder();
-    copyEncoder.copyTextureToTexture({ texture: updatedTex }, { texture: this.cachedBg! }, [updatedTex.width, updatedTex.height]);
+    copyEncoder.copyTextureToTexture({ texture: updatedBg }, { texture: this.cachedBg! }, [updatedBg.width, updatedBg.height]);
     this.ensureDevice().queue.submit([copyEncoder.finish()]);
+    log.debug('cachedBgUpdater', performance.now() - t0);
 
-    return updatedTex;
+    const renderedTex = await bgUpdater.update(tex, blurredRenderMaskTex, this.cachedBg!);
+    blurredRenderMaskTex.destroy();
+    updatedBg.destroy();
+    tex.destroy();
+    // return updatedBg;
+    return renderedTex;
+    // return updatedTex;
   }
 
   async init(stream: ReadableStream<VideoFrame> | MediaStreamTrack, cfg: Config): Promise<void> {
