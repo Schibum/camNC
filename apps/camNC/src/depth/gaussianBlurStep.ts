@@ -18,6 +18,16 @@ export class GaussianBlurStep {
   private pipelines: Record<'h' | 'v', GPUComputePipeline | null> = { h: null, v: null };
   private sampler: GPUSampler | null = null;
 
+  /**
+   * Re-usable scratch textures. They are (re)created the first time we see a
+   * given width × height, then kept for the lifetime of the step.  Because the
+   * pipeline is strictly «produce – consume – finish» inside a single frame we
+   * do not need a second buffer (ping-pong).  If the caller ever changes the
+   * resolution we dispose and re-allocate.
+   */
+  private tmpTex: GPUTexture | null = null;
+  private dstTex: GPUTexture | null = null;
+
   constructor(device: GPUDevice, radius: number = 7, sigma: number = 4.0) {
     if (radius < 1 || radius > 32) throw new Error('GaussianBlurStep radius must be between 1 and 32');
     this.device = device;
@@ -100,20 +110,29 @@ export class GaussianBlurStep {
     const width = srcTex.width;
     const height = srcTex.height;
 
-    // Intermediate & output textures
-    const tmpTex = this.device.createTexture({
-      label: 'GaussianBlurStep tmp (horizontal)',
-      size: [width, height],
-      format: 'rgba8unorm',
-      usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
-    });
+    // (Re)allocate reusable textures if size has changed.
+    if (!this.tmpTex || this.tmpTex.width !== width || this.tmpTex.height !== height) {
+      this.tmpTex?.destroy();
+      this.tmpTex = this.device.createTexture({
+        label: 'GaussianBlurStep tmp (horizontal)',
+        size: [width, height],
+        format: 'rgba8unorm',
+        usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
+      });
+    }
 
-    const dstTex = this.device.createTexture({
-      label: 'GaussianBlurStep output (vertical)',
-      size: [width, height],
-      format: 'rgba8unorm',
-      usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC,
-    });
+    if (!this.dstTex || this.dstTex.width !== width || this.dstTex.height !== height) {
+      this.dstTex?.destroy();
+      this.dstTex = this.device.createTexture({
+        label: 'GaussianBlurStep output (vertical)',
+        size: [width, height],
+        format: 'rgba8unorm',
+        usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC,
+      });
+    }
+
+    const tmpTex = this.tmpTex!;
+    const dstTex = this.dstTex!;
 
     // Pass 1: horizontal
     const hPipe = this.getPipeline('h');
@@ -161,8 +180,11 @@ export class GaussianBlurStep {
 
     this.device.queue.submit([encoder.finish()]);
 
-    // Destroy intermediate texture to free memory immediately.
-    tmpTex.destroy();
+    // NOTE: we purposely do NOT destroy `tmpTex` & `dstTex` — they are part of
+    // the step's internal ping-pong pool and will be reused next frame.  The
+    // caller receives `dstTex`; once they are done with it they *may* call
+    // `.destroy()`.  Because we alternate between two textures, we will not
+    // attempt to reuse a texture that might still be in use by the caller.
 
     return dstTex;
   }

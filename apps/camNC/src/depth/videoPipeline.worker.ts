@@ -5,6 +5,7 @@ import { DepthEstimationStep } from './depthPipeline';
 import { GaussianBlurStep } from './gaussianBlurStep';
 import { MaskInflationStep } from './maskInflationStep';
 import { CamToMachineStep, MachineToCamStep, RemapStepParams, UndistortParams, UndistortStep } from './remapPipeline';
+import { TextureBlitter } from './textureBlitter';
 
 export type Mode = 'undistort' | 'camToMachine' | 'machineToCam' | 'depth';
 export type Config =
@@ -29,14 +30,12 @@ async function replaceTex(current: GPUTexture, transform: (src: GPUTexture) => P
 class VideoPipelineWorker implements VideoPipelineWorkerAPI {
   private reader: ReadableStreamDefaultReader<VideoFrame> | null = null;
   private device: GPUDevice | null = null;
-  private canvas: OffscreenCanvas | null = null;
-  private ctx: GPUCanvasContext | null = null;
-  private outWidth = 0;
-  private outHeight = 0;
-  private blitPipeline: GPURenderPipeline | null = null;
-  private blitSampler: GPUSampler | null = null;
-  private blitLayout: GPUBindGroupLayout | null = null;
+  private blitter: TextureBlitter | null = null;
   private cfg: Config | null = null;
+
+  // Throttle processing to this frame rate.
+  private frameRateLimit = 30;
+  private lastFrameTime = 0;
 
   // Cached step instances to avoid per-frame pipeline creation
   private undistortStep?: UndistortStep;
@@ -148,7 +147,11 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
   }
 
   private async runDepth(tex: GPUTexture, params: RemapStepParams, width: number, height: number): Promise<GPUTexture> {
-    const depthSize: [number, number] = [512, 512];
+    // Matches size and multiple requirement of
+    // https://huggingface.co/depth-anything/Depth-Anything-V2-Small-hf/blob/main/preprocessor_config.json
+    const scale = Math.max(width / 518, height / 518);
+    const depthSize: [number, number] = [Math.ceil(width / scale / 14) * 14, Math.ceil(height / scale / 14) * 14];
+    console.log('depthSize', depthSize);
     const prepStep = this.getDepthPrepStep({
       ...params,
       outputSize: depthSize,
@@ -156,15 +159,18 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
     const depthEstimator = this.getDepthEstimator();
     const bgUpdater = this.getCachedBgUpdater(params);
 
-    const maskDim = 512;
-    const maskWarp = this.getMaskWarpStep({ ...params, outputSize: [maskDim, maskDim] }, [width / maskDim, height / maskDim]);
+    const maskSize = depthSize;
+    const maskWarp = this.getMaskWarpStep({ ...params, outputSize: maskSize }, [width / maskSize[0], height / maskSize[1]]);
     const maskInflation = this.getMaskInflationStep();
     const gaussianBlur = this.getGaussianBlurStep();
 
-    const machineTex = await prepStep.process(tex);
-    const depthOutput = await depthEstimator.process(machineTex);
-
     let t0 = performance.now();
+    const machineTex = await prepStep.process(tex);
+    console.log('prepStep', performance.now() - t0);
+    t0 = performance.now();
+    const depthOutput = await depthEstimator.process(machineTex);
+    console.log('depthEstimator', performance.now() - t0);
+
     const maskTex = await maskInflation.process(depthOutput);
     console.log('maskInflation', performance.now() - t0);
 
@@ -172,17 +178,14 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
     t0 = performance.now();
     const camMaskTex = await maskWarp.process(maskTex);
     console.log('maskWarpStep', performance.now() - t0);
-    maskTex.destroy();
 
     t0 = performance.now();
     const blurredMaskTex = await gaussianBlur.process(camMaskTex);
     console.log('gaussianBlur', performance.now() - t0);
-    camMaskTex.destroy();
 
     t0 = performance.now();
     const updatedTex = await replaceTex(tex, t => bgUpdater.update(t, blurredMaskTex, this.cachedBg!));
     console.log('cachedBgUpdater', performance.now() - t0);
-    blurredMaskTex.destroy();
 
     // Update cached background
     const copyEncoder = this.ensureDevice().createCommandEncoder();
@@ -190,53 +193,6 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
     this.ensureDevice().queue.submit([copyEncoder.finish()]);
 
     return updatedTex;
-  }
-
-  // Helper to create or reconfigure the canvas once we know the target size
-  private setupCanvas(width: number, height: number) {
-    if (!this.device) throw new Error('GPU device not ready');
-    this.canvas = new OffscreenCanvas(width, height);
-    this.ctx = this.canvas.getContext('webgpu');
-    if (!this.ctx) throw new Error('Failed to get WebGPU context');
-    const format: GPUTextureFormat = 'rgba8unorm';
-    this.ctx.configure({
-      device: this.device,
-      format,
-      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_DST,
-      alphaMode: 'opaque',
-    });
-
-    // Blit pipeline only needs to be created once (depends on format).
-    if (!this.blitPipeline) {
-      const shader = this.device.createShaderModule({
-        code: `@group(0) @binding(0) var srcTex: texture_2d<f32>;
-@group(0) @binding(1) var samp: sampler;
-
-struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, };
-
-@vertex fn vs_main(@builtin(vertex_index) vid: u32) -> VOut {
-  var positions = array<vec2<f32>, 6>(
-    vec2<f32>(-1.0, -1.0), vec2<f32>( 1.0, -1.0), vec2<f32>(-1.0,  1.0),
-    vec2<f32>(-1.0,  1.0), vec2<f32>( 1.0, -1.0), vec2<f32>( 1.0,  1.0),
-  );
-  var uvs = array<vec2<f32>, 6>(
-    vec2<f32>(0.0, 1.0), vec2<f32>(1.0, 1.0), vec2<f32>(0.0, 0.0),
-    vec2<f32>(0.0, 0.0), vec2<f32>(1.0, 1.0), vec2<f32>(1.0, 0.0),
-  );
-  var out: VOut; out.pos = vec4<f32>(positions[vid], 0.0, 1.0); out.uv = uvs[vid]; return out;
-}
-
-@fragment fn fs_main(in: VOut) -> @location(0) vec4<f32> { return textureSample(srcTex, samp, in.uv); }`,
-      });
-      this.blitPipeline = this.device.createRenderPipeline({
-        layout: 'auto',
-        vertex: { module: shader, entryPoint: 'vs_main' },
-        fragment: { module: shader, entryPoint: 'fs_main', targets: [{ format }] },
-        primitive: { topology: 'triangle-list' },
-      });
-      this.blitLayout = this.blitPipeline.getBindGroupLayout(0);
-      this.blitSampler = this.device.createSampler();
-    }
   }
 
   async init(stream: ReadableStream<VideoFrame> | MediaStreamTrack, cfg: Config): Promise<void> {
@@ -247,11 +203,6 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, };
     this.reader = ensureReadableStream(stream).getReader();
 
     this.cfg = cfg;
-
-    // Only set up the canvas now if we already know the output dimensions (i.e., steps not empty).
-    if (this.outWidth > 0 && this.outHeight > 0) {
-      this.setupCanvas(this.outWidth, this.outHeight);
-    }
   }
 
   async replaceStream(stream: ReadableStream<VideoFrame> | MediaStreamTrack): Promise<void> {
@@ -265,52 +216,52 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, };
     this.reader = ensureReadableStream(stream).getReader();
   }
 
+  private async _throttleFrameRate() {
+    while (performance.now() - this.lastFrameTime < 1000 / this.frameRateLimit) {
+      await new Promise(r => requestAnimationFrame(r));
+    }
+  }
+
   async process(): Promise<ImageBitmap> {
     if (!this.reader || !this.device || !this.cfg) throw new Error('Worker not initialized');
+    await this._throttleFrameRate();
+
     const t0All = performance.now();
+
     const { value: frame, done } = await this.reader.read();
     if (done || !frame) throw new Error('Stream ended');
     const width = frame.displayWidth || frame.codedWidth;
     const height = frame.displayHeight || frame.codedHeight;
 
-    // Lazily create the canvas & blit pipeline once we know frame size (for raw pass-through).
-    if (!this.ctx) {
-      this.outWidth = width;
-      this.outHeight = height;
-      this.setupCanvas(width, height);
+    // Lazily create blitter once we know frame dimensions.
+    if (!this.blitter) {
+      this.blitter = new TextureBlitter(this.device!, width, height);
     }
 
-    const srcTex = this.device.createTexture({
+    const tex = this.device.createTexture({
       label: 'srcTex',
       size: [width, height],
       format: 'rgba8unorm',
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC | GPUTextureUsage.RENDER_ATTACHMENT,
     });
-    this.device.queue.copyExternalImageToTexture({ source: frame }, { texture: srcTex }, [width, height]);
-
-    if (!this.cachedBg && this.cfg.mode === 'depth') {
-      // this.cachedBg = this.device.createTexture({
-      //   size: [width, height],
-      //   format: 'rgba8unorm',
-      //   usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC | GPUTextureUsage.RENDER_ATTACHMENT,
-      // });
-
-      this.cachedBg = await this.getUndistortStep(this.cfg.params).process(srcTex);
-      // Initialize cached background with the first frame
-      // this.device.queue.copyExternalImageToTexture({ source: frame }, { texture: this.cachedBg }, [width, height]);
-    }
+    this.device.queue.copyExternalImageToTexture({ source: frame }, { texture: tex }, [width, height]);
     frame.close();
 
-    let tex = srcTex;
+    if (!this.cachedBg && this.cfg.mode === 'depth') {
+      // Initialize cached background with the first frame
+      this.cachedBg = await this.getUndistortStep(this.cfg.params).process(tex);
+    }
+
+    let updatedTex = tex;
     try {
       if (this.cfg.mode === 'undistort') {
-        tex = await this.runUndistort(tex, this.cfg.params);
+        updatedTex = await this.runUndistort(tex, this.cfg.params);
       } else if (this.cfg.mode === 'camToMachine') {
-        tex = await this.runCamToMachine(tex, this.cfg.params);
+        updatedTex = await this.runCamToMachine(tex, this.cfg.params);
       } else if (this.cfg.mode === 'machineToCam') {
-        tex = await this.runMachineToCam(tex, this.cfg.params);
+        updatedTex = await this.runMachineToCam(tex, this.cfg.params);
       } else if (this.cfg.mode === 'depth') {
-        tex = await this.runDepth(tex, this.cfg.params, width, height);
+        updatedTex = await this.runDepth(tex, this.cfg.params, width, height);
       } else if (this.cfg.mode === 'none') {
         // No processing needed
       }
@@ -319,36 +270,9 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, };
       throw new Error('Error in processing');
     }
 
-    // Render pass blit: sample the final texture and draw onto the canvas swap texture.
-    const encoder = this.device.createCommandEncoder();
-    const view = this.ctx!.getCurrentTexture().createView();
-    const bindGroup = this.device.createBindGroup({
-      layout: this.blitLayout!,
-      entries: [
-        { binding: 0, resource: tex.createView() },
-        { binding: 1, resource: this.blitSampler! },
-      ],
-    });
-
-    const pass = encoder.beginRenderPass({
-      colorAttachments: [
-        {
-          view,
-          loadOp: 'clear',
-          storeOp: 'store',
-          clearValue: { r: 0, g: 0, b: 0, a: 1 },
-        },
-      ],
-    });
-    pass.setPipeline(this.blitPipeline!);
-    pass.setBindGroup(0, bindGroup);
-    pass.draw(6);
-    pass.end();
-
-    this.device.queue.submit([encoder.finish()]);
-    const bitmap = await this.canvas!.transferToImageBitmap();
-    tex.destroy();
+    const bitmap = this.blitter.blit(updatedTex);
     console.log('total time', performance.now() - t0All);
+    this.lastFrameTime = performance.now();
     return bitmap;
   }
 }

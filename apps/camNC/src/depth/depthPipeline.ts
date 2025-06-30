@@ -53,13 +53,19 @@ export class DepthEstimationStep {
     console.log('textDim', machineTexture.width, machineTexture.height);
 
     // ==== Phase 1: GPUTexture -> RawImage (for depth estimator) ====
+    let t0 = performance.now();
     const image = await gpuTextureToRawImage(this.device, machineTexture, machineTexture.width, machineTexture.height);
+    console.log('gpuTextureToRawImage', performance.now() - t0);
 
+    t0 = performance.now();
     const estimator = await this.getEstimator();
-    const t0 = performance.now();
+    console.log('getEstimator', performance.now() - t0);
+
+    t0 = performance.now();
     const result = await estimator(image);
     console.log(`Depth estimation took ${performance.now() - t0}ms`);
 
+    t0 = performance.now();
     // Note: histogram logic could be done on the GPU, but just takes ~2ms on CPU anyway.
     // depthOutput is single-channel, so pixel data length = width*height (Uint8 values 0-255)
     const depthOutput = result.depth as RawImage;
@@ -88,6 +94,7 @@ export class DepthEstimationStep {
     let threshold = flatDepth + offset; // convert to 0-1 and add offset
     if (threshold > 1.0) threshold = 1.0;
     // threshold = 0;
+    console.log('finding threshold took', performance.now() - t0);
 
     return {
       depth: depthOutput,

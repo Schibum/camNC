@@ -13,6 +13,9 @@ export class MaskInflationStep {
   private pipeline: GPUComputePipeline | null = null;
   private sampler: GPUSampler | null = null;
 
+  // Reusable output mask texture (re-created only if the input resolution changes)
+  private maskTex: GPUTexture | null = null;
+
   /**
    * @param margin Number of screen-space pixels by which the mask should be inflated (defaults to 10).
    */
@@ -38,12 +41,16 @@ export class MaskInflationStep {
     const height = depth.height;
 
     // Destination mask texture (RGBA8 so downstream steps can sample as f32).
-    const maskTex = this.device.createTexture({
-      label: 'MaskInflationStep mask texture',
-      size: [width, height],
-      format: 'rgba8unorm',
-      usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC,
-    });
+    if (!this.maskTex || this.maskTex.width !== width || this.maskTex.height !== height) {
+      this.maskTex?.destroy();
+      this.maskTex = this.device.createTexture({
+        label: 'MaskInflationStep mask texture',
+        size: [width, height],
+        format: 'rgba8unorm',
+        usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC,
+      });
+    }
+    const maskTex = this.maskTex;
 
     // Build WGSL shader with embedded constant margin.
     const shaderCode = /* wgsl */ `

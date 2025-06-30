@@ -42,37 +42,36 @@ export async function rawImageToGPUTexture(device: GPUDevice, raw: RawImage, usa
   if (channels === 1) {
     const bytesPerPixel = 1;
     const bytesPerRow = Math.ceil((width * bytesPerPixel) / 256) * 256; // WebGPU alignment requirement
-    // const bufferSize = bytesPerRow * height;
+    const bufferSize = bytesPerRow * height;
 
     // Ensure we have a Uint8Array view of the data.
     const src = raw.data;
 
-    if (bytesPerRow !== width * bytesPerPixel) {
-      throw new Error('bytesPerRow !== width * bytesPerPixel');
-    }
-    // // For rows that need padding to meet the 256-byte alignment constraint, copy into a staging buffer.
-    // const padded =
-    //   bytesPerRow === width * bytesPerPixel
-    //     ? src // No padding needed – can upload directly.
-    //     : (() => {
-    //         const tmp = new Uint8Array(bufferSize);
-    //         for (let y = 0; y < height; y++) {
-    //           const srcStart = y * width;
-    //           const dstStart = y * bytesPerRow;
-    //           tmp.set(src.subarray(srcStart, srcStart + width), dstStart);
-    //         }
-    //         return tmp;
-    //       })();
+    // if (bytesPerRow === width * bytesPerPixel) {
+    //   throw new Error('bytesPerRow !== width * bytesPerPixel');
+    // }
+    // For rows that need padding to meet the 256-byte alignment constraint, copy into a staging buffer.
+    const padded =
+      bytesPerRow === width * bytesPerPixel
+        ? src // No padding needed – can upload directly.
+        : (() => {
+            const tmp = new Uint8Array(bufferSize);
+            for (let y = 0; y < height; y++) {
+              const srcStart = y * width;
+              const dstStart = y * bytesPerRow;
+              tmp.set(src.subarray(srcStart, srcStart + width), dstStart);
+            }
+            return tmp;
+          })();
 
     const texture = device.createTexture({
       label: 'rawImageToGPUTexture',
       size: [width, height],
       format: 'r8unorm',
-      usage:
-        GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC | usage,
+      usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC | usage,
     });
 
-    device.queue.writeTexture({ texture }, src, { bytesPerRow, rowsPerImage: height }, { width, height, depthOrArrayLayers: 1 });
+    device.queue.writeTexture({ texture }, padded, { bytesPerRow, rowsPerImage: height }, { width, height, depthOrArrayLayers: 1 });
 
     return texture;
   }
@@ -86,8 +85,7 @@ export async function rawImageToGPUTexture(device: GPUDevice, raw: RawImage, usa
     label: 'rawImageToGPUTexture',
     size: [rgba.width, rgba.height],
     format: 'rgba8unorm',
-    usage:
-      GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC | usage,
+    usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC | usage,
   });
 
   device.queue.copyExternalImageToTexture({ source: bitmap }, { texture }, [rgba.width, rgba.height]);
@@ -106,11 +104,13 @@ async function _readTextureToPackedUint8ClampedArray(
   const bytesPerRow = Math.ceil((width * bytesPerPixel) / 256) * 256; // WebGPU alignment requirement
   const bufferSize = bytesPerRow * height;
 
+  let t0 = performance.now();
   const readBuffer = device.createBuffer({
     size: bufferSize,
     usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
   });
-
+  console.log('createBuffer', performance.now() - t0);
+  t0 = performance.now();
   const encoder = device.createCommandEncoder();
   encoder.copyTextureToBuffer(
     { texture },
@@ -118,10 +118,11 @@ async function _readTextureToPackedUint8ClampedArray(
     { width, height, depthOrArrayLayers: 1 }
   );
   device.queue.submit([encoder.finish()]);
-
+  console.log('submit', performance.now() - t0);
+  t0 = performance.now();
   await readBuffer.mapAsync(GPUMapMode.READ);
   const mapped = new Uint8Array(readBuffer.getMappedRange());
-
+  console.log('mapAsync', performance.now() - t0);
   // Remove row padding.
   const packed = new Uint8ClampedArray(width * height * bytesPerPixel);
   for (let y = 0; y < height; y++) {
@@ -129,7 +130,7 @@ async function _readTextureToPackedUint8ClampedArray(
     const dstStart = y * width * bytesPerPixel;
     packed.set(mapped.subarray(srcStart, srcStart + width * bytesPerPixel), dstStart);
   }
-
+  console.log('unmap', performance.now() - t0);
   readBuffer.unmap();
   readBuffer.destroy();
 
