@@ -60,7 +60,10 @@ export const createServer = (options: ServerOptions) => {
   }
 
   function cleanupIfEmpty() {
-    if (peers.size === 0) cleanupStream();
+    if (peers.size === 0) {
+      cleanupStream();
+      options.onStateChange?.(ServerState.IDLE);
+    }
   }
 
   async function getStream(): Promise<MediaStream> {

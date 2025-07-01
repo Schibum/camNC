@@ -111,6 +111,7 @@ export default class Peer {
         log.debug('iceconnectionstatechange', this.pc.iceConnectionState);
         if (['failed', 'disconnected'].includes(this.pc.iceConnectionState)) {
           this.abortCtrl.abort();
+          this.destroy();
         }
       },
       { signal: this.signal }
@@ -134,7 +135,7 @@ export default class Peer {
     );
     this.pc.addEventListener('connectionstatechange', () => {
       log.debug('connectionstatechange', this.pc.connectionState);
-      if (['failed', 'disconnected'].includes(this.pc.connectionState)) {
+      if (['failed', 'disconnected', 'closed'].includes(this.pc.connectionState)) {
         this.destroy();
       }
     });
@@ -150,6 +151,7 @@ export default class Peer {
 
   destroy() {
     if (this.destroyed) return;
+    this.abortCtrl.abort();
     this.emit('close');
     this.destroyed = true;
     log.debug('destroying peer');
