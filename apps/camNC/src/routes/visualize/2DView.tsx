@@ -29,7 +29,7 @@ UnprojectVideoMeshWithStockHeight.displayName = 'UnprojectVideoMeshWithStockHeig
 
 function VisualizeComponent() {
   const cncApi = getCncApi();
-  useAutoScanMarkers({ intervalMs: 30_000 });
+  useAutoScanMarkers({ intervalMs: 3_000 });
   useDepthBlendWorker();
 
   function onDbClick(event: ThreeEvent<MouseEvent>) {
