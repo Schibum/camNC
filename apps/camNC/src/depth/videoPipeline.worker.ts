@@ -1,9 +1,9 @@
 import { ensureReadableStream, registerThreeJsTransferHandlers, ReplaceableStreamWorker } from '@wbcnc/video-worker-utils';
 import * as Comlink from 'comlink';
 import log from 'loglevel';
-import { CachedBgUpdater } from './cachedBgUpdater';
 import { DepthEstimationStep } from './depthPipeline';
 import { GaussianBlurStep } from './gaussianBlurStep';
+import { MaskBlendStep } from './maskBlendStep';
 import { MaskInflationStep } from './maskInflationStep';
 import { CamToMachineStep, MachineToCamStep, RemapStepParams, UndistortParams, UndistortStep } from './remapPipeline';
 import { TextureBlitter } from './textureBlitter';
@@ -11,7 +11,7 @@ import { TextureBlitter } from './textureBlitter';
 // Number of pixels by which the mask used to compute the cached background should be inflated.
 const kBgUpdateMaskMargin = 50;
 // Number of pixels by which the mask used to render the final output should be inflated.
-const kRenderMaskMargin = 5;
+const kRenderMaskMargin = 10;
 
 export type Mode = 'undistort' | 'camToMachine' | 'machineToCam' | 'depth';
 export type Config =
@@ -33,6 +33,13 @@ async function replaceTex(current: GPUTexture, transform: (src: GPUTexture) => P
   return next;
 }
 
+// Simple per-worker cache to reuse GPUTextures between frames.
+type TexKey = string;
+
+function makeKey(w: number, h: number, tag: string) {
+  return `${tag}_${w}x${h}`;
+}
+
 class VideoPipelineWorker implements VideoPipelineWorkerAPI {
   private reader: ReadableStreamDefaultReader<VideoFrame> | null = null;
   private device: GPUDevice | null = null;
@@ -47,15 +54,39 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
   private undistortStep?: UndistortStep;
   private camToMachineStep?: CamToMachineStep;
   private machineToCamStep?: MachineToCamStep;
-  private depthPrepStep?: CamToMachineStep;
-  private cachedBgUpdater?: CachedBgUpdater;
+  private maskBlendStep?: MaskBlendStep;
   private depthEstimator?: DepthEstimationStep;
   private bgMaskInflationStep?: MaskInflationStep;
   private renderMaskInflationStep?: MaskInflationStep;
   private gaussianBlurStep?: GaussianBlurStep;
-  private maskWarpStep?: MachineToCamStep;
 
   private cachedBg: GPUTexture | null = null;
+
+  /** Reusable intermediate textures keyed by `${tag}_${w}x${h}`. */
+  private texCache: Map<TexKey, GPUTexture> = new Map();
+
+  /** Acquire a texture matching size; creates once and reuses. */
+  private acquireTex(
+    width: number,
+    height: number,
+    tag: string,
+    usage: number = GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING
+  ): GPUTexture {
+    const key = makeKey(width, height, tag);
+    const existing = this.texCache.get(key);
+    if (existing && existing.width === width && existing.height === height) return existing;
+
+    existing?.destroy(); // size changed – destroy old
+
+    const tex = this.ensureDevice().createTexture({
+      label: `${tag} (${width}x${height})`,
+      size: [width, height],
+      format: 'rgba8unorm',
+      usage,
+    });
+    this.texCache.set(key, tex);
+    return tex;
+  }
 
   /** Utility to ensure GPU device is present */
   private ensureDevice(): GPUDevice {
@@ -64,35 +95,27 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
   }
 
   /** Lazily create / return UndistortStep */
-  private getUndistortStep(params: UndistortParams): UndistortStep {
+  private getUndistortStep(): UndistortStep {
     if (!this.undistortStep) {
-      this.undistortStep = new UndistortStep(this.ensureDevice(), params);
+      this.undistortStep = new UndistortStep(this.ensureDevice());
     }
     return this.undistortStep;
   }
 
   /** Lazily create / return CamToMachineStep */
-  private getCamToMachineStep(params: RemapStepParams): CamToMachineStep {
+  private getCamToMachineStep(): CamToMachineStep {
     if (!this.camToMachineStep) {
-      this.camToMachineStep = new CamToMachineStep(this.ensureDevice(), params);
+      this.camToMachineStep = new CamToMachineStep(this.ensureDevice());
     }
     return this.camToMachineStep;
   }
 
   /** Lazily create / return MachineToCamStep */
-  private getMachineToCamStep(params: RemapStepParams, scale?: [number, number]): MachineToCamStep {
+  private getMachineToCamStep(): MachineToCamStep {
     if (!this.machineToCamStep) {
-      this.machineToCamStep = new MachineToCamStep(this.ensureDevice(), params, scale);
+      this.machineToCamStep = new MachineToCamStep(this.ensureDevice());
     }
     return this.machineToCamStep;
-  }
-
-  /** Lazily create / return depth preparatory CamToMachineStep (machine-space) */
-  private getDepthPrepStep(params: RemapStepParams): CamToMachineStep {
-    if (!this.depthPrepStep) {
-      this.depthPrepStep = new CamToMachineStep(this.ensureDevice(), params);
-    }
-    return this.depthPrepStep;
   }
 
   /** Lazily create / return DepthEstimationStep */
@@ -103,11 +126,11 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
     return this.depthEstimator;
   }
 
-  private getCachedBgUpdater(params: RemapStepParams): CachedBgUpdater {
-    if (!this.cachedBgUpdater) {
-      this.cachedBgUpdater = new CachedBgUpdater(this.ensureDevice(), params);
+  private getMaskBlendStep(): MaskBlendStep {
+    if (!this.maskBlendStep) {
+      this.maskBlendStep = new MaskBlendStep(this.ensureDevice());
     }
-    return this.cachedBgUpdater;
+    return this.maskBlendStep;
   }
 
   private getBgMaskInflationStep(): MaskInflationStep {
@@ -131,49 +154,41 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
     return this.gaussianBlurStep;
   }
 
-  private getMaskWarpStep(params: RemapStepParams, scale: [number, number]): MachineToCamStep {
-    if (!this.maskWarpStep) {
-      this.maskWarpStep = new MachineToCamStep(this.ensureDevice(), params, scale);
-    }
-    return this.maskWarpStep;
-  }
-
   /* --- Mode specific processing helpers --- */
   private async runUndistort(tex: GPUTexture, params: UndistortParams): Promise<GPUTexture> {
-    const step = this.getUndistortStep(params);
-    return replaceTex(tex, t => step.process(t));
+    const step = this.getUndistortStep();
+    return replaceTex(tex, t => step.process(t, params));
   }
 
   private async runCamToMachine(tex: GPUTexture, params: RemapStepParams): Promise<GPUTexture> {
-    const step = this.getCamToMachineStep(params);
-    return replaceTex(tex, t => step.process(t));
+    const step = this.getCamToMachineStep();
+    return replaceTex(tex, t => step.process(t, params));
   }
 
   private async runMachineToCam(tex: GPUTexture, params: RemapStepParams): Promise<GPUTexture> {
-    const camToMachine = this.getCamToMachineStep(params);
-    const machineToCam = this.getMachineToCamStep(params);
-    tex = await replaceTex(tex, t => camToMachine.process(t));
-    return replaceTex(tex, t => machineToCam.process(t));
+    const camToMachine = this.getCamToMachineStep();
+    const machineToCam = this.getMachineToCamStep();
+    tex = await replaceTex(tex, t => camToMachine.process(t, params));
+    return replaceTex(tex, t => machineToCam.process(t, { params, scale: [1, 1] }));
   }
 
-  private async runDepth(tex: GPUTexture, params: RemapStepParams, width: number, height: number): Promise<GPUTexture> {
+  private async runDepth(tex: GPUTexture, params: RemapStepParams): Promise<GPUTexture> {
+    const { width, height } = tex;
     // Matches size and multiple requirement of
     // https://huggingface.co/depth-anything/Depth-Anything-V2-Small-hf/blob/main/preprocessor_config.json
     const scale = Math.max(width / 518, height / 518);
     const depthSize: [number, number] = [Math.ceil(width / scale / 14) * 14, Math.ceil(height / scale / 14) * 14];
     log.debug('depthSize', depthSize);
-    const prepStep = this.getDepthPrepStep({
-      ...params,
-      outputSize: depthSize,
-    });
-    const bgUpdater = this.getCachedBgUpdater(params);
-
-    const maskSize = depthSize;
-    const maskWarp = this.getMaskWarpStep({ ...params, outputSize: maskSize }, [width / maskSize[0], height / maskSize[1]]);
-    const gaussianBlur = this.getGaussianBlurStep();
 
     let t0 = performance.now();
-    const machineTex = await prepStep.process(tex);
+
+    // ---- 1. cam → machine space (fixed depthSize) ----
+    const machineDst = this.acquireTex(depthSize[0], depthSize[1], 'machine');
+    const prepParams: RemapStepParams = {
+      ...params,
+      outputSize: depthSize,
+    };
+    const machineTex = await this.getCamToMachineStep().process(tex, prepParams, machineDst);
     log.debug('prepStep', performance.now() - t0);
     t0 = performance.now();
     const depthOutput = await this.getDepthEstimator().process(machineTex);
@@ -187,18 +202,31 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
 
     // Warp blurred masks back to camera space
     t0 = performance.now();
-    const camMaskTex = await maskWarp.process(bgMaskTex);
-    const camRenderMaskTex = await maskWarp.process(renderMaskTex);
+
+    const camMaskDst = this.acquireTex(depthSize[0], depthSize[1], 'camMask');
+    const camRenderMaskDst = this.acquireTex(depthSize[0], depthSize[1], 'camRenderMask');
+
+    const maskWarpParams = {
+      params: { ...params, outputSize: depthSize },
+      scale: [width / depthSize[0], height / depthSize[1]] as [number, number],
+    };
+    const camMaskTex = await this.getMachineToCamStep().process(bgMaskTex, maskWarpParams, camMaskDst);
+    const camRenderMaskTex = await this.getMachineToCamStep().process(renderMaskTex, maskWarpParams, camRenderMaskDst);
     log.debug('maskWarpStep', performance.now() - t0);
 
     t0 = performance.now();
-    const blurredMaskTex = await gaussianBlur.process(camMaskTex);
-    const blurredRenderMaskTex = await gaussianBlur.process(camRenderMaskTex);
+
+    const blurredMaskDst = this.acquireTex(depthSize[0], depthSize[1], 'blurMask');
+    const blurredRenderMaskDst = this.acquireTex(depthSize[0], depthSize[1], 'blurRenderMask');
+
+    const blurredMaskTex = await this.getGaussianBlurStep().process(camMaskTex, blurredMaskDst);
+    const blurredRenderMaskTex = await this.getGaussianBlurStep().process(camRenderMaskTex, blurredRenderMaskDst);
     log.debug('gaussianBlur', performance.now() - t0);
 
     t0 = performance.now();
-    const updatedBg = await bgUpdater.update(tex, blurredMaskTex, this.cachedBg!);
-    blurredMaskTex.destroy();
+    const bgBlendDst = this.acquireTex(width, height, 'bgBlend');
+    const updatedBg = await this.getMaskBlendStep().process(tex, blurredMaskTex, this.cachedBg!, params, bgBlendDst);
+    // Do not destroy blurredMaskTex here; keep for reuse.
     log.debug('cachedBgUpdater', performance.now() - t0);
     // Update cached background
     const copyEncoder = this.ensureDevice().createCommandEncoder();
@@ -206,13 +234,10 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
     this.ensureDevice().queue.submit([copyEncoder.finish()]);
     log.debug('cachedBgUpdater', performance.now() - t0);
 
-    const renderedTex = await bgUpdater.update(tex, blurredRenderMaskTex, this.cachedBg!);
-    blurredRenderMaskTex.destroy();
-    updatedBg.destroy();
-    tex.destroy();
-    // return updatedBg;
+    const renderBlendDst = this.acquireTex(width, height, 'renderBlend');
+    const renderedTex = await this.getMaskBlendStep().process(tex, blurredRenderMaskTex, this.cachedBg!, params, renderBlendDst);
     return renderedTex;
-    // return updatedTex;
+    // return updatedBg;
   }
 
   async init(stream: ReadableStream<VideoFrame> | MediaStreamTrack, cfg: Config): Promise<void> {
@@ -258,18 +283,18 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
       this.blitter = new TextureBlitter(this.device!, width, height);
     }
 
-    const tex = this.device.createTexture({
-      label: 'srcTex',
-      size: [width, height],
-      format: 'rgba8unorm',
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC | GPUTextureUsage.RENDER_ATTACHMENT,
-    });
+    const tex = this.acquireTex(
+      width,
+      height,
+      'srcTex',
+      GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC | GPUTextureUsage.RENDER_ATTACHMENT
+    );
     this.device.queue.copyExternalImageToTexture({ source: frame }, { texture: tex }, [width, height]);
     frame.close();
 
     if (!this.cachedBg && this.cfg.mode === 'depth') {
       // Initialize cached background with the first frame
-      this.cachedBg = await this.getUndistortStep(this.cfg.params).process(tex);
+      this.cachedBg = await this.getUndistortStep().process(tex, this.cfg.params);
     }
 
     let updatedTex = tex;
@@ -281,7 +306,7 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
       } else if (this.cfg.mode === 'machineToCam') {
         updatedTex = await this.runMachineToCam(tex, this.cfg.params);
       } else if (this.cfg.mode === 'depth') {
-        updatedTex = await this.runDepth(tex, this.cfg.params, width, height);
+        updatedTex = await this.runDepth(tex, this.cfg.params);
       } else if (this.cfg.mode === 'none') {
         // No processing needed
       }
@@ -293,7 +318,7 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
     const bitmap = this.blitter.blit(updatedTex);
     log.debug('total time', performance.now() - t0All);
     this.lastFrameTime = performance.now();
-    return bitmap;
+    return Comlink.transfer(bitmap, [bitmap]);
   }
 }
 

@@ -104,6 +104,7 @@ function RawWebGPURoute() {
       worker.terminate();
       if (stream instanceof ReadableStream) stream.cancel().catch(() => undefined);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vidSource, calibration, camRes, bounds, mode]);
 
   return (

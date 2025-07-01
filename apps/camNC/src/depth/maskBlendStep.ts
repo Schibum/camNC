@@ -3,7 +3,7 @@ import { RemapStepParams } from './remapPipeline';
 import { REMAP_PARAMS_STRUCT, UNDISTORT_WGSL } from './sharedShaders';
 import { createRemapUniform, generateMachineToCamMatrix } from './webgpu-helpers';
 
-export class CachedBgUpdater {
+export class MaskBlendStep {
   // Lazy-initialised compute pipeline that combines depth map + colour image using a threshold.
   private maskPipeline: GPUComputePipeline | null = null;
   private maskSampler: GPUSampler | null = null;
@@ -42,10 +42,7 @@ export class CachedBgUpdater {
     textureStore(dstTex, vec2<i32>(i32(gid.x), i32(gid.y)), outCol);
   }`;
 
-  constructor(
-    private device: GPUDevice,
-    private params: RemapStepParams
-  ) {}
+  constructor(private device: GPUDevice) {}
 
   /** Returns (and lazily creates) the compute pipeline that applies the binary mask. */
   private getMaskPipeline(): GPUComputePipeline {
@@ -68,23 +65,25 @@ export class CachedBgUpdater {
     return this.maskPipeline;
   }
 
-  async update(frame: GPUTexture, maskTex: GPUTexture, cachedBg: GPUTexture) {
+  async process(frame: GPUTexture, maskTex: GPUTexture, cachedBg: GPUTexture, params: RemapStepParams, dstTex?: GPUTexture) {
     const outWidth = frame.width;
     const outHeight = frame.height;
-    const dst = this.device.createTexture({
-      label: 'CachedBgUpdater output texture',
-      size: [outWidth, outHeight],
-      format: 'rgba8unorm',
-      usage:
-        GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC | GPUTextureUsage.RENDER_ATTACHMENT,
-    });
+    const dst =
+      dstTex ??
+      this.device.createTexture({
+        label: 'MaskBlendStep output texture',
+        size: [outWidth, outHeight],
+        format: 'rgba8unorm',
+        usage:
+          GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC | GPUTextureUsage.RENDER_ATTACHMENT,
+      });
 
     const defs = makeShaderDataDefinitions(this.shaderCode);
     const paramsValues = makeStructuredView(defs.uniforms.params);
 
-    createRemapUniform({ ...this.params, combinedProjectionMatrix: generateMachineToCamMatrix(this.params) }, paramsValues);
+    createRemapUniform({ ...params, combinedProjectionMatrix: generateMachineToCamMatrix(params) }, paramsValues);
     const remapUniformBuffer = this.device.createBuffer({
-      label: 'CachedBgUpdater remapParams uniform buffer',
+      label: 'MaskBlendStep remapParams uniform buffer',
       size: paramsValues.arrayBuffer.byteLength,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
@@ -92,7 +91,7 @@ export class CachedBgUpdater {
 
     const pipeline = this.getMaskPipeline();
     const bindGroup = this.device.createBindGroup({
-      label: 'CachedBgUpdater bind group',
+      label: 'MaskBlendStep bind group',
       layout: pipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: frame.createView() }, // original colour image

@@ -5,8 +5,19 @@ import { makeShaderDataDefinitions, makeStructuredView } from 'webgpu-utils';
 import { REMAP_PARAMS_STRUCT, UNDISTORT_WGSL } from './sharedShaders';
 import { createRemapUniform, generateMachineToCamMatrix, padMat3 } from './webgpu-helpers';
 
-export interface WebGPUPipelineStep {
-  process(texture: GPUTexture): Promise<GPUTexture>;
+export interface WebGPUPipelineStep<TParams> {
+  /**
+   * Run the GPU step.
+   * @param srcTex Source texture to read from (must have TEXTURE_BINDING usage).
+   * @param params Parameters for this processing step (not cached in the step instance).
+   * @param dstTex Optional destination texture. If omitted the step will lazily allocate its own
+   *               output texture that matches the expected descriptor. When provided the caller is
+   *               responsible for keeping / re-using the texture across frames which avoids
+   *               per-frame allocations.
+   * @returns The texture that now contains the processed result – i.e. `dstTex` if it was
+   *          supplied, otherwise the internally allocated texture.
+   */
+  process(srcTex: GPUTexture, params: TParams, dstTex?: GPUTexture): Promise<GPUTexture>;
 }
 
 export interface RemapStepParams {
@@ -23,16 +34,13 @@ export interface RemapStepParams {
   combinedProjectionMatrix?: Matrix3;
 }
 
-export class CamToMachineStep implements WebGPUPipelineStep {
+export class CamToMachineStep implements WebGPUPipelineStep<RemapStepParams> {
   private device: GPUDevice;
   private pipeline: GPUComputePipeline;
-  private bindGroup: GPUBindGroup | null = null;
-  private params: RemapStepParams;
   private sampler: GPUSampler;
 
-  constructor(device: GPUDevice, params: RemapStepParams) {
+  constructor(device: GPUDevice) {
     this.device = device;
-    this.params = params;
     this.pipeline = this.createPipeline();
     this.sampler = this.device.createSampler();
   }
@@ -82,18 +90,22 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     return this.device.createComputePipeline({ layout: 'auto', compute: { module: shader, entryPoint: 'main' } });
   }
 
-  async process(camTexture: GPUTexture): Promise<GPUTexture> {
-    const [width, height] = this.params.outputSize;
-    const dst = this.device.createTexture({
-      label: 'CamToMachineStep output texture',
-      size: [width, height],
-      format: 'rgba8unorm',
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING,
-    });
+  async process(camTexture: GPUTexture, params: RemapStepParams, dstTex?: GPUTexture): Promise<GPUTexture> {
+    const [width, height] = params.outputSize;
+
+    // Use caller-supplied destination texture if given, otherwise create one on-the-fly.
+    const dst =
+      dstTex ??
+      this.device.createTexture({
+        label: 'CamToMachineStep output texture',
+        size: [width, height],
+        format: 'rgba8unorm',
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING,
+      });
     const defs = makeShaderDataDefinitions(this.shaderCode());
     const paramsValues = makeStructuredView(defs.uniforms.params);
 
-    createRemapUniform(this.params, paramsValues);
+    createRemapUniform(params, paramsValues);
     const uniformBuffer = this.device.createBuffer({
       label: 'CamToMachineStep uniform buffer',
       size: paramsValues.arrayBuffer.byteLength,
@@ -101,7 +113,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     });
     this.device.queue.writeBuffer(uniformBuffer, 0, paramsValues.arrayBuffer);
 
-    this.bindGroup = this.device.createBindGroup({
+    const bindGroup = this.device.createBindGroup({
       layout: this.pipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: camTexture.createView() },
@@ -114,7 +126,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     const commandEncoder = this.device.createCommandEncoder();
     const pass = commandEncoder.beginComputePass();
     pass.setPipeline(this.pipeline);
-    pass.setBindGroup(0, this.bindGroup);
+    pass.setBindGroup(0, bindGroup);
     pass.dispatchWorkgroups(Math.ceil(width / 8), Math.ceil(height / 8));
     pass.end();
     this.device.queue.submit([commandEncoder.finish()]);
@@ -125,18 +137,13 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   }
 }
 
-export class MachineToCamStep implements WebGPUPipelineStep {
+export class MachineToCamStep implements WebGPUPipelineStep<{ params: RemapStepParams; scale: [number, number] }> {
   private device: GPUDevice;
   private pipeline: GPUComputePipeline;
-  private bindGroup: GPUBindGroup | null = null;
-  private params: RemapStepParams;
   private sampler: GPUSampler;
-  private scale: [number, number];
 
-  constructor(device: GPUDevice, params: RemapStepParams, scale: [number, number] = [1, 1]) {
+  constructor(device: GPUDevice) {
     this.device = device;
-    this.params = params;
-    this.scale = scale;
     this.pipeline = this.createPipeline();
     this.sampler = this.device.createSampler();
   }
@@ -190,22 +197,28 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     });
   }
 
-  async process(texture: GPUTexture): Promise<GPUTexture> {
-    const [width, height] = this.params.outputSize;
-    const dst = this.device.createTexture({
-      label: 'MachineToCamStep output texture',
-      size: [width, height],
-      format: 'rgba8unorm',
-      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING,
-    });
+  async process(
+    texture: GPUTexture,
+    { params, scale }: { params: RemapStepParams; scale: [number, number] },
+    dstTex?: GPUTexture
+  ): Promise<GPUTexture> {
+    const [width, height] = params.outputSize;
+    const dst =
+      dstTex ??
+      this.device.createTexture({
+        label: 'MachineToCamStep output texture',
+        size: [width, height],
+        format: 'rgba8unorm',
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC | GPUTextureUsage.STORAGE_BINDING,
+      });
 
     const defs = makeShaderDataDefinitions(this.shaderCode());
     const paramsValues = makeStructuredView(defs.uniforms.params);
 
     paramsValues.set({
-      matrix: padMat3(generateMachineToCamMatrix(this.params)),
-      bounds: this.params.machineBounds,
-      scale: this.scale,
+      matrix: padMat3(generateMachineToCamMatrix(params)),
+      bounds: params.machineBounds,
+      scale,
     });
 
     const uniformBuffer = this.device.createBuffer({
@@ -215,7 +228,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     });
     this.device.queue.writeBuffer(uniformBuffer, 0, paramsValues.arrayBuffer);
 
-    this.bindGroup = this.device.createBindGroup({
+    const bindGroup = this.device.createBindGroup({
       label: 'MachineToCamStep bind group',
       layout: this.pipeline.getBindGroupLayout(0),
       entries: [
@@ -229,7 +242,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     const commandEncoder = this.device.createCommandEncoder();
     const pass = commandEncoder.beginComputePass();
     pass.setPipeline(this.pipeline);
-    pass.setBindGroup(0, this.bindGroup);
+    pass.setBindGroup(0, bindGroup);
     const workgroupsX = Math.ceil(width / 8);
     const workgroupsY = Math.ceil(height / 8);
     pass.dispatchWorkgroups(workgroupsX, workgroupsY);
@@ -251,10 +264,14 @@ export interface UndistortParams {
 
 // Undistort is now just a special case of CamToMachineStep with identity
 // transform and bounds equal to output pixel extents.
-export class UndistortStep implements WebGPUPipelineStep {
+export class UndistortStep implements WebGPUPipelineStep<UndistortParams> {
   private inner: CamToMachineStep;
 
-  constructor(device: GPUDevice, params: UndistortParams) {
+  constructor(device: GPUDevice) {
+    this.inner = new CamToMachineStep(device);
+  }
+
+  process(texture: GPUTexture, params: UndistortParams, dstTex?: GPUTexture): Promise<GPUTexture> {
     const [w, h] = params.outputSize;
     const identity = new Matrix3().identity();
     const innerParams: RemapStepParams = {
@@ -267,10 +284,6 @@ export class UndistortStep implements WebGPUPipelineStep {
       R: identity,
       t: new Vector3(0, 0, 0),
     } as RemapStepParams;
-    this.inner = new CamToMachineStep(device, innerParams);
-  }
-
-  process(texture: GPUTexture): Promise<GPUTexture> {
-    return this.inner.process(texture);
+    return this.inner.process(texture, innerParams, dstTex);
   }
 }

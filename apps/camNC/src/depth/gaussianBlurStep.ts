@@ -106,7 +106,8 @@ export class GaussianBlurStep {
    * Execute blur. The input texture must have TEXTURE_BINDING usage. The returned texture can be
    * sampled by subsequent passes and is created with STORAGE_BINDING | TEXTURE_BINDING | COPY_SRC.
    */
-  async process(srcTex: GPUTexture): Promise<GPUTexture> {
+  /** Note: GaussianBlurStep is stateless - no params needed at process time. */
+  async process(srcTex: GPUTexture, dstOverride?: GPUTexture): Promise<GPUTexture> {
     const width = srcTex.width;
     const height = srcTex.height;
 
@@ -121,18 +122,17 @@ export class GaussianBlurStep {
       });
     }
 
-    // if (!this.dstTex || this.dstTex.width !== width || this.dstTex.height !== height) {
-    // this.dstTex?.destroy();
-    const dstTex = this.device.createTexture({
-      label: 'GaussianBlurStep output (vertical)',
-      size: [width, height],
-      format: 'rgba8unorm',
-      usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC,
-    });
-    // }
+    // Destination texture: prefer caller-supplied one, otherwise allocate anew each call.
+    const dstTex =
+      dstOverride ??
+      this.device.createTexture({
+        label: 'GaussianBlurStep output (vertical)',
+        size: [width, height],
+        format: 'rgba8unorm',
+        usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC,
+      });
 
     const tmpTex = this.tmpTex!;
-    // const dstTex = this.dstTex!;
 
     // Pass 1: horizontal
     const hPipe = this.getPipeline('h');

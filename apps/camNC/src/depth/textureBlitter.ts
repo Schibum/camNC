@@ -93,7 +93,6 @@ struct VOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32>, };
     this.device.queue.submit([encoder.finish()]);
 
     const bitmap = this.canvas.transferToImageBitmap();
-    texture.destroy();
     return bitmap;
   }
 }
