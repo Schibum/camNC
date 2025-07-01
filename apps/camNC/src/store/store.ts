@@ -1,6 +1,7 @@
+import { DepthBlendManager } from '@/depth/depthBlendManager';
 import { immerable } from 'immer';
 import superjson from 'superjson';
-import { Box2, Matrix3, Vector2, Vector3 } from 'three';
+import { Box2, Matrix3, Texture, Vector2, Vector3 } from 'three';
 import { create } from 'zustand';
 import { combine, devtools, persist, PersistStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
@@ -87,6 +88,9 @@ const storage: PersistStorage<unknown> = {
 (Vector2 as any)[immerable] = true;
 // Should we create slices? see https://github.com/pmndrs/zustand/discussions/2195#discussioncomment-7614103
 
+// Get the singleton depth blend manager
+const depthBlendManager = DepthBlendManager.getInstance();
+
 // prettier-ignore
 export const useStore = create(devtools(persist(immer(combine(
   {
@@ -101,8 +105,12 @@ export const useStore = create(devtools(persist(immer(combine(
     stockHeight: 0,
     showStillFrame: false,
     fluidncToken: crypto.randomUUID() as string,
+    // Depth-based background blend feature
+    depthBlendEnabled: false,
+    depthMaskTexture: null as Texture | null,
+    depthBgTexture: null as Texture | null,
   },
-  (set) => ({
+  (set, get) => ({
     setToolpathOffset: (offset: Vector3) => set(state => {
       state.toolpathOffset = offset;
     }),
@@ -167,6 +175,23 @@ export const useStore = create(devtools(persist(immer(combine(
     setFluidncToken: (token: string) => set(state => {
       state.fluidncToken = token;
     }),
+    // Depth blend feature setters
+    setDepthBlendEnabled: (enabled: boolean) => {
+      set(state => {
+        state.depthBlendEnabled = enabled;
+      });
+
+      // Handle manager lifecycle
+      if (!enabled) {
+        depthBlendManager.stop();
+      }
+    },
+    setDepthMaskTexture: (tex: Texture | null) => set(state => {
+      state.depthMaskTexture = tex as any;
+    }),
+    setDepthBgTexture: (tex: Texture | null) => set(state => {
+      state.depthBgTexture = tex as any;
+    }),
   })
 )), {
   name: 'settings',
@@ -216,3 +241,11 @@ export const useSetArucoTagSize = () => useStore(state => state.camSourceSetters
 
 export const useToolpath = () => useStore(state => state.toolpath);
 export const useHasToolpath = () => useToolpath() !== null;
+
+// Depth blend feature hooks
+export const useDepthBlendEnabled = () => useStore(state => state.depthBlendEnabled);
+export const useSetDepthBlendEnabled = () => useStore(state => state.setDepthBlendEnabled);
+export const useMaskTexture = () => useStore(state => state.depthMaskTexture as Texture | null);
+export const useBgTexture = () => useStore(state => state.depthBgTexture as Texture | null);
+export const useSetMaskTexture = () => useStore(state => state.setDepthMaskTexture);
+export const useSetBgTexture = () => useStore(state => state.setDepthBgTexture);

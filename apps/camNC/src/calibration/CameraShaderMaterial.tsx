@@ -1,5 +1,13 @@
 /* eslint-disable react-refresh/only-export-components */
-import { useCalibrationData, useCameraExtrinsics, useCamResolution, useNewCameraMatrix } from '@/store/store';
+import {
+  useBgTexture,
+  useCalibrationData,
+  useCameraExtrinsics,
+  useCamResolution,
+  useDepthBlendEnabled,
+  useMaskTexture,
+  useNewCameraMatrix,
+} from '@/store/store';
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { calculateUndistortionMapsCached } from './rectifyMap';
@@ -10,6 +18,11 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
   // Get your intrinsic matrix via your custom hook.
   const K = useNewCameraMatrix();
   const videoDimensions = useCamResolution();
+
+  // Depth blend feature
+  const depthBlendEnabled = useDepthBlendEnabled();
+  const maskTex = useMaskTexture();
+  const bgTex = useBgTexture();
 
   // Precompute the undistortion maps (as textures).
   const [mapXTexture, mapYTexture] = useUnmapTextures();
@@ -36,6 +49,9 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
     uniform sampler2D videoTexture;
     uniform sampler2D mapXTexture;
     uniform sampler2D mapYTexture;
+    uniform sampler2D maskTexture;
+    uniform sampler2D bgTexture;
+    uniform bool useMask;
     uniform vec2 resolution;
     uniform mat3 K;
     uniform mat3 R;
@@ -76,7 +92,11 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
       // TODO: lookup worldPos in depth map here, if > threshold (masked),
       //  then sample undistorted cachedTexture instead?
       // Use the undistortion maps to recover the distorted image coordinate.
-      gl_FragColor = sampleRemappedTexture(undistortedUV);
+      float maskVal = useMask ? texture2D(maskTexture, undistortedUV).r : 1.0;
+      vec4 videoCol = sampleRemappedTexture(undistortedUV);
+      vec4 bgCol = useMask ? texture2D(bgTexture, undistortedUV) : vec4(0.0);
+      gl_FragColor = videoCol * maskVal + bgCol * (1.0 - maskVal);
+      // gl_FragColor.r = videoCol.r;
     }
   `;
 
@@ -85,12 +105,14 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
       videoTexture: { value: texture },
       mapXTexture: { value: mapXTexture },
       mapYTexture: { value: mapYTexture },
+      maskTexture: { value: maskTex ?? texture /* dummy */ },
+      bgTexture: { value: bgTex ?? texture /* dummy */ },
+      useMask: { value: depthBlendEnabled && !!maskTex && !!bgTex },
       resolution: { value: new THREE.Vector2(videoDimensions[0], videoDimensions[1]) },
       K: { value: K },
       R: { value: R },
       t: { value: t },
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
@@ -99,11 +121,14 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
     uniforms.videoTexture.value = texture;
     uniforms.mapXTexture.value = mapXTexture;
     uniforms.mapYTexture.value = mapYTexture;
+    uniforms.maskTexture.value = maskTex ?? texture;
+    uniforms.bgTexture.value = bgTex ?? texture;
+    uniforms.useMask.value = depthBlendEnabled && !!maskTex && !!bgTex;
     uniforms.resolution.value.set(videoDimensions[0], videoDimensions[1]);
     uniforms.K.value = K;
     uniforms.R.value = R;
     uniforms.t.value = t;
-  }, [texture, mapXTexture, mapYTexture, videoDimensions, K, R, t, uniforms]);
+  }, [texture, mapXTexture, mapYTexture, videoDimensions, K, R, t, uniforms, maskTex, bgTex, depthBlendEnabled]);
 
   return <shaderMaterial vertexShader={vertexShader} fragmentShader={fragmentShader} uniforms={uniforms} />;
 } /**

@@ -7,6 +7,7 @@ import { MaskBlendStep } from './maskBlendStep';
 import { MaskInflationStep } from './maskInflationStep';
 import { CamToMachineStep, MachineToCamStep, RemapStepParams, UndistortParams, UndistortStep } from './remapPipeline';
 import { TextureBlitter } from './textureBlitter';
+log.setDefaultLevel(log.levels.INFO);
 
 // Number of pixels by which the mask used to compute the cached background should be inflated.
 const kBgUpdateMaskMargin = 50;
@@ -21,9 +22,21 @@ export type Config =
   | { mode: 'depth'; params: RemapStepParams }
   | { mode: 'none' };
 
+export interface DepthFrameResult {
+  mask: ImageBitmap;
+  bg: ImageBitmap;
+}
+
 export interface VideoPipelineWorkerAPI extends ReplaceableStreamWorker {
   init(stream: ReadableStream<VideoFrame> | MediaStreamTrack, cfg: Config): Promise<void>;
-  process(): Promise<ImageBitmap>;
+  /**
+   * Start internal processing loop and stream results to the provided callback on the main thread.
+   */
+  start(cb: any): Promise<void>;
+  /** Stop processing loop */
+  stop(): Promise<void>;
+  /** Update processing parameters (e.g., calibration/extrinsics) without restarting worker */
+  updateParams(params: RemapStepParams): Promise<void>;
 }
 
 /** Helper: run transform producing a new texture, destroy the old one, return new. */
@@ -47,7 +60,7 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
   private cfg: Config | null = null;
 
   // Throttle processing to this frame rate.
-  private frameRateLimit = 30;
+  private frameRateLimit = 3;
   private lastFrameTime = 0;
 
   // Cached step instances to avoid per-frame pipeline creation
@@ -172,7 +185,7 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
     return replaceTex(tex, t => machineToCam.process(t, { params, scale: [1, 1] }));
   }
 
-  private async runDepth(tex: GPUTexture, params: RemapStepParams): Promise<GPUTexture> {
+  private async runDepth(tex: GPUTexture, params: RemapStepParams): Promise<{ mask: GPUTexture; bg: GPUTexture }> {
     const { width, height } = tex;
     // Matches size and multiple requirement of
     // https://huggingface.co/depth-anything/Depth-Anything-V2-Small-hf/blob/main/preprocessor_config.json
@@ -181,6 +194,7 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
     log.debug('depthSize', depthSize);
 
     let t0 = performance.now();
+    const t00 = performance.now();
 
     // ---- 1. cam → machine space (fixed depthSize) ----
     const machineDst = this.acquireTex(depthSize[0], depthSize[1], 'machine');
@@ -233,11 +247,9 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
     copyEncoder.copyTextureToTexture({ texture: updatedBg }, { texture: this.cachedBg! }, [updatedBg.width, updatedBg.height]);
     this.ensureDevice().queue.submit([copyEncoder.finish()]);
     log.debug('cachedBgUpdater', performance.now() - t0);
+    log.debug('depth fps', 1000 / (performance.now() - t00));
 
-    const renderBlendDst = this.acquireTex(width, height, 'renderBlend');
-    const renderedTex = await this.getMaskBlendStep().process(tex, blurredRenderMaskTex, this.cachedBg!, params, renderBlendDst);
-    return renderedTex;
-    // return updatedBg;
+    return { mask: blurredRenderMaskTex, bg: this.cachedBg! };
   }
 
   async init(stream: ReadableStream<VideoFrame> | MediaStreamTrack, cfg: Config): Promise<void> {
@@ -267,21 +279,47 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
     }
   }
 
-  async process(): Promise<ImageBitmap> {
+  /* ----------------------- internal processing loop ----------------------- */
+  private running = false;
+  private cb: any = null;
+
+  async start(cb: any): Promise<void> {
+    this.cb = cb;
+    if (this.running) return;
+    this.running = true;
+    this.loop();
+  }
+
+  async stop(): Promise<void> {
+    this.running = false;
+    // Don't clean up GPU resources - we want to reuse them
+  }
+
+  private async loop() {
+    while (this.running) {
+      try {
+        const result = await this.processFrame();
+        if (this.cb && result) this.cb(result);
+      } catch (err) {
+        console.error('[VideoPipelineWorker] loop error', err);
+        // stop on error
+        this.running = false;
+      }
+    }
+  }
+
+  /** internal: processes one frame and returns depth result */
+  private async processFrame(): Promise<DepthFrameResult | null> {
     if (!this.reader || !this.device || !this.cfg) throw new Error('Worker not initialized');
+
     await this._throttleFrameRate();
 
-    const t0All = performance.now();
-
     const { value: frame, done } = await this.reader.read();
-    if (done || !frame) throw new Error('Stream ended');
+    if (done || !frame) return null;
     const width = frame.displayWidth || frame.codedWidth;
     const height = frame.displayHeight || frame.codedHeight;
 
-    // Lazily create blitter once we know frame dimensions.
-    if (!this.blitter) {
-      this.blitter = new TextureBlitter(this.device!, width, height);
-    }
+    if (!this.blitter) this.blitter = new TextureBlitter(this.device!, width, height);
 
     const tex = this.acquireTex(
       width,
@@ -293,32 +331,33 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
     frame.close();
 
     if (!this.cachedBg && this.cfg.mode === 'depth') {
-      // Initialize cached background with the first frame
       this.cachedBg = await this.getUndistortStep().process(tex, this.cfg.params);
     }
 
-    let updatedTex = tex;
-    try {
-      if (this.cfg.mode === 'undistort') {
-        updatedTex = await this.runUndistort(tex, this.cfg.params);
-      } else if (this.cfg.mode === 'camToMachine') {
-        updatedTex = await this.runCamToMachine(tex, this.cfg.params);
-      } else if (this.cfg.mode === 'machineToCam') {
-        updatedTex = await this.runMachineToCam(tex, this.cfg.params);
-      } else if (this.cfg.mode === 'depth') {
-        updatedTex = await this.runDepth(tex, this.cfg.params);
-      } else if (this.cfg.mode === 'none') {
-        // No processing needed
-      }
-    } catch (e) {
-      console.error('Error in processing:', e);
-      throw new Error('Error in processing');
-    }
+    if (this.cfg.mode !== 'depth') return null;
 
-    const bitmap = this.blitter.blit(updatedTex);
-    log.debug('total time', performance.now() - t0All);
+    const { mask, bg } = await this.runDepth(tex, this.cfg.params);
+
+    // Convert mask & bg to ImageBitmap via blitter(s)
+    const maskBlitter = new TextureBlitter(this.device!, mask.width, mask.height);
+    const maskBmp = maskBlitter.blit(mask);
+    const bgBmp = this.blitter!.blit(bg);
+
+    log.info('fps', 1000 / (performance.now() - this.lastFrameTime));
     this.lastFrameTime = performance.now();
-    return Comlink.transfer(bitmap, [bitmap]);
+    return Comlink.transfer({ mask: maskBmp, bg: bgBmp }, [maskBmp, bgBmp]) as any;
+  }
+
+  // The old on-demand process() API is deprecated – kept for debug route compatibility
+  async process(): Promise<ImageBitmap> {
+    throw new Error('process() is deprecated – use start() streaming instead');
+  }
+
+  async updateParams(params: RemapStepParams): Promise<void> {
+    if (this.cfg && this.cfg.mode !== 'none') {
+      // Only update if structurally compatible
+      this.cfg = { ...this.cfg, params } as any;
+    }
   }
 }
 
