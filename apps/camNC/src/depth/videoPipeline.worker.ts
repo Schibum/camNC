@@ -60,7 +60,7 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
   private cfg: Config | null = null;
 
   // Throttle processing to this frame rate.
-  private frameRateLimit = 3;
+  private frameRateLimit = 1 / 2;
   private lastFrameTime = 0;
 
   // Cached step instances to avoid per-frame pipeline creation

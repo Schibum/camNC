@@ -57,65 +57,91 @@ export class DepthBlendManager {
     }
   }
 
-  /**
-   * Start depth blend processing with the given parameters
-   */
-  async start(videoSource: any, params: RemapStepParams, onTextureUpdate: (textures: DepthBlendTextures) => void) {
-    if (!this.proxy) {
-      console.error('[DepthBlendManager] Worker not initialized');
-      return;
+  // Register a callback for texture updates
+  onTextures(cb: (textures: DepthBlendTextures) => void) {
+    this.onTextureUpdate = cb;
+    // If textures already exist, send them immediately so the consumer
+    // doesn't have to wait for the next frame before seeing something.
+    if (this.maskTex && this.bgTex) {
+      cb({ mask: this.maskTex, bg: this.bgTex });
     }
+  }
 
-    this.onTextureUpdate = onTextureUpdate;
+  // Set or replace the video source
+  async setVideoSource(videoSource: any) {
+    const oldSource = this.currentVideoSource;
+    this.currentVideoSource = videoSource;
 
-    try {
-      // Check if we need to initialize or update
-      const needsInit = !this.isInitialized;
-      const videoSourceChanged = this.currentVideoSource !== videoSource;
-      const paramsChanged = JSON.stringify(this.currentParams) !== JSON.stringify(params);
+    // Ensure worker exists
+    if (!this.proxy) await this.initWorker();
 
-      this.currentVideoSource = videoSource;
-      this.currentParams = params;
+    // If already initialised swap the stream immediately.
+    if (this.isInitialized && oldSource !== videoSource) {
+      await this.replaceVideoSource(videoSource);
+    }
+  }
 
-      if (needsInit) {
-        // First time initialization
-        this.localStream = await createVideoStreamProcessor(videoSource);
-        const cfg: Config = { mode: 'depth', params };
+  // Update processing parameters
+  async setParams(params: RemapStepParams) {
+    const changed = JSON.stringify(this.currentParams) !== JSON.stringify(params);
+    this.currentParams = params;
 
-        await this.proxy.init(Comlink.transfer(this.localStream as any, [this.localStream as any]), cfg);
-        this.isInitialized = true;
-      } else {
-        // Already initialized, just update what's needed
-        if (videoSourceChanged) {
-          await this.replaceVideoSource(videoSource);
-        }
-        if (paramsChanged) {
-          await this.updateParams(params);
-        }
-      }
+    // Ensure worker exists
+    if (!this.proxy) await this.initWorker();
 
-      // Start processing if not already running
-      if (!this.isRunning) {
-        this.isRunning = true;
-        await this.proxy.start(Comlink.proxy(this.handleFrame.bind(this)));
-        // await this.proxy.start(Comlink.proxy(() => {}));
-      }
-    } catch (error) {
-      console.error('[DepthBlendManager] Failed to start:', error);
-      this.isRunning = false;
+    // If already initialised push update to worker immediately.
+    if (this.isInitialized && changed) {
+      await this.updateParams(params);
     }
   }
 
   /**
-   * Stop depth blend processing
+   * Ensure the worker is fully initialised. Assumes both currentVideoSource and
+   * currentParams are already set.
    */
+  private async ensureInitialized() {
+    if (this.isInitialized) return;
+
+    if (!this.currentVideoSource || !this.currentParams) {
+      throw new Error('[DepthBlendManager] Cannot initialise without videoSource and params');
+    }
+
+    this.localStream = await createVideoStreamProcessor(this.currentVideoSource);
+    const cfg: Config = { mode: 'depth', params: this.currentParams };
+
+    await this.proxy!.init(Comlink.transfer(this.localStream as any, [this.localStream as any]), cfg);
+    this.isInitialized = true;
+  }
+
+  // Start processing
+  async start() {
+    if (!this.proxy) {
+      console.error('[DepthBlendManager] Worker not initialised');
+      return;
+    }
+
+    if (!this.isInitialized) {
+      try {
+        await this.ensureInitialized();
+      } catch (err) {
+        console.error(err);
+        return;
+      }
+    }
+
+    if (this.isRunning) return;
+
+    this.isRunning = true;
+    await this.proxy.start(Comlink.proxy(this.handleFrame.bind(this)));
+  }
+
+  // Stop processing
   async stop() {
     if (!this.proxy || !this.isRunning) return;
 
     this.isRunning = false;
 
     try {
-      // Just stop processing, don't clean up resources
       await this.proxy.stop();
     } catch (error) {
       console.error('[DepthBlendManager] Failed to stop:', error);

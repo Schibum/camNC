@@ -1,0 +1,12 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+# Comment Style Guidelines
+
+- Keep comments minimal and directly relevant to the current code.
+- Avoid verbose explanations of before/after changes or refactor history.
+- Prefer brief one-line doc comments for public APIs and important logic.
+- Remove superfluous comments when refactoring to maintain clarity.

@@ -1,6 +1,6 @@
 import { UnprojectVideoMesh } from '@/calibration/Unproject';
 import { useAutoScanMarkers } from '@/hooks/useAutoScanMarkers';
-import { useDepthBlendWorker } from '@/hooks/useDepthBlendWorker';
+import { DepthBlendWorker } from '@/hooks/useDepthBlendWorker';
 import { getCncApi } from '@/lib/fluidnc/fluidnc-singleton';
 import { PresentCanvas } from '@/scene/PresentCanvas';
 import { GCodeVisualizer } from '@/visualize/Toolpaths';
@@ -30,7 +30,6 @@ UnprojectVideoMeshWithStockHeight.displayName = 'UnprojectVideoMeshWithStockHeig
 function VisualizeComponent() {
   const cncApi = getCncApi();
   useAutoScanMarkers({ intervalMs: 3_000 });
-  useDepthBlendWorker();
 
   function onDbClick(event: ThreeEvent<MouseEvent>) {
     console.log('onDbClick', event.unprojectedPoint);
@@ -45,6 +44,7 @@ function VisualizeComponent() {
 
   return (
     <div className="relative w-full h-full">
+      <DepthBlendWorker />
       <PageHeader title="Top View (Orthographic)" className="absolute pr-2 flex-wrap h-auto p-1">
         <VisualizeToolbar />
       </PageHeader>

@@ -92,7 +92,7 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
       // TODO: lookup worldPos in depth map here, if > threshold (masked),
       //  then sample undistorted cachedTexture instead?
       // Use the undistortion maps to recover the distorted image coordinate.
-      float maskVal = useMask ? texture2D(maskTexture, undistortedUV).r : 1.0;
+      float maskVal = useMask ? max(texture2D(maskTexture, undistortedUV).r, 0.1) : 1.0;
       vec4 videoCol = sampleRemappedTexture(undistortedUV);
       vec4 bgCol = useMask ? texture2D(bgTexture, undistortedUV) : vec4(0.0);
       gl_FragColor = videoCol * maskVal + bgCol * (1.0 - maskVal);
