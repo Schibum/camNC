@@ -12,7 +12,7 @@ export function DepthBlendButton() {
     <TooltipIconButton
       label={enabled ? 'Disable Hide-Machine' : 'Enable Hide-Machine'}
       icon={<Layers className={enabled ? 'text-primary' : ''} />}
-      shortcut="h"
+      shortcut="m"
       onClick={toggleBlend}
     />
   );
