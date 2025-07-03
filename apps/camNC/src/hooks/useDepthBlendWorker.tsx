@@ -5,6 +5,7 @@ import {
   useCamResolution,
   useCameraExtrinsics,
   useDepthBlendEnabled,
+  useDepthSettings,
   useSetBgTexture,
   useSetMaskTexture,
   useStore,
@@ -43,6 +44,8 @@ export function useDepthBlendWorker() {
   const { R, t } = useCameraExtrinsics();
   const bounds = useStore(state => state.camSource!.machineBounds!);
 
+  const depthSettings = useDepthSettings();
+
   // Memoise parameters
   const params: RemapStepParams = useMemo(() => {
     const margin = 20;
@@ -79,4 +82,15 @@ export function useDepthBlendWorker() {
       depthBlendManager.stop().catch(console.error);
     }
   }, [depthBlendManager, enabled]);
+
+  // Push runtime settings to worker whenever they change.
+  useEffect(() => {
+    console.log('pushing settings to worker', depthSettings);
+    depthBlendManager.setProcessingSettings({
+      frameRateLimit: depthSettings.frameRateLimit,
+      bgMargin: depthSettings.bgMargin,
+      renderMargin: depthSettings.renderMargin,
+      thresholdOffset: depthSettings.thresholdOffset,
+    });
+  }, [depthBlendManager, depthSettings]);
 }

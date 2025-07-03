@@ -9,7 +9,7 @@ import { rawImageToGPUTexture } from './textureConverters';
  */
 export class MaskInflationStep {
   private device: GPUDevice;
-  private margin: number;
+  public readonly margin: number;
   private pipeline: GPUComputePipeline | null = null;
   private sampler: GPUSampler | null = null;
 

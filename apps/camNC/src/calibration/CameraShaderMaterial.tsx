@@ -5,6 +5,7 @@ import {
   useCameraExtrinsics,
   useCamResolution,
   useDepthBlendEnabled,
+  useDepthSettings,
   useMaskTexture,
   useNewCameraMatrix,
 } from '@/store/store';
@@ -23,6 +24,7 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
   const depthBlendEnabled = useDepthBlendEnabled();
   const maskTex = useMaskTexture();
   const bgTex = useBgTexture();
+  const { minMaskVal } = useDepthSettings();
 
   // Precompute the undistortion maps (as textures).
   const [mapXTexture, mapYTexture] = useUnmapTextures();
@@ -56,6 +58,7 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
     uniform mat3 K;
     uniform mat3 R;
     uniform vec3 t;
+    uniform float minMaskVal;
     varying vec2 vUv;
     varying vec3 worldPos;
 
@@ -92,7 +95,7 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
       // TODO: lookup worldPos in depth map here, if > threshold (masked),
       //  then sample undistorted cachedTexture instead?
       // Use the undistortion maps to recover the distorted image coordinate.
-      float maskVal = useMask ? max(texture2D(maskTexture, undistortedUV).r, 0.1) : 1.0;
+      float maskVal = useMask ? max(texture2D(maskTexture, undistortedUV).r, minMaskVal) : 1.0;
       vec4 videoCol = sampleRemappedTexture(undistortedUV);
       vec4 bgCol = useMask ? texture2D(bgTexture, undistortedUV) : vec4(0.0);
       gl_FragColor = videoCol * maskVal + bgCol * (1.0 - maskVal);
@@ -112,6 +115,7 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
       K: { value: K },
       R: { value: R },
       t: { value: t },
+      minMaskVal: { value: minMaskVal },
     }),
     []
   );
@@ -128,7 +132,8 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
     uniforms.K.value = K;
     uniforms.R.value = R;
     uniforms.t.value = t;
-  }, [texture, mapXTexture, mapYTexture, videoDimensions, K, R, t, uniforms, maskTex, bgTex, depthBlendEnabled]);
+    uniforms.minMaskVal.value = minMaskVal;
+  }, [texture, mapXTexture, mapYTexture, videoDimensions, K, R, t, uniforms, maskTex, bgTex, depthBlendEnabled, minMaskVal]);
 
   return <shaderMaterial vertexShader={vertexShader} fragmentShader={fragmentShader} uniforms={uniforms} />;
 } /**

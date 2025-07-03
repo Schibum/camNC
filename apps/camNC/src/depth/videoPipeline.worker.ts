@@ -9,10 +9,9 @@ import { CamToMachineStep, MachineToCamStep, RemapStepParams, UndistortParams, U
 import { TextureBlitter } from './textureBlitter';
 log.setDefaultLevel(log.levels.INFO);
 
-// Number of pixels by which the mask used to compute the cached background should be inflated.
-const kBgUpdateMaskMargin = 50;
-// Number of pixels by which the mask used to render the final output should be inflated.
-const kRenderMaskMargin = 10;
+// Default configuration values – can be tuned at runtime via updateSettings().
+
+// Wrapped in class instance, defaults defined here for readability only.
 
 export type Mode = 'undistort' | 'camToMachine' | 'machineToCam' | 'depth';
 export type Config =
@@ -37,13 +36,19 @@ export interface VideoPipelineWorkerAPI extends ReplaceableStreamWorker {
   stop(): Promise<void>;
   /** Update processing parameters (e.g., calibration/extrinsics) without restarting worker */
   updateParams(params: RemapStepParams): Promise<void>;
+  /** Update runtime settings such as FPS limit or mask margins */
+  updateSettings(settings: WorkerSettings): Promise<void>;
 }
 
-/** Helper: run transform producing a new texture, destroy the old one, return new. */
-async function replaceTex(current: GPUTexture, transform: (src: GPUTexture) => Promise<GPUTexture>): Promise<GPUTexture> {
-  const next = await transform(current);
-  current.destroy();
-  return next;
+/** Settings that can be adjusted at runtime from the main thread. */
+export interface WorkerSettings {
+  /** Maximum number of depth estimation frames per second. Values < 1 mean one frame every \(1/value\) seconds */
+  frameRateLimit?: number;
+  /** Pixel margin used when inflating background update mask. */
+  bgMargin?: number;
+  /** Pixel margin used when inflating render mask. */
+  renderMargin?: number;
+  thresholdOffset?: number;
 }
 
 // Simple per-worker cache to reuse GPUTextures between frames.
@@ -60,8 +65,13 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
   private cfg: Config | null = null;
 
   // Throttle processing to this frame rate.
-  private frameRateLimit = 1 / 2;
+  private frameRateLimit = 1 / 2; // 0.5 fps -> one frame every 2 s
   private lastFrameTime = 0;
+
+  // Runtime-configurable margins (defaults match previous constants)
+  private bgUpdateMaskMargin = 50;
+  private renderMaskMargin = 10;
+  private thresholdOffset = 5;
 
   // Cached step instances to avoid per-frame pipeline creation
   private undistortStep?: UndistortStep;
@@ -147,15 +157,15 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
   }
 
   private getBgMaskInflationStep(): MaskInflationStep {
-    if (!this.bgMaskInflationStep) {
-      this.bgMaskInflationStep = new MaskInflationStep(this.ensureDevice(), kBgUpdateMaskMargin);
+    if (!this.bgMaskInflationStep || this.bgMaskInflationStep.margin !== this.bgUpdateMaskMargin) {
+      this.bgMaskInflationStep = new MaskInflationStep(this.ensureDevice(), this.bgUpdateMaskMargin);
     }
     return this.bgMaskInflationStep;
   }
 
   private getRenderMaskInflationStep(): MaskInflationStep {
-    if (!this.renderMaskInflationStep) {
-      this.renderMaskInflationStep = new MaskInflationStep(this.ensureDevice(), kRenderMaskMargin);
+    if (!this.renderMaskInflationStep || this.renderMaskInflationStep.margin !== this.renderMaskMargin) {
+      this.renderMaskInflationStep = new MaskInflationStep(this.ensureDevice(), this.renderMaskMargin);
     }
     return this.renderMaskInflationStep;
   }
@@ -165,24 +175,6 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
       this.gaussianBlurStep = new GaussianBlurStep(this.ensureDevice());
     }
     return this.gaussianBlurStep;
-  }
-
-  /* --- Mode specific processing helpers --- */
-  private async runUndistort(tex: GPUTexture, params: UndistortParams): Promise<GPUTexture> {
-    const step = this.getUndistortStep();
-    return replaceTex(tex, t => step.process(t, params));
-  }
-
-  private async runCamToMachine(tex: GPUTexture, params: RemapStepParams): Promise<GPUTexture> {
-    const step = this.getCamToMachineStep();
-    return replaceTex(tex, t => step.process(t, params));
-  }
-
-  private async runMachineToCam(tex: GPUTexture, params: RemapStepParams): Promise<GPUTexture> {
-    const camToMachine = this.getCamToMachineStep();
-    const machineToCam = this.getMachineToCamStep();
-    tex = await replaceTex(tex, t => camToMachine.process(t, params));
-    return replaceTex(tex, t => machineToCam.process(t, { params, scale: [1, 1] }));
   }
 
   private async runDepth(tex: GPUTexture, params: RemapStepParams): Promise<{ mask: GPUTexture; bg: GPUTexture }> {
@@ -274,12 +266,12 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
   }
 
   private async _throttleFrameRate() {
+    console.log('throttling frame rate', this.frameRateLimit);
     while (performance.now() - this.lastFrameTime < 1000 / this.frameRateLimit) {
       await new Promise(r => requestAnimationFrame(r));
     }
   }
 
-  /* ----------------------- internal processing loop ----------------------- */
   private running = false;
   private cb: any = null;
 
@@ -292,7 +284,6 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
 
   async stop(): Promise<void> {
     this.running = false;
-    // Don't clean up GPU resources - we want to reuse them
   }
 
   private async loop() {
@@ -313,6 +304,7 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
     if (!this.reader || !this.device || !this.cfg) throw new Error('Worker not initialized');
 
     await this._throttleFrameRate();
+    this.lastFrameTime = performance.now();
 
     const { value: frame, done } = await this.reader.read();
     if (done || !frame) return null;
@@ -344,8 +336,7 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
     const bgBmp = this.blitter!.blit(bg);
 
     log.info('fps', 1000 / (performance.now() - this.lastFrameTime));
-    this.lastFrameTime = performance.now();
-    return Comlink.transfer({ mask: maskBmp, bg: bgBmp }, [maskBmp, bgBmp]) as any;
+    return Comlink.transfer({ mask: maskBmp, bg: bgBmp }, [maskBmp, bgBmp]);
   }
 
   // The old on-demand process() API is deprecated – kept for debug route compatibility
@@ -357,6 +348,25 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
     if (this.cfg && this.cfg.mode !== 'none') {
       // Only update if structurally compatible
       this.cfg = { ...this.cfg, params } as any;
+    }
+  }
+
+  /** Apply runtime settings (frame rate limit, mask margins) without restarting. */
+  async updateSettings({ frameRateLimit, bgMargin, renderMargin, thresholdOffset }: WorkerSettings): Promise<void> {
+    if (frameRateLimit !== undefined && frameRateLimit > 0) {
+      this.frameRateLimit = frameRateLimit;
+    }
+
+    if (bgMargin !== undefined && bgMargin !== this.bgUpdateMaskMargin) {
+      this.bgUpdateMaskMargin = Math.max(0, bgMargin | 0);
+    }
+
+    if (renderMargin !== undefined && renderMargin !== this.renderMaskMargin) {
+      this.renderMaskMargin = Math.max(0, renderMargin | 0);
+    }
+
+    if (thresholdOffset !== undefined) {
+      this.thresholdOffset = thresholdOffset;
     }
   }
 }

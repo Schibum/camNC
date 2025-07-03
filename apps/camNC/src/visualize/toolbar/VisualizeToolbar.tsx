@@ -1,11 +1,4 @@
-import {
-  useDepthBlendEnabled,
-  useHasToolpath,
-  useSetDepthBlendEnabled,
-  useSetShowStillFrame,
-  useShowStillFrame,
-  useStore,
-} from '@/store/store';
+import { useHasToolpath, useSetShowStillFrame, useShowStillFrame, useStore } from '@/store/store';
 import { Button } from '@wbcnc/ui/components/button';
 import {
   Dialog,
@@ -18,10 +11,11 @@ import {
 } from '@wbcnc/ui/components/dialog';
 import { NumberInputWithLabel } from '@wbcnc/ui/components/NumberInputWithLabel';
 import { Popover, PopoverContent, PopoverTrigger } from '@wbcnc/ui/components/popover';
-import { Diameter, FolderOpen, Info, Layers, MonitorPause, MonitorPlay, Palette, PencilRuler } from 'lucide-react';
+import { Diameter, FolderOpen, Info, MonitorPause, MonitorPlay, Palette, PencilRuler } from 'lucide-react';
 import { useState } from 'react';
 import { BoundsInfo } from '../BoundsInfo';
 import { ZDepthLegend } from '../ZDepthLegend';
+import { DepthBlendButton } from './DepthBlendButton';
 import { FluidncButton } from './FluidncButton';
 import { TooltipIconButton } from './TooltipIconButton';
 
@@ -218,26 +212,12 @@ function BoundsInfoButton() {
   );
 }
 
-function DepthBlendToggleButton() {
-  const enabled = useDepthBlendEnabled();
-  const setEnabled = useSetDepthBlendEnabled();
-  const label = enabled ? 'Disable Depth Blending' : 'Enable Depth Blending';
-  return (
-    <TooltipIconButton
-      label={label}
-      icon={<Layers className={enabled ? 'text-primary' : ''} />}
-      shortcut="b"
-      onClick={() => setEnabled(!enabled)}
-    />
-  );
-}
-
 export function VisualizeToolbar() {
   return (
     <div className="flex gap-0 items-center pl-2">
       <OpenFileButton />
       <PlayPauseButton />
-      <DepthBlendToggleButton />
+      <DepthBlendButton />
       <ToolDiameterDialogButton />
       <StockHeightDialogButton />
       <ColorLegendButton />

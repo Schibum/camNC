@@ -20,6 +20,15 @@ export interface CameraExtrinsics {
   t: Vector3;
 }
 
+// Depth processing runtime settings
+export interface DepthSettings {
+  frameRateLimit: number; // fps, can be fractional (<1) for seconds-per-frame
+  bgMargin: number; // pixels
+  renderMargin: number; // pixels
+  minMaskVal: number; // threshold for depth mask blending
+  thresholdOffset: number; // relative 0-1 offset above table for masking
+}
+
 // Types from atoms.tsx
 export type ITuple = [number, number];
 export type IMachineBounds = [ITuple, ITuple, ITuple, ITuple];
@@ -109,6 +118,14 @@ export const useStore = create(devtools(persist(immer(combine(
     depthBlendEnabled: false,
     depthMaskTexture: null as Texture | null,
     depthBgTexture: null as Texture | null,
+    // Runtime depth processing settings
+    depthSettings: {
+      frameRateLimit: 0.5, // default: one frame every 2s
+      bgMargin: 50,
+      renderMargin: 10,
+      minMaskVal: 0.1,
+      thresholdOffset: 0.2,
+    } as DepthSettings,
   },
   (set, get) => ({
     setToolpathOffset: (offset: Vector3) => set(state => {
@@ -192,6 +209,10 @@ export const useStore = create(devtools(persist(immer(combine(
     setDepthBgTexture: (tex: Texture | null) => set(state => {
       state.depthBgTexture = tex as any;
     }),
+    // Depth settings
+    setDepthSettings: (settings: Partial<DepthSettings>) => set(state => {
+      state.depthSettings = { ...state.depthSettings, ...settings } as DepthSettings;
+    }),
   })
 )), {
   name: 'settings',
@@ -200,6 +221,8 @@ export const useStore = create(devtools(persist(immer(combine(
     toolDiameter: state.toolDiameter,
     camSource: state.camSource,
     fluidncToken: state.fluidncToken,
+    depthBlendEnabled: state.depthBlendEnabled,
+    depthSettings: state.depthSettings
   }),
 })));
 
@@ -249,3 +272,7 @@ export const useMaskTexture = () => useStore(state => state.depthMaskTexture as 
 export const useBgTexture = () => useStore(state => state.depthBgTexture as Texture | null);
 export const useSetMaskTexture = () => useStore(state => state.setDepthMaskTexture);
 export const useSetBgTexture = () => useStore(state => state.setDepthBgTexture);
+
+// Depth runtime settings hooks
+export const useDepthSettings = () => useStore(state => state.depthSettings as DepthSettings);
+export const useSetDepthSettings = () => useStore(state => state.setDepthSettings);

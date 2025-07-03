@@ -1,4 +1,5 @@
 import { RemapStepParams } from '@/depth/remapPipeline';
+import type { WorkerSettings } from '@/depth/videoPipeline.worker';
 import { Config, VideoPipelineWorkerAPI } from '@/depth/videoPipeline.worker';
 import { createVideoStreamProcessor, registerThreeJsTransferHandlers } from '@wbcnc/video-worker-utils';
 import * as Comlink from 'comlink';
@@ -34,6 +35,7 @@ export class DepthBlendManager {
   private currentVideoSource: any = null;
   private currentParams: RemapStepParams | null = null;
   private onTextureUpdate: ((textures: DepthBlendTextures) => void) | null = null;
+  private pendingSettings: WorkerSettings | null = null;
 
   private constructor() {
     // Initialize worker immediately
@@ -110,6 +112,16 @@ export class DepthBlendManager {
     const cfg: Config = { mode: 'depth', params: this.currentParams };
 
     await this.proxy!.init(Comlink.transfer(this.localStream as any, [this.localStream as any]), cfg);
+
+    // Apply any pending processing settings that were set before initialization completed
+    if (this.pendingSettings) {
+      try {
+        await this.proxy!.updateSettings(this.pendingSettings);
+      } catch (err) {
+        console.error('[DepthBlendManager] Failed to apply pending settings:', err);
+      }
+      this.pendingSettings = null;
+    }
     this.isInitialized = true;
   }
 
@@ -160,6 +172,23 @@ export class DepthBlendManager {
       await this.proxy.updateParams(params);
     } catch (error) {
       console.error('[DepthBlendManager] Failed to update params:', error);
+    }
+  }
+
+  /**
+   * Update runtime processing settings (fps limit, mask margins) without restart.
+   */
+  async setProcessingSettings(settings: WorkerSettings) {
+    if (!this.proxy || !this.isInitialized) {
+      // Worker not ready yet – store for later
+      this.pendingSettings = settings;
+      return;
+    }
+
+    try {
+      await this.proxy.updateSettings(settings);
+    } catch (error) {
+      console.error('[DepthBlendManager] Failed to update settings:', error);
     }
   }
 
