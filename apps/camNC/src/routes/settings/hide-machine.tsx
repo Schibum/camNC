@@ -69,7 +69,7 @@ function HideMachineSettings() {
       <div className="container mx-auto max-w-xl py-6 space-y-6">
         <p className="text-sm text-muted-foreground">
           This experimental feature estimates monocular depth using the Depth&nbsp;Anything V2 model to mask objects above the work surface
-          and "hide" the machine (only tested with the{' '}
+          and &quot;hide&quot; the machine (only tested with the{' '}
           <a href="https://docs.v1e.com/lowrider/" target="_blank" rel="noreferrer" className="underline">
             LowRider V4 beam
           </a>

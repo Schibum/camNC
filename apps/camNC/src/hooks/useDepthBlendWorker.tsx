@@ -29,6 +29,7 @@ export function DepthBlendWorker() {
 }
 
 // Connect React state with DepthBlendManager
+// eslint-disable-next-line react-refresh/only-export-components
 export function useDepthBlendWorker() {
   const depthBlendManager = DepthBlendManager.getInstance();
 

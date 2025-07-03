@@ -130,6 +130,7 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
       minMaskVal: { value: minMaskVal },
       blendFactor: { value: 1.0 },
     }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 

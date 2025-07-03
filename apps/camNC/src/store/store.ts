@@ -127,7 +127,7 @@ export const useStore = create(persist(immer(combine(
       thresholdOffset: 0.2,
     } as DepthSettings,
   },
-  (set, get) => ({
+  (set) => ({
     setToolpathOffset: (offset: Vector3) => set(state => {
       state.toolpathOffset = offset;
     }),
