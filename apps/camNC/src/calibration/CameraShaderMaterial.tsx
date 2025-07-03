@@ -100,9 +100,7 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
       // Normalize to [0,1] using the resolution.
       vec2 undistortedUV = idealUV / resolution;
 
-      // TODO: lookup worldPos in depth map here, if > threshold (masked),
-      //  then sample undistorted cachedTexture instead?
-      // Use the undistortion maps to recover the distorted image coordinate.
+      // Blend with background masks.
       float currMask = texture2D(maskTexture, undistortedUV).r;
       float prevMask = texture2D(prevMaskTexture, undistortedUV).r;
       float blendedMask = mix(prevMask, currMask, blendFactor);
