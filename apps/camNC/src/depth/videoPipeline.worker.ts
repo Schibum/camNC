@@ -266,7 +266,6 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
   }
 
   private async _throttleFrameRate() {
-    console.log('throttling frame rate', this.frameRateLimit);
     while (performance.now() - this.lastFrameTime < 1000 / this.frameRateLimit) {
       await new Promise(r => requestAnimationFrame(r));
     }
@@ -335,7 +334,7 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
     const maskBmp = maskBlitter.blit(mask);
     const bgBmp = this.blitter!.blit(bg);
 
-    log.info('fps', 1000 / (performance.now() - this.lastFrameTime));
+    // log.info('fps', 1000 / (performance.now() - this.lastFrameTime));
     return Comlink.transfer({ mask: maskBmp, bg: bgBmp }, [maskBmp, bgBmp]);
   }
 

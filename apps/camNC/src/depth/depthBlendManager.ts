@@ -26,7 +26,6 @@ export class DepthBlendManager {
   // Texture management
   private maskTex: THREE.CanvasTexture | null = null;
   private bgTex: THREE.CanvasTexture | null = null;
-  private maskCanvas: HTMLCanvasElement | null = null;
   private bgCanvas: HTMLCanvasElement | null = null;
 
   // State
@@ -222,81 +221,53 @@ export class DepthBlendManager {
   private handleFrame(result: { mask: ImageBitmap; bg: ImageBitmap }) {
     if (!this.isRunning) return;
 
-    // Track if new textures were created this frame
-    let texturesChanged = false;
-
-    // Create or update canvases
-    if (!this.maskCanvas || !this.bgCanvas) {
-      this.maskCanvas = document.createElement('canvas');
-      this.maskCanvas.width = result.mask.width;
-      this.maskCanvas.height = result.mask.height;
-
+    // Ensure background canvas/texture exist (created once)
+    if (!this.bgCanvas) {
       this.bgCanvas = document.createElement('canvas');
       this.bgCanvas.width = result.bg.width;
       this.bgCanvas.height = result.bg.height;
 
-      // Create new textures
-      this.createTextures();
-
-      texturesChanged = true;
-    } else {
-      // Resize if needed
-      if (this.maskCanvas.width !== result.mask.width || this.maskCanvas.height !== result.mask.height) {
-        this.maskCanvas.width = result.mask.width;
-        this.maskCanvas.height = result.mask.height;
-        // CanvasTexture automatically picks up size change on next upload
-      }
-      if (this.bgCanvas.width !== result.bg.width || this.bgCanvas.height !== result.bg.height) {
-        this.bgCanvas.width = result.bg.width;
-        this.bgCanvas.height = result.bg.height;
-        // CanvasTexture automatically picks up size change on next upload
-      }
+      this.bgTex = new THREE.CanvasTexture(this.bgCanvas);
+      this.bgTex.flipY = false;
+      this.bgTex.generateMipmaps = false;
+      this.bgTex.minFilter = this.bgTex.magFilter = THREE.LinearFilter;
+      this.bgTex.wrapS = this.bgTex.wrapT = THREE.ClampToEdgeWrapping;
+    } else if (this.bgCanvas.width !== result.bg.width || this.bgCanvas.height !== result.bg.height) {
+      this.bgCanvas.width = result.bg.width;
+      this.bgCanvas.height = result.bg.height;
     }
 
-    // Draw to canvases
-    const maskCtx = this.maskCanvas!.getContext('2d')!;
-    maskCtx.drawImage(result.mask, 0, 0);
+    // Create NEW CanvasTexture for mask every frame (enables shader fade)
+
+    // Create a dedicated canvas that is *not* re-used so the previous
+    // Three.js texture retains the old pixels for cross-fading.
+    const maskCanvas = document.createElement('canvas');
+    maskCanvas.width = result.mask.width;
+    maskCanvas.height = result.mask.height;
+    maskCanvas.getContext('2d')!.drawImage(result.mask, 0, 0);
+
+    const newMaskTex = new THREE.CanvasTexture(maskCanvas);
+    newMaskTex.flipY = false;
+    newMaskTex.minFilter = newMaskTex.magFilter = THREE.LinearFilter;
+    newMaskTex.generateMipmaps = false;
+    newMaskTex.wrapS = newMaskTex.wrapT = THREE.ClampToEdgeWrapping;
+
+    // Keep reference to previous mask texture so shader can still sample it
+    // (will be garbage-collected when no longer referenced on JS side).
+    this.maskTex = newMaskTex;
 
     const bgCtx = this.bgCanvas!.getContext('2d')!;
     bgCtx.drawImage(result.bg, 0, 0);
+    if (this.bgTex) this.bgTex.needsUpdate = true;
 
-    // Update textures
-    if (this.maskTex && this.bgTex) {
-      this.maskTex.needsUpdate = true;
-      this.bgTex.needsUpdate = true;
-    }
-
-    // Close ImageBitmaps
+    // Close ImageBitmaps (mask was drawn into new canvas already)
     result.mask.close();
     result.bg.close();
 
-    // Notify listeners only if we created new textures
-    if (texturesChanged && this.onTextureUpdate && this.maskTex && this.bgTex) {
+    // Notify listeners every frame so React state sees new object
+    if (this.onTextureUpdate && this.maskTex && this.bgTex) {
       this.onTextureUpdate({ mask: this.maskTex, bg: this.bgTex });
     }
-  }
-
-  /**
-   * Create new textures from canvases
-   */
-  private createTextures() {
-    if (!this.maskCanvas || !this.bgCanvas) return;
-
-    // Dispose old textures if they exist
-    if (this.maskTex) this.maskTex.dispose();
-    if (this.bgTex) this.bgTex.dispose();
-
-    this.maskTex = new THREE.CanvasTexture(this.maskCanvas);
-    this.maskTex.flipY = false;
-    this.maskTex.minFilter = this.maskTex.magFilter = THREE.LinearFilter;
-    this.maskTex.generateMipmaps = false;
-    this.maskTex.wrapS = this.maskTex.wrapT = THREE.ClampToEdgeWrapping;
-
-    this.bgTex = new THREE.CanvasTexture(this.bgCanvas);
-    this.bgTex.flipY = false;
-    this.bgTex.generateMipmaps = false;
-    this.bgTex.minFilter = this.bgTex.magFilter = THREE.LinearFilter;
-    this.bgTex.wrapS = this.bgTex.wrapT = THREE.ClampToEdgeWrapping;
   }
 
   /**
@@ -314,7 +285,6 @@ export class DepthBlendManager {
       this.bgTex.dispose();
       this.bgTex = null;
     }
-    this.maskCanvas = null;
     this.bgCanvas = null;
 
     if (this.worker) {

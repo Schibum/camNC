@@ -9,7 +9,8 @@ import {
   useMaskTexture,
   useNewCameraMatrix,
 } from '@/store/store';
-import { useEffect, useMemo } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { calculateUndistortionMapsCached } from './rectifyMap';
 
@@ -28,6 +29,11 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
 
   // Precompute the undistortion maps (as textures).
   const [mapXTexture, mapYTexture] = useUnmapTextures();
+
+  // Keep reference to previous mask for cross-fade
+  const prevMaskRef = useRef<THREE.Texture | null>(null);
+  const transitionStartRef = useRef<number | null>(null);
+  const TRANSITION_MS = 200;
 
   // Vertex shader: compute a world position from the vertex position.
   // We pass that world position (in pixel units) as a varying to the fragment shader.
@@ -52,6 +58,7 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
     uniform sampler2D mapXTexture;
     uniform sampler2D mapYTexture;
     uniform sampler2D maskTexture;
+    uniform sampler2D prevMaskTexture;
     uniform sampler2D bgTexture;
     uniform bool useMask;
     uniform vec2 resolution;
@@ -59,6 +66,7 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
     uniform mat3 R;
     uniform vec3 t;
     uniform float minMaskVal;
+    uniform float blendFactor;
     varying vec2 vUv;
     varying vec3 worldPos;
 
@@ -95,7 +103,10 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
       // TODO: lookup worldPos in depth map here, if > threshold (masked),
       //  then sample undistorted cachedTexture instead?
       // Use the undistortion maps to recover the distorted image coordinate.
-      float maskVal = useMask ? max(texture2D(maskTexture, undistortedUV).r, minMaskVal) : 1.0;
+      float currMask = texture2D(maskTexture, undistortedUV).r;
+      float prevMask = texture2D(prevMaskTexture, undistortedUV).r;
+      float blendedMask = mix(prevMask, currMask, blendFactor);
+      float maskVal = useMask ? max(blendedMask, minMaskVal) : 1.0;
       vec4 videoCol = sampleRemappedTexture(undistortedUV);
       vec4 bgCol = useMask ? texture2D(bgTexture, undistortedUV) : vec4(0.0);
       gl_FragColor = videoCol * maskVal + bgCol * (1.0 - maskVal);
@@ -109,6 +120,7 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
       mapXTexture: { value: mapXTexture },
       mapYTexture: { value: mapYTexture },
       maskTexture: { value: maskTex ?? texture /* dummy */ },
+      prevMaskTexture: { value: maskTex ?? texture /* dummy */ },
       bgTexture: { value: bgTex ?? texture /* dummy */ },
       useMask: { value: depthBlendEnabled && !!maskTex && !!bgTex },
       resolution: { value: new THREE.Vector2(videoDimensions[0], videoDimensions[1]) },
@@ -116,6 +128,7 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
       R: { value: R },
       t: { value: t },
       minMaskVal: { value: minMaskVal },
+      blendFactor: { value: 1.0 },
     }),
     []
   );
@@ -125,7 +138,14 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
     uniforms.videoTexture.value = texture;
     uniforms.mapXTexture.value = mapXTexture;
     uniforms.mapYTexture.value = mapYTexture;
-    uniforms.maskTexture.value = maskTex ?? texture;
+    // If mask texture changed, start transition
+    if (uniforms.maskTexture.value !== maskTex && maskTex) {
+      prevMaskRef.current = uniforms.maskTexture.value as THREE.Texture;
+      uniforms.prevMaskTexture.value = prevMaskRef.current ?? maskTex;
+      uniforms.maskTexture.value = maskTex;
+      uniforms.blendFactor.value = 0.0;
+      transitionStartRef.current = performance.now();
+    }
     uniforms.bgTexture.value = bgTex ?? texture;
     uniforms.useMask.value = depthBlendEnabled && !!maskTex && !!bgTex;
     uniforms.resolution.value.set(videoDimensions[0], videoDimensions[1]);
@@ -134,6 +154,20 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
     uniforms.t.value = t;
     uniforms.minMaskVal.value = minMaskVal;
   }, [texture, mapXTexture, mapYTexture, videoDimensions, K, R, t, uniforms, maskTex, bgTex, depthBlendEnabled, minMaskVal]);
+
+  // Advance blendFactor each frame
+  useFrame(() => {
+    if (transitionStartRef.current !== null) {
+      const elapsed = performance.now() - transitionStartRef.current;
+      const f = Math.min(1, elapsed / TRANSITION_MS);
+      uniforms.blendFactor.value = f;
+      if (f >= 1) {
+        transitionStartRef.current = null;
+        // After transition complete, align prev texture to current to save memory
+        uniforms.prevMaskTexture.value = uniforms.maskTexture.value;
+      }
+    }
+  });
 
   return <shaderMaterial vertexShader={vertexShader} fragmentShader={fragmentShader} uniforms={uniforms} />;
 } /**

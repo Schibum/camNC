@@ -3,7 +3,7 @@ import { immerable } from 'immer';
 import superjson from 'superjson';
 import { Box2, Matrix3, Texture, Vector2, Vector3 } from 'three';
 import { create } from 'zustand';
-import { combine, devtools, persist, PersistStorage } from 'zustand/middleware';
+import { combine, persist, PersistStorage } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import { ParsedToolpath, parseGCode } from '../visualize/gcodeParsing';
 import { parseToolInfo } from '../visualize/guess-tools';
@@ -101,7 +101,7 @@ const storage: PersistStorage<unknown> = {
 const depthBlendManager = DepthBlendManager.getInstance();
 
 // prettier-ignore
-export const useStore = create(devtools(persist(immer(combine(
+export const useStore = create(persist(immer(combine(
   {
     // new, should probably go into a backend instead at some point
     camSource: null as ICamSource | null,
@@ -224,7 +224,7 @@ export const useStore = create(devtools(persist(immer(combine(
     depthBlendEnabled: state.depthBlendEnabled,
     depthSettings: state.depthSettings
   }),
-})));
+}));
 
 export const useCamSource = () => useStore(state => state.camSource);
 export const useVideoUrl = () => useStore(state => state.camSource!.url);

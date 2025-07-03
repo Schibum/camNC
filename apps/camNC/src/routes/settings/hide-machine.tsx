@@ -2,7 +2,7 @@ import { useDepthSettings, useSetDepthSettings } from '@/store/store';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createFileRoute } from '@tanstack/react-router';
 import { Button } from '@wbcnc/ui/components/button';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@wbcnc/ui/components/form';
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@wbcnc/ui/components/form';
 import { NumberInput } from '@wbcnc/ui/components/NumberInput';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wbcnc/ui/components/select';
@@ -99,6 +99,7 @@ function HideMachineSettings() {
                       </SelectContent>
                     </Select>
                   </FormControl>
+                  <FormDescription>Throttle frame rate to reduce (GPU) load</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -122,6 +123,9 @@ function HideMachineSettings() {
                       onValueChange={v => v !== undefined && field.onChange(v)}
                     />
                   </FormControl>
+                  <FormDescription>
+                    Margin to add around mask when computing background to avoid artifacts from shadows etc.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -145,6 +149,7 @@ function HideMachineSettings() {
                       onValueChange={v => v !== undefined && field.onChange(v)}
                     />
                   </FormControl>
+                  <FormDescription>Margin to add around mask when rendering to avoid artifacts from edges of the mask.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -156,7 +161,7 @@ function HideMachineSettings() {
               name="minMaskVal"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Minimum Mask Value</FormLabel>
+                  <FormLabel>Minimum Opacity for Mask</FormLabel>
                   <FormControl>
                     <NumberInput
                       decimalScale={2}
@@ -167,6 +172,7 @@ function HideMachineSettings() {
                       onValueChange={v => v !== undefined && field.onChange(v)}
                     />
                   </FormControl>
+                  <FormDescription>Machine will always be visible with at least this opacity.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -178,7 +184,7 @@ function HideMachineSettings() {
               name="thresholdOffset"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Offset Above Table</FormLabel>
+                  <FormLabel>Relative Offset Above Table to Mask</FormLabel>
                   <FormControl>
                     <NumberInput
                       decimalScale={2}
