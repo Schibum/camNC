@@ -86,7 +86,6 @@ export function useDepthBlendWorker() {
 
   // Push runtime settings to worker whenever they change.
   useEffect(() => {
-    console.log('pushing settings to worker', depthSettings);
     depthBlendManager.setProcessingSettings({
       frameRateLimit: depthSettings.frameRateLimit,
       bgMargin: depthSettings.bgMargin,
