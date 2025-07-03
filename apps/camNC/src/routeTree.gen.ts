@@ -24,8 +24,10 @@ import { Route as SetupMachineBoundsImport } from './routes/setup/machine-bounds
 import { Route as SetupFluidncImport } from './routes/setup/fluidnc'
 import { Route as SetupEditSettingsImport } from './routes/setup/edit-settings'
 import { Route as SetupCameraCalibrationImport } from './routes/setup/camera-calibration'
+import { Route as SettingsHideMachineImport } from './routes/settings/hide-machine'
 import { Route as DebugUnprojectImport } from './routes/debug/unproject'
 import { Route as DebugUndistort2Import } from './routes/debug/undistort2'
+import { Route as DebugRawWebgpuImport } from './routes/debug/raw-webgpu'
 
 // Create/Update Routes
 
@@ -109,6 +111,12 @@ const SetupCameraCalibrationRoute = SetupCameraCalibrationImport.update({
   getParentRoute: () => rootRoute,
 } as any)
 
+const SettingsHideMachineRoute = SettingsHideMachineImport.update({
+  id: '/settings/hide-machine',
+  path: '/settings/hide-machine',
+  getParentRoute: () => rootRoute,
+} as any)
+
 const DebugUnprojectRoute = DebugUnprojectImport.update({
   id: '/debug/unproject',
   path: '/debug/unproject',
@@ -118,6 +126,12 @@ const DebugUnprojectRoute = DebugUnprojectImport.update({
 const DebugUndistort2Route = DebugUndistort2Import.update({
   id: '/debug/undistort2',
   path: '/debug/undistort2',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const DebugRawWebgpuRoute = DebugRawWebgpuImport.update({
+  id: '/debug/raw-webgpu',
+  path: '/debug/raw-webgpu',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -132,6 +146,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexImport
       parentRoute: typeof rootRoute
     }
+    '/debug/raw-webgpu': {
+      id: '/debug/raw-webgpu'
+      path: '/debug/raw-webgpu'
+      fullPath: '/debug/raw-webgpu'
+      preLoaderRoute: typeof DebugRawWebgpuImport
+      parentRoute: typeof rootRoute
+    }
     '/debug/undistort2': {
       id: '/debug/undistort2'
       path: '/debug/undistort2'
@@ -144,6 +165,13 @@ declare module '@tanstack/react-router' {
       path: '/debug/unproject'
       fullPath: '/debug/unproject'
       preLoaderRoute: typeof DebugUnprojectImport
+      parentRoute: typeof rootRoute
+    }
+    '/settings/hide-machine': {
+      id: '/settings/hide-machine'
+      path: '/settings/hide-machine'
+      fullPath: '/settings/hide-machine'
+      preLoaderRoute: typeof SettingsHideMachineImport
       parentRoute: typeof rootRoute
     }
     '/setup/camera-calibration': {
@@ -237,8 +265,10 @@ declare module '@tanstack/react-router' {
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
+  '/settings/hide-machine': typeof SettingsHideMachineRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
   '/setup/fluidnc': typeof SetupFluidncRoute
@@ -255,8 +285,10 @@ export interface FileRoutesByFullPath {
 
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
+  '/settings/hide-machine': typeof SettingsHideMachineRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
   '/setup/fluidnc': typeof SetupFluidncRoute
@@ -274,8 +306,10 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRoute
   '/': typeof IndexRoute
+  '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
+  '/settings/hide-machine': typeof SettingsHideMachineRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
   '/setup/fluidnc': typeof SetupFluidncRoute
@@ -294,8 +328,10 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/debug/raw-webgpu'
     | '/debug/undistort2'
     | '/debug/unproject'
+    | '/settings/hide-machine'
     | '/setup/camera-calibration'
     | '/setup/edit-settings'
     | '/setup/fluidnc'
@@ -311,8 +347,10 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/debug/raw-webgpu'
     | '/debug/undistort2'
     | '/debug/unproject'
+    | '/settings/hide-machine'
     | '/setup/camera-calibration'
     | '/setup/edit-settings'
     | '/setup/fluidnc'
@@ -328,8 +366,10 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/debug/raw-webgpu'
     | '/debug/undistort2'
     | '/debug/unproject'
+    | '/settings/hide-machine'
     | '/setup/camera-calibration'
     | '/setup/edit-settings'
     | '/setup/fluidnc'
@@ -347,8 +387,10 @@ export interface FileRouteTypes {
 
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DebugRawWebgpuRoute: typeof DebugRawWebgpuRoute
   DebugUndistort2Route: typeof DebugUndistort2Route
   DebugUnprojectRoute: typeof DebugUnprojectRoute
+  SettingsHideMachineRoute: typeof SettingsHideMachineRoute
   SetupCameraCalibrationRoute: typeof SetupCameraCalibrationRoute
   SetupEditSettingsRoute: typeof SetupEditSettingsRoute
   SetupFluidncRoute: typeof SetupFluidncRoute
@@ -365,8 +407,10 @@ export interface RootRouteChildren {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DebugRawWebgpuRoute: DebugRawWebgpuRoute,
   DebugUndistort2Route: DebugUndistort2Route,
   DebugUnprojectRoute: DebugUnprojectRoute,
+  SettingsHideMachineRoute: SettingsHideMachineRoute,
   SetupCameraCalibrationRoute: SetupCameraCalibrationRoute,
   SetupEditSettingsRoute: SetupEditSettingsRoute,
   SetupFluidncRoute: SetupFluidncRoute,
@@ -392,8 +436,10 @@ export const routeTree = rootRoute
       "filePath": "__root.tsx",
       "children": [
         "/",
+        "/debug/raw-webgpu",
         "/debug/undistort2",
         "/debug/unproject",
+        "/settings/hide-machine",
         "/setup/camera-calibration",
         "/setup/edit-settings",
         "/setup/fluidnc",
@@ -411,11 +457,17 @@ export const routeTree = rootRoute
     "/": {
       "filePath": "index.tsx"
     },
+    "/debug/raw-webgpu": {
+      "filePath": "debug/raw-webgpu.tsx"
+    },
     "/debug/undistort2": {
       "filePath": "debug/undistort2.tsx"
     },
     "/debug/unproject": {
       "filePath": "debug/unproject.tsx"
+    },
+    "/settings/hide-machine": {
+      "filePath": "settings/hide-machine.tsx"
     },
     "/setup/camera-calibration": {
       "filePath": "setup/camera-calibration.tsx"

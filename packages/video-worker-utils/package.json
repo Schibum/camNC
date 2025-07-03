@@ -8,9 +8,12 @@
   },
   "dependencies": {
     "comlink": "catalog:",
-    "react-device-detect": "catalog:"
+    "react-device-detect": "catalog:",
+    "superjson": "catalog:",
+    "three": "catalog:"
   },
   "devDependencies": {
+    "@types/three": "catalog:",
     "@wbcnc/typescript-config": "workspace:*"
   }
 }

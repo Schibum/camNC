@@ -15,6 +15,7 @@ import { Diameter, FolderOpen, Info, MonitorPause, MonitorPlay, Palette, PencilR
 import { useState } from 'react';
 import { BoundsInfo } from '../BoundsInfo';
 import { ZDepthLegend } from '../ZDepthLegend';
+import { DepthBlendButton } from './DepthBlendButton';
 import { FluidncButton } from './FluidncButton';
 import { TooltipIconButton } from './TooltipIconButton';
 
@@ -216,6 +217,7 @@ export function VisualizeToolbar() {
     <div className="flex gap-0 items-center pl-2">
       <OpenFileButton />
       <PlayPauseButton />
+      <DepthBlendButton />
       <ToolDiameterDialogButton />
       <StockHeightDialogButton />
       <ColorLegendButton />
