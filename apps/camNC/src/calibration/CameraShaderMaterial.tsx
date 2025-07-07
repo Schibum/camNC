@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 import {
   useBgTexture,
   useCalibrationData,
@@ -12,7 +11,6 @@ import {
 import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { calculateUndistortionMapsCached } from './rectifyMap';
 
 export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
   // These are your extrinsics (rotation and translation) from world to camera space.
@@ -27,8 +25,7 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
   const bgTex = useBgTexture();
   const { minMaskVal } = useDepthSettings();
 
-  // Precompute the undistortion maps (as textures).
-  const [mapXTexture, mapYTexture] = useUnmapTextures();
+  const calibration = useCalibrationData();
 
   // Keep reference to previous mask for cross-fade
   const prevMaskRef = useRef<THREE.Texture | null>(null);
@@ -52,17 +49,19 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
 
   // Fragment shader: use the worldPos from the vertex shader,
   // then compute the corresponding pixel in the camera image via intrinsics/extrinsics,
-  // and finally use the undistortion maps to sample the video texture.
+  // and finally sample the video texture using an inline undistortion function.
   const fragmentShader = /* glsl */ `
     uniform sampler2D videoTexture;
-    uniform sampler2D mapXTexture;
-    uniform sampler2D mapYTexture;
     uniform sampler2D maskTexture;
     uniform sampler2D prevMaskTexture;
     uniform sampler2D bgTexture;
     uniform bool useMask;
     uniform vec2 resolution;
     uniform mat3 K;
+    uniform mat3 cameraMatrix;
+    uniform mat3 newCameraMatrix;
+    uniform vec4 distCoeffs;
+    uniform float k3;
     uniform mat3 R;
     uniform vec3 t;
     uniform float minMaskVal;
@@ -70,21 +69,42 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
     varying vec2 vUv;
     varying vec3 worldPos;
 
-    // Use the undistortion maps to recover the distorted image coordinate, elliminating lens distortion.
+    vec2 undistort_uv(float u, float v) {
+      float fx_new = newCameraMatrix[0][0];
+      float fy_new = newCameraMatrix[1][1];
+      float cx_new = newCameraMatrix[2][0];
+      float cy_new = newCameraMatrix[2][1];
+      float nx = (u - cx_new) / fx_new;
+      float ny = (v - cy_new) / fy_new;
+      vec3 vec = vec3(nx, ny, 1.0);
+      float x = vec.x / vec.z;
+      float y = vec.y / vec.z;
+      float r2 = x * x + y * y;
+      float radial = 1.0 + distCoeffs.x * r2 + distCoeffs.y * r2 * r2 + k3 * r2 * r2 * r2;
+      float deltaX = 2.0 * distCoeffs.z * x * y + distCoeffs.w * (r2 + 2.0 * x * x);
+      float deltaY = distCoeffs.z * (r2 + 2.0 * y * y) + 2.0 * distCoeffs.w * x * y;
+      float xd = x * radial + deltaX;
+      float yd = y * radial + deltaY;
+      float fx = cameraMatrix[0][0];
+      float fy = cameraMatrix[1][1];
+      float cx = cameraMatrix[2][0];
+      float cy = cameraMatrix[2][1];
+      float srcX = fx * xd + cx;
+      float srcY = fy * yd + cy;
+      return vec2(srcX, srcY);
+    }
+
     vec2 remapTextureUv(vec2 uv) {
-      float mapX = texture2D(mapXTexture, uv).r;
-      float mapY = texture2D(mapYTexture, uv).r;
-      return vec2(mapX, mapY) / resolution;
+      vec2 srcPos = undistort_uv(uv.x * resolution.x, uv.y * resolution.y);
+      return srcPos / resolution;
     }
 
     vec4 sampleRemappedTexture(vec2 uv) {
       vec2 remappedUV = remapTextureUv(uv);
       vec4 color = vec4(0.0);
-      // Only sample if the remapped UVs are within bounds.
       if(remappedUV.x >= 0.0 && remappedUV.x <= 1.0 &&
          remappedUV.y >= 0.0 && remappedUV.y <= 1.0) {
-        // Flip Y (assuming default case texture.flipY = true)
-        color = texture2D(videoTexture, vec2( remappedUV.x, 1.0 - remappedUV.y));
+        color = texture2D(videoTexture, vec2(remappedUV.x, 1.0 - remappedUV.y));
       }
       return color;
     }
@@ -112,17 +132,32 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
     }
   `;
 
+  const distCoeffsVec4 = useMemo(
+    () =>
+      new THREE.Vector4(
+        calibration.distortion_coefficients[0] ?? 0,
+        calibration.distortion_coefficients[1] ?? 0,
+        calibration.distortion_coefficients[2] ?? 0,
+        calibration.distortion_coefficients[3] ?? 0
+      ),
+    [calibration]
+  );
+
+  const k3 = calibration.distortion_coefficients[4] ?? 0;
+
   const uniforms = useMemo(
     () => ({
       videoTexture: { value: texture },
-      mapXTexture: { value: mapXTexture },
-      mapYTexture: { value: mapYTexture },
       maskTexture: { value: maskTex ?? texture /* dummy */ },
       prevMaskTexture: { value: maskTex ?? texture /* dummy */ },
       bgTexture: { value: bgTex ?? texture /* dummy */ },
       useMask: { value: depthBlendEnabled && !!maskTex && !!bgTex },
       resolution: { value: new THREE.Vector2(videoDimensions[0], videoDimensions[1]) },
       K: { value: K },
+      cameraMatrix: { value: calibration.calibration_matrix },
+      newCameraMatrix: { value: calibration.new_camera_matrix },
+      distCoeffs: { value: distCoeffsVec4 },
+      k3: { value: k3 },
       R: { value: R },
       t: { value: t },
       minMaskVal: { value: minMaskVal },
@@ -135,8 +170,6 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
   // Update uniform values when dependencies change.
   useEffect(() => {
     uniforms.videoTexture.value = texture;
-    uniforms.mapXTexture.value = mapXTexture;
-    uniforms.mapYTexture.value = mapYTexture;
     // If mask texture changed, start transition
     if (uniforms.maskTexture.value !== maskTex && maskTex) {
       prevMaskRef.current = uniforms.maskTexture.value as THREE.Texture;
@@ -149,10 +182,14 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
     uniforms.useMask.value = depthBlendEnabled && !!maskTex && !!bgTex;
     uniforms.resolution.value.set(videoDimensions[0], videoDimensions[1]);
     uniforms.K.value = K;
+    uniforms.cameraMatrix.value = calibration.calibration_matrix;
+    uniforms.newCameraMatrix.value = calibration.new_camera_matrix;
+    uniforms.distCoeffs.value.copy(distCoeffsVec4);
+    uniforms.k3.value = k3;
     uniforms.R.value = R;
     uniforms.t.value = t;
     uniforms.minMaskVal.value = minMaskVal;
-  }, [texture, mapXTexture, mapYTexture, videoDimensions, K, R, t, uniforms, maskTex, bgTex, depthBlendEnabled, minMaskVal]);
+  }, [texture, videoDimensions, K, R, t, uniforms, maskTex, bgTex, depthBlendEnabled, minMaskVal, calibration, distCoeffsVec4, k3]);
 
   // Advance blendFactor each frame
   useFrame(() => {
@@ -169,23 +206,4 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
   });
 
   return <shaderMaterial vertexShader={vertexShader} fragmentShader={fragmentShader} uniforms={uniforms} />;
-} /**
- * Precompute the undistortion maps (as textures).
- * @returns [mapXTexture, mapYTexture]
- */
-
-export function useUnmapTextures(): [THREE.DataTexture, THREE.DataTexture] {
-  const calibrationData = useCalibrationData();
-  const videoDimensions = useCamResolution();
-  return useMemo(() => {
-    const [width, height] = videoDimensions;
-    const [mapX, mapY] = calculateUndistortionMapsCached(calibrationData, width, height);
-    const texX = new THREE.DataTexture(mapX, width, height, THREE.RedFormat, THREE.FloatType);
-    const texY = new THREE.DataTexture(mapY, width, height, THREE.RedFormat, THREE.FloatType);
-    // texX.image.data = mapX;
-    // texY.image.data = mapY;
-    texX.needsUpdate = true;
-    texY.needsUpdate = true;
-    return [texX, texY];
-  }, [videoDimensions, calibrationData]);
 }
