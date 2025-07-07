@@ -9,9 +9,9 @@ export function DepthBlendButton() {
 
   const toggleBlend = () => setEnabled(!enabled);
 
+  if (!isDepthBlendSupported()) return null;
   return (
     <TooltipIconButton
-      disabled={!isDepthBlendSupported()}
       label={enabled ? 'Disable Hide-Machine' : 'Enable Hide-Machine'}
       icon={<Layers className={enabled ? 'text-primary' : ''} />}
       shortcut="m"
