@@ -296,3 +296,7 @@ export class DepthBlendManager {
     DepthBlendManager.instance = null;
   }
 }
+
+export function isDepthBlendSupported() {
+  return 'gpu' in navigator && navigator.gpu !== null;
+}

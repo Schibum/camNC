@@ -1,3 +1,4 @@
+import { isDepthBlendSupported } from '@/depth/depthBlendManager';
 import { useDepthBlendEnabled, useSetDepthBlendEnabled } from '@/store/store';
 import { Layers } from 'lucide-react';
 import { TooltipIconButton } from './TooltipIconButton';
@@ -10,6 +11,7 @@ export function DepthBlendButton() {
 
   return (
     <TooltipIconButton
+      disabled={!isDepthBlendSupported()}
       label={enabled ? 'Disable Hide-Machine' : 'Enable Hide-Machine'}
       icon={<Layers className={enabled ? 'text-primary' : ''} />}
       shortcut="m"
