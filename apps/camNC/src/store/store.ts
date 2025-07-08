@@ -227,7 +227,8 @@ export const useStore = create(persist(immer(combine(
     camSource: state.camSource,
     fluidncToken: state.fluidncToken,
     depthBlendEnabled: state.depthBlendEnabled,
-    depthSettings: state.depthSettings
+    depthSettings: state.depthSettings,
+    toolpathOpacity: state.toolpathOpacity,
   }),
 }));
 

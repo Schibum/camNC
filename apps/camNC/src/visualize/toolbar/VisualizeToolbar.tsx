@@ -1,10 +1,10 @@
 import {
   useHasToolpath,
   useSetShowStillFrame,
+  useSetToolpathOpacity,
   useShowStillFrame,
   useStore,
   useToolpathOpacity,
-  useSetToolpathOpacity,
 } from '@/store/store';
 import { Button } from '@wbcnc/ui/components/button';
 import {
@@ -16,10 +16,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@wbcnc/ui/components/dialog';
-import { NumberInputWithLabel } from '@wbcnc/ui/components/NumberInputWithLabel';
-import { Slider } from '@wbcnc/ui/components/slider';
 import { Label } from '@wbcnc/ui/components/label';
+import { NumberInputWithLabel } from '@wbcnc/ui/components/NumberInputWithLabel';
 import { Popover, PopoverContent, PopoverTrigger } from '@wbcnc/ui/components/popover';
+import { Slider } from '@wbcnc/ui/components/slider';
 import { Diameter, FolderOpen, Info, MonitorPause, MonitorPlay, Palette, PencilRuler } from 'lucide-react';
 import { useState } from 'react';
 import { BoundsInfo } from '../BoundsInfo';
@@ -203,7 +203,7 @@ function ColorLegendButton() {
           <ZDepthLegend />
           <div className="grid w-full items-center gap-1.5">
             <Label htmlFor="opacity-slider">Opacity</Label>
-            <Slider id="opacity-slider" min={0} max={1} step={0.01} value={[opacity]} onValueChange={v => setOpacity(v[0])} />
+            <Slider id="opacity-slider" min={0.1} max={1} step={0.01} value={[opacity]} onValueChange={v => setOpacity(v[0])} />
           </div>
         </div>
       </PopoverContent>
