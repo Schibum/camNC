@@ -1,3 +1,4 @@
+import { isDepthBlendSupported } from '@/depth/depthBlendManager';
 import { useDepthBlendEnabled, useSetDepthBlendEnabled } from '@/store/store';
 import { Layers } from 'lucide-react';
 import { TooltipIconButton } from './TooltipIconButton';
@@ -8,6 +9,7 @@ export function DepthBlendButton() {
 
   const toggleBlend = () => setEnabled(!enabled);
 
+  if (!isDepthBlendSupported()) return null;
   return (
     <TooltipIconButton
       label={enabled ? 'Disable Hide-Machine' : 'Enable Hide-Machine'}

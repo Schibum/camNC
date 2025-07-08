@@ -1,6 +1,8 @@
+import { isDepthBlendSupported } from '@/depth/depthBlendManager';
 import { useDepthSettings, useSetDepthSettings } from '@/store/store';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createFileRoute } from '@tanstack/react-router';
+import { Alert, AlertDescription, AlertTitle } from '@wbcnc/ui/components/alert';
 import { Button } from '@wbcnc/ui/components/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@wbcnc/ui/components/form';
 import { NumberInput } from '@wbcnc/ui/components/NumberInput';
@@ -67,6 +69,12 @@ function HideMachineSettings() {
     <div className="w-full h-full">
       <PageHeader title="Hide-Machine Settings" />
       <div className="container mx-auto max-w-xl py-6 space-y-6">
+        {!isDepthBlendSupported() && (
+          <Alert variant="destructive">
+            <AlertTitle>WebGPU not supported</AlertTitle>
+            <AlertDescription>This feature requires WebGPU, which is not supported by your browser yet.</AlertDescription>
+          </Alert>
+        )}
         <p className="text-sm text-muted-foreground">
           This experimental feature estimates monocular depth using the Depth&nbsp;Anything V2 model to mask objects above the work surface
           and &quot;hide&quot; the machine (only tested with the{' '}
