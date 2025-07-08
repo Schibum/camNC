@@ -8,6 +8,7 @@ import { Line2, LineGeometry, LineMaterial } from 'three/addons';
 import { useStore, useToolDiameter, useToolpathOpacity } from '../store/store';
 import { LineAxesHelper } from './LineAxesHelper';
 import { ToolpathCanvasPlane } from './ToolpathCanvasPlane';
+import { getZHeightColors } from './toolpathColors';
 
 /*
 function getTimeColors(toolpath: ParsedToolpath) {
@@ -76,12 +77,14 @@ function ToolpathBackgroundPlane() {
   const toolpath = useStore(s => s.toolpath);
   const { opacity } = useSpring({ opacity: isToolpathHovered ? 0.05 : 0.02 });
   const bounds = toolpath?.getBounds();
+  const toolDiameter = useToolDiameter();
   const boundingSize = useMemo(() => {
     if (!bounds) return null;
     const size = new Vector3();
     bounds.getSize(size);
+    size.add(new Vector3(toolDiameter, toolDiameter, 0));
     return size;
-  }, [bounds]);
+  }, [bounds, toolDiameter]);
 
   if (!boundingSize || !bounds) return null;
 
@@ -89,7 +92,11 @@ function ToolpathBackgroundPlane() {
     <group>
       <AnimatedPlane
         args={[boundingSize.x, boundingSize.y]}
-        position={[boundingSize.x / 2 + bounds.min.x, boundingSize.y / 2 + bounds.min.y, bounds.min.z]}
+        position={[
+          boundingSize.x / 2 + bounds.min.x - toolDiameter / 2,
+          boundingSize.y / 2 + bounds.min.y - toolDiameter / 2,
+          bounds.min.z,
+        ]}
         material-color="white"
         material-transparent={true}
         material-opacity={opacity}>
