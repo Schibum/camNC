@@ -2,37 +2,13 @@ import { Draggable } from '@/scene/Draggable';
 import { animated, useSpring } from '@react-spring/three';
 import { Edges, Line, Plane } from '@react-three/drei';
 import { ThreeEvent, useThree } from '@react-three/fiber';
-import colormap from 'colormap';
-import React, { useMemo } from 'react';
-import { Color, SRGBColorSpace, Vector2, Vector3 } from 'three';
+import React, { useEffect, useMemo } from 'react';
+import { Vector2, Vector3 } from 'three';
 import { Line2, LineGeometry, LineMaterial } from 'three/addons';
-import { useStore, useToolDiameter } from '../store/store';
-import { ParsedToolpath } from './gcodeParsing';
+import { useStore, useToolDiameter, useToolpathOpacity } from '../store/store';
 import { LineAxesHelper } from './LineAxesHelper';
-
-const plasmamap = colormap({
-  colormap: 'plasma',
-  nshades: 100,
-  format: 'rgba',
-  alpha: 1,
-}).map(c => new Color().setRGB(c[0] / 255, c[1] / 255, c[2] / 255, SRGBColorSpace));
-
-function getPlasmaColor(float: number) {
-  return plasmamap[Math.floor(float * (plasmamap.length - 1))];
-}
-
-function getZHeightColors(toolpath: ParsedToolpath) {
-  const boundingBox = toolpath.getBounds();
-  const colors = new Array(toolpath.pathPoints.length * 3);
-  for (let i = 0; i < toolpath.pathPoints.length; i++) {
-    const color = getPlasmaColor((toolpath.pathPoints[i].z - boundingBox.min.z) / (boundingBox.max.z - boundingBox.min.z));
-
-    colors[i * 3] = color.r;
-    colors[i * 3 + 1] = color.g;
-    colors[i * 3 + 2] = color.b;
-  }
-  return colors;
-}
+import { ToolpathCanvasPlane } from './ToolpathCanvasPlane';
+import { getZHeightColors } from './toolpathColors';
 
 /*
 function getTimeColors(toolpath: ParsedToolpath) {
@@ -47,9 +23,11 @@ function getTimeColors(toolpath: ParsedToolpath) {
 }
 */
 
+// Using ToolpathCanvasPlane instead for now.
 export const Toolpaths: React.FC = () => {
   const toolpath = useStore(s => s.toolpath);
   const toolDiameter = useToolDiameter();
+  const toolpathOpacity = useToolpathOpacity();
   const viewport = useThree(s => s.viewport);
 
   const line2 = useMemo(() => {
@@ -61,7 +39,6 @@ export const Toolpaths: React.FC = () => {
       vertexColors: true,
       alphaToCoverage: false,
       transparent: true,
-      opacity: 0.5,
     });
     mat.linewidth = toolDiameter;
     mat.worldUnits = true;
@@ -75,6 +52,15 @@ export const Toolpaths: React.FC = () => {
 
     return line;
   }, [toolpath, toolDiameter, viewport.width, viewport.height]);
+
+  useEffect(() => {
+    if (line2) {
+      const mat = line2.material as LineMaterial;
+      mat.transparent = toolpathOpacity < 1;
+      mat.opacity = toolpathOpacity;
+      mat.needsUpdate = true;
+    }
+  }, [line2, toolpathOpacity]);
   if (!line2) return null;
 
   return (
@@ -91,12 +77,14 @@ function ToolpathBackgroundPlane() {
   const toolpath = useStore(s => s.toolpath);
   const { opacity } = useSpring({ opacity: isToolpathHovered ? 0.05 : 0.02 });
   const bounds = toolpath?.getBounds();
+  const toolDiameter = useToolDiameter();
   const boundingSize = useMemo(() => {
     if (!bounds) return null;
     const size = new Vector3();
     bounds.getSize(size);
+    size.add(new Vector3(toolDiameter, toolDiameter, 0));
     return size;
-  }, [bounds]);
+  }, [bounds, toolDiameter]);
 
   if (!boundingSize || !bounds) return null;
 
@@ -104,7 +92,11 @@ function ToolpathBackgroundPlane() {
     <group>
       <AnimatedPlane
         args={[boundingSize.x, boundingSize.y]}
-        position={[boundingSize.x / 2 + bounds.min.x, boundingSize.y / 2 + bounds.min.y, bounds.min.z]}
+        position={[
+          boundingSize.x / 2 + bounds.min.x - toolDiameter / 2,
+          boundingSize.y / 2 + bounds.min.y - toolDiameter / 2,
+          bounds.min.z,
+        ]}
         material-color="white"
         material-transparent={true}
         material-opacity={opacity}>
@@ -170,7 +162,8 @@ export const GCodeVisualizer: React.FC = () => {
           onClick={e => (e.stopPropagation, setIsToolpathSelected(true))}
           onPointerEnter={() => setIsToolpathHovered(true)}
           onPointerLeave={() => setIsToolpathHovered(false)}>
-          <Toolpaths />
+          <ToolpathCanvasPlane />
+          {/* <Toolpaths /> */}
           <ToolpathBackgroundPlane />
           <LineAxesHelper size={50} position-z={150} visible={isToolpathHovered} />
         </group>
