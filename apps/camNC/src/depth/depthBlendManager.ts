@@ -1,6 +1,5 @@
 import { RemapStepParams } from '@/depth/remapPipeline';
-import type { WorkerSettings } from '@/depth/videoPipeline.worker';
-import { Config, VideoPipelineWorkerAPI } from '@/depth/videoPipeline.worker';
+import type { Config, VideoPipelineWorkerAPI, WorkerSettings } from '@/depth/videoPipeline.worker';
 import { createVideoStreamProcessor, registerThreeJsTransferHandlers } from '@wbcnc/video-worker-utils';
 import * as Comlink from 'comlink';
 import * as THREE from 'three';
@@ -50,8 +49,7 @@ export class DepthBlendManager {
 
   private async initWorker() {
     try {
-      const workerUrl = new URL('./videoPipeline.worker.ts', import.meta.url);
-      this.worker = new Worker(workerUrl, { type: 'module' });
+      this.worker = new Worker(new URL('./videoPipeline.worker.ts', import.meta.url), { type: 'module' });
       this.proxy = Comlink.wrap<VideoPipelineWorkerAPI>(this.worker);
     } catch (error) {
       console.error('[DepthBlendManager] Failed to initialize worker:', error);
@@ -295,4 +293,8 @@ export class DepthBlendManager {
     this.proxy = null;
     DepthBlendManager.instance = null;
   }
+}
+
+export function isDepthBlendSupported() {
+  return 'gpu' in navigator && navigator.gpu !== null;
 }
