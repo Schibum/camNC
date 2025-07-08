@@ -1,6 +1,5 @@
-import { Draggable } from '@/scene/Draggable';
 import { animated, useSpring } from '@react-spring/three';
-import { Edges, Line, Plane } from '@react-three/drei';
+import { Edges, Line, Plane, TransformControls } from '@react-three/drei';
 import { ThreeEvent, useThree } from '@react-three/fiber';
 import colormap from 'colormap';
 import React, { useMemo } from 'react';
@@ -163,7 +162,8 @@ export const GCodeVisualizer: React.FC = () => {
     <>
       <LineAxesHelper size={100} position-z={1000} />
       <UseableMachineSpaceOutline />
-      <Draggable onDragEnd={onDragEnd}>
+      {/* <Draggable onDragEnd={onDragEnd}> */}
+      <TransformControls mode="translate" showZ={false}>
         <group
           position-z={200}
           onPointerMissed={e => e.type === 'click' && setIsToolpathSelected(false)}
@@ -174,7 +174,8 @@ export const GCodeVisualizer: React.FC = () => {
           <ToolpathBackgroundPlane />
           <LineAxesHelper size={50} position-z={150} visible={isToolpathHovered} />
         </group>
-      </Draggable>
+      </TransformControls>
+      {/* </Draggable> */}
     </>
   );
 };

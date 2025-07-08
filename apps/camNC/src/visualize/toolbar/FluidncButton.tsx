@@ -10,7 +10,8 @@ import {
   DropdownMenuTrigger,
 } from '@wbcnc/ui/components/dropdown-menu';
 import { toast } from '@wbcnc/ui/components/sonner';
-import { CircleArrowRight, CircleOff, ClipboardCopy, Joystick, Puzzle } from 'lucide-react';
+import { CircleArrowRight, CircleOff, ClipboardCopy, Download, Joystick, Puzzle } from 'lucide-react';
+import { Vector3 } from 'three';
 import { TooltipIconButton } from './TooltipIconButton';
 import { UploadMenuItem } from './UploadMenuItem';
 
@@ -36,6 +37,22 @@ function copyZeroGcodePosition() {
   });
 }
 
+function syncToolpathZeroWithMachine() {
+  const cncApi = getCncApi();
+  const status = cncApi.status.value;
+  const wco = status?.wco;
+  if (!wco) {
+    toast.error('Unable to read machine zero (WCO)');
+    return;
+  }
+
+  useStore.getState().setToolpathOffset(new Vector3(wco.x, wco.y, wco.z));
+
+  toast.success('Toolpath zero synced from machine', {
+    description: `${wco.x.toFixed(2)}, ${wco.y.toFixed(2)}`,
+  });
+}
+
 export function FluidncButton() {
   'use no memo';
   const client = getFluidNcClient();
@@ -53,6 +70,10 @@ export function FluidncButton() {
         <DropdownMenuLabel>
           FluidNC <span className="text-xs text-muted-foreground">{status}</span>
         </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem disabled={!isFluidAvailable} onClick={syncToolpathZeroWithMachine}>
+          <Download /> Read machine zero → move toolpath
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled={!hasToolpath} onClick={copyZeroGcodePosition}>
           <ClipboardCopy /> Copy zero gcode position
