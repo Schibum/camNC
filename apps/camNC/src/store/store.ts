@@ -111,6 +111,7 @@ export const useStore = create(persist(immer(combine(
     isToolpathSelected: false,
     isToolpathHovered: false,
     toolpathOffset: new Vector3(0, 0, 0),
+    toolpathOpacity: 1,
     stockHeight: 0,
     showStillFrame: false,
     fluidncToken: crypto.randomUUID() as string,
@@ -179,6 +180,10 @@ export const useStore = create(persist(immer(combine(
     setStockHeight: (height: number) => set(state => {
       state.stockHeight = height;
     }),
+    setToolpathOpacity: (opacity: number) =>
+      set(state => {
+        state.toolpathOpacity = opacity;
+      }),
     // Update Toolpath from GCode
     updateToolpath: (gcode: string) => set(state => {
       console.log('updateToolpath');
@@ -236,6 +241,8 @@ export const useCamResolution = () => useStore(state => state.camSource!.maxReso
 // Access tool diameter from store
 export const useToolDiameter = () => useStore(state => state.toolDiameter);
 export const useSetToolDiameter = () => useStore(state => state.setToolDiameter);
+export const useToolpathOpacity = () => useStore(state => state.toolpathOpacity);
+export const useSetToolpathOpacity = () => useStore(state => state.setToolpathOpacity);
 
 // Returns the usable size of the machine boundary in mm [xrange, yrange].
 // Computed as xmax - xmin, ymax - ymin.

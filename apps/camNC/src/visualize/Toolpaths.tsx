@@ -3,10 +3,10 @@ import { animated, useSpring } from '@react-spring/three';
 import { Edges, Line, Plane } from '@react-three/drei';
 import { ThreeEvent, useThree } from '@react-three/fiber';
 import colormap from 'colormap';
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Color, SRGBColorSpace, Vector2, Vector3 } from 'three';
 import { Line2, LineGeometry, LineMaterial } from 'three/addons';
-import { useStore, useToolDiameter } from '../store/store';
+import { useStore, useToolDiameter, useToolpathOpacity } from '../store/store';
 import { ParsedToolpath } from './gcodeParsing';
 import { LineAxesHelper } from './LineAxesHelper';
 
@@ -50,6 +50,7 @@ function getTimeColors(toolpath: ParsedToolpath) {
 export const Toolpaths: React.FC = () => {
   const toolpath = useStore(s => s.toolpath);
   const toolDiameter = useToolDiameter();
+  const toolpathOpacity = useToolpathOpacity();
   const viewport = useThree(s => s.viewport);
 
   const line2 = useMemo(() => {
@@ -61,6 +62,7 @@ export const Toolpaths: React.FC = () => {
       vertexColors: true,
       alphaToCoverage: false,
     });
+    mat.transparent = true;
     mat.linewidth = toolDiameter;
     mat.worldUnits = true;
     mat.resolution = new Vector2(viewport.width, viewport.height);
@@ -73,6 +75,15 @@ export const Toolpaths: React.FC = () => {
 
     return line;
   }, [toolpath, toolDiameter, viewport.width, viewport.height]);
+
+  useEffect(() => {
+    if (line2) {
+      const mat = line2.material as LineMaterial;
+      mat.transparent = toolpathOpacity < 1;
+      mat.opacity = toolpathOpacity;
+      mat.needsUpdate = true;
+    }
+  }, [line2, toolpathOpacity]);
   if (!line2) return null;
 
   return (

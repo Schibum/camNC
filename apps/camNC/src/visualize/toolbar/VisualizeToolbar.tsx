@@ -1,4 +1,11 @@
-import { useHasToolpath, useSetShowStillFrame, useShowStillFrame, useStore } from '@/store/store';
+import {
+  useHasToolpath,
+  useSetShowStillFrame,
+  useShowStillFrame,
+  useStore,
+  useToolpathOpacity,
+  useSetToolpathOpacity,
+} from '@/store/store';
 import { Button } from '@wbcnc/ui/components/button';
 import {
   Dialog,
@@ -10,6 +17,8 @@ import {
   DialogTrigger,
 } from '@wbcnc/ui/components/dialog';
 import { NumberInputWithLabel } from '@wbcnc/ui/components/NumberInputWithLabel';
+import { Slider } from '@wbcnc/ui/components/slider';
+import { Label } from '@wbcnc/ui/components/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@wbcnc/ui/components/popover';
 import { Diameter, FolderOpen, Info, MonitorPause, MonitorPlay, Palette, PencilRuler } from 'lucide-react';
 import { useState } from 'react';
@@ -179,6 +188,8 @@ function StockHeightButton({ onClick }: { onClick: () => void }) {
 function ColorLegendButton() {
   const [open, setOpen] = useState(false);
   const hasToolpath = useHasToolpath();
+  const opacity = useToolpathOpacity();
+  const setOpacity = useSetToolpathOpacity();
   if (!hasToolpath) return null;
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -188,7 +199,13 @@ function ColorLegendButton() {
         </div>
       </PopoverTrigger>
       <PopoverContent>
-        <ZDepthLegend />
+        <div className="flex flex-col gap-4">
+          <ZDepthLegend />
+          <div className="grid w-full items-center gap-1.5">
+            <Label htmlFor="opacity-slider">Opacity</Label>
+            <Slider id="opacity-slider" min={0} max={1} step={0.01} value={[opacity]} onValueChange={v => setOpacity(v[0])} />
+          </div>
+        </div>
       </PopoverContent>
     </Popover>
   );
