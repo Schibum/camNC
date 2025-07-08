@@ -60,6 +60,8 @@ export const Toolpaths: React.FC = () => {
       color: 0xffffff,
       vertexColors: true,
       alphaToCoverage: false,
+      transparent: true,
+      opacity: 0.5,
     });
     mat.linewidth = toolDiameter;
     mat.worldUnits = true;

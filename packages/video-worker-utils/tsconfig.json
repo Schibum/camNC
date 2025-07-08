@@ -24,10 +24,6 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
-    "../../apps/camNC/src/depth/videoPipeline.worker.ts",
-    "../../apps/camNC/src/depth/textureConverters.ts",
-    "../../apps/camNC/src/depth/remapPipeline.ts",
-    "../../apps/camNC/src/depth/depthPipeline.ts"
   ],
   "exclude": [
     "node_modules"

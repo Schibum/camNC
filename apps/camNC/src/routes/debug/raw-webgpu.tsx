@@ -1,5 +1,5 @@
 import { RemapStepParams } from '@/depth/remapPipeline';
-import { Config, VideoPipelineWorkerAPI } from '@/depth/videoPipeline.worker';
+import type { Config, VideoPipelineWorkerAPI } from '@/depth/videoPipeline.worker';
 import { useAutoScanMarkers } from '@/hooks/useAutoScanMarkers';
 import { useCalibrationData, useCameraExtrinsics, useCamResolution, useStore, useVideoUrl } from '@/store/store';
 import { createFileRoute } from '@tanstack/react-router';
@@ -37,8 +37,7 @@ function RawWebGPURoute() {
     const ctx = canvasRef.current.getContext('bitmaprenderer');
     if (!ctx) return;
 
-    const workerUrl = new URL('../../depth/videoPipeline.worker.ts', import.meta.url);
-    const worker = new Worker(workerUrl, { type: 'module' });
+    const worker = new Worker(new URL('../../depth/videoPipeline.worker.ts', import.meta.url), { type: 'module' });
     const proxy = Comlink.wrap<VideoPipelineWorkerAPI>(worker);
 
     let stream: ReadableStream<VideoFrame> | MediaStreamTrack;
