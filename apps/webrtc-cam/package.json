@@ -38,7 +38,7 @@
     "eslint-plugin-react-refresh": "catalog:",
     "globals": "catalog:",
     "tailwindcss": "catalog:",
-    "typescript": "~5.8.3",
+    "typescript": "catalog:",
     "typescript-eslint": "catalog:",
     "vite": "catalog:",
     "@webgpu/types": "catalog:"

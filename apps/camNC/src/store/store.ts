@@ -1,5 +1,6 @@
 import { DepthBlendManager } from '@/depth/depthBlendManager';
 import { immerable } from 'immer';
+import { throttle } from 'radashi';
 import superjson from 'superjson';
 import { Box2, Matrix3, Texture, Vector2, Vector3 } from 'three';
 import { create } from 'zustand';
@@ -87,9 +88,10 @@ const storage: PersistStorage<unknown> = {
     if (!str) return null;
     return superjson.parse(str);
   },
-  setItem: (name, value) => {
+  // See https://github.com/pmndrs/zustand/discussions/2125
+  setItem: throttle({ interval: 500, trailing: true }, (name, value) => {
     localStorage.setItem(name, superjson.stringify(value));
-  },
+  }),
   removeItem: name => localStorage.removeItem(name),
 };
 
@@ -110,6 +112,7 @@ export const useStore = create(persist(immer(combine(
     toolpath: null as ParsedToolpath | null,
     isToolpathSelected: false,
     isToolpathHovered: false,
+    isToolpathDragging: false,
     toolpathOffset: new Vector3(0, 0, 0),
     toolpathOpacity: 1,
     stockHeight: 0,
@@ -173,6 +176,9 @@ export const useStore = create(persist(immer(combine(
     }),
     setIsToolpathHovered: (isHovered: boolean) => set(state => {
       state.isToolpathHovered = isHovered;
+    }),
+    setIsToolpathDragging: (isDragging: boolean) => set(state => {
+      state.isToolpathDragging = isDragging;
     }),
     setToolDiameter: (diameter: number) => set(state => {
       state.toolDiameter = diameter;
@@ -244,6 +250,9 @@ export const useToolDiameter = () => useStore(state => state.toolDiameter);
 export const useSetToolDiameter = () => useStore(state => state.setToolDiameter);
 export const useToolpathOpacity = () => useStore(state => state.toolpathOpacity);
 export const useSetToolpathOpacity = () => useStore(state => state.setToolpathOpacity);
+export const useIsToolpathDragging = () => useStore(state => state.isToolpathDragging);
+export const useSetIsToolpathDragging = () => useStore(state => state.setIsToolpathDragging);
+export const useIsToolpathHovered = () => useStore(state => state.isToolpathHovered || state.isToolpathDragging);
 
 // Returns the usable size of the machine boundary in mm [xrange, yrange].
 // Computed as xmax - xmin, ymax - ymin.

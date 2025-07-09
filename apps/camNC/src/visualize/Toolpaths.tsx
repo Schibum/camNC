@@ -1,10 +1,10 @@
 import { animated, useSpring } from '@react-spring/three';
-import { Edges, Line, Plane, TransformControls } from '@react-three/drei';
-import { ThreeEvent, useThree } from '@react-three/fiber';
-import React, { useEffect, useMemo } from 'react';
-import { Vector2, Vector3 } from 'three';
+import { Edges, Line, Plane, Text, TransformControls } from '@react-three/drei';
+import { useThree } from '@react-three/fiber';
+import React, { Suspense, useCallback, useEffect, useMemo } from 'react';
+import { Object3D, Vector2, Vector3 } from 'three';
 import { Line2, LineGeometry, LineMaterial } from 'three/addons';
-import { useStore, useToolDiameter, useToolpathOpacity } from '../store/store';
+import { useIsToolpathHovered, useSetIsToolpathDragging, useStore, useToolDiameter, useToolpathOpacity } from '../store/store';
 import { LineAxesHelper } from './LineAxesHelper';
 import { ToolpathCanvasPlane } from './ToolpathCanvasPlane';
 import { getZHeightColors } from './toolpathColors';
@@ -72,7 +72,7 @@ export const Toolpaths: React.FC = () => {
 const AnimatedPlane = animated(Plane);
 
 function ToolpathBackgroundPlane() {
-  const isToolpathHovered = useStore(s => s.isToolpathHovered);
+  const isToolpathHovered = useIsToolpathHovered();
   const toolpath = useStore(s => s.toolpath);
   const { opacity } = useSpring({ opacity: isToolpathHovered ? 0.05 : 0.02 });
   const bounds = toolpath?.getBounds();
@@ -129,16 +129,39 @@ function UseableMachineSpaceOutline() {
   return <Line depthTest={false} renderOrder={1000} points={corners} color="#0cd20c" linewidth={1} dashed dashSize={5} gapSize={5} />;
 }
 
+function ToolpathLineAxes() {
+  const isToolpathHovered = useIsToolpathHovered();
+  return <LineAxesHelper size={50} position-z={150} visible={isToolpathHovered} />;
+}
+
+function ToolpathPositionText() {
+  const toolpathOffset = useStore(s => s.toolpathOffset);
+  const isHovered = useIsToolpathHovered();
+  return (
+    <Suspense fallback={null}>
+      <Text
+        position-z={100}
+        position-x={-10}
+        position-y={-10}
+        rotation={[0, 0, -Math.PI / 2]}
+        fontSize={10}
+        color="white"
+        outlineColor="black"
+        outlineWidth={0.5}
+        outlineBlur={0.5}
+        anchorX="left"
+        anchorY="top"
+        visible={isHovered}>
+        {toolpathOffset.x.toFixed(2)}, {toolpathOffset.y.toFixed(2)}
+      </Text>
+    </Suspense>
+  );
+}
+
 export const GCodeVisualizer: React.FC = () => {
   const toolpath = useStore(s => s.toolpath);
   const setIsToolpathSelected = useStore(s => s.setIsToolpathSelected);
   const setIsToolpathHovered = useStore(s => s.setIsToolpathHovered);
-  const setToolpathOffset = useStore(s => s.setToolpathOffset);
-  const isToolpathHovered = useStore(s => s.isToolpathHovered);
-
-  function onDragEnd(event: ThreeEvent<PointerEvent>) {
-    setToolpathOffset(event.eventObject.position);
-  }
 
   const boundingSize = useMemo(() => {
     const size = new Vector3();
@@ -154,8 +177,8 @@ export const GCodeVisualizer: React.FC = () => {
     <>
       <LineAxesHelper size={100} position-z={1000} />
       <UseableMachineSpaceOutline />
-      {/* <Draggable onDragEnd={onDragEnd}> */}
-      <TransformControls mode="translate" showZ={false}>
+      <ToolpathTransformControls>
+        {/* <Draggable onDragEnd={onDragEnd}> */}
         <group
           position-z={200}
           onPointerMissed={e => e.type === 'click' && setIsToolpathSelected(false)}
@@ -165,10 +188,28 @@ export const GCodeVisualizer: React.FC = () => {
           <ToolpathCanvasPlane />
           {/* <Toolpaths /> */}
           <ToolpathBackgroundPlane />
-          <LineAxesHelper size={50} position-z={150} visible={isToolpathHovered} />
+          <ToolpathLineAxes />
+          <ToolpathPositionText />
         </group>
-      </TransformControls>
-      {/* </Draggable> */}
+        {/* </Draggable> */}
+      </ToolpathTransformControls>
     </>
   );
 };
+
+function ToolpathTransformControls({ children, ...props }: { children: React.ReactElement<Object3D> }) {
+  const [ctrl, setCtrl] = React.useState<any>(null);
+
+  const setIsToolpathDragging = useSetIsToolpathDragging();
+  const setToolpathOffset = useStore(s => s.setToolpathOffset);
+  const onTransformDraggingChanged = useCallback(() => {
+    setIsToolpathDragging(!!ctrl?.dragging);
+    if (ctrl) setToolpathOffset(ctrl.worldPosition.clone());
+  }, [ctrl, setIsToolpathDragging, setToolpathOffset]);
+
+  return (
+    <TransformControls mode="translate" showZ={false} ref={setCtrl} onChange={onTransformDraggingChanged} {...props}>
+      {children}
+    </TransformControls>
+  );
+}
