@@ -37,19 +37,20 @@ function copyZeroGcodePosition() {
   });
 }
 
-function syncToolpathZeroWithMachine() {
+async function syncToolpathZeroWithMachine() {
   const cncApi = getCncApi();
-  const status = cncApi.status.value;
-  const wco = status?.wco;
-  if (!wco) {
-    toast.error('Unable to read machine zero (WCO)');
-    return;
+  const setToolpathOffset = useStore.getState().setToolpathOffset;
+
+  const zero = await cncApi.getCurrentZero();
+  console.log('zero from machine', zero);
+  if (zero) {
+    setToolpathOffset(new Vector3(zero.x, zero.y, zero.z));
+  } else {
+    toast.error('Unable to read machine zero');
   }
 
-  useStore.getState().setToolpathOffset(new Vector3(wco.x, wco.y, wco.z));
-
   toast.success('Toolpath zero synced from machine', {
-    description: `${wco.x.toFixed(2)}, ${wco.y.toFixed(2)}`,
+    description: `${zero?.x.toFixed(2)}, ${zero?.y.toFixed(2)}`,
   });
 }
 
@@ -76,16 +77,16 @@ export function FluidncButton() {
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled={!hasToolpath} onClick={copyZeroGcodePosition}>
-          <ClipboardCopy /> Copy zero gcode position
+          <ClipboardCopy /> Copy zeroing gcode
           {/* <DropdownMenuShortcut>
             <Kbd shortcut="meta+c" />
           </DropdownMenuShortcut> */}
         </DropdownMenuItem>
         <DropdownMenuItem disabled={!isFluidAvailable} onClick={() => setZeroToGcodePosition(false)}>
-          <CircleOff /> Set XY zero to gcode position
+          <CircleOff /> Set machine XY zero
         </DropdownMenuItem>
         <DropdownMenuItem disabled={!isFluidAvailable} onClick={() => setZeroToGcodePosition(true)}>
-          <CircleArrowRight /> Set and move to XY zero gcode position.
+          <CircleArrowRight /> Set XY zero and move to it.
         </DropdownMenuItem>
         <UploadMenuItem disabled={!isFluidAvailable} />
         <DropdownMenuSeparator />

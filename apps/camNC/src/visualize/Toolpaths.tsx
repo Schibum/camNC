@@ -4,7 +4,14 @@ import { useThree } from '@react-three/fiber';
 import React, { Suspense, useCallback, useEffect, useMemo } from 'react';
 import { Object3D, Vector2, Vector3 } from 'three';
 import { Line2, LineGeometry, LineMaterial } from 'three/addons';
-import { useIsToolpathHovered, useSetIsToolpathDragging, useStore, useToolDiameter, useToolpathOpacity } from '../store/store';
+import {
+  useIsToolpathDragging,
+  useIsToolpathHovered,
+  useSetIsToolpathDragging,
+  useStore,
+  useToolDiameter,
+  useToolpathOpacity,
+} from '../store/store';
 import { LineAxesHelper } from './LineAxesHelper';
 import { ToolpathCanvasPlane } from './ToolpathCanvasPlane';
 import { getZHeightColors } from './toolpathColors';
@@ -206,9 +213,17 @@ function ToolpathTransformControls({ children, ...props }: { children: React.Rea
     setIsToolpathDragging(!!ctrl?.dragging);
     if (ctrl) setToolpathOffset(ctrl.worldPosition.clone());
   }, [ctrl, setIsToolpathDragging, setToolpathOffset]);
+  const toolpathOffset = useStore(s => s.toolpathOffset);
+  const isDragging = useIsToolpathDragging();
 
   return (
-    <TransformControls mode="translate" showZ={false} ref={setCtrl} onChange={onTransformDraggingChanged} {...props}>
+    <TransformControls
+      mode="translate"
+      showZ={false}
+      ref={setCtrl}
+      onChange={onTransformDraggingChanged}
+      {...props}
+      position={!isDragging ? toolpathOffset : undefined}>
       {children}
     </TransformControls>
   );

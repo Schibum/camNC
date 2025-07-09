@@ -99,7 +99,7 @@ export function UploadMenuItem(props: ComponentProps<typeof DropdownMenuItem>) {
   return (
     <>
       <DropdownMenuItem {...props} onClick={handleClick}>
-        <CirclePlay /> Zero, move to gcode position and run gcode
+        <CirclePlay /> Set XY zero, move to it and run gcode
       </DropdownMenuItem>
       <NoProbeAlertDialog onConfirm={uploadGcodeAndRun} ref={noProbeAlertDialogRef} />
     </>
