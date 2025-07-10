@@ -15,10 +15,10 @@
     "eslint-config-prettier": "catalog:",
     "eslint-plugin-only-warn": "catalog:",
     "eslint-plugin-react": "catalog:",
-    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-hooks": "catalog:",
     "eslint-plugin-turbo": "catalog:",
     "globals": "catalog:",
-    "typescript": "^5.8.3",
+    "typescript": "catalog:",
     "typescript-eslint": "catalog:"
   },
   "dependencies": {

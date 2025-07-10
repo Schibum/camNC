@@ -1,6 +1,6 @@
 // fluidnc-parser.test.ts
 import { describe, expect, it } from 'vitest';
-import { parseFluidNCLine } from './fluidnc-stream-parser';
+import { parseFluidNCLine, parseFluidNCModalLine, parseFluidNCOffsetLine } from './fluidnc-stream-parser';
 
 describe('parseFluidNCLine', () => {
   it('parses a simple <Run> frame with extra axes in MPos', () => {
@@ -70,5 +70,54 @@ describe('parseFluidNCLine', () => {
     expect(parseFluidNCLine('ok')).toBeNull();
     expect(parseFluidNCLine('[MSG:Files changed]')).toBeNull();
     expect(parseFluidNCLine('~')).toBeNull();
+  });
+});
+
+describe('parseFluidNCOffsetLine', () => {
+  it('parses a G54 offset line', () => {
+    const line = '[G54:351.331,148.328,-9.265]';
+    const parsed = parseFluidNCOffsetLine(line)!;
+    expect(parsed.code).toBe('G54');
+    expect(parsed.position).toEqual({ x: 351.331, y: 148.328, z: -9.265 });
+  });
+
+  it('parsed another G54 line', () => {
+    const line = '[G54:351.331,148.328,-9.265]';
+    const parsed = parseFluidNCOffsetLine(line)!;
+    expect(parsed.code).toBe('G54');
+    expect(parsed.position).toEqual({ x: 351.331, y: 148.328, z: -9.265 });
+  });
+
+  it('ignores TLO offset line (single value)', () => {
+    const line = '[TLO:0.000]';
+    const parsed = parseFluidNCOffsetLine(line)!;
+    expect(parsed).toBeNull();
+  });
+
+  it('returns null for unrelated lines', () => {
+    expect(parseFluidNCOffsetLine('<Idle|MPos:0,0,0>')).toBeNull();
+  });
+});
+
+describe('parseFluidNCModalLine', () => {
+  it('parses a GC modal line with feed and spindle', () => {
+    const line = '[GC:G0 G54 G17 G21 G90 G94 M0 M5 M9 T0 S0.0 F500.0]';
+    const parsed = parseFluidNCModalLine(line)!;
+    expect(parsed.words[0]).toBe('G0');
+    expect(parsed.words).toContain('G54');
+    expect(parsed.tool).toBe(0);
+    expect(parsed.spindleSpeed).toBeCloseTo(0);
+    expect(parsed.feedRate).toBeCloseTo(500);
+  });
+
+  it('parses a GC modal line without feed rate', () => {
+    const line = '[GC:G0 G54 G17 G21 G90 G94 M5 M9 T0 F0 S0]';
+    const parsed = parseFluidNCModalLine(line)!;
+    expect(parsed.feedRate).toBeCloseTo(0);
+    expect(parsed.spindleSpeed).toBeCloseTo(0);
+  });
+
+  it('returns null for unrelated lines', () => {
+    expect(parseFluidNCModalLine('[G54:0,0,0]')).toBeNull();
   });
 });

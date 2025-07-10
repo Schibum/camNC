@@ -10,7 +10,8 @@ import {
   DropdownMenuTrigger,
 } from '@wbcnc/ui/components/dropdown-menu';
 import { toast } from '@wbcnc/ui/components/sonner';
-import { CircleArrowRight, CircleOff, ClipboardCopy, Joystick, Puzzle } from 'lucide-react';
+import { CircleArrowRight, CircleOff, ClipboardCopy, Download, Joystick, Puzzle } from 'lucide-react';
+import { Vector3 } from 'three';
 import { TooltipIconButton } from './TooltipIconButton';
 import { UploadMenuItem } from './UploadMenuItem';
 
@@ -36,6 +37,23 @@ function copyZeroGcodePosition() {
   });
 }
 
+async function syncToolpathZeroWithMachine() {
+  const cncApi = getCncApi();
+  const setToolpathOffset = useStore.getState().setToolpathOffset;
+
+  const zero = await cncApi.getCurrentZero();
+  console.log('zero from machine', zero);
+  if (zero) {
+    setToolpathOffset(new Vector3(zero.x, zero.y, zero.z));
+  } else {
+    toast.error('Unable to read machine zero');
+  }
+
+  toast.success('Toolpath zero synced from machine', {
+    description: `${zero?.x.toFixed(2)}, ${zero?.y.toFixed(2)}`,
+  });
+}
+
 export function FluidncButton() {
   'use no memo';
   const client = getFluidNcClient();
@@ -54,17 +72,21 @@ export function FluidncButton() {
           FluidNC <span className="text-xs text-muted-foreground">{status}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem disabled={!isFluidAvailable} onClick={syncToolpathZeroWithMachine}>
+          <Download /> Read machine zero → move toolpath
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem disabled={!hasToolpath} onClick={copyZeroGcodePosition}>
-          <ClipboardCopy /> Copy zero gcode position
+          <ClipboardCopy /> Copy zeroing gcode
           {/* <DropdownMenuShortcut>
             <Kbd shortcut="meta+c" />
           </DropdownMenuShortcut> */}
         </DropdownMenuItem>
         <DropdownMenuItem disabled={!isFluidAvailable} onClick={() => setZeroToGcodePosition(false)}>
-          <CircleOff /> Set XY zero to gcode position
+          <CircleOff /> Set machine XY zero
         </DropdownMenuItem>
         <DropdownMenuItem disabled={!isFluidAvailable} onClick={() => setZeroToGcodePosition(true)}>
-          <CircleArrowRight /> Set and move to XY zero gcode position.
+          <CircleArrowRight /> Set XY zero and move to it.
         </DropdownMenuItem>
         <UploadMenuItem disabled={!isFluidAvailable} />
         <DropdownMenuSeparator />
