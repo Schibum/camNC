@@ -1,7 +1,7 @@
 import { useStore, useToolDiameter, useToolpathOpacity } from '@/store/store';
 import React from 'react';
 import * as THREE from 'three';
-import { DoubleSide, Vector3 } from 'three';
+import { Vector3 } from 'three';
 import { getZHeightColors } from './toolpathColors';
 import { useCanvasTexture } from './useCanvasTexture';
 
@@ -99,10 +99,10 @@ export function ToolpathCanvasPlane() {
 
   return (
     <mesh
-      position={[expandedSize.x / 2 + (bounds!.min.x - strokeMargin), expandedSize.y / 2 + (bounds!.min.y - strokeMargin), bounds!.min.z]}
-      renderOrder={50}>
+      position={[expandedSize.x / 2 + (bounds!.min.x - strokeMargin), expandedSize.y / 2 + (bounds!.min.y - strokeMargin), 0]}
+      renderOrder={-1}>
       <planeGeometry args={[expandedSize.x, expandedSize.y]} />
-      <meshBasicMaterial ref={materialRef} map={texture} transparent opacity={toolpathOpacity} side={DoubleSide} />
+      <meshBasicMaterial ref={materialRef} map={texture} transparent opacity={toolpathOpacity} depthWrite={false} />
     </mesh>
   );
 }

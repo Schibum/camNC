@@ -116,6 +116,9 @@ export const useStore = create(persist(immer(combine(
     toolpathOffset: new Vector3(0, 0, 0),
     toolpathOpacity: 1,
     stockHeight: 0,
+    // Visualisation toggles
+    showMachinePosMarker: true,
+    showMachineZero: true,
     showStillFrame: false,
     fluidncToken: crypto.randomUUID() as string,
     // Depth-based background blend feature
@@ -224,6 +227,13 @@ export const useStore = create(persist(immer(combine(
     setDepthSettings: (settings: Partial<DepthSettings>) => set(state => {
       state.depthSettings = { ...state.depthSettings, ...settings } as DepthSettings;
     }),
+    // Visualisation toggle setters
+    setShowMachinePosMarker: (show: boolean) => set(state => {
+      state.showMachinePosMarker = show;
+    }),
+    setShowMachineZero: (show: boolean) => set(state => {
+      state.showMachineZero = show;
+    }),
   })
 )), {
   name: 'settings',
@@ -293,3 +303,9 @@ export const useSetBgTexture = () => useStore(state => state.setDepthBgTexture);
 // Depth runtime settings hooks
 export const useDepthSettings = () => useStore(state => state.depthSettings as DepthSettings);
 export const useSetDepthSettings = () => useStore(state => state.setDepthSettings);
+
+// Visualization toggle hooks
+export const useShowMachinePosMarker = () => useStore(state => state.showMachinePosMarker);
+export const useSetShowMachinePosMarker = () => useStore(state => state.setShowMachinePosMarker);
+export const useShowMachineZero = () => useStore(state => state.showMachineZero);
+export const useSetShowMachineZero = () => useStore(state => state.setShowMachineZero);

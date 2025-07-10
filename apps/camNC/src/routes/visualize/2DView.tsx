@@ -3,6 +3,8 @@ import { useAutoScanMarkers } from '@/hooks/useAutoScanMarkers';
 import { DepthBlendWorker } from '@/hooks/useDepthBlendWorker';
 import { getCncApi } from '@/lib/fluidnc/fluidnc-singleton';
 import { PresentCanvas } from '@/scene/PresentCanvas';
+import { MachinePositionMarker } from '@/visualize/MachinePositionMarker';
+import { MachineZeroAxes } from '@/visualize/MachineZeroAxes';
 import { GCodeVisualizer } from '@/visualize/Toolpaths';
 import { VisualizeToolbar } from '@/visualize/toolbar/VisualizeToolbar';
 import { ThreeElements, ThreeEvent } from '@react-three/fiber';
@@ -55,6 +57,8 @@ function VisualizeComponent() {
           {/* <group rotation={[0, 0, Math.PI / 2]}> */}
           <UnprojectVideoMeshWithStockHeight onDoubleClick={onDbClick} />
           <GCodeVisualizer />
+          <MachinePositionMarker />
+          <MachineZeroAxes />
           {/* </group> */}
 
           {/* <TransformToolpath /> */}
