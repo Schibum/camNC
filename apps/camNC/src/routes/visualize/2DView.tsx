@@ -1,6 +1,7 @@
 import { UnprojectVideoMesh } from '@/calibration/Unproject';
 import { useAutoScanMarkers } from '@/hooks/useAutoScanMarkers';
 import { DepthBlendWorker } from '@/hooks/useDepthBlendWorker';
+import { useInitToolpathOffset } from '@/hooks/useInitToolpathOffset';
 import { getCncApi } from '@/lib/fluidnc/fluidnc-singleton';
 import { PresentCanvas } from '@/scene/PresentCanvas';
 import { MachinePositionMarker } from '@/visualize/MachinePositionMarker';
@@ -30,6 +31,7 @@ const UnprojectVideoMeshWithStockHeight = ({ ...props }: ThreeElements['mesh']) 
 UnprojectVideoMeshWithStockHeight.displayName = 'UnprojectVideoMeshWithStockHeight';
 
 function VisualizeComponent() {
+  useInitToolpathOffset();
   const cncApi = getCncApi();
   useAutoScanMarkers({ intervalMs: 3_000 });
 
