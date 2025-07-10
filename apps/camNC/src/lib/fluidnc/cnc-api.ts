@@ -123,36 +123,25 @@ export class CncApi {
     return this.api.download('/config.yaml');
   }
 
+  private isIdle() {
+    return !this.status.value || this.status.value.state === 'Idle';
+  }
+
   /** Start polling machine status ('?') and current zero (via $G/$#) */
   private startPolling() {
     // Poll overall machine status every ~3 s – triggers a `<…|MPos:…>` frame
     if (!this.statusPollInterval) {
       this.statusPollInterval = setInterval(() => {
-        // Only poll while the machine is idle (or we don't know the state yet).
-        const isIdle = !this.status.value || this.status.value.state === 'Idle';
-        if (!isIdle) return;
-
-        // Sending `?` causes FluidNC to emit a status frame on the stream.
-        try {
-          this.api.cmd('?');
-        } catch {
-          // Silently ignore when not connected – will be retried after reconnect.
-        }
+        if (!this.isIdle()) return;
+        this.api.cmd('?');
       }, 3000);
     }
 
     // Poll workspace offset / modal every ~3 s to keep zero in sync
     if (!this.zeroPollInterval) {
-      this.zeroPollInterval = setInterval(async () => {
-        // Only poll while the machine is idle (or we don't know the state yet).
-        const isIdle = !this.status.value || this.status.value.state === 'Idle';
-        if (!isIdle) return;
-
-        try {
-          this.logCurrentModalsAndOffsets();
-        } catch {
-          /* ignore – will retry on next interval */
-        }
+      this.zeroPollInterval = setInterval(() => {
+        if (!this.isIdle()) return;
+        this.logCurrentModalsAndOffsets();
       }, 3000);
     }
   }
