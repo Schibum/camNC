@@ -131,7 +131,7 @@ export class CncApi {
         // Sending `?` causes FluidNC to emit a status frame on the stream.
         try {
           this.api.cmd('?');
-        } catch (err) {
+        } catch {
           // Silently ignore when not connected – will be retried after reconnect.
         }
       }, 3000);

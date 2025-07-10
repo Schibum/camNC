@@ -76,7 +76,7 @@ export function MachinePositionMarker({
       arcs.push({ points: pts, color });
     }
     return arcs;
-  }, [ringRadius]);
+  }, [ringRadius, innerColor, dashColor]);
 
   if (!mpos || !visible) return null; // Not yet received a status update.
   return (
