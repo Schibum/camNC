@@ -1,8 +1,8 @@
 import { animated, useSpring } from '@react-spring/three';
-import { Edges, Line, Plane, Text, TransformControls } from '@react-three/drei';
+import { Edges, Line, PivotControls, Plane, Text, TransformControls } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import React, { Suspense, useCallback, useEffect, useMemo } from 'react';
-import { Object3D, Vector2, Vector3 } from 'three';
+import { Matrix4, Object3D, Vector2, Vector3 } from 'three';
 import { Line2, LineGeometry, LineMaterial } from 'three/addons';
 import {
   useIsToolpathDragging,
@@ -144,12 +144,13 @@ function ToolpathLineAxes() {
 function ToolpathPositionText() {
   const toolpathOffset = useStore(s => s.toolpathOffset);
   const isHovered = useIsToolpathHovered();
+  if (!isHovered) return null;
   return (
     <Suspense fallback={null}>
       <Text
         position-z={100}
-        position-x={-10}
-        position-y={-10}
+        position-x={-5}
+        position-y={-5}
         rotation={[0, 0, -Math.PI / 2]}
         fontSize={10}
         color="white"
@@ -157,8 +158,7 @@ function ToolpathPositionText() {
         outlineWidth={0.5}
         outlineBlur={0.5}
         anchorX="left"
-        anchorY="top"
-        visible={isHovered}>
+        anchorY="top">
         {toolpathOffset.x.toFixed(2)}, {toolpathOffset.y.toFixed(2)}
       </Text>
     </Suspense>
@@ -195,7 +195,7 @@ export const GCodeVisualizer: React.FC = () => {
           <ToolpathCanvasPlane />
           {/* <Toolpaths /> */}
           <ToolpathBackgroundPlane />
-          <ToolpathLineAxes />
+          {/* <ToolpathLineAxes /> */}
           <ToolpathPositionText />
         </group>
         {/* </Draggable> */}
@@ -204,7 +204,31 @@ export const GCodeVisualizer: React.FC = () => {
   );
 };
 
-function ToolpathTransformControls({ children, ...props }: { children: React.ReactElement<Object3D> }) {
+function ToolpathTransformControls({ children }: { children: React.ReactElement<Object3D> }) {
+  const setIsToolpathDragging = useSetIsToolpathDragging();
+  const setToolpathOffset = useStore(s => s.setToolpathOffset);
+  const isToolpathHovered = useIsToolpathHovered();
+  function onDrag(l: Matrix4, deltaL: Matrix4, w: Matrix4) {
+    setToolpathOffset(new Vector3().setFromMatrixPosition(w));
+  }
+  return (
+    <PivotControls
+      depthTest={false}
+      disableScaling
+      disableRotations
+      lineWidth={1}
+      visible={isToolpathHovered}
+      scale={100}
+      activeAxes={[true, true, false]}
+      onDrag={onDrag}
+      onDragStart={() => setIsToolpathDragging(true)}
+      onDragEnd={() => setIsToolpathDragging(false)}>
+      {children}
+    </PivotControls>
+  );
+}
+
+function ToolpathTransformControlsOld({ children, ...props }: { children: React.ReactElement<Object3D> }) {
   const [ctrl, setCtrl] = React.useState<any>(null);
 
   const setIsToolpathDragging = useSetIsToolpathDragging();
