@@ -128,6 +128,10 @@ export class CncApi {
     // Poll overall machine status every ~3 s – triggers a `<…|MPos:…>` frame
     if (!this.statusPollInterval) {
       this.statusPollInterval = setInterval(() => {
+        // Only poll while the machine is idle (or we don't know the state yet).
+        const isIdle = !this.status.value || this.status.value.state === 'Idle';
+        if (!isIdle) return;
+
         // Sending `?` causes FluidNC to emit a status frame on the stream.
         try {
           this.api.cmd('?');
@@ -140,6 +144,10 @@ export class CncApi {
     // Poll workspace offset / modal every ~3 s to keep zero in sync
     if (!this.zeroPollInterval) {
       this.zeroPollInterval = setInterval(async () => {
+        // Only poll while the machine is idle (or we don't know the state yet).
+        const isIdle = !this.status.value || this.status.value.state === 'Idle';
+        if (!isIdle) return;
+
         try {
           this.logCurrentModalsAndOffsets();
         } catch {
