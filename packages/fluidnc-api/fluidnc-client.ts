@@ -14,7 +14,7 @@ export class FluidncClient {
   public isConnected = signal(false);
   constructor(public accessToken: string) {
     this.peering = new RolePeering(accessToken, 'client', 'server', {
-      maxPeers: 1,
+      maxPeers: 10,
     });
     this.peering.on('peerConnected', ({ peerId, peer }) => this.onPeerConnected(peerId, peer));
   }

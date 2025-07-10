@@ -1,17 +1,10 @@
 import { animated, useSpring } from '@react-spring/three';
-import { Edges, Line, PivotControls, Plane, Text, TransformControls } from '@react-three/drei';
+import { Edges, Line, PivotControls, Plane, Text } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
-import React, { Suspense, useCallback, useEffect, useMemo } from 'react';
+import React, { Suspense, useEffect, useMemo } from 'react';
 import { Matrix4, Object3D, Vector2, Vector3 } from 'three';
 import { Line2, LineGeometry, LineMaterial } from 'three/addons';
-import {
-  useIsToolpathDragging,
-  useIsToolpathHovered,
-  useSetIsToolpathDragging,
-  useStore,
-  useToolDiameter,
-  useToolpathOpacity,
-} from '../store/store';
+import { useIsToolpathHovered, useSetIsToolpathDragging, useStore, useToolDiameter, useToolpathOpacity } from '../store/store';
 import { LineAxesHelper } from './LineAxesHelper';
 import { ToolpathCanvasPlane } from './ToolpathCanvasPlane';
 import { getZHeightColors } from './toolpathColors';
@@ -136,11 +129,6 @@ function UseableMachineSpaceOutline() {
   return <Line depthTest={false} renderOrder={1000} points={corners} color="#0cd20c" linewidth={1} dashed dashSize={5} gapSize={5} />;
 }
 
-function ToolpathLineAxes() {
-  const isToolpathHovered = useIsToolpathHovered();
-  return <LineAxesHelper size={50} position-z={150} visible={isToolpathHovered} />;
-}
-
 function ToolpathPositionText() {
   const toolpathOffset = useStore(s => s.toolpathOffset);
   const isHovered = useIsToolpathHovered();
@@ -225,30 +213,5 @@ function ToolpathTransformControls({ children }: { children: React.ReactElement<
       onDragEnd={() => setIsToolpathDragging(false)}>
       {children}
     </PivotControls>
-  );
-}
-
-function ToolpathTransformControlsOld({ children, ...props }: { children: React.ReactElement<Object3D> }) {
-  const [ctrl, setCtrl] = React.useState<any>(null);
-
-  const setIsToolpathDragging = useSetIsToolpathDragging();
-  const setToolpathOffset = useStore(s => s.setToolpathOffset);
-  const onTransformDraggingChanged = useCallback(() => {
-    setIsToolpathDragging(!!ctrl?.dragging);
-    if (ctrl) setToolpathOffset(ctrl.worldPosition.clone());
-  }, [ctrl, setIsToolpathDragging, setToolpathOffset]);
-  const toolpathOffset = useStore(s => s.toolpathOffset);
-  const isDragging = useIsToolpathDragging();
-
-  return (
-    <TransformControls
-      mode="translate"
-      showZ={false}
-      ref={setCtrl}
-      onChange={onTransformDraggingChanged}
-      {...props}
-      position={!isDragging ? toolpathOffset : undefined}>
-      {children}
-    </TransformControls>
   );
 }
