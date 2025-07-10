@@ -28,11 +28,8 @@ describe('FluidNcClient ↔ FluidNcServer integration', () => {
     const client = new FluidncClient(roomId);
     const server = new FluidncServer(roomId);
 
-    // join both
-    await server.start();
-    await client.start();
-    // TODO: fix race (transaction in signaller?) when both start at the same time
-    // await Promise.all([client.start(), server.start()]);
+    // join both simultaneously to avoid race conditions
+    await Promise.all([client.start(), server.start()]);
     // wait until they see each other
     await vi.waitUntil(() => server.numConnected.value === 1);
     await vi.waitUntil(() => client.api);
