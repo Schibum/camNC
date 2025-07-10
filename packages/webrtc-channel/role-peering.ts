@@ -17,6 +17,7 @@ type Events = {
 export class RolePeering {
   private signaller: FirebaseSignaller | undefined;
   private peers = new Map<string, Peer>();
+  private pendingSignals = new Map<string, unknown[]>();
   private readonly isInitiator: boolean;
 
   public readonly on: Emitter<Events>['on'];
@@ -50,6 +51,7 @@ export class RolePeering {
     if (this.signaller) throw new Error('Already joined');
     this.signaller = new FirebaseSignaller();
     this.signaller.on('peer-joined', ev => this.onPeerJoined(ev));
+    this.signaller.on('signal', ev => this.onSignal(ev));
     await this.signaller.join(this.roomId, this.selfRole);
   }
 
@@ -77,11 +79,14 @@ export class RolePeering {
     peer.signalingPort.onmessage = ev => {
       this.signaller?.sendMessage(peerInfo.peerId, ev.data);
     };
-    this.signaller.on('signal', ev => {
-      if (ev.from !== peerInfo.peerId) return;
-      peer.signalingPort.postMessage(ev.data);
-    });
     this.peers.set(peerInfo.peerId, peer);
+    const pending = this.pendingSignals.get(peerInfo.peerId);
+    if (pending) {
+      for (const data of pending) {
+        peer.signalingPort.postMessage(data);
+      }
+      this.pendingSignals.delete(peerInfo.peerId);
+    }
     peer.ready.then(() => this.onPeerReady(peerInfo.peerId));
     peer.on('close', () => this.onPeerClosed(peerInfo.peerId));
     peer.dataChannel.addEventListener('message', ev => {
@@ -94,6 +99,17 @@ export class RolePeering {
     log.debug('peer closed', peerId);
     this.peers.delete(peerId);
     this.autoOpenCloseSignalling();
+  }
+
+  private onSignal(ev: { from: string; data: unknown }) {
+    const peer = this.peers.get(ev.from);
+    if (peer) {
+      peer.signalingPort.postMessage(ev.data);
+    } else {
+      const arr = this.pendingSignals.get(ev.from) ?? [];
+      arr.push(ev.data);
+      this.pendingSignals.set(ev.from, arr);
+    }
   }
 
   private onPeerReady(peerId: string) {
@@ -115,6 +131,7 @@ export class RolePeering {
       log.debug('autoOpenCloseSignalling: opening signalling');
       this.signaller = new FirebaseSignaller();
       this.signaller.on('peer-joined', ev => this.onPeerJoined(ev));
+      this.signaller.on('signal', ev => this.onSignal(ev));
       await this.signaller.join(this.roomId, this.selfRole);
     }
   }
