@@ -82,7 +82,7 @@ describe('parseFluidNCOffsetLine', () => {
   });
 
   it('parsed another G54 line', () => {
-    const line = '[G54:351.331,148.328,-9.265]\n';
+    const line = '[G54:351.331,148.328,-9.265]';
     const parsed = parseFluidNCOffsetLine(line)!;
     expect(parsed.code).toBe('G54');
     expect(parsed.position).toEqual({ x: 351.331, y: 148.328, z: -9.265 });
