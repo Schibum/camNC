@@ -7,7 +7,7 @@ import { Vector2, Vector3 } from 'three';
 import { Line2, LineGeometry, LineMaterial } from 'three/addons';
 import { useStore, useToolDiameter, useToolpathOpacity } from '../store/store';
 import { LineAxesHelper } from './LineAxesHelper';
-import { ToolpathCanvasPlane } from './ToolpathCanvasPlane';
+import { ToolpathSvgPlane } from './ToolpathSvgPlane';
 import { getZHeightColors } from './toolpathColors';
 
 /*
@@ -23,7 +23,7 @@ function getTimeColors(toolpath: ParsedToolpath) {
 }
 */
 
-// Using ToolpathCanvasPlane instead for now.
+// Using ToolpathSvgPlane instead for now.
 export const Toolpaths: React.FC = () => {
   const toolpath = useStore(s => s.toolpath);
   const toolDiameter = useToolDiameter();
@@ -162,7 +162,7 @@ export const GCodeVisualizer: React.FC = () => {
           onClick={e => (e.stopPropagation, setIsToolpathSelected(true))}
           onPointerEnter={() => setIsToolpathHovered(true)}
           onPointerLeave={() => setIsToolpathHovered(false)}>
-          <ToolpathCanvasPlane />
+          <ToolpathSvgPlane />
           {/* <Toolpaths /> */}
           <ToolpathBackgroundPlane />
           <LineAxesHelper size={50} position-z={150} visible={isToolpathHovered} />
