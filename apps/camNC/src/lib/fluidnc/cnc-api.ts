@@ -1,6 +1,7 @@
 import { computed, effect, signal } from '@preact/signals-react';
 import { FluidncClient } from '@wbcnc/fluidnc-api/fluidnc-client';
 import * as Comlink from 'comlink';
+import { waitForSignal } from '../signals-helper';
 import {
   kOffsetCodes,
   ParsedStatus,
@@ -16,10 +17,21 @@ export class CncApi {
   public readonly machinePos = computed(() => this.status.value?.mpos);
   public readonly coordinateOffsets = signal<Map<string, Position>>(new Map());
   public readonly modals = signal<Set<string>>(new Set());
+  public readonly currentOffsetModal = computed(() => kOffsetCodes.find(code => this.modals.value.has(code)));
+  public readonly currentZero = signal<Position | null>(null);
+
+  /** Interval IDs for polling – cleared automatically on disconnect */
+  private statusPollInterval: ReturnType<typeof setInterval> | null = null;
+  private zeroPollInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(public readonly nc: FluidncClient) {
     effect(() => {
-      if (nc.isConnected.value) this.onConnected();
+      if (nc.isConnected.value) {
+        this.onConnected();
+        this.startPolling();
+      } else {
+        this.stopPolling();
+      }
     });
   }
 
@@ -32,6 +44,7 @@ export class CncApi {
 
   private onStream(line: string) {
     line = line.trim();
+    console.log('fluidnc onStream', line);
     const parsed = parseFluidNCLine(line);
     if (parsed) {
       this.status.value = {
@@ -39,18 +52,21 @@ export class CncApi {
         wco: parsed.wco ?? this.status.value?.wco,
         wpos: parsed.wpos ?? this.status.value?.wpos,
       };
+      console.log('parsed status', this.status.value.mpos);
       return;
     }
 
     const offset = parseFluidNCOffsetLine(line);
     if (offset) {
       this.coordinateOffsets.value.set(offset.code, offset.position);
+      this.refreshCurrentZero();
       return;
     }
     const modals = parseFluidNCModalLine(line);
     if (modals) {
       console.log('parsed modals', modals);
       this.modals.value = new Set(modals.words);
+      this.refreshCurrentZero();
       return;
     }
   }
@@ -70,49 +86,28 @@ export class CncApi {
     return this.api.cmd(`G53 G0 X${x} Y${y}`);
   }
 
-  currentOffsetModal() {
-    return kOffsetCodes.find(code => this.modals.value.has(code));
+  async logCurrentModalsAndOffsets() {
+    this.api.cmd('$G\n$#');
   }
 
-  logCurrentModals() {
-    return this.api.cmd('$G');
-  }
-
-  logCoordinateOffsets() {
-    /**
- * TODO: handle $# command response in fluidnc-stream-parser:
- * [G54:351.331,148.328,-9.265]
-[G55:0.000,0.000,0.000]
-[G56:0.000,0.000,0.000]
-[G57:0.000,0.000,0.000]
-[G58:0.000,0.000,0.000]
-[G59:0.000,0.000,0.000]
-[G28:0.000,0.000,0.000]
-[G30:0.000,0.000,0.000]
-[G92:0.000,0.000,0.000]
-[TLO:0.000]
- */
-    return this.api.cmd('$#');
-  }
   async getCurrentZero() {
-    await this.logCoordinateOffsets();
-    await this.logCurrentModals();
-    const offset = this.currentOffsetModal();
-    if (!offset) {
-      console.warn('current machine offset modal not found');
-      return null;
-    }
-    return this.coordinateOffsets.value.get(offset);
+    await this.logCurrentModalsAndOffsets();
+
+    const offset = await waitForSignal(() => this.currentOffsetModal.value);
+    await waitForSignal(() => this.coordinateOffsets.value.get(offset));
+    return this.coordinateOffsets.value.get(offset) ?? null;
   }
 
   /**
    * Set the workspace XY zero point to given machine coordinates.
    */
   setWorkspaceXYZero(x: number, y: number) {
+    this.currentZero.value = { x, y, z: this.currentZero.value?.z ?? 0 };
     return this.api.cmd(`G10 L2 P0 X${x} Y${y}`);
   }
 
   setWorkspaceXYZeroAndMove(x: number, y: number) {
+    this.currentZero.value = { x, y, z: this.currentZero.value?.z ?? 0 };
     return this.api.cmd(`G10 L2 P0 X${x} Y${y}\n G0 X0 Y0`);
   }
 
@@ -126,5 +121,51 @@ export class CncApi {
 
   readConfigFile() {
     return this.api.download('/config.yaml');
+  }
+
+  private isIdle() {
+    return !this.status.value || this.status.value.state === 'Idle';
+  }
+
+  /** Start polling machine status ('?') and current zero (via $G/$#) */
+  private startPolling() {
+    // Poll overall machine status every ~3 s – triggers a `<…|MPos:…>` frame
+    if (!this.statusPollInterval) {
+      this.statusPollInterval = setInterval(() => {
+        if (!this.isIdle()) return;
+        this.api.cmd('?');
+      }, 3000);
+    }
+
+    // Poll workspace offset / modal every ~3 s to keep zero in sync
+    if (!this.zeroPollInterval) {
+      this.zeroPollInterval = setInterval(() => {
+        if (!this.isIdle()) return;
+        this.logCurrentModalsAndOffsets();
+      }, 3000);
+    }
+  }
+
+  /** Stop all polling timers */
+  private stopPolling() {
+    if (this.statusPollInterval) {
+      clearInterval(this.statusPollInterval);
+      this.statusPollInterval = null;
+    }
+    if (this.zeroPollInterval) {
+      clearInterval(this.zeroPollInterval);
+      this.zeroPollInterval = null;
+    }
+  }
+
+  /** Update `currentZero` based on current modal & offset tables */
+  private refreshCurrentZero() {
+    const code = this.currentOffsetModal.value;
+    if (code) {
+      const pos = this.coordinateOffsets.value.get(code) || null;
+      this.currentZero.value = pos ?? null;
+    } else {
+      this.currentZero.value = null;
+    }
   }
 }

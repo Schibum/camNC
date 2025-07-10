@@ -102,7 +102,7 @@ function DefaultControls({ worldScale }: { worldScale: IWorldScale }) {
 
 export const PresentCanvas = ({ worldScale = 'video', children }: { worldScale?: IWorldScale; children: React.ReactNode }) => {
   return (
-    <div className="w-full h-full">
+    <div className="w-full h-full" onContextMenu={e => e.preventDefault()}>
       <Suspense fallback={<LoadingVideoOverlay />}>
         <Canvas
           orthographic

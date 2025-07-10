@@ -1,5 +1,12 @@
 import { getCncApi, getFluidNcClient } from '@/lib/fluidnc/fluidnc-singleton';
-import { useHasToolpath, useStore } from '@/store/store';
+import {
+  useHasToolpath,
+  useSetShowMachinePosMarker,
+  useSetShowMachineZero,
+  useShowMachinePosMarker,
+  useShowMachineZero,
+  useStore,
+} from '@/store/store';
 import { Link } from '@tanstack/react-router';
 import {
   DropdownMenu,
@@ -10,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '@wbcnc/ui/components/dropdown-menu';
 import { toast } from '@wbcnc/ui/components/sonner';
-import { CircleArrowRight, CircleOff, ClipboardCopy, Download, Joystick, Puzzle } from 'lucide-react';
+import { CircleArrowRight, CircleOff, ClipboardCopy, Download, Eye, EyeOff, Joystick, Puzzle } from 'lucide-react';
 import { Vector3 } from 'three';
 import { TooltipIconButton } from './TooltipIconButton';
 import { UploadMenuItem } from './UploadMenuItem';
@@ -62,6 +69,11 @@ export function FluidncButton() {
   const status =
     '(' + [client.isConnected.value ? 'connected' : 'not connected', ...(hasToolpath ? [] : ['no toolpath loaded'])].join(', ') + ')';
 
+  const showMachinePosMarker = useShowMachinePosMarker();
+  const setShowMachinePosMarker = useSetShowMachinePosMarker();
+  const showMachineZero = useShowMachineZero();
+  const setShowMachineZero = useSetShowMachineZero();
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -89,6 +101,13 @@ export function FluidncButton() {
           <CircleArrowRight /> Set XY zero and move to it.
         </DropdownMenuItem>
         <UploadMenuItem disabled={!isFluidAvailable} />
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => setShowMachinePosMarker(!showMachinePosMarker)}>
+          {showMachinePosMarker ? <EyeOff /> : <Eye />} {showMachinePosMarker ? 'Hide' : 'Show'} machine position marker
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setShowMachineZero(!showMachineZero)}>
+          {showMachineZero ? <EyeOff /> : <Eye />} {showMachineZero ? 'Hide' : 'Show'} zero axes
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link to="/setup/fluidnc">

@@ -1,8 +1,11 @@
 import { UnprojectVideoMesh } from '@/calibration/Unproject';
 import { useAutoScanMarkers } from '@/hooks/useAutoScanMarkers';
 import { DepthBlendWorker } from '@/hooks/useDepthBlendWorker';
+import { useInitToolpathOffset } from '@/hooks/useInitToolpathOffset';
 import { getCncApi } from '@/lib/fluidnc/fluidnc-singleton';
 import { PresentCanvas } from '@/scene/PresentCanvas';
+import { MachinePositionMarker } from '@/visualize/MachinePositionMarker';
+import { MachineZeroAxes } from '@/visualize/MachineZeroAxes';
 import { GCodeVisualizer } from '@/visualize/Toolpaths';
 import { VisualizeToolbar } from '@/visualize/toolbar/VisualizeToolbar';
 import { ThreeElements, ThreeEvent } from '@react-three/fiber';
@@ -28,6 +31,7 @@ const UnprojectVideoMeshWithStockHeight = ({ ...props }: ThreeElements['mesh']) 
 UnprojectVideoMeshWithStockHeight.displayName = 'UnprojectVideoMeshWithStockHeight';
 
 function VisualizeComponent() {
+  useInitToolpathOffset();
   const cncApi = getCncApi();
   useAutoScanMarkers({ intervalMs: 3_000 });
 
@@ -55,6 +59,8 @@ function VisualizeComponent() {
           {/* <group rotation={[0, 0, Math.PI / 2]}> */}
           <UnprojectVideoMeshWithStockHeight onDoubleClick={onDbClick} />
           <GCodeVisualizer />
+          <MachinePositionMarker />
+          <MachineZeroAxes />
           {/* </group> */}
 
           {/* <TransformToolpath /> */}
