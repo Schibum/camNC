@@ -50,6 +50,11 @@ export interface ICamSource {
   arucoTagSize?: number; // Size in mm of black border (excluding white border)
 }
 
+export interface PnPResult {
+  lastPnPTime: number;
+  lastReprojectionError: number;
+}
+
 superjson.registerCustom<Box2, { min: number[]; max: number[] }>(
   {
     isApplicable: value => value instanceof Box2,
@@ -133,6 +138,7 @@ export const useStore = create(persist(immer(combine(
       minMaskVal: 0.1,
       thresholdOffset: 0.2,
     } as DepthSettings,
+    pnpResult: null as PnPResult | null,
   },
   (set) => ({
     setToolpathOffset: (offset: Vector3) => set(state => {
@@ -234,6 +240,9 @@ export const useStore = create(persist(immer(combine(
     setShowMachineZero: (show: boolean) => set(state => {
       state.showMachineZero = show;
     }),
+    setPnPResult: (time: number, error: number) => set(state => {
+      state.pnpResult = { lastPnPTime: time, lastReprojectionError: error };
+    }),
   })
 )), {
   name: 'settings',
@@ -245,6 +254,7 @@ export const useStore = create(persist(immer(combine(
     depthBlendEnabled: state.depthBlendEnabled,
     depthSettings: state.depthSettings,
     toolpathOpacity: state.toolpathOpacity,
+    pnpResult: state.pnpResult,
   }),
 }));
 
@@ -277,6 +287,7 @@ export function useMachineSize() {
 
 export const useCameraExtrinsics = () => useStore(state => state.camSource!.extrinsics!);
 export const useSetCameraExtrinsics = () => useStore(state => state.camSourceSetters.setExtrinsics);
+export const usePnPResult = () => useStore(state => state.pnpResult);
 
 export const useShowStillFrame = () => useStore(state => state.showStillFrame);
 export const useSetShowStillFrame = () => useStore(state => state.setShowStillFrame);

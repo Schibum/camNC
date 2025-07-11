@@ -65,6 +65,7 @@
     "react-hook-form": "catalog:",
     "react-hotkeys-hook": "catalog:",
     "react-konva": "catalog:",
+    "react-timeago": "^8.2.0",
     "react-zoom-pan-pinch": "catalog:",
     "superjson": "catalog:",
     "suspend-react": "catalog:",

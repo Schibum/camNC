@@ -81,8 +81,6 @@ class MarkerScannerWorker implements MarkerScannerWorkerAPI {
   }
 
   async scan(): Promise<IMarker[]> {
-    console.debug('scanning markers in worker');
-
     if (!this.reader || !this.mapX || !this.mapY || !this.ctx) {
       throw new Error('Worker not initialized');
     }

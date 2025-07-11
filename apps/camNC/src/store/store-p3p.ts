@@ -34,10 +34,11 @@ function computeMarkerP3P() {
 }
 
 export function updateCameraExtrinsics() {
-  const setCameraExtrinsics = useStore.getState().camSourceSetters.setExtrinsics;
+  const { setExtrinsics } = useStore.getState().camSourceSetters;
+  const { setPnPResult } = useStore.getState();
   const { R, t, reprojectionError } = computeMarkerP3P();
-  console.log('updated camera extrinsics', R, t, reprojectionError);
-  setCameraExtrinsics({ R, t });
+  setExtrinsics({ R, t });
+  setPnPResult(Date.now(), reprojectionError);
   return reprojectionError;
 }
 

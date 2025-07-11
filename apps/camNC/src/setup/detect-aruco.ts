@@ -23,7 +23,7 @@ export type IMarker = {
 
 // Returns markers in camera coordinates. Returns markers in order of id.
 export function detectAruco(img: cv2.Mat) {
-  const startTime = performance.now();
+  // const startTime = performance.now();
 
   // Convert to grayscale for detection
   const gray = new cv2.Mat();
@@ -40,9 +40,9 @@ export function detectAruco(img: cv2.Mat) {
   detector.detectMarkers(gray, corners, ids, rejected);
 
   // Measure processing time
-  const currentTime = performance.now() - startTime;
-  console.log(`Detection time: ${currentTime} ms`);
-  console.log(`Detected ${ids.rows} markers ${ids.rows} ids, ${rejected.size()} rejected`);
+  // const currentTime = performance.now() - startTime;
+  // console.log(`Detection time: ${currentTime} ms`);
+  // console.log(`Detected ${ids.rows} markers ${ids.rows} ids, ${rejected.size()} rejected`);
 
   const markers: IMarker[] = [];
   for (let i = 0; i < corners.size(); i++) {
