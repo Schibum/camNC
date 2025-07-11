@@ -1,9 +1,13 @@
-@import "tailwindcss";
+@import 'tailwindcss';
+@plugin '../hero.ts';
+@source '../../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}';
+@custom-variant dark (&:is(.dark *));
+
 @source "../../../../apps/**/*.{ts,tsx}";
 @source "../../../*/src/components/**/*.{ts,tsx}";
 @source "../**/*.{ts,tsx}";
 
-@import "tw-animate-css";
+@import 'tw-animate-css';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -142,10 +146,10 @@
 .CollapsibleContent {
   overflow: hidden;
 }
-.CollapsibleContent[data-state="open"] {
+.CollapsibleContent[data-state='open'] {
   animation: slideDown 300ms ease-out;
 }
-.CollapsibleContent[data-state="closed"] {
+.CollapsibleContent[data-state='closed'] {
   animation: slideUp 300ms ease-out;
 }
 

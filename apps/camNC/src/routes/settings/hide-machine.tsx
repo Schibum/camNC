@@ -1,5 +1,6 @@
 import { isDepthBlendSupported } from '@/depth/depthBlendManager';
 import { useDepthSettings, useSetDepthSettings } from '@/store/store';
+import { Button as HButton } from '@heroui/button';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createFileRoute } from '@tanstack/react-router';
 import { Alert, AlertDescription, AlertTitle } from '@wbcnc/ui/components/alert';
@@ -209,6 +210,8 @@ function HideMachineSettings() {
             />
 
             <div className="flex gap-2">
+              <HButton color="primary">Test</HButton>
+
               <Button type="submit">Save</Button>
               <Button type="button" variant="secondary" onClick={handleReset}>
                 Reset to Defaults
