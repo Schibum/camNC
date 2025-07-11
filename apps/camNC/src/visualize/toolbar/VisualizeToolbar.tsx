@@ -212,9 +212,7 @@ function ColorLegendButton() {
 }
 
 function BoundsInfoButton() {
-  const hasToolpath = useHasToolpath();
   const [open, setOpen] = useState(false);
-  if (!hasToolpath) return null;
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
