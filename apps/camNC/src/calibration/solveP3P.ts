@@ -56,7 +56,6 @@ export function computeP3P(mp: Vector3[], markersInCam: Vector2[], newCamMatrix:
   const reprojectedPoints = new cv2.Mat();
   cv2.projectPoints(objectPoints, rvec, tvec, cameraMatrix, distCoeffs, reprojectedPoints);
   const reprojectionError = computeReprojectionError(reprojectedPoints, markersInCam);
-  console.log('reprojectionError', reprojectionError);
   // Convert rotation vector to rotation matrix
   const R = new cv2.Mat();
   cv2.Rodrigues(rvec, R);

@@ -219,7 +219,7 @@ function BoundsInfoButton() {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <div>
-          <TooltipIconButton label="Bounds Info" icon={<Info />} shortcut="i" onClick={() => setOpen(true)} />
+          <TooltipIconButton label="Info" icon={<Info />} shortcut="i" onClick={() => setOpen(true)} />
         </div>
       </PopoverTrigger>
       <PopoverContent>

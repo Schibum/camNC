@@ -48,6 +48,10 @@ export interface ICamSource {
   markerPositions?: Vector3[];
   // ArUco marker configuration
   arucoTagSize?: number; // Size in mm of black border (excluding white border)
+  // Last time PnP was computed (ms since epoch)
+  lastPnPTime?: number;
+  // Last reprojection error in pixels
+  lastReprojectionError?: number;
 }
 
 superjson.registerCustom<Box2, { min: number[]; max: number[] }>(
@@ -156,6 +160,12 @@ export const useStore = create(persist(immer(combine(
         if (!state.camSource) throw new Error('configure source first');
         state.camSource.extrinsics = extrinsics;
       }),
+      setPnPResult: (error: number) =>
+        set(state => {
+          if (!state.camSource) throw new Error('configure source first');
+          state.camSource.lastPnPTime = Date.now();
+          state.camSource.lastReprojectionError = error;
+        }),
       setMachineBounds: (xmin: number, ymin: number, xmax: number, ymax: number) => set(state => {
         if (!state.camSource) throw new Error('configure source first');
         state.camSource.machineBounds = new Box2(new Vector2(xmin, ymin), new Vector2(xmax, ymax));
@@ -277,6 +287,8 @@ export function useMachineSize() {
 
 export const useCameraExtrinsics = () => useStore(state => state.camSource!.extrinsics!);
 export const useSetCameraExtrinsics = () => useStore(state => state.camSourceSetters.setExtrinsics);
+export const useLastPnPTime = () => useStore(state => state.camSource?.lastPnPTime);
+export const useReprojectionError = () => useStore(state => state.camSource?.lastReprojectionError);
 
 export const useShowStillFrame = () => useStore(state => state.showStillFrame);
 export const useSetShowStillFrame = () => useStore(state => state.setShowStillFrame);
