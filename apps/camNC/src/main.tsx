@@ -1,4 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
+import { HeroUIProvider } from '@heroui/system';
 import { RouterProvider, createRouter } from '@tanstack/react-router';
 import { setKeepAliveTime } from '@wbcnc/go2webrtc/use-video-source';
 import { initFbApp } from '@wbcnc/public-config/firebase';
@@ -45,7 +46,9 @@ if (!rootElement.innerHTML) {
   const root = ReactDOM.createRoot(rootElement);
   root.render(
     <StrictMode>
-      <RouterProvider router={router} />
+      <HeroUIProvider>
+        <RouterProvider router={router} />
+      </HeroUIProvider>
     </StrictMode>
   );
 }

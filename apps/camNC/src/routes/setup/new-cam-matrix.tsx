@@ -1,10 +1,10 @@
 import { cvToMatrix3, matrix3ToCV } from '@/lib/three-cv';
 import { useCalibrationData, useCamResolution, useStore } from '@/store/store';
+import { NumberInput } from '@heroui/react';
 import { createFileRoute } from '@tanstack/react-router';
 import { cv2, ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { Button } from '@wbcnc/ui/components/button';
 import { Card, CardContent } from '@wbcnc/ui/components/card';
-import { NumberInputWithLabel } from '@wbcnc/ui/components/NumberInputWithLabel';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { use, useState } from 'react';
 import { prettyPrintThree } from '../../lib/prettyPrintThree';
@@ -51,7 +51,15 @@ function AlphaUpdateComponent() {
   }
   return (
     <div className="flex flex-col gap-2">
-      <NumberInputWithLabel label="alpha" value={alpha} onValueChange={v => setAlpha(v)} min={0} max={1} step={0.05} decimalScale={2} />
+      <NumberInput
+        label="alpha"
+        value={alpha}
+        onValueChange={v => setAlpha(v)}
+        min={0}
+        max={1}
+        step={0.05}
+        formatOptions={{ style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 }}
+      />
       <Button onClick={handleSave}>Save</Button>
     </div>
   );

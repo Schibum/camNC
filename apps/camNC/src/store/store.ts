@@ -132,9 +132,9 @@ export const useStore = create(persist(immer(combine(
     depthBgTexture: null as Texture | null,
     // Runtime depth processing settings
     depthSettings: {
-      frameRateLimit: 0.5, // default: one frame every 2s
-      bgMargin: 50,
-      renderMargin: 10,
+      frameRateLimit: 1, // default: one frame every 1s
+      bgMargin: 20,
+      renderMargin: 5,
       minMaskVal: 0.1,
       thresholdOffset: 0.2,
     } as DepthSettings,

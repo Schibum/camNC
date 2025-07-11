@@ -56,7 +56,9 @@
     "eslint-plugin-react-hooks": "catalog:",
     "eslint-plugin-unused-imports": "catalog:",
     "tailwindcss": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "@heroui/react": "catalog:",
+    "framer-motion": "catalog:"
   },
   "main": "./src/index.ts",
   "exports": {

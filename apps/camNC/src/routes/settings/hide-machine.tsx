@@ -5,9 +5,9 @@ import { createFileRoute } from '@tanstack/react-router';
 import { Alert, AlertDescription, AlertTitle } from '@wbcnc/ui/components/alert';
 import { Button } from '@wbcnc/ui/components/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@wbcnc/ui/components/form';
-import { NumberInput } from '@wbcnc/ui/components/NumberInput';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wbcnc/ui/components/select';
+import { Slider } from '@wbcnc/ui/components/slider';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { useForm } from 'react-hook-form';
 import z from 'zod';
@@ -30,9 +30,9 @@ const fpsOptions: { label: string; value: number }[] = [
 ];
 
 const defaultSettings = {
-  frameRateLimit: 0.5,
-  bgMargin: 50,
-  renderMargin: 10,
+  frameRateLimit: 1,
+  bgMargin: 20,
+  renderMargin: 5,
   minMaskVal: 0.1,
   thresholdOffset: 0.2,
 };
@@ -119,16 +119,14 @@ function HideMachineSettings() {
               name="bgMargin"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Background Mask Margin</FormLabel>
                   <FormControl>
-                    <NumberInput
-                      suffix="px"
-                      decimalScale={0}
-                      step={1}
-                      min={0}
-                      max={75}
+                    <Slider
+                      label="Background Mask Margin"
                       value={field.value}
-                      onValueChange={v => v !== undefined && field.onChange(v)}
+                      onChange={v => field.onChange(v)}
+                      minValue={0}
+                      maxValue={75}
+                      step={1}
                     />
                   </FormControl>
                   <FormDescription>
@@ -145,16 +143,14 @@ function HideMachineSettings() {
               name="renderMargin"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Render Mask Margin</FormLabel>
                   <FormControl>
-                    <NumberInput
-                      suffix="px"
-                      decimalScale={0}
-                      step={1}
-                      min={0}
-                      max={75}
+                    <Slider
+                      label="Render Mask Margin"
                       value={field.value}
-                      onValueChange={v => v !== undefined && field.onChange(v)}
+                      onChange={v => field.onChange(v)}
+                      minValue={0}
+                      maxValue={75}
+                      step={1}
                     />
                   </FormControl>
                   <FormDescription>Margin to add around mask when rendering to avoid artifacts from edges of the mask.</FormDescription>
@@ -169,15 +165,14 @@ function HideMachineSettings() {
               name="minMaskVal"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Minimum Opacity for Mask</FormLabel>
                   <FormControl>
-                    <NumberInput
-                      decimalScale={2}
-                      step={0.01}
-                      min={0}
-                      max={0.5}
+                    <Slider
+                      label="Minimum Mask Opacity"
                       value={field.value}
-                      onValueChange={v => v !== undefined && field.onChange(v)}
+                      onChange={v => field.onChange(v)}
+                      minValue={0}
+                      maxValue={0.5}
+                      step={0.01}
                     />
                   </FormControl>
                   <FormDescription>Machine will always be visible with at least this opacity.</FormDescription>
@@ -192,15 +187,14 @@ function HideMachineSettings() {
               name="thresholdOffset"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Relative Offset Above Table to Mask</FormLabel>
                   <FormControl>
-                    <NumberInput
-                      decimalScale={2}
-                      step={0.01}
-                      min={0}
-                      max={1}
+                    <Slider
+                      label="Relative Offset Above Table to Mask"
                       value={field.value}
-                      onValueChange={v => v !== undefined && field.onChange(v)}
+                      onChange={v => field.onChange(v)}
+                      minValue={0}
+                      maxValue={1}
+                      step={0.01}
                     />
                   </FormControl>
                   <FormMessage />

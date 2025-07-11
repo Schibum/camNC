@@ -13,6 +13,7 @@
     "test:browser": "vitest --workspace=vitest.workspace.ts"
   },
   "dependencies": {
+    "@heroui/react": "catalog:",
     "@hookform/devtools": "catalog:",
     "@hookform/resolvers": "catalog:",
     "@huggingface/transformers": "^3.5.2",

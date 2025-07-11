@@ -6,6 +6,7 @@ import {
   useStore,
   useToolpathOpacity,
 } from '@/store/store';
+import { NumberInput } from '@heroui/react';
 import { Button } from '@wbcnc/ui/components/button';
 import {
   Dialog,
@@ -16,8 +17,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@wbcnc/ui/components/dialog';
-import { Label } from '@wbcnc/ui/components/label';
-import { NumberInputWithLabel } from '@wbcnc/ui/components/NumberInputWithLabel';
 import { Popover, PopoverContent, PopoverTrigger } from '@wbcnc/ui/components/popover';
 import { Slider } from '@wbcnc/ui/components/slider';
 import { Diameter, FolderOpen, Info, MonitorPause, MonitorPlay, Palette, PencilRuler } from 'lucide-react';
@@ -113,12 +112,16 @@ function StockHeightDialogButton() {
             </DialogDescription>
           </DialogHeader>
 
-          <NumberInputWithLabel
-            decimalScale={2}
+          <NumberInput
+            formatOptions={{
+              style: 'unit',
+              unit: 'millimeter',
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            }}
             min={0}
             label="Stock Height"
             value={stockHeight}
-            suffix="mm"
             step={0.1}
             onValueChange={value => value !== undefined && setStockHeight(value)}
           />
@@ -150,12 +153,16 @@ function ToolDiameterDialogButton() {
             <DialogTitle>Tool Diameter</DialogTitle>
             <DialogDescription>Adjust the diameter of the tool.</DialogDescription>
           </DialogHeader>
-          <NumberInputWithLabel
-            decimalScale={2}
+          <NumberInput
+            formatOptions={{
+              style: 'unit',
+              unit: 'millimeter',
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            }}
             min={0}
             label="Tool Diameter"
             value={toolDiameter}
-            suffix="mm"
             step={0.1}
             onValueChange={value => value && setToolDiameter(value)}
           />
@@ -201,10 +208,15 @@ function ColorLegendButton() {
       <PopoverContent>
         <div className="flex flex-col gap-4">
           <ZDepthLegend />
-          <div className="grid w-full items-center gap-1.5">
-            <Label htmlFor="opacity-slider">Opacity</Label>
-            <Slider id="opacity-slider" min={0.1} max={1} step={0.01} value={[opacity]} onValueChange={v => setOpacity(v[0])} />
-          </div>
+          <Slider
+            id="opacity-slider"
+            minValue={0.1}
+            maxValue={1}
+            step={0.01}
+            value={opacity}
+            onChange={v => setOpacity(v)}
+            label="Opacity"
+          />
         </div>
       </PopoverContent>
     </Popover>
