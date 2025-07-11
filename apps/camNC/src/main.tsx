@@ -3,6 +3,8 @@ import { RouterProvider, createRouter } from '@tanstack/react-router';
 import { setKeepAliveTime } from '@wbcnc/go2webrtc/use-video-source';
 import { initFbApp } from '@wbcnc/public-config/firebase';
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
+import { ThemeProvider } from '@wbcnc/ui/components/theme-provider';
+import { HeroUIProvider } from '@heroui/system';
 import { StrictMode } from 'react';
 import ReactDOM from 'react-dom/client';
 import { getCncApi } from './lib/fluidnc/fluidnc-singleton';
@@ -45,7 +47,11 @@ if (!rootElement.innerHTML) {
   const root = ReactDOM.createRoot(rootElement);
   root.render(
     <StrictMode>
-      <RouterProvider router={router} />
+      <ThemeProvider defaultTheme="dark">
+        <HeroUIProvider>
+          <RouterProvider router={router} />
+        </HeroUIProvider>
+      </ThemeProvider>
     </StrictMode>
   );
 }

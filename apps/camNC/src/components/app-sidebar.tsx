@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { Camera, Grid2x2, Grid3x3, HardDriveDownload, Layers, Puzzle, Route, Ruler, Scale3d, ScanQrCode } from 'lucide-react';
+import { Camera, Grid2x2, Grid3x3, HardDriveDownload, Layers, Puzzle, Route, Ruler, Scale3d, ScanQrCode, Settings } from 'lucide-react';
 import * as React from 'react';
 
 import { useLocation } from '@tanstack/react-router';
@@ -72,6 +72,11 @@ const setupRoutes: NavRoute[] = [
   },
 ];
 const settingsRoutes: NavRoute[] = [
+  {
+    title: 'General',
+    to: '/settings/general',
+    icon: Settings,
+  },
   {
     title: 'Hide Machine',
     to: '/settings/hide-machine',

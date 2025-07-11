@@ -21,6 +21,9 @@
     "node": ">=18"
   },
   "dependencies": {
+    "@heroui/slider": "^2.4.19",
+    "@heroui/system": "^2.4.18",
+    "@heroui/theme": "^2.4.17",
     "vite-plugin-node-polyfills": "catalog:",
     "vitest": "catalog:"
   }

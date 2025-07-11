@@ -133,6 +133,7 @@ export const useStore = create(persist(immer(combine(
       minMaskVal: 0.1,
       thresholdOffset: 0.2,
     } as DepthSettings,
+    autoScanIntervalMs: 3000,
   },
   (set) => ({
     setToolpathOffset: (offset: Vector3) => set(state => {
@@ -223,6 +224,9 @@ export const useStore = create(persist(immer(combine(
     setDepthBgTexture: (tex: Texture | null) => set(state => {
       state.depthBgTexture = tex as any;
     }),
+    setAutoScanIntervalMs: (ms: number) => set(state => {
+      state.autoScanIntervalMs = ms;
+    }),
     // Depth settings
     setDepthSettings: (settings: Partial<DepthSettings>) => set(state => {
       state.depthSettings = { ...state.depthSettings, ...settings } as DepthSettings;
@@ -245,6 +249,7 @@ export const useStore = create(persist(immer(combine(
     depthBlendEnabled: state.depthBlendEnabled,
     depthSettings: state.depthSettings,
     toolpathOpacity: state.toolpathOpacity,
+    autoScanIntervalMs: state.autoScanIntervalMs,
   }),
 }));
 
@@ -303,6 +308,8 @@ export const useSetBgTexture = () => useStore(state => state.setDepthBgTexture);
 // Depth runtime settings hooks
 export const useDepthSettings = () => useStore(state => state.depthSettings as DepthSettings);
 export const useSetDepthSettings = () => useStore(state => state.setDepthSettings);
+export const useAutoScanInterval = () => useStore(state => state.autoScanIntervalMs);
+export const useSetAutoScanInterval = () => useStore(state => state.setAutoScanIntervalMs);
 
 // Visualization toggle hooks
 export const useShowMachinePosMarker = () => useStore(state => state.showMachinePosMarker);

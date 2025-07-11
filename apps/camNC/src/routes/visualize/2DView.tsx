@@ -1,5 +1,6 @@
 import { UnprojectVideoMesh } from '@/calibration/Unproject';
 import { useAutoScanMarkers } from '@/hooks/useAutoScanMarkers';
+import { useAutoScanInterval } from '@/store/store';
 import { DepthBlendWorker } from '@/hooks/useDepthBlendWorker';
 import { useInitToolpathOffset } from '@/hooks/useInitToolpathOffset';
 import { getCncApi } from '@/lib/fluidnc/fluidnc-singleton';
@@ -33,7 +34,8 @@ UnprojectVideoMeshWithStockHeight.displayName = 'UnprojectVideoMeshWithStockHeig
 function VisualizeComponent() {
   useInitToolpathOffset();
   const cncApi = getCncApi();
-  useAutoScanMarkers({ intervalMs: 3_000 });
+  const scanInterval = useAutoScanInterval();
+  useAutoScanMarkers({ intervalMs: scanInterval });
 
   function onDbClick(event: ThreeEvent<MouseEvent>) {
     console.log('onDbClick', event.unprojectedPoint);

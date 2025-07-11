@@ -5,7 +5,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { Alert, AlertDescription, AlertTitle } from '@wbcnc/ui/components/alert';
 import { Button } from '@wbcnc/ui/components/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@wbcnc/ui/components/form';
-import { NumberInput } from '@wbcnc/ui/components/NumberInput';
+import { Slider } from '@wbcnc/ui/components/slider';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wbcnc/ui/components/select';
 import { toast } from '@wbcnc/ui/components/sonner';
@@ -121,14 +121,12 @@ function HideMachineSettings() {
                 <FormItem>
                   <FormLabel>Background Mask Margin</FormLabel>
                   <FormControl>
-                    <NumberInput
-                      suffix="px"
-                      decimalScale={0}
-                      step={1}
+                    <Slider
                       min={0}
                       max={75}
+                      step={1}
                       value={field.value}
-                      onValueChange={v => v !== undefined && field.onChange(v)}
+                      onValueChange={(v: number | number[]) => field.onChange(Array.isArray(v) ? v[0] : v)}
                     />
                   </FormControl>
                   <FormDescription>
@@ -147,14 +145,12 @@ function HideMachineSettings() {
                 <FormItem>
                   <FormLabel>Render Mask Margin</FormLabel>
                   <FormControl>
-                    <NumberInput
-                      suffix="px"
-                      decimalScale={0}
-                      step={1}
+                    <Slider
                       min={0}
                       max={75}
+                      step={1}
                       value={field.value}
-                      onValueChange={v => v !== undefined && field.onChange(v)}
+                      onValueChange={(v: number | number[]) => field.onChange(Array.isArray(v) ? v[0] : v)}
                     />
                   </FormControl>
                   <FormDescription>Margin to add around mask when rendering to avoid artifacts from edges of the mask.</FormDescription>
@@ -171,13 +167,12 @@ function HideMachineSettings() {
                 <FormItem>
                   <FormLabel>Minimum Opacity for Mask</FormLabel>
                   <FormControl>
-                    <NumberInput
-                      decimalScale={2}
-                      step={0.01}
+                    <Slider
                       min={0}
                       max={0.5}
+                      step={0.01}
                       value={field.value}
-                      onValueChange={v => v !== undefined && field.onChange(v)}
+                      onValueChange={(v: number | number[]) => field.onChange(Array.isArray(v) ? v[0] : v)}
                     />
                   </FormControl>
                   <FormDescription>Machine will always be visible with at least this opacity.</FormDescription>
@@ -194,13 +189,12 @@ function HideMachineSettings() {
                 <FormItem>
                   <FormLabel>Relative Offset Above Table to Mask</FormLabel>
                   <FormControl>
-                    <NumberInput
-                      decimalScale={2}
-                      step={0.01}
+                    <Slider
                       min={0}
                       max={1}
+                      step={0.01}
                       value={field.value}
-                      onValueChange={v => v !== undefined && field.onChange(v)}
+                      onValueChange={(v: number | number[]) => field.onChange(Array.isArray(v) ? v[0] : v)}
                     />
                   </FormControl>
                   <FormMessage />
