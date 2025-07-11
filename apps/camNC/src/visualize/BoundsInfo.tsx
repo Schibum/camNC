@@ -31,7 +31,11 @@ export function BoundsInfo() {
             <div>
               PnP computed <TimeAgo date={pnpResult.lastPnPTime} />
             </div>
-            {pnpResult.lastReprojectionError !== undefined && <div>Reprojection error: {pnpResult.lastReprojectionError.toFixed(2)}px</div>}
+            {pnpResult.lastReprojectionError !== undefined && (
+              <div className={pnpResult.lastReprojectionError > 2 ? 'text-red-600' : ''}>
+                Reprojection error: {pnpResult.lastReprojectionError.toFixed(2)}px
+              </div>
+            )}
           </div>
         </>
       )}
