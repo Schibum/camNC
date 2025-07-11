@@ -13,6 +13,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { useStore } from '../../store/store';
+import { Vector2 } from 'three';
 
 export const Route = createFileRoute('/visualize/2DView')({
   component: VisualizeComponent,
@@ -42,6 +43,12 @@ function VisualizeComponent() {
       return;
     }
     const point = event.unprojectedPoint;
+    const bounds = useStore.getState().camSource?.machineBounds;
+    if (!bounds) return;
+    if (!bounds.containsPoint(new Vector2(point.x, point.y))) {
+      toast.info('Cannot jog outside machine bounds');
+      return;
+    }
     cncApi?.jogToMachineCoordinates(point.x, point.y);
     toast.success(`Jogging to ${point.x.toFixed(2)}, ${point.y.toFixed(2)}`);
   }
