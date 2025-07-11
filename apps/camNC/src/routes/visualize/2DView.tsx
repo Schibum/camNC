@@ -13,6 +13,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { useStore } from '../../store/store';
+import { useMarkerScanIntervalMs } from '../../store/store';
 
 export const Route = createFileRoute('/visualize/2DView')({
   component: VisualizeComponent,
@@ -33,7 +34,8 @@ UnprojectVideoMeshWithStockHeight.displayName = 'UnprojectVideoMeshWithStockHeig
 function VisualizeComponent() {
   useInitToolpathOffset();
   const cncApi = getCncApi();
-  useAutoScanMarkers({ intervalMs: 3_000 });
+  const scanInterval = useMarkerScanIntervalMs();
+  useAutoScanMarkers({ intervalMs: scanInterval });
 
   function onDbClick(event: ThreeEvent<MouseEvent>) {
     console.log('onDbClick', event.unprojectedPoint);

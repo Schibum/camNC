@@ -13,6 +13,9 @@
     "test:browser": "vitest --workspace=vitest.workspace.ts"
   },
   "dependencies": {
+    "@heroui/system": "^2.4.18",
+    "@heroui/theme": "^2.4.17",
+    "@heroui/tooltip": "^2.2.19",
     "@hookform/devtools": "catalog:",
     "@hookform/resolvers": "catalog:",
     "@huggingface/transformers": "^3.5.2",

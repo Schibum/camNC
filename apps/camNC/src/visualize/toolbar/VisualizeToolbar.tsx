@@ -203,7 +203,7 @@ function ColorLegendButton() {
           <ZDepthLegend />
           <div className="grid w-full items-center gap-1.5">
             <Label htmlFor="opacity-slider">Opacity</Label>
-            <Slider id="opacity-slider" min={0.1} max={1} step={0.01} value={[opacity]} onValueChange={v => setOpacity(v[0])} />
+            <Slider id="opacity-slider" minValue={0.1} maxValue={1} step={0.01} value={[opacity]} onChange={(v: number | number[]) => setOpacity(Array.isArray(v) ? v[0] : v)} />
           </div>
         </div>
       </PopoverContent>

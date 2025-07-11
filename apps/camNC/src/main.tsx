@@ -5,6 +5,8 @@ import { initFbApp } from '@wbcnc/public-config/firebase';
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
 import { StrictMode } from 'react';
 import ReactDOM from 'react-dom/client';
+import { HeroUIProvider } from '@heroui/system';
+import { ThemeProvider } from '@wbcnc/ui/components/theme-provider';
 import { getCncApi } from './lib/fluidnc/fluidnc-singleton';
 import { routeTree } from './routeTree.gen';
 import './style.css';
@@ -45,7 +47,11 @@ if (!rootElement.innerHTML) {
   const root = ReactDOM.createRoot(rootElement);
   root.render(
     <StrictMode>
-      <RouterProvider router={router} />
+      <HeroUIProvider>
+        <ThemeProvider storageKey="camnc-theme">
+          <RouterProvider router={router} />
+        </ThemeProvider>
+      </HeroUIProvider>
     </StrictMode>
   );
 }

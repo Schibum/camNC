@@ -7,6 +7,10 @@
     "lint": "eslint . --max-warnings 0"
   },
   "dependencies": {
+    "@heroui/slider": "^2.4.19",
+    "@heroui/system": "^2.4.18",
+    "@heroui/theme": "^2.4.17",
+    "@heroui/tooltip": "^2.2.19",
     "@hookform/resolvers": "catalog:",
     "@radix-ui/react-alert-dialog": "catalog:",
     "@radix-ui/react-avatar": "catalog:",
@@ -18,7 +22,6 @@
     "@radix-ui/react-popover": "catalog:",
     "@radix-ui/react-select": "catalog:",
     "@radix-ui/react-separator": "catalog:",
-    "@radix-ui/react-slider": "^1.3.5",
     "@radix-ui/react-slot": "catalog:",
     "@radix-ui/react-tabs": "catalog:",
     "@radix-ui/react-toggle": "catalog:",

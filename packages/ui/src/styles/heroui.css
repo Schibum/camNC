@@ -1,0 +1,12 @@
+@layer base {
+  :root {
+    --heroui-background: var(--background);
+    --heroui-foreground: var(--foreground);
+    --heroui-primary: var(--primary);
+    --heroui-primary-foreground: var(--primary-foreground);
+    --heroui-secondary: var(--secondary);
+    --heroui-secondary-foreground: var(--secondary-foreground);
+    --heroui-danger: var(--destructive);
+    --heroui-danger-foreground: var(--destructive-foreground, white);
+  }
+}

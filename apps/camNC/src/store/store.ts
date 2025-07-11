@@ -115,6 +115,7 @@ export const useStore = create(persist(immer(combine(
     isToolpathDragging: false,
     toolpathOffset: new Vector3(0, 0, 0),
     toolpathOpacity: 1,
+    markerScanIntervalMs: 3_000,
     stockHeight: 0,
     // Visualisation toggles
     showMachinePosMarker: true,
@@ -193,6 +194,10 @@ export const useStore = create(persist(immer(combine(
       set(state => {
         state.toolpathOpacity = opacity;
       }),
+    setMarkerScanIntervalMs: (ms: number) =>
+      set(state => {
+        state.markerScanIntervalMs = ms;
+      }),
     // Update Toolpath from GCode
     updateToolpath: (gcode: string) => set(state => {
       console.log('updateToolpath');
@@ -245,6 +250,7 @@ export const useStore = create(persist(immer(combine(
     depthBlendEnabled: state.depthBlendEnabled,
     depthSettings: state.depthSettings,
     toolpathOpacity: state.toolpathOpacity,
+    markerScanIntervalMs: state.markerScanIntervalMs,
   }),
 }));
 
@@ -260,6 +266,8 @@ export const useToolDiameter = () => useStore(state => state.toolDiameter);
 export const useSetToolDiameter = () => useStore(state => state.setToolDiameter);
 export const useToolpathOpacity = () => useStore(state => state.toolpathOpacity);
 export const useSetToolpathOpacity = () => useStore(state => state.setToolpathOpacity);
+export const useMarkerScanIntervalMs = () => useStore(state => state.markerScanIntervalMs);
+export const useSetMarkerScanIntervalMs = () => useStore(state => state.setMarkerScanIntervalMs);
 export const useIsToolpathDragging = () => useStore(state => state.isToolpathDragging);
 export const useSetIsToolpathDragging = () => useStore(state => state.setIsToolpathDragging);
 export const useIsToolpathHovered = () => useStore(state => state.isToolpathHovered || state.isToolpathDragging);

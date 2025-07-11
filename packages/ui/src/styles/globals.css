@@ -4,6 +4,7 @@
 @source "../**/*.{ts,tsx}";
 
 @import "tw-animate-css";
+@import "./heroui.css";
 
 @custom-variant dark (&:is(.dark *));
 
