@@ -273,16 +273,21 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
 
   private running = false;
   private cb: any = null;
+  private loopPromise: Promise<void> | null = null;
 
   async start(cb: any): Promise<void> {
     this.cb = cb;
     if (this.running) return;
+    if (this.loopPromise) await this.loopPromise;
     this.running = true;
-    this.loop();
+    this.loopPromise = this.loop();
   }
 
   async stop(): Promise<void> {
+    if (!this.running) return;
     this.running = false;
+    await this.loopPromise;
+    this.loopPromise = null;
   }
 
   private async loop() {
