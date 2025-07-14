@@ -44,6 +44,11 @@ This demonstrates engraving a cross positioned via drag-and-drop in the camera s
 
 https://github.com/user-attachments/assets/0c16f067-9cb2-4bc9-9941-f04e23f4bc24
 
+Hide-machine feature:
+This experimental feature estimates monocular depth using the Depth Anything V2 model to mask objects above the work surface and "hide" the machine (only tested with the [LowRider V4 beam](https://docs.v1e.com/lowrider/)). Assumes the largest depth cluster is the table and masks everything above a configurable offset:
+
+https://github.com/user-attachments/assets/a89cd4fe-92ce-4c37-b2a1-7ad5d3012fee
+
 ## Repository layout
 
 This workspace is split into two top‑level folders:
