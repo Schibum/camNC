@@ -49,8 +49,6 @@ This experimental feature estimates monocular depth using the Depth Anything V2 
 
 https://github.com/user-attachments/assets/a89cd4fe-92ce-4c37-b2a1-7ad5d3012fee
 
-
-
 ## Repository layout
 
 This workspace is split into two top‑level folders:
