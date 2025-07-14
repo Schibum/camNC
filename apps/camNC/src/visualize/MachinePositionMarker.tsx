@@ -24,7 +24,8 @@ export function MachinePositionMarker({
 
   // Access CNC API & reactive machine position.
   const cncApi = getCncApi();
-  const mpos = cncApi.machinePos.value; // {x,y,z}
+  let mpos = cncApi.machinePos.value; // {x,y,z}
+  mpos = { x: 0, y: 0, z: 0 };
 
   // Radius = ½ tool diameter.
   const toolDiameter = useToolDiameter();
@@ -34,7 +35,7 @@ export function MachinePositionMarker({
   const lineThickness = Math.max(radius * 0.05, 1);
 
   // Build points for circle (outer ring) – duplicate first point to close the ring
-  const ringRadius = radius + radius * 0.35;
+  const ringRadius = Math.max(radius, 6) * 1.35;
 
   // Build points for inner solid ring (slightly smaller radius)
   const innerCirclePoints = useMemo(() => {
