@@ -5,17 +5,18 @@ import { useInitToolpathOffset } from '@/hooks/useInitToolpathOffset';
 import { getCncApi } from '@/lib/fluidnc/fluidnc-singleton';
 import { PresentCanvas } from '@/scene/PresentCanvas';
 import { MachinePositionMarker } from '@/visualize/MachinePositionMarker';
-import { SnapPositionMarker } from '@/visualize/SnapPositionMarker';
 import { MachineZeroAxes } from '@/visualize/MachineZeroAxes';
+import { SnapPositionMarker } from '@/visualize/SnapPositionMarker';
 import { GCodeVisualizer } from '@/visualize/Toolpaths';
-import { VisualizeToolbar } from '@/visualize/toolbar/VisualizeToolbar';
 import { nearestPointOnToolpath } from '@/visualize/nearestPoint';
+import { VisualizeToolbar } from '@/visualize/toolbar/VisualizeToolbar';
 import { ThreeElements, ThreeEvent } from '@react-three/fiber';
 import { createFileRoute, redirect } from '@tanstack/react-router';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { toast } from '@wbcnc/ui/components/sonner';
+import { useHotkeys } from 'react-hotkeys-hook';
 import { Vector2, Vector3 } from 'three';
-import { useStore, useSnapToToolpath, useSetSnapPosition, useSnapPosition } from '../../store/store';
+import { useSetSnapPosition, useSetSnapToToolpath, useSnapPosition, useSnapToToolpath, useStore } from '../../store/store';
 
 export const Route = createFileRoute('/visualize/2DView')({
   component: VisualizeComponent,
@@ -40,10 +41,23 @@ function VisualizeComponent() {
   const snapEnabled = useSnapToToolpath();
   const setSnapPosition = useSetSnapPosition();
   const snapPos = useSnapPosition();
+  const setSnapToToolpath = useSetSnapToToolpath();
   const toolpath = useStore(s => s.toolpath);
   const toolpathOffset = useStore(s => s.toolpathOffset);
 
+  // Disable snap-to-toolpath mode when user presses ESC
+  useHotkeys(
+    'esc',
+    () => {
+      if (snapEnabled) {
+        setSnapToToolpath(false);
+      }
+    },
+    [snapEnabled]
+  );
+
   function onDbClick(event: ThreeEvent<MouseEvent>) {
+    if (!snapEnabled) return onClickSnap();
     console.log('onDbClick', event.unprojectedPoint);
     if (!cncApi?.isConnected()) {
       toast.error('FluicNC integration not connected');
@@ -99,7 +113,7 @@ function VisualizeComponent() {
       <div className="w-full h-dvh absolute top-0 left-0">
         <PresentCanvas worldScale="machine">
           {/* <group rotation={[0, 0, Math.PI / 2]}> */}
-          <UnprojectVideoMeshWithStockHeight onDoubleClick={onDbClick} onPointerMove={onPointerMove} onClick={onClickSnap} />
+          <UnprojectVideoMeshWithStockHeight onDoubleClick={onDbClick} onPointerMove={onPointerMove} />
           <GCodeVisualizer />
           <MachinePositionMarker />
           <SnapPositionMarker />
