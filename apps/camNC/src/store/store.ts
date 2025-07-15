@@ -126,6 +126,8 @@ export const useStore = create(persist(immer(combine(
     showMachineZero: true,
     showStillFrame: false,
     fluidncToken: crypto.randomUUID() as string,
+    snapToToolpath: false,
+    snapPosition: null as Vector3 | null,
     // Depth-based background blend feature
     depthBlendEnabled: false,
     depthMaskTexture: null as Texture | null,
@@ -211,6 +213,12 @@ export const useStore = create(persist(immer(combine(
     }),
     setFluidncToken: (token: string) => set(state => {
       state.fluidncToken = token;
+    }),
+    setSnapToToolpath: (enable: boolean) => set(state => {
+      state.snapToToolpath = enable;
+    }),
+    setSnapPosition: (pos: Vector3 | null) => set(state => {
+      state.snapPosition = pos;
     }),
     // Depth blend feature setters
     setDepthBlendEnabled: (enabled: boolean) => {
@@ -320,3 +328,7 @@ export const useShowMachinePosMarker = () => useStore(state => state.showMachine
 export const useSetShowMachinePosMarker = () => useStore(state => state.setShowMachinePosMarker);
 export const useShowMachineZero = () => useStore(state => state.showMachineZero);
 export const useSetShowMachineZero = () => useStore(state => state.setShowMachineZero);
+export const useSnapToToolpath = () => useStore(state => state.snapToToolpath);
+export const useSetSnapToToolpath = () => useStore(state => state.setSnapToToolpath);
+export const useSnapPosition = () => useStore(state => state.snapPosition);
+export const useSetSnapPosition = () => useStore(state => state.setSnapPosition);
