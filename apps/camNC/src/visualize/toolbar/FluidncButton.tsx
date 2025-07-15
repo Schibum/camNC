@@ -3,11 +3,11 @@ import {
   useHasToolpath,
   useSetShowMachinePosMarker,
   useSetShowMachineZero,
+  useSetSnapToToolpath,
   useShowMachinePosMarker,
   useShowMachineZero,
-  useStore,
   useSnapToToolpath,
-  useSetSnapToToolpath,
+  useStore,
 } from '@/store/store';
 import { Link } from '@tanstack/react-router';
 import {
@@ -19,7 +19,7 @@ import {
   DropdownMenuTrigger,
 } from '@wbcnc/ui/components/dropdown-menu';
 import { toast } from '@wbcnc/ui/components/sonner';
-import { CircleArrowRight, CircleOff, ClipboardCopy, Download, Eye, EyeOff, Joystick, Puzzle, Crosshair } from 'lucide-react';
+import { CircleArrowRight, CircleOff, ClipboardCopy, Crosshair, Download, Eye, EyeOff, Joystick, Puzzle } from 'lucide-react';
 import { Vector3 } from 'three';
 import { TooltipIconButton } from './TooltipIconButton';
 import { UploadMenuItem } from './UploadMenuItem';
@@ -112,7 +112,7 @@ export function FluidncButton() {
         <DropdownMenuItem onClick={() => setShowMachineZero(!showMachineZero)}>
           {showMachineZero ? <EyeOff /> : <Eye />} {showMachineZero ? 'Hide' : 'Show'} zero axes
         </DropdownMenuItem>
-        <DropdownMenuItem disabled={!isFluidAvailable} onClick={() => setSnapToToolpath(!snapToToolpath)}>
+        <DropdownMenuItem onClick={() => setSnapToToolpath(!snapToToolpath)}>
           <Crosshair /> {snapToToolpath ? 'Disable' : 'Enable'} snap to toolpath
         </DropdownMenuItem>
         <DropdownMenuSeparator />
