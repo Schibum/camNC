@@ -3,8 +3,10 @@ import {
   useHasToolpath,
   useSetShowMachinePosMarker,
   useSetShowMachineZero,
+  useSetSnapToToolpath,
   useShowMachinePosMarker,
   useShowMachineZero,
+  useSnapToToolpath,
   useStore,
 } from '@/store/store';
 import { Link } from '@tanstack/react-router';
@@ -17,7 +19,7 @@ import {
   DropdownMenuTrigger,
 } from '@wbcnc/ui/components/dropdown-menu';
 import { toast } from '@wbcnc/ui/components/sonner';
-import { CircleArrowRight, CircleOff, ClipboardCopy, Download, Eye, EyeOff, Joystick, Puzzle } from 'lucide-react';
+import { CircleArrowRight, CircleOff, ClipboardCopy, Crosshair, Download, Eye, EyeOff, Joystick, Puzzle } from 'lucide-react';
 import { Vector3 } from 'three';
 import { TooltipIconButton } from './TooltipIconButton';
 import { UploadMenuItem } from './UploadMenuItem';
@@ -73,6 +75,8 @@ export function FluidncButton() {
   const setShowMachinePosMarker = useSetShowMachinePosMarker();
   const showMachineZero = useShowMachineZero();
   const setShowMachineZero = useSetShowMachineZero();
+  const snapToToolpath = useSnapToToolpath();
+  const setSnapToToolpath = useSetSnapToToolpath();
 
   return (
     <DropdownMenu>
@@ -107,6 +111,9 @@ export function FluidncButton() {
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setShowMachineZero(!showMachineZero)}>
           {showMachineZero ? <EyeOff /> : <Eye />} {showMachineZero ? 'Hide' : 'Show'} zero axes
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setSnapToToolpath(!snapToToolpath)}>
+          <Crosshair /> {snapToToolpath ? 'Disable' : 'Enable'} snap to toolpath
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
