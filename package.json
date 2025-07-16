@@ -24,12 +24,5 @@
     "vite-plugin-node-polyfills": "catalog:",
     "vitest": "catalog:"
   },
-  "pnpm": {
-    "overrides": {
-      "@firebase-ui/react@0.0.1": "https://github.com/firebase/firebaseui-web/raw/refs/heads/v7-alpha/releases/firebase-ui-react-0.0.1.tgz",
-      "@firebase-ui/core@0.0.1": "https://github.com/firebase/firebaseui-web/raw/refs/heads/v7-alpha/releases/firebase-ui-core-0.0.1.tgz",
-      "@firebase-ui/styles@0.0.1": "https://github.com/firebase/firebaseui-web/raw/refs/heads/v7-alpha/releases/firebase-ui-styles-0.0.1.tgz",
-      "@firebase-ui/translations@0.0.1": "https://github.com/firebase/firebaseui-web/raw/refs/heads/v7-alpha/releases/firebase-ui-translations-0.0.1.tgz"
-    }
-  }
+  "pnpm": {}
 }

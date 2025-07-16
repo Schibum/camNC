@@ -370,11 +370,6 @@ catalogs:
       specifier: ^5.0.5
       version: 5.0.5
 
-overrides:
-  '@firebase-ui/react@0.0.1': https://github.com/firebase/firebaseui-web/raw/refs/heads/v7-alpha/releases/firebase-ui-react-0.0.1.tgz
-  '@firebase-ui/core@0.0.1': https://github.com/firebase/firebaseui-web/raw/refs/heads/v7-alpha/releases/firebase-ui-core-0.0.1.tgz
-  '@firebase-ui/styles@0.0.1': https://github.com/firebase/firebaseui-web/raw/refs/heads/v7-alpha/releases/firebase-ui-styles-0.0.1.tgz
-  '@firebase-ui/translations@0.0.1': https://github.com/firebase/firebaseui-web/raw/refs/heads/v7-alpha/releases/firebase-ui-translations-0.0.1.tgz
 
 importers:
 
@@ -402,18 +397,6 @@ importers:
 
   apps/camNC:
     dependencies:
-      '@firebase-ui/core':
-        specifier: https://github.com/firebase/firebaseui-web/raw/refs/heads/v7-alpha/releases/firebase-ui-core-0.0.1.tgz
-        version: https://raw.githubusercontent.com/firebase/firebaseui-web/refs/heads/v7-alpha/releases/firebase-ui-core-0.0.1.tgz(firebase@11.8.1)
-      '@firebase-ui/react':
-        specifier: https://github.com/firebase/firebaseui-web/raw/refs/heads/v7-alpha/releases/firebase-ui-react-0.0.1.tgz
-        version: https://raw.githubusercontent.com/firebase/firebaseui-web/refs/heads/v7-alpha/releases/firebase-ui-react-0.0.1.tgz(@firebase-ui/core@https://raw.githubusercontent.com/firebase/firebaseui-web/refs/heads/v7-alpha/releases/firebase-ui-core-0.0.1.tgz(firebase@11.8.1))(@firebase-ui/styles@https://raw.githubusercontent.com/firebase/firebaseui-web/refs/heads/v7-alpha/releases/firebase-ui-styles-0.0.1.tgz)(typescript@5.8.3)
-      '@firebase-ui/styles':
-        specifier: https://github.com/firebase/firebaseui-web/raw/refs/heads/v7-alpha/releases/firebase-ui-styles-0.0.1.tgz
-        version: https://raw.githubusercontent.com/firebase/firebaseui-web/refs/heads/v7-alpha/releases/firebase-ui-styles-0.0.1.tgz
-      '@firebase-ui/translations':
-        specifier: https://github.com/firebase/firebaseui-web/raw/refs/heads/v7-alpha/releases/firebase-ui-translations-0.0.1.tgz
-        version: https://raw.githubusercontent.com/firebase/firebaseui-web/refs/heads/v7-alpha/releases/firebase-ui-translations-0.0.1.tgz
       '@heroui/react':
         specifier: 'catalog:'
         version: 2.8.0-beta.15(@types/react@19.1.6)(framer-motion@12.23.3(@emotion/is-prop-valid@1.3.1)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(tailwindcss@4.1.8)
@@ -1921,26 +1904,6 @@ packages:
     resolution: {integrity: sha512-0J+zgWxHN+xXONWIyPWKFMgVuJoZuGiIFu8yxk7RJjxkzpGmyja5wRFqZIVtjDVOQpV+Rw0iOAjYPE2eQyjr0w==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
-  '@firebase-ui/core@https://raw.githubusercontent.com/firebase/firebaseui-web/refs/heads/v7-alpha/releases/firebase-ui-core-0.0.1.tgz':
-    resolution: {tarball: https://raw.githubusercontent.com/firebase/firebaseui-web/refs/heads/v7-alpha/releases/firebase-ui-core-0.0.1.tgz}
-    version: 0.0.1
-    peerDependencies:
-      firebase: ^11
-
-  '@firebase-ui/react@https://raw.githubusercontent.com/firebase/firebaseui-web/refs/heads/v7-alpha/releases/firebase-ui-react-0.0.1.tgz':
-    resolution: {tarball: https://raw.githubusercontent.com/firebase/firebaseui-web/refs/heads/v7-alpha/releases/firebase-ui-react-0.0.1.tgz}
-    version: 0.0.1
-    peerDependencies:
-      '@firebase-ui/core': 0.0.1
-      '@firebase-ui/styles': 0.0.1
-
-  '@firebase-ui/styles@https://raw.githubusercontent.com/firebase/firebaseui-web/refs/heads/v7-alpha/releases/firebase-ui-styles-0.0.1.tgz':
-    resolution: {tarball: https://raw.githubusercontent.com/firebase/firebaseui-web/refs/heads/v7-alpha/releases/firebase-ui-styles-0.0.1.tgz}
-    version: 0.0.1
-
-  '@firebase-ui/translations@https://raw.githubusercontent.com/firebase/firebaseui-web/refs/heads/v7-alpha/releases/firebase-ui-translations-0.0.1.tgz':
-    resolution: {tarball: https://raw.githubusercontent.com/firebase/firebaseui-web/refs/heads/v7-alpha/releases/firebase-ui-translations-0.0.1.tgz}
-    version: 0.0.1
 
   '@firebase/ai@1.3.0':
     resolution: {integrity: sha512-qBxJTtl9hpgZr050kVFTRADX6I0Ss6mEQyp/JEkBgKwwxixKnaRNqEDGFba4OKNL7K8E4Y7LlA/ZW6L8aCKH4A==}
@@ -9045,34 +9008,6 @@ snapshots:
       '@eslint/core': 0.14.0
       levn: 0.4.1
 
-  '@firebase-ui/core@https://raw.githubusercontent.com/firebase/firebaseui-web/refs/heads/v7-alpha/releases/firebase-ui-core-0.0.1.tgz(firebase@11.8.1)':
-    dependencies:
-      '@firebase-ui/translations': https://raw.githubusercontent.com/firebase/firebaseui-web/refs/heads/v7-alpha/releases/firebase-ui-translations-0.0.1.tgz
-      firebase: 11.8.1
-      nanostores: 0.11.4
-      zod: 3.25.49
-
-  '@firebase-ui/react@https://raw.githubusercontent.com/firebase/firebaseui-web/refs/heads/v7-alpha/releases/firebase-ui-react-0.0.1.tgz(@firebase-ui/core@https://raw.githubusercontent.com/firebase/firebaseui-web/refs/heads/v7-alpha/releases/firebase-ui-core-0.0.1.tgz(firebase@11.8.1))(@firebase-ui/styles@https://raw.githubusercontent.com/firebase/firebaseui-web/refs/heads/v7-alpha/releases/firebase-ui-styles-0.0.1.tgz)(typescript@5.8.3)':
-    dependencies:
-      '@firebase-ui/core': https://raw.githubusercontent.com/firebase/firebaseui-web/refs/heads/v7-alpha/releases/firebase-ui-core-0.0.1.tgz(firebase@11.8.1)
-      '@firebase-ui/styles': https://raw.githubusercontent.com/firebase/firebaseui-web/refs/heads/v7-alpha/releases/firebase-ui-styles-0.0.1.tgz
-      '@nanostores/react': 0.8.4(nanostores@0.11.4)(react@19.1.0)
-      '@tanstack/react-form': 0.41.4(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(typescript@5.8.3)
-      clsx: 2.1.1
-      firebase: 11.8.1
-      nanostores: 0.11.4
-      react: 19.1.0
-      react-dom: 19.1.0(react@19.1.0)
-      tailwind-merge: 3.3.0
-      zod: 3.25.49
-    transitivePeerDependencies:
-      - '@react-native-async-storage/async-storage'
-      - '@tanstack/start'
-      - typescript
-
-  '@firebase-ui/styles@https://raw.githubusercontent.com/firebase/firebaseui-web/refs/heads/v7-alpha/releases/firebase-ui-styles-0.0.1.tgz': {}
-
-  '@firebase-ui/translations@https://raw.githubusercontent.com/firebase/firebaseui-web/refs/heads/v7-alpha/releases/firebase-ui-translations-0.0.1.tgz': {}
 
   '@firebase/ai@1.3.0(@firebase/app-types@0.9.3)(@firebase/app@0.13.0)':
     dependencies:

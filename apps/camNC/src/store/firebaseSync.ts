@@ -32,11 +32,13 @@ onAuthStateChanged(auth, async (user: import('firebase/auth').User | null) => {
       }
     });
 
-    unsubStore = useStore.subscribe(state => {
-      const camSource = state.camSource;
-      if (camSource) {
-        setDoc(ref, { camSource: superjson.stringify(camSource) }, { merge: true });
+    unsubStore = useStore.subscribe(
+      s => s.camSource,
+      camSource => {
+        if (camSource) {
+          setDoc(ref, { camSource: superjson.stringify(camSource) }, { merge: true });
+        }
       }
-    });
+    );
   }
 });
