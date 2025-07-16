@@ -1,5 +1,6 @@
 import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react';
 import { SidebarFooter, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@wbcnc/ui/components/sidebar';
+import { LogIn } from 'lucide-react';
 
 export function SidebarAuthStatus() {
   return (
@@ -14,8 +15,13 @@ export function SidebarAuthStatus() {
         </SignedIn>
         <SignedOut>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild>
-              <SignInButton mode="modal">Sign in</SignInButton>
+            <SidebarMenuButton asChild tooltip="Sign in" className="cursor-pointer">
+              <SignInButton mode="modal">
+                <div className="flex items-center gap-2">
+                  <LogIn className="size-4" />
+                  <span>Sign in</span>
+                </div>
+              </SignInButton>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SignedOut>
