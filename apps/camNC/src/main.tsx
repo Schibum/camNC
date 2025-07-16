@@ -1,4 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
+import { ClerkProvider } from '@clerk/clerk-react';
 import { HeroUIProvider } from '@heroui/system';
 import { RouterProvider, createRouter } from '@tanstack/react-router';
 import { setKeepAliveTime } from '@wbcnc/go2webrtc/use-video-source';
@@ -6,15 +7,23 @@ import { initFbApp } from '@wbcnc/public-config/firebase';
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
 import { StrictMode } from 'react';
 import ReactDOM from 'react-dom/client';
+import { useClerkFirebaseAuthSync } from './hooks/useClerkFirebaseAuthSync';
 import { getCncApi } from './lib/fluidnc/fluidnc-singleton';
 import { routeTree } from './routeTree.gen';
-import './style.css';
 import './store/firebaseSync';
+import './style.css';
 
 initFbApp();
 // Create connection early
 getCncApi();
 setKeepAliveTime(60_000);
+
+// Import your Publishable Key
+const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+
+if (!PUBLISHABLE_KEY) {
+  throw new Error('Add your Clerk Publishable Key to the .env file');
+}
 
 function DefaultLoadingOverlay() {
   return (
@@ -41,15 +50,36 @@ declare module '@tanstack/react-router' {
   }
 }
 
+function FbAuthSync() {
+  useClerkFirebaseAuthSync();
+  return null;
+}
+
 const rootElement = document.getElementById('app')!;
 
 if (!rootElement.innerHTML) {
   const root = ReactDOM.createRoot(rootElement);
   root.render(
     <StrictMode>
-      <HeroUIProvider>
-        <RouterProvider router={router} />
-      </HeroUIProvider>
+      <ClerkProvider
+        publishableKey={PUBLISHABLE_KEY}
+        appearance={{
+          elements: {
+            organizationSwitcherPopoverRootBox: {
+              width: '100%',
+              pointerEvents: 'auto',
+            },
+            userButtonPopoverRootBox: {
+              width: '100%',
+              pointerEvents: 'auto',
+            },
+          },
+        }}>
+        <FbAuthSync />
+        <HeroUIProvider>
+          <RouterProvider router={router} />
+        </HeroUIProvider>
+      </ClerkProvider>
     </StrictMode>
   );
 }

@@ -10,6 +10,7 @@ import { SnapPositionMarker } from '@/visualize/SnapPositionMarker';
 import { GCodeVisualizer } from '@/visualize/Toolpaths';
 import { nearestPointOnToolpath } from '@/visualize/nearestPoint';
 import { VisualizeToolbar } from '@/visualize/toolbar/VisualizeToolbar';
+import { UserButton } from '@clerk/clerk-react';
 import { ThreeElements, ThreeEvent } from '@react-three/fiber';
 import { createFileRoute, redirect } from '@tanstack/react-router';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
@@ -107,6 +108,7 @@ function VisualizeComponent() {
       <DepthBlendWorker />
       <PageHeader title="Top View (Orthographic)" className="absolute pr-2 flex-wrap h-auto p-1">
         <VisualizeToolbar />
+        <UserButton />
       </PageHeader>
 
       {/* 3D Canvas */}
