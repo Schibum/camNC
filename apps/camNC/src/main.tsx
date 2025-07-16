@@ -9,6 +9,7 @@ import ReactDOM from 'react-dom/client';
 import { getCncApi } from './lib/fluidnc/fluidnc-singleton';
 import { routeTree } from './routeTree.gen';
 import './style.css';
+import './store/firebaseSync';
 
 initFbApp();
 // Create connection early
