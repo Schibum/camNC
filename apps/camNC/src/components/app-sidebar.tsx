@@ -14,6 +14,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@wbcnc/ui/components/sidebar';
+import { SidebarAuthStatus } from './sidebar-auth';
 import { useEffect } from 'react';
 
 // Remove or comment out the mock data
@@ -137,6 +138,7 @@ export function AppSidebar({ ...props }: AppSidebarProps) {
         <NavRoutes routes={setupRoutes} label="Setup" />
         <NavRoutes routes={settingsRoutes} label="Settings" />
       </SidebarContent>
+      <SidebarAuthStatus />
     </Sidebar>
   );
 }

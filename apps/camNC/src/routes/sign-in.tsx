@@ -1,17 +1,21 @@
-import { FirebaseUIProvider } from '@/lib/firebase/ui';
-import { createFileRoute } from '@tanstack/react-router';
-import { SignInAuthScreen } from '@firebase-ui/react';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { Button } from '@wbcnc/ui/components/button';
+import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { auth } from '@/lib/firebase/clientApp';
 
 export const Route = createFileRoute('/sign-in')({
   component: SignInPage,
 });
 
 function SignInPage() {
+  const navigate = useNavigate();
+  async function handleSignIn() {
+    await signInWithPopup(auth, new GoogleAuthProvider());
+    navigate({ to: '/' });
+  }
   return (
-    <FirebaseUIProvider>
-      <div className="container mx-auto max-w-sm py-8">
-        <SignInAuthScreen />
-      </div>
-    </FirebaseUIProvider>
+    <div className="flex h-dvh items-center justify-center">
+      <Button onClick={handleSignIn}>Sign in with Google</Button>
+    </div>
   );
 }
