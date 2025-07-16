@@ -11,6 +11,7 @@
 // Import Routes
 
 import { Route as rootRoute } from './routes/__root'
+import { Route as SignInImport } from './routes/sign-in'
 import { Route as IndexImport } from './routes/index'
 import { Route as SetupIndexImport } from './routes/setup/index'
 import { Route as VisualizeVisualizeCommandsImport } from './routes/visualize/VisualizeCommands'
@@ -30,6 +31,12 @@ import { Route as DebugUndistort2Import } from './routes/debug/undistort2'
 import { Route as DebugRawWebgpuImport } from './routes/debug/raw-webgpu'
 
 // Create/Update Routes
+
+const SignInRoute = SignInImport.update({
+  id: '/sign-in',
+  path: '/sign-in',
+  getParentRoute: () => rootRoute,
+} as any)
 
 const IndexRoute = IndexImport.update({
   id: '/',
@@ -144,6 +151,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexImport
+      parentRoute: typeof rootRoute
+    }
+    '/sign-in': {
+      id: '/sign-in'
+      path: '/sign-in'
+      fullPath: '/sign-in'
+      preLoaderRoute: typeof SignInImport
       parentRoute: typeof rootRoute
     }
     '/debug/raw-webgpu': {
@@ -265,6 +279,7 @@ declare module '@tanstack/react-router' {
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/sign-in': typeof SignInRoute
   '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
@@ -285,6 +300,7 @@ export interface FileRoutesByFullPath {
 
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/sign-in': typeof SignInRoute
   '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
@@ -306,6 +322,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRoute
   '/': typeof IndexRoute
+  '/sign-in': typeof SignInRoute
   '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
@@ -328,6 +345,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/sign-in'
     | '/debug/raw-webgpu'
     | '/debug/undistort2'
     | '/debug/unproject'
@@ -347,6 +365,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/sign-in'
     | '/debug/raw-webgpu'
     | '/debug/undistort2'
     | '/debug/unproject'
@@ -366,6 +385,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/sign-in'
     | '/debug/raw-webgpu'
     | '/debug/undistort2'
     | '/debug/unproject'
@@ -387,6 +407,7 @@ export interface FileRouteTypes {
 
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  SignInRoute: typeof SignInRoute
   DebugRawWebgpuRoute: typeof DebugRawWebgpuRoute
   DebugUndistort2Route: typeof DebugUndistort2Route
   DebugUnprojectRoute: typeof DebugUnprojectRoute
@@ -407,6 +428,7 @@ export interface RootRouteChildren {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  SignInRoute: SignInRoute,
   DebugRawWebgpuRoute: DebugRawWebgpuRoute,
   DebugUndistort2Route: DebugUndistort2Route,
   DebugUnprojectRoute: DebugUnprojectRoute,
@@ -436,6 +458,7 @@ export const routeTree = rootRoute
       "filePath": "__root.tsx",
       "children": [
         "/",
+        "/sign-in",
         "/debug/raw-webgpu",
         "/debug/undistort2",
         "/debug/unproject",
@@ -456,6 +479,9 @@ export const routeTree = rootRoute
     },
     "/": {
       "filePath": "index.tsx"
+    },
+    "/sign-in": {
+      "filePath": "sign-in.tsx"
     },
     "/debug/raw-webgpu": {
       "filePath": "debug/raw-webgpu.tsx"

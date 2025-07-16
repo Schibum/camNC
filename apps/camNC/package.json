@@ -13,6 +13,10 @@
     "test:browser": "vitest --workspace=vitest.workspace.ts"
   },
   "dependencies": {
+    "@firebase-ui/core": "https://github.com/firebase/firebaseui-web/raw/refs/heads/v7-alpha/releases/firebase-ui-core-0.0.1.tgz",
+    "@firebase-ui/react": "https://github.com/firebase/firebaseui-web/raw/refs/heads/v7-alpha/releases/firebase-ui-react-0.0.1.tgz",
+    "@firebase-ui/styles": "https://github.com/firebase/firebaseui-web/raw/refs/heads/v7-alpha/releases/firebase-ui-styles-0.0.1.tgz",
+    "@firebase-ui/translations": "https://github.com/firebase/firebaseui-web/raw/refs/heads/v7-alpha/releases/firebase-ui-translations-0.0.1.tgz",
     "@heroui/react": "catalog:",
     "@hookform/devtools": "catalog:",
     "@hookform/resolvers": "catalog:",
@@ -49,6 +53,7 @@
     "clsx": "catalog:",
     "colormap": "catalog:",
     "comlink": "catalog:",
+    "firebase": "catalog:",
     "gcode-toolpath": "catalog:",
     "immer": "catalog:",
     "jotai": "catalog:",
@@ -81,12 +86,7 @@
     "webgpu-utils": "^1.10.3",
     "yaml": "catalog:",
     "zod": "catalog:",
-    "zustand": "catalog:",
-    "firebase": "catalog:",
-    "@firebase-ui/react": "https://github.com/firebase/firebaseui-web/raw/refs/heads/v7-alpha/releases/firebase-ui-react-0.0.1.tgz",
-    "@firebase-ui/core": "https://github.com/firebase/firebaseui-web/raw/refs/heads/v7-alpha/releases/firebase-ui-core-0.0.1.tgz",
-    "@firebase-ui/styles": "https://github.com/firebase/firebaseui-web/raw/refs/heads/v7-alpha/releases/firebase-ui-styles-0.0.1.tgz",
-    "@firebase-ui/translations": "https://github.com/firebase/firebaseui-web/raw/refs/heads/v7-alpha/releases/firebase-ui-translations-0.0.1.tgz"
+    "zustand": "catalog:"
   },
   "devDependencies": {
     "@tanstack/router-devtools": "catalog:",
@@ -117,6 +117,7 @@
     "eslint-plugin-react": "catalog:",
     "eslint-plugin-react-hooks": "catalog:",
     "eslint-plugin-unused-imports": "catalog:",
+    "firebase-tools": "^14.10.1",
     "jsdom": "catalog:",
     "ts-node": "catalog:",
     "typescript": "catalog:",
