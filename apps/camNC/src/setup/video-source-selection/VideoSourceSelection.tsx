@@ -20,7 +20,10 @@ import { PhoneTab } from './PhoneTab';
 import { UrlTab } from './UrlTab';
 import { WebcamTab } from './WebcamTab';
 
-function getStableWebrtcDefaults() {
+function getStableWebrtcDefaults(): WebrtcConnectionParams {
+  if (typeof localStorage === 'undefined') {
+    return { type: 'webrtc' as const, accessToken: '' };
+  }
   let url = localStorage.getItem('webrtcDefaults');
   if (!url) {
     url = genRandomWebrtc();

@@ -1,6 +1,6 @@
 import type * as cv from '@techstark/opencv-js';
 
-const win = self as any;
+const win = globalThis as any;
 async function loadOpenCv() {
   const _cv = (await (await import(/* @vite-ignore */ location.origin + '/opencv_js.js')).default()) as typeof cv;
   win.cv = _cv;

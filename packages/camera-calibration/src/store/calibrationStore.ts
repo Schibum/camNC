@@ -1,4 +1,5 @@
 import { toast } from '@wbcnc/ui/components/sonner';
+import { attachMediaStreamTrackReplacer, createVideoStreamProcessor } from '@wbcnc/video-worker-utils';
 import * as Comlink from 'comlink';
 import { v4 as uuidv4 } from 'uuid';
 import { create, StateCreator } from 'zustand';
@@ -6,7 +7,6 @@ import { GridHeatmapTracker } from '../components/CoverageHeatmap';
 import { CalibrateInWorker } from '../lib/calibrateInWorker';
 import { CalibrationResult, CapturedFrame, Corner, PatternSize } from '../lib/calibrationTypes';
 import { createImageBlob } from '../lib/imageUtils';
-import { attachMediaStreamTrackReplacer, createVideoStreamProcessor } from '@wbcnc/video-worker-utils';
 import type { FrameEvent, StreamCornerFinderWorkerAPI } from '../workers/streamCornerFinder.worker';
 
 // -----------------------------------------------------------------------------

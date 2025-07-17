@@ -13,10 +13,6 @@ import { useStore } from '../store/store';
 import { DetectArucosButton } from './DetectArucoButton';
 import { IMarker } from './detect-aruco';
 
-interface PointSelectionStepProps {
-  onComplete: () => void;
-}
-
 function ReprojectedMachineBounds() {
   const reprojectedPoints = useReprojectedMarkerPositions();
   if (!reprojectedPoints) return null;
@@ -137,7 +133,7 @@ function ArucoPointsScene({ markers }: { markers: IMarker[] }) {
   );
 }
 
-export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = () => {
+export function ThreePointSelectionStep() {
   const [markers, setMarkers] = useState<IMarker[]>([]);
   const setMarkerPosInCam = useStore(state => state.camSourceSetters.setMarkerPosInCam);
   const navigate = useNavigate();
@@ -202,4 +198,4 @@ export const ThreePointSelectionStep: React.FC<PointSelectionStepProps> = () => 
       </div>
     </div>
   );
-};
+}

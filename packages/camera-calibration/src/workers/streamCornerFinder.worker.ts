@@ -1,8 +1,8 @@
 import { cv2, ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
+import { ensureReadableStream } from '@wbcnc/video-worker-utils';
 import * as Comlink from 'comlink';
 import { convertCorners } from '../lib/calibrationCore';
 import { Corner } from '../lib/calibrationTypes';
-import { ensureReadableStream } from '@wbcnc/video-worker-utils';
 import { PoseUniquenessGate } from './poseUniquenessGate';
 
 const BOARD_BLUR_THRESH = 80;

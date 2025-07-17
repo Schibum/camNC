@@ -41,6 +41,7 @@ export class DepthBlendManager {
   }
 
   static getInstance(): DepthBlendManager {
+    if (typeof window === 'undefined') return null as unknown as DepthBlendManager;
     if (!DepthBlendManager.instance) {
       DepthBlendManager.instance = new DepthBlendManager();
     }

@@ -1,8 +1,8 @@
 import { useStore } from '@/store/store';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
+import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { Card, CardContent, CardHeader, CardTitle } from '@wbcnc/ui/components/card';
 import { PageHeader } from '@wbcnc/ui/components/page-header';
-import { ensureOpenCvIsLoaded } from '../../../../../packages/load-opencv/index';
 import { MarkerPositionsForm } from '../../setup/MarkerPositionsForm';
 
 export const Route = createFileRoute('/setup/marker-positions')({

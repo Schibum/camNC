@@ -8,14 +8,26 @@ export function SidebarAuthStatus() {
       <SidebarMenu>
         <SignedIn>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild size="sm">
-              <UserButton />
+            <SidebarMenuButton asChild size="default" className="w-full">
+              <UserButton
+                showName={true}
+                appearance={{
+                  elements: {
+                    root: 'w-full',
+                    userButtonBox: {
+                      flexDirection: 'row-reverse',
+                      width: '100%',
+                    },
+                    userButtonTrigger: 'w-full justify-between',
+                  },
+                }}
+              />
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SignedIn>
         <SignedOut>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Sign in" className="cursor-pointer">
+            <SidebarMenuButton asChild tooltip="Sign in" className="w-full cursor-pointer">
               <SignInButton mode="modal">
                 <div className="flex items-center gap-2">
                   <LogIn className="size-4" />

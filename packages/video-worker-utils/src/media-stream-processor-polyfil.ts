@@ -10,8 +10,8 @@ import { isFirefox } from 'react-device-detect';
 // Safari has native support on the worker thread and does support transferable tracks.
 // Only add this polyfill for Firefox. Prefer using transferable tracks on
 // Safari (used when not present on the main thread).
-if (!self.MediaStreamTrackProcessor && isFirefox) {
-  self.MediaStreamTrackProcessor = class MediaStreamTrackProcessor {
+if (!globalThis.MediaStreamTrackProcessor && isFirefox) {
+  globalThis.MediaStreamTrackProcessor = class MediaStreamTrackProcessor {
     static polyfill = true;
     constructor({ track }) {
       if (track.kind == 'video') {

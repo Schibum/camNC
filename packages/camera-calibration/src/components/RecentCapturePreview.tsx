@@ -112,8 +112,8 @@ export function RecentCapturePreview() {
         }}
         transition={{
           type: 'spring',
-          tension: 220,
-          friction: 20,
+          stiffness: 220,
+          damping: 20,
           bounce: 0,
         }}
         whileHover={{ scale: 1.05 }}
