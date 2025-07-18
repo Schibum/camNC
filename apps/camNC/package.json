@@ -14,10 +14,13 @@
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.35.3",
+    "@clerk/tanstack-react-start": "^0.20.4",
     "@heroui/react": "catalog:",
     "@hookform/devtools": "catalog:",
     "@hookform/resolvers": "catalog:",
     "@huggingface/transformers": "^3.6.3",
+    "@neondatabase/serverless": "^1.0.1",
+    "@neondatabase/vite-plugin-postgres": "^0.2.2",
     "@preact/signals-react": "catalog:",
     "@preact/signals-react-transform": "catalog:",
     "@radix-ui/react-avatar": "catalog:",

@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react';
 import { defineConfig, PluginOption } from 'vite';
 import checker from 'vite-plugin-checker';
 // import { viteSingleFile } from 'vite-plugin-singlefile';
+import postgresPlugin from '@neondatabase/vite-plugin-postgres';
 import { tanstackStart } from '@tanstack/react-start/plugin/vite';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import tsconfigPaths from 'vite-tsconfig-paths';
@@ -16,6 +17,12 @@ const ReactCompilerConfig = {
 export default defineConfig(() => {
   const plugins: PluginOption[] = [
     tsconfigPaths(),
+    postgresPlugin({
+      seed: {
+        type: 'sql-script',
+        path: 'db/init.sql',
+      },
+    }),
     tanstackStart({
       customViteReactPlugin: true,
       target: 'vercel',

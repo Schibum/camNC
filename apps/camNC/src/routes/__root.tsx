@@ -3,10 +3,14 @@ import { SidebarProvider } from '@wbcnc/ui/components/sidebar';
 import { Toaster } from '@wbcnc/ui/components/sonner';
 import { TooltipProvider } from '@wbcnc/ui/components/tooltip';
 
+import { getDbClient } from '@/db';
 import { useClerkFirebaseAuthSync } from '@/hooks/useClerkFirebaseAuthSync';
 import { ClerkProvider } from '@clerk/clerk-react';
+import { getAuth } from '@clerk/tanstack-react-start/server';
 import { HeroUIProvider } from '@heroui/react';
 import { createRootRoute, HeadContent, Outlet, Scripts } from '@tanstack/react-router';
+import { createServerFn } from '@tanstack/react-start';
+import { getWebRequest } from '@tanstack/react-start/server';
 import type { ReactNode } from 'react';
 import appCss from '../style.css?url';
 
@@ -16,6 +20,16 @@ const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 if (!PUBLISHABLE_KEY) {
   throw new Error('Add your Clerk Publishable Key to the .env file');
 }
+
+const getServerTime = createServerFn().handler(async () => {
+  const request = getWebRequest();
+  if (!request) throw new Error('No request found');
+  const { userId } = await getAuth(request);
+  console.log('userId', userId);
+  // Return the current time
+  const dbRes = (await getDbClient().query('SELECT * FROM settings')) as Array<{ id: number }>;
+  return dbRes;
+});
 
 export const Route = createRootRoute({
   head: () => ({
@@ -34,6 +48,11 @@ export const Route = createRootRoute({
     links: [{ rel: 'stylesheet', href: appCss }],
   }),
   component: RootComponent,
+  loader: async () => {
+    return {
+      time: await getServerTime(),
+    };
+  },
   ssr: true,
 });
 
@@ -43,47 +62,49 @@ function FbAuthSync() {
 }
 
 function RootComponent() {
+  const data = Route.useLoaderData();
+  console.log('data from loader', data);
   return (
     <RootDocument>
-      <ClerkProvider
-        publishableKey={PUBLISHABLE_KEY}
-        appearance={{
-          elements: {
-            organizationSwitcherPopoverRootBox: {
-              width: '100%',
-              pointerEvents: 'auto',
-            },
-            userButtonPopoverRootBox: {
-              width: '100%',
-              pointerEvents: 'auto',
-            },
-          },
-        }}>
-        <FbAuthSync />
-        <HeroUIProvider>
-          <TooltipProvider>
-            <SidebarProvider defaultOpen={false} forceMobile={true}>
-              <Toaster />
-              <AppSidebar />
-              <Outlet />
-            </SidebarProvider>
-          </TooltipProvider>
-        </HeroUIProvider>
-      </ClerkProvider>
+      <FbAuthSync />
+      <HeroUIProvider>
+        <TooltipProvider>
+          <SidebarProvider defaultOpen={false} forceMobile={true}>
+            <Toaster />
+            <AppSidebar />
+            <Outlet />
+          </SidebarProvider>
+        </TooltipProvider>
+      </HeroUIProvider>
     </RootDocument>
   );
 }
 
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html>
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        {children}
-        <Scripts />
-      </body>
-    </html>
+    <ClerkProvider
+      publishableKey={PUBLISHABLE_KEY}
+      appearance={{
+        elements: {
+          organizationSwitcherPopoverRootBox: {
+            width: '100%',
+            pointerEvents: 'auto',
+          },
+          userButtonPopoverRootBox: {
+            width: '100%',
+            pointerEvents: 'auto',
+          },
+        },
+      }}>
+      <html>
+        <head>
+          <HeadContent />
+        </head>
+        <body>
+          {children}
+          <Scripts />
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

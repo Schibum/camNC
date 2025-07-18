@@ -1,10 +1,13 @@
 // src/server.ts
+import { createClerkHandler } from '@clerk/tanstack-react-start/server';
 import { createStartHandler, defaultStreamHandler, RequestHandler } from '@tanstack/react-start/server';
 import { createRouter } from './router';
 
-const handler = createStartHandler({
-  createRouter,
-})(defaultStreamHandler);
+const handler = createClerkHandler(
+  createStartHandler({
+    createRouter,
+  })
+)(defaultStreamHandler);
 
 // HACK: tanstack start registerGlobalMiddleware does not seem to work
 const withHeaders: RequestHandler = async ctx => {
