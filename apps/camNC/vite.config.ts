@@ -41,6 +41,9 @@ export default defineConfig(() => {
     nodePolyfills({
       // tanstack-start build blows without this
       protocolImports: false,
+      globals: {
+        process: false,
+      },
     }),
     checker({
       typescript: true,
