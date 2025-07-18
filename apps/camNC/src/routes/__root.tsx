@@ -21,14 +21,17 @@ if (!PUBLISHABLE_KEY) {
   throw new Error('Add your Clerk Publishable Key to the .env file');
 }
 
-const getServerTime = createServerFn().handler(async () => {
+const getUserSettings = createServerFn().handler(async () => {
   const request = getWebRequest();
   if (!request) throw new Error('No request found');
-  const { userId } = await getAuth(request);
+  const { userId } = await getAuth(request).catch(err => {
+    console.error('Error getting auth', err);
+    return { userId: null };
+  });
   console.log('userId', userId);
   // Return the current time
-  const dbRes = (await getDbClient().query('SELECT * FROM settings')) as Array<{ id: number }>;
-  return dbRes;
+  const dbRes = (await getDbClient().query('SELECT * FROM settings where user_id = $1', [userId])) as Array<{ settings_json: string }>;
+  return dbRes[0];
 });
 
 export const Route = createRootRoute({
@@ -50,7 +53,7 @@ export const Route = createRootRoute({
   component: RootComponent,
   loader: async () => {
     return {
-      time: await getServerTime(),
+      settings: (await getUserSettings()).settings_json,
     };
   },
   ssr: true,
@@ -63,7 +66,7 @@ function FbAuthSync() {
 
 function RootComponent() {
   const data = Route.useLoaderData();
-  console.log('data from loader', data);
+  console.log('data from loader', data.settings);
   return (
     <RootDocument>
       <FbAuthSync />
