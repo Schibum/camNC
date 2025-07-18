@@ -13,6 +13,9 @@
       "outputs": [
         ".next/**",
         "!.next/cache/**",
+        ".nitro/**",
+        ".tanstack/start/**",
+        ".vercel/output/**",
         "dist/**"
       ]
     },
