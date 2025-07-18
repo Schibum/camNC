@@ -22,7 +22,7 @@ catalogs:
       specifier: ^15.4.1
       version: 15.4.1
     '@preact/signals-react':
-      specifier: ^3.2.1
+      specifier: 3.2.1
       version: 3.2.1
     '@preact/signals-react-transform':
       specifier: ^0.5.2
@@ -1275,6 +1275,9 @@ importers:
       '@hookform/resolvers':
         specifier: 'catalog:'
         version: 5.1.1(react-hook-form@7.60.0(react@19.1.0))
+      '@preact/signals-react':
+        specifier: 'catalog:'
+        version: 3.2.1(react@19.1.0)
       '@radix-ui/react-alert-dialog':
         specifier: 'catalog:'
         version: 1.1.14(@types/react-dom@19.1.6(@types/react@19.1.8))(@types/react@19.1.8)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)

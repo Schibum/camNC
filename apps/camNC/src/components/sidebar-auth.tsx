@@ -32,6 +32,7 @@ export function SidebarAuthStatus() {
                 <div className="flex items-center gap-2">
                   <LogIn className="size-4" />
                   <span>Sign in</span>
+                  <span className="text-xs text-muted-foreground">to sync settings</span>
                 </div>
               </SignInButton>
             </SidebarMenuButton>

@@ -21,7 +21,7 @@ export function createRouter() {
     scrollRestoration: true,
     defaultPendingComponent: DefaultLoadingOverlay,
     defaultNotFoundComponent: () => <div>Not Found</div>,
-    // defaultSsr: false,
+    defaultSsr: false,
   });
 
   return router;

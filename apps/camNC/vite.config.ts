@@ -18,6 +18,7 @@ export default defineConfig(() => {
     tsconfigPaths(),
     tanstackStart({
       customViteReactPlugin: true,
+      target: 'vercel',
       // spa: {
       //   enabled: true,
       // },
@@ -30,7 +31,10 @@ export default defineConfig(() => {
       },
     }),
     tailwindcss(),
-    nodePolyfills(),
+    nodePolyfills({
+      // tanstack-start build blows without this
+      protocolImports: false,
+    }),
     checker({
       typescript: true,
       // eslint: {

@@ -9,13 +9,11 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SetupIndexRouteImport } from './routes/setup/index'
 import { Route as VisualizeVisualizeCommandsRouteImport } from './routes/visualize/VisualizeCommands'
 import { Route as Visualize2DViewRouteImport } from './routes/visualize/2DView'
 import { Route as SetupUrlEntryRouteImport } from './routes/setup/url-entry'
-import { Route as SetupSetupRouteImport } from './routes/setup/setup'
 import { Route as SetupPointSelectionRouteImport } from './routes/setup/point-selection'
 import { Route as SetupNewCamMatrixRouteImport } from './routes/setup/new-cam-matrix'
 import { Route as SetupMarkerPositionsRouteImport } from './routes/setup/marker-positions'
@@ -28,11 +26,6 @@ import { Route as DebugUnprojectRouteImport } from './routes/debug/unproject'
 import { Route as DebugUndistort2RouteImport } from './routes/debug/undistort2'
 import { Route as DebugRawWebgpuRouteImport } from './routes/debug/raw-webgpu'
 
-const SignInRoute = SignInRouteImport.update({
-  id: '/sign-in',
-  path: '/sign-in',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -57,11 +50,6 @@ const Visualize2DViewRoute = Visualize2DViewRouteImport.update({
 const SetupUrlEntryRoute = SetupUrlEntryRouteImport.update({
   id: '/setup/url-entry',
   path: '/setup/url-entry',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SetupSetupRoute = SetupSetupRouteImport.update({
-  id: '/setup/setup',
-  path: '/setup/setup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SetupPointSelectionRoute = SetupPointSelectionRouteImport.update({
@@ -122,7 +110,6 @@ const DebugRawWebgpuRoute = DebugRawWebgpuRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/sign-in': typeof SignInRoute
   '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
@@ -134,7 +121,6 @@ export interface FileRoutesByFullPath {
   '/setup/marker-positions': typeof SetupMarkerPositionsRoute
   '/setup/new-cam-matrix': typeof SetupNewCamMatrixRoute
   '/setup/point-selection': typeof SetupPointSelectionRoute
-  '/setup/setup': typeof SetupSetupRoute
   '/setup/url-entry': typeof SetupUrlEntryRoute
   '/visualize/2DView': typeof Visualize2DViewRoute
   '/visualize/VisualizeCommands': typeof VisualizeVisualizeCommandsRoute
@@ -142,7 +128,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/sign-in': typeof SignInRoute
   '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
@@ -154,7 +139,6 @@ export interface FileRoutesByTo {
   '/setup/marker-positions': typeof SetupMarkerPositionsRoute
   '/setup/new-cam-matrix': typeof SetupNewCamMatrixRoute
   '/setup/point-selection': typeof SetupPointSelectionRoute
-  '/setup/setup': typeof SetupSetupRoute
   '/setup/url-entry': typeof SetupUrlEntryRoute
   '/visualize/2DView': typeof Visualize2DViewRoute
   '/visualize/VisualizeCommands': typeof VisualizeVisualizeCommandsRoute
@@ -163,7 +147,6 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/sign-in': typeof SignInRoute
   '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
@@ -175,7 +158,6 @@ export interface FileRoutesById {
   '/setup/marker-positions': typeof SetupMarkerPositionsRoute
   '/setup/new-cam-matrix': typeof SetupNewCamMatrixRoute
   '/setup/point-selection': typeof SetupPointSelectionRoute
-  '/setup/setup': typeof SetupSetupRoute
   '/setup/url-entry': typeof SetupUrlEntryRoute
   '/visualize/2DView': typeof Visualize2DViewRoute
   '/visualize/VisualizeCommands': typeof VisualizeVisualizeCommandsRoute
@@ -185,7 +167,6 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/sign-in'
     | '/debug/raw-webgpu'
     | '/debug/undistort2'
     | '/debug/unproject'
@@ -197,7 +178,6 @@ export interface FileRouteTypes {
     | '/setup/marker-positions'
     | '/setup/new-cam-matrix'
     | '/setup/point-selection'
-    | '/setup/setup'
     | '/setup/url-entry'
     | '/visualize/2DView'
     | '/visualize/VisualizeCommands'
@@ -205,7 +185,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/sign-in'
     | '/debug/raw-webgpu'
     | '/debug/undistort2'
     | '/debug/unproject'
@@ -217,7 +196,6 @@ export interface FileRouteTypes {
     | '/setup/marker-positions'
     | '/setup/new-cam-matrix'
     | '/setup/point-selection'
-    | '/setup/setup'
     | '/setup/url-entry'
     | '/visualize/2DView'
     | '/visualize/VisualizeCommands'
@@ -225,7 +203,6 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/sign-in'
     | '/debug/raw-webgpu'
     | '/debug/undistort2'
     | '/debug/unproject'
@@ -237,7 +214,6 @@ export interface FileRouteTypes {
     | '/setup/marker-positions'
     | '/setup/new-cam-matrix'
     | '/setup/point-selection'
-    | '/setup/setup'
     | '/setup/url-entry'
     | '/visualize/2DView'
     | '/visualize/VisualizeCommands'
@@ -246,7 +222,6 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  SignInRoute: typeof SignInRoute
   DebugRawWebgpuRoute: typeof DebugRawWebgpuRoute
   DebugUndistort2Route: typeof DebugUndistort2Route
   DebugUnprojectRoute: typeof DebugUnprojectRoute
@@ -258,7 +233,6 @@ export interface RootRouteChildren {
   SetupMarkerPositionsRoute: typeof SetupMarkerPositionsRoute
   SetupNewCamMatrixRoute: typeof SetupNewCamMatrixRoute
   SetupPointSelectionRoute: typeof SetupPointSelectionRoute
-  SetupSetupRoute: typeof SetupSetupRoute
   SetupUrlEntryRoute: typeof SetupUrlEntryRoute
   Visualize2DViewRoute: typeof Visualize2DViewRoute
   VisualizeVisualizeCommandsRoute: typeof VisualizeVisualizeCommandsRoute
@@ -267,13 +241,6 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/sign-in': {
-      id: '/sign-in'
-      path: '/sign-in'
-      fullPath: '/sign-in'
-      preLoaderRoute: typeof SignInRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -307,13 +274,6 @@ declare module '@tanstack/react-router' {
       path: '/setup/url-entry'
       fullPath: '/setup/url-entry'
       preLoaderRoute: typeof SetupUrlEntryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/setup/setup': {
-      id: '/setup/setup'
-      path: '/setup/setup'
-      fullPath: '/setup/setup'
-      preLoaderRoute: typeof SetupSetupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/setup/point-selection': {
@@ -398,7 +358,6 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  SignInRoute: SignInRoute,
   DebugRawWebgpuRoute: DebugRawWebgpuRoute,
   DebugUndistort2Route: DebugUndistort2Route,
   DebugUnprojectRoute: DebugUnprojectRoute,
@@ -410,7 +369,6 @@ const rootRouteChildren: RootRouteChildren = {
   SetupMarkerPositionsRoute: SetupMarkerPositionsRoute,
   SetupNewCamMatrixRoute: SetupNewCamMatrixRoute,
   SetupPointSelectionRoute: SetupPointSelectionRoute,
-  SetupSetupRoute: SetupSetupRoute,
   SetupUrlEntryRoute: SetupUrlEntryRoute,
   Visualize2DViewRoute: Visualize2DViewRoute,
   VisualizeVisualizeCommandsRoute: VisualizeVisualizeCommandsRoute,

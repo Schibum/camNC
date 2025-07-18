@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "catalog:",
+    "@preact/signals-react": "catalog:",
     "@radix-ui/react-alert-dialog": "catalog:",
     "@radix-ui/react-avatar": "catalog:",
     "@radix-ui/react-checkbox": "catalog:",
@@ -39,6 +40,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@heroui/react": "catalog:",
     "@tailwindcss/vite": "catalog:",
     "@turbo/gen": "catalog:",
     "@types/node": "catalog:",
@@ -55,10 +57,9 @@
     "eslint-plugin-react": "catalog:",
     "eslint-plugin-react-hooks": "catalog:",
     "eslint-plugin-unused-imports": "catalog:",
+    "framer-motion": "catalog:",
     "tailwindcss": "catalog:",
-    "typescript": "catalog:",
-    "@heroui/react": "catalog:",
-    "framer-motion": "catalog:"
+    "typescript": "catalog:"
   },
   "main": "./src/index.ts",
   "exports": {

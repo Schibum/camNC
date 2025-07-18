@@ -34,6 +34,7 @@ export const Route = createRootRoute({
     links: [{ rel: 'stylesheet', href: appCss }],
   }),
   component: RootComponent,
+  ssr: true,
 });
 
 function FbAuthSync() {
