@@ -25,7 +25,7 @@ const getUserSettings = createServerFn().handler(async () => {
   const request = getWebRequest();
   if (!request) throw new Error('No request found');
   const { userId } = await getAuth(request).catch(err => {
-    console.error('Error getting auth', err);
+    console.warn('Error getting auth', err);
     return { userId: null };
   });
   console.log('userId', userId);

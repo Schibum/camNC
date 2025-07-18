@@ -21,6 +21,7 @@ export function createRouter() {
     scrollRestoration: true,
     defaultPendingComponent: DefaultLoadingOverlay,
     defaultNotFoundComponent: () => <div>Not Found</div>,
+    defaultErrorComponent: ({ error }) => <pre style={{ whiteSpace: 'pre-wrap' }}>{error.stack}</pre>,
     defaultSsr: false,
   });
 
