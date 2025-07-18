@@ -53,7 +53,7 @@ export const Route = createRootRoute({
   component: RootComponent,
   loader: async () => {
     return {
-      settings: (await getUserSettings()).settings_json,
+      settings: (await getUserSettings())?.settings_json,
     };
   },
   ssr: true,
