@@ -10,7 +10,7 @@ export const Route = createFileRoute('/debug/convex')({
 });
 
 function RouteComponent() {
-  const addRow = useMutation(api.posts.add2);
+  const addRow = useMutation(api.posts.add);
   const { data: posts } = useSuspenseQuery(convexQuery(api.posts.list, {}));
   const onClick = async () => {
     await addRow({
