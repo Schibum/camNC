@@ -15,6 +15,9 @@
     "paths": {
       "@/*": [
         "src/*"
+      ],
+      "@convex-gen/*": [
+        "./convex/_generated/*"
       ]
     },
     "lib": [

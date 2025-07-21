@@ -3,14 +3,18 @@ import { SidebarProvider } from '@wbcnc/ui/components/sidebar';
 import { Toaster } from '@wbcnc/ui/components/sonner';
 import { TooltipProvider } from '@wbcnc/ui/components/tooltip';
 
-import { getDbClient } from '@/db';
 import { useClerkFirebaseAuthSync } from '@/hooks/useClerkFirebaseAuthSync';
 import { ClerkProvider } from '@clerk/clerk-react';
+import { useAuth } from '@clerk/tanstack-react-start';
 import { getAuth } from '@clerk/tanstack-react-start/server';
+import { ConvexQueryClient } from '@convex-dev/react-query';
 import { HeroUIProvider } from '@heroui/react';
-import { createRootRoute, HeadContent, Outlet, Scripts } from '@tanstack/react-router';
+import { QueryClient } from '@tanstack/react-query';
+import { createRootRouteWithContext, HeadContent, Outlet, Scripts, useRouteContext } from '@tanstack/react-router';
 import { createServerFn } from '@tanstack/react-start';
 import { getWebRequest } from '@tanstack/react-start/server';
+import { ConvexReactClient } from 'convex/react';
+import { ConvexProviderWithClerk } from 'convex/react-clerk';
 import type { ReactNode } from 'react';
 import appCss from '../style.css?url';
 
@@ -21,20 +25,28 @@ if (!PUBLISHABLE_KEY) {
   throw new Error('Add your Clerk Publishable Key to the .env file');
 }
 
-const getUserSettings = createServerFn().handler(async () => {
+const fetchClerkAuth = createServerFn({ method: 'GET' }).handler(async () => {
   const request = getWebRequest();
   if (!request) throw new Error('No request found');
-  const { userId } = await getAuth(request).catch(err => {
-    console.warn('Error getting auth', err);
-    return { userId: null };
+
+  const auth = await getAuth(getWebRequest()).catch(e => {
+    console.warn('Error getting auth', e);
+    return null;
   });
-  console.log('userId', userId);
-  // Return the current time
-  const dbRes = (await getDbClient().query('SELECT * FROM settings where user_id = $1', [userId])) as Array<{ settings_json: string }>;
-  return dbRes[0];
+  if (!auth) return { userId: null, token: null };
+  const token = await auth.getToken({ template: 'convex' });
+
+  return {
+    userId: auth.userId,
+    token,
+  };
 });
 
-export const Route = createRootRoute({
+export const Route = createRootRouteWithContext<{
+  queryClient: QueryClient;
+  convexClient: ConvexReactClient;
+  convexQueryClient: ConvexQueryClient;
+}>()({
   head: () => ({
     meta: [
       {
@@ -51,9 +63,18 @@ export const Route = createRootRoute({
     links: [{ rel: 'stylesheet', href: appCss }],
   }),
   component: RootComponent,
-  loader: async () => {
+  beforeLoad: async ctx => {
+    const auth = await fetchClerkAuth();
+    const { userId, token } = auth;
+    // During SSR only (the only time serverHttpClient exists),
+    // set the Clerk auth token to make HTTP queries with.
+    if (token) {
+      ctx.context.convexQueryClient.serverHttpClient?.setAuth(token);
+    }
+
     return {
-      settings: (await getUserSettings())?.settings_json,
+      userId,
+      token,
     };
   },
   ssr: true,
@@ -65,25 +86,7 @@ function FbAuthSync() {
 }
 
 function RootComponent() {
-  const data = Route.useLoaderData();
-  console.log('data from loader', data.settings);
-  return (
-    <RootDocument>
-      <FbAuthSync />
-      <HeroUIProvider>
-        <TooltipProvider>
-          <SidebarProvider defaultOpen={false} forceMobile={true}>
-            <Toaster />
-            <AppSidebar />
-            <Outlet />
-          </SidebarProvider>
-        </TooltipProvider>
-      </HeroUIProvider>
-    </RootDocument>
-  );
-}
-
-function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
+  const context = useRouteContext({ from: Route.id });
   return (
     <ClerkProvider
       publishableKey={PUBLISHABLE_KEY}
@@ -99,15 +102,34 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
           },
         },
       }}>
-      <html>
-        <head>
-          <HeadContent />
-        </head>
-        <body>
-          {children}
-          <Scripts />
-        </body>
-      </html>
+      <ConvexProviderWithClerk client={context.convexClient} useAuth={useAuth}>
+        <RootDocument>
+          <FbAuthSync />
+          <HeroUIProvider>
+            <TooltipProvider>
+              <SidebarProvider defaultOpen={false} forceMobile={true}>
+                <Toaster />
+                <AppSidebar />
+                <Outlet />
+              </SidebarProvider>
+            </TooltipProvider>
+          </HeroUIProvider>
+        </RootDocument>
+      </ConvexProviderWithClerk>
     </ClerkProvider>
+  );
+}
+
+function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
+  return (
+    <html>
+      <head>
+        <HeadContent />
+      </head>
+      <body>
+        {children}
+        <Scripts />
+      </body>
+    </html>
   );
 }
