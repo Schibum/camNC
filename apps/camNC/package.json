@@ -3,10 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "npm-run-all --parallel dev:web dev:convex",
-    "predev": "convex dev --local --once",
-    "dev:web": "vite",
-    "dev:convex": "npx convex dev",
+    "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint . --max-warnings 0",

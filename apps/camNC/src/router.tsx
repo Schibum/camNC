@@ -1,12 +1,8 @@
 // src/router.tsx
-import { ConvexQueryClient } from '@convex-dev/react-query';
-import { QueryClient } from '@tanstack/react-query';
 import { createRouter as createTanStackRouter } from '@tanstack/react-router';
-import { routerWithQueryClient } from '@tanstack/react-router-with-query';
 import { routeTree } from './routeTree.gen';
 
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
-import { ConvexProvider, ConvexReactClient } from 'convex/react';
 
 function DefaultLoadingOverlay() {
   return (
@@ -24,37 +20,21 @@ export function createRouter() {
   if (!CONVEX_URL) {
     throw new Error('missing VITE_CONVEX_URL envar');
   }
-  const convex = new ConvexReactClient(CONVEX_URL, {
-    unsavedChangesWarning: false,
-  });
-  const convexQueryClient = new ConvexQueryClient(convex);
-
-  const queryClient: QueryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        queryKeyHashFn: convexQueryClient.hashFn(),
-        queryFn: convexQueryClient.queryFn(),
-        gcTime: 5000,
-      },
-    },
-  });
-  convexQueryClient.connect(queryClient);
 
   // @snippet start example
-  const router = routerWithQueryClient(
-    createTanStackRouter({
-      routeTree,
-      defaultPreload: 'intent',
-      scrollRestoration: true,
-      defaultPreloadStaleTime: 0, // Let React Query handle all caching
-      defaultPendingComponent: DefaultLoadingOverlay,
-      defaultErrorComponent: err => <p>{err.error.stack}</p>,
-      defaultNotFoundComponent: () => <p>not found</p>,
-      context: { queryClient, convexClient: convex, convexQueryClient },
-      Wrap: ({ children }) => <ConvexProvider client={convexQueryClient.convexClient}>{children}</ConvexProvider>,
-    }),
-    queryClient
-  );
+  //  const router = routerWithQueryClient(
+  const router = createTanStackRouter({
+    routeTree,
+    defaultPreload: 'intent',
+    scrollRestoration: true,
+    defaultPreloadStaleTime: 0, // Let React Query handle all caching
+    defaultPendingComponent: DefaultLoadingOverlay,
+    defaultErrorComponent: err => <p>{err.error.stack}</p>,
+    defaultNotFoundComponent: () => <p>not found</p>,
+    // context: {},
+  });
+  //   queryClient
+  // );
   // @snippet end example
 
   return router;
