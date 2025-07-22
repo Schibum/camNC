@@ -41,7 +41,7 @@ export const Route = createRootRouteWithContext<{
     ],
     links: [{ rel: 'stylesheet', href: appCss }],
   }),
-  loader: async ctx => {
+  loader: async () => {
     return {
       userSettings: await loadUserSettings(),
     };
