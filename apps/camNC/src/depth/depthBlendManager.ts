@@ -35,10 +35,7 @@ export class DepthBlendManager {
   private onTextureUpdate: ((textures: DepthBlendTextures) => void) | null = null;
   private pendingSettings: WorkerSettings | null = null;
 
-  private constructor() {
-    // Initialize worker immediately
-    this.initWorker();
-  }
+  private constructor() {}
 
   static getInstance(): DepthBlendManager {
     if (!DepthBlendManager.instance) {
@@ -49,6 +46,7 @@ export class DepthBlendManager {
 
   private async initWorker() {
     try {
+      console.log('initialising depth blend worker');
       this.worker = new Worker(new URL('./videoPipeline.worker.ts', import.meta.url), { type: 'module' });
       this.proxy = Comlink.wrap<VideoPipelineWorkerAPI>(this.worker);
     } catch (error) {
@@ -71,9 +69,6 @@ export class DepthBlendManager {
     const oldSource = this.currentVideoSource;
     this.currentVideoSource = videoSource;
 
-    // Ensure worker exists
-    if (!this.proxy) await this.initWorker();
-
     // If already initialised swap the stream immediately.
     if (this.isInitialized && oldSource !== videoSource) {
       await this.replaceVideoSource(videoSource);
@@ -84,9 +79,6 @@ export class DepthBlendManager {
   async setParams(params: RemapStepParams) {
     const changed = JSON.stringify(this.currentParams) !== JSON.stringify(params);
     this.currentParams = params;
-
-    // Ensure worker exists
-    if (!this.proxy) await this.initWorker();
 
     // If already initialised push update to worker immediately.
     if (this.isInitialized && changed) {
@@ -100,6 +92,7 @@ export class DepthBlendManager {
    */
   private async ensureInitialized() {
     if (this.isInitialized) return;
+    if (!this.proxy) await this.initWorker();
 
     if (!this.currentVideoSource || !this.currentParams) {
       throw new Error('[DepthBlendManager] Cannot initialise without videoSource and params');
@@ -124,11 +117,6 @@ export class DepthBlendManager {
 
   // Start processing
   async start() {
-    if (!this.proxy) {
-      console.error('[DepthBlendManager] Worker not initialised');
-      return;
-    }
-
     if (!this.isInitialized) {
       try {
         await this.ensureInitialized();
@@ -141,7 +129,7 @@ export class DepthBlendManager {
     if (this.isRunning) return;
 
     this.isRunning = true;
-    await this.proxy.start(Comlink.proxy(this.handleFrame.bind(this)));
+    await this.proxy!.start(Comlink.proxy(this.handleFrame.bind(this)));
   }
 
   // Stop processing
