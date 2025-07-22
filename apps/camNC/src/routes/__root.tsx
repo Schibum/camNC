@@ -6,6 +6,7 @@ import { TooltipProvider } from '@wbcnc/ui/components/tooltip';
 import { ClerkProvider } from '@clerk/tanstack-react-start';
 import { HeroUIProvider } from '@heroui/react';
 import { createRootRouteWithContext, HeadContent, Outlet, Scripts } from '@tanstack/react-router';
+import { createServerFn } from '@tanstack/react-start';
 import type { ReactNode } from 'react';
 import appCss from '../style.css?url';
 
@@ -15,6 +16,11 @@ const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 if (!PUBLISHABLE_KEY) {
   throw new Error('Add your Clerk Publishable Key to the .env file');
 }
+
+const loadUserSettings = createServerFn({ method: 'GET' }).handler(async () => {
+  console.log('server fn called');
+  return { foo: 'bar' };
+});
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export const Route = createRootRouteWithContext<{
@@ -35,11 +41,18 @@ export const Route = createRootRouteWithContext<{
     ],
     links: [{ rel: 'stylesheet', href: appCss }],
   }),
+  loader: async ctx => {
+    return {
+      userSettings: await loadUserSettings(),
+    };
+  },
   component: RootComponent,
   ssr: true,
 });
 
 function RootComponent() {
+  const { userSettings } = Route.useLoaderData();
+  console.log('userSettings', userSettings);
   return (
     <ClerkProvider
       publishableKey={PUBLISHABLE_KEY}
