@@ -104,9 +104,6 @@ const storage: PersistStorage<unknown> = {
 (Vector2 as any)[immerable] = true;
 // Should we create slices? see https://github.com/pmndrs/zustand/discussions/2195#discussioncomment-7614103
 
-// Get the singleton depth blend manager
-const depthBlendManager = DepthBlendManager.getInstance();
-
 // prettier-ignore
 export const useStore = create(persist(immer(combine(
   {
@@ -228,7 +225,7 @@ export const useStore = create(persist(immer(combine(
 
       // Handle manager lifecycle
       if (!enabled) {
-        depthBlendManager.stop();
+        DepthBlendManager.getInstance().stop();
       }
     },
     setDepthMaskTexture: (tex: Texture | null) => set(state => {
