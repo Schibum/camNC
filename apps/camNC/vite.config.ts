@@ -8,6 +8,7 @@ import postgresPlugin from '@neondatabase/vite-plugin-postgres';
 import { tanstackStart } from '@tanstack/react-start/plugin/vite';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import tsconfigPaths from 'vite-tsconfig-paths';
+import devtoolsJson from 'vite-plugin-devtools-json';
 
 const ReactCompilerConfig = {
   target: '19',
@@ -16,6 +17,8 @@ const ReactCompilerConfig = {
 // https://vitejs.dev/config/
 export default defineConfig(() => {
   const plugins: PluginOption[] = [
+    devtoolsJson(),
+
     tsconfigPaths(),
     postgresPlugin({
       seed: {

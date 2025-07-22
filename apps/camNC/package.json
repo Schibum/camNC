@@ -15,6 +15,7 @@
   "dependencies": {
     "@clerk/clerk-react": "^5.35.3",
     "@clerk/tanstack-react-start": "^0.20.4",
+    "@dotenvx/dotenvx": "^1.48.3",
     "@heroui/react": "catalog:",
     "@hookform/devtools": "catalog:",
     "@hookform/resolvers": "catalog:",
@@ -56,6 +57,8 @@
     "clsx": "catalog:",
     "colormap": "catalog:",
     "comlink": "catalog:",
+    "drizzle-orm": "^0.44.3",
+    "drizzle-zod": "^0.8.2",
     "gcode-toolpath": "catalog:",
     "immer": "catalog:",
     "jotai": "catalog:",
@@ -110,6 +113,7 @@
     "@wbcnc/ui": "workspace:*",
     "@webgpu/types": "catalog:",
     "babel-plugin-react-compiler": "catalog:",
+    "drizzle-kit": "^0.31.4",
     "eslint": "catalog:",
     "eslint-config-prettier": "catalog:",
     "eslint-import-resolver-typescript": "catalog:",
@@ -124,6 +128,7 @@
     "typescript": "catalog:",
     "vite": "catalog:",
     "vite-plugin-checker": "catalog:",
+    "vite-plugin-devtools-json": "^0.3.0",
     "vite-plugin-node-polyfills": "catalog:",
     "vite-plugin-singlefile": "catalog:",
     "vitest": "catalog:"
