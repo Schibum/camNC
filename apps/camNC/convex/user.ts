@@ -11,5 +11,8 @@ export const name = query({
 });
 export const email = query({
   args: {},
-  handler: async ctx => (await ctx.auth.getUserIdentity())?.email,
+  handler: async ctx => {
+    console.log('email query', await ctx.auth.getUserIdentity());
+    return (await ctx.auth.getUserIdentity())?.email;
+  },
 });

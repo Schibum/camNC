@@ -3,9 +3,7 @@ import { SidebarProvider } from '@wbcnc/ui/components/sidebar';
 import { Toaster } from '@wbcnc/ui/components/sonner';
 import { TooltipProvider } from '@wbcnc/ui/components/tooltip';
 
-import { useClerkFirebaseAuthSync } from '@/hooks/useClerkFirebaseAuthSync';
-import { ClerkProvider } from '@clerk/clerk-react';
-import { useAuth } from '@clerk/tanstack-react-start';
+import { ClerkProvider, useAuth } from '@clerk/tanstack-react-start';
 import { getAuth } from '@clerk/tanstack-react-start/server';
 import { ConvexQueryClient } from '@convex-dev/react-query';
 import { HeroUIProvider } from '@heroui/react';
@@ -80,11 +78,6 @@ export const Route = createRootRouteWithContext<{
   ssr: true,
 });
 
-function FbAuthSync() {
-  useClerkFirebaseAuthSync();
-  return null;
-}
-
 function RootComponent() {
   const context = useRouteContext({ from: Route.id });
   return (
@@ -104,7 +97,6 @@ function RootComponent() {
       }}>
       <ConvexProviderWithClerk client={context.convexClient} useAuth={useAuth}>
         <RootDocument>
-          <FbAuthSync />
           <HeroUIProvider>
             <TooltipProvider>
               <SidebarProvider defaultOpen={false} forceMobile={true}>

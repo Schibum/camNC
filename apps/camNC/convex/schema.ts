@@ -1,5 +1,5 @@
-import { defineSchema, defineTable } from 'convex/server'
-import { v } from 'convex/values'
+import { defineSchema, defineTable } from 'convex/server';
+import { v } from 'convex/values';
 
 export default defineSchema({
   posts: defineTable({
@@ -12,4 +12,9 @@ export default defineSchema({
     text: v.string(),
     isCompleted: v.boolean(),
   }),
-})
+
+  user_settings: defineTable({
+    userId: v.string(),
+    camSource: v.optional(v.string()),
+  }).index('by_userId', ['userId']),
+});

@@ -5,8 +5,7 @@ import { hydrateRoot } from 'react-dom/client';
 import { getCncApi } from './lib/fluidnc/fluidnc-singleton';
 import { createRouter } from './router';
 
-import './store/firebaseSync';
-
+// Currently used for webrtc-signalling
 initFbApp();
 // Create connection early
 getCncApi();

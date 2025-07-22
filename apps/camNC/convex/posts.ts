@@ -23,6 +23,8 @@ export const add = mutation({
   },
   handler: async (ctx, args) => {
     console.log('This TypeScript function is running on the server.');
+    const user = await ctx.auth.getUserIdentity();
+    console.log('user', user);
     await ctx.db.insert('posts', {
       id: crypto.randomUUID(),
       title: args.title,
