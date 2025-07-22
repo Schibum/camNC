@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as DebugRouteImport } from './routes/debug'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SetupIndexRouteImport } from './routes/setup/index'
 import { Route as VisualizeVisualizeCommandsRouteImport } from './routes/visualize/VisualizeCommands'
@@ -27,6 +28,11 @@ import { Route as DebugUndistort2RouteImport } from './routes/debug/undistort2'
 import { Route as DebugRawWebgpuRouteImport } from './routes/debug/raw-webgpu'
 import { Route as DebugConvexRouteImport } from './routes/debug/convex'
 
+const DebugRoute = DebugRouteImport.update({
+  id: '/debug',
+  path: '/debug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -94,28 +100,29 @@ const SettingsHideMachineRoute = SettingsHideMachineRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const DebugUnprojectRoute = DebugUnprojectRouteImport.update({
-  id: '/debug/unproject',
-  path: '/debug/unproject',
-  getParentRoute: () => rootRouteImport,
+  id: '/unproject',
+  path: '/unproject',
+  getParentRoute: () => DebugRoute,
 } as any)
 const DebugUndistort2Route = DebugUndistort2RouteImport.update({
-  id: '/debug/undistort2',
-  path: '/debug/undistort2',
-  getParentRoute: () => rootRouteImport,
+  id: '/undistort2',
+  path: '/undistort2',
+  getParentRoute: () => DebugRoute,
 } as any)
 const DebugRawWebgpuRoute = DebugRawWebgpuRouteImport.update({
-  id: '/debug/raw-webgpu',
-  path: '/debug/raw-webgpu',
-  getParentRoute: () => rootRouteImport,
+  id: '/raw-webgpu',
+  path: '/raw-webgpu',
+  getParentRoute: () => DebugRoute,
 } as any)
 const DebugConvexRoute = DebugConvexRouteImport.update({
-  id: '/debug/convex',
-  path: '/debug/convex',
-  getParentRoute: () => rootRouteImport,
+  id: '/convex',
+  path: '/convex',
+  getParentRoute: () => DebugRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/debug': typeof DebugRouteWithChildren
   '/debug/convex': typeof DebugConvexRoute
   '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
   '/debug/undistort2': typeof DebugUndistort2Route
@@ -135,6 +142,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/debug': typeof DebugRouteWithChildren
   '/debug/convex': typeof DebugConvexRoute
   '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
   '/debug/undistort2': typeof DebugUndistort2Route
@@ -155,6 +163,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/debug': typeof DebugRouteWithChildren
   '/debug/convex': typeof DebugConvexRoute
   '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
   '/debug/undistort2': typeof DebugUndistort2Route
@@ -176,6 +185,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/debug'
     | '/debug/convex'
     | '/debug/raw-webgpu'
     | '/debug/undistort2'
@@ -195,6 +205,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/debug'
     | '/debug/convex'
     | '/debug/raw-webgpu'
     | '/debug/undistort2'
@@ -214,6 +225,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/debug'
     | '/debug/convex'
     | '/debug/raw-webgpu'
     | '/debug/undistort2'
@@ -234,10 +246,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  DebugConvexRoute: typeof DebugConvexRoute
-  DebugRawWebgpuRoute: typeof DebugRawWebgpuRoute
-  DebugUndistort2Route: typeof DebugUndistort2Route
-  DebugUnprojectRoute: typeof DebugUnprojectRoute
+  DebugRoute: typeof DebugRouteWithChildren
   SettingsHideMachineRoute: typeof SettingsHideMachineRoute
   SetupCameraCalibrationRoute: typeof SetupCameraCalibrationRoute
   SetupEditSettingsRoute: typeof SetupEditSettingsRoute
@@ -254,6 +263,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/debug': {
+      id: '/debug'
+      path: '/debug'
+      fullPath: '/debug'
+      preLoaderRoute: typeof DebugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -347,41 +363,54 @@ declare module '@tanstack/react-router' {
     }
     '/debug/unproject': {
       id: '/debug/unproject'
-      path: '/debug/unproject'
+      path: '/unproject'
       fullPath: '/debug/unproject'
       preLoaderRoute: typeof DebugUnprojectRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof DebugRoute
     }
     '/debug/undistort2': {
       id: '/debug/undistort2'
-      path: '/debug/undistort2'
+      path: '/undistort2'
       fullPath: '/debug/undistort2'
       preLoaderRoute: typeof DebugUndistort2RouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof DebugRoute
     }
     '/debug/raw-webgpu': {
       id: '/debug/raw-webgpu'
-      path: '/debug/raw-webgpu'
+      path: '/raw-webgpu'
       fullPath: '/debug/raw-webgpu'
       preLoaderRoute: typeof DebugRawWebgpuRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof DebugRoute
     }
     '/debug/convex': {
       id: '/debug/convex'
-      path: '/debug/convex'
+      path: '/convex'
       fullPath: '/debug/convex'
       preLoaderRoute: typeof DebugConvexRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof DebugRoute
     }
   }
 }
 
-const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
+interface DebugRouteChildren {
+  DebugConvexRoute: typeof DebugConvexRoute
+  DebugRawWebgpuRoute: typeof DebugRawWebgpuRoute
+  DebugUndistort2Route: typeof DebugUndistort2Route
+  DebugUnprojectRoute: typeof DebugUnprojectRoute
+}
+
+const DebugRouteChildren: DebugRouteChildren = {
   DebugConvexRoute: DebugConvexRoute,
   DebugRawWebgpuRoute: DebugRawWebgpuRoute,
   DebugUndistort2Route: DebugUndistort2Route,
   DebugUnprojectRoute: DebugUnprojectRoute,
+}
+
+const DebugRouteWithChildren = DebugRoute._addFileChildren(DebugRouteChildren)
+
+const rootRouteChildren: RootRouteChildren = {
+  IndexRoute: IndexRoute,
+  DebugRoute: DebugRouteWithChildren,
   SettingsHideMachineRoute: SettingsHideMachineRoute,
   SetupCameraCalibrationRoute: SetupCameraCalibrationRoute,
   SetupEditSettingsRoute: SetupEditSettingsRoute,
