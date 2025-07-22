@@ -4,40 +4,40 @@ import { api } from '@convex-gen/api';
 import { Button } from '@heroui/react';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { useConvexAuth, useMutation } from 'convex/react';
-import { ReactNode } from 'react';
+import { createServerFn } from '@tanstack/react-start';
+import { getHeaders } from '@tanstack/react-start/server';
+import { ConvexHttpClient } from 'convex/browser';
+import { Authenticated, useMutation } from 'convex/react';
+
+const testServerFn = createServerFn({ method: 'GET' }).handler(async ctx => {
+  const client = new ConvexHttpClient(process.env.VITE_CONVEX_URL!);
+  const userName = await client.query(api.posts.list);
+  console.log('hhh', getHeaders());
+  console.log('userName', ctx);
+  return userName[0].title;
+});
 
 export const Route = createFileRoute('/debug/convex')({
-  component: Wrapper,
+  component: RouteComponent,
   beforeLoad: async ({ context }) => {
     if (!context.userId) {
       throw new Error('No user id');
     }
   },
   loader: async ({ context }) => {
-    const userName = await context.convexClient.query(api.user.email);
-    console.log('userName', userName, context.userId);
-    return { userId: context.userId, userName };
+    const result = await testServerFn();
+    console.log('server fn result', result);
+    return { userId: context.userId, userName: result };
   },
   ssr: true,
 });
-export function Authenticated2({ children }: { children: ReactNode }) {
-  'use no memo';
-  const { isLoading, isAuthenticated } = useConvexAuth();
-  console.log('isLoading', isLoading, isAuthenticated);
-  if (isLoading || !isAuthenticated) {
-    return null;
-  }
-  return <>{children}</>;
-}
 
 function Wrapper() {
-  console.log(useConvexAuth());
-  const { isLoading, isAuthenticated } = useConvexAuth();
-  if (isLoading || !isAuthenticated) {
-    return null;
-  }
-  return <RouteComponent />;
+  return (
+    <Authenticated>
+      <RouteComponent />
+    </Authenticated>
+  );
 }
 
 function RouteComponent() {
