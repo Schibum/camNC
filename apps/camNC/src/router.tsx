@@ -16,11 +16,6 @@ function DefaultLoadingOverlay() {
 }
 
 export function createRouter() {
-  const CONVEX_URL = (import.meta as any).env.VITE_CONVEX_URL!;
-  if (!CONVEX_URL) {
-    throw new Error('missing VITE_CONVEX_URL envar');
-  }
-
   // @snippet start example
   //  const router = routerWithQueryClient(
   const router = createTanStackRouter({

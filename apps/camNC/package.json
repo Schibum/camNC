@@ -56,7 +56,6 @@
     "clsx": "catalog:",
     "colormap": "catalog:",
     "comlink": "catalog:",
-    "convex": "^1.25.4",
     "gcode-toolpath": "catalog:",
     "immer": "catalog:",
     "jotai": "catalog:",
