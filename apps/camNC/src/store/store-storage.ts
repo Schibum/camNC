@@ -55,10 +55,12 @@ export function getInitialStorageData() {
 export function createStorage() {
   const storage: PersistStorage<unknown> = {
     getItem: name => {
-      const initialData = getInitialStorageData();
-      console.log('have initialStorageData', !!initialData);
-      if (initialData) {
-        return initialData;
+      if (name === 'settings') {
+        const initialData = getInitialStorageData();
+        console.log('have initialStorageData', !!initialData);
+        if (initialData) {
+          return initialData;
+        }
       }
       const str = localStorage.getItem(name);
       if (!str) return null;

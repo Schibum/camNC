@@ -21,7 +21,6 @@ import { useSetSnapPosition, useSetSnapToToolpath, useSnapPosition, useSnapToToo
 export const Route = createFileRoute('/visualize/2DView')({
   component: VisualizeComponent,
   beforeLoad: async () => {
-    console.log('2DView loader');
     const extrinsics = useStore.getState().camSource?.extrinsics;
     if (!extrinsics) {
       throw redirect({ to: '/setup/point-selection' });
