@@ -6,9 +6,9 @@ import checker from 'vite-plugin-checker';
 // import { viteSingleFile } from 'vite-plugin-singlefile';
 import postgresPlugin from '@neondatabase/vite-plugin-postgres';
 import { tanstackStart } from '@tanstack/react-start/plugin/vite';
+import devtoolsJson from 'vite-plugin-devtools-json';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import tsconfigPaths from 'vite-tsconfig-paths';
-import devtoolsJson from 'vite-plugin-devtools-json';
 
 const ReactCompilerConfig = {
   target: '19',
@@ -42,6 +42,8 @@ export default defineConfig(() => {
     }),
     tailwindcss(),
     nodePolyfills({
+      // For gstream-parser
+      include: ['stream', '_stream_transform', 'util'],
       // tanstack-start build blows without this
       protocolImports: false,
       globals: {

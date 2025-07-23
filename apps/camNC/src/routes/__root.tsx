@@ -3,19 +3,15 @@ import { SidebarProvider } from '@wbcnc/ui/components/sidebar';
 import { Toaster } from '@wbcnc/ui/components/sonner';
 import { TooltipProvider } from '@wbcnc/ui/components/tooltip';
 
-import { getDb } from '@/db/db';
-import { users } from '@/db/schema';
+import { DefaultLoadingOverlay } from '@/components/DefaultLoadingOverlay';
+import { loadUserSettings } from '@/db/functions';
 import { ClerkProvider } from '@clerk/tanstack-react-start';
-import { clerkClient, getAuth } from '@clerk/tanstack-react-start/server';
 import { HeroUIProvider } from '@heroui/react';
-import { QueryClient, useSuspenseQuery } from '@tanstack/react-query';
+import { QueryClient } from '@tanstack/react-query';
 import { createRootRouteWithContext, HeadContent, Outlet, Scripts } from '@tanstack/react-router';
-import { createServerFn } from '@tanstack/react-start';
-import { getWebRequest } from '@tanstack/react-start/server';
 import { initFbApp } from '@wbcnc/public-config/firebase';
-import { eq } from 'drizzle-orm';
+import { stringify as devalueStringify } from 'devalue';
 import type { ReactNode } from 'react';
-import z from 'zod';
 import appCss from '../style.css?url';
 
 // Import your Publishable Key
@@ -27,53 +23,6 @@ if (!PUBLISHABLE_KEY) {
 
 // Currently used for webrtc-signalling
 initFbApp();
-
-async function getSafeAuth() {
-  try {
-    return await getAuth(getWebRequest());
-  } catch {
-    return null;
-  }
-}
-
-const loadUserSettings = createServerFn({ method: 'GET' }).handler(async () => {
-  const auth = await getSafeAuth();
-  if (!auth?.userId) return null;
-  const db = getDb();
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, auth.userId),
-  });
-  console.log('server fn called', user?.settings, getWebRequest().url);
-  return { user };
-});
-
-const updateUser = createServerFn({ method: 'POST' })
-  .validator(
-    z.object({
-      settings: z.record(z.any()),
-    })
-  )
-  .handler(async ({ data }) => {
-    const auth = await getSafeAuth();
-    if (!auth?.userId) return null;
-    const fullUser = await clerkClient().users.getUser(auth.userId);
-
-    const db = getDb();
-    const userData: typeof users.$inferInsert = {
-      id: auth.userId,
-      ...data,
-      name: fullUser.fullName ?? '',
-      email: fullUser.primaryEmailAddress?.emailAddress ?? '',
-    };
-    await db
-      .insert(users)
-      .values(userData)
-      .onConflictDoUpdate({
-        target: [users.id],
-        set: userData,
-      });
-    return { message: 'User updated' };
-  });
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
@@ -93,40 +42,32 @@ export const Route = createRootRouteWithContext<{
     ],
     links: [{ rel: 'stylesheet', href: appCss }],
   }),
-  beforeLoad: async () => {
-    console.log('beforeLoad');
+  ssr: 'data-only',
+  staleTime: 10 * 60_000, // 10 minutes
+  scripts: ctx => {
+    const userSettings = (ctx.loaderData as any)?.userSettings;
+    if (userSettings) {
+      return [{ id: '__APP_STATE__', type: 'application/json', children: devalueStringify(userSettings) }];
+    }
+    return [];
   },
-  staleTime: 60000,
-  loader: async ({ context }) => {
-    await context.queryClient.ensureQueryData({
-      queryKey: ['userSettings'],
-      queryFn: () => loadUserSettings(),
-    });
-    // await updateUser({
-    //   data: {
-    //     settings: {
-    //       foo: 'my new setting',
-    //     },
-    //   },
-    // });
+  pendingComponent: function () {
+    return (
+      <RootDocument>
+        <DefaultLoadingOverlay />
+      </RootDocument>
+    );
+  },
+  loader: async () => {
+    const settings = await loadUserSettings();
     return {
-      foo: 'bar',
-      // userSettings: await loadUserSettings(),
+      userSettings: settings,
     };
   },
   component: RootComponent,
-  ssr: true,
 });
 
 function RootComponent() {
-  const data = Route.useLoaderData();
-  console.log('loader  data', data);
-  const userSettings = useSuspenseQuery({
-    queryKey: ['userSettings'],
-    queryFn: () => loadUserSettings(),
-    staleTime: Infinity,
-  });
-  console.log('userSettings form suspend query', userSettings.data?.user?.settings);
   return (
     <ClerkProvider
       publishableKey={PUBLISHABLE_KEY}

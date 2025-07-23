@@ -3,25 +3,19 @@ import { createRouter as createTanStackRouter } from '@tanstack/react-router';
 import { routeTree } from './routeTree.gen';
 
 import { dehydrate, hydrate, QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
+import { DefaultLoadingOverlay } from './components/DefaultLoadingOverlay';
 
-// eslint-disable-next-line react-refresh/only-export-components
-function DefaultLoadingOverlay() {
-  return (
-    <div className="w-full h-dvh flex items-center justify-center">
-      <div className="flex flex-col items-center justify-center gap-4">
-        <LoadingSpinner className="size-10" />
-        <div className="text-gray-500 text-xl">Loading...</div>
-      </div>
-    </div>
-  );
+/**
+ * Hack for hydrating zustand, prefer using it from the context elsewhere.
+ * @deprecated
+ **/
+export function getQueryClientStatic() {
+  return new QueryClient();
 }
 
 export function createRouter() {
-  // @snippet start example
-  const queryClient = new QueryClient();
-
   //  const router = routerWithQueryClient(
+  const queryClient = new QueryClient();
   const router = createTanStackRouter({
     routeTree,
     // defaultPreload: 'intent',
@@ -31,6 +25,7 @@ export function createRouter() {
     defaultErrorComponent: err => <p>{err.error.stack}</p>,
     defaultNotFoundComponent: () => <p>not found</p>,
     context: { queryClient },
+    defaultSsr: false,
     dehydrate: () => {
       return {
         queryClientState: dehydrate(queryClient),
@@ -39,7 +34,6 @@ export function createRouter() {
     // On the client, hydrate the loader client with the data
     // we dehydrated on the server
     hydrate: dehydrated => {
-      console.log('hydrate', dehydrated);
       hydrate(queryClient, dehydrated.queryClientState);
     },
     // Optionally, we can use `Wrap` to wrap our router in the loader client provider

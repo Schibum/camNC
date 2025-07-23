@@ -1,3 +1,5 @@
+import { getAuth } from '@clerk/tanstack-react-start/server';
+import { getWebRequest } from '@tanstack/react-start/server';
 import { drizzle } from 'drizzle-orm/neon-http';
 import * as schema from './schema';
 
@@ -13,3 +15,14 @@ export function getDb() {
   }
   return client;
 }
+
+// Get clerk auth catch errors and return null instead.
+export async function getSafeAuth() {
+  try {
+    return await getAuth(getWebRequest());
+  } catch {
+    return null;
+  }
+}
+
+export { schema };

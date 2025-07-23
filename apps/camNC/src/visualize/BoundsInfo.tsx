@@ -1,5 +1,6 @@
 import { usePnPResult, useStore } from '@/store/store';
-import TimeAgo from 'react-timeago';
+import { ClientOnly } from '@tanstack/react-router';
+import TimeAgo from 'react-timeago-i18n';
 
 export function BoundsInfo() {
   const bounds = useStore(s => s.toolpath?.getBounds());
@@ -28,9 +29,11 @@ export function BoundsInfo() {
         <>
           <h3 className="text-sm font-medium">PnP</h3>
           <div className="grid items-center gap-0.5 text-xs">
-            <div>
-              PnP computed <TimeAgo date={pnpResult.lastPnPTime} />
-            </div>
+            <ClientOnly>
+              <div>
+                PnP computed <TimeAgo date={pnpResult.lastPnPTime} />
+              </div>
+            </ClientOnly>
             {pnpResult.lastReprojectionError !== undefined && (
               <div className={pnpResult.lastReprojectionError > 2 ? 'text-red-600' : ''}>
                 Reprojection error: {pnpResult.lastReprojectionError.toFixed(2)}px
