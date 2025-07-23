@@ -43,7 +43,7 @@ export const Route = createRootRouteWithContext<{
     links: [{ rel: 'stylesheet', href: appCss }],
   }),
   ssr: 'data-only',
-  staleTime: 10 * 60_000, // 10 minutes
+  staleTime: Infinity,
   scripts: ctx => {
     const userSettings = (ctx.loaderData as any)?.userSettings;
     if (userSettings) {
