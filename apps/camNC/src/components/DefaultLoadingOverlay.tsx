@@ -1,6 +1,5 @@
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function DefaultLoadingOverlay() {
   return (
     <div className="w-full h-dvh flex items-center justify-center">
