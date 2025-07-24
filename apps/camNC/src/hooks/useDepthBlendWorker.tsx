@@ -12,7 +12,9 @@ import {
   useVideoUrl,
 } from '@/store/store';
 import { useVideoSource } from '@wbcnc/go2webrtc/use-video-source';
+import { toast } from '@wbcnc/ui/components/sonner';
 import { Suspense, useEffect, useMemo } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
 
 function DepthBlendWorkerSuspending() {
   useDepthBlendWorker();
@@ -23,7 +25,14 @@ function DepthBlendWorkerSuspending() {
 export function DepthBlendWorker() {
   return (
     <Suspense fallback={null}>
-      <DepthBlendWorkerSuspending />
+      <ErrorBoundary
+        fallback={null}
+        onError={() => {
+          console.error('Error loading depth blend worker');
+          toast.error('Error loading depth blend worker', { duration: Infinity, closeButton: true });
+        }}>
+        <DepthBlendWorkerSuspending />
+      </ErrorBoundary>
     </Suspense>
   );
 }

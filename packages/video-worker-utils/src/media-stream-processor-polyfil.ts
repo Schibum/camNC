@@ -18,6 +18,7 @@ if (!globalThis.MediaStreamTrackProcessor && isFirefox) {
         this.readable = new ReadableStream({
           async start(controller) {
             this.video = document.createElement('video');
+            this.video.muted = true;
             this.video.srcObject = new MediaStream([track]);
             await Promise.all([this.video.play(), new Promise(r => (this.video.onloadedmetadata = r))]);
             this.track = track;
