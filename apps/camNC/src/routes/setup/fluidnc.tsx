@@ -1,8 +1,8 @@
+import { PageHeader } from '@/components/page-header';
 import { FluidNcUrlCopyInput } from '@/visualize/toolbar/FluidNcUrlCopyInput';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { Button } from '@wbcnc/ui/components/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@wbcnc/ui/components/card';
-import { PageHeader } from '@wbcnc/ui/components/page-header';
 
 export const Route = createFileRoute('/setup/fluidnc')({
   component: RouteComponent,

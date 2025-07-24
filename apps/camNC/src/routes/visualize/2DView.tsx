@@ -1,4 +1,5 @@
 import { UnprojectVideoMesh } from '@/calibration/Unproject';
+import { PageHeader } from '@/components/page-header';
 import { useAutoScanMarkers } from '@/hooks/useAutoScanMarkers';
 import { DepthBlendWorker } from '@/hooks/useDepthBlendWorker';
 import { useInitToolpathOffset } from '@/hooks/useInitToolpathOffset';
@@ -12,7 +13,6 @@ import { nearestPointOnToolpath } from '@/visualize/nearestPoint';
 import { VisualizeToolbar } from '@/visualize/toolbar/VisualizeToolbar';
 import { ThreeElements, ThreeEvent } from '@react-three/fiber';
 import { createFileRoute, redirect } from '@tanstack/react-router';
-import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { Vector2, Vector3 } from 'three';

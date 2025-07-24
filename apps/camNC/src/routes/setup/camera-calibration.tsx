@@ -1,11 +1,11 @@
 import { LoadingVideoOverlay } from '@/components/LoadingVideoOverlay';
+import { PageHeader } from '@/components/page-header';
 import { AlreadyCalibratedDialog } from '@/setup/already-calibrated-dialog';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { CalibrationResult, CameraCalibration } from '@wbcnc/camera-calibration';
 import { parseConnectionString } from '@wbcnc/go2webrtc/url-helpers';
 import { useVideoSource } from '@wbcnc/go2webrtc/use-video-source';
 import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
-import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { Suspense, use } from 'react';
 import { Matrix3 } from 'three';
 import { useStore } from '../../store/store';

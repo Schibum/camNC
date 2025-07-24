@@ -28,7 +28,7 @@ export function SidebarAuthStatus() {
         <SignedOut>
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip="Sign in" className="w-full cursor-pointer">
-              <SignInButton mode="modal">
+              <SignInButton mode="modal" forceRedirectUrl="/">
                 <div className="flex items-center gap-2">
                   <LogIn className="size-4" />
                   <span>Sign in</span>
