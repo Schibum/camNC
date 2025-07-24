@@ -1,3 +1,4 @@
+import { PageHeader } from '@/components/page-header';
 import { isDepthBlendSupported } from '@/depth/depthBlendManager';
 import { useDepthSettings, useSetDepthSettings } from '@/store/store';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -5,7 +6,6 @@ import { ClientOnly, createFileRoute } from '@tanstack/react-router';
 import { Alert, AlertDescription, AlertTitle } from '@wbcnc/ui/components/alert';
 import { Button } from '@wbcnc/ui/components/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@wbcnc/ui/components/form';
-import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wbcnc/ui/components/select';
 import { Slider } from '@wbcnc/ui/components/slider';
 import { toast } from '@wbcnc/ui/components/sonner';

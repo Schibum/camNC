@@ -1,10 +1,10 @@
+import { PageHeader } from '@/components/page-header';
 import { RemapStepParams } from '@/depth/remapPipeline';
 import type { Config, VideoPipelineWorkerAPI } from '@/depth/videoPipeline.worker';
 import { useAutoScanMarkers } from '@/hooks/useAutoScanMarkers';
 import { useCalibrationData, useCameraExtrinsics, useCamResolution, useStore, useVideoUrl } from '@/store/store';
 import { createFileRoute } from '@tanstack/react-router';
 import { useVideoSource } from '@wbcnc/go2webrtc/use-video-source';
-import { PageHeader } from '@wbcnc/ui/components/page-header';
 import { createVideoStreamProcessor, registerThreeJsTransferHandlers } from '@wbcnc/video-worker-utils';
 import * as Comlink from 'comlink';
 import { useEffect, useRef, useState } from 'react';

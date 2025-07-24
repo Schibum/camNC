@@ -1,6 +1,6 @@
 import UnskewTsl from '@/calibration/UnskewTsl';
+import { PageHeader } from '@/components/page-header';
 import { createFileRoute } from '@tanstack/react-router';
-import { PageHeader } from '@wbcnc/ui/components/page-header';
 
 export const Route = createFileRoute('/debug/undistort2')({
   component: RouteComponent,

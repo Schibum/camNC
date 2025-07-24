@@ -20,12 +20,7 @@ export default defineConfig(() => {
     devtoolsJson(),
 
     tsconfigPaths(),
-    postgresPlugin({
-      seed: {
-        type: 'sql-script',
-        path: 'db/init.sql',
-      },
-    }),
+    postgresPlugin(),
     tanstackStart({
       customViteReactPlugin: true,
       target: 'vercel',
