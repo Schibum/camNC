@@ -23,7 +23,8 @@ export default defineConfig(() => {
     postgresPlugin(),
     tanstackStart({
       customViteReactPlugin: true,
-      target: 'vercel',
+      target: 'cloudflare-module', // Key configuration for Cloudflare compatibility
+
       // spa: {
       //   enabled: true,
       // },
