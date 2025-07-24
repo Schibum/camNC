@@ -40,3 +40,4 @@ yarn-error.log*
 
 __screenshots__
 *.tsbuildinfo
+.env*.local

@@ -1,13 +1,12 @@
 import { DepthBlendManager } from '@/depth/depthBlendManager';
 import { immerable } from 'immer';
-import { throttle } from 'radashi';
-import superjson from 'superjson';
 import { Box2, Matrix3, Texture, Vector2, Vector3 } from 'three';
 import { create } from 'zustand';
-import { combine, persist, PersistStorage } from 'zustand/middleware';
+import { combine, persist, subscribeWithSelector } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import { ParsedToolpath, parseGCode } from '../visualize/gcodeParsing';
 import { parseToolInfo } from '../visualize/guess-tools';
+import { createStorage } from './store-storage';
 
 export interface CalibrationData {
   calibration_matrix: Matrix3;
@@ -55,57 +54,12 @@ export interface PnPResult {
   lastReprojectionError: number;
 }
 
-superjson.registerCustom<Box2, { min: number[]; max: number[] }>(
-  {
-    isApplicable: value => value instanceof Box2,
-    serialize: value => ({ min: value.min.toArray(), max: value.max.toArray() }),
-    deserialize: value => new Box2(new Vector2().fromArray(value.min), new Vector2().fromArray(value.max)),
-  },
-  'Box2'
-);
-superjson.registerCustom<Vector2, number[]>(
-  {
-    isApplicable: value => value instanceof Vector2,
-    serialize: value => value.toArray(),
-    deserialize: value => new Vector2().fromArray(value),
-  },
-  'Vector2'
-);
-superjson.registerCustom<Vector3, number[]>(
-  {
-    isApplicable: value => value instanceof Vector3,
-    serialize: value => value.toArray(),
-    deserialize: value => new Vector3().fromArray(value),
-  },
-  'Vector3'
-);
-superjson.registerCustom<Matrix3, number[]>(
-  {
-    isApplicable: value => value instanceof Matrix3,
-    serialize: value => value.toArray(),
-    deserialize: value => new Matrix3().fromArray(value),
-  },
-  'Matrix3'
-);
-const storage: PersistStorage<unknown> = {
-  getItem: name => {
-    const str = localStorage.getItem(name);
-    if (!str) return null;
-    return superjson.parse(str);
-  },
-  // See https://github.com/pmndrs/zustand/discussions/2125
-  setItem: throttle({ interval: 500, trailing: true }, (name, value) => {
-    localStorage.setItem(name, superjson.stringify(value));
-  }),
-  removeItem: name => localStorage.removeItem(name),
-};
-
 (Box2 as any)[immerable] = true;
 (Vector2 as any)[immerable] = true;
 // Should we create slices? see https://github.com/pmndrs/zustand/discussions/2195#discussioncomment-7614103
 
 // prettier-ignore
-export const useStore = create(persist(immer(combine(
+export const useStore = create(subscribeWithSelector(persist(immer(combine(
   {
     // new, should probably go into a backend instead at some point
     camSource: null as ICamSource | null,
@@ -251,7 +205,8 @@ export const useStore = create(persist(immer(combine(
   })
 )), {
   name: 'settings',
-  storage,
+  // skipHydration: true,
+  storage: createStorage(),
   partialize: state => ({
     toolDiameter: state.toolDiameter,
     camSource: state.camSource,
@@ -261,7 +216,7 @@ export const useStore = create(persist(immer(combine(
     toolpathOpacity: state.toolpathOpacity,
     pnpResult: state.pnpResult,
   }),
-}));
+})));
 
 export const useCamSource = () => useStore(state => state.camSource);
 export const useVideoUrl = () => useStore(state => state.camSource!.url);

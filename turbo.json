@@ -10,9 +10,33 @@
         "$TURBO_DEFAULT$",
         ".env*"
       ],
+      "env": [
+        "DATABASE_URL",
+        "CLERK_PUBLISHABLE_KEY",
+        "VITE_CLERK_PUBLISHABLE_KEY",
+        "POSTGRES_URL",
+        "POSTGRES_PRISMA_URL",
+        "DATABASE_URL_UNPOOLED",
+        "POSTGRES_URL_NON_POOLING",
+        "PGHOST",
+        "POSTGRES_USER",
+        "POSTGRES_PASSWORD",
+        "POSTGRES_DATABASE",
+        "PGPASSWORD",
+        "PGDATABASE",
+        "PGHOST_UNPOOLED",
+        "PGUSER",
+        "POSTGRES_URL_NO_SSL",
+        "POSTGRES_HOST",
+        "NEON_PROJECT_ID",
+        "CLERK_SECRET_KEY"
+      ],
       "outputs": [
         ".next/**",
         "!.next/cache/**",
+        ".nitro/**",
+        ".tanstack/start/**",
+        ".vercel/output/**",
         "dist/**"
       ]
     },
@@ -29,7 +53,27 @@
     },
     "dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "env": [
+        "DATABASE_URL",
+        "POSTGRES_URL",
+        "POSTGRES_PRISMA_URL",
+        "DATABASE_URL_UNPOOLED",
+        "POSTGRES_URL_NON_POOLING",
+        "PGHOST",
+        "POSTGRES_USER",
+        "POSTGRES_PASSWORD",
+        "POSTGRES_DATABASE",
+        "PGPASSWORD",
+        "PGDATABASE",
+        "PGHOST_UNPOOLED",
+        "PGUSER",
+        "POSTGRES_URL_NO_SSL",
+        "POSTGRES_HOST",
+        "NEON_PROJECT_ID",
+        "CLERK_SECRET_KEY",
+        "CLERK_PUBLISHABLE_KEY"
+      ]
     }
   }
 }

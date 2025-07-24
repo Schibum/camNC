@@ -54,7 +54,7 @@ export class FirebaseSignaller {
 
     this.peerId = FirebaseSignaller.generateId();
     // HACK, this seems to prevent connections if set.
-    localStorage.removeItem('firebase:previous_websocket_failure');
+    globalThis.localStorage?.removeItem('firebase:previous_websocket_failure');
   }
 
   /** Join (or create) a room and start signalling. */

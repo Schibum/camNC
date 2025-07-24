@@ -38,6 +38,7 @@ export class DepthBlendManager {
   private constructor() {}
 
   static getInstance(): DepthBlendManager {
+    if (typeof window === 'undefined') return null as unknown as DepthBlendManager;
     if (!DepthBlendManager.instance) {
       DepthBlendManager.instance = new DepthBlendManager();
     }
@@ -45,13 +46,9 @@ export class DepthBlendManager {
   }
 
   private async initWorker() {
-    try {
-      console.log('initialising depth blend worker');
-      this.worker = new Worker(new URL('./videoPipeline.worker.ts', import.meta.url), { type: 'module' });
-      this.proxy = Comlink.wrap<VideoPipelineWorkerAPI>(this.worker);
-    } catch (error) {
-      console.error('[DepthBlendManager] Failed to initialize worker:', error);
-    }
+    console.log('initialising depth blend worker');
+    this.worker = new Worker(new URL('./videoPipeline.worker.ts', import.meta.url), { type: 'module' });
+    this.proxy = Comlink.wrap<VideoPipelineWorkerAPI>(this.worker);
   }
 
   // Register a callback for texture updates

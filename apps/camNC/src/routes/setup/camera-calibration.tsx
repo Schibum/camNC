@@ -12,12 +12,12 @@ import { useStore } from '../../store/store';
 
 export const Route = createFileRoute('/setup/camera-calibration')({
   component: RouteComponent,
-  loader: async () => {
+  beforeLoad: async () => {
     const camSource = useStore.getState().camSource;
     if (!camSource) {
       throw redirect({ to: '/setup/url-entry' });
     }
-    return camSource;
+    // return camSource;
   },
 });
 
@@ -36,7 +36,11 @@ function useZeroTangentDist(url: string) {
 
 function ConfiguredCameraCalibration() {
   use(ensureOpenCvIsLoaded());
-  const { url, maxResolution } = Route.useLoaderData();
+  const camSource = useStore(s => s.camSource);
+  if (!camSource) {
+    throw redirect({ to: '/setup/url-entry' });
+  }
+  const { url, maxResolution } = camSource;
   const resolution = { width: maxResolution[0], height: maxResolution[1] };
   const { src } = useVideoSource(url);
   const zeroTangentDist = useZeroTangentDist(url);

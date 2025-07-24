@@ -8,65 +8,34 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-// Import Routes
+import { Route as rootRouteImport } from './routes/__root'
+import { Route as WebtorrentRouteImport } from './routes/webtorrent'
+import { Route as WebrtcCustomRouteImport } from './routes/webrtc-custom'
 
-import { Route as rootRoute } from './routes/__root'
-import { Route as WebtorrentImport } from './routes/webtorrent'
-import { Route as WebrtcCustomImport } from './routes/webrtc-custom'
-
-// Create/Update Routes
-
-const WebtorrentRoute = WebtorrentImport.update({
+const WebtorrentRoute = WebtorrentRouteImport.update({
   id: '/webtorrent',
   path: '/webtorrent',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-const WebrtcCustomRoute = WebrtcCustomImport.update({
+const WebrtcCustomRoute = WebrtcCustomRouteImport.update({
   id: '/webrtc-custom',
   path: '/webrtc-custom',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-// Populate the FileRoutesByPath interface
-
-declare module '@tanstack/react-router' {
-  interface FileRoutesByPath {
-    '/webrtc-custom': {
-      id: '/webrtc-custom'
-      path: '/webrtc-custom'
-      fullPath: '/webrtc-custom'
-      preLoaderRoute: typeof WebrtcCustomImport
-      parentRoute: typeof rootRoute
-    }
-    '/webtorrent': {
-      id: '/webtorrent'
-      path: '/webtorrent'
-      fullPath: '/webtorrent'
-      preLoaderRoute: typeof WebtorrentImport
-      parentRoute: typeof rootRoute
-    }
-  }
-}
-
-// Create and export the route tree
 
 export interface FileRoutesByFullPath {
   '/webrtc-custom': typeof WebrtcCustomRoute
   '/webtorrent': typeof WebtorrentRoute
 }
-
 export interface FileRoutesByTo {
   '/webrtc-custom': typeof WebrtcCustomRoute
   '/webtorrent': typeof WebtorrentRoute
 }
-
 export interface FileRoutesById {
-  __root__: typeof rootRoute
+  __root__: typeof rootRouteImport
   '/webrtc-custom': typeof WebrtcCustomRoute
   '/webtorrent': typeof WebtorrentRoute
 }
-
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths: '/webrtc-custom' | '/webtorrent'
@@ -75,37 +44,34 @@ export interface FileRouteTypes {
   id: '__root__' | '/webrtc-custom' | '/webtorrent'
   fileRoutesById: FileRoutesById
 }
-
 export interface RootRouteChildren {
   WebrtcCustomRoute: typeof WebrtcCustomRoute
   WebtorrentRoute: typeof WebtorrentRoute
+}
+
+declare module '@tanstack/react-router' {
+  interface FileRoutesByPath {
+    '/webtorrent': {
+      id: '/webtorrent'
+      path: '/webtorrent'
+      fullPath: '/webtorrent'
+      preLoaderRoute: typeof WebtorrentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/webrtc-custom': {
+      id: '/webrtc-custom'
+      path: '/webrtc-custom'
+      fullPath: '/webrtc-custom'
+      preLoaderRoute: typeof WebrtcCustomRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+  }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   WebrtcCustomRoute: WebrtcCustomRoute,
   WebtorrentRoute: WebtorrentRoute,
 }
-
-export const routeTree = rootRoute
+export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-/* ROUTE_MANIFEST_START
-{
-  "routes": {
-    "__root__": {
-      "filePath": "__root.tsx",
-      "children": [
-        "/webrtc-custom",
-        "/webtorrent"
-      ]
-    },
-    "/webrtc-custom": {
-      "filePath": "webrtc-custom.tsx"
-    },
-    "/webtorrent": {
-      "filePath": "webtorrent.tsx"
-    }
-  }
-}
-ROUTE_MANIFEST_END */

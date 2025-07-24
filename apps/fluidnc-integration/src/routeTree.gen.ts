@@ -8,48 +8,25 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-// Import Routes
+import { Route as rootRouteImport } from './routes/__root'
+import { Route as RoomIdRouteImport } from './routes/$roomId'
 
-import { Route as rootRoute } from './routes/__root'
-import { Route as RoomIdImport } from './routes/$roomId'
-
-// Create/Update Routes
-
-const RoomIdRoute = RoomIdImport.update({
+const RoomIdRoute = RoomIdRouteImport.update({
   id: '/$roomId',
   path: '/$roomId',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-// Populate the FileRoutesByPath interface
-
-declare module '@tanstack/react-router' {
-  interface FileRoutesByPath {
-    '/$roomId': {
-      id: '/$roomId'
-      path: '/$roomId'
-      fullPath: '/$roomId'
-      preLoaderRoute: typeof RoomIdImport
-      parentRoute: typeof rootRoute
-    }
-  }
-}
-
-// Create and export the route tree
 
 export interface FileRoutesByFullPath {
   '/$roomId': typeof RoomIdRoute
 }
-
 export interface FileRoutesByTo {
   '/$roomId': typeof RoomIdRoute
 }
-
 export interface FileRoutesById {
-  __root__: typeof rootRoute
+  __root__: typeof rootRouteImport
   '/$roomId': typeof RoomIdRoute
 }
-
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths: '/$roomId'
@@ -58,31 +35,25 @@ export interface FileRouteTypes {
   id: '__root__' | '/$roomId'
   fileRoutesById: FileRoutesById
 }
-
 export interface RootRouteChildren {
   RoomIdRoute: typeof RoomIdRoute
+}
+
+declare module '@tanstack/react-router' {
+  interface FileRoutesByPath {
+    '/$roomId': {
+      id: '/$roomId'
+      path: '/$roomId'
+      fullPath: '/$roomId'
+      preLoaderRoute: typeof RoomIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+  }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   RoomIdRoute: RoomIdRoute,
 }
-
-export const routeTree = rootRoute
+export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-/* ROUTE_MANIFEST_START
-{
-  "routes": {
-    "__root__": {
-      "filePath": "__root.tsx",
-      "children": [
-        "/$roomId"
-      ]
-    },
-    "/$roomId": {
-      "filePath": "$roomId.tsx"
-    }
-  }
-}
-ROUTE_MANIFEST_END */

@@ -8,260 +8,105 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-// Import Routes
+import { Route as rootRouteImport } from './routes/__root'
+import { Route as IndexRouteImport } from './routes/index'
+import { Route as SetupIndexRouteImport } from './routes/setup/index'
+import { Route as VisualizeVisualizeCommandsRouteImport } from './routes/visualize/VisualizeCommands'
+import { Route as Visualize2DViewRouteImport } from './routes/visualize/2DView'
+import { Route as SetupUrlEntryRouteImport } from './routes/setup/url-entry'
+import { Route as SetupPointSelectionRouteImport } from './routes/setup/point-selection'
+import { Route as SetupNewCamMatrixRouteImport } from './routes/setup/new-cam-matrix'
+import { Route as SetupMarkerPositionsRouteImport } from './routes/setup/marker-positions'
+import { Route as SetupMachineBoundsRouteImport } from './routes/setup/machine-bounds'
+import { Route as SetupFluidncRouteImport } from './routes/setup/fluidnc'
+import { Route as SetupEditSettingsRouteImport } from './routes/setup/edit-settings'
+import { Route as SetupCameraCalibrationRouteImport } from './routes/setup/camera-calibration'
+import { Route as SettingsHideMachineRouteImport } from './routes/settings/hide-machine'
+import { Route as DebugUnprojectRouteImport } from './routes/debug/unproject'
+import { Route as DebugUndistort2RouteImport } from './routes/debug/undistort2'
+import { Route as DebugRawWebgpuRouteImport } from './routes/debug/raw-webgpu'
 
-import { Route as rootRoute } from './routes/__root'
-import { Route as IndexImport } from './routes/index'
-import { Route as SetupIndexImport } from './routes/setup/index'
-import { Route as VisualizeVisualizeCommandsImport } from './routes/visualize/VisualizeCommands'
-import { Route as Visualize2DViewImport } from './routes/visualize/2DView'
-import { Route as SetupUrlEntryImport } from './routes/setup/url-entry'
-import { Route as SetupSetupImport } from './routes/setup/setup'
-import { Route as SetupPointSelectionImport } from './routes/setup/point-selection'
-import { Route as SetupNewCamMatrixImport } from './routes/setup/new-cam-matrix'
-import { Route as SetupMarkerPositionsImport } from './routes/setup/marker-positions'
-import { Route as SetupMachineBoundsImport } from './routes/setup/machine-bounds'
-import { Route as SetupFluidncImport } from './routes/setup/fluidnc'
-import { Route as SetupEditSettingsImport } from './routes/setup/edit-settings'
-import { Route as SetupCameraCalibrationImport } from './routes/setup/camera-calibration'
-import { Route as SettingsHideMachineImport } from './routes/settings/hide-machine'
-import { Route as DebugUnprojectImport } from './routes/debug/unproject'
-import { Route as DebugUndistort2Import } from './routes/debug/undistort2'
-import { Route as DebugRawWebgpuImport } from './routes/debug/raw-webgpu'
-
-// Create/Update Routes
-
-const IndexRoute = IndexImport.update({
+const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-const SetupIndexRoute = SetupIndexImport.update({
+const SetupIndexRoute = SetupIndexRouteImport.update({
   id: '/setup/',
   path: '/setup/',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-const VisualizeVisualizeCommandsRoute = VisualizeVisualizeCommandsImport.update(
-  {
+const VisualizeVisualizeCommandsRoute =
+  VisualizeVisualizeCommandsRouteImport.update({
     id: '/visualize/VisualizeCommands',
     path: '/visualize/VisualizeCommands',
-    getParentRoute: () => rootRoute,
-  } as any,
-)
-
-const Visualize2DViewRoute = Visualize2DViewImport.update({
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const Visualize2DViewRoute = Visualize2DViewRouteImport.update({
   id: '/visualize/2DView',
   path: '/visualize/2DView',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-const SetupUrlEntryRoute = SetupUrlEntryImport.update({
+const SetupUrlEntryRoute = SetupUrlEntryRouteImport.update({
   id: '/setup/url-entry',
   path: '/setup/url-entry',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-const SetupSetupRoute = SetupSetupImport.update({
-  id: '/setup/setup',
-  path: '/setup/setup',
-  getParentRoute: () => rootRoute,
-} as any)
-
-const SetupPointSelectionRoute = SetupPointSelectionImport.update({
+const SetupPointSelectionRoute = SetupPointSelectionRouteImport.update({
   id: '/setup/point-selection',
   path: '/setup/point-selection',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-const SetupNewCamMatrixRoute = SetupNewCamMatrixImport.update({
+const SetupNewCamMatrixRoute = SetupNewCamMatrixRouteImport.update({
   id: '/setup/new-cam-matrix',
   path: '/setup/new-cam-matrix',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-const SetupMarkerPositionsRoute = SetupMarkerPositionsImport.update({
+const SetupMarkerPositionsRoute = SetupMarkerPositionsRouteImport.update({
   id: '/setup/marker-positions',
   path: '/setup/marker-positions',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-const SetupMachineBoundsRoute = SetupMachineBoundsImport.update({
+const SetupMachineBoundsRoute = SetupMachineBoundsRouteImport.update({
   id: '/setup/machine-bounds',
   path: '/setup/machine-bounds',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-const SetupFluidncRoute = SetupFluidncImport.update({
+const SetupFluidncRoute = SetupFluidncRouteImport.update({
   id: '/setup/fluidnc',
   path: '/setup/fluidnc',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-const SetupEditSettingsRoute = SetupEditSettingsImport.update({
+const SetupEditSettingsRoute = SetupEditSettingsRouteImport.update({
   id: '/setup/edit-settings',
   path: '/setup/edit-settings',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-const SetupCameraCalibrationRoute = SetupCameraCalibrationImport.update({
+const SetupCameraCalibrationRoute = SetupCameraCalibrationRouteImport.update({
   id: '/setup/camera-calibration',
   path: '/setup/camera-calibration',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-const SettingsHideMachineRoute = SettingsHideMachineImport.update({
+const SettingsHideMachineRoute = SettingsHideMachineRouteImport.update({
   id: '/settings/hide-machine',
   path: '/settings/hide-machine',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-const DebugUnprojectRoute = DebugUnprojectImport.update({
+const DebugUnprojectRoute = DebugUnprojectRouteImport.update({
   id: '/debug/unproject',
   path: '/debug/unproject',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-const DebugUndistort2Route = DebugUndistort2Import.update({
+const DebugUndistort2Route = DebugUndistort2RouteImport.update({
   id: '/debug/undistort2',
   path: '/debug/undistort2',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-const DebugRawWebgpuRoute = DebugRawWebgpuImport.update({
+const DebugRawWebgpuRoute = DebugRawWebgpuRouteImport.update({
   id: '/debug/raw-webgpu',
   path: '/debug/raw-webgpu',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-// Populate the FileRoutesByPath interface
-
-declare module '@tanstack/react-router' {
-  interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexImport
-      parentRoute: typeof rootRoute
-    }
-    '/debug/raw-webgpu': {
-      id: '/debug/raw-webgpu'
-      path: '/debug/raw-webgpu'
-      fullPath: '/debug/raw-webgpu'
-      preLoaderRoute: typeof DebugRawWebgpuImport
-      parentRoute: typeof rootRoute
-    }
-    '/debug/undistort2': {
-      id: '/debug/undistort2'
-      path: '/debug/undistort2'
-      fullPath: '/debug/undistort2'
-      preLoaderRoute: typeof DebugUndistort2Import
-      parentRoute: typeof rootRoute
-    }
-    '/debug/unproject': {
-      id: '/debug/unproject'
-      path: '/debug/unproject'
-      fullPath: '/debug/unproject'
-      preLoaderRoute: typeof DebugUnprojectImport
-      parentRoute: typeof rootRoute
-    }
-    '/settings/hide-machine': {
-      id: '/settings/hide-machine'
-      path: '/settings/hide-machine'
-      fullPath: '/settings/hide-machine'
-      preLoaderRoute: typeof SettingsHideMachineImport
-      parentRoute: typeof rootRoute
-    }
-    '/setup/camera-calibration': {
-      id: '/setup/camera-calibration'
-      path: '/setup/camera-calibration'
-      fullPath: '/setup/camera-calibration'
-      preLoaderRoute: typeof SetupCameraCalibrationImport
-      parentRoute: typeof rootRoute
-    }
-    '/setup/edit-settings': {
-      id: '/setup/edit-settings'
-      path: '/setup/edit-settings'
-      fullPath: '/setup/edit-settings'
-      preLoaderRoute: typeof SetupEditSettingsImport
-      parentRoute: typeof rootRoute
-    }
-    '/setup/fluidnc': {
-      id: '/setup/fluidnc'
-      path: '/setup/fluidnc'
-      fullPath: '/setup/fluidnc'
-      preLoaderRoute: typeof SetupFluidncImport
-      parentRoute: typeof rootRoute
-    }
-    '/setup/machine-bounds': {
-      id: '/setup/machine-bounds'
-      path: '/setup/machine-bounds'
-      fullPath: '/setup/machine-bounds'
-      preLoaderRoute: typeof SetupMachineBoundsImport
-      parentRoute: typeof rootRoute
-    }
-    '/setup/marker-positions': {
-      id: '/setup/marker-positions'
-      path: '/setup/marker-positions'
-      fullPath: '/setup/marker-positions'
-      preLoaderRoute: typeof SetupMarkerPositionsImport
-      parentRoute: typeof rootRoute
-    }
-    '/setup/new-cam-matrix': {
-      id: '/setup/new-cam-matrix'
-      path: '/setup/new-cam-matrix'
-      fullPath: '/setup/new-cam-matrix'
-      preLoaderRoute: typeof SetupNewCamMatrixImport
-      parentRoute: typeof rootRoute
-    }
-    '/setup/point-selection': {
-      id: '/setup/point-selection'
-      path: '/setup/point-selection'
-      fullPath: '/setup/point-selection'
-      preLoaderRoute: typeof SetupPointSelectionImport
-      parentRoute: typeof rootRoute
-    }
-    '/setup/setup': {
-      id: '/setup/setup'
-      path: '/setup/setup'
-      fullPath: '/setup/setup'
-      preLoaderRoute: typeof SetupSetupImport
-      parentRoute: typeof rootRoute
-    }
-    '/setup/url-entry': {
-      id: '/setup/url-entry'
-      path: '/setup/url-entry'
-      fullPath: '/setup/url-entry'
-      preLoaderRoute: typeof SetupUrlEntryImport
-      parentRoute: typeof rootRoute
-    }
-    '/visualize/2DView': {
-      id: '/visualize/2DView'
-      path: '/visualize/2DView'
-      fullPath: '/visualize/2DView'
-      preLoaderRoute: typeof Visualize2DViewImport
-      parentRoute: typeof rootRoute
-    }
-    '/visualize/VisualizeCommands': {
-      id: '/visualize/VisualizeCommands'
-      path: '/visualize/VisualizeCommands'
-      fullPath: '/visualize/VisualizeCommands'
-      preLoaderRoute: typeof VisualizeVisualizeCommandsImport
-      parentRoute: typeof rootRoute
-    }
-    '/setup/': {
-      id: '/setup/'
-      path: '/setup'
-      fullPath: '/setup'
-      preLoaderRoute: typeof SetupIndexImport
-      parentRoute: typeof rootRoute
-    }
-  }
-}
-
-// Create and export the route tree
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -276,13 +121,11 @@ export interface FileRoutesByFullPath {
   '/setup/marker-positions': typeof SetupMarkerPositionsRoute
   '/setup/new-cam-matrix': typeof SetupNewCamMatrixRoute
   '/setup/point-selection': typeof SetupPointSelectionRoute
-  '/setup/setup': typeof SetupSetupRoute
   '/setup/url-entry': typeof SetupUrlEntryRoute
   '/visualize/2DView': typeof Visualize2DViewRoute
   '/visualize/VisualizeCommands': typeof VisualizeVisualizeCommandsRoute
   '/setup': typeof SetupIndexRoute
 }
-
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
@@ -296,15 +139,13 @@ export interface FileRoutesByTo {
   '/setup/marker-positions': typeof SetupMarkerPositionsRoute
   '/setup/new-cam-matrix': typeof SetupNewCamMatrixRoute
   '/setup/point-selection': typeof SetupPointSelectionRoute
-  '/setup/setup': typeof SetupSetupRoute
   '/setup/url-entry': typeof SetupUrlEntryRoute
   '/visualize/2DView': typeof Visualize2DViewRoute
   '/visualize/VisualizeCommands': typeof VisualizeVisualizeCommandsRoute
   '/setup': typeof SetupIndexRoute
 }
-
 export interface FileRoutesById {
-  __root__: typeof rootRoute
+  __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
   '/debug/undistort2': typeof DebugUndistort2Route
@@ -317,13 +158,11 @@ export interface FileRoutesById {
   '/setup/marker-positions': typeof SetupMarkerPositionsRoute
   '/setup/new-cam-matrix': typeof SetupNewCamMatrixRoute
   '/setup/point-selection': typeof SetupPointSelectionRoute
-  '/setup/setup': typeof SetupSetupRoute
   '/setup/url-entry': typeof SetupUrlEntryRoute
   '/visualize/2DView': typeof Visualize2DViewRoute
   '/visualize/VisualizeCommands': typeof VisualizeVisualizeCommandsRoute
   '/setup/': typeof SetupIndexRoute
 }
-
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
@@ -339,7 +178,6 @@ export interface FileRouteTypes {
     | '/setup/marker-positions'
     | '/setup/new-cam-matrix'
     | '/setup/point-selection'
-    | '/setup/setup'
     | '/setup/url-entry'
     | '/visualize/2DView'
     | '/visualize/VisualizeCommands'
@@ -358,7 +196,6 @@ export interface FileRouteTypes {
     | '/setup/marker-positions'
     | '/setup/new-cam-matrix'
     | '/setup/point-selection'
-    | '/setup/setup'
     | '/setup/url-entry'
     | '/visualize/2DView'
     | '/visualize/VisualizeCommands'
@@ -377,14 +214,12 @@ export interface FileRouteTypes {
     | '/setup/marker-positions'
     | '/setup/new-cam-matrix'
     | '/setup/point-selection'
-    | '/setup/setup'
     | '/setup/url-entry'
     | '/visualize/2DView'
     | '/visualize/VisualizeCommands'
     | '/setup/'
   fileRoutesById: FileRoutesById
 }
-
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DebugRawWebgpuRoute: typeof DebugRawWebgpuRoute
@@ -398,11 +233,127 @@ export interface RootRouteChildren {
   SetupMarkerPositionsRoute: typeof SetupMarkerPositionsRoute
   SetupNewCamMatrixRoute: typeof SetupNewCamMatrixRoute
   SetupPointSelectionRoute: typeof SetupPointSelectionRoute
-  SetupSetupRoute: typeof SetupSetupRoute
   SetupUrlEntryRoute: typeof SetupUrlEntryRoute
   Visualize2DViewRoute: typeof Visualize2DViewRoute
   VisualizeVisualizeCommandsRoute: typeof VisualizeVisualizeCommandsRoute
   SetupIndexRoute: typeof SetupIndexRoute
+}
+
+declare module '@tanstack/react-router' {
+  interface FileRoutesByPath {
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/setup/': {
+      id: '/setup/'
+      path: '/setup'
+      fullPath: '/setup'
+      preLoaderRoute: typeof SetupIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/visualize/VisualizeCommands': {
+      id: '/visualize/VisualizeCommands'
+      path: '/visualize/VisualizeCommands'
+      fullPath: '/visualize/VisualizeCommands'
+      preLoaderRoute: typeof VisualizeVisualizeCommandsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/visualize/2DView': {
+      id: '/visualize/2DView'
+      path: '/visualize/2DView'
+      fullPath: '/visualize/2DView'
+      preLoaderRoute: typeof Visualize2DViewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/setup/url-entry': {
+      id: '/setup/url-entry'
+      path: '/setup/url-entry'
+      fullPath: '/setup/url-entry'
+      preLoaderRoute: typeof SetupUrlEntryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/setup/point-selection': {
+      id: '/setup/point-selection'
+      path: '/setup/point-selection'
+      fullPath: '/setup/point-selection'
+      preLoaderRoute: typeof SetupPointSelectionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/setup/new-cam-matrix': {
+      id: '/setup/new-cam-matrix'
+      path: '/setup/new-cam-matrix'
+      fullPath: '/setup/new-cam-matrix'
+      preLoaderRoute: typeof SetupNewCamMatrixRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/setup/marker-positions': {
+      id: '/setup/marker-positions'
+      path: '/setup/marker-positions'
+      fullPath: '/setup/marker-positions'
+      preLoaderRoute: typeof SetupMarkerPositionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/setup/machine-bounds': {
+      id: '/setup/machine-bounds'
+      path: '/setup/machine-bounds'
+      fullPath: '/setup/machine-bounds'
+      preLoaderRoute: typeof SetupMachineBoundsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/setup/fluidnc': {
+      id: '/setup/fluidnc'
+      path: '/setup/fluidnc'
+      fullPath: '/setup/fluidnc'
+      preLoaderRoute: typeof SetupFluidncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/setup/edit-settings': {
+      id: '/setup/edit-settings'
+      path: '/setup/edit-settings'
+      fullPath: '/setup/edit-settings'
+      preLoaderRoute: typeof SetupEditSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/setup/camera-calibration': {
+      id: '/setup/camera-calibration'
+      path: '/setup/camera-calibration'
+      fullPath: '/setup/camera-calibration'
+      preLoaderRoute: typeof SetupCameraCalibrationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings/hide-machine': {
+      id: '/settings/hide-machine'
+      path: '/settings/hide-machine'
+      fullPath: '/settings/hide-machine'
+      preLoaderRoute: typeof SettingsHideMachineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/debug/unproject': {
+      id: '/debug/unproject'
+      path: '/debug/unproject'
+      fullPath: '/debug/unproject'
+      preLoaderRoute: typeof DebugUnprojectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/debug/undistort2': {
+      id: '/debug/undistort2'
+      path: '/debug/undistort2'
+      fullPath: '/debug/undistort2'
+      preLoaderRoute: typeof DebugUndistort2RouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/debug/raw-webgpu': {
+      id: '/debug/raw-webgpu'
+      path: '/debug/raw-webgpu'
+      fullPath: '/debug/raw-webgpu'
+      preLoaderRoute: typeof DebugRawWebgpuRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+  }
 }
 
 const rootRouteChildren: RootRouteChildren = {
@@ -418,93 +369,11 @@ const rootRouteChildren: RootRouteChildren = {
   SetupMarkerPositionsRoute: SetupMarkerPositionsRoute,
   SetupNewCamMatrixRoute: SetupNewCamMatrixRoute,
   SetupPointSelectionRoute: SetupPointSelectionRoute,
-  SetupSetupRoute: SetupSetupRoute,
   SetupUrlEntryRoute: SetupUrlEntryRoute,
   Visualize2DViewRoute: Visualize2DViewRoute,
   VisualizeVisualizeCommandsRoute: VisualizeVisualizeCommandsRoute,
   SetupIndexRoute: SetupIndexRoute,
 }
-
-export const routeTree = rootRoute
+export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-/* ROUTE_MANIFEST_START
-{
-  "routes": {
-    "__root__": {
-      "filePath": "__root.tsx",
-      "children": [
-        "/",
-        "/debug/raw-webgpu",
-        "/debug/undistort2",
-        "/debug/unproject",
-        "/settings/hide-machine",
-        "/setup/camera-calibration",
-        "/setup/edit-settings",
-        "/setup/fluidnc",
-        "/setup/machine-bounds",
-        "/setup/marker-positions",
-        "/setup/new-cam-matrix",
-        "/setup/point-selection",
-        "/setup/setup",
-        "/setup/url-entry",
-        "/visualize/2DView",
-        "/visualize/VisualizeCommands",
-        "/setup/"
-      ]
-    },
-    "/": {
-      "filePath": "index.tsx"
-    },
-    "/debug/raw-webgpu": {
-      "filePath": "debug/raw-webgpu.tsx"
-    },
-    "/debug/undistort2": {
-      "filePath": "debug/undistort2.tsx"
-    },
-    "/debug/unproject": {
-      "filePath": "debug/unproject.tsx"
-    },
-    "/settings/hide-machine": {
-      "filePath": "settings/hide-machine.tsx"
-    },
-    "/setup/camera-calibration": {
-      "filePath": "setup/camera-calibration.tsx"
-    },
-    "/setup/edit-settings": {
-      "filePath": "setup/edit-settings.tsx"
-    },
-    "/setup/fluidnc": {
-      "filePath": "setup/fluidnc.tsx"
-    },
-    "/setup/machine-bounds": {
-      "filePath": "setup/machine-bounds.tsx"
-    },
-    "/setup/marker-positions": {
-      "filePath": "setup/marker-positions.tsx"
-    },
-    "/setup/new-cam-matrix": {
-      "filePath": "setup/new-cam-matrix.tsx"
-    },
-    "/setup/point-selection": {
-      "filePath": "setup/point-selection.tsx"
-    },
-    "/setup/setup": {
-      "filePath": "setup/setup.tsx"
-    },
-    "/setup/url-entry": {
-      "filePath": "setup/url-entry.tsx"
-    },
-    "/visualize/2DView": {
-      "filePath": "visualize/2DView.tsx"
-    },
-    "/visualize/VisualizeCommands": {
-      "filePath": "visualize/VisualizeCommands.tsx"
-    },
-    "/setup/": {
-      "filePath": "setup/index.tsx"
-    }
-  }
-}
-ROUTE_MANIFEST_END */

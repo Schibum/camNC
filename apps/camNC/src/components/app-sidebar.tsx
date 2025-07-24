@@ -15,6 +15,7 @@ import {
   useSidebar,
 } from '@wbcnc/ui/components/sidebar';
 import { useEffect } from 'react';
+import { SidebarAuthStatus } from './sidebar-auth';
 
 // Remove or comment out the mock data
 // const data = {...}
@@ -124,8 +125,7 @@ export function AppSidebar({ ...props }: AppSidebarProps) {
                   <Route className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">Toolpath Visualizer</span>
-                  <span className="truncate text-xs">0.1</span>
+                  <span className="truncate font-medium">CamNC</span>
                 </div>
               </a>
             </SidebarMenuButton>
@@ -137,6 +137,7 @@ export function AppSidebar({ ...props }: AppSidebarProps) {
         <NavRoutes routes={setupRoutes} label="Setup" />
         <NavRoutes routes={settingsRoutes} label="Settings" />
       </SidebarContent>
+      <SidebarAuthStatus />
     </Sidebar>
   );
 }

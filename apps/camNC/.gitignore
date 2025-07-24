@@ -25,3 +25,5 @@ dist-ssr
 .vercel
 # exclude test vids for now
 public/*.mp4
+.nitro/
+.output/

@@ -8,118 +8,50 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-// Import Routes
+import { Route as rootRouteImport } from './routes/__root'
+import { Route as ServeWebrtcRouteImport } from './routes/serve-webrtc'
+import { Route as ServeTrysteroRouteImport } from './routes/serve-trystero'
+import { Route as PlayTrysteroRouteImport } from './routes/play-trystero'
+import { Route as Go2webrtcRouteImport } from './routes/go2webrtc'
+import { Route as CameraCalibrationRouteImport } from './routes/camera-calibration'
+import { Route as WebrtcChannelRoomRouteImport } from './routes/webrtc-channel.$room'
+import { Route as FluidncClientRoomIdRouteImport } from './routes/fluidnc-client.$roomId'
 
-import { Route as rootRoute } from './routes/__root'
-import { Route as ServeWebrtcImport } from './routes/serve-webrtc'
-import { Route as ServeTrysteroImport } from './routes/serve-trystero'
-import { Route as PlayTrysteroImport } from './routes/play-trystero'
-import { Route as Go2webrtcImport } from './routes/go2webrtc'
-import { Route as CameraCalibrationImport } from './routes/camera-calibration'
-import { Route as WebrtcChannelRoomImport } from './routes/webrtc-channel.$room'
-import { Route as FluidncClientRoomIdImport } from './routes/fluidnc-client.$roomId'
-
-// Create/Update Routes
-
-const ServeWebrtcRoute = ServeWebrtcImport.update({
+const ServeWebrtcRoute = ServeWebrtcRouteImport.update({
   id: '/serve-webrtc',
   path: '/serve-webrtc',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-const ServeTrysteroRoute = ServeTrysteroImport.update({
+const ServeTrysteroRoute = ServeTrysteroRouteImport.update({
   id: '/serve-trystero',
   path: '/serve-trystero',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-const PlayTrysteroRoute = PlayTrysteroImport.update({
+const PlayTrysteroRoute = PlayTrysteroRouteImport.update({
   id: '/play-trystero',
   path: '/play-trystero',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-const Go2webrtcRoute = Go2webrtcImport.update({
+const Go2webrtcRoute = Go2webrtcRouteImport.update({
   id: '/go2webrtc',
   path: '/go2webrtc',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-const CameraCalibrationRoute = CameraCalibrationImport.update({
+const CameraCalibrationRoute = CameraCalibrationRouteImport.update({
   id: '/camera-calibration',
   path: '/camera-calibration',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-const WebrtcChannelRoomRoute = WebrtcChannelRoomImport.update({
+const WebrtcChannelRoomRoute = WebrtcChannelRoomRouteImport.update({
   id: '/webrtc-channel/$room',
   path: '/webrtc-channel/$room',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-const FluidncClientRoomIdRoute = FluidncClientRoomIdImport.update({
+const FluidncClientRoomIdRoute = FluidncClientRoomIdRouteImport.update({
   id: '/fluidnc-client/$roomId',
   path: '/fluidnc-client/$roomId',
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
-
-// Populate the FileRoutesByPath interface
-
-declare module '@tanstack/react-router' {
-  interface FileRoutesByPath {
-    '/camera-calibration': {
-      id: '/camera-calibration'
-      path: '/camera-calibration'
-      fullPath: '/camera-calibration'
-      preLoaderRoute: typeof CameraCalibrationImport
-      parentRoute: typeof rootRoute
-    }
-    '/go2webrtc': {
-      id: '/go2webrtc'
-      path: '/go2webrtc'
-      fullPath: '/go2webrtc'
-      preLoaderRoute: typeof Go2webrtcImport
-      parentRoute: typeof rootRoute
-    }
-    '/play-trystero': {
-      id: '/play-trystero'
-      path: '/play-trystero'
-      fullPath: '/play-trystero'
-      preLoaderRoute: typeof PlayTrysteroImport
-      parentRoute: typeof rootRoute
-    }
-    '/serve-trystero': {
-      id: '/serve-trystero'
-      path: '/serve-trystero'
-      fullPath: '/serve-trystero'
-      preLoaderRoute: typeof ServeTrysteroImport
-      parentRoute: typeof rootRoute
-    }
-    '/serve-webrtc': {
-      id: '/serve-webrtc'
-      path: '/serve-webrtc'
-      fullPath: '/serve-webrtc'
-      preLoaderRoute: typeof ServeWebrtcImport
-      parentRoute: typeof rootRoute
-    }
-    '/fluidnc-client/$roomId': {
-      id: '/fluidnc-client/$roomId'
-      path: '/fluidnc-client/$roomId'
-      fullPath: '/fluidnc-client/$roomId'
-      preLoaderRoute: typeof FluidncClientRoomIdImport
-      parentRoute: typeof rootRoute
-    }
-    '/webrtc-channel/$room': {
-      id: '/webrtc-channel/$room'
-      path: '/webrtc-channel/$room'
-      fullPath: '/webrtc-channel/$room'
-      preLoaderRoute: typeof WebrtcChannelRoomImport
-      parentRoute: typeof rootRoute
-    }
-  }
-}
-
-// Create and export the route tree
 
 export interface FileRoutesByFullPath {
   '/camera-calibration': typeof CameraCalibrationRoute
@@ -130,7 +62,6 @@ export interface FileRoutesByFullPath {
   '/fluidnc-client/$roomId': typeof FluidncClientRoomIdRoute
   '/webrtc-channel/$room': typeof WebrtcChannelRoomRoute
 }
-
 export interface FileRoutesByTo {
   '/camera-calibration': typeof CameraCalibrationRoute
   '/go2webrtc': typeof Go2webrtcRoute
@@ -140,9 +71,8 @@ export interface FileRoutesByTo {
   '/fluidnc-client/$roomId': typeof FluidncClientRoomIdRoute
   '/webrtc-channel/$room': typeof WebrtcChannelRoomRoute
 }
-
 export interface FileRoutesById {
-  __root__: typeof rootRoute
+  __root__: typeof rootRouteImport
   '/camera-calibration': typeof CameraCalibrationRoute
   '/go2webrtc': typeof Go2webrtcRoute
   '/play-trystero': typeof PlayTrysteroRoute
@@ -151,7 +81,6 @@ export interface FileRoutesById {
   '/fluidnc-client/$roomId': typeof FluidncClientRoomIdRoute
   '/webrtc-channel/$room': typeof WebrtcChannelRoomRoute
 }
-
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
@@ -182,7 +111,6 @@ export interface FileRouteTypes {
     | '/webrtc-channel/$room'
   fileRoutesById: FileRoutesById
 }
-
 export interface RootRouteChildren {
   CameraCalibrationRoute: typeof CameraCalibrationRoute
   Go2webrtcRoute: typeof Go2webrtcRoute
@@ -191,6 +119,60 @@ export interface RootRouteChildren {
   ServeWebrtcRoute: typeof ServeWebrtcRoute
   FluidncClientRoomIdRoute: typeof FluidncClientRoomIdRoute
   WebrtcChannelRoomRoute: typeof WebrtcChannelRoomRoute
+}
+
+declare module '@tanstack/react-router' {
+  interface FileRoutesByPath {
+    '/serve-webrtc': {
+      id: '/serve-webrtc'
+      path: '/serve-webrtc'
+      fullPath: '/serve-webrtc'
+      preLoaderRoute: typeof ServeWebrtcRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/serve-trystero': {
+      id: '/serve-trystero'
+      path: '/serve-trystero'
+      fullPath: '/serve-trystero'
+      preLoaderRoute: typeof ServeTrysteroRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/play-trystero': {
+      id: '/play-trystero'
+      path: '/play-trystero'
+      fullPath: '/play-trystero'
+      preLoaderRoute: typeof PlayTrysteroRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/go2webrtc': {
+      id: '/go2webrtc'
+      path: '/go2webrtc'
+      fullPath: '/go2webrtc'
+      preLoaderRoute: typeof Go2webrtcRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/camera-calibration': {
+      id: '/camera-calibration'
+      path: '/camera-calibration'
+      fullPath: '/camera-calibration'
+      preLoaderRoute: typeof CameraCalibrationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/webrtc-channel/$room': {
+      id: '/webrtc-channel/$room'
+      path: '/webrtc-channel/$room'
+      fullPath: '/webrtc-channel/$room'
+      preLoaderRoute: typeof WebrtcChannelRoomRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/fluidnc-client/$roomId': {
+      id: '/fluidnc-client/$roomId'
+      path: '/fluidnc-client/$roomId'
+      fullPath: '/fluidnc-client/$roomId'
+      preLoaderRoute: typeof FluidncClientRoomIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+  }
 }
 
 const rootRouteChildren: RootRouteChildren = {
@@ -202,47 +184,6 @@ const rootRouteChildren: RootRouteChildren = {
   FluidncClientRoomIdRoute: FluidncClientRoomIdRoute,
   WebrtcChannelRoomRoute: WebrtcChannelRoomRoute,
 }
-
-export const routeTree = rootRoute
+export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-/* ROUTE_MANIFEST_START
-{
-  "routes": {
-    "__root__": {
-      "filePath": "__root.tsx",
-      "children": [
-        "/camera-calibration",
-        "/go2webrtc",
-        "/play-trystero",
-        "/serve-trystero",
-        "/serve-webrtc",
-        "/fluidnc-client/$roomId",
-        "/webrtc-channel/$room"
-      ]
-    },
-    "/camera-calibration": {
-      "filePath": "camera-calibration.tsx"
-    },
-    "/go2webrtc": {
-      "filePath": "go2webrtc.tsx"
-    },
-    "/play-trystero": {
-      "filePath": "play-trystero.tsx"
-    },
-    "/serve-trystero": {
-      "filePath": "serve-trystero.tsx"
-    },
-    "/serve-webrtc": {
-      "filePath": "serve-webrtc.tsx"
-    },
-    "/fluidnc-client/$roomId": {
-      "filePath": "fluidnc-client.$roomId.tsx"
-    },
-    "/webrtc-channel/$room": {
-      "filePath": "webrtc-channel.$room.tsx"
-    }
-  }
-}
-ROUTE_MANIFEST_END */

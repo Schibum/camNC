@@ -16,12 +16,13 @@
     "turbo": "catalog:",
     "typescript": "catalog:"
   },
-  "packageManager": "pnpm@10.7.0",
+  "packageManager": "pnpm@10.13.1",
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
     "vite-plugin-node-polyfills": "catalog:",
     "vitest": "catalog:"
-  }
+  },
+  "pnpm": {}
 }
