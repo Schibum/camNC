@@ -6,7 +6,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@wbcnc/ui/components/input';
 import { ExternalLink } from 'lucide-react';
 import { Control, useForm } from 'react-hook-form';
-import { Vector3 } from 'three';
+import { Vector3, Box2 } from 'three';
 import z from 'zod';
 import { DownloadGcodeButton } from './DownloadGcodeButton';
 import { MarkerBoundsButton, calculateDefaultMargin, calculateMarkersWithMargin } from './MarkerBoundsButton';
@@ -81,8 +81,8 @@ function MarkerFields({ control, index }: MarkerFieldsProps) {
 
 export function MarkerPositionsForm({ onConfirmed }: { onConfirmed: () => void }) {
   'use no memo';
-  const bounds = useStore(state => state.camSource!.machineBounds!);
-  const savedRaw = useStore(state => state.camSource?.markerPositions);
+  const bounds = useStore(state => (state.activeCamName ? state.camSources[state.activeCamName]!.machineBounds! : new Box2()));
+  const savedRaw = useStore(state => (state.activeCamName ? state.camSources[state.activeCamName]?.markerPositions : undefined));
   const arucoTagSize = useArucoTagSize();
   const setMarkerPositions = useSetMarkerPositions();
   const setArucoTagSize = useSetArucoTagSize();

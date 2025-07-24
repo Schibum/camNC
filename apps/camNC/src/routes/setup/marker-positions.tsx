@@ -1,5 +1,5 @@
 import { PageHeader } from '@/components/page-header';
-import { useStore } from '@/store/store';
+import { useStore, getActiveCamSource } from '@/store/store';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { Card, CardContent, CardHeader, CardTitle } from '@wbcnc/ui/components/card';
@@ -9,7 +9,7 @@ export const Route = createFileRoute('/setup/marker-positions')({
   component: RouteComponent,
   loader: async () => {
     const state = useStore.getState();
-    const bounds = state.camSource?.machineBounds;
+    const bounds = getActiveCamSource()?.machineBounds;
     if (!bounds) {
       throw redirect({ to: '/setup/machine-bounds' });
     }

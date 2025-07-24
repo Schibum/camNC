@@ -2,7 +2,7 @@ import * as Comlink from 'comlink';
 import { useEffect, useRef } from 'react';
 
 import { IMarker } from '@/setup/detect-aruco';
-import { ICamSource, useStore } from '@/store/store';
+import { ICamSource, useStore, getActiveCamSource } from '@/store/store';
 import { updateCameraExtrinsics } from '@/store/store-p3p';
 import type { MarkerScannerWorkerAPI } from '@/workers/markerScanner.worker';
 import { acquireVideoSource, releaseVideoSource } from '@wbcnc/go2webrtc/use-video-source';
@@ -39,7 +39,7 @@ export function useAutoScanMarkers({ intervalMs, firstScanDelayMs = 5_000 }: Aut
   );
 
   useEffect(() => {
-    const camSource = useStore.getState().camSource!;
+    const camSource = getActiveCamSource()!;
     const service = new MarkerScannerService(camSource, onMarkersFound);
     serviceRef.current = service;
 

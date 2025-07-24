@@ -16,6 +16,7 @@ import {
 } from '@wbcnc/ui/components/sidebar';
 import { useEffect } from 'react';
 import { SidebarAuthStatus } from './sidebar-auth';
+import { CamSourceSelector } from './CamSourceSelector';
 
 // Remove or comment out the mock data
 // const data = {...}
@@ -131,6 +132,7 @@ export function AppSidebar({ ...props }: AppSidebarProps) {
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
+        <CamSourceSelector />
       </SidebarHeader>
       <SidebarContent>
         <NavRoutes routes={routes} label="Views" />

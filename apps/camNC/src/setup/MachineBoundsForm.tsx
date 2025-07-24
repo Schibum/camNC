@@ -51,7 +51,7 @@ const schema = z
   });
 
 export function MachineBoundsForm({ onConfirmed }: { onConfirmed: () => void }) {
-  const bounds = useStore(state => state.camSource!.machineBounds);
+  const bounds = useStore(state => (state.activeCamName ? state.camSources[state.activeCamName]!.machineBounds : undefined));
   const setMachineBounds = useStore(state => state.camSourceSetters.setMachineBounds);
   const form = useForm({
     defaultValues: {

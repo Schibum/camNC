@@ -47,7 +47,7 @@ function AlphaUpdateComponent() {
     setCalibration({
       ...calibration,
       new_camera_matrix: newCamMatrix,
-    });
+    } as CalibrationData);
   }
   return (
     <div className="flex flex-col gap-2">

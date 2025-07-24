@@ -8,12 +8,12 @@ import { useVideoSource } from '@wbcnc/go2webrtc/use-video-source';
 import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { Suspense, use } from 'react';
 import { Matrix3 } from 'three';
-import { useStore } from '../../store/store';
+import { useStore, getActiveCamSource } from '../../store/store';
 
 export const Route = createFileRoute('/setup/camera-calibration')({
   component: RouteComponent,
   beforeLoad: async () => {
-    const camSource = useStore.getState().camSource;
+    const camSource = getActiveCamSource();
     if (!camSource) {
       throw redirect({ to: '/setup/url-entry' });
     }
@@ -36,7 +36,7 @@ function useZeroTangentDist(url: string) {
 
 function ConfiguredCameraCalibration() {
   use(ensureOpenCvIsLoaded());
-  const camSource = useStore(s => s.camSource);
+  const camSource = useStore(state => (state.activeCamName ? state.camSources[state.activeCamName] : null));
   if (!camSource) {
     throw redirect({ to: '/setup/url-entry' });
   }
