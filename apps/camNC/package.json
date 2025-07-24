@@ -43,6 +43,7 @@
     "@tanstack/react-router-with-query": "catalog:",
     "@tanstack/react-start": "catalog:",
     "@tanstack/router": "catalog:",
+    "@tanstack/zod-adapter": "catalog:",
     "@techstark/opencv-js": "catalog:",
     "@testing-library/jest-dom": "catalog:",
     "@use-gesture/react": "catalog:",

@@ -15,8 +15,8 @@ import {
   useSidebar,
 } from '@wbcnc/ui/components/sidebar';
 import { useEffect } from 'react';
-import { SidebarAuthStatus } from './sidebar-auth';
 import { CamSourceSelector } from './CamSourceSelector';
+import { SidebarAuthStatus } from './sidebar-auth';
 
 // Remove or comment out the mock data
 // const data = {...}

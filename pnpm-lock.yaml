@@ -492,6 +492,9 @@ importers:
       '@tanstack/router':
         specifier: 'catalog:'
         version: 0.0.1-beta.53
+      '@tanstack/zod-adapter':
+        specifier: 'catalog:'
+        version: 1.128.0(@tanstack/react-router@1.128.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(zod@3.25.76)
       '@techstark/opencv-js':
         specifier: 'catalog:'
         version: 4.11.0-release.1

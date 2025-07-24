@@ -1,13 +1,14 @@
 import { useStore } from '@/store/store';
+import { Link } from '@tanstack/react-router';
 import { Button } from '@wbcnc/ui/components/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wbcnc/ui/components/select';
-import { useNavigate } from '@tanstack/react-router';
 
 export function CamSourceSelector() {
-  const camNames = useStore(state => Object.keys(state.camSources));
+  // Select camSources object itself (stable reference) to avoid creating new array each hook call
+  const camSources = useStore(state => state.camSources);
+  const camNames = Object.keys(camSources);
   const active = useStore(state => state.activeCamName ?? '');
   const setActive = useStore(state => state.setActiveCam);
-  const navigate = useNavigate();
 
   return (
     <div className="flex flex-col gap-2 p-2">
@@ -23,8 +24,10 @@ export function CamSourceSelector() {
           ))}
         </SelectContent>
       </Select>
-      <Button size="sm" onClick={() => navigate({ to: '/setup/url-entry' })}>
-        Add Camera
+      <Button size="sm" asChild>
+        <Link to="/setup/url-entry" search={{ new: true }}>
+          Add Camera
+        </Link>
       </Button>
     </div>
   );
