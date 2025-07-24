@@ -6,6 +6,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "push-db": "npx drizzle-kit push",
     "lint": "eslint . --max-warnings 0",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
