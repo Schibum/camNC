@@ -24,8 +24,7 @@ export function MachinePositionMarker({
 
   // Access CNC API & reactive machine position.
   const cncApi = getCncApi();
-  let mpos = cncApi.machinePos.value; // {x,y,z}
-  mpos = { x: 0, y: 0, z: 0 };
+  const mpos = cncApi.machinePos.value; // {x,y,z}
 
   // Radius = ½ tool diameter.
   const toolDiameter = useToolDiameter();

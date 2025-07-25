@@ -44,7 +44,7 @@ export class CncApi {
 
   private onStream(line: string) {
     line = line.trim();
-    console.log('fluidnc onStream', line);
+    // console.log('fluidnc onStream', line);
     const parsed = parseFluidNCLine(line);
     if (parsed) {
       this.status.value = {

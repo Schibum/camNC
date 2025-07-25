@@ -2,6 +2,7 @@ import { Pipeline, pipeline, RawImage } from '@huggingface/transformers';
 
 import log from 'loglevel';
 import { gpuTextureToRawImage } from './textureConverters';
+// log.setLevel('debug');
 
 export interface DepthEstimationParams {
   /** Optional: number of histogram bins used to find peak depth. Defaults to 64. */
