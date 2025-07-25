@@ -404,34 +404,6 @@ export function getActiveCamSource(): ICamSource | null {
 
 // Additional utility hooks for working with multiple camera sources
 export const useAllCamSources = () => useStore(state => state.camSources);
-export const useCamSourceIds = () => useStore(state => Object.keys(state.camSources));
 export const useActiveCamId = () => useStore(state => state.activeCamId);
 
 export const useSetActiveCam = () => useStore(state => state.setActiveCam);
-export const useSetActiveCamByName = () => useStore(state => state.setActiveCamByName);
-
-// Helper to get camera source by ID
-export const useCamSourceById = (id: string) => useStore(state => state.camSources[id] ?? null);
-
-// Helper to find camera ID by name
-export const useCamIdByName = (name: string) =>
-  useStore(state => {
-    const entry = Object.entries(state.camSources).find(([_, cam]) => cam.name === name);
-    return entry?.[0] ?? null;
-  });
-
-// Helper to get all camera names
-export const useCamNames = () => useStore(state => Object.values(state.camSources).map(cam => cam.name));
-
-// Helper function to get camera source by ID (non-hook version)
-export function getCamSourceById(id: string): ICamSource | null {
-  const state = useStore.getState();
-  return state.camSources[id] ?? null;
-}
-
-// Helper function to find camera ID by name (non-hook version)
-export function getCamIdByName(name: string): string | null {
-  const state = useStore.getState();
-  const entry = Object.entries(state.camSources).find(([_, cam]) => cam.name === name);
-  return entry?.[0] ?? null;
-}
