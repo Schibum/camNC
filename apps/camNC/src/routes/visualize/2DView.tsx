@@ -63,7 +63,7 @@ function VisualizeComponent() {
   );
 
   function onDbClick(event: ThreeEvent<MouseEvent>) {
-    if (!snapEnabled) return onClickSnap();
+    if (snapEnabled) return onClickSnap();
     console.log('onDbClick', event.unprojectedPoint);
     if (!cncApi?.isConnected()) {
       toast.error('FluicNC integration not connected');
