@@ -21,20 +21,8 @@ import { PhoneTab } from './PhoneTab';
 import { UrlTab } from './UrlTab';
 import { WebcamTab } from './WebcamTab';
 
-function getStableWebrtcDefaults(): WebrtcConnectionParams {
-  if (typeof localStorage === 'undefined') {
-    return { type: 'webrtc' as const, accessToken: '' };
-  }
-  let url = localStorage.getItem('webrtcDefaults');
-  if (!url) {
-    url = genRandomWebrtc();
-    localStorage.setItem('webrtcDefaults', url);
-  }
-  const parsed = parseConnectionString(url);
-  if (parsed.type !== 'webrtc') {
-    throw new Error('Invalid webrtc defaults');
-  }
-  return parsed as WebrtcConnectionParams;
+function getRandomWebrtcDefaults(): WebrtcConnectionParams {
+  return parseConnectionString(genRandomWebrtc());
 }
 
 export interface IOnChangeArgs {
@@ -79,7 +67,7 @@ export function VideoSourceSelection({
   const urlDefaults = defaults?.type === 'url' ? defaults : { type: 'url' as const, url: '' };
   const webtorrentDefaults: WebtorrentConnectionParams =
     defaults?.type === 'webtorrent' ? defaults : { type: 'webtorrent' as const, share: '', pwd: '' };
-  const webrtcDefaults: WebrtcConnectionParams = defaults?.type === 'webrtc' ? defaults : getStableWebrtcDefaults();
+  const webrtcDefaults: WebrtcConnectionParams = defaults?.type === 'webrtc' ? defaults : getRandomWebrtcDefaults();
   const webcamDefaults: WebcamConnectionParams =
     defaults?.type === 'webcam' ? defaults : { type: 'webcam' as const, deviceId: '', idealWidth: 4096, idealHeight: 2160 };
   const go2rtcDefaults: Go2rtcConnectionParams =
