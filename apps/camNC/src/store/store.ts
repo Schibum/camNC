@@ -128,14 +128,6 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
           state.activeCamId = id;
         }
       }),
-    // Helper to set active cam by name (for convenience)
-    setActiveCamByName: (name: string) =>
-      set(state => {
-        const entry = Object.entries(state.camSources).find(([, cam]) => cam.name === name);
-        if (entry) {
-          state.activeCamId = entry[0];
-        }
-      }),
     deleteCamSource: (id: string) =>
       set(state => {
         delete state.camSources[id];
@@ -146,16 +138,6 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
         }
       }),
     camSourceSetters: {
-      setSource: (name: string, url: string, maxResolution: ITuple) =>
-        set(state => {
-          const id = crypto.randomUUID();
-          state.camSources[id] = {
-            name,
-            url,
-            maxResolution,
-          } as ICamSource;
-          state.activeCamId = id;
-        }),
       setCalibration: (calibration: CalibrationData) =>
         set(state => {
           const cam = state.activeCamId
