@@ -38,7 +38,7 @@ export function Go2RtcLocalTab({
             <ExternalLink className="size-4 inline-block" />
           </a>
           . Connect directly to go2rtc using the webrtc api. Preferred option for lower connection latency and reliability over webtorrent.
-          For use on iOS, webtorrent is easier to setup though (no need to deal with SSL setup for go2rtc).
+          For use on mobile devices, webtorrent is easier to setup though (no need to deal with SSL setup for go2rtc).
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -51,7 +51,7 @@ export function Go2RtcLocalTab({
                 <FormItem>
                   <FormLabel>go2rtc Host</FormLabel>
                   <FormControl>
-                    <Input placeholder="localhost:1984 or wss://host" {...field} />
+                    <Input placeholder="localhost:1984 or https://host" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -71,12 +71,31 @@ export function Go2RtcLocalTab({
               )}
             />
             <div className="grid w-full items-center gap-1.5">
-              <div className="text-sm text-muted-foreground">Example config:</div>
+              <div className="text-sm text-muted-foreground">
+                Example config (
+                <a
+                  className="text-blue-500 hover:underline"
+                  href="https://github.com/AlexxIT/go2rtc?tab=readme-ov-file#module-api"
+                  target="_blank"
+                  rel="noreferrer">
+                  docs
+                  <ExternalLink className="size-4 inline-block" />
+                </a>
+                )
+              </div>
               <Textarea readOnly className="h-20" value={'api:\n  origin: "*"'} />
               <p className="text-sm text-muted-foreground">
-                Run go2rtc on <code>localhost</code> or whitelist the host with Chrome&apos;s{' '}
-                <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code> flag when using plain HTTP. HTTPS/wss is also
-                supported.
+                Running go2rtc on <code>localhost</code>? You can stick to plain HTTP without any extra setup.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                For any other host/IP you&apos;ll need HTTPS. Generate a certificate for the host, using{' '}
+                <a className="text-blue-500 hover:underline" href="https://github.com/FiloSottile/mkcert" target="_blank" rel="noreferrer">
+                  mkcert
+                  <ExternalLink className="size-4 inline-block" />
+                </a>{' '}
+                (e.g.&nbsp;<code>mkcert mygortc-raspberrypi.local</code>). Then add <code>tls_listen</code>, <code>tls_cert</code>, and{' '}
+                <code>tls_key</code> under the <code>api:</code> section in your go2rtc config and paste the generated certificate/key to
+                enable SSL.
               </p>
             </div>
             <Button type="submit">Connect</Button>
