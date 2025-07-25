@@ -131,7 +131,7 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
     // Helper to set active cam by name (for convenience)
     setActiveCamByName: (name: string) =>
       set(state => {
-        const entry = Object.entries(state.camSources).find(([_, cam]) => cam.name === name);
+        const entry = Object.entries(state.camSources).find(([, cam]) => cam.name === name);
         if (entry) {
           state.activeCamId = entry[0];
         }

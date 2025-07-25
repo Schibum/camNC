@@ -124,7 +124,7 @@ function ToolpathBackgroundPlane() {
 
 function UseableMachineSpaceOutline() {
   const machineBounds = useCamSource()?.machineBounds;
-  if (!machineBounds) return null;
+  if (!machineBounds) throw new Error('No machine bounds found');
   const corners = useMemo(() => {
     return [
       [machineBounds.min.x, machineBounds.min.y],

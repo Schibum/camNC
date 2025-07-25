@@ -6,7 +6,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@wbcnc/ui/components/input';
 import { ExternalLink } from 'lucide-react';
 import { Control, useForm } from 'react-hook-form';
-import { Box2, Vector3 } from 'three';
+import { Vector3 } from 'three';
 import z from 'zod';
 import { DownloadGcodeButton } from './DownloadGcodeButton';
 import { MarkerBoundsButton, calculateDefaultMargin, calculateMarkersWithMargin } from './MarkerBoundsButton';
