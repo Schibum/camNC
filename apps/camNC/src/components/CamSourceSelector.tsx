@@ -16,7 +16,7 @@ export function CamSourceSelector() {
 
   return (
     <div className="flex flex-col gap-2 p-2">
-      <Select value={activeCamId ?? ''} onValueChange={setActiveCam}>
+      <Select value={activeCamId ?? ''} onValueChange={setActiveCam} disabled={camOptions.length === 0}>
         <SelectTrigger className="w-full">
           <SelectValue placeholder="Select camera" />
         </SelectTrigger>
