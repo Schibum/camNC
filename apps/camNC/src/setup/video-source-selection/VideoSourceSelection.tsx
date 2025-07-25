@@ -12,6 +12,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@wbcnc/ui/components/tabs';
 import { useMemo, useState } from 'react';
 
+import { Form, Input } from '@heroui/react';
 import { VideoDimensions } from '@wbcnc/go2webrtc/video-source';
 import { ConnectDialog } from './ConnectDialog';
 import { Go2RtcLocalTab } from './Go2RtcLocalTab';
@@ -39,9 +40,18 @@ function getStableWebrtcDefaults(): WebrtcConnectionParams {
 export interface IOnChangeArgs {
   url: string;
   maxResolution: VideoDimensions;
+  name: string;
 }
 
-export function VideoSourceSelection({ value = '', onChange }: { value?: string; onChange: (value: IOnChangeArgs) => void }) {
+export function VideoSourceSelection({
+  value = '',
+  onChange,
+  defaultName,
+}: {
+  value?: string;
+  onChange: (value: IOnChangeArgs) => void;
+  defaultName: string;
+}) {
   const defaults = useMemo(() => {
     try {
       if (value) {
@@ -55,11 +65,11 @@ export function VideoSourceSelection({ value = '', onChange }: { value?: string;
 
   const [sourceType, setSourceType] = useState<string>(defaults?.type || 'webrtc');
   const [connectParams, setConnectParams] = useState<RtcConnectionParams | null>(null);
-
+  const [name, setName] = useState<string>(defaultName);
   function onSubmit(params: RtcConnectionParams, maxResolution: VideoDimensions) {
     setConnectParams(null);
     console.log('VideoSourceSelection onSubmit', params, maxResolution);
-    onChange({ url: buildConnectionUrl(params), maxResolution });
+    onChange({ url: buildConnectionUrl(params), maxResolution, name });
   }
 
   function onConnect(params: RtcConnectionParams) {
@@ -113,6 +123,10 @@ export function VideoSourceSelection({ value = '', onChange }: { value?: string;
           torrent tracker uptime.
         </p>
       </Hint>
+
+      <Form>
+        <Input value={name} onChange={e => setName(e.target.value)} label="Name of camera/machine setup" isRequired />
+      </Form>
       <Tabs className="w-full" value={sourceType} onValueChange={setSourceType}>
         <TabsList className="w-full">
           <TabsTrigger value="webcam" className="flex-auto whitespace-normal">

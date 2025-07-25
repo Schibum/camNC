@@ -1,4 +1,5 @@
 import { UnprojectVideoMesh } from '@/calibration/Unproject';
+import { EnsureHasCamSource } from '@/components/EnsureHasCamSource';
 import { PageHeader } from '@/components/page-header';
 import { useAutoScanMarkers } from '@/hooks/useAutoScanMarkers';
 import { DepthBlendWorker } from '@/hooks/useDepthBlendWorker';
@@ -12,27 +13,25 @@ import { GCodeVisualizer } from '@/visualize/Toolpaths';
 import { nearestPointOnToolpath } from '@/visualize/nearestPoint';
 import { VisualizeToolbar } from '@/visualize/toolbar/VisualizeToolbar';
 import { ThreeElements, ThreeEvent } from '@react-three/fiber';
-import { createFileRoute, redirect } from '@tanstack/react-router';
+import { createFileRoute } from '@tanstack/react-router';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { Vector2, Vector3 } from 'three';
 import {
+  getActiveCamSource,
   useSetSnapPosition,
   useSetSnapToToolpath,
   useSnapPosition,
   useSnapToToolpath,
   useStore,
-  getActiveCamSource,
 } from '../../store/store';
 
 export const Route = createFileRoute('/visualize/2DView')({
-  component: VisualizeComponent,
-  beforeLoad: async () => {
-    const extrinsics = getActiveCamSource()?.extrinsics;
-    if (!extrinsics) {
-      throw redirect({ to: '/setup/point-selection' });
-    }
-  },
+  component: () => (
+    <EnsureHasCamSource to="/setup/point-selection" predicate={s => !!s.extrinsics}>
+      <VisualizeComponent />
+    </EnsureHasCamSource>
+  ),
 });
 
 const UnprojectVideoMeshWithStockHeight = ({ ...props }: ThreeElements['mesh']) => {

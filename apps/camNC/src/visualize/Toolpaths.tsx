@@ -2,9 +2,16 @@ import { animated, useSpring } from '@react-spring/three';
 import { Edges, Line, PivotControls, Plane, Text } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import React, { Suspense, useEffect, useMemo, useRef } from 'react';
-import { Matrix4, Object3D, Vector2, Vector3, Box2 } from 'three';
+import { Matrix4, Object3D, Vector2, Vector3 } from 'three';
 import { Line2, LineGeometry, LineMaterial } from 'three/addons';
-import { useIsToolpathHovered, useSetIsToolpathDragging, useStore, useToolDiameter, useToolpathOpacity } from '../store/store';
+import {
+  useCamSource,
+  useIsToolpathHovered,
+  useSetIsToolpathDragging,
+  useStore,
+  useToolDiameter,
+  useToolpathOpacity,
+} from '../store/store';
 import { LineAxesHelper } from './LineAxesHelper';
 import { ToolpathCanvasPlane } from './ToolpathCanvasPlane';
 import { getZHeightColors } from './toolpathColors';
@@ -116,7 +123,8 @@ function ToolpathBackgroundPlane() {
 }
 
 function UseableMachineSpaceOutline() {
-  const machineBounds = useStore(state => (state.activeCamName ? state.camSources[state.activeCamName]!.machineBounds! : new Box2()));
+  const machineBounds = useCamSource()?.machineBounds;
+  if (!machineBounds) return null;
   const corners = useMemo(() => {
     return [
       [machineBounds.min.x, machineBounds.min.y],

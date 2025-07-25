@@ -1,13 +1,11 @@
-import { createFileRoute, redirect } from '@tanstack/react-router';
+import { EnsureHasCamSource } from '@/components/EnsureHasCamSource';
+import { createFileRoute } from '@tanstack/react-router';
 import { ThreePointSelectionStep } from '../../setup/ThreePointSelectionStep';
-import { useStore, getActiveCamSource } from '../../store/store';
 
 export const Route = createFileRoute('/setup/point-selection')({
-  component: ThreePointSelectionStep,
-  loader: async () => {
-    const machineBounds = getActiveCamSource()?.markerPositions;
-    if (!machineBounds) {
-      throw redirect({ to: '/setup/marker-positions' });
-    }
-  },
+  component: () => (
+    <EnsureHasCamSource to="/setup/marker-positions" predicate={s => !!s.markerPositions}>
+      <ThreePointSelectionStep />
+    </EnsureHasCamSource>
+  ),
 });

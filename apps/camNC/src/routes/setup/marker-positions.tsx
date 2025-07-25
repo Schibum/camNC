@@ -1,20 +1,15 @@
+import { EnsureHasCamSource } from '@/components/EnsureHasCamSource';
 import { PageHeader } from '@/components/page-header';
-import { useStore, getActiveCamSource } from '@/store/store';
-import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
-import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '@wbcnc/ui/components/card';
 import { MarkerPositionsForm } from '../../setup/MarkerPositionsForm';
 
 export const Route = createFileRoute('/setup/marker-positions')({
-  component: RouteComponent,
-  loader: async () => {
-    const state = useStore.getState();
-    const bounds = getActiveCamSource()?.machineBounds;
-    if (!bounds) {
-      throw redirect({ to: '/setup/machine-bounds' });
-    }
-    await ensureOpenCvIsLoaded();
-  },
+  component: () => (
+    <EnsureHasCamSource to="/setup/machine-bounds" predicate={s => !!s.machineBounds}>
+      <RouteComponent />
+    </EnsureHasCamSource>
+  ),
 });
 
 function RouteComponent() {

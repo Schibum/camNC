@@ -1,24 +1,28 @@
-import { useStore } from '@/store/store';
+import { useActiveCamId, useAllCamSources, useSetActiveCam } from '@/store/store';
 import { Link } from '@tanstack/react-router';
 import { Button } from '@wbcnc/ui/components/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wbcnc/ui/components/select';
 
 export function CamSourceSelector() {
-  // Select camSources object itself (stable reference) to avoid creating new array each hook call
-  const camSources = useStore(state => state.camSources);
-  const camNames = Object.keys(camSources);
-  const active = useStore(state => state.activeCamName ?? '');
-  const setActive = useStore(state => state.setActiveCam);
+  const camSources = useAllCamSources();
+  const activeCamId = useActiveCamId();
+  const setActiveCam = useSetActiveCam();
+
+  // Create array of [id, name] pairs for the select options
+  const camOptions = Object.entries(camSources).map(([id, source]) => ({
+    id,
+    name: source.name,
+  }));
 
   return (
     <div className="flex flex-col gap-2 p-2">
-      <Select value={active} onValueChange={setActive}>
+      <Select value={activeCamId ?? ''} onValueChange={setActiveCam}>
         <SelectTrigger className="w-full">
           <SelectValue placeholder="Select camera" />
         </SelectTrigger>
         <SelectContent>
-          {camNames.map(name => (
-            <SelectItem key={name} value={name}>
+          {camOptions.map(({ id, name }) => (
+            <SelectItem key={id} value={id}>
               {name}
             </SelectItem>
           ))}

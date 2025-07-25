@@ -35,6 +35,7 @@ export type IMachineBounds = [ITuple, ITuple, ITuple, ITuple];
 
 // Should there be a separate type for pending/incomplete source configs?
 export interface ICamSource {
+  name: string;
   url: string;
   maxResolution: ITuple;
   // Technically machine is independent of source, but multiple cams per machine
@@ -63,7 +64,7 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
   {
     // new, should probably go into a backend instead at some point
     camSources: {} as Record<string, ICamSource>,
-    activeCamName: null as string | null,
+    activeCamId: null as string | null,
 
     toolDiameter: 3.0, // Default tool diameter in mm
     toolpath: null as ParsedToolpath | null,
@@ -102,44 +103,71 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
       state.showStillFrame = show;
     }),
     setCamSource: (camSource: ICamSource) => set(state => {
-      if (!state.activeCamName) {
-        state.activeCamName = 'default';
+      if (!state.activeCamId) {
+        state.activeCamId = crypto.randomUUID();
       }
-      state.camSources[state.activeCamName] = camSource;
+      state.camSources[state.activeCamId] = camSource;
     }),
     addCamSource: (name: string, camSource: ICamSource) =>
       set(state => {
-        state.camSources[name] = camSource;
-        state.activeCamName = name;
+        const id = crypto.randomUUID();
+        state.camSources[id] = { ...camSource, name };
+        state.activeCamId = id;
       }),
-    setActiveCam: (name: string) =>
+    /**
+     * Update an existing camera source by id. Only provided fields will be updated.
+     */
+    updateCamSource: (id: string, changes: Partial<ICamSource>) =>
       set(state => {
-        if (state.camSources[name]) {
-          state.activeCamName = name;
+        if (!state.camSources[id]) return;
+        state.camSources[id] = { ...state.camSources[id], ...changes };
+      }),
+    setActiveCam: (id: string) =>
+      set(state => {
+        if (state.camSources[id]) {
+          state.activeCamId = id;
+        }
+      }),
+    // Helper to set active cam by name (for convenience)
+    setActiveCamByName: (name: string) =>
+      set(state => {
+        const entry = Object.entries(state.camSources).find(([_, cam]) => cam.name === name);
+        if (entry) {
+          state.activeCamId = entry[0];
+        }
+      }),
+    deleteCamSource: (id: string) =>
+      set(state => {
+        delete state.camSources[id];
+        // If we deleted the active cam, set a new active cam or null
+        if (state.activeCamId === id) {
+          const remainingIds = Object.keys(state.camSources);
+          state.activeCamId = remainingIds.length > 0 ? remainingIds[0] : null;
         }
       }),
     camSourceSetters: {
       setSource: (name: string, url: string, maxResolution: ITuple) =>
         set(state => {
-          state.camSources[name] = {
-            ...(state.camSources[name] || {}),
+          const id = crypto.randomUUID();
+          state.camSources[id] = {
+            name,
             url,
             maxResolution,
           } as ICamSource;
-          state.activeCamName = name;
+          state.activeCamId = id;
         }),
       setCalibration: (calibration: CalibrationData) =>
         set(state => {
-          const cam = state.activeCamName
-            ? state.camSources[state.activeCamName]
+          const cam = state.activeCamId
+            ? state.camSources[state.activeCamId]
             : undefined;
           if (!cam) throw new Error('configure source first');
           cam.calibration = calibration;
         }),
       setExtrinsics: (extrinsics: CameraExtrinsics) =>
         set(state => {
-          const cam = state.activeCamName
-            ? state.camSources[state.activeCamName]
+          const cam = state.activeCamId
+            ? state.camSources[state.activeCamId]
             : undefined;
           if (!cam) throw new Error('configure source first');
           cam.extrinsics = extrinsics;
@@ -151,8 +179,8 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
         ymax: number
       ) =>
         set(state => {
-          const cam = state.activeCamName
-            ? state.camSources[state.activeCamName]
+          const cam = state.activeCamId
+            ? state.camSources[state.activeCamId]
             : undefined;
           if (!cam) throw new Error('configure source first');
           cam.machineBounds = new Box2(
@@ -162,24 +190,24 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
         }),
       setMarkerPosInCam: (points: Vector2[]) =>
         set(state => {
-          const cam = state.activeCamName
-            ? state.camSources[state.activeCamName]
+          const cam = state.activeCamId
+            ? state.camSources[state.activeCamId]
             : undefined;
           if (!cam) throw new Error('configure source first');
           cam.markerPosInCam = points;
         }),
       setMarkerPositions: (markers: Vector3[]) =>
         set(state => {
-          const cam = state.activeCamName
-            ? state.camSources[state.activeCamName]
+          const cam = state.activeCamId
+            ? state.camSources[state.activeCamId]
             : undefined;
           if (!cam) throw new Error('configure source first');
           cam.markerPositions = markers;
         }),
       setArucoTagSize: (arucoTagSize: number) =>
         set(state => {
-          const cam = state.activeCamName
-            ? state.camSources[state.activeCamName]
+          const cam = state.activeCamId
+            ? state.camSources[state.activeCamId]
             : undefined;
           if (!cam) throw new Error('configure source first');
           cam.arucoTagSize = arucoTagSize;
@@ -262,7 +290,7 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
   partialize: state => ({
     toolDiameter: state.toolDiameter,
     camSources: state.camSources,
-    activeCamName: state.activeCamName,
+    activeCamId: state.activeCamId,
     fluidncToken: state.fluidncToken,
     depthBlendEnabled: state.depthBlendEnabled,
     depthSettings: state.depthSettings,
@@ -271,19 +299,28 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
   }),
 })));
 
-export const useCamSource = () => useStore(state => (state.activeCamName ? state.camSources[state.activeCamName] : null));
-export const useVideoUrl = () => useStore(state => (state.activeCamName ? state.camSources[state.activeCamName]!.url : ''));
-export const useCalibrationData = () =>
-  useStore(state =>
-    state.activeCamName ? (state.camSources[state.activeCamName]!.calibration! as CalibrationData) : (null as unknown as CalibrationData)
-  );
-export const useNewCameraMatrix = () =>
-  useStore(state =>
-    state.activeCamName ? state.camSources[state.activeCamName]!.calibration!.new_camera_matrix : (null as unknown as Matrix3)
-  );
+export const useCamSource = () => useStore(state => (state.activeCamId ? state.camSources[state.activeCamId] : null));
+
+export const useVideoUrl = () => {
+  const camSource = useCamSource();
+  return camSource?.url ?? '';
+};
+
+export const useCalibrationData = () => {
+  const camSource = useCamSource();
+  return camSource?.calibration ?? (null as unknown as CalibrationData);
+};
+
+export const useNewCameraMatrix = () => {
+  const camSource = useCamSource();
+  return camSource?.calibration?.new_camera_matrix ?? (null as unknown as Matrix3);
+};
+
 // Returns the resolution of the camera source. Throws if no source is configured.
-export const useCamResolution = () =>
-  useStore(state => (state.activeCamName ? state.camSources[state.activeCamName]!.maxResolution : ([0, 0] as ITuple)));
+export const useCamResolution = () => {
+  const camSource = useCamSource();
+  return camSource?.maxResolution ?? ([0, 0] as ITuple);
+};
 
 // Access tool diameter from store
 export const useToolDiameter = () => useStore(state => state.toolDiameter);
@@ -297,7 +334,8 @@ export const useIsToolpathHovered = () => useStore(state => state.isToolpathHove
 // Returns the usable size of the machine boundary in mm [xrange, yrange].
 // Computed as xmax - xmin, ymax - ymin.
 export function useMachineSize() {
-  const bounds = useStore(state => (state.activeCamName ? state.camSources[state.activeCamName]?.machineBounds : undefined));
+  const camSource = useCamSource();
+  const bounds = camSource?.machineBounds;
   if (!bounds) {
     throw new Error('Machine bounds not set');
   }
@@ -305,10 +343,11 @@ export function useMachineSize() {
   // return bounds.getSize(new Vector2());
 }
 
-export const useCameraExtrinsics = () =>
-  useStore(state =>
-    state.activeCamName ? (state.camSources[state.activeCamName]!.extrinsics! as CameraExtrinsics) : (null as unknown as CameraExtrinsics)
-  );
+export const useCameraExtrinsics = () => {
+  const camSource = useCamSource();
+  return camSource?.extrinsics ?? (null as unknown as CameraExtrinsics);
+};
+
 export const useSetCameraExtrinsics = () => useStore(state => state.camSourceSetters.setExtrinsics);
 export const usePnPResult = () => useStore(state => state.pnpResult);
 
@@ -316,13 +355,20 @@ export const useShowStillFrame = () => useStore(state => state.showStillFrame);
 export const useSetShowStillFrame = () => useStore(state => state.setShowStillFrame);
 
 // Hook to access marker positions
-export const useMarkerPositions = () =>
-  useStore(state => (state.activeCamName ? state.camSources[state.activeCamName]!.markerPositions! : []));
+export const useMarkerPositions = () => {
+  const camSource = useCamSource();
+  return camSource?.markerPositions ?? [];
+};
+
 // Hook to set marker positions
 export const useSetMarkerPositions = () => useStore(state => state.camSourceSetters.setMarkerPositions);
+
 // Hooks for ArUco configuration
-export const useArucoTagSize = () =>
-  useStore(state => (state.activeCamName ? (state.camSources[state.activeCamName]?.arucoTagSize ?? 30) : 30));
+export const useArucoTagSize = () => {
+  const camSource = useCamSource();
+  return camSource?.arucoTagSize ?? 30;
+};
+
 export const useSetArucoTagSize = () => useStore(state => state.camSourceSetters.setArucoTagSize);
 
 export const useToolpath = () => useStore(state => state.toolpath);
@@ -352,6 +398,40 @@ export const useSetSnapPosition = () => useStore(state => state.setSnapPosition)
 
 export function getActiveCamSource(): ICamSource | null {
   const state = useStore.getState();
-  if (!state.activeCamName) return null;
-  return state.camSources[state.activeCamName] ?? null;
+  if (!state.activeCamId) return null;
+  return state.camSources[state.activeCamId] ?? null;
+}
+
+// Additional utility hooks for working with multiple camera sources
+export const useAllCamSources = () => useStore(state => state.camSources);
+export const useCamSourceIds = () => useStore(state => Object.keys(state.camSources));
+export const useActiveCamId = () => useStore(state => state.activeCamId);
+
+export const useSetActiveCam = () => useStore(state => state.setActiveCam);
+export const useSetActiveCamByName = () => useStore(state => state.setActiveCamByName);
+
+// Helper to get camera source by ID
+export const useCamSourceById = (id: string) => useStore(state => state.camSources[id] ?? null);
+
+// Helper to find camera ID by name
+export const useCamIdByName = (name: string) =>
+  useStore(state => {
+    const entry = Object.entries(state.camSources).find(([_, cam]) => cam.name === name);
+    return entry?.[0] ?? null;
+  });
+
+// Helper to get all camera names
+export const useCamNames = () => useStore(state => Object.values(state.camSources).map(cam => cam.name));
+
+// Helper function to get camera source by ID (non-hook version)
+export function getCamSourceById(id: string): ICamSource | null {
+  const state = useStore.getState();
+  return state.camSources[id] ?? null;
+}
+
+// Helper function to find camera ID by name (non-hook version)
+export function getCamIdByName(name: string): string | null {
+  const state = useStore.getState();
+  const entry = Object.entries(state.camSources).find(([_, cam]) => cam.name === name);
+  return entry?.[0] ?? null;
 }

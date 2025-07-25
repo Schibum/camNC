@@ -2,10 +2,10 @@ import { calculateUndistortionMapsCached } from '@/calibration/rectifyMap';
 import { remapCv } from '@/calibration/remapCv';
 import { computeP3P, markerMachinePosToCv } from '@/calibration/solveP3P';
 import { averageVideoFrames } from '@/hooks/useStillFrameTexture';
-import { useCameraExtrinsics, useStore, getActiveCamSource } from '@/store/store';
+import { getActiveCamSource, useCameraExtrinsics, useNewCameraMatrix, useStore } from '@/store/store';
 import { acquireVideoSource, releaseVideoSource } from '@wbcnc/go2webrtc/use-video-source';
 import { cv2 } from '@wbcnc/load-opencv';
-import { Vector3, Matrix3 } from 'three';
+import { Vector3 } from 'three';
 import { cvToVector2, matrix3ToCV, vector3ToCV } from '../lib/three-cv';
 
 function getMarkerPosInCam() {
@@ -44,9 +44,7 @@ export function updateCameraExtrinsics() {
 
 export function useReprojectedMarkerPositions() {
   const extrinsics = useCameraExtrinsics();
-  const cameraMatrix = matrix3ToCV(
-    useStore(state => (state.activeCamName ? state.camSources[state.activeCamName]!.calibration!.new_camera_matrix : new Matrix3()))
-  );
+  const cameraMatrix = matrix3ToCV(useNewCameraMatrix());
   const objectPoints = markerMachinePosToCv(getInflatedMarkerPositions());
   if (!extrinsics) return [];
   const { R, t } = extrinsics;
