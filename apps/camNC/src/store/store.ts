@@ -128,14 +128,6 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
           state.activeCamId = id;
         }
       }),
-    // Helper to set active cam by name (for convenience)
-    setActiveCamByName: (name: string) =>
-      set(state => {
-        const entry = Object.entries(state.camSources).find(([, cam]) => cam.name === name);
-        if (entry) {
-          state.activeCamId = entry[0];
-        }
-      }),
     deleteCamSource: (id: string) =>
       set(state => {
         delete state.camSources[id];
@@ -146,16 +138,6 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
         }
       }),
     camSourceSetters: {
-      setSource: (name: string, url: string, maxResolution: ITuple) =>
-        set(state => {
-          const id = crypto.randomUUID();
-          state.camSources[id] = {
-            name,
-            url,
-            maxResolution,
-          } as ICamSource;
-          state.activeCamId = id;
-        }),
       setCalibration: (calibration: CalibrationData) =>
         set(state => {
           const cam = state.activeCamId
@@ -242,9 +224,6 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
         state.toolDiameter = tools[0].diameter;
       }
     }),
-    setFluidncToken: (token: string) => set(state => {
-      state.fluidncToken = token;
-    }),
     setSnapToToolpath: (enable: boolean) => set(state => {
       state.snapToToolpath = enable;
     }),
@@ -327,7 +306,6 @@ export const useToolDiameter = () => useStore(state => state.toolDiameter);
 export const useSetToolDiameter = () => useStore(state => state.setToolDiameter);
 export const useToolpathOpacity = () => useStore(state => state.toolpathOpacity);
 export const useSetToolpathOpacity = () => useStore(state => state.setToolpathOpacity);
-export const useIsToolpathDragging = () => useStore(state => state.isToolpathDragging);
 export const useSetIsToolpathDragging = () => useStore(state => state.setIsToolpathDragging);
 export const useIsToolpathHovered = () => useStore(state => state.isToolpathHovered || state.isToolpathDragging);
 
