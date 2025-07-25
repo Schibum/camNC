@@ -224,9 +224,6 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
         state.toolDiameter = tools[0].diameter;
       }
     }),
-    setFluidncToken: (token: string) => set(state => {
-      state.fluidncToken = token;
-    }),
     setSnapToToolpath: (enable: boolean) => set(state => {
       state.snapToToolpath = enable;
     }),
@@ -309,7 +306,6 @@ export const useToolDiameter = () => useStore(state => state.toolDiameter);
 export const useSetToolDiameter = () => useStore(state => state.setToolDiameter);
 export const useToolpathOpacity = () => useStore(state => state.toolpathOpacity);
 export const useSetToolpathOpacity = () => useStore(state => state.setToolpathOpacity);
-export const useIsToolpathDragging = () => useStore(state => state.isToolpathDragging);
 export const useSetIsToolpathDragging = () => useStore(state => state.setIsToolpathDragging);
 export const useIsToolpathHovered = () => useStore(state => state.isToolpathHovered || state.isToolpathDragging);
 
