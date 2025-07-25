@@ -37,7 +37,12 @@ export const Route = createRootRouteWithContext<{
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'camNC',
+        title: 'camNC – Live Camera + CNC Toolpath Overlay',
+      },
+      {
+        name: 'description',
+        content:
+          'Mount a phone or IP cam, load your FluidNC file, and camNC paints the toolpath over the live stream so mis-aligned stock or clamps jump out—and you get simple jogging and zeroing before you cut.',
       },
     ],
     links: [{ rel: 'stylesheet', href: appCss }],
@@ -100,7 +105,7 @@ function RootComponent() {
 
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html>
+    <html lang="en">
       <head>
         <HeadContent />
       </head>
