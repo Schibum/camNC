@@ -22,7 +22,7 @@ import { UrlTab } from './UrlTab';
 import { WebcamTab } from './WebcamTab';
 
 function getRandomWebrtcDefaults(): WebrtcConnectionParams {
-  return parseConnectionString(genRandomWebrtc());
+  return parseConnectionString(genRandomWebrtc()) as WebrtcConnectionParams;
 }
 
 export interface IOnChangeArgs {
