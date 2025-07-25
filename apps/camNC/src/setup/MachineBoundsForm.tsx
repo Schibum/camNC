@@ -1,6 +1,6 @@
 import { getFluidSettingsBounds } from '@/lib/fluidnc/fluidnc-settings';
 import { getFluidNcClient } from '@/lib/fluidnc/fluidnc-singleton';
-import { useStore } from '@/store/store';
+import { useCamSource, useStore } from '@/store/store';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@wbcnc/ui/components/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@wbcnc/ui/components/form';
@@ -51,7 +51,8 @@ const schema = z
   });
 
 export function MachineBoundsForm({ onConfirmed }: { onConfirmed: () => void }) {
-  const bounds = useStore(state => state.camSource!.machineBounds);
+  const camSource = useCamSource();
+  const bounds = camSource?.machineBounds;
   const setMachineBounds = useStore(state => state.camSourceSetters.setMachineBounds);
   const form = useForm({
     defaultValues: {

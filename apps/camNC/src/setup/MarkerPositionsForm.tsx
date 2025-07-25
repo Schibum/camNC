@@ -1,5 +1,5 @@
 import { Hint } from '@/components/Hint';
-import { useArucoTagSize, useSetArucoTagSize, useSetMarkerPositions, useStore } from '@/store/store';
+import { useArucoTagSize, useCamSource, useSetArucoTagSize, useSetMarkerPositions } from '@/store/store';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@wbcnc/ui/components/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@wbcnc/ui/components/form';
@@ -81,8 +81,12 @@ function MarkerFields({ control, index }: MarkerFieldsProps) {
 
 export function MarkerPositionsForm({ onConfirmed }: { onConfirmed: () => void }) {
   'use no memo';
-  const bounds = useStore(state => state.camSource!.machineBounds!);
-  const savedRaw = useStore(state => state.camSource?.markerPositions);
+  const camSource = useCamSource();
+  const bounds = camSource?.machineBounds;
+  const savedRaw = camSource?.markerPositions;
+  if (!bounds) {
+    throw new Error('No machine bounds found');
+  }
   const arucoTagSize = useArucoTagSize();
   const setMarkerPositions = useSetMarkerPositions();
   const setArucoTagSize = useSetArucoTagSize();

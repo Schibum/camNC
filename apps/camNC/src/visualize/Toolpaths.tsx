@@ -4,7 +4,14 @@ import { useThree } from '@react-three/fiber';
 import React, { Suspense, useEffect, useMemo, useRef } from 'react';
 import { Matrix4, Object3D, Vector2, Vector3 } from 'three';
 import { Line2, LineGeometry, LineMaterial } from 'three/addons';
-import { useIsToolpathHovered, useSetIsToolpathDragging, useStore, useToolDiameter, useToolpathOpacity } from '../store/store';
+import {
+  useCamSource,
+  useIsToolpathHovered,
+  useSetIsToolpathDragging,
+  useStore,
+  useToolDiameter,
+  useToolpathOpacity,
+} from '../store/store';
 import { LineAxesHelper } from './LineAxesHelper';
 import { ToolpathCanvasPlane } from './ToolpathCanvasPlane';
 import { getZHeightColors } from './toolpathColors';
@@ -116,7 +123,8 @@ function ToolpathBackgroundPlane() {
 }
 
 function UseableMachineSpaceOutline() {
-  const machineBounds = useStore(s => s.camSource!.machineBounds!);
+  const machineBounds = useCamSource()?.machineBounds;
+  if (!machineBounds) throw new Error('No machine bounds found');
   const corners = useMemo(() => {
     return [
       [machineBounds.min.x, machineBounds.min.y],

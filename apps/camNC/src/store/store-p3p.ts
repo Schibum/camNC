@@ -2,20 +2,20 @@ import { calculateUndistortionMapsCached } from '@/calibration/rectifyMap';
 import { remapCv } from '@/calibration/remapCv';
 import { computeP3P, markerMachinePosToCv } from '@/calibration/solveP3P';
 import { averageVideoFrames } from '@/hooks/useStillFrameTexture';
-import { useCameraExtrinsics, useStore } from '@/store/store';
+import { getActiveCamSource, useCameraExtrinsics, useNewCameraMatrix, useStore } from '@/store/store';
 import { acquireVideoSource, releaseVideoSource } from '@wbcnc/go2webrtc/use-video-source';
 import { cv2 } from '@wbcnc/load-opencv';
 import { Vector3 } from 'three';
 import { cvToVector2, matrix3ToCV, vector3ToCV } from '../lib/three-cv';
 
 function getMarkerPosInCam() {
-  return useStore.getState().camSource!.markerPosInCam!;
+  return getActiveCamSource()!.markerPosInCam!;
 }
 
 // Get position of aruco marker corners if using aruco, calculated from center
 // positions and aruco size, otherwise just marker positions themselves.
 function getInflatedMarkerPositions() {
-  const camSource = useStore.getState().camSource;
+  const camSource = getActiveCamSource();
   if (!camSource) throw new Error();
   const mp = camSource.markerPositions!;
   const as2 = camSource.arucoTagSize! / 2;
@@ -26,7 +26,7 @@ function getInflatedMarkerPositions() {
 }
 
 function computeMarkerP3P() {
-  const camSource = useStore.getState().camSource;
+  const camSource = getActiveCamSource();
   if (!camSource) throw new Error();
   const mp = getInflatedMarkerPositions();
   const calibrationData = camSource!.calibration!;
@@ -44,7 +44,7 @@ export function updateCameraExtrinsics() {
 
 export function useReprojectedMarkerPositions() {
   const extrinsics = useCameraExtrinsics();
-  const cameraMatrix = matrix3ToCV(useStore(state => state.camSource!.calibration!.new_camera_matrix));
+  const cameraMatrix = matrix3ToCV(useNewCameraMatrix());
   const objectPoints = markerMachinePosToCv(getInflatedMarkerPositions());
   if (!extrinsics) return [];
   const { R, t } = extrinsics;
@@ -67,9 +67,10 @@ export function useReprojectedMarkerPositions() {
 }
 
 export async function getRemappedStillFrame(averageFrames = 25) {
-  const url = useStore.getState().camSource!.url;
-  const resolution = useStore.getState().camSource!.maxResolution;
-  const calibrationData = useStore.getState().camSource!.calibration!;
+  const camSource = getActiveCamSource()!;
+  const url = camSource.url;
+  const resolution = camSource.maxResolution;
+  const calibrationData = camSource.calibration!;
   const [mapX, mapY] = calculateUndistortionMapsCached(calibrationData, resolution[0], resolution[1]);
   const vidSrc = acquireVideoSource(url);
   const { src } = await vidSrc.connectedPromise;

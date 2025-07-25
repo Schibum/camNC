@@ -3,12 +3,12 @@ import { RemapStepParams } from '@/depth/remapPipeline';
 import {
   useCalibrationData,
   useCamResolution,
+  useCamSource,
   useCameraExtrinsics,
   useDepthBlendEnabled,
   useDepthSettings,
   useSetBgTexture,
   useSetMaskTexture,
-  useStore,
   useVideoUrl,
 } from '@/store/store';
 import { useVideoSource } from '@wbcnc/go2webrtc/use-video-source';
@@ -52,7 +52,11 @@ export function useDepthBlendWorker() {
   const calibration = useCalibrationData();
   const camRes = useCamResolution();
   const { R, t } = useCameraExtrinsics();
-  const bounds = useStore(state => state.camSource!.machineBounds!);
+  const camSource = useCamSource();
+  if (!camSource || !camSource.machineBounds) {
+    throw new Error('No camera source found');
+  }
+  const bounds = camSource.machineBounds!;
 
   const depthSettings = useDepthSettings();
 

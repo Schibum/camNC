@@ -1,17 +1,15 @@
+import { EnsureHasCamSource } from '@/components/EnsureHasCamSource';
 import { PageHeader } from '@/components/page-header';
-import { useStore } from '@/store/store';
-import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '@wbcnc/ui/components/card';
 import { MachineBoundsForm } from '../../setup/MachineBoundsForm';
 
 export const Route = createFileRoute('/setup/machine-bounds')({
-  component: RouteComponent,
-  loader: async () => {
-    const calibration = useStore.getState().camSource?.calibration;
-    if (!calibration) {
-      throw redirect({ to: '/setup/camera-calibration' });
-    }
-  },
+  component: () => (
+    <EnsureHasCamSource to="/setup/camera-calibration" predicate={s => !!s.calibration}>
+      <RouteComponent />
+    </EnsureHasCamSource>
+  ),
 });
 
 function RouteComponent() {

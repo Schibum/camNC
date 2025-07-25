@@ -163,7 +163,7 @@ function CalibrationSettingsForm() {
   function onSubmit({ json }: z.infer<typeof schema>) {
     console.log('updating calibration data to ', json);
     if (camSource) {
-      setCalibration({ url: camSource.url, maxResolution: camSource.maxResolution, ...json });
+      setCalibration({ name: camSource.name, url: camSource.url, maxResolution: camSource.maxResolution, ...json });
     } else {
       toast.error('No camera source configured yet, cannot save');
     }

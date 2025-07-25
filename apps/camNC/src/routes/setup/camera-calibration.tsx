@@ -1,3 +1,4 @@
+import { EnsureHasCamSource } from '@/components/EnsureHasCamSource';
 import { LoadingVideoOverlay } from '@/components/LoadingVideoOverlay';
 import { PageHeader } from '@/components/page-header';
 import { AlreadyCalibratedDialog } from '@/setup/already-calibrated-dialog';
@@ -8,17 +9,14 @@ import { useVideoSource } from '@wbcnc/go2webrtc/use-video-source';
 import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { Suspense, use } from 'react';
 import { Matrix3 } from 'three';
-import { useStore } from '../../store/store';
+import { useCamSource, useStore } from '../../store/store';
 
 export const Route = createFileRoute('/setup/camera-calibration')({
-  component: RouteComponent,
-  beforeLoad: async () => {
-    const camSource = useStore.getState().camSource;
-    if (!camSource) {
-      throw redirect({ to: '/setup/url-entry' });
-    }
-    // return camSource;
-  },
+  component: () => (
+    <EnsureHasCamSource to="/setup/url-entry">
+      <RouteComponent />
+    </EnsureHasCamSource>
+  ),
 });
 
 function toMatrix3(d: number[][]) {
@@ -36,7 +34,7 @@ function useZeroTangentDist(url: string) {
 
 function ConfiguredCameraCalibration() {
   use(ensureOpenCvIsLoaded());
-  const camSource = useStore(s => s.camSource);
+  const camSource = useCamSource();
   if (!camSource) {
     throw redirect({ to: '/setup/url-entry' });
   }
