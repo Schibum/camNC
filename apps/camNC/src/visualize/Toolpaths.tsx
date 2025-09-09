@@ -29,6 +29,9 @@ function getTimeColors(toolpath: ParsedToolpath) {
 }
 */
 
+// Save z position above stock (live cam) plane.
+const kAboveStockZ = 500;
+
 // Using ToolpathCanvasPlane instead for now.
 export const Toolpaths: React.FC = () => {
   const toolpath = useStore(s => s.toolpath);
@@ -178,12 +181,12 @@ export const GCodeVisualizer: React.FC = () => {
 
   return (
     <>
-      <LineAxesHelper size={100} position-z={1000} />
+      <LineAxesHelper size={100} position-z={kAboveStockZ + 100} />
       <UseableMachineSpaceOutline />
       <ToolpathTransformControls>
         {/* <Draggable onDragEnd={onDragEnd}> */}
         <group
-          position-z={20}
+          position-z={kAboveStockZ}
           onPointerMissed={e => e.type === 'click' && setIsToolpathSelected(false)}
           onClick={e => (e.stopPropagation, setIsToolpathSelected(true))}
           onPointerEnter={() => setIsToolpathHovered(true)}
