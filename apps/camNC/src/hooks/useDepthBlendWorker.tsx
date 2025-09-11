@@ -8,6 +8,8 @@ import {
   useDepthBlendEnabled,
   useDepthSettings,
   useSetBgTexture,
+  useSetDepthBlendEnabled,
+  useSetDepthBlendInitializing,
   useSetMaskTexture,
   useVideoUrl,
 } from '@/store/store';
@@ -43,6 +45,8 @@ export function useDepthBlendWorker() {
   const depthBlendManager = DepthBlendManager.getInstance();
 
   const enabled = useDepthBlendEnabled();
+  const setEnabled = useSetDepthBlendEnabled();
+  const setInitializing = useSetDepthBlendInitializing();
   const setMaskTex = useSetMaskTexture();
   const setBgTex = useSetBgTexture();
 
@@ -83,19 +87,41 @@ export function useDepthBlendWorker() {
   }, [depthBlendManager, params]);
 
   useEffect(() => {
-    depthBlendManager.onTextures(textures => {
+    const unsubscribe = depthBlendManager.onTextures(textures => {
+      // Ignore late frames from old sessions when disabled
+      if (!enabled) return;
       setMaskTex(textures.mask);
       setBgTex(textures.bg);
+      setInitializing(false);
     });
-  }, [depthBlendManager, setMaskTex, setBgTex]);
+    return () => {
+      unsubscribe?.();
+    };
+  }, [depthBlendManager, setMaskTex, setBgTex, setInitializing, enabled]);
 
   useEffect(() => {
+    let cancelled = false;
     if (enabled) {
-      depthBlendManager.start().catch(console.error);
+      // Starting worker may trigger model download on first use
+      setInitializing(true);
+      depthBlendManager
+        .start()
+        .then(() => setInitializing(false))
+        .catch(err => {
+          if (cancelled) return;
+          console.error(err);
+          toast.error('Failed to start Hide‑Machine', { closeButton: true });
+          // Reset toggle to reflect failure
+          setEnabled(false);
+        });
     } else {
       depthBlendManager.stop().catch(console.error);
+      setInitializing(false);
     }
-  }, [depthBlendManager, enabled]);
+    return () => {
+      cancelled = true;
+    };
+  }, [depthBlendManager, enabled, setInitializing, setEnabled]);
 
   // Push runtime settings to worker whenever they change.
   useEffect(() => {

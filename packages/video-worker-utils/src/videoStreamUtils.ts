@@ -73,11 +73,6 @@ export interface ReplaceableStreamWorker {
 }
 
 export function attachMediaStreamTrackReplacer(mediaStream: MediaStream, workerProxy: Comlink.Remote<ReplaceableStreamWorker>): () => void {
-  if (!isMediaStreamTrackProcessorSupported()) {
-    console.warn('MediaStreamTrackProcessor not supported – cannot attach track replacer');
-    return () => {};
-  }
-
   let currentTrack: MediaStreamTrack | null = mediaStream.getVideoTracks()[0] || null;
 
   function handleEnded() {
