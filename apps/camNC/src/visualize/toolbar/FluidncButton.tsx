@@ -50,17 +50,16 @@ async function syncToolpathZeroWithMachine() {
   const cncApi = getCncApi();
   const setToolpathOffset = useStore.getState().setToolpathOffset;
 
-  const zero = await cncApi.getCurrentZero();
+  const zero = await cncApi.getCurrentZero().catch(() => null);
   console.log('zero from machine', zero);
   if (zero) {
     setToolpathOffset(new Vector3(zero.x, zero.y, zero.z));
+    toast.success('Toolpath zero synced from machine', {
+      description: `${zero?.x.toFixed(2)}, ${zero?.y.toFixed(2)}`,
+    });
   } else {
     toast.error('Unable to read machine zero');
   }
-
-  toast.success('Toolpath zero synced from machine', {
-    description: `${zero?.x.toFixed(2)}, ${zero?.y.toFixed(2)}`,
-  });
 }
 
 export function FluidncButton() {
