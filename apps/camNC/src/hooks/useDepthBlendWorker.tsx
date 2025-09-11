@@ -6,9 +6,9 @@ import {
   useCamSource,
   useCameraExtrinsics,
   useDepthBlendEnabled,
-  useSetDepthBlendInitializing,
   useDepthSettings,
   useSetBgTexture,
+  useSetDepthBlendInitializing,
   useSetMaskTexture,
   useVideoUrl,
 } from '@/store/store';
@@ -105,7 +105,7 @@ export function useDepthBlendWorker() {
       depthBlendManager.stop().catch(console.error);
       setInitializing(false);
     }
-  }, [depthBlendManager, enabled]);
+  }, [depthBlendManager, enabled, setInitializing]);
 
   // Push runtime settings to worker whenever they change.
   useEffect(() => {
