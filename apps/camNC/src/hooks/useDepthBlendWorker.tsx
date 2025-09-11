@@ -6,6 +6,7 @@ import {
   useCamSource,
   useCameraExtrinsics,
   useDepthBlendEnabled,
+  useSetDepthBlendInitializing,
   useDepthSettings,
   useSetBgTexture,
   useSetMaskTexture,
@@ -43,6 +44,7 @@ export function useDepthBlendWorker() {
   const depthBlendManager = DepthBlendManager.getInstance();
 
   const enabled = useDepthBlendEnabled();
+  const setInitializing = useSetDepthBlendInitializing();
   const setMaskTex = useSetMaskTexture();
   const setBgTex = useSetBgTexture();
 
@@ -86,14 +88,22 @@ export function useDepthBlendWorker() {
     depthBlendManager.onTextures(textures => {
       setMaskTex(textures.mask);
       setBgTex(textures.bg);
+      // First textures arrived: mark initialized
+      setInitializing(false);
     });
-  }, [depthBlendManager, setMaskTex, setBgTex]);
+  }, [depthBlendManager, setMaskTex, setBgTex, setInitializing]);
 
   useEffect(() => {
     if (enabled) {
-      depthBlendManager.start().catch(console.error);
+      // Starting worker may trigger model download on first use
+      setInitializing(true);
+      depthBlendManager.start().catch(err => {
+        console.error(err);
+        setInitializing(false);
+      });
     } else {
       depthBlendManager.stop().catch(console.error);
+      setInitializing(false);
     }
   }, [depthBlendManager, enabled]);
 

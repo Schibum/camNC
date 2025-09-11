@@ -83,6 +83,8 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
     snapPosition: null as Vector3 | null,
     // Depth-based background blend feature
     depthBlendEnabled: false,
+    // Indicates first-run model load / worker warmup
+    depthBlendInitializing: false,
     depthMaskTexture: null as Texture | null,
     depthBgTexture: null as Texture | null,
     // Runtime depth processing settings
@@ -234,6 +236,9 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
     setDepthBlendEnabled: (enabled: boolean) => {
       set(state => {
         state.depthBlendEnabled = enabled;
+        // When enabling, assume initializing until first textures arrive
+        if (enabled) state.depthBlendInitializing = true;
+        else state.depthBlendInitializing = false;
       });
 
       // Handle manager lifecycle
@@ -241,6 +246,10 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
         DepthBlendManager.getInstance().stop();
       }
     },
+    setDepthBlendInitializing: (initializing: boolean) =>
+      set(state => {
+        state.depthBlendInitializing = initializing;
+      }),
     setDepthMaskTexture: (tex: Texture | null) => set(state => {
       state.depthMaskTexture = tex as any;
     }),
@@ -355,6 +364,8 @@ export const useHasToolpath = () => useToolpath() !== null;
 // Depth blend feature hooks
 export const useDepthBlendEnabled = () => useStore(state => state.depthBlendEnabled);
 export const useSetDepthBlendEnabled = () => useStore(state => state.setDepthBlendEnabled);
+export const useDepthBlendInitializing = () => useStore(state => state.depthBlendInitializing);
+export const useSetDepthBlendInitializing = () => useStore(state => state.setDepthBlendInitializing);
 export const useMaskTexture = () => useStore(state => state.depthMaskTexture as Texture | null);
 export const useBgTexture = () => useStore(state => state.depthBgTexture as Texture | null);
 export const useSetMaskTexture = () => useStore(state => state.setDepthMaskTexture);
