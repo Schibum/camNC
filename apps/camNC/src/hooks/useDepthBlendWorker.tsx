@@ -6,9 +6,9 @@ import {
   useCamSource,
   useCameraExtrinsics,
   useDepthBlendEnabled,
-  useSetDepthBlendEnabled,
   useDepthSettings,
   useSetBgTexture,
+  useSetDepthBlendEnabled,
   useSetDepthBlendInitializing,
   useSetMaskTexture,
   useVideoUrl,
@@ -92,7 +92,6 @@ export function useDepthBlendWorker() {
       if (!enabled) return;
       setMaskTex(textures.mask);
       setBgTex(textures.bg);
-      // First textures arrived: mark initialized
       setInitializing(false);
     });
     return () => {
@@ -105,14 +104,16 @@ export function useDepthBlendWorker() {
     if (enabled) {
       // Starting worker may trigger model download on first use
       setInitializing(true);
-      depthBlendManager.start().catch(err => {
-        if (cancelled) return;
-        console.error(err);
-        toast.error('Failed to start Hide‑Machine', { closeButton: true });
-        setInitializing(false);
-        // Reset toggle to reflect failure
-        setEnabled(false);
-      });
+      depthBlendManager
+        .start()
+        .then(() => setInitializing(false))
+        .catch(err => {
+          if (cancelled) return;
+          console.error(err);
+          toast.error('Failed to start Hide‑Machine', { closeButton: true });
+          // Reset toggle to reflect failure
+          setEnabled(false);
+        });
     } else {
       depthBlendManager.stop().catch(console.error);
       setInitializing(false);
