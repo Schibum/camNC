@@ -51,7 +51,7 @@ export class DepthBlendManager {
     this.proxy = Comlink.wrap<VideoPipelineWorkerAPI>(this.worker);
   }
 
-  // Register a callback for texture updates
+  // Register a callback for texture updates. Returns an unsubscribe function.
   onTextures(cb: (textures: DepthBlendTextures) => void) {
     this.onTextureUpdate = cb;
     // If textures already exist, send them immediately so the consumer
@@ -59,6 +59,9 @@ export class DepthBlendManager {
     if (this.maskTex && this.bgTex) {
       cb({ mask: this.maskTex, bg: this.bgTex });
     }
+    return () => {
+      if (this.onTextureUpdate === cb) this.onTextureUpdate = null;
+    };
   }
 
   // Set or replace the video source

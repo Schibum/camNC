@@ -6,6 +6,7 @@ import {
   useCamSource,
   useCameraExtrinsics,
   useDepthBlendEnabled,
+  useSetDepthBlendEnabled,
   useDepthSettings,
   useSetBgTexture,
   useSetDepthBlendInitializing,
@@ -44,6 +45,7 @@ export function useDepthBlendWorker() {
   const depthBlendManager = DepthBlendManager.getInstance();
 
   const enabled = useDepthBlendEnabled();
+  const setEnabled = useSetDepthBlendEnabled();
   const setInitializing = useSetDepthBlendInitializing();
   const setMaskTex = useSetMaskTexture();
   const setBgTex = useSetBgTexture();
@@ -85,27 +87,40 @@ export function useDepthBlendWorker() {
   }, [depthBlendManager, params]);
 
   useEffect(() => {
-    depthBlendManager.onTextures(textures => {
+    const unsubscribe = depthBlendManager.onTextures(textures => {
+      // Ignore late frames from old sessions when disabled
+      if (!enabled) return;
       setMaskTex(textures.mask);
       setBgTex(textures.bg);
       // First textures arrived: mark initialized
       setInitializing(false);
     });
-  }, [depthBlendManager, setMaskTex, setBgTex, setInitializing]);
+    return () => {
+      unsubscribe?.();
+    };
+  }, [depthBlendManager, setMaskTex, setBgTex, setInitializing, enabled]);
 
   useEffect(() => {
+    let cancelled = false;
     if (enabled) {
       // Starting worker may trigger model download on first use
       setInitializing(true);
       depthBlendManager.start().catch(err => {
+        if (cancelled) return;
         console.error(err);
+        toast.error('Failed to start Hide‑Machine', { closeButton: true });
         setInitializing(false);
+        // Reset toggle to reflect failure
+        setEnabled(false);
       });
     } else {
       depthBlendManager.stop().catch(console.error);
       setInitializing(false);
     }
-  }, [depthBlendManager, enabled, setInitializing]);
+    return () => {
+      cancelled = true;
+    };
+  }, [depthBlendManager, enabled, setInitializing, setEnabled]);
 
   // Push runtime settings to worker whenever they change.
   useEffect(() => {

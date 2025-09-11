@@ -30,7 +30,7 @@ export const config = [
     },
   },
   {
-    ignores: ['dist/**'],
+    ignores: ['dist/**', '.tanstack/**', '.nitro/**', '.vercel/**', '.turbo/**'],
   },
   globalIgnores(['src/opencv_js.js', 'public/opencv.js', 'public/opencv_js.js']),
 ];
