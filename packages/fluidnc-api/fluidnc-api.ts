@@ -70,9 +70,9 @@ export class FluidncApi {
   public on = this.events.on;
   public off = this.events.off;
   /**
-   * @param responseTimeout Timeout in milliseconds to wait for a response (default: 5000 ms)
+   * @param responseTimeout Timeout in milliseconds to wait for a response (default: 10000 ms)
    */
-  constructor(private responseTimeout: number = 5000) {
+  constructor(private responseTimeout: number = 10000) {
     window.addEventListener('message', this.handleMessage.bind(this));
   }
 
@@ -144,14 +144,14 @@ export class FluidncApi {
    * @param message The message object.
    * @param progressCallback Optional callback for progress updates.
    */
-  private sendRequest(message: any, progressCallback?: (progress: number) => void): Promise<any> {
+  private sendRequest(message: any, progressCallback?: (progress: number) => void, timeoutMs?: number): Promise<any> {
     message.id = this.generateUniqueId();
     const id = message.id;
     return new Promise<any>((resolve, reject) => {
       const timeout = window.setTimeout(() => {
         FluidncApi.pendingRequests.delete(id);
         reject(new Error('Timeout waiting for response'));
-      }, this.responseTimeout);
+      }, timeoutMs ?? this.responseTimeout);
       FluidncApi.pendingRequests.set(id, {
         resolve,
         reject,
@@ -225,9 +225,16 @@ export class FluidncApi {
    * @param path The target directory path (excluding filename).
    * @param filename The name of the file.
    * @param progressCallback Optional callback for progress updates.
+   * @param timeoutMs Optional timeout in milliseconds (default: 3min)
    * @returns A Promise that resolves with the upload response.
    */
-  public async upload(content: any, path: string, filename: string, progressCallback?: (progress: number) => void): Promise<any> {
+  public async upload(
+    content: any,
+    path: string,
+    filename: string,
+    progressCallback?: (progress: number) => void,
+    timeoutMs: number = 180_000
+  ): Promise<any> {
     const message = {
       type: 'upload',
       target: 'webui',
@@ -237,7 +244,7 @@ export class FluidncApi {
       path,
       filename,
     };
-    let res = await this.sendRequest(message, progressCallback);
+    let res = await this.sendRequest(message, progressCallback, timeoutMs);
     console.warn('upload result', res);
     return res;
   }

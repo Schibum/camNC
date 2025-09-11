@@ -20,9 +20,10 @@ export class CncApi {
   public readonly currentOffsetModal = computed(() => kOffsetCodes.find(code => this.modals.value.has(code)));
   public readonly currentZero = signal<Position | null>(null);
 
-  /** Interval IDs for polling – cleared automatically on disconnect */
-  private statusPollInterval: ReturnType<typeof setInterval> | null = null;
-  private zeroPollInterval: ReturnType<typeof setInterval> | null = null;
+  /** Polling state flags */
+  private statusPollActive = false;
+  private zeroPollActive = false;
+  private readonly pollIntervalMs = 3000;
 
   constructor(public readonly nc: FluidncClient) {
     effect(() => {
@@ -87,7 +88,7 @@ export class CncApi {
   }
 
   async logCurrentModalsAndOffsets() {
-    this.api.cmd('$G\n$#');
+    return this.api.cmd('$G\n$#');
   }
 
   async getCurrentZero() {
@@ -129,33 +130,61 @@ export class CncApi {
 
   /** Start polling machine status ('?') and current zero (via $G/$#) */
   private startPolling() {
-    // Poll overall machine status every ~3 s – triggers a `<…|MPos:…>` frame
-    if (!this.statusPollInterval) {
-      this.statusPollInterval = setInterval(() => {
-        if (!this.isIdle()) return;
-        this.api.cmd('?');
-      }, 3000);
+    if (!this.statusPollActive) {
+      this.statusPollActive = true;
+      this.runStatusPolling();
     }
 
-    // Poll workspace offset / modal every ~3 s to keep zero in sync
-    if (!this.zeroPollInterval) {
-      this.zeroPollInterval = setInterval(() => {
-        if (!this.isIdle()) return;
-        this.logCurrentModalsAndOffsets();
-      }, 3000);
+    if (!this.zeroPollActive) {
+      this.zeroPollActive = true;
+      this.runZeroPolling();
     }
+  }
+
+  private async runStatusPolling() {
+    let lastSentAt = 0;
+    while (this.statusPollActive) {
+      if (this.isIdle()) {
+        const now = Date.now();
+        const since = now - lastSentAt;
+        if (since >= this.pollIntervalMs) {
+          await this.api.cmd('?').catch(() => {});
+          lastSentAt = Date.now();
+        } else {
+          await this.delay(this.pollIntervalMs - since);
+        }
+      } else {
+        await this.delay(250);
+      }
+    }
+  }
+
+  private async runZeroPolling() {
+    let lastSentAt = 0;
+    while (this.zeroPollActive) {
+      if (this.isIdle()) {
+        const now = Date.now();
+        const since = now - lastSentAt;
+        if (since >= this.pollIntervalMs) {
+          await this.logCurrentModalsAndOffsets().catch(() => {});
+          lastSentAt = Date.now();
+        } else {
+          await this.delay(this.pollIntervalMs - since);
+        }
+      } else {
+        await this.delay(250);
+      }
+    }
+  }
+
+  private delay(ms: number) {
+    return new Promise<void>(resolve => setTimeout(resolve, ms));
   }
 
   /** Stop all polling timers */
   private stopPolling() {
-    if (this.statusPollInterval) {
-      clearInterval(this.statusPollInterval);
-      this.statusPollInterval = null;
-    }
-    if (this.zeroPollInterval) {
-      clearInterval(this.zeroPollInterval);
-      this.zeroPollInterval = null;
-    }
+    this.statusPollActive = false;
+    this.zeroPollActive = false;
   }
 
   /** Update `currentZero` based on current modal & offset tables */
