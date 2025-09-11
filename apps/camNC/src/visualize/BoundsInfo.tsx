@@ -1,10 +1,15 @@
 import { usePnPResult, useStore } from '@/store/store';
 import { ClientOnly } from '@tanstack/react-router';
+import { Popover, PopoverContent, PopoverTrigger } from '@wbcnc/ui/components/popover';
+import { Info } from 'lucide-react';
+import { useState } from 'react';
 import TimeAgo from 'react-timeago-i18n';
+import { TooltipIconButton } from './toolbar/TooltipIconButton';
 
 export function BoundsInfo() {
   const bounds = useStore(s => s.toolpath?.getBounds());
   const pnpResult = usePnPResult();
+  const isOld = pnpResult ? Date.now() - pnpResult.lastPnPTime > 60_000 : false;
   return (
     <div className="flex flex-col gap-2">
       <h3 className="text-sm font-medium">Toolpath Bounds</h3>
@@ -30,8 +35,8 @@ export function BoundsInfo() {
           <h3 className="text-sm font-medium">PnP</h3>
           <div className="grid items-center gap-0.5 text-xs">
             <ClientOnly>
-              <div>
-                PnP computed <TimeAgo date={pnpResult.lastPnPTime} />
+              <div className={isOld ? 'bg-warning' : ''}>
+                PnP computed <TimeAgo date={pnpResult.lastPnPTime} hideSeconds={false} />
               </div>
             </ClientOnly>
             {pnpResult.lastReprojectionError !== undefined && (
@@ -43,5 +48,29 @@ export function BoundsInfo() {
         </>
       )}
     </div>
+  );
+}
+
+export function BoundsInfoButton() {
+  const [open, setOpen] = useState(false);
+  const pnp = usePnPResult();
+  const isOld = pnp ? Date.now() - pnp.lastPnPTime > 60_000 : false;
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <div>
+          <TooltipIconButton
+            label="Info"
+            icon={<Info />}
+            shortcut="i"
+            onClick={() => setOpen(true)}
+            className={isOld ? 'bg-warning' : ''}
+          />
+        </div>
+      </PopoverTrigger>
+      <PopoverContent>
+        <BoundsInfo />
+      </PopoverContent>
+    </Popover>
   );
 }

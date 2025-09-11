@@ -19,9 +19,9 @@ import {
 } from '@wbcnc/ui/components/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@wbcnc/ui/components/popover';
 import { Slider } from '@wbcnc/ui/components/slider';
-import { Diameter, FolderOpen, Info, MonitorPause, MonitorPlay, Palette, PencilRuler } from 'lucide-react';
+import { Diameter, FolderOpen, MonitorPause, MonitorPlay, Palette, PencilRuler } from 'lucide-react';
 import { useState } from 'react';
-import { BoundsInfo } from '../BoundsInfo';
+import { BoundsInfoButton } from '../BoundsInfo';
 import { ZDepthLegend } from '../ZDepthLegend';
 import { DepthBlendButton } from './DepthBlendButton';
 import { FluidncButton } from './FluidncButton';
@@ -218,22 +218,6 @@ function ColorLegendButton() {
             label="Opacity"
           />
         </div>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-function BoundsInfoButton() {
-  const [open, setOpen] = useState(false);
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <div>
-          <TooltipIconButton label="Info" icon={<Info />} shortcut="i" onClick={() => setOpen(true)} />
-        </div>
-      </PopoverTrigger>
-      <PopoverContent>
-        <BoundsInfo />
       </PopoverContent>
     </Popover>
   );
