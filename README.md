@@ -51,7 +51,6 @@ Example cutting a small board:
 
 [![cutting oak](https://img.youtube.com/vi/KKgJ9J6dmqE/0.jpg)](https://www.youtube.com/watch?v=KKgJ9J6dmqE)
 
-
 ## Repository layout
 
 This workspace is split into two top‑level folders:
