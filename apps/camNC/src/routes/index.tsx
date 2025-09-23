@@ -3,6 +3,7 @@ import { createFileRoute, Navigate } from '@tanstack/react-router';
 
 export const Route = createFileRoute('/')({
   component: HomeComponent,
+  ssr: true,
 });
 
 function HomeComponent() {
