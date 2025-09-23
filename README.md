@@ -24,7 +24,7 @@ CamNC is a simple experimental web application that visualizes CNC G-code on a l
 
 ## Usage
 
-To get started, open the application at [https://camnc.vercel.app/](https://camnc.vercel.app/).
+To get started, open the application at [https://run.camnc.app/](https://run.camnc.app/).
 
 ### Screenshots
 
