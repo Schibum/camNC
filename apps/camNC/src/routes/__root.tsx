@@ -41,13 +41,12 @@ export const Route = createRootRouteWithContext<{
       },
       {
         name: 'description',
-        content:
-          'Mount a phone or IP cam, load your FluidNC file, and camNC paints the toolpath over the live stream so mis-aligned stock or clamps jump out—and you get simple jogging and zeroing before you cut.',
+        content: 'camNC aligns CNC toolpaths with a live camera feed so you can verify jobs before cutting.',
       },
     ],
     links: [{ rel: 'stylesheet', href: appCss }],
   }),
-  ssr: 'data-only',
+  ssr: true,
   staleTime: Infinity,
   scripts: ctx => {
     const userSettings = (ctx.loaderData as any)?.userSettings;

@@ -1,4 +1,4 @@
-import * as React from 'react';
+import { EnsureHasCamSource } from '@/components/EnsureHasCamSource';
 import { createFileRoute, Navigate } from '@tanstack/react-router';
 
 export const Route = createFileRoute('/')({
@@ -6,5 +6,9 @@ export const Route = createFileRoute('/')({
 });
 
 function HomeComponent() {
-  return <Navigate to="/visualize/2DView" />;
+  return (
+    <EnsureHasCamSource to="/about" predicate={source => !!source.extrinsics}>
+      <Navigate to="/visualize/2DView" replace />
+    </EnsureHasCamSource>
+  );
 }
