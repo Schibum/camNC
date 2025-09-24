@@ -14,7 +14,9 @@
     "playwright": "catalog:",
     "prettier": "catalog:",
     "turbo": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "prettier-plugin-astro": "^0.14.1",
+    "prettier-plugin-tailwindcss": "^0.6.9"
   },
   "packageManager": "pnpm@10.13.1",
   "engines": {
