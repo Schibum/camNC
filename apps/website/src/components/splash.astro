@@ -1,0 +1,36 @@
+---
+import GitHubCorner from "./github-corner.astro";
+---
+
+<section class="relative overflow-hidden bg-gradient-to-b from-black via-slate-950 to-slate-900 text-white">
+  <GitHubCorner />
+  <div class="relative mx-auto flex min-h-[70vh] w-full max-w-6xl flex-col items-center gap-12 px-6 py-24 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
+    <div class="flex flex-col items-center gap-6 sm:items-start">
+      <span class="rounded-full border border-white/20 px-4 py-1 text-xs uppercase tracking-[0.35em] text-white/70">
+        Live machine view
+      </span>
+      <h1 class="text-balance text-4xl font-semibold sm:text-5xl md:text-6xl">
+        Toolpath visualization on top of a live camera feed
+      </h1>
+      <p class="max-w-3xl text-xl text-white/80">
+        CamNC overlays your toolpath on the live camera feed. Visually check stock orientation, offsets, and clearance before the spindle ever turns on.
+      </p>
+      <div class="flex flex-wrap items-center justify-center gap-3 sm:justify-start">
+        <a
+          href="https://run.camnc.app/"
+          class="inline-flex items-center justify-center rounded-full bg-secondary px-6 py-3 text-sm font-semibold text-white hover:text-white shadow-lg shadow-secondary/30 transition  focus:outline-none focus:ring-2 focus:ring-secondary focus:ring-offset-2 focus:ring-offset-transparent"
+        >
+         Try it out
+        </a>
+        <a
+          href="https://github.com/Schibum/camNC"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex items-center justify-center rounded-full border border-white/30 px-6 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-transparent"
+        >
+          View on GitHub
+        </a>
+      </div>
+    </div>
+
+</section>
