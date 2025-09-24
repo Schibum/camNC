@@ -1,6 +1,8 @@
-const defaultTheme = require("tailwindcss/defaultTheme");
+import fluidType from "tailwindcss-fluid-type";
+import defaultTheme from "tailwindcss/defaultTheme";
 
-module.exports = {
+/** @type {import("tailwindcss").Config} */
+const config = {
   content: ["./src/**/*.{astro,html,js,jsx,svelte,ts,tsx,vue}"],
   theme: {
     extend: {
@@ -14,18 +16,25 @@ module.exports = {
       textColor: {
         default: "var(--color-text)",
         offset: "var(--color-text-offset)",
+        secondary: "var(--color-secondary)",
       },
       backgroundColor: {
         default: "var(--color-background)",
         offset: "var(--color-background-offset)",
+        secondary: "var(--color-secondary)",
       },
       borderColor: {
         default: "var(--color-border)",
+      },
+      ringColor: {
+        secondary: "var(--color-secondary)",
       },
     },
   },
   corePlugins: {
     fontSize: false,
   },
-  plugins: [require("tailwindcss-fluid-type")],
+  plugins: [fluidType],
 };
+
+export default config;
