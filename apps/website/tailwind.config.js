@@ -21,7 +21,6 @@ const config = {
       backgroundColor: {
         default: "var(--color-background)",
         offset: "var(--color-background-offset)",
-        secondary: "var(--color-secondary)",
       },
       borderColor: {
         default: "var(--color-border)",
