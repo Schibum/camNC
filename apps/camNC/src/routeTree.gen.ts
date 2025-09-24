@@ -11,7 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SetupIndexRouteImport } from './routes/setup/index'
-import { Route as AboutIndexRouteImport } from './routes/about/index'
 import { Route as VisualizeVisualizeCommandsRouteImport } from './routes/visualize/VisualizeCommands'
 import { Route as Visualize2DViewRouteImport } from './routes/visualize/2DView'
 import { Route as SetupUrlEntryRouteImport } from './routes/setup/url-entry'
@@ -35,11 +34,6 @@ const IndexRoute = IndexRouteImport.update({
 const SetupIndexRoute = SetupIndexRouteImport.update({
   id: '/setup/',
   path: '/setup/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AboutIndexRoute = AboutIndexRouteImport.update({
-  id: '/about/',
-  path: '/about/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const VisualizeVisualizeCommandsRoute =
@@ -130,7 +124,6 @@ export interface FileRoutesByFullPath {
   '/setup/url-entry': typeof SetupUrlEntryRoute
   '/visualize/2DView': typeof Visualize2DViewRoute
   '/visualize/VisualizeCommands': typeof VisualizeVisualizeCommandsRoute
-  '/about': typeof AboutIndexRoute
   '/setup': typeof SetupIndexRoute
 }
 export interface FileRoutesByTo {
@@ -149,7 +142,6 @@ export interface FileRoutesByTo {
   '/setup/url-entry': typeof SetupUrlEntryRoute
   '/visualize/2DView': typeof Visualize2DViewRoute
   '/visualize/VisualizeCommands': typeof VisualizeVisualizeCommandsRoute
-  '/about': typeof AboutIndexRoute
   '/setup': typeof SetupIndexRoute
 }
 export interface FileRoutesById {
@@ -169,7 +161,6 @@ export interface FileRoutesById {
   '/setup/url-entry': typeof SetupUrlEntryRoute
   '/visualize/2DView': typeof Visualize2DViewRoute
   '/visualize/VisualizeCommands': typeof VisualizeVisualizeCommandsRoute
-  '/about/': typeof AboutIndexRoute
   '/setup/': typeof SetupIndexRoute
 }
 export interface FileRouteTypes {
@@ -190,7 +181,6 @@ export interface FileRouteTypes {
     | '/setup/url-entry'
     | '/visualize/2DView'
     | '/visualize/VisualizeCommands'
-    | '/about'
     | '/setup'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -209,7 +199,6 @@ export interface FileRouteTypes {
     | '/setup/url-entry'
     | '/visualize/2DView'
     | '/visualize/VisualizeCommands'
-    | '/about'
     | '/setup'
   id:
     | '__root__'
@@ -228,7 +217,6 @@ export interface FileRouteTypes {
     | '/setup/url-entry'
     | '/visualize/2DView'
     | '/visualize/VisualizeCommands'
-    | '/about/'
     | '/setup/'
   fileRoutesById: FileRoutesById
 }
@@ -248,7 +236,6 @@ export interface RootRouteChildren {
   SetupUrlEntryRoute: typeof SetupUrlEntryRoute
   Visualize2DViewRoute: typeof Visualize2DViewRoute
   VisualizeVisualizeCommandsRoute: typeof VisualizeVisualizeCommandsRoute
-  AboutIndexRoute: typeof AboutIndexRoute
   SetupIndexRoute: typeof SetupIndexRoute
 }
 
@@ -266,13 +253,6 @@ declare module '@tanstack/react-router' {
       path: '/setup'
       fullPath: '/setup'
       preLoaderRoute: typeof SetupIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/about/': {
-      id: '/about/'
-      path: '/about'
-      fullPath: '/about'
-      preLoaderRoute: typeof AboutIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/visualize/VisualizeCommands': {
@@ -392,7 +372,6 @@ const rootRouteChildren: RootRouteChildren = {
   SetupUrlEntryRoute: SetupUrlEntryRoute,
   Visualize2DViewRoute: Visualize2DViewRoute,
   VisualizeVisualizeCommandsRoute: VisualizeVisualizeCommandsRoute,
-  AboutIndexRoute: AboutIndexRoute,
   SetupIndexRoute: SetupIndexRoute,
 }
 export const routeTree = rootRouteImport
