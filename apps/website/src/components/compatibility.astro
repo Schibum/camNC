@@ -1,0 +1,47 @@
+---
+import ContentSection from "~/components/content-section.astro";
+---
+
+<ContentSection title="Required setup" id="setup">
+  <Fragment slot="lead">
+    Camera, ArUco markers, and optionally a FluidNC controller.
+  </Fragment>
+  <div class="w-full max-w-3xl text-base text-offset">
+    <ul class="list-disc space-y-4 pl-5 text-left">
+      <li>
+        <strong class="text-default">Camera:</strong> Mounted so it has a clear view of the CNC table. Options include:
+        <ul class="list-disc space-y-2 pl-5 mt-2">
+          <li>
+            <strong>Old smartphone</strong> -
+            <a href="https://makerworld.com/en/models/1455114-ceiling-top-down-phone-mount-with-ball-joint#profileId-1516416"
+               class="text-primary hover:underline" target="_blank" rel="noopener">
+              Ceiling mount 3D print model
+            </a>
+          </li>
+          <li>
+            <strong>IP camera</strong> - Requires
+            <a href="https://github.com/AlexxIT/go2rtc"
+               class="text-primary hover:underline" target="_blank" rel="noopener">
+              go2rtc
+            </a> gateway to expose stream in a compatible way. Go2rtc can run on a Raspberry Pi Zero or any local machine.
+            <a href="https://makerworld.com/en/models/1461605-reolink-e1-zoom-ceiling-down-mount-looking-down#profileId-1524062"
+               class="text-primary hover:underline ml-1" target="_blank" rel="noopener">
+              Reolink E1 Zoom 3D print model
+            </a>
+          </li>
+        </ul>
+        Camera calibration is integrated as part of the setup process.
+      </li>
+      <li>
+        <strong class="text-default">Markers:</strong> Printed ArUco markers keep pose estimation locked in, even if the camera or wasteboard moves.
+      </li>
+      <li>
+        <strong class="text-default">(Optional) CNC controller:</strong>
+        <a href="http://wiki.fluidnc.com/en/features/webui"
+           class="text-primary hover:underline" target="_blank" rel="noopener">
+          FluidNC WebUI v3
+        </a> integration for click-to-jog and sending programs directly. Does not work offline ATM, so FluidNC needs to run in STA mode.
+      </li>
+    </ul>
+  </div>
+</ContentSection>

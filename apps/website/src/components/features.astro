@@ -1,0 +1,56 @@
+---
+import { Icon } from "astro-icon/components";
+import ContentSection from "~/components/content-section.astro";
+import type { FeatureItem } from "~/types";
+
+const features: Array<FeatureItem> = [
+ {
+    title: "Jog and zero visually",
+    description:
+      "Double-click to jog to any position or drag & drop the visualization to easily set zero.",
+    detail:
+      'With "snap-to-toolpath" enabled, you can double-click anywhere on the toolpath visualization to move the machine to that exact XY coordinate.',
+    icon: "mdi:target-variant",
+  },
+  {
+    title: "Verify cut at a glance",
+    description:
+      "Overlay the programmed path on the live camera view so you can catch clamps, fixtures, and stock rotation issues before pressing start.",
+    detail:
+      "With the camera aligned to machine coordinates, you simply look at the overlay to confirm the cut will stay on the material as you expect.",
+    icon: "mdi:checkbox-marked-circle-outline",
+  },
+  {
+    title: "Hide the machine when it blocks the view",
+    description:
+      "Enable hide-machine mode to dim the machine when hardware is in the way, so you can still see the stock.",
+    detail:
+      "No need to manually move the machine out of the way in many cases - you can still see old pixels for areas currently occluded.",
+    icon: "mdi:magic-staff",
+  },
+];
+---
+
+<ContentSection title="Key capabilities" id="features">
+  <Fragment slot="lead">
+    Verify and zero visually.
+  </Fragment>
+  <ul class="grid w-full max-w-6xl grid-cols-1 gap-6 md:grid-cols-3">
+    {
+      features.map(({ title, description, detail, icon }) => (
+        <li class="flex h-full flex-col gap-4 rounded-2xl border border-default bg-offset p-6 text-left shadow-lg backdrop-blur">
+          {icon && (
+            <div class="size-14 rounded-full border border-white/30 bg-white/10 p-3 text-secondary">
+              <Icon name={icon} class="size-full" />
+            </div>
+          )}
+          <div class="space-y-2">
+            <p class="text-lg font-semibold text-default">{title}</p>
+            <p class="text-sm text-offset">{description}</p>
+          </div>
+          {detail && <p class="text-sm text-offset opacity-80">{detail}</p>}
+        </li>
+      ))
+    }
+  </ul>
+</ContentSection>
