@@ -51,13 +51,7 @@ export function RecomputePnpButton() {
   };
 
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      className="size-5"
-      title="Recompute PnP now"
-      disabled={recomputing}
-      onClick={handleRecompute}>
+    <Button variant="ghost" size="icon" className="size-5" title="Recompute PnP now" disabled={recomputing} onClick={handleRecompute}>
       <RefreshCw className={`size-3 ${recomputing ? 'animate-spin' : ''}`} />
     </Button>
   );

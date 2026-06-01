@@ -5,9 +5,12 @@ This repository is a pnpm/Turborepo workspace using TypeScript and React.
 ## Workflow
 
 - Use **pnpm** (Node >=18) for all package management tasks.
-- Only in cloud environments: After making changes, run `pnpm run format`, `pnpm run build`, `pnpm run lint` and `pnpm run test` from the repo root.
+- Only in cloud environments: After making changes, run `pnpm run build`, `pnpm run lint` and `pnpm run test` from the repo root.
   - These commands execute turborepo tasks across all packages.
-- Format TypeScript and Markdown files with Prettier using `pnpm run format`.
+- Formatting is automated — you do **not** need to run Prettier manually:
+  - A Claude Code `PostToolUse` hook (`.claude/hooks/prettier-on-edit.mjs`) formats every `.ts`/`.tsx`/`.md` file as it is edited.
+  - A `pre-commit` git hook (simple-git-hooks + nano-staged) re-formats staged files on every commit.
+  - Both reuse the repo `.prettierrc`/`.prettierignore`, so the result always matches CI's `pnpm run check-format`.
 - Keep generated files such as `routeTree.gen.ts` read-only; avoid editing them manually.
 
 ## Dev Environment Tips
