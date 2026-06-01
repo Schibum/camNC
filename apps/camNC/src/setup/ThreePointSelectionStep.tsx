@@ -1,7 +1,7 @@
 import { UnskewedVideoMesh } from '@/calibration/UnskewTsl';
 import { PageHeader } from '@/components/page-header';
 import { PresentCanvas } from '@/scene/PresentCanvas';
-import { updateCameraExtrinsics, useReprojectedMarkerPositions } from '@/store/store-p3p';
+import { formatReprojectionError, kExpectedMarkerCount, setMarkersAndRecompute, useReprojectedMarkerPositions } from '@/store/store-p3p';
 import { Line, Text } from '@react-three/drei';
 import { useNavigate } from '@tanstack/react-router';
 import { Button } from '@wbcnc/ui/components/button';
@@ -9,7 +9,6 @@ import { toast } from '@wbcnc/ui/components/sonner';
 import React, { Suspense, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import { Vector2, Vector3 } from 'three';
-import { useStore } from '../store/store';
 import { DetectArucosButton } from './DetectArucoButton';
 import { IMarker } from './detect-aruco';
 
@@ -135,22 +134,18 @@ function ArucoPointsScene({ markers }: { markers: IMarker[] }) {
 
 export function ThreePointSelectionStep() {
   const [markers, setMarkers] = useState<IMarker[]>([]);
-  const setMarkerPosInCam = useStore(state => state.camSourceSetters.setMarkerPosInCam);
   const navigate = useNavigate();
 
   // Handle saving points
   const handleSave = () => {
-    const pointsToSave = markers.flatMap(m => m.corners);
-
-    if (pointsToSave.length < 4) {
+    if (markers.length < kExpectedMarkerCount) {
       console.error('Must select exactly 4 points');
       return;
     }
 
-    setMarkerPosInCam(pointsToSave);
-    const reprojectionError = updateCameraExtrinsics();
+    const reprojectionError = setMarkersAndRecompute(markers);
     toast.success(`Updated camera extrinsics`, {
-      description: `Reprojection error: ${reprojectionError.toFixed(2)}px (< 1px is very good)`,
+      description: formatReprojectionError(reprojectionError),
       action: {
         label: 'Go to 2D view',
         onClick: () => navigate({ to: '/' }),

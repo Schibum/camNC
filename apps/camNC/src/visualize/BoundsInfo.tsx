@@ -4,6 +4,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@wbcnc/ui/components/po
 import { Info } from 'lucide-react';
 import { useState } from 'react';
 import TimeAgo from 'react-timeago-i18n';
+import { RecomputePnpButton } from './RecomputePnpButton';
 import { TooltipIconButton } from './toolbar/TooltipIconButton';
 
 export function BoundsInfo() {
@@ -35,8 +36,11 @@ export function BoundsInfo() {
           <h3 className="text-sm font-medium">PnP</h3>
           <div className="grid items-center gap-0.5 text-xs">
             <ClientOnly>
-              <div className={isOld ? 'bg-warning' : ''}>
-                PnP computed <TimeAgo date={pnpResult.lastPnPTime} hideSeconds={false} />
+              <div className={`flex items-center gap-1 ${isOld ? 'bg-warning' : ''}`}>
+                <span>
+                  PnP computed <TimeAgo date={pnpResult.lastPnPTime} hideSeconds={false} />
+                </span>
+                <RecomputePnpButton />
               </div>
             </ClientOnly>
             {pnpResult.lastReprojectionError !== undefined && (
