@@ -2,8 +2,8 @@ import * as Comlink from 'comlink';
 import { useEffect, useRef } from 'react';
 
 import { IMarker } from '@/setup/detect-aruco';
-import { ICamSource, useStore, getActiveCamSource } from '@/store/store';
-import { updateCameraExtrinsics } from '@/store/store-p3p';
+import { ICamSource, getActiveCamSource } from '@/store/store';
+import { getValidMarkers, kExpectedMarkerCount, setMarkersAndRecompute } from '@/store/store-p3p';
 import type { MarkerScannerWorkerAPI } from '@/workers/markerScanner.worker';
 import { acquireVideoSource, releaseVideoSource } from '@wbcnc/go2webrtc/use-video-source';
 import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
@@ -25,8 +25,7 @@ export function useAutoScanMarkers({ intervalMs, firstScanDelayMs = 5_000 }: Aut
 
   async function onMarkersFound(markers: IMarker[]) {
     await ensureOpenCvIsLoaded();
-    useStore.getState().camSourceSetters.setMarkerPosInCam(markers.flatMap(m => m.corners));
-    updateCameraExtrinsics();
+    setMarkersAndRecompute(markers);
   }
 
   useRunInterval(
@@ -102,8 +101,7 @@ class MarkerScannerService {
   async scan(): Promise<void> {
     if (!this.proxy) await this.init();
     const markers = await this.proxy!.scan();
-    const hasAllMarkers = markers.length === 4 && markers.every((m, i) => m.id === i);
-    if (hasAllMarkers) {
+    if (getValidMarkers(markers).length === kExpectedMarkerCount) {
       this.onMarkersFound(markers);
     }
   }

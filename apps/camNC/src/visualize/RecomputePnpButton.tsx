@@ -1,14 +1,14 @@
-import { detectAruco } from '@/setup/detect-aruco';
-import { useStore } from '@/store/store';
-import { getRemappedStillFrame, updateCameraExtrinsics } from '@/store/store-p3p';
-import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
+import {
+  detectMarkersInStillFrame,
+  formatReprojectionError,
+  getValidMarkers,
+  kExpectedMarkerCount,
+  setMarkersAndRecompute,
+} from '@/store/store-p3p';
 import { Button } from '@wbcnc/ui/components/button';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { RefreshCw } from 'lucide-react';
 import { useState } from 'react';
-
-const kNumFrames = 5;
-const kExpectedMarkers = 4;
 
 /**
  * Small icon button that recomputes the camera extrinsics (PnP) immediately.
@@ -19,35 +19,24 @@ const kExpectedMarkers = 4;
  */
 export function RecomputePnpButton() {
   const [recomputing, setRecomputing] = useState(false);
-  const setMarkerPosInCam = useStore(state => state.camSourceSetters.setMarkerPosInCam);
 
   const handleRecompute = async () => {
     setRecomputing(true);
     try {
-      await ensureOpenCvIsLoaded();
-      const imgMat = await getRemappedStillFrame(kNumFrames);
-      const markers = detectAruco(imgMat);
-      imgMat.delete();
+      const validMarkers = getValidMarkers(await detectMarkersInStillFrame());
 
-      // Keep only the expected tags (ids 0..kExpectedMarkers-1), deduped and in id order.
-      const validMarkers = markers.filter(
-        (m, i, arr) => m.id >= 0 && m.id < kExpectedMarkers && arr.findIndex(x => x.id === m.id) === i
-      );
-      const visible = validMarkers.length;
-      const hidden = kExpectedMarkers - visible;
-
-      if (visible < kExpectedMarkers) {
+      if (validMarkers.length < kExpectedMarkerCount) {
+        const hidden = kExpectedMarkerCount - validMarkers.length;
         toast.error('Could not recompute PnP', {
-          description: `${visible}/${kExpectedMarkers} aruco tags visible, ${hidden} hidden`,
+          description: `${validMarkers.length}/${kExpectedMarkerCount} aruco tags visible, ${hidden} hidden`,
           position: 'top-right',
         });
         return;
       }
 
-      setMarkerPosInCam(validMarkers.flatMap(m => m.corners));
-      const reprojectionError = updateCameraExtrinsics();
+      const reprojectionError = setMarkersAndRecompute(validMarkers);
       toast.success('Recomputed PnP', {
-        description: `Reprojection error: ${reprojectionError.toFixed(2)}px (< 1px is very good)`,
+        description: formatReprojectionError(reprojectionError),
         position: 'top-right',
       });
     } catch (err) {
