@@ -100,9 +100,9 @@ class MarkerScannerService {
   /** Execute a single scan cycle. */
   async scan(): Promise<void> {
     if (!this.proxy) await this.init();
-    const markers = await this.proxy!.scan();
-    if (getValidMarkers(markers).length === kExpectedMarkerCount) {
-      this.onMarkersFound(markers);
+    const validMarkers = getValidMarkers(await this.proxy!.scan());
+    if (validMarkers.length === kExpectedMarkerCount) {
+      this.onMarkersFound(validMarkers);
     }
   }
 
