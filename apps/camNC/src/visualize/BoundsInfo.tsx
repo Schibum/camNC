@@ -1,38 +1,16 @@
 import { usePnPResult, useStore } from '@/store/store';
-import { updateCameraExtrinsics } from '@/store/store-p3p';
 import { ClientOnly } from '@tanstack/react-router';
-import { Button } from '@wbcnc/ui/components/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@wbcnc/ui/components/popover';
-import { toast } from '@wbcnc/ui/components/sonner';
-import { Info, RefreshCw } from 'lucide-react';
+import { Info } from 'lucide-react';
 import { useState } from 'react';
 import TimeAgo from 'react-timeago-i18n';
+import { RecomputePnpButton } from './RecomputePnpButton';
 import { TooltipIconButton } from './toolbar/TooltipIconButton';
 
 export function BoundsInfo() {
   const bounds = useStore(s => s.toolpath?.getBounds());
   const pnpResult = usePnPResult();
   const isOld = pnpResult ? Date.now() - pnpResult.lastPnPTime > 60_000 : false;
-  const [recomputing, setRecomputing] = useState(false);
-
-  const handleRecompute = () => {
-    setRecomputing(true);
-    try {
-      const reprojectionError = updateCameraExtrinsics();
-      toast.success('Recomputed PnP', {
-        description: `Reprojection error: ${reprojectionError.toFixed(2)}px (< 1px is very good)`,
-        position: 'top-right',
-      });
-    } catch (err) {
-      console.error('Failed to recompute PnP', err);
-      toast.error('Failed to recompute PnP', {
-        description: err instanceof Error ? err.message : String(err),
-        position: 'top-right',
-      });
-    } finally {
-      setRecomputing(false);
-    }
-  };
   return (
     <div className="flex flex-col gap-2">
       <h3 className="text-sm font-medium">Toolpath Bounds</h3>
@@ -62,15 +40,7 @@ export function BoundsInfo() {
                 <span>
                   PnP computed <TimeAgo date={pnpResult.lastPnPTime} hideSeconds={false} />
                 </span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-5"
-                  title="Recompute PnP now"
-                  disabled={recomputing}
-                  onClick={handleRecompute}>
-                  <RefreshCw className={`size-3 ${recomputing ? 'animate-spin' : ''}`} />
-                </Button>
+                <RecomputePnpButton />
               </div>
             </ClientOnly>
             {pnpResult.lastReprojectionError !== undefined && (
