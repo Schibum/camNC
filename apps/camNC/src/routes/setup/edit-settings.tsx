@@ -115,6 +115,8 @@ function ExportButton() {
     a.href = url;
     a.download = 'cam-source.json';
     a.click();
+    // Revoke after the download has been triggered.
+    setTimeout(() => URL.revokeObjectURL(url));
   }
   return (
     <Button variant="secondary" onClick={handleClick}>
