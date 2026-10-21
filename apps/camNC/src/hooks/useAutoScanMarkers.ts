@@ -1,8 +1,8 @@
 import * as Comlink from 'comlink';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 import { IMarker } from '@/setup/detect-aruco';
-import { ICamSource, getActiveCamSource } from '@/store/store';
+import { ICamSource, getActiveCamSource, useCamSource, useStore } from '@/store/store';
 import { getValidMarkers, kExpectedMarkerCount, setMarkersAndRecompute } from '@/store/store-p3p';
 import type { MarkerScannerWorkerAPI } from '@/workers/markerScanner.worker';
 import { acquireVideoSource, releaseVideoSource } from '@wbcnc/go2webrtc/use-video-source';
@@ -22,92 +22,119 @@ export interface AutoScanOptions {
  */
 export function useAutoScanMarkers({ intervalMs, firstScanDelayMs = 5_000 }: AutoScanOptions): void {
   const serviceRef = useRef<MarkerScannerService | null>(null);
+  const activeCamId = useStore(s => s.activeCamId);
+  const camSource = useCamSource();
+  const url = camSource?.url;
+  const calibration = camSource?.calibration;
+  const maxResolution = camSource?.maxResolution;
 
-  async function onMarkersFound(markers: IMarker[]) {
-    await ensureOpenCvIsLoaded();
-    setMarkersAndRecompute(markers);
-  }
+  const scan = useCallback(async () => {
+    if (!serviceRef.current) return;
+    await serviceRef.current.scan();
+  }, []);
 
-  useRunInterval(
-    async () => {
-      if (!serviceRef.current) return;
-      await serviceRef.current.scan();
-    },
-    intervalMs,
-    firstScanDelayMs
-  );
+  useRunInterval(scan, intervalMs, firstScanDelayMs);
 
+  // Recreate the scanner whenever the camera (or its stream/calibration) changes, so that markers are
+  // never scanned with a stale source and written into another camera's settings.
   useEffect(() => {
-    const camSource = getActiveCamSource()!;
-    const service = new MarkerScannerService(camSource, onMarkersFound);
+    const camSource = getActiveCamSource();
+    if (!activeCamId || !camSource) return;
+    const service = new MarkerScannerService(camSource, async markers => {
+      if (useStore.getState().activeCamId !== activeCamId) return;
+      await ensureOpenCvIsLoaded();
+      setMarkersAndRecompute(markers);
+    });
     serviceRef.current = service;
 
     return () => {
-      serviceRef.current?.dispose();
-      serviceRef.current = null;
+      service.dispose();
+      if (serviceRef.current === service) serviceRef.current = null;
     };
-  }, []);
+  }, [activeCamId, url, calibration, maxResolution]);
 }
 
 class MarkerScannerService {
   private unsupportedSource = false;
   private proxy: Comlink.Remote<MarkerScannerWorkerAPI> | null = null;
   private cleanupFn: (() => void) | null = null;
+  private initPromise: Promise<void> | null = null;
+  private disposed = false;
 
   constructor(
     private readonly camSource: ICamSource,
-    private readonly onMarkersFound: (markers: IMarker[]) => void
+    private readonly onMarkersFound: (markers: IMarker[]) => Promise<void>
   ) {}
 
-  /** Bootstraps the Web Worker and prepares scanning. Call once after `new`. */
-  async init(): Promise<void> {
-    if (this.proxy || this.unsupportedSource) return; // already initialised
+  /** Bootstraps the Web Worker and prepares scanning. Safe to call multiple times. */
+  init(): Promise<void> {
+    if (this.proxy || this.unsupportedSource) return Promise.resolve(); // already initialised
+    this.initPromise ??= this.doInit().finally(() => {
+      this.initPromise = null;
+    });
+    return this.initPromise;
+  }
 
+  private async doInit(): Promise<void> {
     registerThreeJsTransferHandlers();
 
-    // Acquire shared video stream
-    const videoHandle = acquireVideoSource(this.camSource.url);
-    const { src } = await videoHandle.connectedPromise;
+    const cleanups: (() => void)[] = [];
+    const cleanup = () => cleanups.reverse().forEach(fn => fn());
+    try {
+      // Acquire shared video stream
+      const videoHandle = acquireVideoSource(this.camSource.url);
+      cleanups.push(() => releaseVideoSource(this.camSource.url));
+      const { src } = await videoHandle.connectedPromise;
 
-    const processed = await createVideoStreamProcessor(src);
-    const mediaStream = src instanceof MediaStream ? src : null;
+      const processed = await createVideoStreamProcessor(src);
+      cleanups.push(() => {
+        if (processed instanceof ReadableStream) {
+          processed.cancel?.().catch(() => undefined);
+        }
+      });
+      const mediaStream = src instanceof MediaStream ? src : null;
 
-    // Spawn worker as ESM
-    const worker = new Worker(new URL('../workers/markerScanner.worker.ts', import.meta.url), {
-      type: 'module',
-    });
-    const proxy = Comlink.wrap<MarkerScannerWorkerAPI>(worker);
+      // Spawn worker as ESM
+      const worker = new Worker(new URL('../workers/markerScanner.worker.ts', import.meta.url), {
+        type: 'module',
+      });
+      cleanups.push(() => worker.terminate());
+      const proxy = Comlink.wrap<MarkerScannerWorkerAPI>(worker);
 
-    // Hand the stream to the worker
-    await proxy.init(Comlink.transfer(processed as any, [processed as any]), this.camSource.calibration!, this.camSource.maxResolution);
+      // Hand the stream to the worker
+      await proxy.init(Comlink.transfer(processed as any, [processed as any]), this.camSource.calibration!, this.camSource.maxResolution);
 
-    let replacerCleanup: (() => void) | null = null;
-    if (mediaStream) {
-      replacerCleanup = attachMediaStreamTrackReplacer(mediaStream, proxy);
-    }
-
-    this.proxy = proxy;
-    this.cleanupFn = () => {
-      worker.terminate();
-      releaseVideoSource(this.camSource.url);
-      replacerCleanup?.();
-      if (processed instanceof ReadableStream) {
-        processed.cancel?.().catch(() => undefined);
+      if (mediaStream) {
+        cleanups.push(attachMediaStreamTrackReplacer(mediaStream, proxy));
       }
-    };
+
+      if (this.disposed) {
+        // Disposed while initialising: nobody else will release these resources.
+        cleanup();
+        return;
+      }
+      this.proxy = proxy;
+      this.cleanupFn = cleanup;
+    } catch (err) {
+      cleanup();
+      throw err;
+    }
   }
 
   /** Execute a single scan cycle. */
   async scan(): Promise<void> {
+    if (this.disposed) return;
     if (!this.proxy) await this.init();
-    const validMarkers = getValidMarkers(await this.proxy!.scan());
-    if (validMarkers.length === kExpectedMarkerCount) {
-      this.onMarkersFound(validMarkers);
+    if (!this.proxy) return;
+    const validMarkers = getValidMarkers(await this.proxy.scan());
+    if (validMarkers.length === kExpectedMarkerCount && !this.disposed) {
+      await this.onMarkersFound(validMarkers);
     }
   }
 
   /** Dispose the worker and associated resources. */
   dispose(): void {
+    this.disposed = true;
     this.cleanupFn?.();
     this.proxy = null;
     this.cleanupFn = null;
