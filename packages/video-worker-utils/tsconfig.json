@@ -11,19 +11,15 @@
     "noEmit": true,
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "types": [
-      "@webgpu/types"
-    ],
     "lib": [
       "ES2022",
       "DOM",
-      "DOM.Iterable",
-      "WebGPU"
+      "DOM.Iterable"
     ]
   },
   "include": [
     "**/*.ts",
-    "**/*.tsx",
+    "**/*.tsx"
   ],
   "exclude": [
     "node_modules"

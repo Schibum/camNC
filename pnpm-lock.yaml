@@ -1551,9 +1551,18 @@ importers:
       '@types/three':
         specifier: 'catalog:'
         version: 0.178.1
+      '@vitest/browser':
+        specifier: 'catalog:'
+        version: 3.2.4(playwright@1.54.1)(vite@7.0.5(@types/node@24.5.2)(jiti@2.6.0)(lightningcss@1.30.1)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.1))(vitest@3.2.4)
       '@wbcnc/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
+      playwright:
+        specifier: 'catalog:'
+        version: 1.54.1
+      vitest:
+        specifier: 'catalog:'
+        version: 3.2.4(@types/debug@4.1.12)(@types/node@24.5.2)(@vitest/browser@3.2.4)(@vitest/ui@3.2.4)(jiti@2.6.0)(jsdom@26.1.0)(lightningcss@1.30.1)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.1)
 
   packages/webrtc-channel:
     dependencies:

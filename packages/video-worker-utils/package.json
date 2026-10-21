@@ -6,6 +6,10 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "scripts": {
+    "test": "vitest",
+    "check-types": "tsc --noEmit"
+  },
   "dependencies": {
     "comlink": "catalog:",
     "react-device-detect": "catalog:",
@@ -14,6 +18,9 @@
   },
   "devDependencies": {
     "@types/three": "catalog:",
-    "@wbcnc/typescript-config": "workspace:*"
+    "@vitest/browser": "catalog:",
+    "@wbcnc/typescript-config": "workspace:*",
+    "playwright": "catalog:",
+    "vitest": "catalog:"
   }
 }
