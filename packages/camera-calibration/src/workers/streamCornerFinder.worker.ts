@@ -153,6 +153,7 @@ export class StreamCornerFinderWorker {
     this.cornersMatFull = new cv2.Mat(count, 1, cv2.CV_32FC2);
 
     // Initialize pose uniqueness gate
+    this.poseGate?.destroy();
     this.poseGate = new PoseUniquenessGate(patternSize, 1.0);
 
     // Set up offscreen canvas for video frame processing
