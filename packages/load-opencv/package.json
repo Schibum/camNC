@@ -5,7 +5,9 @@
   "type": "module",
   "private": true,
   "main": "index.js",
-  "scripts": {},
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
   "keywords": [],
   "author": "",
   "license": "Apache-2.0",
