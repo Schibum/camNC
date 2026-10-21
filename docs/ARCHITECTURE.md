@@ -1,0 +1,135 @@
+# Architecture
+
+This document gives a high-level overview of how camNC works and how the
+workspace is organised. See the [README](../README.md) for setup instructions.
+
+## Overview
+
+camNC renders an orthographic, top-down view of the CNC work area from a
+perspective camera image and draws the G-code toolpath on top of it. To do so it
+needs two things for every camera:
+
+1. **Intrinsics** (camera matrix `K` and lens distortion), estimated once by
+   filming a chessboard (`@wbcnc/camera-calibration`, OpenCV
+   `calibrateCamera`).
+2. **Extrinsics** (rotation `R` and translation `t` from machine to camera
+   coordinates), estimated by detecting four ArUco markers at known machine
+   positions and solving a Perspective-n-Point problem (OpenCV `solvePnP` with
+   `SOLVEPNP_SQPNP`).
+
+With both, every point `X` on the machine plane can be projected into the
+camera image: `x = K · (R · X + t)`, followed by applying lens distortion. The
+renderer does this per fragment, so the camera image is effectively re-sampled
+into machine coordinates.
+
+```
+ camera source ──► video element ──► CameraShaderMaterial ──► orthographic r3f scene
+ (go2rtc, phone,     (shared,         (machine XY → K[R|t]      + toolpath plane
+  webcam, URL)        ref-counted)     → distort → sample)        + markers, machine pos
+```
+
+## Workspace layout
+
+| Path                                                   | Purpose                                                                                                         |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `apps/camNC`                                           | Main app (TanStack Start, React 19, react-three-fiber).                                                         |
+| `apps/webrtc-cam`                                      | Runs on a phone: streams its camera to camNC over WebRTC.                                                       |
+| `apps/fluidnc-integration`                             | Runs as a FluidNC WebUI v3 extension: exposes the WebUI API to camNC over WebRTC.                               |
+| `apps/website`                                         | Astro landing page (www.camnc.app).                                                                             |
+| `apps/chessboard`                                      | Static page that displays/prints the calibration chessboard.                                                    |
+| `apps/demos`                                           | Sandbox pages for individual packages.                                                                          |
+| `packages/camera-calibration`                          | Chessboard calibration UI, zustand store and workers (corner finding, pose uniqueness, `calibrateCamera`).      |
+| `packages/go2webrtc`                                   | Video source abstraction: go2rtc (WebSocket/WebRTC), phone (`webrtc:`), WebTorrent tracker, webcam and URLs.    |
+| `packages/webrtc-channel`                              | `Peer` (perfect negotiation), Firebase signalling, `RolePeering`, chunked data channel, Comlink middleware.     |
+| `packages/fluidnc-api`                                 | `FluidncApi` (postMessage bridge to the WebUI) and `FluidncServer`/`FluidncClient` over WebRTC + Comlink.       |
+| `packages/video-worker-utils`                          | Helpers to move video into workers (`MediaStreamTrackProcessor` + polyfill), three.js Comlink transfer handler. |
+| `packages/load-opencv`                                 | Loads the OpenCV.js WASM build from `/opencv_js.js` and exposes a typed `cv2` proxy.                            |
+| `packages/ui`                                          | Shared shadcn/radix components, hooks and theme provider.                                                       |
+| `packages/public-config`                               | Public Firebase configuration (used for WebRTC signalling).                                                     |
+| `packages/eslint-config`, `packages/typescript-config` | Shared lint and TypeScript presets.                                                                             |
+
+Packages are consumed as TypeScript source (no build step); each app's Vite
+build compiles them.
+
+## camNC app
+
+### Routes and setup flow
+
+File-based routes live in `apps/camNC/src/routes` (`routeTree.gen.ts` is
+generated, don't edit it). New cameras go through the setup wizard:
+
+1. `setup/url-entry` – choose the video source and its resolution.
+2. `setup/camera-calibration` – estimate intrinsics with a chessboard.
+3. `setup/machine-bounds` – usable machine area (optionally read from the
+   FluidNC `config.yaml`).
+4. `setup/marker-positions` – machine coordinates of the four ArUco markers
+   (ids 0–3).
+5. `setup/point-selection` – detect the markers in the camera image and solve
+   PnP for the extrinsics.
+
+`visualize/2DView` is the main view. Debug routes live under `routes/debug`.
+
+### State
+
+- `src/store/store.ts` – a single zustand store (immer, `persist`,
+  `subscribeWithSelector`). Camera settings are stored per camera in
+  `camSources` keyed by id, with `activeCamId` selecting the current one.
+  Matrices and vectors are three.js objects, serialised with superjson
+  (`store-storage.ts`). Settings are persisted to localStorage and synced to
+  the server for signed-in users (`src/db`, Clerk + Drizzle/Neon via TanStack
+  Start server functions).
+- `src/store/store-p3p.ts` – marker detection on averaged still frames and
+  extrinsics recomputation.
+- `src/lib/fluidnc` – `CncApi`, a Preact-signals based wrapper around
+  `FluidncClient` that polls machine status and work offsets.
+
+### Rendering
+
+`scene/PresentCanvas.tsx` sets up an orthographic react-three-fiber canvas in
+machine coordinates (mm). `calibration/CameraShaderMaterial.tsx` projects each
+fragment of the machine plane into the camera image (`K`, `R`, `t` and
+distortion coefficients as uniforms) and samples the video texture. The parsed
+G-code (`visualize/gcodeParsing.ts`, based on `gcode-toolpath`) is drawn into a
+canvas texture on a plane above it (`visualize/ToolpathCanvasPlane.tsx`).
+
+### Workers and GPU pipelines
+
+- `workers/markerScanner.worker.ts` – periodically detects ArUco markers in the
+  live stream to keep the extrinsics up to date (`hooks/useAutoScanMarkers.ts`).
+- `depth/` – optional "hide machine" pipeline: a WebGPU worker warps frames
+  into machine space, estimates depth with Depth Anything V2
+  (transformers.js), builds a mask for everything above the table and returns
+  mask/background bitmaps that the shader blends in
+  (`depth/depthBlendManager.ts`).
+- Video frames reach workers as `ReadableStream<VideoFrame>`s via
+  `@wbcnc/video-worker-utils`; Comlink is used for RPC.
+
+OpenCV.js is large, so it is loaded lazily (`ensureOpenCvIsLoaded()`), and
+hot paths that run on startup (e.g. the undistortion map in
+`calibration/rectifyMap.ts`) are reimplemented in plain TypeScript and tested
+against OpenCV.
+
+## Remote connections
+
+camNC never talks to the CNC controller or a phone camera directly. Both are
+reached over WebRTC, using the Firebase Realtime Database for signalling
+(`@wbcnc/webrtc-channel`):
+
+- **Phone camera**: `apps/webrtc-cam` runs on the phone and serves its
+  `getUserMedia` stream (`useTrysteroServer`); camNC connects with a
+  `webrtc:?accessToken=…` source URL.
+- **FluidNC**: `apps/fluidnc-integration` is loaded as a WebUI v3 extension
+  inside the FluidNC web interface. It talks to the WebUI via `postMessage`
+  (`FluidncApi`) and exposes that API over a WebRTC data channel
+  (`FluidncServer`). camNC uses `FluidncClient` to send G-code commands, upload
+  and run files and read the configuration.
+
+Comlink messages over data channels go through `createChunkedPort`, which
+splits large messages into 16 KiB chunks.
+
+## Testing
+
+Tests use Vitest in browser mode (Playwright/Chromium) because they depend on
+browser APIs such as OpenCV's WASM build, `VideoFrame` and WebRTC. Pure logic
+is tested next to the source (`*.test.ts`). Integration tests that need
+Firebase are skipped by default.
