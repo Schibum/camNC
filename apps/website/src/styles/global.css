@@ -30,3 +30,36 @@
     @apply bg-gradient-to-br from-indigo-500 via-fuchsia-500 to-pink-500;
   }
 }
+
+/*
+ * Theme tokens. Tailwind v4 does not load tailwind.config.js automatically (and its v3-only fluid-type plugin
+ * is incompatible), so the semantic colors are defined here. Values come from theme.css per [data-theme].
+ */
+@theme {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
+
+@utility text-default {
+  color: var(--color-text);
+}
+@utility text-offset {
+  color: var(--color-text-offset);
+}
+@utility text-primary {
+  color: var(--color-primary);
+}
+@utility text-secondary {
+  color: var(--color-secondary);
+}
+@utility bg-default {
+  background-color: var(--color-background);
+}
+@utility bg-offset {
+  background-color: var(--color-background-offset);
+}
+@utility bg-secondary {
+  background-color: var(--color-secondary);
+}
+@utility border-default {
+  border-color: var(--color-border);
+}
