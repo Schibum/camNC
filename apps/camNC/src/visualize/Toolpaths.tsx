@@ -188,7 +188,10 @@ export const GCodeVisualizer: React.FC = () => {
         <group
           position-z={kAboveStockZ}
           onPointerMissed={e => e.type === 'click' && setIsToolpathSelected(false)}
-          onClick={e => (e.stopPropagation, setIsToolpathSelected(true))}
+          onClick={e => {
+            e.stopPropagation();
+            setIsToolpathSelected(true);
+          }}
           onPointerEnter={() => setIsToolpathHovered(true)}
           onPointerLeave={() => setIsToolpathHovered(false)}>
           <ToolpathCanvasPlane />
