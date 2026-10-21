@@ -1,13 +1,12 @@
 import { calculateUndistortionMapsCached } from '@/calibration/rectifyMap';
 import { remapCv } from '@/calibration/remapCv';
-import { computeP3P, markerMachinePosToCv } from '@/calibration/solveP3P';
+import { computeP3P, projectPoints } from '@/calibration/solveP3P';
 import { averageVideoFrames } from '@/hooks/useStillFrameTexture';
 import { detectAruco, type IMarker } from '@/setup/detect-aruco';
 import { getActiveCamSource, useCameraExtrinsics, useNewCameraMatrix, useStore } from '@/store/store';
 import { acquireVideoSource, releaseVideoSource } from '@wbcnc/go2webrtc/use-video-source';
-import { cv2, ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
+import { ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { Vector3 } from 'three';
-import { cvToVector2, matrix3ToCV, vector3ToCV } from '../lib/three-cv';
 
 function getMarkerPosInCam() {
   return getActiveCamSource()!.markerPosInCam!;
@@ -73,28 +72,12 @@ export function formatReprojectionError(error: number): string {
   return `Reprojection error: ${error.toFixed(2)}px (< 1px is very good)`;
 }
 
+/** Machine-space marker corners reprojected into the (undistorted) camera image. */
 export function useReprojectedMarkerPositions() {
   const extrinsics = useCameraExtrinsics();
-  const cameraMatrix = matrix3ToCV(useNewCameraMatrix());
-  const objectPoints = markerMachinePosToCv(getInflatedMarkerPositions());
+  const cameraMatrix = useNewCameraMatrix();
   if (!extrinsics) return [];
-  const { R, t } = extrinsics;
-  const Rcv = matrix3ToCV(R);
-  const tcv = vector3ToCV(t);
-  const distCoeffs = cv2.Mat.zeros(1, 5, cv2.CV_64F);
-  const reprojectedPoints = new cv2.Mat();
-  cv2.projectPoints(objectPoints, Rcv, tcv, cameraMatrix, distCoeffs, reprojectedPoints);
-  const pointsThree = [];
-  for (let i = 0; i < reprojectedPoints.rows; i++) {
-    const reprojectedPoint = cvToVector2(reprojectedPoints.row(i));
-    pointsThree.push(reprojectedPoint);
-  }
-  objectPoints.delete();
-  reprojectedPoints.delete();
-  distCoeffs.delete();
-  Rcv.delete();
-  tcv.delete();
-  return pointsThree;
+  return projectPoints(getInflatedMarkerPositions(), cameraMatrix, extrinsics.R, extrinsics.t);
 }
 
 export async function getRemappedStillFrame(averageFrames = 25) {
