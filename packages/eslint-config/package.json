@@ -5,12 +5,10 @@
   "private": true,
   "exports": {
     "./base": "./base.js",
-    "./next-js": "./next.js",
     "./react-internal": "./react-internal.js"
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
-    "@next/eslint-plugin-next": "catalog:",
     "eslint": "catalog:",
     "eslint-config-prettier": "catalog:",
     "eslint-plugin-only-warn": "catalog:",
