@@ -80,6 +80,16 @@ export function useReprojectedMarkerPositions() {
   return projectPoints(getInflatedMarkerPositions(), cameraMatrix, extrinsics.R, extrinsics.t);
 }
 
+const kStillFrameTimeoutMs = 15_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 export async function getRemappedStillFrame(averageFrames = 25) {
   const camSource = getActiveCamSource()!;
   const url = camSource.url;
@@ -87,17 +97,26 @@ export async function getRemappedStillFrame(averageFrames = 25) {
   const calibrationData = camSource.calibration!;
   const [mapX, mapY] = calculateUndistortionMapsCached(calibrationData, resolution[0], resolution[1]);
   const vidSrc = acquireVideoSource(url);
-  const { src } = await vidSrc.connectedPromise;
-  // TODO: use videoSource
   const videoElem = document.createElement('video');
   videoElem.muted = true;
-  if (typeof src === 'string') {
-    videoElem.src = src;
-  } else {
-    videoElem.srcObject = src;
+  let imgData: ImageData;
+  try {
+    const { src } = await vidSrc.connectedPromise;
+    // TODO: use videoSource
+    if (typeof src === 'string') {
+      videoElem.src = src;
+    } else {
+      videoElem.srcObject = src;
+    }
+    await videoElem.play();
+    imgData = await withTimeout(averageVideoFrames(videoElem, averageFrames), kStillFrameTimeoutMs, 'Timed out capturing still frame');
+  } finally {
+    // Stop decoding the temporary video element and drop our reference to the source.
+    videoElem.pause();
+    videoElem.removeAttribute('src');
+    videoElem.srcObject = null;
+    videoElem.load();
+    releaseVideoSource(url);
   }
-  await videoElem.play();
-  const imgData = await averageVideoFrames(videoElem, averageFrames);
-  releaseVideoSource(url);
   return remapCv(imgData, resolution, mapX, mapY);
 }
