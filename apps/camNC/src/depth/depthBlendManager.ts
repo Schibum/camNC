@@ -29,7 +29,10 @@ export class DepthBlendManager {
 
   // State
   private isRunning = false;
+  // Whether the caller currently wants processing to run; start() may be pending on initialisation.
+  private shouldRun = false;
   private isInitialized = false;
+  private initPromise: Promise<void> | null = null;
   private currentVideoSource: any = null;
   private currentParams: RemapStepParams | null = null;
   private onTextureUpdate: ((textures: DepthBlendTextures) => void) | null = null;
@@ -90,8 +93,16 @@ export class DepthBlendManager {
    * Ensure the worker is fully initialised. Assumes both currentVideoSource and
    * currentParams are already set.
    */
-  private async ensureInitialized() {
-    if (this.isInitialized) return;
+  private ensureInitialized() {
+    if (this.isInitialized) return Promise.resolve();
+    // Share a single initialisation between concurrent start() calls.
+    this.initPromise ??= this.doInitialize().finally(() => {
+      this.initPromise = null;
+    });
+    return this.initPromise;
+  }
+
+  private async doInitialize() {
     if (!this.proxy) await this.initWorker();
 
     if (!this.currentVideoSource || !this.currentParams) {
@@ -115,18 +126,18 @@ export class DepthBlendManager {
     this.isInitialized = true;
   }
 
-  // Start processing
+  // Start processing. Rejects if initialisation fails (e.g. WebGPU unavailable).
   async start() {
-    if (!this.isInitialized) {
-      try {
-        await this.ensureInitialized();
-      } catch (err) {
-        console.error(err);
-        return;
-      }
+    this.shouldRun = true;
+    try {
+      await this.ensureInitialized();
+    } catch (err) {
+      this.shouldRun = false;
+      throw err;
     }
 
-    if (this.isRunning) return;
+    // stop() may have been called while initialising (e.g. during model download).
+    if (!this.shouldRun || this.isRunning) return;
 
     this.isRunning = true;
     await this.proxy!.start(Comlink.proxy(this.handleFrame.bind(this)));
@@ -134,6 +145,7 @@ export class DepthBlendManager {
 
   // Stop processing
   async stop() {
+    this.shouldRun = false;
     if (!this.proxy || !this.isRunning) return;
 
     this.isRunning = false;
