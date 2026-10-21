@@ -1,5 +1,6 @@
 import { getCncApi } from '@/lib/fluidnc/fluidnc-singleton';
 import { useStore } from '@/store/store';
+import { hasProbeOrZeroCommand } from '@/visualize/gcodeChecks';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,7 +54,7 @@ export function UploadMenuItem(props: ComponentProps<typeof DropdownMenuItem>) {
 
   function handleClick(e: React.MouseEvent<HTMLDivElement>) {
     const toolpath = useStore.getState().toolpath?.gcode ?? '';
-    if (!toolpath.slice(0, 10_000).includes('G10')) {
+    if (!hasProbeOrZeroCommand(toolpath)) {
       e.preventDefault();
       e.stopPropagation();
       noProbeAlertDialogRef.current?.open();
@@ -62,7 +63,12 @@ export function UploadMenuItem(props: ComponentProps<typeof DropdownMenuItem>) {
     }
   }
 
-  async function uploadGcodeAndRun() {
+  function uploadGcodeAndRun() {
+    // Errors are reported via toast.promise for each step.
+    runSteps().catch(err => console.error('upload and run failed', err));
+  }
+
+  async function runSteps() {
     const { x, y } = useStore.getState().toolpathOffset;
     const cncApi = getCncApi();
     const toolpath = useStore.getState().toolpath?.gcode;
