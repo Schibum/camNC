@@ -24,6 +24,8 @@ export class DepthBlendManager {
 
   // Texture management
   private maskTex: THREE.CanvasTexture | null = null;
+  // Previous mask, still sampled by the shader for cross-fading.
+  private prevMaskTex: THREE.CanvasTexture | null = null;
   private bgTex: THREE.CanvasTexture | null = null;
   private bgCanvas: HTMLCanvasElement | null = null;
 
@@ -250,8 +252,10 @@ export class DepthBlendManager {
     newMaskTex.generateMipmaps = false;
     newMaskTex.wrapS = newMaskTex.wrapT = THREE.ClampToEdgeWrapping;
 
-    // Keep reference to previous mask texture so shader can still sample it
-    // (will be garbage-collected when no longer referenced on JS side).
+    // Keep the previous mask texture so the shader can still sample it for cross-fading, and free the GPU
+    // memory of older ones. Three.js re-uploads a disposed texture if it happens to be rendered again.
+    this.prevMaskTex?.dispose();
+    this.prevMaskTex = this.maskTex;
     this.maskTex = newMaskTex;
 
     const bgCtx = this.bgCanvas!.getContext('2d')!;
@@ -275,6 +279,8 @@ export class DepthBlendManager {
     this.stop();
 
     // Dispose textures
+    this.prevMaskTex?.dispose();
+    this.prevMaskTex = null;
     if (this.maskTex) {
       this.maskTex.dispose();
       this.maskTex = null;
