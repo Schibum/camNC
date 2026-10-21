@@ -20,10 +20,11 @@ export class CncApi {
   public readonly currentOffsetModal = computed(() => kOffsetCodes.find(code => this.modals.value.has(code)));
   public readonly currentZero = signal<Position | null>(null);
 
-  /** Polling state flags */
-  private statusPollActive = false;
-  private zeroPollActive = false;
+  /** Incremented on every start/stop so that stale polling loops exit. */
+  private pollGeneration = 0;
+  private isPolling = false;
   private readonly pollIntervalMs = 3000;
+  private readonly zeroTimeoutMs = 5000;
 
   constructor(public readonly nc: FluidncClient) {
     effect(() => {
@@ -53,13 +54,13 @@ export class CncApi {
         wco: parsed.wco ?? this.status.value?.wco,
         wpos: parsed.wpos ?? this.status.value?.wpos,
       };
-      console.log('parsed status', this.status.value.mpos);
       return;
     }
 
     const offset = parseFluidNCOffsetLine(line);
     if (offset) {
-      this.coordinateOffsets.value.set(offset.code, offset.position);
+      // Assign a new Map so that subscribers (e.g. waitForSignal) are notified.
+      this.coordinateOffsets.value = new Map(this.coordinateOffsets.value).set(offset.code, offset.position);
       this.refreshCurrentZero();
       return;
     }
@@ -94,9 +95,8 @@ export class CncApi {
   async getCurrentZero() {
     await this.logCurrentModalsAndOffsets();
 
-    const offset = await waitForSignal(() => this.currentOffsetModal.value);
-    await waitForSignal(() => this.coordinateOffsets.value.get(offset));
-    return this.coordinateOffsets.value.get(offset) ?? null;
+    const offset = await waitForSignal(() => this.currentOffsetModal.value, this.zeroTimeoutMs);
+    return waitForSignal(() => this.coordinateOffsets.value.get(offset), this.zeroTimeoutMs);
   }
 
   /**
@@ -130,43 +130,24 @@ export class CncApi {
 
   /** Start polling machine status ('?') and current zero (via $G/$#) */
   private startPolling() {
-    if (!this.statusPollActive) {
-      this.statusPollActive = true;
-      this.runStatusPolling();
-    }
-
-    if (!this.zeroPollActive) {
-      this.zeroPollActive = true;
-      this.runZeroPolling();
-    }
+    if (this.isPolling) return;
+    this.isPolling = true;
+    const generation = ++this.pollGeneration;
+    this.runPolling(generation, () => this.api.cmd('?'));
+    this.runPolling(generation, () => this.logCurrentModalsAndOffsets());
   }
 
-  private async runStatusPolling() {
+  /** Periodically run `poll` while idle until polling is stopped or restarted. */
+  private async runPolling(generation: number, poll: () => Promise<unknown>) {
     let lastSentAt = 0;
-    while (this.statusPollActive) {
+    while (generation === this.pollGeneration) {
       if (this.isIdle()) {
-        const now = Date.now();
-        const since = now - lastSentAt;
+        const since = Date.now() - lastSentAt;
         if (since >= this.pollIntervalMs) {
-          await this.api.cmd('?').catch(() => {});
-          lastSentAt = Date.now();
-        } else {
-          await this.delay(this.pollIntervalMs - since);
-        }
-      } else {
-        await this.delay(250);
-      }
-    }
-  }
-
-  private async runZeroPolling() {
-    let lastSentAt = 0;
-    while (this.zeroPollActive) {
-      if (this.isIdle()) {
-        const now = Date.now();
-        const since = now - lastSentAt;
-        if (since >= this.pollIntervalMs) {
-          await this.logCurrentModalsAndOffsets().catch(() => {});
+          // `poll` may throw synchronously if the API got disconnected meanwhile.
+          await Promise.resolve()
+            .then(poll)
+            .catch(() => {});
           lastSentAt = Date.now();
         } else {
           await this.delay(this.pollIntervalMs - since);
@@ -181,10 +162,10 @@ export class CncApi {
     return new Promise<void>(resolve => setTimeout(resolve, ms));
   }
 
-  /** Stop all polling timers */
+  /** Stop all polling loops */
   private stopPolling() {
-    this.statusPollActive = false;
-    this.zeroPollActive = false;
+    this.isPolling = false;
+    this.pollGeneration++;
   }
 
   /** Update `currentZero` based on current modal & offset tables */
