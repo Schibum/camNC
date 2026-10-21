@@ -6,15 +6,20 @@ async function loadOpenCv() {
   win.cv = _cv;
 }
 
-let _ensureOpenCvIsLoadedPromise: Promise<void>;
+let _ensureOpenCvIsLoadedPromise: Promise<void> | null = null;
 
 // Always return the same promise object to allow passing it to react use()
 export function ensureOpenCvIsLoaded() {
   if (_ensureOpenCvIsLoadedPromise) {
     return _ensureOpenCvIsLoadedPromise;
   }
-  _ensureOpenCvIsLoadedPromise = _ensureOpenCvIsLoaded();
-  return _ensureOpenCvIsLoadedPromise;
+  const promise = _ensureOpenCvIsLoaded().catch(err => {
+    // Allow retrying after e.g. a network error instead of caching the failure forever.
+    if (_ensureOpenCvIsLoadedPromise === promise) _ensureOpenCvIsLoadedPromise = null;
+    throw err;
+  });
+  _ensureOpenCvIsLoadedPromise = promise;
+  return promise;
 }
 
 // Npm import does not work well with vite, so load it globally and just use types
