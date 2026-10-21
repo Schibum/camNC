@@ -71,7 +71,8 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
   // Runtime-configurable margins (defaults match previous constants)
   private bgUpdateMaskMargin = 50;
   private renderMaskMargin = 10;
-  private thresholdOffset = 5;
+  // Relative 0-1 depth offset above the table, matches the store default.
+  private thresholdOffset = 0.2;
 
   // Cached step instances to avoid per-frame pipeline creation
   private undistortStep?: UndistortStep;
@@ -144,7 +145,7 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
   /** Lazily create / return DepthEstimationStep */
   private getDepthEstimator(): DepthEstimationStep {
     if (!this.depthEstimator) {
-      this.depthEstimator = new DepthEstimationStep(this.ensureDevice());
+      this.depthEstimator = new DepthEstimationStep(this.ensureDevice(), { thresholdOffset: this.thresholdOffset });
     }
     return this.depthEstimator;
   }
@@ -382,6 +383,7 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
 
     if (thresholdOffset !== undefined) {
       this.thresholdOffset = thresholdOffset;
+      this.depthEstimator?.setParams({ thresholdOffset });
     }
   }
 }

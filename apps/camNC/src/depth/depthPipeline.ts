@@ -5,9 +5,9 @@ import { gpuTextureToRawImage } from './textureConverters';
 // log.setLevel('debug');
 
 export interface DepthEstimationParams {
-  /** Optional: number of histogram bins used to find peak depth. Defaults to 64. */
+  /** Optional: number of histogram bins used to find peak depth. Defaults to 10. */
   histogramBins?: number;
-  /** Optional: offset added (in the 0-1 depth domain) to the detected peak before thresholding. Defaults to 0.05. */
+  /** Optional: offset added (in the 0-1 depth domain) to the detected peak before thresholding. Defaults to 2 bin sizes. */
   thresholdOffset?: number;
 }
 
@@ -38,6 +38,11 @@ export class DepthEstimationStep {
   constructor(device: GPUDevice, params: DepthEstimationParams = {}) {
     this.device = device;
     this.params = params;
+  }
+
+  /** Update parameters, effective from the next processed frame. */
+  setParams(params: Partial<DepthEstimationParams>) {
+    this.params = { ...this.params, ...params };
   }
 
   private getEstimator(): Promise<Pipeline> {
