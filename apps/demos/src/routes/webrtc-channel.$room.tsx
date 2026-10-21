@@ -28,18 +28,18 @@ function useRoles() {
 function useRoom(roomId: string) {
   const [selfRole, otherRole] = useRoles();
   console.log('selfRole', selfRole, 'otherRole', otherRole);
-  const [messaging] = useState(
-    () =>
-      new RolePeering(roomId, selfRole, otherRole, {
-        maxPeers: selfRole == 'client' ? 1 : Infinity,
-      })
-  );
+  const [messaging, setMessaging] = useState<RolePeering | null>(null);
   useEffect(() => {
+    // A destroyed RolePeering can't re-join, so create a new one per room.
+    const messaging = new RolePeering(roomId, selfRole, otherRole, {
+      maxPeers: selfRole == 'client' ? 1 : Infinity,
+    });
     messaging.join();
+    setMessaging(messaging);
     return () => {
       messaging.destroy();
     };
-  }, [messaging, roomId]);
+  }, [roomId, selfRole, otherRole]);
   return { messaging };
 }
 
@@ -49,14 +49,17 @@ function RouteComponent() {
   const [messages, setMessages] = useState<string[]>([]);
 
   useEffect(() => {
-    messaging.on('message', event => {
+    if (!messaging) return;
+    const onMessage = (event: string) => {
       console.log('message from other peer', event);
       setMessages(prev => [...prev, event]);
-    });
+    };
+    messaging.on('message', onMessage);
+    return () => messaging.off('message', onMessage);
   }, [messaging]);
 
   function sendMessage() {
-    messaging.sendMessage(`Hello it's me ${new Date().toISOString()}`);
+    messaging?.sendMessage(`Hello it's me ${new Date().toISOString()}`);
   }
   return (
     <div>
