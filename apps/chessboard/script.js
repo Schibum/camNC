@@ -143,7 +143,8 @@ document.addEventListener("DOMContentLoaded", () => {
     await chessboardContainer
       .requestFullscreen?.()
       .catch((err) => console.error("FS error:", err));
-    screen?.orientation?.lock(screen.orientation.type);
+    // lock() is missing on iOS Safari and rejects on most desktop browsers.
+    screen.orientation?.lock?.(screen.orientation.type).catch(() => {});
   };
   const exitFullscreen = () =>
     document.exitFullscreen?.().catch((err) => console.error("FS error:", err));
@@ -165,8 +166,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const sw = window.innerWidth;
     const sh = window.innerHeight;
 
-    const normalScale = Math.min(sw / 9, sh / 6);
-    const rotatedScale = Math.min(sw / 6, sh / 9);
+    const normalScale = Math.min(sw / cols, sh / rows);
+    const rotatedScale = Math.min(sw / rows, sh / cols);
 
     if (rotatedScale > normalScale) {
       renderPortrait();
@@ -179,6 +180,10 @@ document.addEventListener("DOMContentLoaded", () => {
   printButton.addEventListener("click", () => {
     renderPortrait();
     window.print();
+  });
+  // The board is rendered in portrait for printing only.
+  window.addEventListener("afterprint", () => {
+    if (!isFullscreen()) renderLandscape();
   });
   fullscreenButton.addEventListener("click", () => {
     if (isFullscreen()) {
