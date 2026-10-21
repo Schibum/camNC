@@ -98,8 +98,8 @@ export function parseFluidNCOffsetLine(line: string): ParsedOffset | null {
   // Split by comma – will yield one number for TLO, three (or more) for positions
   const nums = valueBlock.split(',').map(Number);
 
-  // Handle single-value offsets (currently only TLO)
-  if (nums.length !== 3) {
+  // Ignore single-value offsets (currently only TLO) and non-numeric blocks (e.g. `[PRB:1,2,3:1]`)
+  if (nums.length < 3 || nums.some(Number.isNaN)) {
     return null;
   }
 
