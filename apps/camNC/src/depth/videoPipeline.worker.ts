@@ -62,6 +62,7 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
   private reader: ReadableStreamDefaultReader<VideoFrame> | null = null;
   private device: GPUDevice | null = null;
   private blitter: TextureBlitter | null = null;
+  private maskBlitter: { blitter: TextureBlitter; width: number; height: number } | null = null;
   private cfg: Config | null = null;
 
   // Throttle processing to this frame rate.
@@ -347,12 +348,19 @@ class VideoPipelineWorker implements VideoPipelineWorkerAPI {
     const { mask, bg } = await this.runDepth(tex, this.cfg.params);
 
     // Convert mask & bg to ImageBitmap via blitter(s)
-    const maskBlitter = new TextureBlitter(this.device!, mask.width, mask.height);
-    const maskBmp = maskBlitter.blit(mask);
+    const maskBmp = this.getMaskBlitter(mask.width, mask.height).blit(mask);
     const bgBmp = this.blitter!.blit(bg);
 
     // log.info('fps', 1000 / (performance.now() - this.lastFrameTime));
     return Comlink.transfer({ mask: maskBmp, bg: bgBmp }, [maskBmp, bgBmp]);
+  }
+
+  /** Reuse the mask blitter (canvas, context and render pipeline) unless the mask size changed. */
+  private getMaskBlitter(width: number, height: number): TextureBlitter {
+    if (!this.maskBlitter || this.maskBlitter.width !== width || this.maskBlitter.height !== height) {
+      this.maskBlitter = { blitter: new TextureBlitter(this.device!, width, height), width, height };
+    }
+    return this.maskBlitter.blitter;
   }
 
   // The old on-demand process() API is deprecated – kept for debug route compatibility
