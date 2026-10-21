@@ -1,11 +1,11 @@
-# Guidelines for Codex Agents
+# Guidelines for Coding Agents
 
 This repository is a pnpm/Turborepo workspace using TypeScript and React.
 
 ## Workflow
 
-- Use **pnpm** (Node >=18) for all package management tasks.
-- Only in cloud environments: After making changes, run `pnpm run build`, `pnpm run lint` and `pnpm run test` from the repo root.
+- Use **pnpm** (Node `^20.19` or `>=22.12`, see `.nvmrc`) for all package management tasks.
+- Only in cloud environments: After making changes, run `pnpm run lint`, `pnpm run check-types`, `pnpm run test` and `pnpm run build` from the repo root.
   - These commands execute turborepo tasks across all packages.
 - Formatting is automated — you do **not** need to run Prettier manually:
   - A `pre-commit` git hook (simple-git-hooks + nano-staged) re-formats staged `.ts`/`.tsx`/`.md` files on every commit.
@@ -26,13 +26,14 @@ This repository is a pnpm/Turborepo workspace using TypeScript and React.
 - Run `pnpm turbo run test --filter <project_name>` to execute checks for a single package.
 - From within a package you can run `pnpm test`.
 - Focus on one test with `pnpm vitest run -t "<test name>"`.
+- Tests run in headless Chromium (Vitest browser mode); install it once with `pnpm exec playwright install chromium`.
 - Fix failing tests or type errors until the suite passes.
 - After moving files or changing imports, run `pnpm lint --filter <project_name>`.
 - Always add or update tests for the code you change.
 
 ## Commit Messages
 
-- Follow the Conventional Commits style (`feat(<project_name>):`, `fix<project_name>:`, `chore<project_name>:`, `docs<project_name>:` etc.).
+- Follow the Conventional Commits style (`feat(<project_name>):`, `fix(<project_name>):`, `chore(<project_name>):`, `docs(<project_name>):` etc.).
 - Write concise summaries in the imperative mood (e.g. "fix: update worker config").
 
 ## Pull Requests
