@@ -370,13 +370,6 @@ catalogs:
 importers:
 
   .:
-    dependencies:
-      vite-plugin-node-polyfills:
-        specifier: 'catalog:'
-        version: 0.24.0(rollup@4.52.2)(vite@7.0.5(@types/node@24.5.2)(jiti@2.6.0)(lightningcss@1.30.1)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.1))
-      vitest:
-        specifier: 'catalog:'
-        version: 3.2.4(@types/debug@4.1.12)(@types/node@24.5.2)(@vitest/browser@3.2.4)(@vitest/ui@3.2.4)(jiti@2.6.0)(jsdom@26.1.0)(lightningcss@1.30.1)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.1)
     devDependencies:
       nano-staged:
         specifier: ^1.0.2
@@ -402,6 +395,12 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 5.8.3
+      vite-plugin-node-polyfills:
+        specifier: 'catalog:'
+        version: 0.24.0(rollup@4.52.2)(vite@7.0.5(@types/node@24.5.2)(jiti@2.6.0)(lightningcss@1.30.1)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.1))
+      vitest:
+        specifier: 'catalog:'
+        version: 3.2.4(@types/debug@4.1.12)(@types/node@24.5.2)(@vitest/browser@3.2.4)(@vitest/ui@3.2.4)(jiti@2.6.0)(jsdom@26.1.0)(lightningcss@1.30.1)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.1)
 
   apps/camNC:
     dependencies:
