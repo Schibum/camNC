@@ -55,7 +55,6 @@ interface CameraSlice {
   pauseProcessing: () => Promise<void>;
   resumeProcessing: () => Promise<void>;
   setFrameDimensions: (width: number, height: number) => void;
-  resetCalibration: () => void;
   onLoadedMetadata: (el: HTMLVideoElement, maxResolution?: Resolution) => void;
 }
 
@@ -317,10 +316,6 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
   },
 
   setFrameDimensions: (w, h) => set({ frameWidth: w, frameHeight: h }),
-
-  resetCalibration: () => {
-    set({ capturedFrames: [], selectedFrameId: null, calibrationResult: null });
-  },
 });
 
 // Processing slice
@@ -451,7 +446,13 @@ const createCalibrationResultSlice: StateCreator<CalibrationState, [], [], Calib
     }
   },
 
-  resetCalibration: () => set({ capturedFrames: [], selectedFrameId: null, calibrationResult: null }),
+  resetCalibration: () => {
+    const { cornerWorker, heatmapTracker } = get();
+    // The worker only accepts poses that differ from all previously accepted ones; forget them as well.
+    cornerWorker?.resetPoses().catch(console.error);
+    heatmapTracker?.clear();
+    set(state => ({ capturedFrames: [], selectedFrameId: null, calibrationResult: null, heatmapTick: state.heatmapTick + 1 }));
+  },
 });
 
 // -----------------------------------------------------------------------------

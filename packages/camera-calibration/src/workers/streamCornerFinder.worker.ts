@@ -201,6 +201,11 @@ export class StreamCornerFinderWorker {
     this.isPaused = false;
   }
 
+  /** Forget all accepted poses, so that previously captured views can be captured again. */
+  async resetPoses(): Promise<void> {
+    this.poseGate?.reset();
+  }
+
   async pause(): Promise<void> {
     console.log('[StreamCornerFinderWorker] Pausing processing');
     this.isPaused = true;
