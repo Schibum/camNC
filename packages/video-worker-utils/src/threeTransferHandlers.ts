@@ -25,17 +25,22 @@ export function registerThreeJsTransferHandlers(): void {
     return val instanceof Vector3;
   }
 
+  // Only arrays and plain objects are walked. Everything else (typed arrays, ImageData, streams, ...) is left
+  // as is for structured cloning; walking e.g. a large Float32Array element by element would be very slow.
+  function isTraversable(val: unknown): val is unknown[] | Record<string, unknown> {
+    if (Array.isArray(val)) return true;
+    if (!val || typeof val !== 'object') return false;
+    const proto = Object.getPrototypeOf(val);
+    return proto === Object.prototype || proto === null;
+  }
+
   // Recursively test if a value contains any Matrix3 / Vector3, to decide if
   // this handler should take over.
-  function containsThree(obj: unknown): boolean {
+  function containsThree(obj: unknown, seen = new WeakSet<object>()): boolean {
     if (isMatrix3(obj) || isVector3(obj)) return true;
-    if (Array.isArray(obj)) return obj.some(containsThree);
-    if (obj && typeof obj === 'object') {
-      for (const value of Object.values(obj as Record<string, unknown>)) {
-        if (containsThree(value)) return true;
-      }
-    }
-    return false;
+    if (!isTraversable(obj) || seen.has(obj)) return false;
+    seen.add(obj);
+    return Object.values(obj).some(value => containsThree(value, seen));
   }
 
   function serializeDeep<T>(value: T): any {
@@ -48,9 +53,9 @@ export function registerThreeJsTransferHandlers(): void {
     if (Array.isArray(value)) {
       return value.map(serializeDeep);
     }
-    if (value && typeof value === 'object') {
+    if (isTraversable(value)) {
       const out: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      for (const [k, v] of Object.entries(value)) {
         out[k] = serializeDeep(v);
       }
       return out;
@@ -71,7 +76,7 @@ export function registerThreeJsTransferHandlers(): void {
     if (Array.isArray(value)) {
       return value.map(deserializeDeep) as unknown as T;
     }
-    if (value && typeof value === 'object') {
+    if (isTraversable(value)) {
       const out: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(value)) {
         out[k] = deserializeDeep(v);
