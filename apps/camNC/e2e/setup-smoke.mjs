@@ -176,7 +176,10 @@ export async function runSetupSmoke(
     assert.deepEqual(reloaded.machineBounds, { min: [0, 0], max: [600, 500] });
     check('complete setup survives a page reload and opens the top view');
 
-    const markerPixels = await darkCanvasPixels();
+    // At the fixed viewport the four tags cover about 20k dark pixels. Wait
+    // for them before taking a baseline; an initial white/black WebGL frame
+    // must not race the scene-change assertion on slower CI machines.
+    const markerPixels = await waitForCanvasChange(pixels => pixels > 8000 && pixels < 150_000);
     await page.evaluate(() => window.__camncSmokeCamera.setScene('blank'));
     const blankPixels = await waitForCanvasChange(pixels => markerPixels - pixels > 2000);
     await page.evaluate(() => window.__camncSmokeCamera.setScene('markers'));
