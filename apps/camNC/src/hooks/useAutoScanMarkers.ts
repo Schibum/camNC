@@ -60,6 +60,12 @@ class MarkerScannerService {
   private cleanupFn: (() => void) | null = null;
   private initPromise: Promise<void> | null = null;
   private disposed = false;
+  // Settles pending work on dispose: terminating the worker leaves outstanding Comlink calls unsettled,
+  // which would otherwise block useRunInterval from scheduling further scans.
+  private resolveDisposed!: () => void;
+  private readonly disposedPromise = new Promise<void>(resolve => {
+    this.resolveDisposed = resolve;
+  });
 
   constructor(
     private readonly camSource: ICamSource,
@@ -124,10 +130,12 @@ class MarkerScannerService {
   /** Execute a single scan cycle. */
   async scan(): Promise<void> {
     if (this.disposed) return;
-    if (!this.proxy) await this.init();
-    if (!this.proxy) return;
-    const validMarkers = getValidMarkers(await this.proxy.scan());
-    if (validMarkers.length === kExpectedMarkerCount && !this.disposed) {
+    if (!this.proxy) await Promise.race([this.init(), this.disposedPromise]);
+    if (!this.proxy || this.disposed) return;
+    const markers = await Promise.race([this.proxy.scan(), this.disposedPromise]);
+    if (!markers || this.disposed) return;
+    const validMarkers = getValidMarkers(markers);
+    if (validMarkers.length === kExpectedMarkerCount) {
       await this.onMarkersFound(validMarkers);
     }
   }
@@ -135,6 +143,7 @@ class MarkerScannerService {
   /** Dispose the worker and associated resources. */
   dispose(): void {
     this.disposed = true;
+    this.resolveDisposed();
     this.cleanupFn?.();
     this.proxy = null;
     this.cleanupFn = null;
