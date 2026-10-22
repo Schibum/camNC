@@ -50,7 +50,10 @@ describe('shared video source disposal', () => {
     const disposing = new Promise<void>(resolve => {
       finishDisposal = resolve;
     });
-    const oldSource = createSource(url, vi.fn(() => disposing));
+    const oldSource = createSource(
+      url,
+      vi.fn(() => disposing)
+    );
     const newSource = createSource(url);
     vi.mocked(videoSource).mockReturnValueOnce(oldSource).mockReturnValueOnce(newSource);
 
