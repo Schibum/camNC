@@ -1,0 +1,43 @@
+name: Production setup smoke
+
+on:
+  pull_request:
+    paths:
+      - apps/camNC/e2e/**
+      - .github/workflows/setup-smoke.yml
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: camNC deployment URL
+        type: string
+        required: true
+        default: https://run.camnc.app/
+
+permissions:
+  contents: read
+
+jobs:
+  setup-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Verify deployed setup
+        run: pnpm --filter @wbcnc/camNC smoke:setup
+        env:
+          CAMNC_SMOKE_URL: ${{ inputs.base_url || 'https://run.camnc.app/' }}
+      - name: Upload smoke report and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: setup-smoke
+          path: output/playwright/setup-smoke/
+          if-no-files-found: warn
+          retention-days: 7

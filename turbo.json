@@ -24,6 +24,10 @@
       ]
     },
     "test": {},
+    "smoke:setup": {
+      "cache": false,
+      "env": ["CAMNC_SMOKE_URL", "CAMNC_SMOKE_HEADED", "CAMNC_SMOKE_OUTPUT"]
+    },
     "lint": {},
     "check-types": {},
     "dev": {
