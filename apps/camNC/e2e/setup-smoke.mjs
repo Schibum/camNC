@@ -25,11 +25,48 @@ export async function runSetupSmoke(
   page.setDefaultNavigationTimeout(45_000);
   const pageErrors = [];
   const consoleErrors = [];
-  page.on('pageerror', error => pageErrors.push(error.message));
-  page.on('console', message => {
-    if (message.type() === 'error') consoleErrors.push(message.text());
-  });
-  const report = { baseURL: target.href, startedAt: new Date().toISOString(), checks: [] };
+  const consoleMessages = [];
+  const report = { baseURL: target.href, startedAt: new Date().toISOString(), checks: [], failedRequests: [], websockets: [] };
+  let widget;
+  const urlParts = value => {
+    const url = new URL(value);
+    return { origin: url.origin, path: url.pathname };
+  };
+  const redactURLs = text =>
+    text.replace(/(?:https?|wss?):\/\/[^\s)]+/g, value => {
+      try {
+        const { origin, path } = urlParts(value);
+        return `${origin}${path}`;
+      } catch {
+        return '[invalid URL]';
+      }
+    });
+  const observePage = (observed, label) => {
+    observed.on('pageerror', error => pageErrors.push(`${label}: ${redactURLs(error.message)}`));
+    observed.on('console', message => {
+      const text = redactURLs(message.text()).slice(0, 2000);
+      consoleMessages.push({ page: label, type: message.type(), text });
+      if (consoleMessages.length > 100) consoleMessages.shift();
+      if (message.type() === 'error') consoleErrors.push(`${label}: ${text}`);
+    });
+    observed.on('requestfailed', request => {
+      report.failedRequests.push({
+        page: label,
+        ...urlParts(request.url()),
+        method: request.method(),
+        failure: redactURLs(request.failure()?.errorText || 'Unknown request failure'),
+      });
+    });
+    observed.on('websocket', socket => {
+      const record = { page: label, ...urlParts(socket.url()), createdAt: new Date().toISOString(), sent: 0, received: 0, errors: [] };
+      report.websockets.push(record);
+      socket.on('framesent', () => record.sent++);
+      socket.on('framereceived', () => record.received++);
+      socket.on('socketerror', error => record.errors.push(redactURLs(String(error))));
+      socket.on('close', () => (record.closedAt = new Date().toISOString()));
+    });
+  };
+  observePage(page, 'main');
   await mkdir(outputDir, { recursive: true });
   await context.tracing.start({ screenshots: true, snapshots: true });
 
@@ -166,14 +203,11 @@ export async function runSetupSmoke(
     await page.waitForURL('**/setup/machine-bounds');
     check('optional FluidNC setup can be skipped while disconnected');
 
-    const widget = await context.newPage();
-    widget.on('pageerror', error => pageErrors.push(`FluidNC widget: ${error.message}`));
-    widget.on('console', message => {
-      if (message.type() === 'error') consoleErrors.push(`FluidNC widget: ${message.text()}`);
-    });
+    widget = await context.newPage();
+    observePage(widget, 'FluidNC widget');
     await widget.addInitScript(installSyntheticFluidNc);
     await widget.goto(widgetURL);
-    await widget.getByText('1 connected', { exact: true }).waitFor();
+    await widget.getByText('1 connected', { exact: true }).waitFor({ timeout: 60_000 });
     const readSettings = page.getByRole('button', { name: 'Read FluidNC Settings', exact: true });
     await page.waitForFunction(() => {
       const button = [...document.querySelectorAll('button')].find(button => button.textContent === 'Read FluidNC Settings');
@@ -294,8 +328,12 @@ export async function runSetupSmoke(
     report.error = error.stack || String(error);
     report.pageErrors = pageErrors;
     report.consoleErrors = consoleErrors;
+    report.consoleMessages = consoleMessages;
     report.url = page.url();
     await page.screenshot({ path: path.join(outputDir, 'failure.png'), fullPage: true }).catch(() => {});
+    if (widget && !widget.isClosed()) {
+      await widget.screenshot({ path: path.join(outputDir, 'failure-fluidnc-widget.png'), fullPage: true }).catch(() => {});
+    }
     await writeFile(path.join(outputDir, 'report.json'), JSON.stringify(report, null, 2));
     await context.tracing.stop({ path: path.join(outputDir, 'failure-trace.zip') }).catch(() => {});
     throw error;
