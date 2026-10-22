@@ -24,11 +24,12 @@ const cache = new Map<string, CachedEntry>();
 function scheduleIdleDispose(url: string, entry: CachedEntry) {
   if (entry.refs === 0 && !entry.timer) {
     entry.timer = setTimeout(async () => {
-      const stillEntry = cache.get(url);
-      if (stillEntry && stillEntry.refs === 0) {
-        await stillEntry.vs.dispose().catch(console.error);
-        cache.delete(url);
-      }
+      entry.timer = undefined;
+      if (cache.get(url) !== entry || entry.refs !== 0) return;
+      // A new consumer must create a fresh source once disposal has started.
+      // Disconnecting can take time, and must not evict a replacement source.
+      cache.delete(url);
+      await entry.vs.dispose().catch(console.error);
     }, keepAliveMs);
   }
 }
