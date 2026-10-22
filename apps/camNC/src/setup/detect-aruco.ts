@@ -48,6 +48,8 @@ export function detectAruco(img: cv2.Mat) {
   for (let i = 0; i < corners.size(); i++) {
     const points = corners.get(i);
     const cornerVec = Array.from({ length: 4 }, (_, i) => new Vector2(points.data32F[i * 2], points.data32F[i * 2 + 1]));
+    // MatVector.get returns a new Mat that must be freed.
+    points.delete();
     const idValue = ids.data32S[i];
     markers.push({ id: idValue, corners: cornerVec });
   }

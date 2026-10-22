@@ -37,7 +37,8 @@ export default defineConfig(() => {
     },
     plugins,
     server: {
-      allowedHosts: ['localhost', 'ff59-2001-16b8-ba8e-8500-b996-64a-7ab4-edec.ngrok-free.app'],
+      // Allow testing on phones via any ngrok tunnel.
+      allowedHosts: ['localhost', '.ngrok-free.app'],
       headers: {
         'Cross-Origin-Opener-Policy': 'same-origin',
         'Cross-Origin-Embedder-Policy': 'require-corp',

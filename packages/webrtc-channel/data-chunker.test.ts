@@ -88,4 +88,20 @@ describe('ChunkedMessagePort', () => {
     await new Promise(res => setTimeout(res, 10));
     expect(seen).toEqual(['first', 'second', 'third']);
   });
+
+  it('delivers every message when the message id wraps around', async () => {
+    const { a, b } = createPeers();
+    const count = 300;
+    const received: number[] = [];
+    const done = new Promise<void>(res => {
+      b.onmessage = e => {
+        received.push(e.data.i);
+        if (received.length === count) res();
+      };
+    });
+    for (let i = 0; i < count; i++) a.postMessage({ i });
+
+    await done;
+    expect(received).toEqual(Array.from({ length: count }, (_, i) => i));
+  });
 });

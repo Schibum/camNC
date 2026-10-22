@@ -20,7 +20,7 @@ CamNC is a simple experimental web application that visualizes CNC G-code on a l
   - IP camera. Requires [go2rtc](https://github.com/AlexxIT/go2rtc) gateway to expose stream in a compatible way. Go2rtc can run on a Raspberry Pi Zero or any local machine.
     - [Reolink E1 Zoom 3d print model](https://makerworld.com/en/models/1461605-reolink-e1-zoom-ceiling-down-mount-looking-down#profileId-1524062)
 
-- (Optional) CNC controller with [FluidNC WebUI v3](http://wiki.fluidnc.com/en/features/webui). Does not work offline ATM, so fulidNC needs to run in STA mode.
+- (Optional) CNC controller with [FluidNC WebUI v3](http://wiki.fluidnc.com/en/features/webui). Does not work offline at the moment, so FluidNC needs to run in STA mode.
 
 ## Usage
 
@@ -28,7 +28,7 @@ To get started, open the application at [https://run.camnc.app/](https://run.cam
 
 ### Screenshots
 
-Original camera image from a Reolink E1 Zoom. Note the lens distortion and perspective - both is compensated, so you get an orthographic top down view instead for the overlays:
+Original camera image from a Reolink E1 Zoom. Note the lens distortion and perspective - both are compensated, so you get an orthographic top down view instead for the overlays:
 
 <img width="1339" alt="Screenshot 2025-06-04 at 16 04 00" src="https://github.com/user-attachments/assets/39062592-b1a4-4a1c-abfd-be1a90b5517b" />
 
@@ -53,43 +53,56 @@ Example cutting a small board:
 
 ## Repository layout
 
-This workspace is split into two top‑level folders:
+This workspace is a pnpm/Turborepo monorepo split into two top‑level folders:
 
 - `apps/` – runnable applications.
 - `packages/` – reusable libraries and config used by the apps.
 
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the pieces fit together.
+
 ### Apps
 
-- **camNC** – main camera overlay application.
-- **chessboard** – printable chessboard pattern for camera calibration.
+- **camNC** – main camera overlay application ([run.camnc.app](https://run.camnc.app/)).
+- **webrtc-cam** – runs on a phone and streams its camera to camNC via WebRTC.
+- **fluidnc-integration** – FluidNC WebUI v3 extension that exposes the WebUI API to camNC via WebRTC.
+- **website** – Astro landing page ([www.camnc.app](https://www.camnc.app/)).
+- **chessboard** – displays/prints the chessboard pattern for camera calibration.
 - **demos** – sandbox showcasing individual packages.
-- **fluidnc-integration** – prototype FluidNC control UI.
-- **webrtc-cam** – minimal browser client for go2rtc.
 
 ### Packages
 
-- **camera-calibration** – React components for calibrating a camera.
-- **eslint-config** – shared eslint rules.
-- **fluidnc-api** – small API wrapper for FluidNC.
-- **go2webrtc** – utilities for connecting to go2rtc via WebRTC.
-- **load-opencv** – helper for loading OpenCV in the browser.
-- **public-config** – shared Firebase configuration.
-- **typescript-config** – common tsconfig presets.
+- **camera-calibration** – React components, store and workers for calibrating a camera with OpenCV.
+- **fluidnc-api** – FluidNC WebUI API wrapper and WebRTC client/server for it.
+- **go2webrtc** – video sources (go2rtc, phone via WebRTC, WebTorrent, webcam, URL).
+- **webrtc-channel** – WebRTC peer, Firebase signalling and data channel helpers.
+- **video-worker-utils** – helpers for processing video frames in web workers.
+- **load-opencv** – loads OpenCV.js in the browser.
 - **ui** – shared React UI components.
-- **webrtc-channel** – abstraction over WebRTC data channels.
+- **public-config** – shared Firebase configuration.
+- **eslint-config**, **typescript-config** – shared lint rules and tsconfig presets.
 
 ## Development
 
-Install dependencies and start all apps in dev mode:
+Requirements: Node.js (see [`.nvmrc`](.nvmrc), `^20.19` or `>=22.12`) and pnpm (version pinned in `package.json`,
+e.g. via `corepack enable`).
 
 ```bash
 pnpm install
-pnpm run dev
+# Start a single app, e.g. camNC (see apps/camNC/README.md for required env vars)
+pnpm dev --filter @wbcnc/camNC
+# Or start all apps at once
+pnpm dev
 ```
 
-Other useful commands:
+Checks (also run in CI):
 
 ```bash
-pnpm run lint   # run eslint across the workspace
-pnpm run test   # run vitest suites
+pnpm run check-format  # prettier (a pre-commit hook formats staged files)
+pnpm run lint          # eslint
+pnpm run check-types   # tsc --noEmit in every package
+pnpm run test          # vitest, runs in headless Chromium via Playwright
+pnpm run build
 ```
+
+Tests run in the browser, so install Chromium once with `pnpm exec playwright install chromium`. Run a single
+package's tests with `pnpm turbo run test --filter <package>`.

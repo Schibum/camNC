@@ -16,8 +16,7 @@
   },
   "include": [
     "**/*.ts",
-    "**/*.tsx",
-    "../../apps/camNC/src/components/page-header.tsx",
+    "**/*.tsx"
   ],
   "exclude": [
     "node_modules"

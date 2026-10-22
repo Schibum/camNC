@@ -36,10 +36,11 @@ function UseFluidNcSettingsButton() {
 
 const schema = z
   .object({
-    xmin: z.coerce.number().min(0),
-    xmax: z.coerce.number().min(0),
-    ymin: z.coerce.number().min(0),
-    ymax: z.coerce.number().min(0),
+    // Machine coordinates may be negative, e.g. when homing in positive direction with mpos_mm: 0.
+    xmin: z.coerce.number(),
+    xmax: z.coerce.number(),
+    ymin: z.coerce.number(),
+    ymax: z.coerce.number(),
   })
   .refine(data => data.xmax > data.xmin, {
     message: 'xmax must be greater than xmin',

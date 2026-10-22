@@ -4,12 +4,15 @@
   "description": "",
   "type": "module",
   "private": true,
-  "main": "index.js",
-  "scripts": {},
+  "exports": {
+    ".": "./index.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
   "keywords": [],
   "author": "",
   "license": "Apache-2.0",
-  "packageManager": "pnpm@10.7.0",
   "dependencies": {
     "@techstark/opencv-js": "catalog:"
   },

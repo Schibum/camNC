@@ -6,6 +6,7 @@ import { combine, persist, subscribeWithSelector } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import { ParsedToolpath, parseGCode } from '../visualize/gcodeParsing';
 import { parseToolInfo } from '../visualize/guess-tools';
+import { useMemo } from 'react';
 import { createStorage } from './store-storage';
 
 export interface CalibrationData {
@@ -318,16 +319,28 @@ export const useSetToolpathOpacity = () => useStore(state => state.setToolpathOp
 export const useSetIsToolpathDragging = () => useStore(state => state.setIsToolpathDragging);
 export const useIsToolpathHovered = () => useStore(state => state.isToolpathHovered || state.isToolpathDragging);
 
-// Returns the usable size of the machine boundary in mm [xrange, yrange].
-// Computed as xmax - xmin, ymax - ymin.
-export function useMachineSize() {
+/** The usable machine area in machine coordinates (mm). Bounds may be negative, e.g. when homing in positive direction with mpos 0. */
+export function useMachineBounds(): Box2 {
   const camSource = useCamSource();
   const bounds = camSource?.machineBounds;
   if (!bounds) {
     throw new Error('Machine bounds not set');
   }
-  return bounds.max;
-  // return bounds.getSize(new Vector2());
+  return bounds;
+}
+
+// Returns the usable size of the machine boundary in mm [xrange, yrange].
+// Computed as xmax - xmin, ymax - ymin.
+export function useMachineSize() {
+  const bounds = useMachineBounds();
+  // Memoized so that consumers using it as an effect/memo dependency only update when the bounds change.
+  return useMemo(() => bounds.getSize(new Vector2()), [bounds]);
+}
+
+/** Center of the usable machine area in machine coordinates (mm). */
+export function useMachineCenter() {
+  const bounds = useMachineBounds();
+  return useMemo(() => bounds.getCenter(new Vector2()), [bounds]);
 }
 
 export const useCameraExtrinsics = () => {

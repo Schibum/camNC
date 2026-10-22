@@ -13,6 +13,7 @@ interface Pose {
 export class PoseUniquenessGate {
   private readonly diag: number; // pattern diagonal (world u.)
   private readonly objPts: cv2.Mat; // cached 3-D board coords
+  private readonly emptyMat: cv2.Mat; // no distortion / unused gemm src3
   private poses: Pose[] = [];
   private K: cv2.Mat | null = null; // cached camera matrix
   private frameW = 0;
@@ -24,6 +25,7 @@ export class PoseUniquenessGate {
   ) {
     this.diag = Math.hypot(pattern.width - 1, pattern.height - 1) * squareSize;
     this.objPts = createObjectPoints(pattern, squareSize); // keep forever
+    this.emptyMat = new cv2.Mat();
   }
 
   /** throw away all remembered poses (e.g. between sessions) */
@@ -43,6 +45,7 @@ export class PoseUniquenessGate {
   destroy(): void {
     this.reset();
     this.objPts.delete();
+    this.emptyMat.delete();
   }
 
   /** Update camera matrix if frame dimensions change */
@@ -64,7 +67,7 @@ export class PoseUniquenessGate {
 
     const rvec = new cv2.Mat();
     const tvec = new cv2.Mat();
-    cv2.solvePnP(this.objPts, cornersMat, this.K!, new cv2.Mat(), rvec, tvec, false, (cv2 as any).SOLVEPNP_SQPNP);
+    cv2.solvePnP(this.objPts, cornersMat, this.K!, this.emptyMat, rvec, tvec, false, (cv2 as any).SOLVEPNP_SQPNP);
 
     // first ever pose → accept unconditionally
     if (this.poses.length === 0) {
@@ -102,7 +105,7 @@ export class PoseUniquenessGate {
       R = new cv2.Mat();
     cv2.Rodrigues(rv1, R1);
     cv2.Rodrigues(rv2, R2);
-    cv2.gemm(R1, R2, 1, new cv2.Mat(), 0, R, cv2.GEMM_1_T); // R = R1·R2ᵀ
+    cv2.gemm(R1, R2, 1, this.emptyMat, 0, R, cv2.GEMM_1_T); // R = R1·R2ᵀ
     const tr = R.doubleAt(0, 0) + R.doubleAt(1, 1) + R.doubleAt(2, 2);
     const theta = Math.acos(Math.min(1, Math.max(-1, (tr - 1) / 2)));
     R.delete();

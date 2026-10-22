@@ -2,14 +2,13 @@
   "name": "@wbcnc/go2webrtc",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
   "scripts": {
-    "test": "vitest"
+    "test": "vitest",
+    "check-types": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",
   "license": "Apache-2.0",
-  "packageManager": "pnpm@10.7.0",
   "dependencies": {
     "@techstark/opencv-js": "catalog:",
     "@types/react": "catalog:",

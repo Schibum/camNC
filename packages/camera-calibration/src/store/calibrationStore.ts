@@ -55,7 +55,6 @@ interface CameraSlice {
   pauseProcessing: () => Promise<void>;
   resumeProcessing: () => Promise<void>;
   setFrameDimensions: (width: number, height: number) => void;
-  resetCalibration: () => void;
   onLoadedMetadata: (el: HTMLVideoElement, maxResolution?: Resolution) => void;
 }
 
@@ -168,28 +167,31 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
     el.autoplay = true;
     el.playsInline = true;
     el.muted = true;
+    let worker: Worker | null = null;
 
-    el.addEventListener(
-      'loadedmetadata',
-      () => {
-        get().onLoadedMetadata(el, resolution);
-      },
-      { once: true }
-    );
-
-    if (typeof source === 'string') {
-      el.src = source;
-      el.crossOrigin = 'anonymous';
-    } else {
-      if (!source.active || source.getVideoTracks().length === 0) {
-        throw new Error('Invalid MediaStream provided to startCamera');
-      }
-      el.srcObject = source;
-    }
-
-    await el.play();
-
+    // Everything below must be inside try so that startPromise always settles; otherwise every later
+    // startCamera call would wait on it forever.
     try {
+      el.addEventListener(
+        'loadedmetadata',
+        () => {
+          get().onLoadedMetadata(el, resolution);
+        },
+        { once: true }
+      );
+
+      if (typeof source === 'string') {
+        el.src = source;
+        el.crossOrigin = 'anonymous';
+      } else {
+        if (!source.active || source.getVideoTracks().length === 0) {
+          throw new Error('Invalid MediaStream provided to startCamera');
+        }
+        el.srcObject = source;
+      }
+
+      await el.play();
+
       const { patternSize } = get();
       const frameSize = resolution || {
         width: el.videoWidth,
@@ -198,7 +200,7 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
 
       const videoStream = await createVideoStreamProcessor(source);
 
-      const worker = new Worker(new URL('../workers/streamCornerFinder.worker.ts', import.meta.url), { type: 'module' });
+      worker = new Worker(new URL('../workers/streamCornerFinder.worker.ts', import.meta.url), { type: 'module' });
       const workerProxy = Comlink.wrap<StreamCornerFinderWorkerAPI>(worker);
 
       await workerProxy.init(
@@ -217,10 +219,11 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
         replacerCleanup = attachMediaStreamTrackReplacer(source, workerProxy);
       }
 
+      const startedWorker = worker;
       const cleanup = () => {
         console.log('[CalibrationStore] Cleaning up corner worker');
         workerProxy.stop().catch(console.error);
-        worker.terminate();
+        startedWorker.terminate();
         replacerCleanup?.();
         // if (source instanceof MediaStream)
         //   source.getVideoTracks().forEach((t) => t.stop());
@@ -243,9 +246,13 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
         });
       } else {
         cleanup();
+        el.pause();
       }
     } catch (error) {
-      console.error('[CalibrationStore] Failed to initialize corner worker:', error);
+      console.error('[CalibrationStore] Failed to start camera:', error);
+      worker?.terminate();
+      el.pause();
+      throw error;
     } finally {
       resolveStart();
       set({ startPromise: null });
@@ -309,10 +316,6 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
   },
 
   setFrameDimensions: (w, h) => set({ frameWidth: w, frameHeight: h }),
-
-  resetCalibration: () => {
-    set({ capturedFrames: [], selectedFrameId: null, calibrationResult: null });
-  },
 });
 
 // Processing slice
@@ -443,7 +446,13 @@ const createCalibrationResultSlice: StateCreator<CalibrationState, [], [], Calib
     }
   },
 
-  resetCalibration: () => set({ capturedFrames: [], selectedFrameId: null, calibrationResult: null }),
+  resetCalibration: () => {
+    const { cornerWorker, heatmapTracker } = get();
+    // The worker only accepts poses that differ from all previously accepted ones; forget them as well.
+    cornerWorker?.resetPoses().catch(console.error);
+    heatmapTracker?.clear();
+    set(state => ({ capturedFrames: [], selectedFrameId: null, calibrationResult: null, heatmapTick: state.heatmapTick + 1 }));
+  },
 });
 
 // -----------------------------------------------------------------------------

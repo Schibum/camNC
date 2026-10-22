@@ -24,7 +24,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 23.8
+          node-version-file: .nvmrc
           cache: "pnpm"
 
       - name: Install dependencies
@@ -33,7 +33,11 @@ jobs:
         run: pnpm run check-format
       - name: Run linting
         run: pnpm run lint
+      - name: Check types
+        run: pnpm run check-types
       - name: Install Playwright Browsers
         run: pnpm exec playwright install --with-deps chromium #--no-shell
       - name: Run tests
         run: pnpm run test
+      - name: Build
+        run: pnpm run build

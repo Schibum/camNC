@@ -179,22 +179,6 @@ export function calibrateCamera(
   const objectPoints = new cv.MatVector();
   const imagePoints = new cv.MatVector();
 
-  // Add points from captured frames
-  capturedFrames.forEach(() => {
-    const objp = createObjectPoints(patternSize, squareSize);
-    objectPoints.push_back(objp);
-  });
-
-  capturedFrames.forEach(frame => {
-    // Convert our corner format back to OpenCV format
-    const points = new cv.Mat(frame.corners.length, 1, cv.CV_32FC2);
-    frame.corners.forEach((corner, i) => {
-      points.data32F[i * 2] = corner.x;
-      points.data32F[i * 2 + 1] = corner.y;
-    });
-    imagePoints.push_back(points);
-  });
-
   // Matrices to hold calibration results
   const cameraMatrix = new cv.Mat();
   const distCoeffs = new cv.Mat();
@@ -204,51 +188,71 @@ export function calibrateCamera(
   const stdDevInt = new cv.Mat();
   const stdDevExt = new cv.Mat();
   const perViewErrors = new cv.Mat();
+  let newCameraMatrix: any = null;
 
-  const crit = new cv.TermCriteria(cv.TermCriteria.COUNT + cv.TermCriteria.EPS, 30, 1e-6);
+  try {
+    // Add points from captured frames. push_back copies, so free the local Mats right away.
+    capturedFrames.forEach(() => {
+      const objp = createObjectPoints(patternSize, squareSize);
+      objectPoints.push_back(objp);
+      objp.delete();
+    });
 
-  const flags = zeroTangentDist ? cv.CALIB_ZERO_TANGENT_DIST : 0;
-  // Calibrate the camera
-  const rms = cv.calibrateCameraExtended(
-    objectPoints,
-    imagePoints,
-    imageSize,
-    cameraMatrix,
-    distCoeffs,
-    rvecs,
-    tvecs,
-    stdDevInt,
-    stdDevExt,
-    perViewErrors,
-    flags,
-    crit
-  );
+    capturedFrames.forEach(frame => {
+      // Convert our corner format back to OpenCV format
+      const points = new cv.Mat(frame.corners.length, 1, cv.CV_32FC2);
+      frame.corners.forEach((corner, i) => {
+        points.data32F[i * 2] = corner.x;
+        points.data32F[i * 2 + 1] = corner.y;
+      });
+      imagePoints.push_back(points);
+      points.delete();
+    });
 
-  // Get optimal new camera matrix
-  const newCameraMatrix = cv.getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 0.3);
+    const crit = new cv.TermCriteria(cv.TermCriteria.COUNT + cv.TermCriteria.EPS, 30, 1e-6);
 
-  // Convert matrices to JS arrays
-  const result: CalibrationResult = {
-    rms,
-    cameraMatrix: matToArray(cameraMatrix),
-    distCoeffs: matToArray(distCoeffs)[0] || [],
-    newCameraMatrix: matToArray(newCameraMatrix),
-    perViewErrors: matToArray(perViewErrors).map(row => row[0]) as number[],
-  };
+    const flags = zeroTangentDist ? cv.CALIB_ZERO_TANGENT_DIST : 0;
+    // Calibrate the camera
+    const rms = cv.calibrateCameraExtended(
+      objectPoints,
+      imagePoints,
+      imageSize,
+      cameraMatrix,
+      distCoeffs,
+      rvecs,
+      tvecs,
+      stdDevInt,
+      stdDevExt,
+      perViewErrors,
+      flags,
+      crit
+    );
 
-  // Clean up
-  objectPoints.delete();
-  imagePoints.delete();
-  cameraMatrix.delete();
-  distCoeffs.delete();
-  rvecs.delete();
-  tvecs.delete();
-  newCameraMatrix.delete();
-  stdDevInt.delete();
-  stdDevExt.delete();
-  perViewErrors.delete();
+    // Get optimal new camera matrix
+    newCameraMatrix = cv.getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 0.3);
 
-  return result;
+    // Convert matrices to JS arrays
+    const result: CalibrationResult = {
+      rms,
+      cameraMatrix: matToArray(cameraMatrix),
+      distCoeffs: matToArray(distCoeffs)[0] || [],
+      newCameraMatrix: matToArray(newCameraMatrix),
+      perViewErrors: matToArray(perViewErrors).map(row => row[0]) as number[],
+    };
+    return result;
+  } finally {
+    // Clean up
+    objectPoints.delete();
+    imagePoints.delete();
+    cameraMatrix.delete();
+    distCoeffs.delete();
+    rvecs.delete();
+    tvecs.delete();
+    newCameraMatrix?.delete();
+    stdDevInt.delete();
+    stdDevExt.delete();
+    perViewErrors.delete();
+  }
 }
 
 /**

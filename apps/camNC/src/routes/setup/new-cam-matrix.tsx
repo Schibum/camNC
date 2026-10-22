@@ -6,6 +6,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { cv2, ensureOpenCvIsLoaded } from '@wbcnc/load-opencv';
 import { Button } from '@wbcnc/ui/components/button';
 import { Card, CardContent } from '@wbcnc/ui/components/card';
+import { toast } from '@wbcnc/ui/components/sonner';
 import { use, useState } from 'react';
 import { prettyPrintThree } from '../../lib/prettyPrintThree';
 import { CalibrationData } from '../../store/store';
@@ -27,6 +28,7 @@ function getNewCameraMatrix(
   const newCamThree = cvToMatrix3(newCameraMatrix);
   cameraMatrix.delete();
   distCoeffs.delete();
+  newCameraMatrix.delete();
   return newCamThree;
 }
 
@@ -38,10 +40,11 @@ function AlphaUpdateComponent() {
   const setCalibration = useStore(s => s.camSourceSetters.setCalibration);
 
   function handleSave() {
-    if (!alpha) {
-      throw new Error('Alpha is required');
+    // 0 is a valid alpha (crop to valid pixels only).
+    if (alpha === undefined) {
+      toast.error('Alpha is required');
+      return;
     }
-    console.log('alpha', alpha);
     const newCamMatrix = getNewCameraMatrix(calibration, { width: resolution[0], height: resolution[1] }, alpha);
     console.log('newCamMatrix', prettyPrintThree(newCamMatrix));
     setCalibration({

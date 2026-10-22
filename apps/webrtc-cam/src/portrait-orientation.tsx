@@ -61,7 +61,7 @@ function useOrientation() {
 
 function OrientationOverlay() {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50">
       <div className="text-center text-white p-8 mx-auto">
         <div className="mb-6">
           <RotateCcw className="w-16 h-16 mx-auto mb-4 animate-spin" style={{ animationDuration: '3s' }} />

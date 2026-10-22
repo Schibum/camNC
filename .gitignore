@@ -18,6 +18,11 @@ coverage
 # Turbo
 .turbo
 
+# Generated framework build state (TanStack Start/Nitro, Astro)
+.tanstack
+.nitro
+.astro
+
 # Vercel
 .vercel
 

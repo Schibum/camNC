@@ -19,6 +19,7 @@ export class RolePeering {
   private peers = new Map<string, Peer>();
   private pendingSignals = new Map<string, unknown[]>();
   private readonly isInitiator: boolean;
+  private destroyed = false;
 
   public readonly on: Emitter<Events>['on'];
   public readonly off: Emitter<Events>['off'];
@@ -41,13 +42,21 @@ export class RolePeering {
 
   async destroy() {
     log.debug('destroying');
-    await this.signaller?.disconnect();
-    for (const peer of this.peers.values()) {
+    // Set first: destroying peers emits 'close', which must not re-open signalling.
+    this.destroyed = true;
+    const signaller = this.signaller;
+    this.signaller = undefined;
+    const peers = Array.from(this.peers.values());
+    this.peers.clear();
+    this.pendingSignals.clear();
+    for (const peer of peers) {
       peer.destroy();
     }
+    await signaller?.disconnect();
   }
 
   async join() {
+    if (this.destroyed) throw new Error('RolePeering was destroyed, create a new instance');
     if (this.signaller) throw new Error('Already joined');
     this.signaller = new FirebaseSignaller();
     this.signaller.on('peer-joined', ev => this.onPeerJoined(ev));
@@ -68,6 +77,7 @@ export class RolePeering {
 
   private onPeerJoined(peerInfo: PeerInfo) {
     log.debug('onPeerJoined', peerInfo);
+    if (this.destroyed) return;
     if (peerInfo.role != this.toRole) return;
     if (this.peers.size >= this.opts.maxPeers) return;
     if (!this.signaller) {
@@ -121,6 +131,7 @@ export class RolePeering {
   }
 
   private async autoOpenCloseSignalling() {
+    if (this.destroyed) return;
     if (this.peers.size >= this.opts.maxPeers) {
       log.debug('autoOpenCloseSignalling: closing signalling');
       if (this.signaller) {

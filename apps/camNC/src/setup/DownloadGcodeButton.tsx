@@ -11,6 +11,8 @@ export function DownloadGcodeButton({ points, tagSize }: { points: { x: number; 
     a.href = URL.createObjectURL(new Blob([gcode], { type: 'text/plain' }));
     a.download = filename;
     a.click();
+    // Revoke after the download has been triggered.
+    setTimeout(() => URL.revokeObjectURL(a.href));
   }
   const disabled = tagSize !== 30;
   return (

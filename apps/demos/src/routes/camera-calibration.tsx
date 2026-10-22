@@ -113,14 +113,12 @@ function SettingsOverlay({ onSelectSource, currentSource }: SettingsOverlayProps
 
   return (
     <>
-      <button
-        className="absolute bottom-4 right-4 z-50 bg-gray-800 bg-opacity-70 rounded-full p-3 text-white"
-        onClick={() => setIsOpen(!isOpen)}>
+      <button className="absolute bottom-4 right-4 z-50 bg-gray-800/70 rounded-full p-3 text-white" onClick={() => setIsOpen(!isOpen)}>
         <Settings className="h-6 w-6" />
       </button>
 
       {isOpen && (
-        <div className="absolute inset-0 z-40 bg-black bg-opacity-80 flex items-center justify-center p-4">
+        <div className="absolute inset-0 z-40 bg-black/80 flex items-center justify-center p-4">
           <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full max-h-[80vh] overflow-y-auto">
             <h2 className="text-white text-xl font-bold mb-4">Video Source Settings</h2>
 

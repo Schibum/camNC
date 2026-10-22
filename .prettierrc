@@ -8,13 +8,5 @@
   "bracketSpacing": true,
   "endOfLine": "auto",
   "bracketSameLine": true,
-  "embeddedLanguageFormatting": "auto",
-  "overrides": [
-    {
-      "files": "src/store.ts",
-      "options": {
-        "printWidth": 200
-      }
-    }
-  ]
+  "embeddedLanguageFormatting": "auto"
 }

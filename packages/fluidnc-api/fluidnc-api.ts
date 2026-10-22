@@ -81,10 +81,11 @@ export class FluidncApi {
    */
   private handleMessage(event: MessageEvent): void {
     const message = event.data;
+    if (!message || typeof message !== 'object') return;
     if (message.type === 'stream') {
       return this.onStreamMessage(message);
     }
-    if (!message || !message.id) return;
+    if (!message.id) return;
 
     const pending = FluidncApi.pendingRequests.get(message.id);
     if (!pending) return;
@@ -113,6 +114,9 @@ export class FluidncApi {
         pending.resolve(data);
       } else if (responseData.status === 'error') {
         pending.reject(responseData.error || 'Unknown error');
+      } else {
+        // Settle the request instead of leaving its promise pending forever.
+        pending.reject(new Error(`Unknown response status: ${responseData.status}`));
       }
     } else {
       // For responses without a status property (e.g. modal or translation).

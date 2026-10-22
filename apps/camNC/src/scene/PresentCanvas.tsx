@@ -1,6 +1,6 @@
 import { useViewPortToMachineScale, useViewportToVideoScale } from '@/calibration/scaleHooks';
 import { LoadingVideoOverlay } from '@/components/LoadingVideoOverlay';
-import { useCamResolution, useMachineSize } from '@/store/store';
+import { useCamResolution, useMachineCenter } from '@/store/store';
 import { OrbitControls, Text } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Suspense, useEffect, useMemo, useRef } from 'react';
@@ -39,7 +39,7 @@ function DefaultControls({ worldScale }: { worldScale: IWorldScale }) {
   const videoScale = useViewportToVideoScale();
   const videoSize = useCamResolution();
   const machineScale = useViewPortToMachineScale();
-  const machineSize = useMachineSize();
+  const machineCenter = useMachineCenter();
   // Then select which value to use
   const minZoom = worldScale === 'video' ? videoScale : machineScale;
   const zoomOutFactor = worldScale === 'video' ? 1 : 0.9;
@@ -50,11 +50,11 @@ function DefaultControls({ worldScale }: { worldScale: IWorldScale }) {
 
   useEffect(() => {
     if (worldScale === 'machine') {
-      camera.position.set(machineSize.x / 2, machineSize.y / 2, 1500);
+      camera.position.set(machineCenter.x, machineCenter.y, 1500);
     } else if (worldScale === 'video') {
       camera.position.set(videoSize[0] / 2, videoSize[1] / 2, -1500);
     }
-  }, [camera, machineSize, worldScale, videoSize]);
+  }, [camera, machineCenter, worldScale, videoSize]);
 
   // Hack, override orbit controls camera rotation. It'll always set it back to
   // the default rotation otherwise.

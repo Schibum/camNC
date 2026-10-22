@@ -31,10 +31,14 @@ async function frameToImageData(
   height: number,
   ctx: OffscreenCanvasRenderingContext2D
 ): Promise<ImageData> {
-  const bitmap = await createImageBitmap(frame);
-  ctx.drawImage(bitmap, 0, 0, width, height);
-  bitmap.close();
-  frame.close();
+  try {
+    const bitmap = await createImageBitmap(frame);
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close();
+  } finally {
+    // Always release the frame, camera pipelines only have a small pool of them.
+    frame.close();
+  }
   return ctx.getImageData(0, 0, width, height);
 }
 
@@ -153,6 +157,7 @@ export class StreamCornerFinderWorker {
     this.cornersMatFull = new cv2.Mat(count, 1, cv2.CV_32FC2);
 
     // Initialize pose uniqueness gate
+    this.poseGate?.destroy();
     this.poseGate = new PoseUniquenessGate(patternSize, 1.0);
 
     // Set up offscreen canvas for video frame processing
@@ -198,6 +203,11 @@ export class StreamCornerFinderWorker {
     console.log('[StreamCornerFinderWorker] Stopping processing loop');
     this.isProcessing = false;
     this.isPaused = false;
+  }
+
+  /** Forget all accepted poses, so that previously captured views can be captured again. */
+  async resetPoses(): Promise<void> {
+    this.poseGate?.reset();
   }
 
   async pause(): Promise<void> {
@@ -308,6 +318,8 @@ export class StreamCornerFinderWorker {
       });
     } catch (error) {
       console.error('[StreamCornerFinderWorker] Error processing frame:', error);
+      // No-op if already closed.
+      frame.close();
     }
   }
 

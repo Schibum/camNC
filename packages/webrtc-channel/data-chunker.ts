@@ -97,7 +97,8 @@ export default function createChunkedPort(
     const data = new Uint8Array(evt.data);
     const id = data[0];
     const tag = data[1];
-    if (!id || !tag) return;
+    // id 0 is valid (the uint8 nonce wraps around after 255), every packet has a non-zero tag.
+    if (id === undefined || !tag) return;
     const chunk = data.subarray(HEADER);
 
     (pendings[id] ||= []).push(chunk);

@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { Button } from '@heroui/button';
+import { Button } from '@heroui/react';
 import { allowCmdOnMac, Kbd } from '@wbcnc/ui/components/kbd';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@wbcnc/ui/components/tooltip';
 import { useHotkeys } from 'react-hotkeys-hook';

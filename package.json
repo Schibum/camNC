@@ -19,15 +19,13 @@
     "prettier-plugin-tailwindcss": "^0.6.9",
     "simple-git-hooks": "^2.13.1",
     "turbo": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vite-plugin-node-polyfills": "catalog:",
+    "vitest": "catalog:"
   },
   "packageManager": "pnpm@10.13.1",
   "engines": {
-    "node": ">=18"
-  },
-  "dependencies": {
-    "vite-plugin-node-polyfills": "catalog:",
-    "vitest": "catalog:"
+    "node": "^20.19.0 || >=22.12.0"
   },
   "pnpm": {},
   "simple-git-hooks": {

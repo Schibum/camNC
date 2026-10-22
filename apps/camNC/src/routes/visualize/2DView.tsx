@@ -66,7 +66,7 @@ function VisualizeComponent() {
     if (snapEnabled) return onClickSnap();
     console.log('onDbClick', event.unprojectedPoint);
     if (!cncApi?.isConnected()) {
-      toast.error('FluicNC integration not connected');
+      toast.error('FluidNC integration not connected');
       return;
     }
     const point = event.unprojectedPoint;
@@ -95,7 +95,7 @@ function VisualizeComponent() {
     const pos = snapPos;
     if (!pos) return;
     if (!cncApi?.isConnected()) {
-      toast.error('FluicNC integration not connected');
+      toast.error('FluidNC integration not connected');
       return;
     }
     const bounds = getActiveCamSource()?.machineBounds;

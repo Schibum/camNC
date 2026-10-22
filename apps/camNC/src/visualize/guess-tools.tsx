@@ -25,7 +25,7 @@ export function parseToolInfo(gcode: string): ToolInfo[] {
   //  - Group 4: the tool name (after the final "-" delimiter)
   // It handles lines starting with either '(' or ';' and accepts either a closing parenthesis or end-of-line.
   const toolRegex =
-    /[;(]\s*T(\d+)\s+D=(\d+)(?:\s+CR=\d+)?(?:\s+TAPER=(\d+)deg)?(?:\s+-\s+ZMIN=-?\d+(?:\.\d+)?)?\s+-\s+(.+?)(?:\s*\)|\s*$)/gm;
+    /[;(]\s*T(\d+)\s+D=(\d+(?:\.\d*)?)(?:\s+CR=\d*(?:\.\d*)?)?(?:\s+TAPER=(\d+(?:\.\d*)?)deg)?(?:\s+-\s+ZMIN=-?\d*(?:\.\d*)?)?\s+-\s+(.+?)(?:\s*\)|\s*$)/gm;
 
   let match: RegExpExecArray | null;
   while ((match = toolRegex.exec(searchLines)) !== null) {

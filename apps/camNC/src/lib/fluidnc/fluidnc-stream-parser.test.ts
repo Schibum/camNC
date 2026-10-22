@@ -97,6 +97,16 @@ describe('parseFluidNCOffsetLine', () => {
   it('returns null for unrelated lines', () => {
     expect(parseFluidNCOffsetLine('<Idle|MPos:0,0,0>')).toBeNull();
   });
+
+  it('parses offset lines of machines with more than three axes', () => {
+    const parsed = parseFluidNCOffsetLine('[G54:1.000,2.000,3.000,4.000]')!;
+    expect(parsed.code).toBe('G54');
+    expect(parsed.position).toEqual({ x: 1, y: 2, z: 3, extra: [4] });
+  });
+
+  it('ignores probe result lines', () => {
+    expect(parseFluidNCOffsetLine('[PRB:1.000,2.000,3.000:1]')).toBeNull();
+  });
 });
 
 describe('parseFluidNCModalLine', () => {

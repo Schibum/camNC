@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "lint": "eslint . --max-warnings 0",
-    "test": "vitest"
+    "test": "vitest",
+    "check-types": "tsc --noEmit"
   },
   "dependencies": {
     "@react-spring/web": "catalog:",

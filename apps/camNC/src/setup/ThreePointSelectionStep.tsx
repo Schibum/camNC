@@ -1,7 +1,13 @@
 import { UnskewedVideoMesh } from '@/calibration/UnskewTsl';
 import { PageHeader } from '@/components/page-header';
 import { PresentCanvas } from '@/scene/PresentCanvas';
-import { formatReprojectionError, kExpectedMarkerCount, setMarkersAndRecompute, useReprojectedMarkerPositions } from '@/store/store-p3p';
+import {
+  formatReprojectionError,
+  getValidMarkers,
+  kExpectedMarkerCount,
+  setMarkersAndRecompute,
+  useReprojectedMarkerPositions,
+} from '@/store/store-p3p';
 import { Line, Text } from '@react-three/drei';
 import { useNavigate } from '@tanstack/react-router';
 import { Button } from '@wbcnc/ui/components/button';
@@ -158,15 +164,20 @@ export function ThreePointSelectionStep() {
   };
 
   const handleMarkersDetected = (detectedMarkers: IMarker[]) => {
-    if (detectedMarkers.length !== 4) {
-      toast.error('Detected ' + detectedMarkers.length + ' markers, expected 4, ignoring', {
-        position: 'top-right',
-      });
+    // Only tags 0..N-1 map to configured marker positions; ignore any other tags in view.
+    const validMarkers = getValidMarkers(detectedMarkers);
+    if (validMarkers.length !== kExpectedMarkerCount) {
+      toast.error(
+        `Detected ${validMarkers.length} of ${kExpectedMarkerCount} expected aruco tags (ids 0-${kExpectedMarkerCount - 1}), ignoring`,
+        {
+          position: 'top-right',
+        }
+      );
       return;
     }
-    toast.success('Detected 4 markers', { position: 'top-right' });
+    toast.success(`Detected ${kExpectedMarkerCount} markers`, { position: 'top-right' });
 
-    setMarkers(detectedMarkers);
+    setMarkers(validMarkers);
   };
 
   const canSave = markers.length >= 4;

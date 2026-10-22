@@ -1,3 +1,13 @@
+"""Average all frames of a video into a single, less noisy still image.
+
+Useful to create test images (e.g. for aruco/chessboard detection) from a short
+recording of a static scene.
+
+Usage (requires opencv-python and numpy):
+    python scripts/mean-frame.py input.mp4
+
+Shows the result and writes it to mean_output.png in the current directory.
+"""
 import cv2
 import sys
 import argparse

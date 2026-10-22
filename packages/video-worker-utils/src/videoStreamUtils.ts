@@ -75,8 +75,9 @@ export interface ReplaceableStreamWorker {
 export function attachMediaStreamTrackReplacer(mediaStream: MediaStream, workerProxy: Comlink.Remote<ReplaceableStreamWorker>): () => void {
   let currentTrack: MediaStreamTrack | null = mediaStream.getVideoTracks()[0] || null;
 
+  /** Switch to the most recent live video track still in the stream. */
   function handleEnded() {
-    const tracks = mediaStream.getVideoTracks();
+    const tracks = mediaStream.getVideoTracks().filter(t => t.readyState === 'live');
     if (tracks.length > 0) {
       sendTrackToWorker(tracks[tracks.length - 1]!);
     }
@@ -107,8 +108,14 @@ export function attachMediaStreamTrackReplacer(mediaStream: MediaStream, workerP
     sendTrackToWorker(event.track);
   };
 
+  // The removed track must not be sent to the worker; switch to a remaining one if it was the current track.
+  const handleRemoveTrack = (event: MediaStreamTrackEvent) => {
+    if (event.track !== currentTrack) return;
+    handleEnded();
+  };
+
   mediaStream.addEventListener('addtrack', handleAddTrack);
-  mediaStream.addEventListener('removetrack', handleAddTrack);
+  mediaStream.addEventListener('removetrack', handleRemoveTrack);
 
   if (currentTrack) {
     currentTrack.addEventListener('ended', handleEnded, { once: true });
@@ -116,7 +123,7 @@ export function attachMediaStreamTrackReplacer(mediaStream: MediaStream, workerP
 
   return () => {
     mediaStream.removeEventListener('addtrack', handleAddTrack);
-    mediaStream.removeEventListener('removetrack', handleAddTrack);
+    mediaStream.removeEventListener('removetrack', handleRemoveTrack);
     if (currentTrack) {
       currentTrack.removeEventListener('ended', handleEnded);
     }

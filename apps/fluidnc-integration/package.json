@@ -1,5 +1,5 @@
 {
-  "name": "fluidnc-integration",
+  "name": "@wbcnc/fluidnc-integration",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint . --max-warnings 0",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check-types": "tsc --noEmit"
   },
   "dependencies": {
     "@preact/signals-react": "catalog:",

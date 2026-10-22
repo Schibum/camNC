@@ -6,8 +6,9 @@ export function createSerializer() {
   let lastPromise: Promise<unknown> = Promise.resolve();
 
   return async <R>(fn: () => Promise<R>): Promise<R> => {
-    // Create a new promise chain that starts after the previous task
-    const result = lastPromise.then(() => fn()).catch(() => fn()); // If previous task failed, still run new task
+    // Run after the previous task settled, regardless of whether it failed. `lastPromise` never rejects, so
+    // `fn` runs exactly once.
+    const result = lastPromise.then(() => fn());
 
     // Update the lastPromise to this new promise chain (ignore errors to prevent unhandled rejections)
     lastPromise = result.catch(() => {});

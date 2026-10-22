@@ -83,10 +83,14 @@ function UrlEntryComponent() {
       addCamSource(newName, { name: newName, url: newUrl, maxResolution: [maxResolution.width, maxResolution.height] });
     } else {
       if (activeCamId) {
+        const [oldWidth, oldHeight] = currentCamSource?.maxResolution ?? [];
+        const resolutionChanged = oldWidth !== maxResolution.width || oldHeight !== maxResolution.height;
         updateCamSource(activeCamId, {
           name: newName,
           url: newUrl,
           maxResolution: [maxResolution.width, maxResolution.height],
+          // Intrinsics and marker pixel positions are in pixels of the old resolution and no longer valid.
+          ...(resolutionChanged && { calibration: undefined, extrinsics: undefined, markerPosInCam: undefined }),
         });
       }
     }
