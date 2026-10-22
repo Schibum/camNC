@@ -11,6 +11,7 @@
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
+    "smoke:setup": "node e2e/setup-smoke.mjs",
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
