@@ -67,7 +67,10 @@ export function VideoSourceSelection({
   const urlDefaults = defaults?.type === 'url' ? defaults : { type: 'url' as const, url: '' };
   const webtorrentDefaults: WebtorrentConnectionParams =
     defaults?.type === 'webtorrent' ? defaults : { type: 'webtorrent' as const, share: '', pwd: '' };
-  const webrtcDefaults: WebrtcConnectionParams = defaults?.type === 'webrtc' ? defaults : getRandomWebrtcDefaults();
+  const webrtcDefaults = useMemo<WebrtcConnectionParams>(
+    () => (defaults?.type === 'webrtc' ? defaults : getRandomWebrtcDefaults()),
+    [defaults]
+  );
   const webcamDefaults: WebcamConnectionParams =
     defaults?.type === 'webcam' ? defaults : { type: 'webcam' as const, deviceId: '', idealWidth: 4096, idealHeight: 2160 };
   const go2rtcDefaults: Go2rtcConnectionParams =
