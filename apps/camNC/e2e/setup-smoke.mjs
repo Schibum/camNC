@@ -6,6 +6,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { installSyntheticCamera } from './synthetic-camera.mjs';
+import { installSyntheticFluidNc } from './synthetic-fluidnc.mjs';
 
 const { chromium } = createRequire(import.meta.url)('playwright');
 const defaultOutput = fileURLToPath(new URL('../../../output/playwright/setup-smoke/', import.meta.url));
@@ -17,7 +18,7 @@ export async function runSetupSmoke(
 ) {
   const target = new URL(baseURL);
   assert(['https:', 'http:'].includes(target.protocol), 'CAMNC_SMOKE_URL must be an HTTP(S) URL');
-  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const context = await browser.newContext({ locale: 'en-US', viewport: { width: 1440, height: 1000 } });
   await context.addInitScript(installSyntheticCamera);
   const page = await context.newPage();
   page.setDefaultTimeout(20_000);
@@ -165,6 +166,38 @@ export async function runSetupSmoke(
     await page.waitForURL('**/setup/machine-bounds');
     check('optional FluidNC setup can be skipped while disconnected');
 
+    const widget = await context.newPage();
+    widget.on('pageerror', error => pageErrors.push(`FluidNC widget: ${error.message}`));
+    widget.on('console', message => {
+      if (message.type() === 'error') consoleErrors.push(`FluidNC widget: ${message.text()}`);
+    });
+    await widget.addInitScript(installSyntheticFluidNc);
+    await widget.goto(widgetURL);
+    await widget.getByText('1 connected', { exact: true }).waitFor();
+    const readSettings = page.getByRole('button', { name: 'Read FluidNC Settings', exact: true });
+    await page.waitForFunction(() => {
+      const button = [...document.querySelectorAll('button')].find(button => button.textContent === 'Read FluidNC Settings');
+      return button && !button.disabled;
+    });
+    // Imported bounds differ from saved bounds, so a form reset cannot pass.
+    for (const [name, value] of Object.entries({ xmin: 1, xmax: 599, ymin: 2, ymax: 498 })) {
+      await page.getByRole('spinbutton', { name, exact: true }).fill(String(value));
+    }
+    await readSettings.click();
+    await page.waitForFunction(() =>
+      ['xmin', 'xmax', 'ymin', 'ymax'].every(
+        (name, index) => document.querySelector(`input[name="${name}"]`)?.value === ['0', '700', '0', '550'][index]
+      )
+    );
+    report.fluidncRequests = await widget.evaluate(() => window.__camncSmokeFluidNc.requests);
+    assert(report.fluidncRequests.some(request => request.type === 'download' && request.url === '/config.yaml'));
+    assert.deepEqual(await widget.evaluate(() => window.__camncSmokeFluidNc.rejected), []);
+    await navigate('FluidNC');
+    await page.getByText('Connected', { exact: true }).waitFor();
+    check('production FluidNC widget pairs over WebRTC and reads simulated controller bounds');
+    await widget.close();
+    await page.getByText('Disconnected', { exact: true }).waitFor();
+
     await navigate('Top View');
     await page.getByText('Top View (Orthographic)', { exact: true }).waitFor();
     await page.reload();
@@ -250,6 +283,7 @@ export async function runSetupSmoke(
     await page.getByText('Top View (Orthographic)', { exact: true }).waitFor();
     check('camera configuration exports and imports through the UI');
     assert.deepEqual(pageErrors, [], `Uncaught browser errors: ${pageErrors.join('; ')}`);
+    assert.deepEqual(consoleErrors, [], `Browser console errors: ${consoleErrors.join('; ')}`);
     report.finishedAt = new Date().toISOString();
     report.consoleErrors = consoleErrors;
     report.camera = imported;

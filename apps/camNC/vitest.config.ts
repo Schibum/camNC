@@ -15,6 +15,9 @@ export default defineConfig({
       'vite-plugin-node-polyfills/shims/buffer',
       'vite-plugin-node-polyfills/shims/global',
       'vite-plugin-node-polyfills/shims/process',
+      'react-timeago-i18n',
+      'react-hotkeys-hook',
+      '@wbcnc/ui > @radix-ui/react-popover',
     ],
     // These server integrations are mocked in browser tests and require Start's virtual modules.
     exclude: ['@clerk/tanstack-react-start', '@tanstack/react-start'],

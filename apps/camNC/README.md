@@ -31,11 +31,13 @@ To target a local or preview deployment instead:
 CAMNC_SMOKE_URL=http://localhost:5174 pnpm --filter @wbcnc/camNC smoke:setup
 ```
 
-The test supplies a synthetic webcam with 12 perspective chessboard views and four
-ArUco markers. The application's actual OpenCV workers detect the images and solve
-calibration and camera pose. It also checks form validation, optional FluidNC setup,
-persistence, G-code bounds, pause/resume, tool settings, and configuration export/import.
-It never connects to a CNC controller or sends motion commands.
+The test uses a fixed English locale and supplies a synthetic webcam with 12 perspective
+chessboard views and four ArUco markers. The application's actual OpenCV workers detect the images and solve
+calibration and camera pose. It also checks form validation, persistence, G-code bounds,
+pause/resume, tool settings, and configuration export/import. For FluidNC it checks both
+skipping setup and pairing the deployed widget over WebRTC, then reading simulated
+controller bounds. The simulated WebUI host accepts only read requests; the test never
+connects to a real CNC controller or sends motion commands.
 
 Set `CAMNC_SMOKE_HEADED=1` to watch it. Reports and screenshots are written to
 `output/playwright/setup-smoke/` at the repository root; failures also retain a Playwright

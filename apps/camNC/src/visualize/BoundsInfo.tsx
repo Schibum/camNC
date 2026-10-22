@@ -5,12 +5,14 @@ import { Info } from 'lucide-react';
 import { useState } from 'react';
 import TimeAgo from 'react-timeago-i18n';
 import { RecomputePnpButton } from './RecomputePnpButton';
+import { getTimeAgoLocale } from './timeAgoLocale';
 import { TooltipIconButton } from './toolbar/TooltipIconButton';
 
 export function BoundsInfo() {
   const bounds = useStore(s => s.toolpath?.getBounds());
   const pnpResult = usePnPResult();
   const isOld = pnpResult ? Date.now() - pnpResult.lastPnPTime > 60_000 : false;
+  const locale = getTimeAgoLocale(typeof navigator === 'undefined' ? undefined : navigator.language);
   return (
     <div className="flex flex-col gap-2">
       <h3 className="text-sm font-medium">Toolpath Bounds</h3>
@@ -38,7 +40,7 @@ export function BoundsInfo() {
             <ClientOnly>
               <div className={`flex items-center gap-1 ${isOld ? 'bg-warning' : ''}`}>
                 <span>
-                  PnP computed <TimeAgo date={pnpResult.lastPnPTime} hideSeconds={false} />
+                  PnP computed <TimeAgo date={pnpResult.lastPnPTime} hideSeconds={false} locale={locale} />
                 </span>
                 <RecomputePnpButton />
               </div>
