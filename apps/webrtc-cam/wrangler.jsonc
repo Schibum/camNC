@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Static assets only: the phone camera page that streams to camNC over WebRTC.
+  "name": "camnc-webrtc-cam",
+  "account_id": "60d502e306ecf0bdad0bb3719d83b30c",
+  "compatibility_date": "2026-03-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application",
+  },
+  "routes": [{ "pattern": "cam.camnc.app", "custom_domain": true }],
+  "workers_dev": true,
+}
