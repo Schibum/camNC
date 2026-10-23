@@ -17,7 +17,7 @@
       "binding": "DB",
       "database_name": "camnc",
       // Created with `wrangler d1 create camnc`.
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "7f88bf20-b857-4540-9804-0ee5db7e99b9",
       "migrations_dir": "migrations"
     }
   ],
@@ -33,7 +33,7 @@
           "binding": "DB",
           "database_name": "camnc-preview",
           // Created with `wrangler d1 create camnc-preview`.
-          "database_id": "00000000-0000-0000-0000-000000000000",
+          "database_id": "fcf09ced-d315-410d-bd63-f20383984482",
           "migrations_dir": "migrations"
         }
       ]
