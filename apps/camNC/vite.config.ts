@@ -30,7 +30,9 @@ export default defineConfig(({ command }) => {
       include: ['stream', '_stream_transform', 'util'],
       protocolImports: false,
       globals: {
-        process: false,
+        // Vite 8's Rolldown dep optimizer no longer injects the process shim on its own,
+        // and util/readable-stream (via gcode-toolpath) read process in dev.
+        process: 'dev',
       },
     }),
   ];
@@ -52,6 +54,11 @@ export default defineConfig(({ command }) => {
       commonjsOptions: { transformMixedEsModules: true },
     },
     plugins,
+    optimizeDeps: {
+      // Without it, framer-motion's circular imports (via HeroUI) run out of order in dev
+      // ("Class extends value undefined").
+      rolldownOptions: { output: { strictExecutionOrder: true } },
+    },
     // Production headers are in public/_headers
     server: {
       // Settings API, run it with `pnpm dev:api`.
