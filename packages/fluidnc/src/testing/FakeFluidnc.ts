@@ -358,6 +358,18 @@ export class FakeFluidnc {
   }
 }
 
+/** Node 22 has no global `CloseEvent`; FluidncSocket only reads `code`. */
+class FakeCloseEvent extends Event {
+  readonly code: number;
+  readonly reason = '';
+  readonly wasClean: boolean;
+  constructor(type: string, init: { code: number }) {
+    super(type);
+    this.code = init.code;
+    this.wasClean = init.code === 1000;
+  }
+}
+
 class FakeSocket extends EventTarget {
   readyState = 0;
   binaryType = 'blob';
@@ -372,7 +384,7 @@ class FakeSocket extends EventTarget {
       if (!fake.accepts(url)) {
         this.readyState = 3;
         this.dispatchEvent(new Event('error'));
-        this.dispatchEvent(new CloseEvent('close', { code: 1006 }));
+        this.dispatchEvent(new FakeCloseEvent('close', { code: 1006 }));
         return;
       }
       this.readyState = 1;
@@ -401,13 +413,13 @@ class FakeSocket extends EventTarget {
   close() {
     if (this.readyState >= 2) return;
     this.readyState = 3;
-    setTimeout(() => this.dispatchEvent(new CloseEvent('close', { code: 1000 })), 0);
+    setTimeout(() => this.dispatchEvent(new FakeCloseEvent('close', { code: 1000 })), 0);
   }
 
   serverClose() {
     if (this.readyState !== 1) return;
     this.readyState = 3;
-    this.dispatchEvent(new CloseEvent('close', { code: 1006 }));
+    this.dispatchEvent(new FakeCloseEvent('close', { code: 1006 }));
   }
 
   /** 3.9.9: one binary frame per line. 4.x: coalesced, and split at odd offsets to exercise line reassembly. */
