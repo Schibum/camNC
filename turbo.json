@@ -11,15 +11,9 @@
         ".env*"
       ],
       "env": [
-        "DATABASE_URL",
-        "CLERK_PUBLISHABLE_KEY",
-        "CLERK_SECRET_KEY",
         "VITE_CLERK_PUBLISHABLE_KEY"
       ],
       "outputs": [
-        ".nitro/**",
-        ".tanstack/start/**",
-        ".vercel/output/**",
         "dist/**"
       ]
     },
@@ -34,9 +28,6 @@
       "cache": false,
       "persistent": true,
       "env": [
-        "DATABASE_URL",
-        "CLERK_PUBLISHABLE_KEY",
-        "CLERK_SECRET_KEY",
         "VITE_CLERK_PUBLISHABLE_KEY"
       ]
     }

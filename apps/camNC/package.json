@@ -6,24 +6,24 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "push-db": "npx drizzle-kit push",
     "lint": "eslint . --max-warnings 0",
-    "test": "vitest",
+    "test": "vitest run --config vitest.worker.config.ts && vitest",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
     "smoke:setup": "node e2e/setup-smoke.mjs",
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit && tsc --noEmit -p worker",
+    "db:generate": "drizzle-kit generate",
+    "deploy": "wrangler d1 migrations apply DB --remote && wrangler deploy",
+    "deploy:preview": "wrangler d1 migrations apply DB --remote --env preview && wrangler versions upload --env preview",
+    "dev:api": "mkdir -p dist && wrangler d1 migrations apply DB --local && wrangler dev --port 8787"
   },
   "dependencies": {
+    "@clerk/backend": "^2.33.8",
     "@clerk/clerk-react": "^5.35.3",
-    "@clerk/tanstack-react-start": "^0.20.4",
-    "@dotenvx/dotenvx": "^1.48.3",
     "@heroui/react": "catalog:",
     "@hookform/devtools": "catalog:",
     "@hookform/resolvers": "catalog:",
     "@huggingface/transformers": "^3.6.3",
-    "@neondatabase/serverless": "^1.0.1",
-    "@neondatabase/vite-plugin-postgres": "^0.2.2",
     "@preact/signals-react": "catalog:",
     "@preact/signals-react-transform": "catalog:",
     "@radix-ui/react-avatar": "catalog:",
@@ -42,7 +42,6 @@
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-router-with-query": "catalog:",
-    "@tanstack/react-start": "catalog:",
     "@tanstack/zod-adapter": "catalog:",
     "@techstark/opencv-js": "catalog:",
     "@testing-library/jest-dom": "catalog:",
@@ -59,9 +58,7 @@
     "clsx": "catalog:",
     "colormap": "catalog:",
     "comlink": "catalog:",
-    "devalue": "^5.1.1",
     "drizzle-orm": "^0.44.3",
-    "drizzle-zod": "^0.8.2",
     "gcode-toolpath": "catalog:",
     "immer": "catalog:",
     "jotai": "catalog:",
@@ -96,6 +93,8 @@
     "zustand": "catalog:"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.12.21",
+    "@cloudflare/workers-types": "^4.20260310.1",
     "@tanstack/router-devtools": "catalog:",
     "@tanstack/router-plugin": "catalog:",
     "@testing-library/dom": "catalog:",
@@ -133,7 +132,8 @@
     "vite-plugin-devtools-json": "^0.3.0",
     "vite-plugin-node-polyfills": "catalog:",
     "vite-plugin-singlefile": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "wrangler": "4.72.0"
   },
   "version": "1.0.0",
   "license": "Apache-2.0"
