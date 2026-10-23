@@ -56,6 +56,7 @@ export class WsSignaller implements Signaller {
   async join(accessToken: string, role: string): Promise<void> {
     if (this.url) throw new Error('This instance already joined a room');
     const roomId = await roomIdFromToken(accessToken);
+    if (this.stopped) return; // disconnect() was called while hashing.
     const base = (this.opts.url ?? defaultSignalUrl()).replace(/\/+$/, '');
     this.url = `${base}${SIGNAL_PROTOCOL_PATH}${roomId}?peer=${encodeURIComponent(this.peerId)}&role=${encodeURIComponent(role)}`;
     globalThis.addEventListener?.('online', this.reconnectNow);

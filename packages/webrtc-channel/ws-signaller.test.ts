@@ -147,4 +147,12 @@ describe('WsSignaller', () => {
     expect(FakeWebSocket.instances).toHaveLength(3);
     await s.disconnect();
   });
+
+  it('settles join when disconnected while still hashing the token', async () => {
+    const s = newSignaller();
+    const joining = s.join('t', 'client');
+    await s.disconnect();
+    await joining;
+    expect(FakeWebSocket.instances).toHaveLength(0);
+  });
 });
