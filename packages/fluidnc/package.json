@@ -1,0 +1,27 @@
+{
+  "name": "@wbcnc/fluidnc",
+  "version": "1.0.0",
+  "description": "Direct WebSocket connection to FluidNC 3.9.9 and 4.x controllers",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing/index.ts"
+  },
+  "scripts": {
+    "test": "vitest",
+    "check-types": "tsc --noEmit",
+    "sim": "node scripts/sim.mjs"
+  },
+  "license": "Apache-2.0",
+  "dependencies": {
+    "mitt": "catalog:",
+    "yaml": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@wbcnc/typescript-config": "workspace:*",
+    "vitest": "catalog:",
+    "ws": "^8.18.3"
+  }
+}
