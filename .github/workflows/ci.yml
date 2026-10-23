@@ -41,3 +41,86 @@ jobs:
         run: pnpm run test
       - name: Build
         run: pnpm run build
+      - name: Keep the camNC build for deploys
+        uses: actions/upload-artifact@v4
+        with:
+          name: camnc-dist
+          path: apps/camNC/dist/
+          retention-days: 1
+
+  # Deploys use the build from `test`, so nothing ships before tests pass. The Clerk key is served
+  # by the Worker (/api/config), so one build works for production and previews.
+  deploy-production:
+    name: Deploy camNC
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter @wbcnc/camNC
+      - uses: actions/download-artifact@v4
+        with:
+          name: camnc-dist
+          path: apps/camNC/dist/
+      - name: Migrate production D1 and deploy
+        run: pnpm --filter @wbcnc/camNC run deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+
+  deploy-preview:
+    name: Deploy camNC preview
+    # Fork PRs get no secrets, so only branches of this repository get a preview.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    concurrency:
+      group: deploy-preview-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter @wbcnc/camNC
+      - uses: actions/download-artifact@v4
+        with:
+          name: camnc-dist
+          path: apps/camNC/dist/
+      - name: Migrate preview D1 and deploy the Preview
+        run: pnpm --filter @wbcnc/camNC run deploy:preview --name "pr-${{ github.event.pull_request.number }}" --message "${{ github.event.pull_request.head.sha }}"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.ndjson
+      - name: Comment the preview URL
+        uses: actions/github-script@v7
+        env:
+          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.ndjson
+        with:
+          script: |
+            const fs = require('fs');
+            const entries = fs.readFileSync(process.env.WRANGLER_OUTPUT_FILE_PATH, 'utf8').trim().split('\n').map(JSON.parse);
+            const preview = entries.findLast((e) => e.type === 'preview');
+            const url = preview?.preview_urls?.[0];
+            if (!url) throw new Error('wrangler preview reported no URL');
+            const marker = '<!-- camnc-preview -->';
+            const sha = context.payload.pull_request.head.sha.slice(0, 7);
+            const body = `${marker}\n**camNC preview:** ${url}\n\nUpdated for ${sha}. Uses the camnc-preview database and Clerk development keys.`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const existing = comments.find((c) => c.body?.startsWith(marker));
+            if (existing) await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });

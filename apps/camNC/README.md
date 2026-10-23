@@ -21,22 +21,32 @@ pnpm dev --filter @wbcnc/camNC   # from the repo root
 ## Deployment
 
 `wrangler.jsonc` defines the `camnc` Worker (static assets from `dist/`, `/api/*` handled by
-`worker/index.ts`) and a `preview` env (`camnc-preview` Worker, `camnc-preview` D1 database,
-Clerk development keys). Both Workers deploy through Cloudflare Workers Builds, connected to this
-repository in the Cloudflare dashboard (plainoss account):
+`worker/index.ts`) and its Worker Previews (`previews` block). GitHub Actions deploys it
+(`.github/workflows/ci.yml`, plainoss account), after the tests pass and from the same build:
 
-| Setting                                     | `camnc`                                                  | `camnc-preview`           |
-| ------------------------------------------- | -------------------------------------------------------- | ------------------------- |
-| Root directory                              | `apps/camNC`                                             | `apps/camNC`              |
-| Build command                               | `cd ../.. && pnpm turbo run build --filter @wbcnc/camNC` | same                      |
-| Deploy command (`main`)                     | `pnpm run deploy`                                        | `pnpm run deploy:preview` |
-| Preview command (other branches)            | builds off                                               | `pnpm run deploy:preview` |
-| Build variable `VITE_CLERK_PUBLISHABLE_KEY` | Clerk production key                                     | Clerk development key     |
+| Trigger                         | Command                                      | Database        | Clerk keys  |
+| ------------------------------- | -------------------------------------------- | --------------- | ----------- |
+| Push to `main`                  | `pnpm run deploy`                            | `camnc`         | production  |
+| Pull request from a branch here | `pnpm run deploy:preview --name pr-<number>` | `camnc-preview` | development |
+| Pull request closed             | `wrangler preview delete --name pr-<number>` |                 |             |
 
-Cloudflare posts the preview URL on each PR. Both deploy scripts apply pending D1 migrations first.
+The preview job comments the Preview URL on the PR. Fork PRs get no preview. Both deploy scripts
+apply pending D1 migrations first. Preview migrations use `wrangler.preview-migrations.jsonc`, which
+only knows the `camnc-preview` database, so branch code can't migrate production.
 
-Worker secrets (`wrangler secret put`, add `--env preview` for previews): `CLERK_SECRET_KEY`,
-`CLERK_PUBLISHABLE_KEY`, and optionally `CLERK_JWT_KEY` for networkless session verification.
+The app reads the Clerk publishable key from `GET /api/config`, so production and previews share
+one build. `VITE_CLERK_PUBLISHABLE_KEY` in `.env.local` is only the fallback for `pnpm dev` without
+`dev:api`.
+
+Setup (once):
+
+- GitHub repository secret `CLOUDFLARE_API_TOKEN`: an API token for the plainoss account with
+  Workers Scripts: Edit and D1: Edit.
+- Production secrets (`wrangler secret put`): `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, and
+  optionally `CLERK_JWT_KEY` for networkless session verification.
+- Preview secrets, Clerk development instance (`wrangler preview base-config secret put`): the same
+  three names. New Previews copy them; for an existing Preview use
+  `wrangler preview secret put <NAME> --name pr-<number>`.
 
 ## Setup smoke test
 
@@ -64,6 +74,6 @@ connects to a real CNC controller or sends motion commands.
 Set `CAMNC_SMOKE_HEADED=1` to watch it. Reports and screenshots are written to
 `output/playwright/setup-smoke/` at the repository root; failures also retain a Playwright
 trace. `CAMNC_SMOKE_OUTPUT` overrides this directory. The **Production setup smoke**
-GitHub Actions workflow runs it after Cloudflare reports a successful `camnc` build on `main`,
+GitHub Actions workflow runs it after CI deploys `main`,
 daily, and on demand with downloadable artifacts, and checks smoke-test changes on pull requests
 against production.

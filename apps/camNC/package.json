@@ -14,7 +14,7 @@
     "check-types": "tsc --noEmit && tsc --noEmit -p worker",
     "db:generate": "drizzle-kit generate",
     "deploy": "wrangler d1 migrations apply DB --remote && wrangler deploy",
-    "deploy:preview": "wrangler d1 migrations apply DB --remote --env preview && wrangler versions upload --env preview",
+    "deploy:preview": "wrangler d1 migrations apply camnc-preview --remote --config wrangler.preview-migrations.jsonc && wrangler preview",
     "dev:api": "mkdir -p dist && wrangler d1 migrations apply DB --local && wrangler dev --port 8787"
   },
   "dependencies": {
@@ -133,7 +133,7 @@
     "vite-plugin-node-polyfills": "catalog:",
     "vite-plugin-singlefile": "catalog:",
     "vitest": "catalog:",
-    "wrangler": "4.72.0"
+    "wrangler": "4.152.0"
   },
   "version": "1.0.0",
   "license": "Apache-2.0"

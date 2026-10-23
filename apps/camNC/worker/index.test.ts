@@ -17,6 +17,15 @@ function call(handler: ReturnType<typeof createHandler>, init?: RequestInit) {
 
 const settings = { json: { state: { toolDiameter: 6 }, version: 1 }, meta: {} };
 
+describe('/api/config', () => {
+  it('returns the Clerk publishable key of this deployment', async () => {
+    const request = new Request('https://run.camnc.app/api/config');
+    const resp = await createHandler(handlerFor(null).auth).fetch!(request as any, env, {} as ExecutionContext);
+    expect(resp.status).toBe(200);
+    expect(await resp.json()).toEqual({ clerkPublishableKey: 'pk_test_camnc' });
+  });
+});
+
 describe('/api/settings', () => {
   it('rejects requests without a signed-in user', async () => {
     const { handler } = handlerFor(null);
