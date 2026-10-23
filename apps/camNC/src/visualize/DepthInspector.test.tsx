@@ -50,6 +50,17 @@ describe('DepthInspector', () => {
     expect(deepest.className).toContain('bg-sky-500/20');
   });
 
+  it('clears the selected level when another toolpath is loaded', () => {
+    const { rerender } = renderInspector(gcode);
+    fireEvent.click(screen.getByRole('button', { name: /-2\.50\s*60mm/ }));
+    rerender(
+      <div style={{ width: 800, height: 500 }}>
+        <DepthInspector toolpath={parseGCode(gcode)} />
+      </div>
+    );
+    expect(screen.getByRole('button', { name: /-2\.50\s*60mm/ }).className).not.toContain('bg-sky-500/20');
+  });
+
   it('offers the stock video only with a calibrated camera', () => {
     renderInspector(gcode);
     expect(screen.queryByRole('switch', { name: 'Stock video' })).toBeNull();

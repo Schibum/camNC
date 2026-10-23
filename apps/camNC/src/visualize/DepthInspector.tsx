@@ -431,6 +431,13 @@ export function DepthInspector({ toolpath }: { toolpath: ParsedToolpath }) {
   const [showRapids, setShowRapids] = useState(true);
   const [selectedLevel, setSelectedLevel] = useState<number | null>(null);
   const [hover, setHover] = useState<HoverInfo | null>(null);
+  // Selection and hover refer to the previous toolpath's geometry, reset them when another file is loaded.
+  const [prevToolpath, setPrevToolpath] = useState(toolpath);
+  if (toolpath !== prevToolpath) {
+    setPrevToolpath(toolpath);
+    setSelectedLevel(null);
+    setHover(null);
+  }
 
   const levels = useMemo(() => getCutDepthLevels(toolpath), [toolpath]);
   const bounds = toolpath.getBounds();
