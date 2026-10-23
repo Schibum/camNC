@@ -6,7 +6,8 @@ RUN git clone --depth 1 --branch v4.1.1 https://github.com/bdring/FluidNC.git /s
 WORKDIR /src
 RUN pio run -e linux_x86_64
 
-FROM debian:bookworm-slim
+# Same Debian release as python:3.12-slim (trixie): the binary needs its glibc and libstdc++.
+FROM debian:trixie-slim
 COPY --from=build /src/.pio/build/linux_x86_64/program /usr/local/bin/fluidnc-sim
 COPY config.yaml /sim/native_localfs/config.yaml
 WORKDIR /sim

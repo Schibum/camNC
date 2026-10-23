@@ -8,7 +8,8 @@
 //
 // The binary is cached in ~/.cache/camnc/fluidnc-<version>/. Set FLUIDNC_SIM_BIN to use another build.
 import { execFileSync, spawn } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync } from 'node:fs';
+import { Buffer } from 'node:buffer';
+import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -49,13 +50,27 @@ function runDocker() {
 
 function runNative() {
   const bin = process.env.FLUIDNC_SIM_BIN ?? path.join(cacheDir, 'fluidnc-sim');
-  if (flag('--build') || !existsSync(bin)) build();
+  if (flag('--build') || !existsSync(bin)) {
+    console.log(`Building the simulator into ${cacheDir}`);
+    build();
+  }
   const workDir = path.join(pkgDir, '.sim');
   mkdirSync(path.join(workDir, 'native_localfs'), { recursive: true });
   mkdirSync(path.join(workDir, 'native_sd'), { recursive: true });
   cpSync(path.join(pkgDir, 'sim', 'config.yaml'), path.join(workDir, 'native_localfs', 'config.yaml'));
-  // The HTTP port lives in the emulated NVS; set it with a short first run.
-  execFileSync(bin, [], { cwd: workDir, input: `$HTTP/Port=${port}\n$Telnet/Port=${port + 20}\n$Bye\n`, stdio: ['pipe', 'ignore', 'ignore'], timeout: 10_000 });
+  // The ports live in the emulated NVS: one file per key holding a little-endian int32. Write them before the first
+  // boot instead of setting them with `$HTTP/Port=` in a first run: that run would start on port 80 and, without
+  // root on Linux, hang there for good (CI runs as a normal user).
+  const nvsDir = path.join(workDir, 'native_nvs');
+  mkdirSync(nvsDir, { recursive: true });
+  const int32 = value => {
+    const bytes = Buffer.alloc(4);
+    bytes.writeInt32LE(value);
+    return bytes;
+  };
+  writeFileSync(path.join(nvsDir, 'HTTP.Port'), int32(port));
+  writeFileSync(path.join(nvsDir, 'Telnet.Port'), int32(port + 20));
+  console.log('Starting the simulator');
   return spawn(bin, [], { cwd: workDir, stdio: ['pipe', 'inherit', 'inherit'] });
 }
 

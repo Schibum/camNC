@@ -75,9 +75,13 @@ jobs:
         run: |
           node scripts/sim.mjs --v3 > sim.log 2>&1 &
           for i in $(seq 1 600); do
-            (echo > /dev/tcp/127.0.0.1/8848) 2>/dev/null && (echo > /dev/tcp/127.0.0.1/8851) 2>/dev/null && break
+            (echo > /dev/tcp/127.0.0.1/8848) 2>/dev/null && (echo > /dev/tcp/127.0.0.1/8851) 2>/dev/null && exit 0
             sleep 1
           done
+          echo "::error::The simulator did not open ports 8848 and 8851 within 600 s"
+          tail -n 50 sim.log
+          ps -ef | grep -E 'fluidnc|sim.mjs' | grep -v grep || true
+          exit 1
       - name: Integration tests (FluidNC 4.1.1)
         working-directory: packages/fluidnc
         run: pnpm vitest run src/sim.integration.test.ts
