@@ -4,10 +4,8 @@ on:
   # Vercel reports a deployment status for every deployment; the job below only runs for successful
   # production deployments of the camNC app, i.e. after main has been deployed.
   deployment_status:
-  pull_request:
-    paths:
-      - apps/camNC/e2e/**
-      - .github/workflows/setup-smoke.yml
+  # Not on pull requests: they would run the branch's smoke script against production, which fails
+  # whenever the script expects UI that has not been deployed yet.
   workflow_dispatch:
     inputs:
       base_url:
