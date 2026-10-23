@@ -44,7 +44,7 @@ function PlayPauseButton() {
   );
 }
 
-export function OpenFileButton() {
+function OpenFileButton() {
   const updateToolpath = useStore(s => s.updateToolpath);
 
   const handleFileUpload = (file: File) => {

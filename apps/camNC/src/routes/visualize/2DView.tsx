@@ -1,5 +1,6 @@
 import { UnprojectVideoMesh } from '@/calibration/Unproject';
 import { EnsureHasCamSource } from '@/components/EnsureHasCamSource';
+import { LoadingVideoOverlay } from '@/components/LoadingVideoOverlay';
 import { PageHeader } from '@/components/page-header';
 import { useAutoScanMarkers } from '@/hooks/useAutoScanMarkers';
 import { DepthBlendWorker } from '@/hooks/useDepthBlendWorker';
@@ -12,11 +13,21 @@ import { SnapPositionMarker } from '@/visualize/SnapPositionMarker';
 import { GCodeVisualizer } from '@/visualize/Toolpaths';
 import { nearestPointOnToolpath } from '@/visualize/nearestPoint';
 import { VisualizeToolbar } from '@/visualize/toolbar/VisualizeToolbar';
-import { ThreeElements, ThreeEvent } from '@react-three/fiber';
+import { DepthHoverReadout, DepthPanel, DepthScene } from '@/visualize/DepthInspector';
+import { getStockFootprint } from '@/visualize/depthInspection';
+import { useShowStockVideo } from '@/visualize/depthViewStore';
+import { ViewSwitcher } from '@/visualize/toolbar/ViewSwitcher';
+import { kViewModes, ViewMode, viewModeTitle } from '@/visualize/viewModes';
+import { ThreeEvent, useThree } from '@react-three/fiber';
 import { createFileRoute } from '@tanstack/react-router';
+import { zodValidator } from '@tanstack/zod-adapter';
 import { toast } from '@wbcnc/ui/components/sonner';
+import { ComponentProps, RefObject, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { Vector2, Vector3 } from 'three';
+import { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
+import { z } from 'zod';
 import {
   getActiveCamSource,
   useSetSnapPosition,
@@ -32,24 +43,90 @@ export const Route = createFileRoute('/visualize/2DView')({
       <VisualizeComponent />
     </EnsureHasCamSource>
   ),
+  validateSearch: zodValidator(
+    z.object({
+      view: z.enum(kViewModes as [ViewMode, ...ViewMode[]]).optional(),
+    })
+  ),
 });
 
-const UnprojectVideoMeshWithStockHeight = ({ ...props }: ThreeElements['mesh']) => {
+const UnprojectVideoMeshWithStockHeight = ({ ...props }: ComponentProps<typeof UnprojectVideoMesh>) => {
   const stockHeight = useStore(s => s.stockHeight);
   return <UnprojectVideoMesh position-z={stockHeight} {...props} />;
 };
 UnprojectVideoMeshWithStockHeight.displayName = 'UnprojectVideoMeshWithStockHeight';
 
+/**
+ * Reports a video state from inside the canvas (as a Suspense or error fallback) while mounted, so that the
+ * page can show it outside the canvas, and only in the top view.
+ */
+function ReportVideoState<T>({ value, onChange }: { value: T; onChange: (value: T | null) => void }) {
+  useEffect(() => {
+    onChange(value);
+    return () => onChange(null);
+  }, [value, onChange]);
+  return null;
+}
+
+interface TopCameraState {
+  position: Vector3;
+  zoom: number;
+  target: Vector3;
+}
+
+/** Restores the top view's pan and zoom when coming back from a 3D view. */
+function TopCameraMemory({ memory }: { memory: RefObject<TopCameraState | null> }) {
+  const camera = useThree(s => s.camera);
+  const controls = useThree(s => s.controls) as OrbitControlsImpl | null;
+  useEffect(() => {
+    if (!controls) return;
+    const saved = memory.current;
+    if (saved) {
+      camera.position.copy(saved.position);
+      camera.zoom = saved.zoom;
+      camera.updateProjectionMatrix();
+      controls.target.copy(saved.target);
+      controls.update();
+    }
+    return () => {
+      memory.current = { position: camera.position.clone(), zoom: camera.zoom, target: controls.target.clone() };
+    };
+  }, [camera, controls, memory]);
+  return null;
+}
+
 function VisualizeComponent() {
   useInitToolpathOffset();
+  const navigate = Route.useNavigate();
+  const toolpath = useStore(s => s.toolpath);
+  const requestedView = Route.useSearch({ select: s => s.view ?? 'top' });
+  // The 3D views need a toolpath to show.
+  const view = toolpath ? requestedView : 'top';
+  const isTop = view === 'top';
+  // Re-fits the camera when the active 3D view is selected again.
+  const [fitKey, setFitKey] = useState(0);
+  const topCamera = useRef<TopCameraState | null>(null);
+  const showStockVideo = useShowStockVideo();
+  const [videoLoading, setVideoLoading] = useState<true | null>(null);
+  const [videoError, setVideoError] = useState<Error | null>(null);
+  const toolpathOffset = useStore(s => s.toolpathOffset);
+  // In the 3D views, the video only covers the stock top, so the stock box and the cuts below stay visible.
+  const stockTop = useMemo(
+    () => (toolpath ? getStockFootprint(toolpath).translate(new Vector2(toolpathOffset.x, toolpathOffset.y)) : undefined),
+    [toolpath, toolpathOffset.x, toolpathOffset.y]
+  );
+
+  function selectView(next: ViewMode) {
+    if (next === view) setFitKey(k => k + 1);
+    else navigate({ search: { view: next === 'top' ? undefined : next }, replace: true });
+  }
+
   const cncApi = getCncApi();
   useAutoScanMarkers({ intervalMs: 3_000 });
   const snapEnabled = useSnapToToolpath();
   const setSnapPosition = useSetSnapPosition();
   const snapPos = useSnapPosition();
   const setSnapToToolpath = useSetSnapToToolpath();
-  const toolpath = useStore(s => s.toolpath);
-  const toolpathOffset = useStore(s => s.toolpathOffset);
 
   // Disable snap-to-toolpath mode when user presses ESC
   useHotkeys(
@@ -59,6 +136,7 @@ function VisualizeComponent() {
         setSnapToToolpath(false);
       }
     },
+    { enabled: isTop },
     [snapEnabled]
   );
 
@@ -111,23 +189,73 @@ function VisualizeComponent() {
   return (
     <div className="relative w-full h-full">
       <DepthBlendWorker />
-      <PageHeader title="Top View (Orthographic)" className="absolute pr-2 flex-wrap h-auto p-1">
-        <VisualizeToolbar />
-      </PageHeader>
 
-      {/* 3D Canvas */}
+      {/* One canvas for all views: the camera video keeps running when switching between them. */}
       <div className="w-full h-dvh absolute top-0 left-0">
-        <PresentCanvas worldScale="machine">
+        <PresentCanvas worldScale="machine" defaultControls={isTop}>
           {/* <group rotation={[0, 0, Math.PI / 2]}> */}
-          <UnprojectVideoMeshWithStockHeight onDoubleClick={onDbClick} onPointerMove={onPointerMove} />
-          <GCodeVisualizer />
-          <MachinePositionMarker />
-          <SnapPositionMarker />
-          <MachineZeroAxes />
+          {/*
+            The video loads in its own boundaries, so the 3D views stay usable while the camera is unavailable.
+          */}
+          <ErrorBoundary fallbackRender={({ error }) => <ReportVideoState value={error as Error} onChange={setVideoError} />}>
+            <Suspense fallback={<ReportVideoState value={true} onChange={setVideoLoading} />}>
+              <UnprojectVideoMeshWithStockHeight
+                visible={isTop || showStockVideo}
+                bounds={isTop ? undefined : stockTop}
+                opacity={isTop ? 1 : 0.7}
+                // In the 3D views, the video is drawn first, below the toolpath.
+                renderOrder={isTop ? 0 : -2}
+                onDoubleClick={isTop ? onDbClick : undefined}
+                onPointerMove={isTop ? onPointerMove : undefined}
+              />
+            </Suspense>
+          </ErrorBoundary>
+          {isTop || !toolpath ? (
+            <>
+              <TopCameraMemory memory={topCamera} />
+              <GCodeVisualizer />
+              <MachinePositionMarker />
+              <SnapPositionMarker />
+              <MachineZeroAxes />
+            </>
+          ) : (
+            <DepthScene toolpath={toolpath} view={view} fitKey={fitKey} />
+          )}
           {/* </group> */}
 
           {/* <TransformToolpath /> */}
         </PresentCanvas>
+      </div>
+
+      {isTop && (videoError || videoLoading) && (
+        <div className="pointer-events-none absolute inset-0 h-dvh">
+          {videoError ? (
+            <div className="flex h-full items-center justify-center p-4 text-center text-red-500">
+              Error loading video: {videoError.message || 'unknown error'}
+            </div>
+          ) : (
+            <LoadingVideoOverlay />
+          )}
+        </div>
+      )}
+
+      <div className="pointer-events-none absolute inset-0 flex h-dvh flex-col">
+        <PageHeader title={viewModeTitle(view)} className="pointer-events-auto pr-2 flex-wrap h-auto p-1">
+          <div className="pl-2">
+            <ViewSwitcher view={view} hasToolpath={!!toolpath} onSelect={selectView} />
+          </div>
+          <VisualizeToolbar />
+        </PageHeader>
+        {!isTop && toolpath && (
+          <div className="relative min-h-0 flex-1">
+            <div className="absolute top-2 right-2 bottom-12 flex flex-col items-end">
+              <DepthPanel toolpath={toolpath} />
+            </div>
+            <div className="absolute bottom-2 left-2">
+              <DepthHoverReadout toolpath={toolpath} />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
