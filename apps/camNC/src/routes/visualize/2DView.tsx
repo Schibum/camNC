@@ -4,7 +4,9 @@ import { PageHeader } from '@/components/page-header';
 import { useAutoScanMarkers } from '@/hooks/useAutoScanMarkers';
 import { DepthBlendWorker } from '@/hooks/useDepthBlendWorker';
 import { useInitToolpathOffset } from '@/hooks/useInitToolpathOffset';
-import { getCncApi } from '@/lib/fluidnc/fluidnc-singleton';
+import { getCncApi } from '@/lib/fluidnc/machine';
+import { JobProgressPath } from '@/visualize/JobProgressPath';
+import { MachineDock } from '@/components/machine/MachineDock';
 import { PresentCanvas } from '@/scene/PresentCanvas';
 import { MachinePositionMarker } from '@/visualize/MachinePositionMarker';
 import { MachineZeroAxes } from '@/visualize/MachineZeroAxes';
@@ -65,8 +67,8 @@ function VisualizeComponent() {
   function onDbClick(event: ThreeEvent<MouseEvent>) {
     if (snapEnabled) return onClickSnap();
     console.log('onDbClick', event.unprojectedPoint);
-    if (!cncApi?.isConnected()) {
-      toast.error('FluidNC integration not connected');
+    if (!cncApi.canJog.value) {
+      toast.error(cncApi.isConnected.value ? `Machine is busy (${cncApi.state.value})` : 'Machine not connected');
       return;
     }
     const point = event.unprojectedPoint;
@@ -76,7 +78,7 @@ function VisualizeComponent() {
       toast.info('Cannot jog outside machine bounds');
       return;
     }
-    cncApi?.jogToMachineCoordinates(point.x, point.y);
+    cncApi.jogToMachineCoordinates(point.x, point.y).catch(err => toast.error(`Jog failed: ${err.message}`));
     toast.success(`Jogging to ${point.x.toFixed(2)}, ${point.y.toFixed(2)}`);
   }
 
@@ -94,8 +96,8 @@ function VisualizeComponent() {
     if (!snapEnabled) return;
     const pos = snapPos;
     if (!pos) return;
-    if (!cncApi?.isConnected()) {
-      toast.error('FluidNC integration not connected');
+    if (!cncApi.canJog.value) {
+      toast.error(cncApi.isConnected.value ? `Machine is busy (${cncApi.state.value})` : 'Machine not connected');
       return;
     }
     const bounds = getActiveCamSource()?.machineBounds;
@@ -104,31 +106,35 @@ function VisualizeComponent() {
       toast.info('Cannot jog outside machine bounds');
       return;
     }
-    cncApi.jogToMachineCoordinates(pos.x, pos.y);
+    cncApi.jogToMachineCoordinates(pos.x, pos.y).catch(err => toast.error(`Jog failed: ${err.message}`));
     toast.success(`Jogging to ${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}`);
   }
 
   return (
-    <div className="relative w-full h-full">
-      <DepthBlendWorker />
-      <PageHeader title="Top View (Orthographic)" className="absolute pr-2 flex-wrap h-auto p-1">
-        <VisualizeToolbar />
-      </PageHeader>
+    <div className="flex flex-row w-full h-dvh">
+      <div className="relative flex-1 min-w-0 h-full">
+        <DepthBlendWorker />
+        <PageHeader title="Top View (Orthographic)" className="absolute pr-2 flex-wrap h-auto p-1">
+          <VisualizeToolbar />
+        </PageHeader>
 
-      {/* 3D Canvas */}
-      <div className="w-full h-dvh absolute top-0 left-0">
-        <PresentCanvas worldScale="machine">
-          {/* <group rotation={[0, 0, Math.PI / 2]}> */}
-          <UnprojectVideoMeshWithStockHeight onDoubleClick={onDbClick} onPointerMove={onPointerMove} />
-          <GCodeVisualizer />
-          <MachinePositionMarker />
-          <SnapPositionMarker />
-          <MachineZeroAxes />
-          {/* </group> */}
+        {/* 3D Canvas */}
+        <div className="absolute inset-0">
+          <PresentCanvas worldScale="machine">
+            {/* <group rotation={[0, 0, Math.PI / 2]}> */}
+            <UnprojectVideoMeshWithStockHeight onDoubleClick={onDbClick} onPointerMove={onPointerMove} />
+            <GCodeVisualizer />
+            <MachinePositionMarker />
+            <SnapPositionMarker />
+            <MachineZeroAxes />
+            <JobProgressPath />
+            {/* </group> */}
 
-          {/* <TransformToolpath /> */}
-        </PresentCanvas>
+            {/* <TransformToolpath /> */}
+          </PresentCanvas>
+        </div>
       </div>
+      <MachineDock />
     </div>
   );
 }

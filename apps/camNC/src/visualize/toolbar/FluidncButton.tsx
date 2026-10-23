@@ -1,4 +1,6 @@
-import { getCncApi, getFluidNcClient } from '@/lib/fluidnc/fluidnc-singleton';
+import { getCncApi } from '@/lib/fluidnc/machine';
+import { machineSupport } from '@/lib/fluidnc/machine-support';
+import { setXYZeroFromToolpath } from '@/lib/machine/jobs';
 import {
   useHasToolpath,
   useSetShowMachinePosMarker,
@@ -16,26 +18,14 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@wbcnc/ui/components/dropdown-menu';
 import { toast } from '@wbcnc/ui/components/sonner';
-import { CircleArrowRight, CircleOff, ClipboardCopy, Crosshair, Download, Eye, EyeOff, Joystick, Puzzle } from 'lucide-react';
+import { CircleArrowRight, CircleOff, ClipboardCopy, Crosshair, Download, Eye, EyeOff, Gamepad2, Joystick, Puzzle } from 'lucide-react';
+import { useHotkeys } from 'react-hotkeys-hook';
 import { Vector3 } from 'three';
 import { TooltipIconButton } from './TooltipIconButton';
-import { UploadMenuItem } from './UploadMenuItem';
-
-function setZeroToGcodePosition(move = false) {
-  const cncApi = getCncApi();
-  const toolpathOffset = useStore.getState().toolpathOffset;
-  const promise = move
-    ? cncApi.setWorkspaceXYZeroAndMove(toolpathOffset.x, toolpathOffset.y)
-    : cncApi.setWorkspaceXYZero(toolpathOffset.x, toolpathOffset.y);
-  toast.promise(promise, {
-    loading: 'Setting zero...',
-    success: `Zero set to ${toolpathOffset.x.toFixed(2)}, ${toolpathOffset.y.toFixed(2)}`,
-    error: 'Failed to set zero',
-  });
-}
 
 function copyZeroGcodePosition() {
   const { x, y } = useStore.getState().toolpathOffset;
@@ -64,11 +54,18 @@ async function syncToolpathZeroWithMachine() {
 
 export function FluidncButton() {
   'use no memo';
-  const client = getFluidNcClient();
+  const cncApi = getCncApi();
   const hasToolpath = useHasToolpath();
-  const isFluidAvailable = hasToolpath && client.isConnected.value;
+  const isIdle = cncApi.isConnected.value && cncApi.state.value === 'Idle';
+  const isFluidAvailable = hasToolpath && isIdle;
   const status =
-    '(' + [client.isConnected.value ? 'connected' : 'not connected', ...(hasToolpath ? [] : ['no toolpath loaded'])].join(', ') + ')';
+    '(' +
+    [cncApi.isConnected.value ? (cncApi.state.value ?? 'connected') : 'not connected', ...(hasToolpath ? [] : ['no toolpath loaded'])].join(
+      ', '
+    ) +
+    ')';
+  const panelOpen = useStore(s => s.machinePanelOpen);
+  const setPanelOpen = useStore(s => s.setMachinePanelOpen);
 
   const showMachinePosMarker = useShowMachinePosMarker();
   const setShowMachinePosMarker = useSetShowMachinePosMarker();
@@ -77,50 +74,63 @@ export function FluidncButton() {
   const snapToToolpath = useSnapToToolpath();
   const setSnapToToolpath = useSetSnapToToolpath();
 
+  if (!machineSupport().supported) return null;
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <TooltipIconButton label="Machine/FluidNC" icon={<Joystick />} onClick={() => {}} />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent>
-        <DropdownMenuLabel>
-          FluidNC <span className="text-xs text-muted-foreground">{status}</span>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem disabled={!isFluidAvailable} onClick={syncToolpathZeroWithMachine}>
-          <Download /> Read machine zero → move toolpath
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem disabled={!hasToolpath} onClick={copyZeroGcodePosition}>
-          <ClipboardCopy /> Copy zeroing gcode
-          {/* <DropdownMenuShortcut>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <TooltipIconButton label="Machine/FluidNC" icon={<Joystick />} onClick={() => {}} />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuLabel>
+            Machine <span className="text-xs text-muted-foreground">{status}</span>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => setPanelOpen(!panelOpen)}>
+            <Gamepad2 /> {panelOpen ? 'Hide' : 'Show'} machine panel
+            <DropdownMenuShortcut>J</DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem disabled={!cncApi.isConnected.value} onClick={syncToolpathZeroWithMachine}>
+            <Download /> Read machine zero → move toolpath
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem disabled={!hasToolpath} onClick={copyZeroGcodePosition}>
+            <ClipboardCopy /> Copy zeroing gcode
+            {/* <DropdownMenuShortcut>
             <Kbd shortcut="meta+c" />
           </DropdownMenuShortcut> */}
-        </DropdownMenuItem>
-        <DropdownMenuItem disabled={!isFluidAvailable} onClick={() => setZeroToGcodePosition(false)}>
-          <CircleOff /> Set machine XY zero
-        </DropdownMenuItem>
-        <DropdownMenuItem disabled={!isFluidAvailable} onClick={() => setZeroToGcodePosition(true)}>
-          <CircleArrowRight /> Set XY zero and move to it.
-        </DropdownMenuItem>
-        <UploadMenuItem disabled={!isFluidAvailable} />
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => setShowMachinePosMarker(!showMachinePosMarker)}>
-          {showMachinePosMarker ? <EyeOff /> : <Eye />} {showMachinePosMarker ? 'Hide' : 'Show'} machine position marker
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setShowMachineZero(!showMachineZero)}>
-          {showMachineZero ? <EyeOff /> : <Eye />} {showMachineZero ? 'Hide' : 'Show'} zero axes
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setSnapToToolpath(!snapToToolpath)}>
-          <Crosshair /> {snapToToolpath ? 'Disable' : 'Enable'} snap to toolpath
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link to="/setup/fluidnc">
-            <Puzzle /> Integration settings
-          </Link>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled={!isFluidAvailable} onClick={() => setXYZeroFromToolpath(false)}>
+            <CircleOff /> Set machine XY zero
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled={!isFluidAvailable} onClick={() => setXYZeroFromToolpath(true)}>
+            <CircleArrowRight /> Set XY zero and move to it.
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => setShowMachinePosMarker(!showMachinePosMarker)}>
+            {showMachinePosMarker ? <EyeOff /> : <Eye />} {showMachinePosMarker ? 'Hide' : 'Show'} machine position marker
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setShowMachineZero(!showMachineZero)}>
+            {showMachineZero ? <EyeOff /> : <Eye />} {showMachineZero ? 'Hide' : 'Show'} zero axes
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setSnapToToolpath(!snapToToolpath)}>
+            <Crosshair /> {snapToToolpath ? 'Disable' : 'Enable'} snap to toolpath
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem asChild>
+            <Link to="/setup/fluidnc">
+              <Puzzle /> Connection settings
+            </Link>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <MachinePanelHotkey onToggle={() => setPanelOpen(!useStore.getState().machinePanelOpen)} />
+    </>
   );
+}
+
+function MachinePanelHotkey({ onToggle }: { onToggle: () => void }) {
+  useHotkeys('j', onToggle, { preventDefault: true });
+  return null;
 }

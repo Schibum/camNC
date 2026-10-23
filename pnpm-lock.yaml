@@ -506,9 +506,9 @@ importers:
       '@wbcnc/camera-calibration':
         specifier: workspace:*
         version: link:../../packages/camera-calibration
-      '@wbcnc/fluidnc-api':
+      '@wbcnc/fluidnc':
         specifier: workspace:*
-        version: link:../../packages/fluidnc-api
+        version: link:../../packages/fluidnc
       '@wbcnc/go2webrtc':
         specifier: workspace:*
         version: link:../../packages/go2webrtc
@@ -780,9 +780,6 @@ importers:
       '@wbcnc/camera-calibration':
         specifier: workspace:*
         version: link:../../packages/camera-calibration
-      '@wbcnc/fluidnc-api':
-        specifier: workspace:*
-        version: link:../../packages/fluidnc-api
       '@wbcnc/go2webrtc':
         specifier: workspace:*
         version: link:../../packages/go2webrtc
@@ -853,103 +850,6 @@ importers:
       '@webgpu/types':
         specifier: 'catalog:'
         version: 0.1.64
-      eslint:
-        specifier: 'catalog:'
-        version: 9.31.0(jiti@2.6.0)
-      eslint-plugin-react-hooks:
-        specifier: 'catalog:'
-        version: 6.0.0-rc1(eslint@9.31.0(jiti@2.6.0))
-      eslint-plugin-react-refresh:
-        specifier: 'catalog:'
-        version: 0.4.20(eslint@9.31.0(jiti@2.6.0))
-      globals:
-        specifier: 'catalog:'
-        version: 16.3.0
-      tailwindcss:
-        specifier: 'catalog:'
-        version: 4.1.11
-      typescript:
-        specifier: 'catalog:'
-        version: 5.8.3
-      typescript-eslint:
-        specifier: 'catalog:'
-        version: 8.37.0(eslint@9.31.0(jiti@2.6.0))(typescript@5.8.3)
-      vite:
-        specifier: 'catalog:'
-        version: 7.0.5(@types/node@24.5.2)(jiti@2.6.0)(lightningcss@1.30.1)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.1)
-
-  apps/fluidnc-integration:
-    dependencies:
-      '@preact/signals-react':
-        specifier: 'catalog:'
-        version: 3.2.1(react@19.1.0)
-      '@preact/signals-react-transform':
-        specifier: 'catalog:'
-        version: 0.5.2(@babel/core@7.28.0)(react@19.1.0)
-      '@tanstack/react-router':
-        specifier: 'catalog:'
-        version: 1.128.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      '@tanstack/router-plugin':
-        specifier: 'catalog:'
-        version: 1.128.0(@tanstack/react-router@1.128.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(vite@7.0.5(@types/node@24.5.2)(jiti@2.6.0)(lightningcss@1.30.1)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.1))
-      '@tanstack/zod-adapter':
-        specifier: 'catalog:'
-        version: 1.128.0(@tanstack/react-router@1.128.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(zod@3.25.76)
-      '@wbcnc/fluidnc-api':
-        specifier: workspace:*
-        version: link:../../packages/fluidnc-api
-      babel-plugin-react-compiler:
-        specifier: 'catalog:'
-        version: 19.1.0-rc.2
-      comlink:
-        specifier: 'catalog:'
-        version: 4.4.2
-      loglevel:
-        specifier: 'catalog:'
-        version: 1.9.2
-      lucide-react:
-        specifier: 'catalog:'
-        version: 0.525.0(react@19.1.0)
-      react:
-        specifier: 'catalog:'
-        version: 19.1.0
-      react-dom:
-        specifier: 'catalog:'
-        version: 19.1.0(react@19.1.0)
-      vite-plugin-checker:
-        specifier: 'catalog:'
-        version: 0.10.0(eslint@9.31.0(jiti@2.6.0))(optionator@0.9.4)(typescript@5.8.3)(vite@7.0.5(@types/node@24.5.2)(jiti@2.6.0)(lightningcss@1.30.1)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.1))
-      vite-tsconfig-paths:
-        specifier: 'catalog:'
-        version: 5.1.4(typescript@5.8.3)(vite@7.0.5(@types/node@24.5.2)(jiti@2.6.0)(lightningcss@1.30.1)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.1))
-    devDependencies:
-      '@eslint/js':
-        specifier: 'catalog:'
-        version: 9.31.0
-      '@tailwindcss/vite':
-        specifier: 'catalog:'
-        version: 4.1.11(vite@7.0.5(@types/node@24.5.2)(jiti@2.6.0)(lightningcss@1.30.1)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.1))
-      '@types/react':
-        specifier: 'catalog:'
-        version: 19.1.8
-      '@types/react-dom':
-        specifier: 'catalog:'
-        version: 19.1.6(@types/react@19.1.8)
-      '@vitejs/plugin-react':
-        specifier: 'catalog:'
-        version: 4.7.0(vite@7.0.5(@types/node@24.5.2)(jiti@2.6.0)(lightningcss@1.30.1)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.1))
-      '@wbcnc/eslint-config':
-        specifier: workspace:*
-        version: link:../../packages/eslint-config
-      '@wbcnc/public-config':
-        specifier: workspace:*
-        version: link:../../packages/public-config
-      '@wbcnc/typescript-config':
-        specifier: workspace:*
-        version: link:../../packages/typescript-config
-      '@wbcnc/ui':
-        specifier: workspace:*
-        version: link:../../packages/ui
       eslint:
         specifier: 'catalog:'
         version: 9.31.0(jiti@2.6.0)
@@ -1249,39 +1149,27 @@ importers:
         specifier: 'catalog:'
         version: 8.37.0(eslint@9.31.0(jiti@2.6.0))(typescript@5.8.3)
 
-  packages/fluidnc-api:
+  packages/fluidnc:
     dependencies:
-      '@preact/signals-react':
-        specifier: 'catalog:'
-        version: 3.2.1(react@19.1.0)
-      '@wbcnc/public-config':
-        specifier: workspace:*
-        version: link:../public-config
-      '@wbcnc/webrtc-channel':
-        specifier: workspace:*
-        version: link:../webrtc-channel
-      comlink:
-        specifier: 'catalog:'
-        version: 4.4.2
-      loglevel:
-        specifier: 'catalog:'
-        version: 1.9.2
       mitt:
         specifier: 'catalog:'
         version: 3.0.1
-      playwright:
+      yaml:
         specifier: 'catalog:'
-        version: 1.54.1
+        version: 2.8.0
     devDependencies:
-      '@vitest/browser':
+      '@types/node':
         specifier: 'catalog:'
-        version: 3.2.4(playwright@1.54.1)(vite@7.0.5(@types/node@24.5.2)(jiti@2.6.0)(lightningcss@1.30.1)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.1))(vitest@3.2.4)
+        version: 24.0.15
       '@wbcnc/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
       vitest:
         specifier: 'catalog:'
-        version: 3.2.4(@types/debug@4.1.12)(@types/node@24.5.2)(@vitest/browser@3.2.4)(@vitest/ui@3.2.4)(jiti@2.6.0)(jsdom@26.1.0)(lightningcss@1.30.1)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.1)
+        version: 3.2.4(@types/debug@4.1.12)(@types/node@24.0.15)(@vitest/browser@3.2.4)(@vitest/ui@3.2.4)(jiti@2.6.0)(jsdom@26.1.0)(lightningcss@1.30.1)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.0)
+      ws:
+        specifier: ^8.18.3
+        version: 8.18.3
 
   packages/go2webrtc:
     dependencies:
@@ -13649,7 +13537,7 @@ snapshots:
   '@grpc/grpc-js@1.9.15':
     dependencies:
       '@grpc/proto-loader': 0.7.15
-      '@types/node': 24.0.15
+      '@types/node': 24.5.2
 
   '@grpc/proto-loader@0.7.15':
     dependencies:
@@ -17664,7 +17552,7 @@ snapshots:
 
   '@types/pg@8.15.4':
     dependencies:
-      '@types/node': 24.0.15
+      '@types/node': 24.5.2
       pg-protocol: 1.10.3
       pg-types: 2.2.0
 
@@ -17690,7 +17578,7 @@ snapshots:
 
   '@types/tar@6.1.13':
     dependencies:
-      '@types/node': 24.0.15
+      '@types/node': 24.5.2
       minipass: 4.2.8
 
   '@types/three@0.178.1':
@@ -17721,7 +17609,7 @@ snapshots:
 
   '@types/yauzl@2.10.3':
     dependencies:
-      '@types/node': 24.0.15
+      '@types/node': 24.5.2
     optional: true
 
   '@typescript-eslint/eslint-plugin@8.37.0(@typescript-eslint/parser@8.37.0(eslint@9.31.0(jiti@2.6.0))(typescript@5.8.3))(eslint@9.31.0(jiti@2.6.0))(typescript@5.8.3)':
@@ -17999,7 +17887,7 @@ snapshots:
     dependencies:
       '@vitest/spy': 3.2.4
       estree-walker: 3.0.3
-      magic-string: 0.30.17
+      magic-string: 0.30.19
     optionalDependencies:
       vite: 7.0.5(@types/node@24.0.15)(jiti@2.6.0)(lightningcss@1.30.1)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.0)
 
@@ -18007,7 +17895,7 @@ snapshots:
     dependencies:
       '@vitest/spy': 3.2.4
       estree-walker: 3.0.3
-      magic-string: 0.30.17
+      magic-string: 0.30.19
     optionalDependencies:
       vite: 7.0.5(@types/node@24.5.2)(jiti@2.6.0)(lightningcss@1.30.1)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.1)
 
@@ -18024,7 +17912,7 @@ snapshots:
   '@vitest/snapshot@3.2.4':
     dependencies:
       '@vitest/pretty-format': 3.2.4
-      magic-string: 0.30.17
+      magic-string: 0.30.19
       pathe: 2.0.3
 
   '@vitest/spy@3.2.4':
@@ -20395,7 +20283,7 @@ snapshots:
     dependencies:
       basic-ftp: 5.0.5
       data-uri-to-buffer: 6.0.2
-      debug: 4.4.1
+      debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
 
@@ -22761,7 +22649,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.0
-      '@types/node': 24.0.15
+      '@types/node': 24.5.2
       long: 5.3.2
 
   proxy-agent@6.5.0:
@@ -24607,7 +24495,7 @@ snapshots:
   vite-node@3.2.4(@types/node@24.0.15)(jiti@2.6.0)(lightningcss@1.30.1)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.0):
     dependencies:
       cac: 6.7.14
-      debug: 4.4.1
+      debug: 4.4.3
       es-module-lexer: 1.7.0
       pathe: 2.0.3
       vite: 7.0.5(@types/node@24.0.15)(jiti@2.6.0)(lightningcss@1.30.1)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.0)
@@ -24628,7 +24516,7 @@ snapshots:
   vite-node@3.2.4(@types/node@24.5.2)(jiti@2.6.0)(lightningcss@1.30.1)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.1):
     dependencies:
       cac: 6.7.14
-      debug: 4.4.1
+      debug: 4.4.3
       es-module-lexer: 1.7.0
       pathe: 2.0.3
       vite: 7.0.5(@types/node@24.5.2)(jiti@2.6.0)(lightningcss@1.30.1)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.1)
@@ -24822,15 +24710,15 @@ snapshots:
       '@vitest/spy': 3.2.4
       '@vitest/utils': 3.2.4
       chai: 5.2.1
-      debug: 4.4.1
+      debug: 4.4.3
       expect-type: 1.2.2
-      magic-string: 0.30.17
+      magic-string: 0.30.19
       pathe: 2.0.3
       picomatch: 4.0.3
       std-env: 3.9.0
       tinybench: 2.9.0
       tinyexec: 0.3.2
-      tinyglobby: 0.2.14
+      tinyglobby: 0.2.15
       tinypool: 1.1.1
       tinyrainbow: 2.0.0
       vite: 7.0.5(@types/node@24.0.15)(jiti@2.6.0)(lightningcss@1.30.1)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.0)
@@ -24867,15 +24755,15 @@ snapshots:
       '@vitest/spy': 3.2.4
       '@vitest/utils': 3.2.4
       chai: 5.2.1
-      debug: 4.4.1
+      debug: 4.4.3
       expect-type: 1.2.2
-      magic-string: 0.30.17
+      magic-string: 0.30.19
       pathe: 2.0.3
       picomatch: 4.0.3
       std-env: 3.9.0
       tinybench: 2.9.0
       tinyexec: 0.3.2
-      tinyglobby: 0.2.14
+      tinyglobby: 0.2.15
       tinypool: 1.1.1
       tinyrainbow: 2.0.0
       vite: 7.0.5(@types/node@24.5.2)(jiti@2.6.0)(lightningcss@1.30.1)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.1)

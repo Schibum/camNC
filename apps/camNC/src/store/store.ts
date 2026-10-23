@@ -8,6 +8,8 @@ import { ParsedToolpath, parseGCode } from '../visualize/gcodeParsing';
 import { parseToolInfo } from '../visualize/guess-tools';
 import { useMemo } from 'react';
 import { createStorage } from './store-storage';
+import type { FirmwareVariant } from '@wbcnc/fluidnc';
+import { kDefaultMacros, Macro } from '../lib/machine/macros';
 
 export interface CalibrationData {
   calibration_matrix: Matrix3;
@@ -51,6 +53,36 @@ export interface ICamSource {
   arucoTagSize?: number; // Size in mm of black border (excluding white border)
 }
 
+export interface MachineConnectionSettings {
+  /** IP address or `.local` name of the controller, optionally with port */
+  host: string;
+  /** Detected transport, tried first on the next connect */
+  variant?: FirmwareVariant;
+}
+
+export interface MachinePrefs {
+  jogStepXY: number;
+  jogStepZ: number;
+  jogFeedXY: number;
+  jogFeedZ: number;
+  keyboardJog: boolean;
+  probePlateThickness: number;
+  probeMaxTravel: number;
+  probeFeed: number;
+}
+
+export const kDefaultMachinePrefs: MachinePrefs = {
+  jogStepXY: 10,
+  jogStepZ: 1,
+  // LowRider V4 (JP2_LR): X/Y max 9000 mm/min, Z max 1200 mm/min.
+  jogFeedXY: 3000,
+  jogFeedZ: 600,
+  keyboardJog: false,
+  probePlateThickness: 0,
+  probeMaxTravel: 50,
+  probeFeed: 100,
+};
+
 export interface PnPResult {
   lastPnPTime: number;
   lastReprojectionError: number;
@@ -69,6 +101,7 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
 
     toolDiameter: 3.0, // Default tool diameter in mm
     toolpath: null as ParsedToolpath | null,
+    toolpathName: null as string | null,
     isToolpathSelected: false,
     isToolpathHovered: false,
     isToolpathDragging: false,
@@ -79,7 +112,10 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
     showMachinePosMarker: true,
     showMachineZero: true,
     showStillFrame: false,
-    fluidncToken: crypto.randomUUID() as string,
+    machine: null as MachineConnectionSettings | null,
+    macros: kDefaultMacros as Macro[],
+    machinePrefs: kDefaultMachinePrefs as MachinePrefs,
+    machinePanelOpen: false,
     snapToToolpath: false,
     snapPosition: null as Vector3 | null,
     // Depth-based background blend feature
@@ -218,14 +254,30 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
         state.toolpathOpacity = opacity;
       }),
     // Update Toolpath from GCode
-    updateToolpath: (gcode: string) => set(state => {
+    updateToolpath: (gcode: string, name?: string) => set(state => {
       console.log('updateToolpath');
       state.toolpath = parseGCode(gcode);
+      state.toolpathName = name ?? null;
       const tools = parseToolInfo(gcode);
       console.debug('guessed tools', tools);
       if (tools.length > 0 && tools[0].isFlat) {
         state.toolDiameter = tools[0].diameter;
       }
+    }),
+    setMachine: (machine: MachineConnectionSettings | null) => set(state => {
+      state.machine = machine;
+    }),
+    setMachineVariant: (variant: FirmwareVariant) => set(state => {
+      if (state.machine) state.machine.variant = variant;
+    }),
+    setMacros: (macros: Macro[]) => set(state => {
+      state.macros = macros;
+    }),
+    setMachinePanelOpen: (open: boolean) => set(state => {
+      state.machinePanelOpen = open;
+    }),
+    setMachinePrefs: (prefs: Partial<MachinePrefs>) => set(state => {
+      state.machinePrefs = { ...state.machinePrefs, ...prefs };
     }),
     setSnapToToolpath: (enable: boolean) => set(state => {
       state.snapToToolpath = enable;
@@ -274,13 +326,23 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
   })
 )), {
   name: 'settings',
+  version: 1,
+  // v1: the WebUI extension relay (fluidncToken) was replaced by a direct connection (machine).
+  migrate: (persisted, version) => {
+    const state = (persisted ?? {}) as Record<string, unknown>;
+    if (version < 1) delete state.fluidncToken;
+    return state as never;
+  },
   // skipHydration: true,
   storage: createStorage(),
   partialize: state => ({
     toolDiameter: state.toolDiameter,
     camSources: state.camSources,
     activeCamId: state.activeCamId,
-    fluidncToken: state.fluidncToken,
+    machine: state.machine,
+    macros: state.macros,
+    machinePrefs: state.machinePrefs,
+    machinePanelOpen: state.machinePanelOpen,
     depthBlendEnabled: state.depthBlendEnabled,
     depthSettings: state.depthSettings,
     toolpathOpacity: state.toolpathOpacity,

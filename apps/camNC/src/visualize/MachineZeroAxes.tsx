@@ -1,4 +1,4 @@
-import { getCncApi } from '@/lib/fluidnc/fluidnc-singleton';
+import { getCncApi } from '@/lib/fluidnc/machine';
 import { useShowMachineZero } from '@/store/store';
 import { LineAxesHelper } from './LineAxesHelper';
 

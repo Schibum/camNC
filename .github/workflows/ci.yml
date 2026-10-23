@@ -41,3 +41,55 @@ jobs:
         run: pnpm run test
       - name: Build
         run: pnpm run build
+
+  fluidnc-sim:
+    name: FluidNC simulator integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        name: Install pnpm
+        with:
+          run_install: false
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: "pnpm"
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PlatformIO
+        run: pip install platformio
+      - name: Cache FluidNC simulator build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/camnc
+            ~/.platformio
+          key: fluidnc-sim-v4.1.1-${{ runner.os }}
+      - name: Start simulator with the 3.9.9 personality proxy
+        working-directory: packages/fluidnc
+        run: |
+          node scripts/sim.mjs --v3 > sim.log 2>&1 &
+          for i in $(seq 1 600); do
+            (echo > /dev/tcp/127.0.0.1/8848) 2>/dev/null && (echo > /dev/tcp/127.0.0.1/8851) 2>/dev/null && break
+            sleep 1
+          done
+      - name: Integration tests (FluidNC 4.1.1)
+        working-directory: packages/fluidnc
+        run: pnpm vitest run src/sim.integration.test.ts
+        env:
+          FLUIDNC_SIM_HOST: 127.0.0.1:8848
+          FLUIDNC_SIM_VARIANT: v4
+      - name: Integration tests (3.9.9 personality)
+        working-directory: packages/fluidnc
+        run: pnpm vitest run src/sim.integration.test.ts
+        env:
+          FLUIDNC_SIM_HOST: 127.0.0.1:8850
+          FLUIDNC_SIM_VARIANT: v3-81
+      - name: Simulator log
+        if: failure()
+        run: cat packages/fluidnc/sim.log

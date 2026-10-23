@@ -10,7 +10,7 @@ CamNC is a simple experimental web application that visualizes CNC G-code on a l
 - Overlay live G-code preview on a camera feed with perspective correction
 - Integrated calibration tool (OpenCV) to estimate camera intrinsics
 - Perspective-n-Point (PnP) pose estimation using ArUco markers
-- Interactive zeroing and jogging via integration with FluidNC WebUI v3
+- Built-in machine control for FluidNC (3.9.9 and 4.1.x) over a direct WebSocket: DRO, jogging, zeroing, Z probing, overrides, macros, SD jobs with progress on the toolpath, and a console
 
 ## Requirements
 
@@ -20,7 +20,7 @@ CamNC is a simple experimental web application that visualizes CNC G-code on a l
   - IP camera. Requires [go2rtc](https://github.com/AlexxIT/go2rtc) gateway to expose stream in a compatible way. Go2rtc can run on a Raspberry Pi Zero or any local machine.
     - [Reolink E1 Zoom 3d print model](https://makerworld.com/en/models/1461605-reolink-e1-zoom-ceiling-down-mount-looking-down#profileId-1524062)
 
-- (Optional) CNC controller with [FluidNC WebUI v3](http://wiki.fluidnc.com/en/features/webui). Does not work offline at the moment, so FluidNC needs to run in STA mode.
+- (Optional) CNC controller running [FluidNC](http://wiki.fluidnc.com/) 3.9.9 or 4.1.x (reference: V1 Engineering Jackpot2 on a LowRider V4). Machine control needs Chrome or Edge 147+, and browser and controller must be on the same LAN (FluidNC in STA mode). Other browsers can use camNC as a viewer.
 
 ## Usage
 
@@ -64,7 +64,6 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the pieces fit together
 
 - **camNC** – main camera overlay application ([run.camnc.app](https://run.camnc.app/)).
 - **webrtc-cam** – runs on a phone and streams its camera to camNC via WebRTC.
-- **fluidnc-integration** – FluidNC WebUI v3 extension that exposes the WebUI API to camNC via WebRTC.
 - **website** – Astro landing page ([www.camnc.app](https://www.camnc.app/)).
 - **chessboard** – displays/prints the chessboard pattern for camera calibration.
 - **demos** – sandbox showcasing individual packages.
@@ -72,7 +71,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the pieces fit together
 ### Packages
 
 - **camera-calibration** – React components, store and workers for calibrating a camera with OpenCV.
-- **fluidnc-api** – FluidNC WebUI API wrapper and WebRTC client/server for it.
+- **fluidnc** – direct WebSocket connection to FluidNC (transport detection, command queue, parsers, uploads), a scripted fake and the `pnpm sim` FluidNC simulator.
 - **go2webrtc** – video sources (go2rtc, phone via WebRTC, WebTorrent, webcam, URL).
 - **webrtc-channel** – WebRTC peer, Firebase signalling and data channel helpers.
 - **video-worker-utils** – helpers for processing video frames in web workers.

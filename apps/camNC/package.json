@@ -49,7 +49,7 @@
     "@use-gesture/react": "catalog:",
     "@vitest/browser": "catalog:",
     "@wbcnc/camera-calibration": "workspace:*",
-    "@wbcnc/fluidnc-api": "workspace:*",
+    "@wbcnc/fluidnc": "workspace:*",
     "@wbcnc/go2webrtc": "workspace:*",
     "@wbcnc/load-opencv": "workspace:*",
     "@wbcnc/public-config": "workspace:*",
