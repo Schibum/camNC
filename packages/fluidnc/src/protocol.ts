@@ -105,6 +105,9 @@ export interface SendOptions {
   timeoutMs?: number;
 }
 
+/** How long a timed-out command may still hold the queue for its late `ok` before the connection is reset. */
+const kLateAckGraceMs = 30_000;
+
 const kZero: Position = { x: 0, y: 0, z: 0 };
 
 function subtract(a: Position, b: Position): Position {
@@ -118,6 +121,8 @@ function add(a: Position, b: Position): Position {
  * The G-code/`$` protocol on top of a {@link FluidncSocket}.
  *
  * - One line in flight; each command resolves with the lines received before its `ok`.
+ * - A timed-out command is rejected but keeps the queue until its late `ok`/`error`, so that answer is never
+ *   taken for the next command's. Without an answer within {@link kLateAckGraceMs}, the socket reconnects.
  * - `error:N` rejects that command. Socket close, `ALARM:N`, a reset banner or a soft reset reject everything pending.
  * - Nothing is ever re-sent after a reconnect.
  */
@@ -265,9 +270,11 @@ export class FluidncProtocol {
     if (cmd.timeoutMs > 0) {
       cmd.timer = setTimeout(() => {
         if (this.inFlight !== cmd) return;
-        this.inFlight = null;
+        // Settle the caller now, but keep the slot: finish() on the late answer frees it (settling again is a no-op).
         cmd.reject(new FluidncAbortError('timed out', cmd.line));
-        this.pump();
+        cmd.timer = setTimeout(() => {
+          if (this.inFlight === cmd) this.socket.reconnect(`no answer to ${cmd.line}`);
+        }, kLateAckGraceMs);
       }, cmd.timeoutMs);
     }
     this.emitConsole('sent', cmd.line);

@@ -150,6 +150,33 @@ describe.each(['v3-81', 'v4'] as const)('FluidncProtocol on %s', variant => {
     expect(await protocol.send('$G')).toHaveLength(1);
   });
 
+  it('never verifies against a stale file of the same size when the upload fails', async () => {
+    const fake = new FakeFluidnc(variant);
+    const protocol = await connect(fake);
+    fake.files.set('camnc.gcode', new TextEncoder().encode('G0 X1'));
+    const dropAll: typeof fetch = async () => new Response(null);
+    await expect(uploadSdFile(protocol, fake.host, 'camnc.gcode', 'G0 X2', { fetchImpl: dropAll, verifyTimeoutMs: 50 })).rejects.toThrow(
+      'not on the SD card'
+    );
+    expect(fake.received).toContain('$SD/Delete=/camnc.gcode');
+    expect(fake.received.some(line => line.startsWith('$SD/Run'))).toBe(false);
+  });
+
+  it('keeps a late ok from a timed-out command away from the next command', async () => {
+    const fake = new FakeFluidnc(variant);
+    const protocol = await connect(fake);
+    // The controller answers G4 only after the command timed out on our side.
+    fake.respond = line => (line === 'G4 P5' ? [] : undefined);
+    await expect(protocol.send('G4 P5', { timeoutMs: 30 })).rejects.toThrow('timed out');
+    const sentBefore = fake.received.length;
+    const next = protocol.send('$G');
+    await new Promise(resolve => setTimeout(resolve, 30));
+    // $G stays queued behind the timed-out command.
+    expect(fake.received.slice(sentBefore)).toEqual([]);
+    fake.emit(['ok']);
+    expect(await next).toEqual(['[GC:G0 G54 G17 G21 G90 G94 M5 M9 T0 F0 S0]']);
+  });
+
   it('fails the upload when the file does not show up', async () => {
     const fake = new FakeFluidnc(variant);
     const protocol = await connect(fake);

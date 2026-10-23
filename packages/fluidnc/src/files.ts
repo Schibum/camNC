@@ -83,6 +83,11 @@ export async function uploadSdFile(
 ): Promise<void> {
   const bytes = typeof content === 'string' ? new TextEncoder().encode(content) : content;
   const filename = sdPath(name);
+  // The upload result cannot be read, so a stale file of the same size would pass the check below. Remove it first.
+  if (findFile(await listSdFiles(protocol), filename)) {
+    await deleteSdFile(protocol, filename);
+    if (findFile(await listSdFiles(protocol), filename)) throw new Error(`Upload failed: could not replace ${filename}`);
+  }
   if (options.method === 'xmodem') {
     await xmodemUpload(protocol, `/sd${filename}`, bytes, options.onProgress);
   } else {

@@ -114,6 +114,13 @@ export class FluidncSocket {
     this.setState('idle');
   }
 
+  /** Drop the current connection and reconnect, e.g. when replies can no longer be matched to commands. */
+  reconnect(reason: string) {
+    if (!this.running || this.state !== 'open') return;
+    this.teardown(reason);
+    this.afterClose(reason);
+  }
+
   isOpen() {
     return this.state === 'open' && this.ws?.readyState === 1;
   }

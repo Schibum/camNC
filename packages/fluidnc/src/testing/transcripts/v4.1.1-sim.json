@@ -2,23 +2,11 @@
   "recordedAt": "2026-10-23T10:05:11.824Z",
   "host": "127.0.0.1:8848",
   "variant": "v4",
-  "control": [
-    "currentID:2",
-    "CURRENT_ID:2"
-  ],
+  "control": ["currentID:2", "CURRENT_ID:2"],
   "status": "<Idle|MPos:10.000,0.000,0.000|FS:0,0|Ov:100,100,100>",
   "responses": {
-    "$I": [
-      "[VER:4.1 FluidNC v4.1.1 (macos-capture) :]",
-      "[OPT:PHS]",
-      "[CLUSTER:16]",
-      "[MSG:Machine: LowRider]",
-      "ok"
-    ],
-    "$G": [
-      "[GC:G0 G54 G17 G21 G90 G94 M5 M9 T0 F0 S0]",
-      "ok"
-    ],
+    "$I": ["[VER:4.1 FluidNC v4.1.1 (macos-capture) :]", "[OPT:PHS]", "[CLUSTER:16]", "[MSG:Machine: LowRider]", "ok"],
+    "$G": ["[GC:G0 G54 G17 G21 G90 G94 M5 M9 T0 F0 S0]", "ok"],
     "$#": [
       "[G54:0.000,0.000,0.000]",
       "[G55:0.000,0.000,0.000]",

@@ -2,10 +2,7 @@
   "note": "Hand-written approximation of FluidNC 3.9.9 on a Jackpot2 (port 81). Replace with `node scripts/record-transcript.mjs <jackpot-ip>` output once recorded on hardware.",
   "host": "192.168.1.20",
   "variant": "v3-81",
-  "control": [
-    "CURRENT_ID:0",
-    "ACTIVE_ID:0"
-  ],
+  "control": ["CURRENT_ID:0", "ACTIVE_ID:0"],
   "status": "<Idle|MPos:3.000,3.000,3.000|FS:0,0|WCO:0.000,0.000,0.000>",
   "responses": {
     "$I": [
@@ -15,10 +12,7 @@
       "[MSG: Mode=STA:SSID=workshop:Status=Connected:IP=192.168.1.20:MAC=AA-BB-CC-DD-EE-FF]",
       "ok"
     ],
-    "$G": [
-      "[GC:G0 G54 G17 G21 G90 G94 M5 M9 T0 F0 S0]",
-      "ok"
-    ],
+    "$G": ["[GC:G0 G54 G17 G21 G90 G94 M5 M9 T0 F0 S0]", "ok"],
     "$#": [
       "[G54:0.000,0.000,0.000]",
       "[G55:0.000,0.000,0.000]",
