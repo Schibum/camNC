@@ -160,6 +160,17 @@ describe.each(['v3-81', 'v4'] as const)('FluidncProtocol on %s', variant => {
   });
 });
 
+describe('sendLines', () => {
+  it('strips comments and skips empty lines, linear on pathological input', async () => {
+    const fake = new FakeFluidnc('v4');
+    const protocol = await connect(fake);
+    const start = performance.now();
+    await protocol.sendLines(`$G ; modals\n${';'.repeat(50_000)}\n\n  $I  `);
+    expect(performance.now() - start).toBeLessThan(500);
+    expect(fake.received.slice(-2)).toEqual(['$G', '$I']);
+  });
+});
+
 describe('keepalive', () => {
   it('pings 4.x but never sends PING: to 3.9.9', async () => {
     const v4 = new FakeFluidnc('v4');

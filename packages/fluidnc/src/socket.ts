@@ -43,7 +43,8 @@ export interface FluidncSocketOptions {
 export function normalizeHost(input: string): string {
   let host = input.trim();
   host = host.replace(/^[a-z]+:\/\//i, '');
-  host = host.replace(/[/?#].*$/, '');
+  const end = host.search(/[/?#]/);
+  if (end !== -1) host = host.slice(0, end);
   return host;
 }
 

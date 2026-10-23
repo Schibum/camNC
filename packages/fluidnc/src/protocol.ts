@@ -181,7 +181,8 @@ export class FluidncProtocol {
   async sendLines(text: string, options: SendOptions = {}): Promise<string[]> {
     const out: string[] = [];
     for (const raw of text.split('\n')) {
-      const line = raw.replace(/;.*$/, '').trim();
+      const comment = raw.indexOf(';');
+      const line = (comment === -1 ? raw : raw.slice(0, comment)).trim();
       if (!line) continue;
       out.push(...(await this.send(line, options)));
     }

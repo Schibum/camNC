@@ -14,5 +14,12 @@ describe('socketUrl', () => {
 
   it('normalizes what users paste', () => {
     expect(normalizeHost(' http://192.168.1.20/#/ ')).toBe('192.168.1.20');
+    expect(normalizeHost('fluidnc.local:8848?x=1')).toBe('fluidnc.local:8848');
+  });
+
+  it('stays linear on pathological input', () => {
+    const start = performance.now();
+    expect(normalizeHost('a' + '#'.repeat(50_000))).toBe('a');
+    expect(performance.now() - start).toBeLessThan(100);
   });
 });
