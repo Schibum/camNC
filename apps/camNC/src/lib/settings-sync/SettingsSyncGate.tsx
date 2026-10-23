@@ -9,12 +9,14 @@ import { fetchUserSettings, saveUserSettings, setSettingsAuth } from './settings
 
 /**
  * Loads the signed-in user's settings from the server into the store before rendering the app.
- * Signed-out users keep using the settings from localStorage.
+ * Signed-out users keep using the settings from localStorage. `onReady` runs once, after the first
+ * sync and before the children render.
  */
-export function SettingsSyncGate({ children }: { children: ReactNode }) {
+export function SettingsSyncGate({ children, onReady }: { children: ReactNode; onReady?: () => void }) {
   const { isLoaded, isSignedIn, userId, getToken } = useAuth();
   const [syncedUserId, setSyncedUserId] = useState<string | null | undefined>(undefined);
   const isFirstSync = useRef(true);
+  const readyCalled = useRef(false);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -43,6 +45,10 @@ export function SettingsSyncGate({ children }: { children: ReactNode }) {
   }, [isLoaded, isSignedIn, userId, getToken, syncedUserId]);
 
   if (syncedUserId === undefined) return <DefaultLoadingOverlay />;
+  if (!readyCalled.current) {
+    readyCalled.current = true;
+    onReady?.();
+  }
   return children;
 }
 

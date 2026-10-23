@@ -13,8 +13,6 @@ if (!PUBLISHABLE_KEY) {
   throw new Error('Add your Clerk Publishable Key to the .env file');
 }
 
-// Create connection early
-getCncApi();
 setKeepAliveTime(60_000);
 const router = createRouter();
 
@@ -33,7 +31,8 @@ createRoot(document.getElementById('app')!).render(
         },
       },
     }}>
-    <SettingsSyncGate>
+    {/* Create the FluidNC connection once the synced settings (incl. fluidncToken) are loaded. */}
+    <SettingsSyncGate onReady={getCncApi}>
       <RouterProvider router={router} />
     </SettingsSyncGate>
   </ClerkProvider>
