@@ -1,5 +1,4 @@
-import { initFbApp } from '@wbcnc/public-config/firebase';
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FluidncClient } from './fluidnc-client';
 import { FluidncServer } from './fluidnc-server';
 
@@ -13,9 +12,6 @@ vi.mock('./fluidnc-api', () => {
 });
 
 describe('FluidNcClient ↔ FluidNcServer integration', () => {
-  beforeAll(() => {
-    initFbApp();
-  });
   beforeEach(() => {
     vi.clearAllMocks();
   });

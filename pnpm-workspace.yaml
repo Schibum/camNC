@@ -74,7 +74,6 @@ catalog:
   eslint-plugin-react-refresh: ^0.4.20
   eslint-plugin-turbo: ^2.5.5
   eslint-plugin-unused-imports: ^4.1.4
-  firebase: ^11.10.0
   framer-motion: ^12.23.6
   gcode-toolpath: ^3.0.0
   globals: ^16.3.0
