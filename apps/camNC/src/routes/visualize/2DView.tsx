@@ -1,5 +1,6 @@
 import { UnprojectVideoMesh } from '@/calibration/Unproject';
 import { EnsureHasCamSource } from '@/components/EnsureHasCamSource';
+import { LoadingVideoOverlay } from '@/components/LoadingVideoOverlay';
 import { PageHeader } from '@/components/page-header';
 import { useAutoScanMarkers } from '@/hooks/useAutoScanMarkers';
 import { DepthBlendWorker } from '@/hooks/useDepthBlendWorker';
@@ -21,7 +22,8 @@ import { ThreeEvent, useThree } from '@react-three/fiber';
 import { createFileRoute } from '@tanstack/react-router';
 import { zodValidator } from '@tanstack/zod-adapter';
 import { toast } from '@wbcnc/ui/components/sonner';
-import { ComponentProps, RefObject, useEffect, useMemo, useRef, useState } from 'react';
+import { ComponentProps, RefObject, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { Vector2, Vector3 } from 'three';
 import { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
@@ -53,6 +55,19 @@ const UnprojectVideoMeshWithStockHeight = ({ ...props }: ComponentProps<typeof U
   return <UnprojectVideoMesh position-z={stockHeight} {...props} />;
 };
 UnprojectVideoMeshWithStockHeight.displayName = 'UnprojectVideoMeshWithStockHeight';
+
+/** Suspense fallback that tells the page the video is still loading, to show the overlay outside the canvas. */
+function ReportLoading({ onLoading }: { onLoading: (loading: boolean) => void }) {
+  useEffect(() => {
+    onLoading(true);
+    return () => onLoading(false);
+  }, [onLoading]);
+  return null;
+}
+
+function Rethrow({ error }: { error: Error }): never {
+  throw error;
+}
 
 interface TopCameraState {
   position: Vector3;
@@ -93,6 +108,7 @@ function VisualizeComponent() {
   const [fitKey, setFitKey] = useState(0);
   const topCamera = useRef<TopCameraState | null>(null);
   const showStockVideo = useShowStockVideo();
+  const [videoLoading, setVideoLoading] = useState(false);
   const toolpathOffset = useStore(s => s.toolpathOffset);
   // In the 3D views, the video only covers the stock top, so the stock box and the cuts below stay visible.
   const stockTop = useMemo(
@@ -178,15 +194,23 @@ function VisualizeComponent() {
       <div className="w-full h-dvh absolute top-0 left-0">
         <PresentCanvas worldScale="machine" defaultControls={isTop}>
           {/* <group rotation={[0, 0, Math.PI / 2]}> */}
-          <UnprojectVideoMeshWithStockHeight
-            visible={isTop || showStockVideo}
-            bounds={isTop ? undefined : stockTop}
-            opacity={isTop ? 1 : 0.7}
-            // In the 3D views, the video is drawn first, below the toolpath.
-            renderOrder={isTop ? 0 : -2}
-            onDoubleClick={isTop ? onDbClick : undefined}
-            onPointerMove={isTop ? onPointerMove : undefined}
-          />
+          {/*
+            The video loads in its own boundaries, so the 3D views stay usable while the camera is unavailable.
+            In the top view, failures still surface through the canvas' error boundary.
+          */}
+          <ErrorBoundary fallbackRender={({ error }) => (isTop ? <Rethrow error={error} /> : null)}>
+            <Suspense fallback={<ReportLoading onLoading={setVideoLoading} />}>
+              <UnprojectVideoMeshWithStockHeight
+                visible={isTop || showStockVideo}
+                bounds={isTop ? undefined : stockTop}
+                opacity={isTop ? 1 : 0.7}
+                // In the 3D views, the video is drawn first, below the toolpath.
+                renderOrder={isTop ? 0 : -2}
+                onDoubleClick={isTop ? onDbClick : undefined}
+                onPointerMove={isTop ? onPointerMove : undefined}
+              />
+            </Suspense>
+          </ErrorBoundary>
           {isTop || !toolpath ? (
             <>
               <TopCameraMemory memory={topCamera} />
@@ -203,6 +227,12 @@ function VisualizeComponent() {
           {/* <TransformToolpath /> */}
         </PresentCanvas>
       </div>
+
+      {isTop && videoLoading && (
+        <div className="pointer-events-none absolute inset-0 h-dvh">
+          <LoadingVideoOverlay />
+        </div>
+      )}
 
       <div className="pointer-events-none absolute inset-0 flex h-dvh flex-col">
         <PageHeader title={viewModeTitle(view)} className="pointer-events-auto pr-2 flex-wrap h-auto p-1">
