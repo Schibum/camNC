@@ -1,45 +1,46 @@
-import { UnprojectVideoMesh } from '@/calibration/Unproject';
-import { getMachinePlaneLayout } from '@/calibration/machinePlane';
-import { useCamSource, useMachineBounds, useStore } from '@/store/store';
-import { Button, Switch } from '@heroui/react';
+import { useCamSource, useStore } from '@/store/store';
+import { Switch } from '@heroui/react';
 import { Edges, Html, Line, OrbitControls } from '@react-three/drei';
-import { Canvas, ThreeEvent, useFrame, useThree } from '@react-three/fiber';
+import { ThreeEvent, useFrame, useThree } from '@react-three/fiber';
 import { Slider } from '@wbcnc/ui/components/slider';
-import { Suspense, useEffect, useMemo, useState } from 'react';
-import { ErrorBoundary } from 'react-error-boundary';
+import { ChevronDown, ChevronUp } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Color, OrthographicCamera, Vector3 } from 'three';
 import { LineMaterial, LineSegments2, LineSegmentsGeometry } from 'three/addons';
 import { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
-import { buildDepthGeometryData, closestPointOnSegment, DepthLevel, getCutDepthLevels, getSegmentMotion } from './depthInspection';
+import {
+  buildDepthGeometryData,
+  closestPointOnSegment,
+  DepthLevel,
+  getCutDepthLevels,
+  getSegmentMotion,
+  getStockFootprint,
+  ZeroAt,
+} from './depthInspection';
+import { HoverInfo, useDepthView, useHoverInfo, useSelectedLevel, useShowStockVideo, useZeroPlacement } from './depthViewStore';
 import { ParsedToolpath } from './gcodeParsing';
 
-type ViewPreset = 'iso' | 'front' | 'side' | 'top';
+export type DepthViewPreset = '3d' | 'front' | 'side';
 
 // Direction from the look-at target towards the camera (Z up).
-const kViewDirections: Record<ViewPreset, Vector3> = {
-  iso: new Vector3(1, -1, 0.8),
+const kViewDirections: Record<DepthViewPreset, Vector3> = {
+  // Tilted up from the bottom edge of the top view (which shows +X up), so the switch keeps its orientation.
+  '3d': new Vector3(-1, -0.5, 0.9),
   // Looking along +Y: shows X/Z.
   front: new Vector3(0, -1, 0),
   // Looking along -X: shows Y/Z.
   side: new Vector3(1, 0, 0),
-  // Slightly tilted, as orbit controls degenerate when looking exactly along the up axis.
-  top: new Vector3(0, -1e-3, 1),
 };
 
 // Scene background; toolpath colors are lifted to stay high contrast against it.
 const kBackground = new Color('#111318');
 
-const kViewLabels: Record<ViewPreset, string> = { iso: '3D', front: 'Front (XZ)', side: 'Side (YZ)', top: 'Top' };
-
 // Hover pick tolerance in screen pixels.
 const kPickTolerancePx = 6;
 // Show per-level labels in the scene only up to this many levels to avoid clutter.
 const kMaxLevelLabels = 12;
-
-interface HoverInfo {
-  point: Vector3;
-  motion?: string;
-}
+// Duration of the camera move between views.
+const kTransitionMs = 450;
 
 function formatMm(value: number) {
   return value.toFixed(2);
@@ -180,117 +181,129 @@ function ToolpathSegments({
   );
 }
 
-/**
- * Live camera image projected onto the stock top plane (machine coordinates, z = stock height),
- * dimmed so the toolpath stays readable on top of it.
- */
-function StockVideo() {
-  const stockHeight = useStore(s => s.stockHeight);
-  const machineBounds = useMachineBounds();
-  const overSize = 50;
-  const { width, height, center } = getMachinePlaneLayout(machineBounds, overSize);
-  return (
-    <>
-      <UnprojectVideoMesh overSize={overSize} position-z={stockHeight} renderOrder={-2} raycast={() => null} />
-      <mesh position={[center.x, center.y, stockHeight]} renderOrder={-1} raycast={() => null}>
-        <planeGeometry args={[width, height]} />
-        {/* Coplanar with the video: offset towards the camera to avoid z-fighting stripes. */}
-        <meshBasicMaterial
-          color="black"
-          transparent
-          opacity={0.45}
-          depthWrite={false}
-          polygonOffset
-          polygonOffsetFactor={-2}
-          polygonOffsetUnits={-8}
-        />
-      </mesh>
-    </>
-  );
+interface CameraPose {
+  target: Vector3;
+  // Camera position relative to the target.
+  offset: Vector3;
+  zoom: number;
 }
 
-function CameraRig({ box, view, fitKey }: { box: { center: Vector3; radius: number }; view: ViewPreset; fitKey: number }) {
+const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
+
+/** Moves the orthographic camera to fit the toolpath from the given view, animated from wherever it currently is. */
+function CameraRig({ box, view, fitKey }: { box: { center: Vector3; radius: number }; view: DepthViewPreset; fitKey: number }) {
   const camera = useThree(s => s.camera) as OrthographicCamera;
   const controls = useThree(s => s.controls) as OrbitControlsImpl | null;
   const get = useThree(s => s.get);
+  const invalidate = useThree(s => s.invalidate);
+  const transition = useRef<{ start: number; from: CameraPose; to: CameraPose } | null>(null);
+  // Until the first fit, the camera still looks straight down, as positioned by the top view.
+  const fromTopView = useRef(true);
+
+  // The video plane extends far beyond the toolpath, behind the camera in tilted views. Keep the
+  // depth range tight (mm) though, for depth precision on the coplanar video planes.
+  useEffect(() => {
+    const { near, far } = camera;
+    camera.near = -1e4;
+    camera.far = 1e4;
+    camera.updateProjectionMatrix();
+    return () => {
+      camera.near = near;
+      camera.far = far;
+      camera.updateProjectionMatrix();
+    };
+  }, [camera]);
 
   useEffect(() => {
     if (!controls) return;
     const { width, height } = get().size;
-    const dir = kViewDirections[view].clone().normalize();
-    camera.position.copy(box.center).addScaledVector(dir, box.radius * 4);
-    camera.zoom = Math.min(width, height) / (box.radius * 2.4);
-    camera.updateProjectionMatrix();
-    controls.target.copy(box.center);
-    controls.update();
-  }, [camera, controls, get, box, view, fitKey]);
+    const distance = box.radius * 4;
+    const to = {
+      target: box.center.clone(),
+      offset: kViewDirections[view].clone().normalize().multiplyScalar(distance),
+      zoom: Math.min(width, height) / (box.radius * 2.4),
+    };
+    const from = fromTopView.current
+      ? {
+          target: new Vector3(camera.position.x, camera.position.y, box.center.z),
+          // Slightly tilted towards -X to keep the top view's orientation (+X up on screen).
+          offset: new Vector3(-1e-3, 0, 1).normalize().multiplyScalar(distance),
+          zoom: camera.zoom,
+        }
+      : { target: controls.target.clone(), offset: camera.position.clone().sub(controls.target), zoom: camera.zoom };
+    fromTopView.current = false;
+    transition.current = { start: performance.now(), from, to };
+    invalidate();
+  }, [camera, controls, get, invalidate, box, view, fitKey]);
 
   useFrame(({ raycaster }) => {
     raycaster.params.Line2 = { threshold: kPickTolerancePx };
+    const current = transition.current;
+    if (!current || !controls) return;
+    const t = Math.min((performance.now() - current.start) / kTransitionMs, 1);
+    const k = easeInOut(t);
+    const { from, to } = current;
+    controls.target.lerpVectors(from.target, to.target, k);
+    const length = from.offset.length() * (1 - k) + to.offset.length() * k;
+    const offset = from.offset.clone().normalize().lerp(to.offset.clone().normalize(), k).normalize().multiplyScalar(length);
+    camera.position.copy(controls.target).add(offset);
+    camera.zoom = from.zoom * (to.zoom / from.zoom) ** k;
+    camera.updateProjectionMatrix();
+    controls.update();
+    if (t < 1) invalidate();
+    else transition.current = null;
   });
   return null;
 }
 
-function DepthScene({
-  toolpath,
-  levels,
-  zScale,
-  showRapids,
-  view,
-  fitKey,
-  showVideo,
-  selectedLevel,
-  hover,
-  onHover,
-}: {
-  toolpath: ParsedToolpath;
-  levels: DepthLevel[];
-  zScale: number;
-  showRapids: boolean;
-  view: ViewPreset;
-  fitKey: number;
-  showVideo: boolean;
-  selectedLevel: number | null;
-  hover: HoverInfo | null;
-  onHover: (info: HoverInfo | null) => void;
-}) {
+/**
+ * Toolpath with true Z, to verify cut depths directly rather than only through the depth color map of
+ * the top view. Rendered inside the page's canvas; the camera image on the stock top (see `getStockFootprint`) is provided by the page.
+ */
+export function DepthScene({ toolpath, view, fitKey }: { toolpath: ParsedToolpath; view: DepthViewPreset; fitKey: number }) {
   const stockHeight = useStore(s => s.stockHeight);
   const toolpathOffset = useStore(s => s.toolpathOffset);
+  const zScale = useDepthView(s => s.zScale);
+  const showRapids = useDepthView(s => s.showRapids);
+  const setHover = useDepthView(s => s.setHover);
+  const showVideo = useShowStockVideo();
+  const selectedLevel = useSelectedLevel(toolpath);
+  const hover = useHoverInfo(toolpath);
+  const levels = useMemo(() => getCutDepthLevels(toolpath), [toolpath]);
   const bounds = toolpath.getBounds();
-  // Toolpath (work) coordinates are placed in machine coordinates, like in the top view, with Z0 at the stock top.
+  const { shift } = useZeroPlacement(toolpath);
+  // Toolpath (work) coordinates are placed in machine coordinates, like in the top view. The origin is at the stock
+  // top, so Z scaling keeps the stock top on the video plane; toolpaths zeroed at the stock bottom are shifted down.
   const workOrigin = useMemo(
     () => new Vector3(toolpathOffset.x, toolpathOffset.y, stockHeight),
     [toolpathOffset.x, toolpathOffset.y, stockHeight]
   );
 
   const xySize = Math.max(bounds.max.x - bounds.min.x, bounds.max.y - bounds.min.y, 1);
-  const pad = xySize * 0.05;
-  const center = useMemo(() => new Vector3((bounds.min.x + bounds.max.x) / 2, (bounds.min.y + bounds.max.y) / 2, 0), [bounds]);
-  const planeSize: [number, number] = [bounds.max.x - bounds.min.x + 2 * pad, bounds.max.y - bounds.min.y + 2 * pad];
+  const footprint = useMemo(() => getStockFootprint(toolpath), [toolpath]);
+  const center = useMemo(
+    () => new Vector3((footprint.min.x + footprint.max.x) / 2, (footprint.min.y + footprint.max.y) / 2, 0),
+    [footprint]
+  );
+  const planeSize: [number, number] = [footprint.max.x - footprint.min.x, footprint.max.y - footprint.min.y];
 
   const fitBox = useMemo(() => {
-    const min = bounds.min.clone().setZ(Math.min(bounds.min.z, -stockHeight, 0) * zScale);
-    const max = bounds.max.clone().setZ(Math.max(bounds.max.z, 0) * zScale);
+    const min = bounds.min.clone().setZ(Math.min(bounds.min.z + shift, -stockHeight, 0) * zScale);
+    const max = bounds.max.clone().setZ(Math.max(bounds.max.z + shift, 0) * zScale);
     return { center: min.clone().add(max).multiplyScalar(0.5).add(workOrigin), radius: Math.max(min.distanceTo(max) / 2, 1) };
-  }, [bounds, stockHeight, zScale, workOrigin]);
+  }, [bounds, shift, stockHeight, zScale, workOrigin]);
 
   const gridSize = Math.ceil((xySize * 1.4) / 10) * 10;
   const labelLevels = levels.length <= kMaxLevelLabels ? levels : [levels[0], levels[levels.length - 1]];
-  const labelPos = (z: number) => [bounds.min.x - pad, bounds.min.y - pad, z * zScale] as [number, number, number];
+  // Scene Z (relative to the stock top, scaled) of a toolpath Z.
+  const sceneZ = (z: number) => (z + shift) * zScale;
+  const labelPos = (z: number) => [footprint.min.x, footprint.min.y, sceneZ(z)] as [number, number, number];
 
   return (
     <>
       <color attach="background" args={[kBackground]} />
       <OrbitControls makeDefault enableDamping={false} />
       <CameraRig box={fitBox} view={view} fitKey={fitKey} />
-
-      {showVideo && (
-        <ErrorBoundary fallback={null}>
-          <Suspense fallback={null}>
-            <StockVideo />
-          </Suspense>
-        </ErrorBoundary>
-      )}
 
       <group position={workOrigin}>
         {/* Z0 reference grid, replaced by the video plane when shown */}
@@ -301,33 +314,43 @@ function DepthScene({
             rotation-x={Math.PI / 2}
           />
         )}
-        <Line
-          points={[
-            [0, 0, 0],
-            [xySize * 0.15, 0, 0],
-          ]}
-          color="#ef4444"
-          lineWidth={2}
-        />
-        <Line
-          points={[
-            [0, 0, 0],
-            [0, xySize * 0.15, 0],
-          ]}
-          color="#22c55e"
-          lineWidth={2}
-        />
-        <Line
-          points={[
-            [0, 0, 0],
-            [0, 0, xySize * 0.15],
-          ]}
-          color="#3b82f6"
-          lineWidth={2}
-        />
+        {/* Toolpath zero */}
+        <group position-z={sceneZ(0)}>
+          <Line
+            points={[
+              [0, 0, 0],
+              [xySize * 0.15, 0, 0],
+            ]}
+            color="#ef4444"
+            lineWidth={2}
+          />
+          <Line
+            points={[
+              [0, 0, 0],
+              [0, xySize * 0.15, 0],
+            ]}
+            color="#22c55e"
+            lineWidth={2}
+          />
+          <Line
+            points={[
+              [0, 0, 0],
+              [0, 0, xySize * 0.15],
+            ]}
+            color="#3b82f6"
+            lineWidth={2}
+          />
+        </group>
 
         <group scale={[1, 1, zScale]}>
-          <ToolpathSegments toolpath={toolpath} showRapids={showRapids} dashSize={xySize / 150} onHover={onHover} />
+          <group position-z={shift}>
+            <ToolpathSegments
+              toolpath={toolpath}
+              showRapids={showRapids}
+              dashSize={xySize / 150}
+              onHover={info => setHover(toolpath, info)}
+            />
+          </group>
           {stockHeight > 0 && (
             <mesh position={[center.x, center.y, -stockHeight / 2]} raycast={() => null}>
               <boxGeometry args={[planeSize[0], planeSize[1], stockHeight]} />
@@ -345,7 +368,7 @@ function DepthScene({
             </mesh>
           )}
           {selectedLevel !== null && (
-            <mesh position={[center.x, center.y, selectedLevel]} renderOrder={3} raycast={() => null}>
+            <mesh position={[center.x, center.y, selectedLevel + shift]} renderOrder={3} raycast={() => null}>
               <planeGeometry args={planeSize} />
               <meshBasicMaterial color="#38bdf8" transparent opacity={0.18} depthWrite={false} depthTest={false} side={2} />
             </mesh>
@@ -363,14 +386,14 @@ function DepthScene({
         {hover && (
           <>
             {/* Markers skip the depth test so they show through the video plane. */}
-            <mesh position={[hover.point.x, hover.point.y, hover.point.z * zScale]} renderOrder={3} raycast={() => null}>
+            <mesh position={[hover.point.x, hover.point.y, sceneZ(hover.point.z)]} renderOrder={3} raycast={() => null}>
               <sphereGeometry args={[xySize / 120, 12, 12]} />
               <meshBasicMaterial color="white" depthTest={false} transparent />
             </mesh>
             <Line
               points={[
-                [hover.point.x, hover.point.y, 0],
-                [hover.point.x, hover.point.y, hover.point.z * zScale],
+                [hover.point.x, hover.point.y, sceneZ(0)],
+                [hover.point.x, hover.point.y, sceneZ(hover.point.z)],
               ]}
               color="white"
               lineWidth={1}
@@ -415,105 +438,110 @@ function LevelList({
   );
 }
 
-/**
- * 3D view of the toolpath with true Z, to verify cut depths directly rather than
- * only through the depth color map of the top view.
- */
-export function DepthInspector({ toolpath }: { toolpath: ParsedToolpath }) {
+const kZeroAtLabels: Record<ZeroAt, string> = { top: 'Top', bottom: 'Bottom' };
+
+function ZeroAtControl({
+  zeroAt,
+  guessed,
+  isGuess,
+  onChange,
+}: {
+  zeroAt: ZeroAt;
+  guessed: ZeroAt;
+  isGuess: boolean;
+  onChange: (zeroAt: ZeroAt | null) => void;
+}) {
+  return (
+    <div className="grid gap-1 text-xs">
+      <div className="flex items-center justify-between gap-2">
+        <span>Z0 at stock</span>
+        <div className="flex rounded-md bg-black/5 p-0.5" role="group" aria-label="Z0 at stock">
+          {(Object.keys(kZeroAtLabels) as ZeroAt[]).map(z => (
+            <button
+              key={z}
+              type="button"
+              aria-pressed={zeroAt === z}
+              className={`rounded px-1.5 py-0.5 ${zeroAt === z ? 'bg-white font-semibold shadow-sm' : 'text-muted-foreground'}`}
+              onClick={() => onChange(z)}>
+              {kZeroAtLabels[z]}
+            </button>
+          ))}
+        </div>
+      </div>
+      {isGuess ? (
+        <span className="text-muted-foreground">Guessed from the toolpath</span>
+      ) : (
+        zeroAt !== guessed && (
+          <button type="button" className="text-left text-muted-foreground underline" onClick={() => onChange(null)}>
+            Use guess ({kZeroAtLabels[guessed].toLowerCase()})
+          </button>
+        )
+      )}
+    </div>
+  );
+}
+
+/** Floating panel with the 3D view options, depth summary and cut levels of the toolpath. */
+export function DepthPanel({ toolpath }: { toolpath: ParsedToolpath }) {
   const stockHeight = useStore(s => s.stockHeight);
   const camSource = useCamSource();
   const canShowVideo = !!camSource?.extrinsics && !!camSource.machineBounds;
-  const [videoEnabled, setVideoEnabled] = useState(true);
-  const showVideo = canShowVideo && videoEnabled;
-  const [view, setView] = useState<ViewPreset>('iso');
-  const [fitKey, setFitKey] = useState(0);
-  const [zScale, setZScale] = useState(1);
-  const [showRapids, setShowRapids] = useState(true);
-  const [selectedLevel, setSelectedLevel] = useState<number | null>(null);
-  const [hover, setHover] = useState<HoverInfo | null>(null);
-  // Selection and hover refer to the previous toolpath's geometry, reset them when another file is loaded.
-  const [prevToolpath, setPrevToolpath] = useState(toolpath);
-  if (toolpath !== prevToolpath) {
-    setPrevToolpath(toolpath);
-    setSelectedLevel(null);
-    setHover(null);
-  }
+  const zScale = useDepthView(s => s.zScale);
+  const setZScale = useDepthView(s => s.setZScale);
+  const showRapids = useDepthView(s => s.showRapids);
+  const setShowRapids = useDepthView(s => s.setShowRapids);
+  const videoEnabled = useDepthView(s => s.videoEnabled);
+  const setVideoEnabled = useDepthView(s => s.setVideoEnabled);
+  const setSelected = useDepthView(s => s.setSelected);
+  const selectedLevel = useSelectedLevel(toolpath);
+  const [collapsed, setCollapsed] = useState(false);
 
+  const setZeroAt = useDepthView(s => s.setZeroAt);
+  const { zeroAt, guessed, isGuess, shift } = useZeroPlacement(toolpath);
   const levels = useMemo(() => getCutDepthLevels(toolpath), [toolpath]);
   const bounds = toolpath.getBounds();
-  // Assumes Z0 at the stock top.
-  const belowStock = stockHeight > 0 ? -stockHeight - bounds.min.z : 0;
-
-  function selectView(v: ViewPreset) {
-    setView(v);
-    setFitKey(k => k + 1);
-  }
+  // Depth of the deepest cut below the stock bottom, in toolpath Z.
+  const belowStock = stockHeight > 0 ? -stockHeight - shift - bounds.min.z : 0;
 
   return (
-    <div className="flex h-full min-h-0 flex-col" role="region" aria-label="Depth Inspector">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-2 py-1">
-        <div className="flex gap-1">
-          {(Object.keys(kViewLabels) as ViewPreset[]).map(v => (
-            <Button key={v} size="sm" variant={view === v ? 'flat' : 'light'} className="h-7 min-w-0 px-2" onPress={() => selectView(v)}>
-              {kViewLabels[v]}
-            </Button>
-          ))}
-        </div>
-        <Slider
-          aria-label="Z scale"
-          label="Z scale"
-          size="sm"
-          className="w-32"
-          minValue={1}
-          maxValue={20}
-          step={0.5}
-          value={zScale}
-          onChange={setZScale}
-        />
-        <Switch size="sm" isSelected={showRapids} onValueChange={setShowRapids}>
-          <span className="text-xs">Rapids</span>
-        </Switch>
-        {canShowVideo && (
-          <Switch size="sm" isSelected={videoEnabled} onValueChange={setVideoEnabled}>
-            <span className="text-xs">Stock video</span>
-          </Switch>
-        )}
-      </div>
-      <div className="flex min-h-0 flex-1">
-        <div className="relative min-w-0 flex-1">
-          <Canvas
-            orthographic
-            // The video texture needs continuous rendering.
-            frameloop={showVideo ? 'always' : 'demand'}
-            // Keep the depth range tight (mm) for depth precision on the coplanar video planes.
-            camera={{ up: [0, 0, 1], near: -1e4, far: 1e4 }}
-            onPointerMissed={() => setHover(null)}>
-            <DepthScene
-              toolpath={toolpath}
-              levels={levels}
-              zScale={zScale}
-              showRapids={showRapids}
-              view={view}
-              fitKey={fitKey}
-              showVideo={showVideo}
-              selectedLevel={selectedLevel}
-              hover={hover}
-              onHover={setHover}
+    <div
+      className="pointer-events-auto flex max-h-full w-48 flex-col overflow-hidden rounded-lg bg-white/85 shadow-md backdrop-blur-sm"
+      role="region"
+      aria-label="Depth Inspector">
+      <button
+        type="button"
+        className="flex items-center justify-between gap-2 px-2 py-1.5 text-xs font-medium hover:bg-muted/60"
+        aria-expanded={!collapsed}
+        onClick={() => setCollapsed(c => !c)}>
+        <span>
+          Depth <span className="font-mono text-muted-foreground">{formatMm(bounds.min.z)}</span>
+        </span>
+        {collapsed ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
+      </button>
+      {!collapsed && (
+        <>
+          <div className="grid gap-2 border-t px-2 py-2">
+            <Slider
+              aria-label="Z scale"
+              label="Z scale"
+              size="sm"
+              minValue={1}
+              maxValue={20}
+              step={0.5}
+              value={zScale}
+              onChange={setZScale}
             />
-          </Canvas>
-          <div className="pointer-events-none absolute bottom-1 left-2 font-mono text-xs text-gray-200">
-            {hover ? (
-              <>
-                X {formatMm(hover.point.x)} Y {formatMm(hover.point.y)}{' '}
-                <span className="font-bold text-white">Z {formatMm(hover.point.z)}</span> {hover.motion}
-              </>
-            ) : (
-              <span className="text-gray-400">Hover the path to read exact positions</span>
+            <Switch size="sm" isSelected={showRapids} onValueChange={setShowRapids}>
+              <span className="text-xs">Rapids</span>
+            </Switch>
+            {canShowVideo && (
+              <Switch size="sm" isSelected={videoEnabled} onValueChange={setVideoEnabled}>
+                <span className="text-xs">Stock video</span>
+              </Switch>
             )}
+            <ZeroAtControl zeroAt={zeroAt} guessed={guessed} isGuess={isGuess} onChange={setZeroAt} />
           </div>
-        </div>
-        <div className="hidden w-40 shrink-0 flex-col border-l sm:flex">
-          <div className="grid gap-0.5 border-b p-2 text-xs">
+          <div className="grid gap-0.5 border-t px-2 py-1.5 text-xs">
             <div>
               Min Z: <span className="font-mono font-medium">{formatMm(bounds.min.z)}</span>
             </div>
@@ -522,16 +550,35 @@ export function DepthInspector({ toolpath }: { toolpath: ParsedToolpath }) {
             </div>
             {stockHeight > 0 && (
               <div className={belowStock > 0 ? 'text-red-600' : 'text-muted-foreground'}>
-                {belowStock > 0 ? `${formatMm(belowStock)}mm below stock` : `Stock: ${formatMm(stockHeight)}mm`}
+                {belowStock > 0
+                  ? `${formatMm(belowStock)}mm below ${zeroAt === 'bottom' ? 'Z0' : 'stock'}`
+                  : `Stock: ${formatMm(stockHeight)}mm`}
               </div>
             )}
           </div>
-          <div className="px-2 pt-1 text-xs font-medium">Cut levels (Z · length)</div>
-          <div className="min-h-0 flex-1 overflow-auto">
-            <LevelList levels={levels} selected={selectedLevel} onSelect={setSelectedLevel} />
+          <div className="border-t px-2 pt-1 text-xs font-medium">Cut levels (Z · length)</div>
+          <div className="min-h-0 flex-1 overflow-auto pb-1">
+            <LevelList levels={levels} selected={selectedLevel} onSelect={z => setSelected(toolpath, z)} />
           </div>
-        </div>
-      </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Exact position of the toolpath point under the cursor in the 3D views. */
+export function DepthHoverReadout({ toolpath }: { toolpath: ParsedToolpath }) {
+  const hover = useHoverInfo(toolpath);
+  return (
+    <div className="pointer-events-none rounded bg-black/60 px-2 py-1 font-mono text-xs text-gray-200">
+      {hover ? (
+        <>
+          X {formatMm(hover.point.x)} Y {formatMm(hover.point.y)} <span className="font-bold text-white">Z {formatMm(hover.point.z)}</span>{' '}
+          {hover.motion}
+        </>
+      ) : (
+        <span className="text-gray-400">Hover the path to read exact positions</span>
+      )}
     </div>
   );
 }

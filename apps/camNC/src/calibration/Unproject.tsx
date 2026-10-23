@@ -8,7 +8,18 @@ import { CameraShaderMaterial } from './CameraShaderMaterial';
 import { getMachinePlaneLayout } from './machinePlane';
 import { useCameraTexture } from './useCameraTexture';
 
-export const UnprojectVideoMesh = ({ overSize = 50, ref, ...props }: { overSize?: number } & ThreeElements['mesh']) => {
+export const UnprojectVideoMesh = ({
+  overSize = 50,
+  bounds,
+  opacity = 1,
+  ref,
+  ...props
+}: {
+  overSize?: number;
+  // Area to cover (machine coordinates), defaults to the machine bounds plus `overSize`.
+  bounds?: THREE.Box2;
+  opacity?: number;
+} & ThreeElements['mesh']) => {
   const machineBounds = useMachineBounds();
   const useStillFrame = useShowStillFrame();
   const [stillFrameTexture, updateStillFrameTexture] = useStillFrameTexture();
@@ -21,18 +32,19 @@ export const UnprojectVideoMesh = ({ overSize = 50, ref, ...props }: { overSize?
   // Create a centered plane geometry matching the video dimensions.
   const planeGeometry = useMemo(() => {
     // PlaneGeometry(width, height) is centered at (0,0) by default.
-    const { width, height, center } = getMachinePlaneLayout(machineBounds, overSize);
+    const { width, height, center } = bounds ? getMachinePlaneLayout(bounds) : getMachinePlaneLayout(machineBounds, overSize);
     const plane = new THREE.PlaneGeometry(width, height);
     plane.translate(center.x, center.y, 0);
     return plane;
-  }, [machineBounds, overSize]);
+  }, [bounds, machineBounds, overSize]);
+  useEffect(() => () => planeGeometry.dispose(), [planeGeometry]);
 
   return (
     <mesh ref={ref} geometry={planeGeometry} {...props}>
       {useStillFrame ? (
-        <CameraShaderMaterial key="stillFrame" texture={stillFrameTexture} />
+        <CameraShaderMaterial key="stillFrame" texture={stillFrameTexture} opacity={opacity} />
       ) : (
-        <CameraShaderMaterial key="video" texture={videoTexture} />
+        <CameraShaderMaterial key="video" texture={videoTexture} opacity={opacity} />
       )}
     </mesh>
   );

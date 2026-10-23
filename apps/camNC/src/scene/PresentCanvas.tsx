@@ -101,13 +101,24 @@ function DefaultControls({ worldScale }: { worldScale: IWorldScale }) {
   );
 }
 
-export const PresentCanvas = ({ worldScale = 'video', children }: { worldScale?: IWorldScale; children: React.ReactNode }) => {
+export const PresentCanvas = ({
+  worldScale = 'video',
+  defaultControls = true,
+  children,
+}: {
+  worldScale?: IWorldScale;
+  // Children may render their own camera controls instead of the fixed top-down pan/zoom controls.
+  defaultControls?: boolean;
+  children: React.ReactNode;
+}) => {
   return (
     <div className="w-full h-full" onContextMenu={e => e.preventDefault()}>
       <Suspense fallback={<LoadingVideoOverlay />}>
         <Canvas
           orthographic
           camera={{
+            // Z up, as children with orbiting controls expect. The default controls fix the rotation anyway.
+            up: [0, 0, 1],
             near: 0,
             far: 10000,
             position: [0, 0, 1500],
@@ -116,7 +127,7 @@ export const PresentCanvas = ({ worldScale = 'video', children }: { worldScale?:
           gl={{ antialias: true, outputColorSpace: THREE.SRGBColorSpace }}>
           <ambientLight intensity={1} />
           {/* <directionalLight position={[10, 10, 10]} intensity={0.5} /> */}
-          <DefaultControls worldScale={worldScale} />
+          {defaultControls && <DefaultControls worldScale={worldScale} />}
           <ErrorBoundary FallbackComponent={FallbackContent}>{children}</ErrorBoundary>
         </Canvas>
       </Suspense>

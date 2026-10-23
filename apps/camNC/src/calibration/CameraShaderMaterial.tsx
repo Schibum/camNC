@@ -12,7 +12,7 @@ import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 
-export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
+export function CameraShaderMaterial({ texture, opacity = 1 }: { texture: THREE.Texture; opacity?: number }) {
   // These are your extrinsics (rotation and translation) from world to camera space.
   const { R, t } = useCameraExtrinsics();
   // Get your intrinsic matrix via your custom hook.
@@ -66,6 +66,7 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
     uniform vec3 t;
     uniform float minMaskVal;
     uniform float blendFactor;
+    uniform float opacity;
     varying vec2 vUv;
     varying vec3 worldPos;
 
@@ -128,6 +129,7 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
       vec4 videoCol = sampleRemappedTexture(undistortedUV);
       vec4 bgCol = useMask ? texture2D(bgTexture, undistortedUV) : vec4(0.0);
       gl_FragColor = videoCol * maskVal + bgCol * (1.0 - maskVal);
+      gl_FragColor.a *= opacity;
       // gl_FragColor.r = videoCol.r;
     }
   `;
@@ -162,6 +164,7 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
       t: { value: t },
       minMaskVal: { value: minMaskVal },
       blendFactor: { value: 1.0 },
+      opacity: { value: opacity },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
@@ -189,7 +192,23 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
     uniforms.R.value = R;
     uniforms.t.value = t;
     uniforms.minMaskVal.value = minMaskVal;
-  }, [texture, videoDimensions, K, R, t, uniforms, maskTex, bgTex, depthBlendEnabled, minMaskVal, calibration, distCoeffsVec4, k3]);
+    uniforms.opacity.value = opacity;
+  }, [
+    texture,
+    videoDimensions,
+    K,
+    R,
+    t,
+    uniforms,
+    maskTex,
+    bgTex,
+    depthBlendEnabled,
+    minMaskVal,
+    calibration,
+    distCoeffsVec4,
+    k3,
+    opacity,
+  ]);
 
   // Advance blendFactor each frame
   useFrame(() => {
@@ -205,5 +224,14 @@ export function CameraShaderMaterial({ texture }: { texture: THREE.Texture }) {
     }
   });
 
-  return <shaderMaterial vertexShader={vertexShader} fragmentShader={fragmentShader} uniforms={uniforms} />;
+  return (
+    <shaderMaterial
+      vertexShader={vertexShader}
+      fragmentShader={fragmentShader}
+      uniforms={uniforms}
+      transparent={opacity < 1}
+      // Let what lies below a see-through plane show, e.g. the stock box in the 3D views.
+      depthWrite={opacity >= 1}
+    />
+  );
 }
