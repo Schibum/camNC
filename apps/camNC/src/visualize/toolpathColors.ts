@@ -9,8 +9,13 @@ const plasmamap = colormap({
   alpha: 1,
 }).map(c => new Color().setRGB(c[0] / 255, c[1] / 255, c[2] / 255, SRGBColorSpace));
 
+// The darkest end of plasma is near black and disappears on dark camera images and backgrounds; start a bit in.
+const kPlasmaStart = 0.15;
+
+/** Depth color for `float` in [0, 1] (deepest to highest). */
 export function getPlasmaColor(float: number) {
-  const index = Math.floor(float * (plasmamap.length - 1));
+  const t = kPlasmaStart + Math.min(Math.max(float, 0), 1) * (1 - kPlasmaStart);
+  const index = Math.floor(t * (plasmamap.length - 1));
   return plasmamap[Math.min(Math.max(index, 0), plasmamap.length - 1)];
 }
 

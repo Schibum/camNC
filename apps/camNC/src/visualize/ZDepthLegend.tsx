@@ -1,15 +1,7 @@
-import colormap from 'colormap';
 import React, { useMemo } from 'react';
-import { Box3 } from 'three';
 import { useStore } from '../store/store';
-
-// Use the same colormap as in Toolpaths.tsx
-const plasmamap = colormap({
-  colormap: 'plasma',
-  nshades: 50,
-  format: 'rgba',
-  alpha: 1,
-});
+import { getCutZRange } from './depthInspection';
+import { getPlasmaColor } from './toolpathColors';
 
 /**
  * Formats a number to a fixed number of decimal places
@@ -19,23 +11,15 @@ function formatNumber(value: number, decimals = 2): string {
   return value.toFixed(decimals).replace(/\.?0+$/, '');
 }
 
-function ZDepthLegendForBounds({ bounds }: { bounds: Box3 }) {
-  const minZ = bounds.min.z;
-  const maxZ = bounds.max.z;
-
+function ZDepthLegendForRange({ minZ, maxZ }: { minZ: number; maxZ: number }) {
   // Generate intermediate values for tick marks (3 intermediate values)
   const intermediateValues = useMemo(() => {
     const range = maxZ - minZ;
     return [minZ + range * 0.25, minZ + range * 0.5, minZ + range * 0.75];
   }, [minZ, maxZ]);
 
-  // Generate the gradient colors for the legend
-  const gradientColors = plasmamap
-    .map((color, i) => {
-      const rgba = `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${color[3]})`;
-      return `${rgba} ${(i / (plasmamap.length - 1)) * 100}%`;
-    })
-    .join(', ');
+  // Same colors as the toolpath views.
+  const gradientColors = Array.from({ length: 11 }, (_, i) => `#${getPlasmaColor(i / 10).getHexString()} ${i * 10}%`).join(', ');
 
   return (
     <div className="z-depth-legend">
@@ -84,5 +68,7 @@ export const ZDepthLegend: React.FC = () => {
   if (!toolpath) {
     return null;
   }
-  return <ZDepthLegendForBounds bounds={toolpath.getBounds()} />;
+  // Colors spread over the cutting depths, as in the toolpath views.
+  const { min, max } = getCutZRange(toolpath);
+  return <ZDepthLegendForRange minZ={min} maxZ={max} />;
 };
