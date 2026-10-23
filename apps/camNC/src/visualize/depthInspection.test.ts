@@ -78,6 +78,8 @@ describe('buildDepthGeometryData', () => {
 describe('guessZeroAt', () => {
   it('guesses the stock bottom for toolpaths that stay above 0 and rise above the stock top', () => {
     expect(guessZeroAt(parseGCode('G0 Z25\nG1 X10 Z12 F100\nG1 X20'), 20)).toBe('bottom');
+    // Including a small overcut below the stock bottom.
+    expect(guessZeroAt(parseGCode('G0 Z25\nG1 X10 Z-0.3 F100\nG1 X20'), 20)).toBe('bottom');
   });
 
   it('guesses the stock top for toolpaths cutting below 0, or without a stock height', () => {

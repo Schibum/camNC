@@ -117,9 +117,16 @@ describe('DepthPanel', () => {
   });
 
   it('warns when cutting below the stock bottom', () => {
-    store.stockHeight = 2;
+    store.stockHeight = 1.5;
     renderPanel(gcode);
-    expect(screen.getByText('0.50mm below stock')).toBeTruthy();
+    expect(screen.getByText('1.00mm below stock')).toBeTruthy();
+  });
+
+  it('notes a small overcut below the stock bottom without warning', () => {
+    store.stockHeight = 2.2;
+    renderPanel(gcode);
+    expect(screen.getByText('0.30mm overcut below stock')).toBeTruthy();
+    expect(screen.queryByText(/mm below stock/)).toBeNull();
   });
 
   it('guesses Z0 at the stock bottom for toolpaths that stay above it', () => {
@@ -135,11 +142,19 @@ describe('DepthPanel', () => {
 
   it('warns about cuts below Z0 with Z0 at the stock bottom', () => {
     store.stockHeight = 10;
-    renderPanel('G0 Z15\nG1 X10 Z2 F100\nG1 Z-0.5\nG1 X20');
-    // Cutting below 0, so the stock top is guessed, where the same cuts are well within the stock.
+    renderPanel('G0 Z15\nG1 X10 Z2 F100\nG1 Z-1.5\nG1 X20');
+    // Cutting well below 0, so the stock top is guessed, where the same cuts are well within the stock.
     expect(screen.queryByText(/below/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Bottom' }));
-    expect(screen.getByText('0.50mm below Z0')).toBeTruthy();
+    expect(screen.getByText('1.50mm below Z0')).toBeTruthy();
+  });
+
+  it('treats a small cut below Z0 as an overcut of a toolpath zeroed at the stock bottom', () => {
+    store.stockHeight = 10;
+    renderPanel('G0 Z15\nG1 X10 Z2 F100\nG1 Z-0.3\nG1 X20');
+    expect(screen.getByRole('button', { name: 'Bottom', pressed: true })).toBeTruthy();
+    expect(screen.getByText('0.30mm overcut below Z0')).toBeTruthy();
+    expect(screen.queryByText(/mm below Z0/)).toBeNull();
   });
 });
 

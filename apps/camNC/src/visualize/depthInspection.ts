@@ -29,12 +29,18 @@ export interface DepthGeometryData {
 export type ZeroAt = 'top' | 'bottom';
 
 /**
- * Guess the Z0 placement of a toolpath: zeroed on the stock bottom (or table) when it never goes
- * below 0 but rises above the stock top, on the stock top otherwise.
+ * Cuts up to this deep (mm) below the stock bottom are a deliberate overcut, so the tool cuts
+ * cleanly through, rather than a mistake.
  */
-export function guessZeroAt(toolpath: ParsedToolpath, stockHeight: number, tolerance = 1e-3): ZeroAt {
+export const kOvercutTolerance = 0.5;
+
+/**
+ * Guess the Z0 placement of a toolpath: zeroed on the stock bottom (or table) when it never goes
+ * below 0 (apart from an overcut) but rises above the stock top, on the stock top otherwise.
+ */
+export function guessZeroAt(toolpath: ParsedToolpath, stockHeight: number, tolerance = kOvercutTolerance): ZeroAt {
   const { min, max } = toolpath.getBounds();
-  return stockHeight > 0 && min.z >= -tolerance && max.z > stockHeight + tolerance ? 'bottom' : 'top';
+  return stockHeight > 0 && min.z >= -tolerance && max.z > stockHeight + 1e-3 ? 'bottom' : 'top';
 }
 
 /** XY area of the stock shown in the 3D views (work coordinates): the toolpath bounds plus a small margin. */
