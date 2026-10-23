@@ -112,7 +112,8 @@ export async function runSetupSmoke(
       const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
       let dark = 0;
       for (let i = 0; i < data.length; i += 4) {
-        if (Math.max(data[i], data[i + 1], data[i + 2]) < 50) dark++;
+        // Near-black only: the marker squares are black, the view's dark backdrop (#0b0e13 and lighter) is not.
+        if (Math.max(data[i], data[i + 1], data[i + 2]) < 12) dark++;
       }
       return dark;
     }, screenshot.toString('base64'));
