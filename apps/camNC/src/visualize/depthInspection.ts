@@ -109,10 +109,32 @@ export function withMinContrast(color: Color, background: Color, minRatio = 4.5)
 }
 
 /**
- * Depth colors per path point (rgb triples), adjusted to stay readable against `background`.
+ * Z range the depth colors spread over: from the deepest cut to the highest cut level. Plunges and retracts above
+ * the highest level get its color, otherwise retract heights would squeeze all cut depths into one end of the map.
+ */
+export function getCutZRange(toolpath: ParsedToolpath): { min: number; max: number } {
+  const points = toolpath.pathPoints;
+  let min = Infinity;
+  let max = -Infinity;
+  for (let i = 1; i < points.length; i++) {
+    if (isRapidSegment(toolpath, i)) continue;
+    min = Math.min(min, points[i - 1].z, points[i].z);
+    max = Math.max(max, points[i - 1].z, points[i].z);
+  }
+  if (min > max) {
+    const bounds = toolpath.getBounds();
+    return { min: bounds.min.z, max: bounds.max.z };
+  }
+  const levels = getCutDepthLevels(toolpath);
+  const highestLevel = levels.at(-1)?.z;
+  return { min, max: highestLevel !== undefined && highestLevel > min ? highestLevel : max };
+}
+
+/**
+ * Depth colors per path point (rgb triples) over the cutting Z range, adjusted to stay readable against `background`.
  */
 function getContrastingZHeightColors(toolpath: ParsedToolpath, background: Color) {
-  const colors = getZHeightColors(toolpath);
+  const colors = getZHeightColors(toolpath, getCutZRange(toolpath));
   const color = new Color();
   for (let i = 0; i < colors.length; i += 3) {
     withMinContrast(color.setRGB(colors[i], colors[i + 1], colors[i + 2]), background).toArray(colors, i);
@@ -152,6 +174,44 @@ export function buildDepthGeometryData(toolpath: ParsedToolpath, background: Col
   };
 }
 
+/**
+ * Segment colors with every segment outside the level at `z` grayed and faded towards `background`, to make one depth pass
+ * stand out. `positions` and `colors` are per segment endpoint, as in `DepthGeometryData`.
+ */
+export function fadeOutsideLevel(
+  positions: Float32Array,
+  colors: Float32Array,
+  z: number,
+  background: Color,
+  { tolerance = 0.005, fade = 0.6 } = {}
+): Float32Array {
+  const faded = new Float32Array(colors);
+  // Six floats per segment: two endpoints with three components each.
+  for (let i = 0; i < positions.length; i += 6) {
+    const onLevel = Math.abs(positions[i + 2] - z) <= tolerance && Math.abs(positions[i + 5] - z) <= tolerance;
+    if (onLevel) continue;
+    for (let j = i; j < i + 6; j += 3) {
+      // Desaturate, so only the level keeps its depth color, then fade.
+      const gray = 0.2126 * faded[j] + 0.7152 * faded[j + 1] + 0.0722 * faded[j + 2];
+      faded[j] = gray + (background.r - gray) * fade;
+      faded[j + 1] = gray + (background.g - gray) * fade;
+      faded[j + 2] = gray + (background.b - gray) * fade;
+    }
+  }
+  return faded;
+}
+
+/** Positions of the segments at the level `z` (both endpoints within `tolerance`), as in `DepthGeometryData`. */
+export function getLevelSegmentPositions(positions: Float32Array, z: number, tolerance = 0.005): Float32Array {
+  const level: number[] = [];
+  for (let i = 0; i < positions.length; i += 6) {
+    if (Math.abs(positions[i + 2] - z) <= tolerance && Math.abs(positions[i + 5] - z) <= tolerance) {
+      level.push(...positions.subarray(i, i + 6));
+    }
+  }
+  return new Float32Array(level);
+}
+
 /** Closest point to `point` on the segment ending at path point `index`. */
 export function closestPointOnSegment(toolpath: ParsedToolpath, index: number, point: Vector3): Vector3 {
   const a = toolpath.pathPoints[index - 1];
@@ -160,4 +220,25 @@ export function closestPointOnSegment(toolpath: ParsedToolpath, index: number, p
   const lengthSq = ab.lengthSq();
   const t = lengthSq === 0 ? 0 : Math.min(1, Math.max(0, new Vector3().subVectors(point, a).dot(ab) / lengthSq));
   return a.clone().addScaledVector(ab, t);
+}
+
+// Minimum on-screen distance between two level labels.
+const kMinLabelSpacingPx = 18;
+
+/**
+ * Levels to label: deepest first, skipping levels that would overlap the previous label at the current zoom and
+ * tilt. The selected level is always labeled.
+ */
+export function pickLabelLevels(levels: DepthLevel[], pxPerMm: number, selected: number | null, minSpacingPx = kMinLabelSpacingPx) {
+  const picked: number[] = [];
+  for (const level of levels) {
+    const last = picked.at(-1);
+    if (last === undefined || (level.z - last) * pxPerMm >= minSpacingPx) picked.push(level.z);
+  }
+  if (selected !== null && !picked.includes(selected)) {
+    // Replace labels too close to the selected one.
+    const kept = picked.filter(z => Math.abs(z - selected) * pxPerMm >= minSpacingPx);
+    return [...kept, selected].sort((a, b) => a - b);
+  }
+  return picked;
 }

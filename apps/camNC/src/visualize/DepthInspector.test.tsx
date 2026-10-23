@@ -7,7 +7,14 @@ import { DepthHoverReadout, DepthPanel, DepthScene, DepthViewPreset } from './De
 import { useDepthView } from './depthViewStore';
 import { parseGCode } from './gcodeParsing';
 
-const store = vi.hoisted(() => ({ stockHeight: 0, toolpathOffset: { x: 0, y: 0, z: 0 }, hasCamera: false }));
+const store = vi.hoisted(() => ({
+  stockHeight: 0,
+  toolpathOffset: { x: 0, y: 0, z: 0 },
+  hasCamera: false,
+  setStockHeight: (height: number) => {
+    store.stockHeight = height;
+  },
+}));
 
 // The real store pulls in server-only modules.
 vi.mock('@/store/store', () => ({
@@ -44,14 +51,14 @@ describe('DepthPanel', () => {
     expect(screen.getByRole('button', { name: /-1\.00\s*60mm/ })).toBeTruthy();
     const deepest = screen.getByRole('button', { name: /-2\.50\s*60mm/ });
     fireEvent.click(deepest);
-    expect(deepest.className).toContain('bg-sky-500/20');
+    expect(deepest.className).toContain('bg-sky-500/25');
   });
 
   it('clears the selected level when another toolpath is loaded', () => {
     const { rerender } = renderPanel(gcode);
     fireEvent.click(screen.getByRole('button', { name: /-2\.50\s*60mm/ }));
     rerender(<DepthPanel toolpath={parseGCode(gcode)} />);
-    expect(screen.getByRole('button', { name: /-2\.50\s*60mm/ }).className).not.toContain('bg-sky-500/20');
+    expect(screen.getByRole('button', { name: /-2\.50\s*60mm/ }).className).not.toContain('bg-sky-500/25');
   });
 
   it('collapses to the depth summary', () => {
@@ -67,6 +74,46 @@ describe('DepthPanel', () => {
     store.hasCamera = true;
     renderPanel(gcode);
     expect(screen.getByRole('switch', { name: 'Stock video' })).toBeTruthy();
+  });
+
+  it('sets the Z scale from the presets', () => {
+    renderPanel(gcode);
+    fireEvent.click(screen.getByRole('button', { name: '5×' }));
+    expect(useDepthView.getState().zScale).toBe(5);
+    expect(screen.getByRole('button', { name: '5×', pressed: true })).toBeTruthy();
+    act(() => useDepthView.getState().setZScale(1));
+  });
+
+  it('shows the depth summary', () => {
+    store.stockHeight = 3;
+    renderPanel(gcode);
+    for (const [label, value] of [
+      ['Min Z', '-2.50'],
+      ['Max Z', '5.00'],
+    ]) {
+      expect(screen.getByText(label).nextElementSibling?.textContent).toBe(value);
+    }
+    expect(screen.getByRole<HTMLInputElement>('spinbutton', { name: 'Stock height' }).value).toBe('3');
+  });
+
+  it('asks for the stock height until it is set', () => {
+    const { rerender } = renderPanel(gcode);
+    expect(screen.getByText('Not set, needed for the stock')).toBeTruthy();
+    // Stays visible with the panel collapsed.
+    fireEvent.click(screen.getByRole('button', { expanded: true }));
+    const input = screen.getByRole('spinbutton', { name: 'Stock height' });
+    act(() => input.focus());
+    fireEvent.change(input, { target: { value: '12.5' } });
+    expect(store.stockHeight).toBe(12.5);
+    // Not hidden mid-typing.
+    rerender(<DepthPanel toolpath={parseGCode(gcode)} />);
+    expect(screen.getByRole('spinbutton', { name: 'Stock height' })).toBe(input);
+    act(() => input.blur());
+    // Done, so it moves out of the way with the rest of the panel.
+    expect(screen.queryByRole('spinbutton', { name: 'Stock height' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { expanded: false }));
+    expect(screen.getByText('Stock height')).toBeTruthy();
+    expect(screen.queryByText('Not set, needed for the stock')).toBeNull();
   });
 
   it('warns when cutting below the stock bottom', () => {
@@ -90,7 +137,7 @@ describe('DepthPanel', () => {
     store.stockHeight = 10;
     renderPanel('G0 Z15\nG1 X10 Z2 F100\nG1 Z-0.5\nG1 X20');
     // Cutting below 0, so the stock top is guessed, where the same cuts are well within the stock.
-    expect(screen.getByText('Stock: 10.00mm')).toBeTruthy();
+    expect(screen.queryByText(/below/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Bottom' }));
     expect(screen.getByText('0.50mm below Z0')).toBeTruthy();
   });
@@ -123,7 +170,23 @@ describe('DepthScene', () => {
       async () => {
         await userEvent.hover(outside);
         await userEvent.hover(canvas);
-        expect(screen.getByText(/Z -0\.50/)).toBeTruthy();
+        expect(screen.getByText(/^-0\.50$/).textContent).toBe('Z -0.50');
+      },
+      { timeout: 5000 }
+    );
+  });
+
+  it('keeps hover working while a level is selected', async () => {
+    const toolpath = renderScene('G1 X40 Z-1 F100', 'front');
+    // Selecting a level recolors the path, which must not drop its pointer handlers.
+    act(() => useDepthView.getState().setSelected(toolpath, -1));
+    const canvas = screen.getByTestId('scene').querySelector('canvas')!;
+    const outside = screen.getByRole('button', { name: 'Outside' });
+    await waitFor(
+      async () => {
+        await userEvent.hover(outside);
+        await userEvent.hover(canvas);
+        expect(screen.getByText(/^-0\.50$/).textContent).toBe('Z -0.50');
       },
       { timeout: 5000 }
     );

@@ -4,7 +4,10 @@ import {
   buildDepthGeometryData,
   closestPointOnSegment,
   contrastRatio,
+  fadeOutsideLevel,
   getCutDepthLevels,
+  getCutZRange,
+  getLevelSegmentPositions,
   getStockFootprint,
   guessZeroAt,
   isRapidSegment,
@@ -125,5 +128,37 @@ describe('withMinContrast', () => {
       const color = new Color(cutColors[i], cutColors[i + 1], cutColors[i + 2]);
       expect(contrastRatio(color, darkBackground)).toBeGreaterThanOrEqual(4.5);
     }
+  });
+});
+
+describe('getCutZRange', () => {
+  it('spans from the deepest cut to the highest cut level, ignoring rapids and retract plunges', () => {
+    expect(getCutZRange(parseGCode(twoPassGcode))).toEqual({ min: -2, max: -1 });
+  });
+
+  it('falls back to the cut endpoints without horizontal levels', () => {
+    expect(getCutZRange(parseGCode('G0 X0 Y0 Z5\nG1 Z-3 F100'))).toEqual({ min: -3, max: 5 });
+  });
+
+  it('falls back to the bounds without cutting moves', () => {
+    expect(getCutZRange(parseGCode('G0 X0 Y0 Z5\nG0 X10 Z2'))).toEqual({ min: 0, max: 5 });
+  });
+});
+
+describe('level highlighting', () => {
+  const positions = new Float32Array([0, 0, -1, 10, 0, -1, 10, 0, -1, 10, 0, -2, 10, 0, -2, 0, 0, -2]);
+  const colors = new Float32Array([1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1]);
+
+  it('selects the segments at a level', () => {
+    expect([...getLevelSegmentPositions(positions, -2)]).toEqual([10, 0, -2, 0, 0, -2]);
+    expect(getLevelSegmentPositions(positions, -3)).toHaveLength(0);
+  });
+
+  it('keeps the colors of the level and fades the others', () => {
+    const faded = fadeOutsideLevel(positions, colors, -2, new Color(0, 0, 0));
+    expect([...faded.subarray(12)]).toEqual([0, 0, 1, 0, 0, 1]);
+    // Grayed: equal components, darker than the original red.
+    expect(faded[0]).toBeCloseTo(faded[1]);
+    expect(faded[0]).toBeLessThan(1);
   });
 });
