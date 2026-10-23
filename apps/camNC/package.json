@@ -129,7 +129,7 @@
     "typescript": "catalog:",
     "vite": "catalog:",
     "vite-plugin-checker": "catalog:",
-    "vite-plugin-devtools-json": "^0.3.0",
+    "vite-plugin-devtools-json": "^1.1.2",
     "vite-plugin-node-polyfills": "catalog:",
     "vite-plugin-singlefile": "catalog:",
     "vitest": "catalog:",
