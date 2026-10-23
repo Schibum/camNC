@@ -193,7 +193,22 @@ export function CameraShaderMaterial({ texture, opacity = 1 }: { texture: THREE.
     uniforms.t.value = t;
     uniforms.minMaskVal.value = minMaskVal;
     uniforms.opacity.value = opacity;
-  }, [texture, videoDimensions, K, R, t, uniforms, maskTex, bgTex, depthBlendEnabled, minMaskVal, calibration, distCoeffsVec4, k3, opacity]);
+  }, [
+    texture,
+    videoDimensions,
+    K,
+    R,
+    t,
+    uniforms,
+    maskTex,
+    bgTex,
+    depthBlendEnabled,
+    minMaskVal,
+    calibration,
+    distCoeffsVec4,
+    k3,
+    opacity,
+  ]);
 
   // Advance blendFactor each frame
   useFrame(() => {

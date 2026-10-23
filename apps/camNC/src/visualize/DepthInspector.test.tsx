@@ -119,11 +119,14 @@ describe('DepthScene', () => {
     const canvas = screen.getByTestId('scene').querySelector('canvas')!;
     const outside = screen.getByRole('button', { name: 'Outside' });
     // Retry until the camera has moved into place, leaving the canvas in between to trigger a fresh pointer move.
-    await waitFor(async () => {
-      await userEvent.hover(outside);
-      await userEvent.hover(canvas);
-      expect(screen.getByText(/Z -0\.50/)).toBeTruthy();
-    }, { timeout: 5000 });
+    await waitFor(
+      async () => {
+        await userEvent.hover(outside);
+        await userEvent.hover(canvas);
+        expect(screen.getByText(/Z -0\.50/)).toBeTruthy();
+      },
+      { timeout: 5000 }
+    );
   });
 
   it('forgets the hovered point of a previous toolpath', () => {

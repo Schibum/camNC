@@ -281,7 +281,10 @@ export function DepthScene({ toolpath, view, fitKey }: { toolpath: ParsedToolpat
 
   const xySize = Math.max(bounds.max.x - bounds.min.x, bounds.max.y - bounds.min.y, 1);
   const footprint = useMemo(() => getStockFootprint(toolpath), [toolpath]);
-  const center = useMemo(() => new Vector3((footprint.min.x + footprint.max.x) / 2, (footprint.min.y + footprint.max.y) / 2, 0), [footprint]);
+  const center = useMemo(
+    () => new Vector3((footprint.min.x + footprint.max.x) / 2, (footprint.min.y + footprint.max.y) / 2, 0),
+    [footprint]
+  );
   const planeSize: [number, number] = [footprint.max.x - footprint.min.x, footprint.max.y - footprint.min.y];
 
   const fitBox = useMemo(() => {
@@ -341,7 +344,12 @@ export function DepthScene({ toolpath, view, fitKey }: { toolpath: ParsedToolpat
 
         <group scale={[1, 1, zScale]}>
           <group position-z={shift}>
-            <ToolpathSegments toolpath={toolpath} showRapids={showRapids} dashSize={xySize / 150} onHover={info => setHover(toolpath, info)} />
+            <ToolpathSegments
+              toolpath={toolpath}
+              showRapids={showRapids}
+              dashSize={xySize / 150}
+              onHover={info => setHover(toolpath, info)}
+            />
           </group>
           {stockHeight > 0 && (
             <mesh position={[center.x, center.y, -stockHeight / 2]} raycast={() => null}>
