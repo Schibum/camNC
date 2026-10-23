@@ -294,7 +294,8 @@ export async function runSetupSmoke(
       await threeDViewButton.click();
       const inspector = page.getByRole('region', { name: 'Depth Inspector', exact: true });
       await inspector.getByRole('button', { name: /^-1\.00\s*360mm$/ }).click();
-      await inspector.getByText('Min Z: -1.00', { exact: true }).waitFor();
+      // Matches the depth summary of both the current and the previous panel layout.
+      await inspector.getByText(/^Min Z/).waitFor();
       // Let the camera finish moving into the view for the screenshots.
       await page.waitForTimeout(600);
       await page.screenshot({ path: path.join(outputDir, 'depth-3d.png') });

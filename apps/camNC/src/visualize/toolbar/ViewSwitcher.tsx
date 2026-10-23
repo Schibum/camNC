@@ -30,7 +30,7 @@ function ViewButton({
             aria-pressed={active}
             isDisabled={disabled}
             onPress={() => onSelect(view)}
-            className={cn('h-7 min-w-0 rounded-md px-2.5 text-xs', active && 'bg-white font-semibold shadow-sm')}>
+            className={cn('h-7 min-w-0 rounded-md px-2.5 text-xs', active && 'bg-background font-semibold shadow-sm dark:bg-white/15')}>
             {label}
           </Button>
         </span>
@@ -55,7 +55,7 @@ export function ViewSwitcher({
   onSelect: (view: ViewMode) => void;
 }) {
   return (
-    <div className="flex items-center gap-0.5 rounded-lg bg-black/5 p-0.5" role="group" aria-label="View">
+    <div className="flex items-center gap-0.5 rounded-lg bg-black/5 p-0.5 dark:bg-white/10" role="group" aria-label="View">
       {kViewModes.map(v => (
         <ViewButton key={v} view={v} active={view === v} disabled={v !== 'top' && !hasToolpath} onSelect={onSelect} />
       ))}

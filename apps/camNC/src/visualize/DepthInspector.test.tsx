@@ -44,14 +44,14 @@ describe('DepthPanel', () => {
     expect(screen.getByRole('button', { name: /-1\.00\s*60mm/ })).toBeTruthy();
     const deepest = screen.getByRole('button', { name: /-2\.50\s*60mm/ });
     fireEvent.click(deepest);
-    expect(deepest.className).toContain('bg-sky-500/20');
+    expect(deepest.className).toContain('bg-sky-500/25');
   });
 
   it('clears the selected level when another toolpath is loaded', () => {
     const { rerender } = renderPanel(gcode);
     fireEvent.click(screen.getByRole('button', { name: /-2\.50\s*60mm/ }));
     rerender(<DepthPanel toolpath={parseGCode(gcode)} />);
-    expect(screen.getByRole('button', { name: /-2\.50\s*60mm/ }).className).not.toContain('bg-sky-500/20');
+    expect(screen.getByRole('button', { name: /-2\.50\s*60mm/ }).className).not.toContain('bg-sky-500/25');
   });
 
   it('collapses to the depth summary', () => {
@@ -67,6 +67,26 @@ describe('DepthPanel', () => {
     store.hasCamera = true;
     renderPanel(gcode);
     expect(screen.getByRole('switch', { name: 'Stock video' })).toBeTruthy();
+  });
+
+  it('sets the Z scale from the presets', () => {
+    renderPanel(gcode);
+    fireEvent.click(screen.getByRole('button', { name: '5×' }));
+    expect(useDepthView.getState().zScale).toBe(5);
+    expect(screen.getByRole('button', { name: '5×', pressed: true })).toBeTruthy();
+    act(() => useDepthView.getState().setZScale(1));
+  });
+
+  it('shows the depth summary', () => {
+    store.stockHeight = 3;
+    renderPanel(gcode);
+    for (const [label, value] of [
+      ['Min Z', '-2.50'],
+      ['Max Z', '5.00'],
+      ['Stock', '3.00'],
+    ]) {
+      expect(screen.getByText(label).nextElementSibling?.textContent).toBe(value);
+    }
   });
 
   it('warns when cutting below the stock bottom', () => {
@@ -90,7 +110,7 @@ describe('DepthPanel', () => {
     store.stockHeight = 10;
     renderPanel('G0 Z15\nG1 X10 Z2 F100\nG1 Z-0.5\nG1 X20');
     // Cutting below 0, so the stock top is guessed, where the same cuts are well within the stock.
-    expect(screen.getByText('Stock: 10.00mm')).toBeTruthy();
+    expect(screen.queryByText(/below/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Bottom' }));
     expect(screen.getByText('0.50mm below Z0')).toBeTruthy();
   });
@@ -123,7 +143,23 @@ describe('DepthScene', () => {
       async () => {
         await userEvent.hover(outside);
         await userEvent.hover(canvas);
-        expect(screen.getByText(/Z -0\.50/)).toBeTruthy();
+        expect(screen.getByText(/^-0\.50$/).textContent).toBe('Z -0.50');
+      },
+      { timeout: 5000 }
+    );
+  });
+
+  it('keeps hover working while a level is selected', async () => {
+    const toolpath = renderScene('G1 X40 Z-1 F100', 'front');
+    // Selecting a level recolors the path, which must not drop its pointer handlers.
+    act(() => useDepthView.getState().setSelected(toolpath, -1));
+    const canvas = screen.getByTestId('scene').querySelector('canvas')!;
+    const outside = screen.getByRole('button', { name: 'Outside' });
+    await waitFor(
+      async () => {
+        await userEvent.hover(outside);
+        await userEvent.hover(canvas);
+        expect(screen.getByText(/^-0\.50$/).textContent).toBe('Z -0.50');
       },
       { timeout: 5000 }
     );

@@ -13,7 +13,7 @@ import { SnapPositionMarker } from '@/visualize/SnapPositionMarker';
 import { GCodeVisualizer } from '@/visualize/Toolpaths';
 import { nearestPointOnToolpath } from '@/visualize/nearestPoint';
 import { VisualizeToolbar } from '@/visualize/toolbar/VisualizeToolbar';
-import { DepthHoverReadout, DepthPanel, DepthScene } from '@/visualize/DepthInspector';
+import { DepthHoverReadout, DepthPanel, DepthScene, kDepthSceneBackground } from '@/visualize/DepthInspector';
 import { getStockFootprint } from '@/visualize/depthInspection';
 import { useShowStockVideo } from '@/visualize/depthViewStore';
 import { ViewSwitcher } from '@/visualize/toolbar/ViewSwitcher';
@@ -22,6 +22,7 @@ import { ThreeEvent, useThree } from '@react-three/fiber';
 import { createFileRoute } from '@tanstack/react-router';
 import { zodValidator } from '@tanstack/zod-adapter';
 import { toast } from '@wbcnc/ui/components/sonner';
+import { cn } from '@wbcnc/ui/lib/utils';
 import { ComponentProps, RefObject, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { useHotkeys } from 'react-hotkeys-hook';
@@ -191,7 +192,10 @@ function VisualizeComponent() {
       <DepthBlendWorker />
 
       {/* One canvas for all views: the camera video keeps running when switching between them. */}
-      <div className="w-full h-dvh absolute top-0 left-0">
+      {/* The canvas is transparent: a neutral backdrop around the camera image in the top view, a dark one in the 3D views. */}
+      <div
+        className={cn('w-full h-dvh absolute top-0 left-0', isTop && 'bg-zinc-200')}
+        style={isTop ? undefined : { background: kDepthSceneBackground }}>
         <PresentCanvas worldScale="machine" defaultControls={isTop}>
           {/* <group rotation={[0, 0, Math.PI / 2]}> */}
           {/*
@@ -240,7 +244,9 @@ function VisualizeComponent() {
       )}
 
       <div className="pointer-events-none absolute inset-0 flex h-dvh flex-col">
-        <PageHeader title={viewModeTitle(view)} className="pointer-events-auto pr-2 flex-wrap h-auto p-1">
+        <PageHeader
+          title={viewModeTitle(view)}
+          className={cn('pointer-events-auto pr-2 flex-wrap h-auto p-1', !isTop && 'dark text-foreground')}>
           <div className="pl-2">
             <ViewSwitcher view={view} hasToolpath={!!toolpath} onSelect={selectView} />
           </div>
