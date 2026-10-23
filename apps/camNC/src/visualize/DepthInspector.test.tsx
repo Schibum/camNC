@@ -7,7 +7,14 @@ import { DepthHoverReadout, DepthPanel, DepthScene, DepthViewPreset } from './De
 import { useDepthView } from './depthViewStore';
 import { parseGCode } from './gcodeParsing';
 
-const store = vi.hoisted(() => ({ stockHeight: 0, toolpathOffset: { x: 0, y: 0, z: 0 }, hasCamera: false }));
+const store = vi.hoisted(() => ({
+  stockHeight: 0,
+  toolpathOffset: { x: 0, y: 0, z: 0 },
+  hasCamera: false,
+  setStockHeight: (height: number) => {
+    store.stockHeight = height;
+  },
+}));
 
 // The real store pulls in server-only modules.
 vi.mock('@/store/store', () => ({
@@ -83,10 +90,30 @@ describe('DepthPanel', () => {
     for (const [label, value] of [
       ['Min Z', '-2.50'],
       ['Max Z', '5.00'],
-      ['Stock', '3.00'],
     ]) {
       expect(screen.getByText(label).nextElementSibling?.textContent).toBe(value);
     }
+    expect(screen.getByRole<HTMLInputElement>('spinbutton', { name: 'Stock height' }).value).toBe('3');
+  });
+
+  it('asks for the stock height until it is set', () => {
+    const { rerender } = renderPanel(gcode);
+    expect(screen.getByText('Not set, needed for the stock')).toBeTruthy();
+    // Stays visible with the panel collapsed.
+    fireEvent.click(screen.getByRole('button', { expanded: true }));
+    const input = screen.getByRole('spinbutton', { name: 'Stock height' });
+    act(() => input.focus());
+    fireEvent.change(input, { target: { value: '12.5' } });
+    expect(store.stockHeight).toBe(12.5);
+    // Not hidden mid-typing.
+    rerender(<DepthPanel toolpath={parseGCode(gcode)} />);
+    expect(screen.getByRole('spinbutton', { name: 'Stock height' })).toBe(input);
+    act(() => input.blur());
+    // Done, so it moves out of the way with the rest of the panel.
+    expect(screen.queryByRole('spinbutton', { name: 'Stock height' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { expanded: false }));
+    expect(screen.getByText('Stock height')).toBeTruthy();
+    expect(screen.queryByText('Not set, needed for the stock')).toBeNull();
   });
 
   it('warns when cutting below the stock bottom', () => {

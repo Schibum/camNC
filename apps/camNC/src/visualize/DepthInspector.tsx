@@ -4,7 +4,7 @@ import { GizmoHelper, GizmoViewport, Line, OrbitControls } from '@react-three/dr
 import { ThreeEvent, useFrame, useThree } from '@react-three/fiber';
 import { Slider } from '@wbcnc/ui/components/slider';
 import { cn } from '@wbcnc/ui/lib/utils';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, CircleCheck, CircleDashed } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Color, OrthographicCamera, Vector3 } from 'three';
 import { LineMaterial, LineSegments2, LineSegmentsGeometry } from 'three/addons';
@@ -496,6 +496,60 @@ function Stat({ label, value, className }: { label: string; value: string; class
   );
 }
 
+/**
+ * Setup item for the stock height, styled like a checklist entry: open and highlighted until it is set, since the
+ * stock block and the below-stock warning need it.
+ */
+function StockHeightItem({ onFocusChange }: { onFocusChange?: (focused: boolean) => void }) {
+  const stockHeight = useStore(s => s.stockHeight);
+  const setStockHeight = useStore(s => s.setStockHeight);
+  // Text being typed, so intermediate input like "1." is kept until the field loses focus.
+  const [draft, setDraft] = useState<string | null>(null);
+  const isSet = stockHeight > 0;
+  const onChange = (text: string) => {
+    setDraft(text);
+    const value = Number(text);
+    if (text.trim() !== '' && Number.isFinite(value) && value >= 0) setStockHeight(value);
+  };
+  return (
+    <label
+      className={cn(
+        'flex items-center gap-2 rounded-md px-2 py-1.5 text-xs',
+        isSet ? 'bg-white/5' : 'bg-amber-400/15 text-amber-100 ring-1 ring-amber-300/40'
+      )}>
+      {isSet ? (
+        <CircleCheck className="size-4 shrink-0 text-emerald-400" aria-hidden />
+      ) : (
+        <CircleDashed className="size-4 shrink-0 text-amber-300" aria-hidden />
+      )}
+      <span className="grid flex-1 leading-tight">
+        <span className="font-medium">Stock height</span>
+        {!isSet && <span className="text-[10px] text-amber-200/80">Not set, needed for the stock</span>}
+      </span>
+      <span className="flex items-center rounded bg-black/30 ring-1 ring-white/10 focus-within:ring-sky-400/70">
+        <input
+          type="number"
+          inputMode="decimal"
+          min={0}
+          step={0.1}
+          aria-label="Stock height"
+          className="w-12 bg-transparent py-0.5 pl-1.5 text-right font-mono text-xs outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+          value={draft ?? (isSet ? String(stockHeight) : '')}
+          placeholder="0"
+          onChange={e => onChange(e.target.value)}
+          onFocus={() => onFocusChange?.(true)}
+          onBlur={() => {
+            setDraft(null);
+            onFocusChange?.(false);
+          }}
+          onKeyDown={e => e.key === 'Enter' && e.currentTarget.blur()}
+        />
+        <span className="pr-1.5 pl-0.5 text-[10px] text-muted-foreground">mm</span>
+      </span>
+    </label>
+  );
+}
+
 const kZScalePresets = [1, 2, 5, 10];
 
 /** Floating panel with the 3D view options, depth summary and cut levels of the toolpath. */
@@ -512,6 +566,7 @@ export function DepthPanel({ toolpath }: { toolpath: ParsedToolpath }) {
   const setSelected = useDepthView(s => s.setSelected);
   const selectedLevel = useSelectedLevel(toolpath);
   const [collapsed, setCollapsed] = useState(false);
+  const [editingStock, setEditingStock] = useState(false);
 
   const setZeroAt = useDepthView(s => s.setZeroAt);
   const { zeroAt, guessed, isGuess, shift } = useZeroPlacement(toolpath);
@@ -541,6 +596,12 @@ export function DepthPanel({ toolpath }: { toolpath: ParsedToolpath }) {
         </span>
         {collapsed ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
       </button>
+      {/* Kept visible while collapsed until it is set. */}
+      {(!collapsed || stockHeight === 0 || editingStock) && (
+        <div className="border-t border-white/10 px-2 py-2">
+          <StockHeightItem onFocusChange={setEditingStock} />
+        </div>
+      )}
       {!collapsed && (
         <>
           <div className="grid gap-2.5 border-t border-white/10 px-3 py-2.5">
@@ -584,10 +645,9 @@ export function DepthPanel({ toolpath }: { toolpath: ParsedToolpath }) {
             <ZeroAtControl zeroAt={zeroAt} guessed={guessed} isGuess={isGuess} onChange={setZeroAt} />
           </div>
           <div className="grid gap-1.5 border-t border-white/10 px-3 py-2.5">
-            <div className="grid grid-cols-3 gap-1">
+            <div className="grid grid-cols-2 gap-1">
               <Stat label="Min Z" value={formatMm(bounds.min.z)} />
               <Stat label="Max Z" value={formatMm(bounds.max.z)} />
-              {stockHeight > 0 && <Stat label="Stock" value={formatMm(stockHeight)} />}
             </div>
             {belowStock > 0 && (
               <div className="rounded-md bg-red-500/15 px-1.5 py-1 text-xs text-red-300 ring-1 ring-red-400/30">
