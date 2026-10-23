@@ -10,15 +10,14 @@
   "author": "",
   "license": "Apache-2.0",
   "dependencies": {
+    "@wbcnc/public-config": "workspace:*",
     "comlink": "catalog:",
-    "firebase": "catalog:",
     "loglevel": "catalog:",
     "mitt": "catalog:",
     "playwright": "catalog:"
   },
   "devDependencies": {
     "@vitest/browser": "catalog:",
-    "@wbcnc/public-config": "workspace:*",
     "@wbcnc/typescript-config": "workspace:*",
     "vitest": "catalog:"
   }

@@ -9,7 +9,6 @@ import { ClerkProvider } from '@clerk/tanstack-react-start';
 import { HeroUIProvider } from '@heroui/react';
 import { QueryClient } from '@tanstack/react-query';
 import { createRootRouteWithContext, HeadContent, Outlet, Scripts } from '@tanstack/react-router';
-import { initFbApp } from '@wbcnc/public-config/firebase';
 import { stringify as devalueStringify } from 'devalue';
 import type { ReactNode } from 'react';
 import appCss from '../style.css?url';
@@ -20,9 +19,6 @@ const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 if (!PUBLISHABLE_KEY) {
   throw new Error('Add your Clerk Publishable Key to the .env file');
 }
-
-// Currently used for webrtc-signalling
-initFbApp();
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;

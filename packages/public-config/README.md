@@ -1,3 +1,3 @@
 # Public Config
 
-Shared Firebase configuration consumed by several packages.
+Public configuration shared by several packages, e.g. the WebRTC signalling URL.

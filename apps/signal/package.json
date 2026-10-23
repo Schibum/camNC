@@ -1,0 +1,26 @@
+{
+  "name": "@wbcnc/signal",
+  "version": "1.0.0",
+  "description": "WebRTC signalling relay on Cloudflare Workers + Durable Objects",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "deploy": "wrangler deploy",
+    "test": "vitest",
+    "check-types": "tsc --noEmit"
+  },
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@wbcnc/webrtc-channel": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.12.21",
+    "@cloudflare/workers-types": "^4.20260301.0",
+    "@wbcnc/typescript-config": "workspace:*",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "wrangler": "4.72.0"
+  }
+}

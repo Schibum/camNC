@@ -10,9 +10,6 @@
   "keywords": [],
   "author": "",
   "license": "Apache-2.0",
-  "dependencies": {
-    "firebase": "catalog:"
-  },
   "devDependencies": {
     "@wbcnc/typescript-config": "workspace:*"
   }

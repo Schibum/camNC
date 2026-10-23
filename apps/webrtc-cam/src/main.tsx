@@ -4,11 +4,8 @@ import './index.css';
 import log from 'loglevel';
 
 import { createRouter, ErrorComponent, RouterProvider } from '@tanstack/react-router';
-import { initFbApp } from '@wbcnc/public-config/firebase';
 import { ThemeProvider } from '@wbcnc/ui/components/theme-provider';
 import { routeTree } from './routeTree.gen';
-
-initFbApp();
 
 log.setDefaultLevel(log.levels.DEBUG);
 
