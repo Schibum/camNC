@@ -7,21 +7,24 @@ import { DepthLevel, pickLabelLevels } from './depthInspection';
 
 const kGridVertexShader = /* glsl */ `
   varying vec2 vWorld;
+  varying vec2 vCenter;
   void main() {
     vec4 world = modelMatrix * vec4(position, 1.0);
     vWorld = world.xy;
+    // The plane is centered on the stock, fade around its world position.
+    vCenter = (modelMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xy;
     gl_Position = projectionMatrix * viewMatrix * world;
   }
 `;
 
 const kGridFragmentShader = /* glsl */ `
-  uniform vec2 uCenter;
   uniform float uRadius;
   uniform float uMinorStep;
   uniform float uMajorStep;
   uniform vec3 uMinorColor;
   uniform vec3 uMajorColor;
   varying vec2 vWorld;
+  varying vec2 vCenter;
 
   // Anti-aliased grid line intensity, about one pixel wide at any zoom.
   float gridLine(vec2 p, float step) {
@@ -33,7 +36,7 @@ const kGridFragmentShader = /* glsl */ `
   void main() {
     float minor = gridLine(vWorld, uMinorStep);
     float major = gridLine(vWorld, uMajorStep);
-    float fade = 1.0 - smoothstep(uRadius * 0.3, uRadius, distance(vWorld, uCenter));
+    float fade = 1.0 - smoothstep(uRadius * 0.3, uRadius, distance(vWorld, vCenter));
     float alpha = max(minor * 0.45, major * 0.9) * fade;
     if (alpha < 0.01) discard;
     gl_FragColor = vec4(mix(uMinorColor, uMajorColor, major), alpha);
@@ -57,7 +60,6 @@ export function BedGrid({ center, radius, z }: { center: Vector3; radius: number
         depthWrite: false,
         side: FrontSide,
         uniforms: {
-          uCenter: { value: [0, 0] },
           uRadius: { value: 1 },
           uMinorStep: { value: 10 },
           uMajorStep: { value: 50 },
@@ -69,11 +71,10 @@ export function BedGrid({ center, radius, z }: { center: Vector3; radius: number
   );
   useEffect(() => () => material.dispose(), [material]);
   useEffect(() => {
-    material.uniforms.uCenter.value = [center.x, center.y];
     material.uniforms.uRadius.value = radius;
     material.uniforms.uMinorStep.value = minorStep;
     material.uniforms.uMajorStep.value = minorStep * 5;
-  }, [material, center, radius, minorStep]);
+  }, [material, radius, minorStep]);
 
   return (
     <mesh position={[center.x, center.y, z]} material={material} renderOrder={-3} raycast={() => null}>
