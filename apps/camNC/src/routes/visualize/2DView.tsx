@@ -22,7 +22,6 @@ import { ThreeEvent, useThree } from '@react-three/fiber';
 import { createFileRoute } from '@tanstack/react-router';
 import { zodValidator } from '@tanstack/zod-adapter';
 import { toast } from '@wbcnc/ui/components/sonner';
-import { cn } from '@wbcnc/ui/lib/utils';
 import { ComponentProps, RefObject, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { useHotkeys } from 'react-hotkeys-hook';
@@ -192,10 +191,8 @@ function VisualizeComponent() {
       <DepthBlendWorker />
 
       {/* One canvas for all views: the camera video keeps running when switching between them. */}
-      {/* The canvas is transparent: a neutral backdrop around the camera image in the top view, a dark one in the 3D views. */}
-      <div
-        className={cn('w-full h-dvh absolute top-0 left-0', isTop && 'bg-zinc-200')}
-        style={isTop ? undefined : { background: kDepthSceneBackground }}>
+      {/* The canvas is transparent: all views share one dark backdrop around the camera image and the 3D scene. */}
+      <div className="w-full h-dvh absolute top-0 left-0" style={{ background: kDepthSceneBackground }}>
         <PresentCanvas worldScale="machine" defaultControls={isTop}>
           {/* <group rotation={[0, 0, Math.PI / 2]}> */}
           {/*
@@ -232,7 +229,7 @@ function VisualizeComponent() {
       </div>
 
       {isTop && (videoError || videoLoading) && (
-        <div className="pointer-events-none absolute inset-0 h-dvh">
+        <div className="dark pointer-events-none absolute inset-0 h-dvh text-foreground">
           {videoError ? (
             <div className="flex h-full items-center justify-center p-4 text-center text-red-500">
               Error loading video: {videoError.message || 'unknown error'}
@@ -244,9 +241,7 @@ function VisualizeComponent() {
       )}
 
       <div className="pointer-events-none absolute inset-0 flex h-dvh flex-col">
-        <PageHeader
-          title={viewModeTitle(view)}
-          className={cn('pointer-events-auto pr-2 flex-wrap h-auto p-1', !isTop && 'dark text-foreground')}>
+        <PageHeader title={viewModeTitle(view)} className="dark pointer-events-auto pr-2 flex-wrap h-auto p-1 text-foreground">
           <div className="pl-2">
             <ViewSwitcher view={view} hasToolpath={!!toolpath} onSelect={selectView} />
           </div>

@@ -39,7 +39,7 @@ const kViewDirections: Record<DepthViewPreset, Vector3> = {
   side: new Vector3(1, 0, 0),
 };
 
-// Approximate scene background (a CSS gradient behind the transparent canvas, see `kDepthSceneBackground`); toolpath
+// Approximate scene background (a CSS gradient behind the transparent canvas, see `kDepthSceneBackground`, shared with the top view); toolpath
 // colors are lifted to stay high contrast against it.
 const kBackground = new Color('#161b24');
 export const kDepthSceneBackground = 'radial-gradient(ellipse at 50% 40%, #1f2633 0%, #141922 55%, #0b0e13 100%)';
