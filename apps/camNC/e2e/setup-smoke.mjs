@@ -282,6 +282,24 @@ export async function runSetupSmoke(
     check('tool diameter and stock height dialogs accept changes');
     await page.screenshot({ path: path.join(outputDir, 'top-view.png') });
 
+    // The smoke also runs against production for pull requests, before the Depth Inspector is deployed there.
+    await page.getByRole('button', { name: 'Toggle Sidebar' }).click();
+    await page.getByRole('link', { name: 'Top View', exact: true }).waitFor();
+    const depthInspectorLink = page.getByRole('link', { name: 'Depth Inspector', exact: true });
+    if (await depthInspectorLink.count()) {
+      await depthInspectorLink.click();
+      await page.keyboard.press('Escape');
+      const inspector = page.getByRole('region', { name: 'Depth Inspector', exact: true });
+      await inspector.getByRole('button', { name: /^-1\.00\s*360mm$/ }).click();
+      await inspector.getByText('Min Z: -1.00', { exact: true }).waitFor();
+      await inspector.getByRole('button', { name: 'Front (XZ)', exact: true }).click();
+      await page.screenshot({ path: path.join(outputDir, 'depth-inspector.png') });
+      check('depth inspector lists cut levels of the loaded toolpath');
+    } else {
+      await page.keyboard.press('Escape');
+      onProgress('SKIP depth inspector is not deployed at this URL yet');
+    }
+
     await navigate('Debug');
     const configuration = JSON.parse(await page.getByRole('textbox', { name: 'Camera Source Configuration', exact: true }).inputValue());
     assert.deepEqual(configuration.machineBounds, [0, 0, 600, 500]);

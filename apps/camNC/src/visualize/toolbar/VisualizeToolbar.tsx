@@ -46,7 +46,7 @@ function PlayPauseButton() {
   );
 }
 
-function OpenFileButton() {
+export function OpenFileButton() {
   return <TooltipIconButton label="Open gcode File" icon={<FolderOpen />} shortcut="o" onClick={openGcodeFile} />;
 }
 

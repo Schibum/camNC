@@ -10,6 +10,7 @@ import { useMemo } from 'react';
 import { createStorage } from './store-storage';
 import type { FirmwareVariant } from '@wbcnc/fluidnc';
 import { kDefaultMacros, Macro } from '../lib/machine/macros';
+import { kSettingsVersion, migrateSettings } from './settingsMigration';
 
 export interface CalibrationData {
   calibration_matrix: Matrix3;
@@ -326,15 +327,10 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
   })
 )), {
   name: 'settings',
-  version: 1,
-  // v1: the WebUI extension relay (fluidncToken) was replaced by a direct connection (machine).
-  migrate: (persisted, version) => {
-    const state = (persisted ?? {}) as Record<string, unknown>;
-    if (version < 1) delete state.fluidncToken;
-    return state as never;
-  },
+  version: kSettingsVersion,
   // skipHydration: true,
   storage: createStorage(),
+  migrate: migrateSettings,
   partialize: state => ({
     toolDiameter: state.toolDiameter,
     camSources: state.camSources,
