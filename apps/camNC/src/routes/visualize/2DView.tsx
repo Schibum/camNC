@@ -15,7 +15,7 @@ import { SnapPositionMarker } from '@/visualize/SnapPositionMarker';
 import { GCodeVisualizer } from '@/visualize/Toolpaths';
 import { nearestPointOnToolpath } from '@/visualize/nearestPoint';
 import { VisualizeToolbar } from '@/visualize/toolbar/VisualizeToolbar';
-import { DepthHoverReadout, DepthPanel, DepthScene } from '@/visualize/DepthInspector';
+import { DepthHoverReadout, DepthPanel, DepthScene, kDepthSceneBackground } from '@/visualize/DepthInspector';
 import { getStockFootprint } from '@/visualize/depthInspection';
 import { useShowStockVideo } from '@/visualize/depthViewStore';
 import { ViewSwitcher } from '@/visualize/toolbar/ViewSwitcher';
@@ -194,7 +194,8 @@ function VisualizeComponent() {
         <DepthBlendWorker />
 
         {/* One canvas for all views: the camera video keeps running when switching between them. */}
-        <div className="w-full h-dvh absolute top-0 left-0">
+        {/* The canvas is transparent: all views share one dark backdrop around the camera image and the 3D scene. */}
+        <div className="w-full h-dvh absolute top-0 left-0" style={{ background: kDepthSceneBackground }}>
           <PresentCanvas worldScale="machine" defaultControls={isTop}>
             {/* <group rotation={[0, 0, Math.PI / 2]}> */}
             {/*
@@ -232,7 +233,7 @@ function VisualizeComponent() {
         </div>
 
         {isTop && (videoError || videoLoading) && (
-          <div className="pointer-events-none absolute inset-0 h-dvh">
+          <div className="dark pointer-events-none absolute inset-0 h-dvh text-foreground">
             {videoError ? (
               <div className="flex h-full items-center justify-center p-4 text-center text-red-500">
                 Error loading video: {videoError.message || 'unknown error'}
@@ -244,7 +245,7 @@ function VisualizeComponent() {
         )}
 
         <div className="pointer-events-none absolute inset-0 flex h-dvh flex-col">
-          <PageHeader title={viewModeTitle(view)} className="pointer-events-auto pr-2 flex-wrap h-auto p-1">
+          <PageHeader title={viewModeTitle(view)} className="dark pointer-events-auto pr-2 flex-wrap h-auto p-1 text-foreground">
             <div className="pl-2">
               <ViewSwitcher view={view} hasToolpath={!!toolpath} onSelect={selectView} />
             </div>

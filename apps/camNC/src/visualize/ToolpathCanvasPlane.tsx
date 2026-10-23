@@ -2,8 +2,12 @@ import { useStore, useToolDiameter, useToolpathOpacity } from '@/store/store';
 import React from 'react';
 import * as THREE from 'three';
 import { Vector3 } from 'three';
+import { getCutZRange, isRapidSegment } from './depthInspection';
 import { getZHeightColors } from './toolpathColors';
 import { useCanvasTexture } from './useCanvasTexture';
+
+const kOutlineColor = 'rgba(0, 0, 0, 0.7)';
+const kRapidColor = 'rgba(241, 245, 249, 0.95)';
 
 /**
  * Render the tool-path into a plain 2-D <canvas> using the 2-D context.
@@ -45,6 +49,7 @@ export function ToolpathCanvasPlane() {
     texture.minFilter = THREE.LinearFilter;
     texture.magFilter = THREE.LinearFilter;
     texture.generateMipmaps = false;
+    texture.colorSpace = THREE.SRGBColorSpace;
     ctx.imageSmoothingEnabled = true;
 
     // Clear
@@ -53,37 +58,66 @@ export function ToolpathCanvasPlane() {
     // Stroke setup
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.lineWidth = toolDiameter;
 
     // World → pixel transform
     const tx = -(bounds!.min.x - strokeMargin) * pxPerUnit;
     const ty = expandedSize.y * pxPerUnit + (bounds!.min.y - strokeMargin) * pxPerUnit;
     ctx.setTransform(pxPerUnit, 0, 0, -pxPerUnit, tx, ty);
 
-    // Draw segments sorted by Z
-    const colors = getZHeightColors(toolpath);
-    const segments: { idx: number; z: number }[] = [];
+    // Colors spread over the cutting depths, like the 3D views, so retract heights don't squeeze them into one color.
+    const colors = getZHeightColors(toolpath, getCutZRange(toolpath));
+    const cuts: { idx: number; z: number }[] = [];
+    const rapids: number[] = [];
     for (let i = 1; i < toolpath.pathPoints.length; i++) {
-      const z = (toolpath.pathPoints[i - 1].z + toolpath.pathPoints[i].z) / 2;
-      segments.push({ idx: i, z });
+      if (toolpath.pathPoints[i - 1].equals(toolpath.pathPoints[i])) continue;
+      if (isRapidSegment(toolpath, i)) {
+        rapids.push(i);
+      } else {
+        cuts.push({ idx: i, z: (toolpath.pathPoints[i - 1].z + toolpath.pathPoints[i].z) / 2 });
+      }
     }
-    segments.sort((a, b) => b.z - a.z);
+    // Deepest cuts last, on top.
+    cuts.sort((a, b) => b.z - a.z);
 
-    for (const { idx } of segments) {
-      const r = colors[(idx - 1) * 3];
-      const g = colors[(idx - 1) * 3 + 1];
-      const b = colors[(idx - 1) * 3 + 2];
-
-      ctx.strokeStyle = `rgb(${Math.floor(r * 255)}, ${Math.floor(g * 255)}, ${Math.floor(b * 255)})`;
-
+    const segment = (idx: number) => {
       const p0 = toolpath.pathPoints[idx - 1];
       const p1 = toolpath.pathPoints[idx];
-
       ctx.beginPath();
       ctx.moveTo(p0.x, p0.y);
       ctx.lineTo(p1.x, p1.y);
       ctx.stroke();
+    };
+
+    // A thin dark outline below all cuts keeps them readable on light and dark camera images.
+    const outline = Math.max(toolDiameter * 0.12, 0.3);
+    ctx.strokeStyle = kOutlineColor;
+    ctx.lineWidth = toolDiameter + 2 * outline;
+    for (const { idx } of cuts) segment(idx);
+
+    // Cuts are as wide as the tool, showing the material they remove.
+    ctx.lineWidth = toolDiameter;
+    // `colors` are in three's linear working space, the canvas takes sRGB.
+    const color = new THREE.Color();
+    for (const { idx } of cuts) {
+      const r = colors[(idx - 1) * 3];
+      const g = colors[(idx - 1) * 3 + 1];
+      const b = colors[(idx - 1) * 3 + 2];
+      ctx.strokeStyle = `#${color.setRGB(r, g, b).getHexString()}`;
+      segment(idx);
     }
+
+    // Rapids remove no material: thin dashed lines on top, like in the 3D views.
+    const rapidWidth = Math.max(toolDiameter * 0.18, 0.4);
+    const dash = Math.max(toolDiameter * 0.8, 1.5);
+    ctx.lineCap = 'butt';
+    ctx.setLineDash([dash, dash * 0.7]);
+    ctx.strokeStyle = kOutlineColor;
+    ctx.lineWidth = rapidWidth + 2 * outline;
+    for (const idx of rapids) segment(idx);
+    ctx.strokeStyle = kRapidColor;
+    ctx.lineWidth = rapidWidth;
+    for (const idx of rapids) segment(idx);
+    ctx.setLineDash([]);
 
     texture.needsUpdate = true;
   }, [toolpath, texture, expandedSize, toolDiameter, bounds, strokeMargin, pxPerUnit, ctx, canvas]);
