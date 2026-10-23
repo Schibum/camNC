@@ -19,11 +19,11 @@ export default defineConfig({
       'react-hotkeys-hook',
       '@wbcnc/ui > @radix-ui/react-popover',
     ],
-    // These server integrations are mocked in browser tests and require Start's virtual modules.
-    exclude: ['@clerk/tanstack-react-start', '@tanstack/react-start'],
   },
   test: {
     globals: false,
+    // Worker tests run in workerd, see vitest.worker.config.ts.
+    exclude: ['**/node_modules/**', 'worker/**'],
     // environment: 'jsdom',
     // opencv tests don't seem to work with jsdom as setup right now.
     browser: {

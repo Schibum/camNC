@@ -1,11 +1,9 @@
 import tailwindcss from '@tailwindcss/vite';
-// import { TanStackRouterVite } from '@tanstack/router-plugin/vite';
+import { TanStackRouterVite } from '@tanstack/router-plugin/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig, PluginOption } from 'vite';
 import checker from 'vite-plugin-checker';
 // import { viteSingleFile } from 'vite-plugin-singlefile';
-import postgresPlugin from '@neondatabase/vite-plugin-postgres';
-import { tanstackStart } from '@tanstack/react-start/plugin/vite';
 import devtoolsJson from 'vite-plugin-devtools-json';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import tsconfigPaths from 'vite-tsconfig-paths';
@@ -20,16 +18,7 @@ export default defineConfig(() => {
     devtoolsJson(),
 
     tsconfigPaths(),
-    postgresPlugin(),
-    tanstackStart({
-      customViteReactPlugin: true,
-      target: 'vercel',
-      // spa: {
-      //   enabled: true,
-      // },
-    }) as PluginOption,
-
-    // TanStackRouterVite({ target: 'react', autoCodeSplitting: true }),
+    TanStackRouterVite({ target: 'react', autoCodeSplitting: true }),
     react({
       babel: {
         plugins: [['babel-plugin-react-compiler', ReactCompilerConfig], ['module:@preact/signals-react-transform']],
@@ -39,7 +28,6 @@ export default defineConfig(() => {
     nodePolyfills({
       // For gstream-parser
       include: ['stream', '_stream_transform', 'util'],
-      // tanstack-start build blows without this
       protocolImports: false,
       globals: {
         process: false,
@@ -59,8 +47,10 @@ export default defineConfig(() => {
       commonjsOptions: { transformMixedEsModules: true },
     },
     plugins,
-    // Also in server.ts for dynamic content
+    // Production headers are in public/_headers
     server: {
+      // Settings API, run it with `pnpm dev:api`.
+      proxy: { '/api': 'http://localhost:8787' },
       headers: {
         'Cross-Origin-Opener-Policy': 'same-origin',
         'Cross-Origin-Embedder-Policy': 'require-corp',

@@ -2,7 +2,7 @@
 import { createRouter as createTanStackRouter } from '@tanstack/react-router';
 import { routeTree } from './routeTree.gen';
 
-import { dehydrate, hydrate, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DefaultLoadingOverlay } from './components/DefaultLoadingOverlay';
 
 /**
@@ -25,17 +25,6 @@ export function createRouter() {
     defaultErrorComponent: err => <p>{err.error.stack}</p>,
     defaultNotFoundComponent: () => <p>not found</p>,
     context: { queryClient },
-    defaultSsr: false,
-    dehydrate: () => {
-      return {
-        queryClientState: dehydrate(queryClient),
-      };
-    },
-    // On the client, hydrate the loader client with the data
-    // we dehydrated on the server
-    hydrate: dehydrated => {
-      hydrate(queryClient, dehydrated.queryClientState);
-    },
     // Optionally, we can use `Wrap` to wrap our router in the loader client provider
     Wrap: ({ children }) => {
       return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;

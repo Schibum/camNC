@@ -1,0 +1,3 @@
+# Copy to .dev.vars for `pnpm dev:api` (local settings API Worker with a local D1 database).
+CLERK_SECRET_KEY=
+CLERK_PUBLISHABLE_KEY=
