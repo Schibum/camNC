@@ -8,6 +8,7 @@ import { ParsedToolpath, parseGCode } from '../visualize/gcodeParsing';
 import { parseToolInfo } from '../visualize/guess-tools';
 import { useMemo } from 'react';
 import { createStorage } from './store-storage';
+import { migrateSettings } from './settingsMigration';
 
 export interface CalibrationData {
   calibration_matrix: Matrix3;
@@ -276,6 +277,7 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
   name: 'settings',
   // skipHydration: true,
   storage: createStorage(),
+  migrate: migrateSettings,
   partialize: state => ({
     toolDiameter: state.toolDiameter,
     camSources: state.camSources,

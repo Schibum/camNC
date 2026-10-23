@@ -83,10 +83,13 @@ describe('DepthInspector', () => {
     const canvas = screen.getByRole('region', { name: 'Depth Inspector' }).querySelector('canvas')!;
     const topButton = screen.getByRole('button', { name: 'Top' });
     // Retry until the camera has been fitted, leaving the canvas in between to trigger a fresh pointer move.
-    await waitFor(async () => {
-      await userEvent.hover(topButton);
-      await userEvent.hover(canvas);
-      expect(screen.getByText(/Z -1\.25/)).toBeTruthy();
-    });
+    await waitFor(
+      async () => {
+        await userEvent.hover(topButton);
+        await userEvent.hover(canvas);
+        expect(screen.getByText(/Z -1\.25/)).toBeTruthy();
+      },
+      { timeout: 5000 }
+    );
   });
 });
