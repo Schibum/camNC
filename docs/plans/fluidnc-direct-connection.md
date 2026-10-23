@@ -226,33 +226,76 @@ Firmware settings, OTA updates and Wi-Fi setup stay in the WebUI.
 - Use a single controlling tab (Web Locks API), so two camNC tabs can't drive
   the machine at once.
 
-## Testing
+## Testing and the dev loop
 
-- **Unit:** the protocol queue, parsers and firmware detection, against
-  `FakeFluidnc` transcripts recorded from a real Jackpot2 on 3.9.9 and on
-  4.1.1.
-- **Integration in CI:**
-  - build FluidNC `env:linux` at **v4.1.1** (posix build with the real
-    WebUI server on `PosixAsyncTCP`) and cache it
-  - run it with the JP2_LR `config.yaml`, adapted (pins → none)
-  - drive `FluidncSocket` against `ws://127.0.0.1:<port>/`
-  - loopback isn't subject to mixed-content blocking, so no permission prompt
-    is needed
-  - 3.9.9 has no posix build with WebUI, so it's covered by transcripts plus
-    the manual check
-- **Manual, on the Jackpot2:** Chrome desktop and Chrome Android × FluidNC
-  3.9.9 and 4.1.1. Run connect, permission prompt, jog, zero,
-  upload + run, feed hold mid-job, reset, and pulling Wi-Fi mid-job.
+### Which simulator
+
+| Build                                   | Web server / WebSocket                                                                                                                                                                                    | Reachable from a normal browser `WebSocket`?                                                                                                                                                                                                                                                | Use                                                                     |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `env:wasm` at **v4.1.1**                | **No.** `-<WebUI>` in `platformio.ini`; console channel only.                                                                                                                                             | No                                                                                                                                                                                                                                                                                          | Not useful for the transport.                                           |
+| `env:wasm` on **`main`** (unreleased)   | Yes: the real `WebUI/` server on `BrowserAsyncTCP` with "virtual connections". `demo/vnet-host.js` `createClient()` provides HTTP and `websocket()`, and works headless in Node (`vnet_client_test.mjs`). | **No.** Sockets are virtual: in the demo, a Service Worker plus a `window.WebSocket` shim inside an iframe, and the page needs COOP/COEP. Hosting it inside camNC would mean cross-origin isolation, which conflicts with camNC's cross-origin resources (camera streams, Clerk, Firebase). | Optional later: in-browser "demo machine"; zero-toolchain Node harness. |
+| `env:linux` / `env:macos` at **v4.1.1** | **Yes:** the real `WebUI/` server and `WSChannel` on `PosixAsyncTCP` (real TCP).                                                                                                                          | **Yes:** `ws://127.0.0.1:<port>/`. Loopback from the camNC dev server isn't mixed content. From `https://run.camnc.app` Chrome asks for `loopback-network` permission.                                                                                                                      | **Primary dev and CI target for 4.x.**                                  |
+| 3.9.9 (any)                             | No posix or WASM build with WebUI exists.                                                                                                                                                                 | –                                                                                                                                                                                                                                                                                           | Needs the adapter below.                                                |
+
+So the WASM simulator is _not_ the fastest loop today. Its web server isn't in
+a release, and it can't be reached by the real browser `WebSocket` that
+`FluidncSocket` uses. The native v4.1.1 build is: same server code, real TCP,
+real browser API.
+
+### Loop
+
+1. **`pnpm sim`**: start FluidNC v4.1.1 `linux_x86_64` in Docker.
+   - The image is pinned by tag, so it gives the same binary on macOS and
+     Windows; `windows_x86` excludes WebUI.
+   - It's seeded with an adapted `JP2_LR/config.yaml`: pins → `NO_PIN`,
+     `stepping.engine: timed`.
+   - The HTTP port is mapped to `127.0.0.1:8080`.
+   - Check during the spike: how the posix build picks its HTTP port (`$HTTP/Port`
+     persisted in the emulated NVS, or `-c` start-up commands) and whether the
+     `SD:` job progress and simulated motion (`posix/simulator_engine.cpp`)
+     look realistic.
+2. **`pnpm sim --v3`**: the same, plus a small **3.9.9 personality proxy** in
+   `packages/fluidnc/testing/`.
+   - It's a Node `ws` server on `:8081` that forwards to the v4 sim and
+     rewrites the transport differences to match 3.9.9 port 81:
+     - `CURRENT_ID`/`ACTIVE_ID` hello
+     - one binary frame per line
+     - `PING:` passed through as input (as 3.9.9 does), instead of answered
+     - plain-HTTP 404 on the port-80 WebSocket upgrade, so variant detection
+       is exercised
+   - The G-code/`$` protocol is the same in both versions; text differences
+     (`$I`, `[MSG:]` wording) are covered by transcripts.
+3. **camNC dev server** on `localhost`, with the machine host set to
+   `127.0.0.1:8080` (or `:8081`), gives a full UI loop without hardware.
+4. **Vitest** integration suite runs against both personalities: connect,
+   variant detection, auto-report, jog/cancel, `G10`, `$CD` bounds,
+   `no-cors` upload + `$SD/ListJSON` + `$SD/Run`, feed hold, reset mid-job,
+   and socket kill mid-job (no replay). CI runs the same Docker image.
+5. **Unit tests** run the protocol and parsers against `FakeFluidnc`
+   transcripts recorded from the real Jackpot2 on 3.9.9 (and 4.1.1 once
+   flashed). Transcripts are the source of truth for 3.9.9 quirks.
+6. **Hardware smoke before each release, on the Jackpot2:**
+   - Chrome desktop and Chrome Android, from `https://run.camnc.app`
+   - covers what no simulator can: the LNA prompt, real Wi-Fi drops,
+     ESP32 heap/timing, and I2S/TMC2226 stepping
+
+Possible later steps:
+
+- If FluidNC releases the WASM web server, a tiny Node wrapper (WASM +
+  `createClient` behind a real `ws` server) would replace Docker with a
+  pure `pnpm` dependency.
+- The in-browser WASM build could become a "demo machine" on the website
+  page, separate from camNC so COOP/COEP doesn't leak into the app.
 
 ## Phases
 
-| Phase | Scope                                                                                                                                                                                                                                                                                       | Size      |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| 0     | Spike from `run.camnc.app` on Chrome 147+ against the Jackpot2. On **3.9.9**: `ws://<ip>:81/`, permission prompt, `$Report/Interval`, `$CD`, `no-cors` upload + `$SD/ListJSON`. On **4.1.1** (if you're willing to flash it): `ws://<ip>/?independent_session`. Record transcripts of both. | 1–2 days  |
-| 1     | `packages/fluidnc` (socket, protocol, parsers, fake). Delete the extension, the relay and the token. `CncApi` on the new package. Connection setup step. Existing features (click-to-move, XY zero, upload + run, bounds) working directly.                                                 | ~1 week   |
-| 2     | MVP machine UI: DRO, realtime buttons, jog, zero, job progress, console, alarms. CI job with FluidNC `env:linux`.                                                                                                                                                                           | 2–3 weeks |
-| 3     | File manager, macros, probing, overrides.                                                                                                                                                                                                                                                   | as needed |
-| 4     | Optional upstream FluidNC PR: opt-in CORS origin setting (readable `/upload` responses with progress) and a WebSocket `Origin` allow-list.                                                                                                                                                  | optional  |
+| Phase | Scope                                                                                                                                                                                                                                                                                                                                                                                             | Size      |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| 0     | Spike from `run.camnc.app` on Chrome 147+ against the Jackpot2. On **3.9.9**: `ws://<ip>:81/`, permission prompt, `$Report/Interval`, `$CD`, `no-cors` upload + `$SD/ListJSON`. On **4.1.1** (if you're willing to flash it): `ws://<ip>/?independent_session`. Record transcripts of both. In parallel: Docker image for the v4.1.1 `linux_x86_64` sim, connect to it from the camNC dev server. | 1–2 days  |
+| 1     | `packages/fluidnc` (socket, protocol, parsers, fake, 3.9.9 personality proxy, `pnpm sim`). Delete the extension, the relay and the token. `CncApi` on the new package. Connection setup step. Existing features (click-to-move, XY zero, upload + run, bounds) working directly.                                                                                                                  | ~1 week   |
+| 2     | MVP machine UI: DRO, realtime buttons, jog, zero, job progress, console, alarms. CI job running the integration suite against the sim (v4 and v3 personality).                                                                                                                                                                                                                                    | 2–3 weeks |
+| 3     | File manager, macros, probing, overrides.                                                                                                                                                                                                                                                                                                                                                         | as needed |
+| 4     | Optional upstream FluidNC PR: opt-in CORS origin setting (readable `/upload` responses with progress) and a WebSocket `Origin` allow-list.                                                                                                                                                                                                                                                        | optional  |
 
 ## Alternatives considered and dropped
 
