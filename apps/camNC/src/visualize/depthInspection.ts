@@ -25,6 +25,18 @@ export interface DepthGeometryData {
   rapidSegmentIndex: Uint32Array;
 }
 
+/** Where the toolpath's Z0 lies on the stock. */
+export type ZeroAt = 'top' | 'bottom';
+
+/**
+ * Guess the Z0 placement of a toolpath: zeroed on the stock bottom (or table) when it never goes
+ * below 0 but rises above the stock top, on the stock top otherwise.
+ */
+export function guessZeroAt(toolpath: ParsedToolpath, stockHeight: number, tolerance = 1e-3): ZeroAt {
+  const { min, max } = toolpath.getBounds();
+  return stockHeight > 0 && min.z >= -tolerance && max.z > stockHeight + tolerance ? 'bottom' : 'top';
+}
+
 /** XY area of the stock shown in the 3D views (work coordinates): the toolpath bounds plus a small margin. */
 export function getStockFootprint(toolpath: ParsedToolpath): Box2 {
   const bounds = toolpath.getBounds();

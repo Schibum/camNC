@@ -6,6 +6,7 @@ import {
   contrastRatio,
   getCutDepthLevels,
   getStockFootprint,
+  guessZeroAt,
   isRapidSegment,
   withMinContrast,
 } from './depthInspection';
@@ -68,6 +69,17 @@ describe('buildDepthGeometryData', () => {
 
     const last = data.cutSegmentIndex[cutCount - 1];
     expect(Array.from(data.cutPositions.slice(-3))).toEqual([toolpath.pathPoints[last].x, toolpath.pathPoints[last].y, -2]);
+  });
+});
+
+describe('guessZeroAt', () => {
+  it('guesses the stock bottom for toolpaths that stay above 0 and rise above the stock top', () => {
+    expect(guessZeroAt(parseGCode('G0 Z25\nG1 X10 Z12 F100\nG1 X20'), 20)).toBe('bottom');
+  });
+
+  it('guesses the stock top for toolpaths cutting below 0, or without a stock height', () => {
+    expect(guessZeroAt(parseGCode('G0 Z5\nG1 X10 Z-2 F100'), 20)).toBe('top');
+    expect(guessZeroAt(parseGCode('G0 Z25\nG1 X10 Z12 F100'), 0)).toBe('top');
   });
 });
 

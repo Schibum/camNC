@@ -15,8 +15,9 @@ import {
   getCutDepthLevels,
   getSegmentMotion,
   getStockFootprint,
+  ZeroAt,
 } from './depthInspection';
-import { HoverInfo, useDepthView, useHoverInfo, useSelectedLevel, useShowStockVideo } from './depthViewStore';
+import { HoverInfo, useDepthView, useHoverInfo, useSelectedLevel, useShowStockVideo, useZeroPlacement } from './depthViewStore';
 import { ParsedToolpath } from './gcodeParsing';
 
 export type DepthViewPreset = '3d' | 'front' | 'side';
@@ -270,7 +271,9 @@ export function DepthScene({ toolpath, view, fitKey }: { toolpath: ParsedToolpat
   const hover = useHoverInfo(toolpath);
   const levels = useMemo(() => getCutDepthLevels(toolpath), [toolpath]);
   const bounds = toolpath.getBounds();
-  // Toolpath (work) coordinates are placed in machine coordinates, like in the top view, with Z0 at the stock top.
+  const { shift } = useZeroPlacement(toolpath);
+  // Toolpath (work) coordinates are placed in machine coordinates, like in the top view. The origin is at the stock
+  // top, so Z scaling keeps the stock top on the video plane; toolpaths zeroed at the stock bottom are shifted down.
   const workOrigin = useMemo(
     () => new Vector3(toolpathOffset.x, toolpathOffset.y, stockHeight),
     [toolpathOffset.x, toolpathOffset.y, stockHeight]
@@ -282,14 +285,16 @@ export function DepthScene({ toolpath, view, fitKey }: { toolpath: ParsedToolpat
   const planeSize: [number, number] = [footprint.max.x - footprint.min.x, footprint.max.y - footprint.min.y];
 
   const fitBox = useMemo(() => {
-    const min = bounds.min.clone().setZ(Math.min(bounds.min.z, -stockHeight, 0) * zScale);
-    const max = bounds.max.clone().setZ(Math.max(bounds.max.z, 0) * zScale);
+    const min = bounds.min.clone().setZ(Math.min(bounds.min.z + shift, -stockHeight, 0) * zScale);
+    const max = bounds.max.clone().setZ(Math.max(bounds.max.z + shift, 0) * zScale);
     return { center: min.clone().add(max).multiplyScalar(0.5).add(workOrigin), radius: Math.max(min.distanceTo(max) / 2, 1) };
-  }, [bounds, stockHeight, zScale, workOrigin]);
+  }, [bounds, shift, stockHeight, zScale, workOrigin]);
 
   const gridSize = Math.ceil((xySize * 1.4) / 10) * 10;
   const labelLevels = levels.length <= kMaxLevelLabels ? levels : [levels[0], levels[levels.length - 1]];
-  const labelPos = (z: number) => [footprint.min.x, footprint.min.y, z * zScale] as [number, number, number];
+  // Scene Z (relative to the stock top, scaled) of a toolpath Z.
+  const sceneZ = (z: number) => (z + shift) * zScale;
+  const labelPos = (z: number) => [footprint.min.x, footprint.min.y, sceneZ(z)] as [number, number, number];
 
   return (
     <>
@@ -306,33 +311,38 @@ export function DepthScene({ toolpath, view, fitKey }: { toolpath: ParsedToolpat
             rotation-x={Math.PI / 2}
           />
         )}
-        <Line
-          points={[
-            [0, 0, 0],
-            [xySize * 0.15, 0, 0],
-          ]}
-          color="#ef4444"
-          lineWidth={2}
-        />
-        <Line
-          points={[
-            [0, 0, 0],
-            [0, xySize * 0.15, 0],
-          ]}
-          color="#22c55e"
-          lineWidth={2}
-        />
-        <Line
-          points={[
-            [0, 0, 0],
-            [0, 0, xySize * 0.15],
-          ]}
-          color="#3b82f6"
-          lineWidth={2}
-        />
+        {/* Toolpath zero */}
+        <group position-z={sceneZ(0)}>
+          <Line
+            points={[
+              [0, 0, 0],
+              [xySize * 0.15, 0, 0],
+            ]}
+            color="#ef4444"
+            lineWidth={2}
+          />
+          <Line
+            points={[
+              [0, 0, 0],
+              [0, xySize * 0.15, 0],
+            ]}
+            color="#22c55e"
+            lineWidth={2}
+          />
+          <Line
+            points={[
+              [0, 0, 0],
+              [0, 0, xySize * 0.15],
+            ]}
+            color="#3b82f6"
+            lineWidth={2}
+          />
+        </group>
 
         <group scale={[1, 1, zScale]}>
-          <ToolpathSegments toolpath={toolpath} showRapids={showRapids} dashSize={xySize / 150} onHover={info => setHover(toolpath, info)} />
+          <group position-z={shift}>
+            <ToolpathSegments toolpath={toolpath} showRapids={showRapids} dashSize={xySize / 150} onHover={info => setHover(toolpath, info)} />
+          </group>
           {stockHeight > 0 && (
             <mesh position={[center.x, center.y, -stockHeight / 2]} raycast={() => null}>
               <boxGeometry args={[planeSize[0], planeSize[1], stockHeight]} />
@@ -350,7 +360,7 @@ export function DepthScene({ toolpath, view, fitKey }: { toolpath: ParsedToolpat
             </mesh>
           )}
           {selectedLevel !== null && (
-            <mesh position={[center.x, center.y, selectedLevel]} renderOrder={3} raycast={() => null}>
+            <mesh position={[center.x, center.y, selectedLevel + shift]} renderOrder={3} raycast={() => null}>
               <planeGeometry args={planeSize} />
               <meshBasicMaterial color="#38bdf8" transparent opacity={0.18} depthWrite={false} depthTest={false} side={2} />
             </mesh>
@@ -368,14 +378,14 @@ export function DepthScene({ toolpath, view, fitKey }: { toolpath: ParsedToolpat
         {hover && (
           <>
             {/* Markers skip the depth test so they show through the video plane. */}
-            <mesh position={[hover.point.x, hover.point.y, hover.point.z * zScale]} renderOrder={3} raycast={() => null}>
+            <mesh position={[hover.point.x, hover.point.y, sceneZ(hover.point.z)]} renderOrder={3} raycast={() => null}>
               <sphereGeometry args={[xySize / 120, 12, 12]} />
               <meshBasicMaterial color="white" depthTest={false} transparent />
             </mesh>
             <Line
               points={[
-                [hover.point.x, hover.point.y, 0],
-                [hover.point.x, hover.point.y, hover.point.z * zScale],
+                [hover.point.x, hover.point.y, sceneZ(0)],
+                [hover.point.x, hover.point.y, sceneZ(hover.point.z)],
               ]}
               color="white"
               lineWidth={1}
@@ -420,6 +430,49 @@ function LevelList({
   );
 }
 
+const kZeroAtLabels: Record<ZeroAt, string> = { top: 'Top', bottom: 'Bottom' };
+
+function ZeroAtControl({
+  zeroAt,
+  guessed,
+  isGuess,
+  onChange,
+}: {
+  zeroAt: ZeroAt;
+  guessed: ZeroAt;
+  isGuess: boolean;
+  onChange: (zeroAt: ZeroAt | null) => void;
+}) {
+  return (
+    <div className="grid gap-1 text-xs">
+      <div className="flex items-center justify-between gap-2">
+        <span>Z0 at stock</span>
+        <div className="flex rounded-md bg-black/5 p-0.5" role="group" aria-label="Z0 at stock">
+          {(Object.keys(kZeroAtLabels) as ZeroAt[]).map(z => (
+            <button
+              key={z}
+              type="button"
+              aria-pressed={zeroAt === z}
+              className={`rounded px-1.5 py-0.5 ${zeroAt === z ? 'bg-white font-semibold shadow-sm' : 'text-muted-foreground'}`}
+              onClick={() => onChange(z)}>
+              {kZeroAtLabels[z]}
+            </button>
+          ))}
+        </div>
+      </div>
+      {isGuess ? (
+        <span className="text-muted-foreground">Guessed from the toolpath</span>
+      ) : (
+        zeroAt !== guessed && (
+          <button type="button" className="text-left text-muted-foreground underline" onClick={() => onChange(null)}>
+            Use guess ({kZeroAtLabels[guessed].toLowerCase()})
+          </button>
+        )
+      )}
+    </div>
+  );
+}
+
 /** Floating panel with the 3D view options, depth summary and cut levels of the toolpath. */
 export function DepthPanel({ toolpath }: { toolpath: ParsedToolpath }) {
   const stockHeight = useStore(s => s.stockHeight);
@@ -435,10 +488,12 @@ export function DepthPanel({ toolpath }: { toolpath: ParsedToolpath }) {
   const selectedLevel = useSelectedLevel(toolpath);
   const [collapsed, setCollapsed] = useState(false);
 
+  const setZeroAt = useDepthView(s => s.setZeroAt);
+  const { zeroAt, guessed, isGuess, shift } = useZeroPlacement(toolpath);
   const levels = useMemo(() => getCutDepthLevels(toolpath), [toolpath]);
   const bounds = toolpath.getBounds();
-  // Assumes Z0 at the stock top.
-  const belowStock = stockHeight > 0 ? -stockHeight - bounds.min.z : 0;
+  // Depth of the deepest cut below the stock bottom, in toolpath Z.
+  const belowStock = stockHeight > 0 ? -stockHeight - shift - bounds.min.z : 0;
 
   return (
     <div
@@ -476,6 +531,7 @@ export function DepthPanel({ toolpath }: { toolpath: ParsedToolpath }) {
                 <span className="text-xs">Stock video</span>
               </Switch>
             )}
+            <ZeroAtControl zeroAt={zeroAt} guessed={guessed} isGuess={isGuess} onChange={setZeroAt} />
           </div>
           <div className="grid gap-0.5 border-t px-2 py-1.5 text-xs">
             <div>
@@ -486,7 +542,9 @@ export function DepthPanel({ toolpath }: { toolpath: ParsedToolpath }) {
             </div>
             {stockHeight > 0 && (
               <div className={belowStock > 0 ? 'text-red-600' : 'text-muted-foreground'}>
-                {belowStock > 0 ? `${formatMm(belowStock)}mm below stock` : `Stock: ${formatMm(stockHeight)}mm`}
+                {belowStock > 0
+                  ? `${formatMm(belowStock)}mm below ${zeroAt === 'bottom' ? 'Z0' : 'stock'}`
+                  : `Stock: ${formatMm(stockHeight)}mm`}
               </div>
             )}
           </div>

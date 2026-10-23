@@ -35,7 +35,7 @@ afterEach(() => {
   cleanup();
   store.stockHeight = 0;
   store.hasCamera = false;
-  useDepthView.setState({ selected: null, hover: null, videoEnabled: true });
+  useDepthView.setState({ selected: null, hover: null, videoEnabled: true, zeroAt: null });
 });
 
 describe('DepthPanel', () => {
@@ -73,6 +73,26 @@ describe('DepthPanel', () => {
     store.stockHeight = 2;
     renderPanel(gcode);
     expect(screen.getByText('0.50mm below stock')).toBeTruthy();
+  });
+
+  it('guesses Z0 at the stock bottom for toolpaths that stay above it', () => {
+    store.stockHeight = 10;
+    renderPanel('G0 Z15\nG1 X10 Z2 F100\nG1 X20');
+    expect(screen.getByRole('button', { name: 'Bottom', pressed: true })).toBeTruthy();
+    expect(screen.getByText('Guessed from the toolpath')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Top' }));
+    expect(screen.getByRole('button', { name: 'Top', pressed: true })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Use guess (bottom)' }));
+    expect(screen.getByRole('button', { name: 'Bottom', pressed: true })).toBeTruthy();
+  });
+
+  it('warns about cuts below Z0 with Z0 at the stock bottom', () => {
+    store.stockHeight = 10;
+    renderPanel('G0 Z15\nG1 X10 Z2 F100\nG1 Z-0.5\nG1 X20');
+    // Cutting below 0, so the stock top is guessed, where the same cuts are well within the stock.
+    expect(screen.getByText('Stock: 10.00mm')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Bottom' }));
+    expect(screen.getByText('0.50mm below Z0')).toBeTruthy();
   });
 });
 
