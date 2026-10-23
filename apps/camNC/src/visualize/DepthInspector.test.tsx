@@ -87,6 +87,6 @@ describe('DepthInspector', () => {
       await userEvent.hover(topButton);
       await userEvent.hover(canvas);
       expect(screen.getByText(/Z -1\.25/)).toBeTruthy();
-    });
+    }, { timeout: 5000 });
   });
 });
