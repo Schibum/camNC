@@ -56,17 +56,16 @@ const UnprojectVideoMeshWithStockHeight = ({ ...props }: ComponentProps<typeof U
 };
 UnprojectVideoMeshWithStockHeight.displayName = 'UnprojectVideoMeshWithStockHeight';
 
-/** Suspense fallback that tells the page the video is still loading, to show the overlay outside the canvas. */
-function ReportLoading({ onLoading }: { onLoading: (loading: boolean) => void }) {
+/**
+ * Reports a video state from inside the canvas (as a Suspense or error fallback) while mounted, so that the
+ * page can show it outside the canvas, and only in the top view.
+ */
+function ReportVideoState<T>({ value, onChange }: { value: T; onChange: (value: T | null) => void }) {
   useEffect(() => {
-    onLoading(true);
-    return () => onLoading(false);
-  }, [onLoading]);
+    onChange(value);
+    return () => onChange(null);
+  }, [value, onChange]);
   return null;
-}
-
-function Rethrow({ error }: { error: Error }): never {
-  throw error;
 }
 
 interface TopCameraState {
@@ -108,7 +107,8 @@ function VisualizeComponent() {
   const [fitKey, setFitKey] = useState(0);
   const topCamera = useRef<TopCameraState | null>(null);
   const showStockVideo = useShowStockVideo();
-  const [videoLoading, setVideoLoading] = useState(false);
+  const [videoLoading, setVideoLoading] = useState<true | null>(null);
+  const [videoError, setVideoError] = useState<Error | null>(null);
   const toolpathOffset = useStore(s => s.toolpathOffset);
   // In the 3D views, the video only covers the stock top, so the stock box and the cuts below stay visible.
   const stockTop = useMemo(
@@ -196,10 +196,9 @@ function VisualizeComponent() {
           {/* <group rotation={[0, 0, Math.PI / 2]}> */}
           {/*
             The video loads in its own boundaries, so the 3D views stay usable while the camera is unavailable.
-            In the top view, failures still surface through the canvas' error boundary.
           */}
-          <ErrorBoundary fallbackRender={({ error }) => (isTop ? <Rethrow error={error} /> : null)}>
-            <Suspense fallback={<ReportLoading onLoading={setVideoLoading} />}>
+          <ErrorBoundary fallbackRender={({ error }) => <ReportVideoState value={error as Error} onChange={setVideoError} />}>
+            <Suspense fallback={<ReportVideoState value={true} onChange={setVideoLoading} />}>
               <UnprojectVideoMeshWithStockHeight
                 visible={isTop || showStockVideo}
                 bounds={isTop ? undefined : stockTop}
@@ -228,9 +227,15 @@ function VisualizeComponent() {
         </PresentCanvas>
       </div>
 
-      {isTop && videoLoading && (
+      {isTop && (videoError || videoLoading) && (
         <div className="pointer-events-none absolute inset-0 h-dvh">
-          <LoadingVideoOverlay />
+          {videoError ? (
+            <div className="flex h-full items-center justify-center p-4 text-center text-red-500">
+              Error loading video: {videoError.message || 'unknown error'}
+            </div>
+          ) : (
+            <LoadingVideoOverlay />
+          )}
         </div>
       )}
 
