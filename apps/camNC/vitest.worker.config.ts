@@ -16,7 +16,7 @@ export default defineWorkersProject(async () => {
           miniflare: {
             compatibilityDate: '2026-03-01',
             d1Databases: ['DB'],
-            bindings: { TEST_MIGRATIONS: migrations },
+            bindings: { TEST_MIGRATIONS: migrations, CLERK_PUBLISHABLE_KEY: 'pk_test_camnc' },
           },
         },
       },

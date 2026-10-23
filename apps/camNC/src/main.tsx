@@ -7,10 +7,27 @@ import { getCncApi } from './lib/fluidnc/fluidnc-singleton';
 import { createRouter } from './router';
 import './style.css';
 
-const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+/**
+ * The Clerk key comes from the Worker, so the same build works in production and in previews (each
+ * with its own Clerk instance). VITE_CLERK_PUBLISHABLE_KEY is the fallback for `pnpm dev` without `dev:api`.
+ */
+async function loadPublishableKey(): Promise<string | undefined> {
+  try {
+    const resp = await fetch('/api/config');
+    if (resp.ok) {
+      const { clerkPublishableKey } = (await resp.json()) as { clerkPublishableKey?: string };
+      if (clerkPublishableKey) return clerkPublishableKey;
+    }
+  } catch {
+    // Fall through to the build-time key.
+  }
+  return import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+}
+
+const PUBLISHABLE_KEY = await loadPublishableKey();
 
 if (!PUBLISHABLE_KEY) {
-  throw new Error('Add your Clerk Publishable Key to the .env file');
+  throw new Error('No Clerk publishable key: set CLERK_PUBLISHABLE_KEY on the Worker or VITE_CLERK_PUBLISHABLE_KEY in .env.local');
 }
 
 setKeepAliveTime(60_000);

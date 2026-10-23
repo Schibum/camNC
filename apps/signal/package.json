@@ -21,6 +21,6 @@
     "@wbcnc/typescript-config": "workspace:*",
     "typescript": "catalog:",
     "vitest": "catalog:",
-    "wrangler": "4.72.0"
+    "wrangler": "4.152.0"
   }
 }

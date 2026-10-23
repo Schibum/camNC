@@ -1,0 +1,16 @@
+{
+  // Only for `pnpm run deploy:preview`: applies migrations to the preview database.
+  // `wrangler d1 migrations apply` resolves databases from the top-level config, which in
+  // wrangler.jsonc is production, so previews use this file that knows no other database.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "camnc",
+  "account_id": "60d502e306ecf0bdad0bb3719d83b30c",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "camnc-preview",
+      "database_id": "fcf09ced-d315-410d-bd63-f20383984482",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

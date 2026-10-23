@@ -22,21 +22,19 @@
     }
   ],
   "observability": { "enabled": true },
-  // Secrets (wrangler secret put): CLERK_SECRET_KEY, CLERK_PUBLISHABLE_KEY, CLERK_JWT_KEY
-  "env": {
-    // PR previews: `wrangler versions upload --env preview --preview-alias pr-<n>`.
-    // Uses Clerk development keys and its own database, never production data.
-    "preview": {
-      "name": "camnc-preview",
-      "d1_databases": [
-        {
-          "binding": "DB",
-          "database_name": "camnc-preview",
-          // Created with `wrangler d1 create camnc-preview`.
-          "database_id": "fcf09ced-d315-410d-bd63-f20383984482",
-          "migrations_dir": "migrations"
-        }
-      ]
-    }
+  // Secrets (wrangler secret put): CLERK_SECRET_KEY, CLERK_PUBLISHABLE_KEY, CLERK_JWT_KEY (optional).
+  // Worker Previews (`wrangler preview`, one per PR). Previews don't inherit the bindings above, so
+  // everything they need is repeated here and points at preview-only resources: Clerk development
+  // keys (`wrangler preview base-config secret put`) and the camnc-preview database, never production data.
+  "previews": {
+    "d1_databases": [
+      {
+        "binding": "DB",
+        "database_name": "camnc-preview",
+        // Created with `wrangler d1 create camnc-preview`. Keep in sync with wrangler.preview-migrations.jsonc.
+        "database_id": "fcf09ced-d315-410d-bd63-f20383984482",
+        "migrations_dir": "migrations"
+      }
+    ]
   }
 }

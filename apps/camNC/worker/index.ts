@@ -83,10 +83,16 @@ async function handleSettings(request: Request, env: Env, auth: Auth): Promise<R
   return Response.json({ error: 'method not allowed' }, { status: 405, headers: { Allow: 'GET, PUT' } });
 }
 
+/** Public client config, so one build serves production and previews (each with its own Clerk instance). */
+function handleConfig(env: Env): Response {
+  return Response.json({ clerkPublishableKey: env.CLERK_PUBLISHABLE_KEY }, { headers: { 'Cache-Control': 'no-cache' } });
+}
+
 export function createHandler(auth: Auth): ExportedHandler<Env> {
   return {
     async fetch(request, env) {
       const url = new URL(request.url);
+      if (url.pathname === '/api/config') return handleConfig(env);
       if (url.pathname === '/api/settings') return handleSettings(request, env, auth);
       if (url.pathname.startsWith('/api/')) return Response.json({ error: 'not found' }, { status: 404 });
       return env.ASSETS.fetch(request);

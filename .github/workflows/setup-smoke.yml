@@ -1,9 +1,11 @@
 name: Production setup smoke
 
 on:
-  # After Cloudflare Workers Builds reports a successful build of the camnc Worker (production) on main.
-  check_run:
+  # After CI (which deploys camnc to production) succeeds on main.
+  workflow_run:
+    workflows: [CI]
     types: [completed]
+    branches: [main]
   schedule:
     - cron: '0 6 * * *'
   pull_request:
@@ -24,14 +26,11 @@ permissions:
 jobs:
   setup-smoke:
     if: >-
-      github.event_name != 'check_run' ||
-      (github.event.check_run.conclusion == 'success' &&
-      github.event.check_run.check_suite.head_branch == 'main' &&
-      contains(github.event.check_run.name, 'camnc') &&
-      !contains(github.event.check_run.name, 'preview'))
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     # Job level (not workflow level), so that skipped runs don't cancel a running smoke run.
     concurrency:
-      group: setup-smoke-${{ (github.event_name == 'check_run' || github.event_name == 'schedule') && 'production' || github.ref }}
+      group: setup-smoke-${{ (github.event_name == 'workflow_run' || github.event_name == 'schedule') && 'production' || github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 10
