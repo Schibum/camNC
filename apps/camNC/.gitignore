@@ -27,3 +27,5 @@ dist-ssr
 public/*.mp4
 .nitro/
 .output/
+.wrangler/
+.dev.vars

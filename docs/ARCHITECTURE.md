@@ -37,14 +37,15 @@ into machine coordinates.
 | `apps/website`                                         | Astro landing page (www.camnc.app).                                                                             |
 | `apps/chessboard`                                      | Static page that displays/prints the calibration chessboard.                                                    |
 | `apps/demos`                                           | Sandbox pages for individual packages.                                                                          |
+| `apps/signal`                                          | Cloudflare Worker + Durable Object relaying WebRTC signalling between peers in a room.                          |
 | `packages/camera-calibration`                          | Chessboard calibration UI, zustand store and workers (corner finding, pose uniqueness, `calibrateCamera`).      |
 | `packages/go2webrtc`                                   | Video source abstraction: go2rtc (WebSocket/WebRTC), phone (`webrtc:`), WebTorrent tracker, webcam and URLs.    |
-| `packages/webrtc-channel`                              | `Peer` (perfect negotiation), Firebase signalling, `RolePeering`, chunked data channel, Comlink middleware.     |
+| `packages/webrtc-channel`                              | `Peer` (perfect negotiation), `WsSignaller`, `RolePeering`, chunked data channel, Comlink middleware.           |
 | `packages/fluidnc`                                     | Direct FluidNC WebSocket: `FluidncSocket`, `FluidncProtocol`, parsers, uploads, `FakeFluidnc`, `pnpm sim`.      |
 | `packages/video-worker-utils`                          | Helpers to move video into workers (`MediaStreamTrackProcessor` + polyfill), three.js Comlink transfer handler. |
 | `packages/load-opencv`                                 | Loads the OpenCV.js WASM build from `/opencv_js.js` and exposes a typed `cv2` proxy.                            |
 | `packages/ui`                                          | Shared shadcn/radix components, hooks and theme provider.                                                       |
-| `packages/public-config`                               | Public Firebase configuration (used for WebRTC signalling).                                                     |
+| `packages/public-config`                               | Public configuration, e.g. the WebRTC signalling URL.                                                           |
 | `packages/eslint-config`, `packages/typescript-config` | Shared lint and TypeScript presets.                                                                             |
 
 Packages are consumed as TypeScript source (no build step); each app's Vite
@@ -114,11 +115,14 @@ against OpenCV.
 
 ## Remote connections
 
+The phone camera is reached over WebRTC (`@wbcnc/webrtc-channel`). Peers find
+each other through `apps/signal`, a Worker with one Durable Object per room
+(named by a hash of the shared access token), and switch to in-band signalling
+over their data channel once connected. The CNC controller is reached directly.
+
 - **Phone camera**: `apps/webrtc-cam` runs on the phone and serves its
   `getUserMedia` stream (`useTrysteroServer`); camNC connects with a
-  `webrtc:?accessToken=…` source URL. This goes over WebRTC, using the
-  Firebase Realtime Database for signalling (`@wbcnc/webrtc-channel`).
-  Comlink messages over data channels go through `createChunkedPort`, which
+  `webrtc:?accessToken=…` source URL. Comlink messages over data channels go through `createChunkedPort`, which
   splits large messages into 16 KiB chunks.
 - **FluidNC**: camNC opens a WebSocket straight to the controller on the LAN
   (`@wbcnc/fluidnc`). FluidNC 4.x serves it on the HTTP port
@@ -141,5 +145,6 @@ real FluidNC 4.1.1 posix simulator with the JP2 LowRider config (plus a
 
 Other tests use Vitest in browser mode (Playwright/Chromium) because they depend on
 browser APIs such as OpenCV's WASM build, `VideoFrame` and WebRTC. Pure logic
-is tested next to the source (`*.test.ts`). Integration tests that need
-Firebase are skipped by default.
+is tested next to the source (`*.test.ts`). WebRTC integration tests
+signal through an in-memory hub (`test-utils/local-signal-hub.ts`); the signal
+worker is tested in workerd (`@cloudflare/vitest-pool-workers`).

@@ -19,6 +19,7 @@ import {
   getLevelSegmentPositions,
   getSegmentMotion,
   getStockFootprint,
+  kOvercutTolerance,
   withMinContrast,
   ZeroAt,
 } from './depthInspection';
@@ -649,10 +650,16 @@ export function DepthPanel({ toolpath }: { toolpath: ParsedToolpath }) {
               <Stat label="Min Z" value={formatMm(bounds.min.z)} />
               <Stat label="Max Z" value={formatMm(bounds.max.z)} />
             </div>
-            {belowStock > 0 && (
+            {belowStock > kOvercutTolerance ? (
               <div className="rounded-md bg-red-500/15 px-1.5 py-1 text-xs text-red-300 ring-1 ring-red-400/30">
                 {`${formatMm(belowStock)}mm below ${zeroAt === 'bottom' ? 'Z0' : 'stock'}`}
               </div>
+            ) : (
+              belowStock > 0 && (
+                <div className="text-xs text-muted-foreground" title="A small overcut lets the tool cut cleanly through the stock">
+                  {`${formatMm(belowStock)}mm overcut below ${zeroAt === 'bottom' ? 'Z0' : 'stock'}`}
+                </div>
+              )
             )}
             <div className="grid gap-0.5" aria-hidden>
               <div className="h-1.5 rounded-full" style={{ background: gradient }} />

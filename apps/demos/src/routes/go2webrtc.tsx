@@ -17,8 +17,8 @@ export const Route = createFileRoute('/go2webrtc')({
   component: RouteComponent,
 });
 
-const SERVE_URL_WEBTORRENT = 'https://camnc-webrtc-cam.vercel.app/webtorrent';
-const SERVE_URL_TRYSTERO = 'https://camnc-webrtc-cam.vercel.app/webrtc-custom';
+const SERVE_URL_WEBTORRENT = 'https://cam.camnc.app/webtorrent';
+const SERVE_URL_TRYSTERO = 'https://cam.camnc.app/webrtc-custom';
 
 type ParsedValues = { accessToken: string };
 

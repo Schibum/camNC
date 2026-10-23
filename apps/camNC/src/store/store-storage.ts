@@ -1,5 +1,4 @@
-import { updateUserSettings } from '@/db/functions';
-import { parse as devalueParse } from 'devalue';
+import { saveUserSettings } from '@/lib/settings-sync/settings-api';
 import { throttle } from 'radashi';
 import superjson from 'superjson';
 import { Box2, Matrix3, Vector2, Vector3 } from 'three';
@@ -38,29 +37,19 @@ superjson.registerCustom<Matrix3, number[]>(
   'Matrix3'
 );
 
-// As injected in __root.tsx
-let __initialStorageData: any = undefined;
-export function getInitialStorageData() {
-  if (__initialStorageData === undefined) {
-    const script = document.getElementById('__APP_STATE__');
-    if (script) {
-      __initialStorageData = superjson.deserialize(devalueParse(script.textContent as any));
-    } else {
-      __initialStorageData = null;
-    }
-  }
-  return __initialStorageData;
+// Settings loaded from the server for the signed-in user, see SettingsSyncGate.
+let serverSettings: unknown = null;
+
+/** Takes superjson-serialized settings as returned by the settings API. */
+export function setServerSettings(serialized: unknown) {
+  serverSettings = serialized ? superjson.deserialize(serialized as any) : null;
 }
 
 export function createStorage() {
   const storage: PersistStorage<unknown> = {
     getItem: name => {
-      if (name === 'settings') {
-        const initialData = getInitialStorageData();
-        console.log('have initialStorageData', !!initialData);
-        if (initialData) {
-          return initialData;
-        }
+      if (name === 'settings' && serverSettings) {
+        return serverSettings as any;
       }
       const str = localStorage.getItem(name);
       if (!str) return null;
@@ -69,7 +58,8 @@ export function createStorage() {
     // See https://github.com/pmndrs/zustand/discussions/2125
     setItem: throttle({ interval: 500, trailing: true }, async (name, value) => {
       localStorage.setItem(name, superjson.stringify(value));
-      await updateUserSettings({ data: superjson.serialize(value) });
+      if (name === 'settings') serverSettings = null;
+      await saveUserSettings(superjson.serialize(value));
     }),
     removeItem: name => localStorage.removeItem(name),
   };

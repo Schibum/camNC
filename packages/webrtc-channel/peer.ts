@@ -3,11 +3,15 @@ import mitt, { Emitter } from 'mitt';
 
 export interface PeerOptions {
   isInitiator?: boolean;
+  sid?: string;
   iceServers?: RTCIceServer[];
   signal?: AbortSignal;
 }
 
-export type SignalEnvelope = { description: RTCSessionDescriptionInit } | { candidate: RTCIceCandidateInit };
+export type SignalEnvelope = ({ description: RTCSessionDescriptionInit } | { candidate: RTCIceCandidateInit }) & {
+  /** Negotiation attempt id, see `RolePeering`. Absent from peers running older builds. */
+  sid?: string;
+};
 
 const DEFAULT_ICE: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478' }];
 
@@ -23,6 +27,8 @@ export default class Peer {
   readonly isInitiator: boolean;
   readonly ready: Promise<void>;
   readonly signal: AbortSignal;
+  /** Stamped on every out-of-band signal so stale messages of an earlier attempt can be dropped. */
+  sid?: string;
 
   private makingOffer = false;
   private ignoreOffer = false;
@@ -40,6 +46,7 @@ export default class Peer {
 
   constructor(opts: PeerOptions = {}) {
     this.isInitiator = opts.isInitiator ?? true;
+    this.sid = opts.sid;
     this.signal = opts.signal ?? this.abortCtrl.signal;
 
     const bus = mitt<Events>();
@@ -65,7 +72,7 @@ export default class Peer {
     /* Bootstrap signalling via MessageChannel */
     const { port1, port2 } = new MessageChannel();
     this.signalingPort = port1;
-    this.send = env => port2.postMessage(JSON.stringify(env));
+    this.send = env => port2.postMessage(JSON.stringify(this.sid ? { ...env, sid: this.sid } : env));
     port2.onmessage = e => {
       const env = this.parse(e.data);
       if (env) this.onSignal(env);

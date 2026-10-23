@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint . --max-warnings 0",
     "preview": "vite preview",
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "deploy": "wrangler deploy"
   },
   "dependencies": {
     "@tanstack/react-router": "catalog:",
@@ -42,6 +43,7 @@
     "typescript": "catalog:",
     "typescript-eslint": "catalog:",
     "vite": "catalog:",
-    "@webgpu/types": "catalog:"
+    "@webgpu/types": "catalog:",
+    "wrangler": "4.72.0"
   }
 }

@@ -73,11 +73,11 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the pieces fit together
 - **camera-calibration** – React components, store and workers for calibrating a camera with OpenCV.
 - **fluidnc** – direct WebSocket connection to FluidNC (transport detection, command queue, parsers, uploads), a scripted fake and the `pnpm sim` FluidNC simulator.
 - **go2webrtc** – video sources (go2rtc, phone via WebRTC, WebTorrent, webcam, URL).
-- **webrtc-channel** – WebRTC peer, Firebase signalling and data channel helpers.
+- **webrtc-channel** – WebRTC peer, WebSocket signalling client and data channel helpers.
 - **video-worker-utils** – helpers for processing video frames in web workers.
 - **load-opencv** – loads OpenCV.js in the browser.
 - **ui** – shared React UI components.
-- **public-config** – shared Firebase configuration.
+- **public-config** – shared public configuration (signalling URL).
 - **eslint-config**, **typescript-config** – shared lint rules and tsconfig presets.
 
 ## Development
