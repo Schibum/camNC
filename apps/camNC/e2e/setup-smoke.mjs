@@ -70,6 +70,8 @@ export async function runSetupSmoke(
   await mkdir(outputDir, { recursive: true });
   await context.tracing.start({ screenshots: true, snapshots: true });
 
+  // Production still shows the title of the former separate top view page.
+  const topViewTitle = /^Top View( \(Orthographic\))?$/;
   const check = message => {
     report.checks.push(message);
     onProgress(`PASS ${message}`);
@@ -233,9 +235,9 @@ export async function runSetupSmoke(
     await page.getByText('Disconnected', { exact: true }).waitFor();
 
     await navigate('Top View');
-    await page.getByText('Top View (Orthographic)', { exact: true }).waitFor();
+    await page.getByLabel('breadcrumb').getByText(topViewTitle).waitFor();
     await page.reload();
-    await page.getByText('Top View (Orthographic)', { exact: true }).waitFor();
+    await page.getByLabel('breadcrumb').getByText(topViewTitle).waitFor();
     await page.evaluate(() => window.__camncSmokeCamera.setScene('markers'));
     const reloaded = await waitForSavedCamera('extrinsics');
     assert.deepEqual(reloaded.calibration, positioned.calibration);
@@ -286,22 +288,24 @@ export async function runSetupSmoke(
     check('tool diameter and stock height dialogs accept changes');
     await page.screenshot({ path: path.join(outputDir, 'top-view.png') });
 
-    // The smoke also runs against production for pull requests, before the Depth Inspector is deployed there.
-    await page.getByRole('button', { name: 'Toggle Sidebar' }).click();
-    await page.getByRole('link', { name: 'Top View', exact: true }).waitFor();
-    const depthInspectorLink = page.getByRole('link', { name: 'Depth Inspector', exact: true });
-    if (await depthInspectorLink.count()) {
-      await depthInspectorLink.click();
-      await page.keyboard.press('Escape');
+    // The smoke also runs against production for pull requests, before the 3D views are deployed there.
+    const threeDViewButton = page.getByRole('button', { name: '3D View', exact: true });
+    if (await threeDViewButton.count()) {
+      await threeDViewButton.click();
       const inspector = page.getByRole('region', { name: 'Depth Inspector', exact: true });
       await inspector.getByRole('button', { name: /^-1\.00\s*360mm$/ }).click();
       await inspector.getByText('Min Z: -1.00', { exact: true }).waitFor();
-      await inspector.getByRole('button', { name: 'Front (XZ)', exact: true }).click();
-      await page.screenshot({ path: path.join(outputDir, 'depth-inspector.png') });
-      check('depth inspector lists cut levels of the loaded toolpath');
+      // Let the camera finish moving into the view for the screenshots.
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: path.join(outputDir, 'depth-3d.png') });
+      await page.getByRole('button', { name: 'Front View (XZ)', exact: true }).click();
+      await page.waitForTimeout(600);
+      await page.screenshot({ path: path.join(outputDir, 'depth-front.png') });
+      await page.getByRole('button', { name: 'Top View', exact: true }).click();
+      await inspector.waitFor({ state: 'detached' });
+      check('3D views list cut levels of the loaded toolpath and switch back to the top view');
     } else {
-      await page.keyboard.press('Escape');
-      onProgress('SKIP depth inspector is not deployed at this URL yet');
+      onProgress('SKIP 3D views are not deployed at this URL yet');
     }
 
     await navigate('Debug');
@@ -332,7 +336,7 @@ export async function runSetupSmoke(
     assert.deepEqual(imported.calibration, reloaded.calibration);
     assert.deepEqual(imported.extrinsics, reloaded.extrinsics);
     await navigate('Top View');
-    await page.getByText('Top View (Orthographic)', { exact: true }).waitFor();
+    await page.getByLabel('breadcrumb').getByText(topViewTitle).waitFor();
     check('camera configuration exports and imports through the UI');
     assert.deepEqual(pageErrors, [], `Uncaught browser errors: ${pageErrors.join('; ')}`);
     assert.deepEqual(consoleErrors, [], `Browser console errors: ${consoleErrors.join('; ')}`);
