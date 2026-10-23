@@ -1,5 +1,4 @@
-import { getMachinePlaneLayout } from '@/calibration/machinePlane';
-import { useCamSource, useMachineBounds, useStore } from '@/store/store';
+import { useCamSource, useStore } from '@/store/store';
 import { Switch } from '@heroui/react';
 import { Edges, Html, Line, OrbitControls } from '@react-three/drei';
 import { ThreeEvent, useFrame, useThree } from '@react-three/fiber';
@@ -9,7 +8,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Color, OrthographicCamera, Vector3 } from 'three';
 import { LineMaterial, LineSegments2, LineSegmentsGeometry } from 'three/addons';
 import { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
-import { buildDepthGeometryData, closestPointOnSegment, DepthLevel, getCutDepthLevels, getSegmentMotion } from './depthInspection';
+import {
+  buildDepthGeometryData,
+  closestPointOnSegment,
+  DepthLevel,
+  getCutDepthLevels,
+  getSegmentMotion,
+  getStockFootprint,
+} from './depthInspection';
 import { HoverInfo, useDepthView, useHoverInfo, useSelectedLevel, useShowStockVideo } from './depthViewStore';
 import { ParsedToolpath } from './gcodeParsing';
 
@@ -174,31 +180,6 @@ function ToolpathSegments({
   );
 }
 
-/**
- * Darkens the camera image on the stock top plane (rendered by the page, so that the video keeps
- * running across view switches), so the toolpath stays readable on top of it.
- */
-function StockVideoDimmer() {
-  const stockHeight = useStore(s => s.stockHeight);
-  const machineBounds = useMachineBounds();
-  const { width, height, center } = getMachinePlaneLayout(machineBounds, 50);
-  return (
-    <mesh position={[center.x, center.y, stockHeight]} renderOrder={-1} raycast={() => null}>
-      <planeGeometry args={[width, height]} />
-      {/* Coplanar with the video: offset towards the camera to avoid z-fighting stripes. */}
-      <meshBasicMaterial
-        color="black"
-        transparent
-        opacity={0.45}
-        depthWrite={false}
-        polygonOffset
-        polygonOffsetFactor={-2}
-        polygonOffsetUnits={-8}
-      />
-    </mesh>
-  );
-}
-
 interface CameraPose {
   target: Vector3;
   // Camera position relative to the target.
@@ -276,7 +257,7 @@ function CameraRig({ box, view, fitKey }: { box: { center: Vector3; radius: numb
 
 /**
  * Toolpath with true Z, to verify cut depths directly rather than only through the depth color map of
- * the top view. Rendered inside the page's canvas; the camera image on the stock top is provided by the page.
+ * the top view. Rendered inside the page's canvas; the camera image on the stock top (see `getStockFootprint`) is provided by the page.
  */
 export function DepthScene({ toolpath, view, fitKey }: { toolpath: ParsedToolpath; view: DepthViewPreset; fitKey: number }) {
   const stockHeight = useStore(s => s.stockHeight);
@@ -296,9 +277,9 @@ export function DepthScene({ toolpath, view, fitKey }: { toolpath: ParsedToolpat
   );
 
   const xySize = Math.max(bounds.max.x - bounds.min.x, bounds.max.y - bounds.min.y, 1);
-  const pad = xySize * 0.05;
-  const center = useMemo(() => new Vector3((bounds.min.x + bounds.max.x) / 2, (bounds.min.y + bounds.max.y) / 2, 0), [bounds]);
-  const planeSize: [number, number] = [bounds.max.x - bounds.min.x + 2 * pad, bounds.max.y - bounds.min.y + 2 * pad];
+  const footprint = useMemo(() => getStockFootprint(toolpath), [toolpath]);
+  const center = useMemo(() => new Vector3((footprint.min.x + footprint.max.x) / 2, (footprint.min.y + footprint.max.y) / 2, 0), [footprint]);
+  const planeSize: [number, number] = [footprint.max.x - footprint.min.x, footprint.max.y - footprint.min.y];
 
   const fitBox = useMemo(() => {
     const min = bounds.min.clone().setZ(Math.min(bounds.min.z, -stockHeight, 0) * zScale);
@@ -308,15 +289,13 @@ export function DepthScene({ toolpath, view, fitKey }: { toolpath: ParsedToolpat
 
   const gridSize = Math.ceil((xySize * 1.4) / 10) * 10;
   const labelLevels = levels.length <= kMaxLevelLabels ? levels : [levels[0], levels[levels.length - 1]];
-  const labelPos = (z: number) => [bounds.min.x - pad, bounds.min.y - pad, z * zScale] as [number, number, number];
+  const labelPos = (z: number) => [footprint.min.x, footprint.min.y, z * zScale] as [number, number, number];
 
   return (
     <>
       <color attach="background" args={[kBackground]} />
       <OrbitControls makeDefault enableDamping={false} />
       <CameraRig box={fitBox} view={view} fitKey={fitKey} />
-
-      {showVideo && <StockVideoDimmer />}
 
       <group position={workOrigin}>
         {/* Z0 reference grid, replaced by the video plane when shown */}

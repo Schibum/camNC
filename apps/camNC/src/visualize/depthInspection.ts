@@ -1,4 +1,4 @@
-import { Color, Vector3 } from 'three';
+import { Box2, Color, Vector2, Vector3 } from 'three';
 import { ParsedToolpath } from './gcodeParsing';
 import { getZHeightColors } from './toolpathColors';
 
@@ -23,6 +23,13 @@ export interface DepthGeometryData {
   cutSegmentIndex: Uint32Array;
   rapidPositions: Float32Array;
   rapidSegmentIndex: Uint32Array;
+}
+
+/** XY area of the stock shown in the 3D views (work coordinates): the toolpath bounds plus a small margin. */
+export function getStockFootprint(toolpath: ParsedToolpath): Box2 {
+  const bounds = toolpath.getBounds();
+  const pad = Math.max(bounds.max.x - bounds.min.x, bounds.max.y - bounds.min.y, 1) * 0.05;
+  return new Box2(new Vector2(bounds.min.x - pad, bounds.min.y - pad), new Vector2(bounds.max.x + pad, bounds.max.y + pad));
 }
 
 /** Motion mode (G0, G1, G2, ...) of the segment ending at path point `index`. */

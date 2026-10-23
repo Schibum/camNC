@@ -13,14 +13,15 @@ import { GCodeVisualizer } from '@/visualize/Toolpaths';
 import { nearestPointOnToolpath } from '@/visualize/nearestPoint';
 import { VisualizeToolbar } from '@/visualize/toolbar/VisualizeToolbar';
 import { DepthHoverReadout, DepthPanel, DepthScene } from '@/visualize/DepthInspector';
+import { getStockFootprint } from '@/visualize/depthInspection';
 import { useShowStockVideo } from '@/visualize/depthViewStore';
 import { ViewSwitcher } from '@/visualize/toolbar/ViewSwitcher';
 import { kViewModes, ViewMode, viewModeTitle } from '@/visualize/viewModes';
-import { ThreeElements, ThreeEvent, useThree } from '@react-three/fiber';
+import { ThreeEvent, useThree } from '@react-three/fiber';
 import { createFileRoute } from '@tanstack/react-router';
 import { zodValidator } from '@tanstack/zod-adapter';
 import { toast } from '@wbcnc/ui/components/sonner';
-import { RefObject, useEffect, useRef, useState } from 'react';
+import { ComponentProps, RefObject, useEffect, useMemo, useRef, useState } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { Vector2, Vector3 } from 'three';
 import { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
@@ -47,7 +48,7 @@ export const Route = createFileRoute('/visualize/2DView')({
   ),
 });
 
-const UnprojectVideoMeshWithStockHeight = ({ ...props }: ThreeElements['mesh']) => {
+const UnprojectVideoMeshWithStockHeight = ({ ...props }: ComponentProps<typeof UnprojectVideoMesh>) => {
   const stockHeight = useStore(s => s.stockHeight);
   return <UnprojectVideoMesh position-z={stockHeight} {...props} />;
 };
@@ -92,6 +93,12 @@ function VisualizeComponent() {
   const [fitKey, setFitKey] = useState(0);
   const topCamera = useRef<TopCameraState | null>(null);
   const showStockVideo = useShowStockVideo();
+  const toolpathOffset = useStore(s => s.toolpathOffset);
+  // In the 3D views, the video only covers the stock top, so the stock box and the cuts below stay visible.
+  const stockTop = useMemo(
+    () => (toolpath ? getStockFootprint(toolpath).translate(new Vector2(toolpathOffset.x, toolpathOffset.y)) : undefined),
+    [toolpath, toolpathOffset.x, toolpathOffset.y]
+  );
 
   function selectView(next: ViewMode) {
     if (next === view) setFitKey(k => k + 1);
@@ -104,7 +111,6 @@ function VisualizeComponent() {
   const setSnapPosition = useSetSnapPosition();
   const snapPos = useSnapPosition();
   const setSnapToToolpath = useSetSnapToToolpath();
-  const toolpathOffset = useStore(s => s.toolpathOffset);
 
   // Disable snap-to-toolpath mode when user presses ESC
   useHotkeys(
@@ -174,7 +180,9 @@ function VisualizeComponent() {
           {/* <group rotation={[0, 0, Math.PI / 2]}> */}
           <UnprojectVideoMeshWithStockHeight
             visible={isTop || showStockVideo}
-            // In the 3D views, the video is drawn first, below its dimming plane and the toolpath.
+            bounds={isTop ? undefined : stockTop}
+            opacity={isTop ? 1 : 0.7}
+            // In the 3D views, the video is drawn first, below the toolpath.
             renderOrder={isTop ? 0 : -2}
             onDoubleClick={isTop ? onDbClick : undefined}
             onPointerMove={isTop ? onPointerMove : undefined}

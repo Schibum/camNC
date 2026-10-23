@@ -5,6 +5,7 @@ import {
   closestPointOnSegment,
   contrastRatio,
   getCutDepthLevels,
+  getStockFootprint,
   isRapidSegment,
   withMinContrast,
 } from './depthInspection';
@@ -67,6 +68,14 @@ describe('buildDepthGeometryData', () => {
 
     const last = data.cutSegmentIndex[cutCount - 1];
     expect(Array.from(data.cutPositions.slice(-3))).toEqual([toolpath.pathPoints[last].x, toolpath.pathPoints[last].y, -2]);
+  });
+});
+
+describe('getStockFootprint', () => {
+  it('pads the toolpath bounds by 5% of their larger side', () => {
+    const footprint = getStockFootprint(parseGCode('G1 X40 Y20 Z-1 F100'));
+    expect(footprint.min.toArray()).toEqual([-2, -2]);
+    expect(footprint.max.toArray()).toEqual([42, 22]);
   });
 });
 
