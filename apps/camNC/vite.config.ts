@@ -13,7 +13,7 @@ const ReactCompilerConfig = {
 };
 
 // https://vitejs.dev/config/
-export default defineConfig(() => {
+export default defineConfig(({ command }) => {
   const plugins: PluginOption[] = [
     devtoolsJson(),
 
@@ -33,13 +33,18 @@ export default defineConfig(() => {
         process: false,
       },
     }),
-    checker({
-      typescript: true,
-      // eslint: {
-      //   lintCommand: 'eslint "./src/**/*.{ts,tsx}"',
-      // },
-    }),
   ];
+  // Type errors show in dev; builds skip it since CI runs check-types.
+  if (command === 'serve') {
+    plugins.push(
+      checker({
+        typescript: true,
+        // eslint: {
+        //   lintCommand: 'eslint "./src/**/*.{ts,tsx}"',
+        // },
+      })
+    );
+  }
   // if (command !== 'serve') plugins.push(viteSingleFile());
   return {
     build: {

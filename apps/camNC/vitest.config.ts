@@ -2,9 +2,10 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import tsconfigPaths from 'vite-tsconfig-paths';
-import { defineConfig } from 'vitest/config';
+import { defineConfig, type ViteUserConfig } from 'vitest/config';
 export default defineConfig({
-  plugins: [react(), tsconfigPaths(), nodePolyfills()],
+  // Vitest 3 still types plugins against Vite 7. Drop the cast with Vitest 4.
+  plugins: [react(), tsconfigPaths(), nodePolyfills()] as unknown as ViteUserConfig['plugins'],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
