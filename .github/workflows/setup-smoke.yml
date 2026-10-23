@@ -1,6 +1,9 @@
 name: Production setup smoke
 
 on:
+  # Vercel reports a deployment status for every deployment; the job below only runs for successful
+  # production deployments of the camNC app, i.e. after main has been deployed.
+  deployment_status:
   pull_request:
     paths:
       - apps/camNC/e2e/**
@@ -18,6 +21,17 @@ permissions:
 
 jobs:
   setup-smoke:
+    # Vercel names environments e.g. "Production – camnc" (other projects: "Production – camnc-demos", ...).
+    if: >-
+      github.event_name != 'deployment_status' ||
+      (github.event.deployment_status.state == 'success' &&
+      startsWith(github.event.deployment_status.environment, 'Production') &&
+      endsWith(github.event.deployment_status.environment, ' camnc'))
+    # Job level (not workflow level), so that skipped runs for the other Vercel projects, whose deployment
+    # statuses arrive seconds later, don't cancel the camNC smoke run.
+    concurrency:
+      group: setup-smoke-${{ github.event_name == 'deployment_status' && 'production' || github.ref }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
