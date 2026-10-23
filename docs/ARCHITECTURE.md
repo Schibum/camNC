@@ -38,14 +38,15 @@ into machine coordinates.
 | `apps/website`                                         | Astro landing page (www.camnc.app).                                                                             |
 | `apps/chessboard`                                      | Static page that displays/prints the calibration chessboard.                                                    |
 | `apps/demos`                                           | Sandbox pages for individual packages.                                                                          |
+| `apps/signal`                                          | Cloudflare Worker + Durable Object relaying WebRTC signalling between peers in a room.                          |
 | `packages/camera-calibration`                          | Chessboard calibration UI, zustand store and workers (corner finding, pose uniqueness, `calibrateCamera`).      |
 | `packages/go2webrtc`                                   | Video source abstraction: go2rtc (WebSocket/WebRTC), phone (`webrtc:`), WebTorrent tracker, webcam and URLs.    |
-| `packages/webrtc-channel`                              | `Peer` (perfect negotiation), Firebase signalling, `RolePeering`, chunked data channel, Comlink middleware.     |
+| `packages/webrtc-channel`                              | `Peer` (perfect negotiation), `WsSignaller`, `RolePeering`, chunked data channel, Comlink middleware.           |
 | `packages/fluidnc-api`                                 | `FluidncApi` (postMessage bridge to the WebUI) and `FluidncServer`/`FluidncClient` over WebRTC + Comlink.       |
 | `packages/video-worker-utils`                          | Helpers to move video into workers (`MediaStreamTrackProcessor` + polyfill), three.js Comlink transfer handler. |
 | `packages/load-opencv`                                 | Loads the OpenCV.js WASM build from `/opencv_js.js` and exposes a typed `cv2` proxy.                            |
 | `packages/ui`                                          | Shared shadcn/radix components, hooks and theme provider.                                                       |
-| `packages/public-config`                               | Public Firebase configuration (used for WebRTC signalling).                                                     |
+| `packages/public-config`                               | Public configuration, e.g. the WebRTC signalling URL.                                                           |
 | `packages/eslint-config`, `packages/typescript-config` | Shared lint and TypeScript presets.                                                                             |
 
 Packages are consumed as TypeScript source (no build step); each app's Vite
@@ -112,8 +113,10 @@ against OpenCV.
 ## Remote connections
 
 camNC never talks to the CNC controller or a phone camera directly. Both are
-reached over WebRTC, using the Firebase Realtime Database for signalling
-(`@wbcnc/webrtc-channel`):
+reached over WebRTC (`@wbcnc/webrtc-channel`). Peers find each other through
+`apps/signal`, a Worker with one Durable Object per room (named by a hash of the
+shared access token), and switch to in-band signalling over their data channel
+once connected.
 
 - **Phone camera**: `apps/webrtc-cam` runs on the phone and serves its
   `getUserMedia` stream (`useTrysteroServer`); camNC connects with a
@@ -131,5 +134,6 @@ splits large messages into 16 KiB chunks.
 
 Tests use Vitest in browser mode (Playwright/Chromium) because they depend on
 browser APIs such as OpenCV's WASM build, `VideoFrame` and WebRTC. Pure logic
-is tested next to the source (`*.test.ts`). Integration tests that need
-Firebase are skipped by default.
+is tested next to the source (`*.test.ts`). WebRTC integration tests
+signal through an in-memory hub (`test-utils/local-signal-hub.ts`); the signal
+worker is tested in workerd (`@cloudflare/vitest-pool-workers`).
