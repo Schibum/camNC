@@ -25,7 +25,10 @@ Point an app at a local worker with `?signalUrl=ws://localhost:8787`.
   header (non-browser clients) are allowed; this only stops other websites from
   using the relay.
 - `CONNECT_LIMITER`: new connections per IP and minute.
-- `routes`: the production hostname, `signal.camnc.app`. Must match
+- Hostname: deployed to the plainoss Cloudflare account as
+  `camnc-signal.plainoss.workers.dev` (deploy with
+  `CLOUDFLARE_ACCOUNT_ID=60d502e306ecf0bdad0bb3719d83b30c`). Move to a
+  `signal.camnc.app` custom domain once the zone is on Cloudflare. Must match
   `SIGNAL_URL` in `@wbcnc/public-config/signal`.
 
 Room ids are a SHA-256 of the access token (`roomIdFromToken`), so tokens never

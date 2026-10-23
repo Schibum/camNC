@@ -19,6 +19,6 @@
     // Old *.vercel.app hosts stay while the apps move to Workers. Keep in sync with the app hostnames.
     "ALLOWED_ORIGINS": "https://run.camnc.app,https://camnc.app,https://*.camnc.app,https://camnc*.vercel.app,https://fluidnc-integration*.vercel.app,https://*.workers.dev,http://localhost:*,http://127.0.0.1:*",
   },
-  // Production hostname. Comment out to deploy to <name>.<account>.workers.dev only.
-  "routes": [{ "pattern": "signal.camnc.app", "custom_domain": true }],
+  // Deployed to the plainoss account as camnc-signal.plainoss.workers.dev. Once the camnc.app zone
+  // is on Cloudflare, add: "routes": [{ "pattern": "signal.camnc.app", "custom_domain": true }]
 }
