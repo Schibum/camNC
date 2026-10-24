@@ -1,3 +1,5 @@
+import { isDemoMode } from '@/lib/demo/demo-mode';
+
 /** First Chrome/Edge version that applies Local Network Access to WebSockets (and lifts mixed content for them). */
 export const kMinChromeVersion = 147;
 
@@ -31,7 +33,8 @@ export function machineSupport(
   nav: Navigator & { userAgentData?: { brands?: UADataBrand[] } } = navigator,
   protocol = location.protocol
 ): MachineSupport {
-  if (protocol === 'http:') return { supported: true };
+  // The demo machine is simulated in the page, so it works in every browser.
+  if (isDemoMode() || protocol === 'http:') return { supported: true };
   const version = chromiumVersion(nav);
   if (version === null) return { supported: false, reason: 'Machine control needs Chrome or Edge (version 147 or later).' };
   if (version < kMinChromeVersion) {

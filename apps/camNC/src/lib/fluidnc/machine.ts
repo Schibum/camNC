@@ -3,6 +3,12 @@ import { CncApi } from './cnc-api';
 import { machineSupport } from './machine-support';
 
 let cncApi: CncApi | null = null;
+let simulated: { WebSocket: typeof WebSocket; fetch: typeof fetch } | null = null;
+
+/** Demo mode: connect to a simulated controller living in the page instead of a real one. Call before {@link getCncApi}. */
+export function setSimulatedMachine(transport: { WebSocket: typeof WebSocket; fetch: typeof fetch }) {
+  simulated = transport;
+}
 
 /**
  * The app-wide machine connection. It follows the configured host in the store: connects when one is set
@@ -10,7 +16,7 @@ let cncApi: CncApi | null = null;
  */
 export function getCncApi() {
   if (cncApi) return cncApi;
-  const api = new CncApi();
+  const api = new CncApi(simulated?.WebSocket, simulated?.fetch);
   cncApi = api;
   api.onVariantDetected = variant => {
     if (useStore.getState().machine?.variant !== variant) useStore.getState().setMachineVariant(variant);
