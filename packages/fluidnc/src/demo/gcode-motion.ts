@@ -47,7 +47,8 @@ export function stripComments(line: string) {
 export class MotionInterpreter {
   relative = false;
   feed = 1000;
-  private mode = 0;
+  /** Active motion mode: 0 rapid, 1 linear, 2 clockwise arc, 3 counter-clockwise arc. */
+  mode = 0;
 
   /**
    * @param pos Current position in machine coordinates.

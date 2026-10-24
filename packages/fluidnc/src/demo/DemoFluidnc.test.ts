@@ -45,6 +45,17 @@ describe('DemoFluidnc', () => {
     expect(status()?.mpos?.x).toBeCloseTo(start.x + 20, 3);
   });
 
+  it('moves jogs at their own feed, not at rapid speed', async () => {
+    const { demo, protocol } = await connect();
+    demo.speed = 1;
+    const start = demo.mpos.x;
+    await protocol.send('$J=G91 G21 X500 F600');
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    // 600 mm/min is 10 mm/s; at rapid speed (100 mm/s) it would be near 100 mm.
+    expect(demo.mpos.x - start).toBeLessThan(25);
+    expect(demo.mpos.x - start).toBeGreaterThan(3);
+  });
+
   it('cancels a jog in place', async () => {
     const { demo, protocol, status } = await connect();
     demo.speed = 1;

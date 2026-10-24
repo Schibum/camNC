@@ -122,6 +122,8 @@ export class DemoFluidnc extends FakeFluidnc {
       this.received.push(line);
       if (this.state !== 'Idle' && this.state !== 'Jog') return this.error('Command requires idle state');
       const jog = new MotionInterpreter(this.endPosition, this.wco);
+      // Jogs always move at their F value, never as rapids.
+      jog.mode = 1;
       const words = parseWords(text);
       const segments = words.F === undefined ? [] : jog.line(text.slice(3));
       if (!segments.length) return this.error('Invalid jog command');

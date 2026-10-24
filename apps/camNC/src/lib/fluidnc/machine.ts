@@ -16,7 +16,7 @@ export function setSimulatedMachine(transport: { WebSocket: typeof WebSocket; fe
  */
 export function getCncApi() {
   if (cncApi) return cncApi;
-  const api = new CncApi(simulated?.WebSocket, simulated?.fetch);
+  const api = new CncApi(simulated?.WebSocket, simulated?.fetch, !!simulated);
   cncApi = api;
   api.onVariantDetected = variant => {
     if (useStore.getState().machine?.variant !== variant) useStore.getState().setMachineVariant(variant);
