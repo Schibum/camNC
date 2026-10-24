@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compileGcode, MotionInterpreter } from './gcode-motion';
+import { compileGcode, MotionInterpreter, stripComments } from './gcode-motion';
 
 const zero = { x: 0, y: 0, z: 0 };
 const total = (segments: { length: number }[]) => segments.reduce((sum, s) => sum + s.length, 0);
@@ -45,6 +45,19 @@ describe('MotionInterpreter', () => {
     const segments = new MotionInterpreter(zero, zero).line('G2 X10 Y0 R5 F500');
     expect(total(segments)).toBeCloseTo(Math.PI * 5, 0);
     expect(Math.max(...segments.map(s => s.to.y))).toBeCloseTo(5, 0);
+  });
+});
+
+describe('stripComments', () => {
+  it('removes parenthesised and semicolon comments', () => {
+    expect(stripComments('G1 X5 (move) Y6 ; rest')).toBe('G1 X5  Y6');
+    expect(stripComments('(only a comment)')).toBe('');
+  });
+
+  it('copes with unclosed parentheses in linear time', () => {
+    const started = performance.now();
+    expect(stripComments('(' + '('.repeat(100_000))).toBe('');
+    expect(performance.now() - started).toBeLessThan(500);
   });
 });
 

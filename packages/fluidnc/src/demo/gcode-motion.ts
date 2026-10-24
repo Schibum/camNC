@@ -26,11 +26,17 @@ export function parseWords(line: string) {
   return words;
 }
 
+/** Removes `(...)` and `;` comments. A single linear scan, so that unclosed parentheses cannot make it slow. */
 export function stripComments(line: string) {
-  return line
-    .replace(/\([^)]*\)/g, '')
-    .replace(/;.*$/, '')
-    .trim();
+  let out = '';
+  let depth = 0;
+  for (const char of line) {
+    if (char === ';' && depth === 0) break;
+    if (char === '(') depth++;
+    else if (char === ')' && depth > 0) depth--;
+    else if (depth === 0) out += char;
+  }
+  return out.trim();
 }
 
 /**
