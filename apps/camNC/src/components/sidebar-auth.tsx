@@ -1,8 +1,11 @@
 import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react';
 import { SidebarFooter, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@wbcnc/ui/components/sidebar';
+import { isDemoMode } from '@/lib/demo/demo-mode';
 import { LogIn } from 'lucide-react';
 
 export function SidebarAuthStatus() {
+  // Signing in would not carry over to the real app, which only syncs outside the demo.
+  if (isDemoMode()) return null;
   return (
     <SidebarFooter className="mt-auto">
       <SidebarMenu>

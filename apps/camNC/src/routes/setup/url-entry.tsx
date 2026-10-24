@@ -1,4 +1,5 @@
 import { PageHeader } from '@/components/page-header';
+import { TryDemoCard } from '@/lib/demo/TryDemoCard';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { zodValidator } from '@tanstack/zod-adapter';
 import {
@@ -100,6 +101,7 @@ function UrlEntryComponent() {
       <PageHeader title="Camera Source" />
       <div className="flex justify-center p-1 flex-row">
         <div className="max-w-xl gap-4 flex flex-1 flex-col">
+          <TryDemoCard />
           <VideoSourceSelection value={url} onChange={handleUrlConfirm} defaultName={defaultName} key={url} />
           {!isNew && activeCamId && (
             <div className="flex justify-start">

@@ -30,7 +30,7 @@ const fmt = (p: Vec) => [p.x, p.y, p.z].map(n => n.toFixed(3)).join(',');
  * Inject it with `new FluidncSocket({ host: fake.host, WebSocketImpl: fake.WebSocket })`.
  */
 export class FakeFluidnc {
-  readonly host = '192.168.1.20';
+  host = '192.168.1.20';
   reachable = true;
   /** Every line received, in order. */
   readonly received: string[] = [];
@@ -51,8 +51,8 @@ export class FakeFluidnc {
   readonly uploads: { url: string; name: string; size: number }[] = [];
 
   readonly sockets = new Set<FakeSocket>();
-  private relative = false;
-  private jobAckPending = false;
+  protected relative = false;
+  protected jobAckPending = false;
   private xmodem: { path: string; data: number[]; buffer: number[] } | null = null;
   readonly transcript: Transcript;
 
@@ -121,7 +121,7 @@ export class FakeFluidnc {
 
   // --- input handling -------------------------------------------------------------------------
 
-  private lineBuffer = '';
+  protected lineBuffer = '';
 
   onBytes(bytes: Uint8Array) {
     if (this.xmodem) {
@@ -143,7 +143,7 @@ export class FakeFluidnc {
     }
   }
 
-  private onRealtime(byte: number) {
+  protected onRealtime(byte: number) {
     this.realtime.push(byte);
     switch (byte) {
       case 0x3f:
@@ -192,15 +192,15 @@ export class FakeFluidnc {
     }
   }
 
-  private ok(lines: string[] = []) {
+  protected ok(lines: string[] = []) {
     this.emit([...lines, 'ok']);
   }
 
-  private error(message: string) {
+  protected error(message: string) {
     this.emit([`error:${errorCode(message)}`]);
   }
 
-  private onLine(line: string) {
+  protected onLine(line: string) {
     this.received.push(line);
     const custom = this.respond?.(line);
     if (custom) {
@@ -245,7 +245,7 @@ export class FakeFluidnc {
     return JSON.stringify({ files, path: '/', total: '7.40 GB', used: '64.00 KB', occupation: '1' });
   }
 
-  private runFile(path: string) {
+  protected runFile(path: string) {
     const name = path.replace(/^\/+/, '');
     if (!this.files.has(name)) return this.error('File not found');
     if (this.state !== 'Idle') return this.error('Command requires idle state');
@@ -273,13 +273,13 @@ export class FakeFluidnc {
     this.pushStatus();
   }
 
-  private words(line: string) {
+  protected words(line: string) {
     const words: Record<string, number> = {};
     for (const match of line.toUpperCase().matchAll(/([A-Z])\s*(-?[\d.]+)/g)) words[match[1]!] = Number(match[2]);
     return words;
   }
 
-  private move(words: Record<string, number>, relative: boolean, machine = false) {
+  protected move(words: Record<string, number>, relative: boolean, machine = false) {
     for (const axis of ['x', 'y', 'z'] as const) {
       const value = words[axis.toUpperCase()];
       if (value === undefined) continue;
@@ -287,7 +287,7 @@ export class FakeFluidnc {
     }
   }
 
-  private jog(body: string) {
+  protected jog(body: string) {
     if (this.state !== 'Idle' && this.state !== 'Jog') return this.error('Command requires idle state');
     const words = this.words(body);
     if (words.F === undefined) return this.error('Invalid jog command');
@@ -295,7 +295,7 @@ export class FakeFluidnc {
     this.ok();
   }
 
-  private gcode(line: string) {
+  protected gcode(line: string) {
     const upper = line.toUpperCase();
     if (this.state === 'Alarm') return this.error('GCode cannot be executed in lock or alarm state');
     const words = this.words(upper);

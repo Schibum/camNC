@@ -1,4 +1,6 @@
 import { AppSidebar } from '@/components/app-sidebar';
+import { DemoBanner } from '@/lib/demo/DemoBanner';
+import { DemoDropZone } from '@/lib/demo/DemoDropZone';
 import { SidebarProvider } from '@wbcnc/ui/components/sidebar';
 import { Toaster } from '@wbcnc/ui/components/sonner';
 import { TooltipProvider } from '@wbcnc/ui/components/tooltip';
@@ -22,6 +24,8 @@ function RootComponent() {
           <Toaster />
           <AppSidebar />
           <Outlet />
+          <DemoBanner />
+          <DemoDropZone />
         </SidebarProvider>
       </TooltipProvider>
     </HeroUIProvider>
