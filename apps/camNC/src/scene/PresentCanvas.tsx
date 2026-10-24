@@ -1,6 +1,7 @@
 import { useViewPortToMachineScale, useViewportToVideoScale } from '@/calibration/scaleHooks';
 import { LoadingVideoOverlay } from '@/components/LoadingVideoOverlay';
 import { useCamResolution, useMachineCenter } from '@/store/store';
+import { kTopViewCameraRotation } from '@/scene/topViewOrientation';
 import { OrbitControls, Text } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Suspense, useEffect, useMemo, useRef } from 'react';
@@ -26,7 +27,7 @@ type IWorldScale = 'video' | 'machine';
 function useDefaultCameraRotation(worldScale: IWorldScale) {
   return useMemo(() => {
     if (worldScale === 'machine') {
-      return new THREE.Euler(0, 0, -Math.PI / 2);
+      return kTopViewCameraRotation;
     } else if (worldScale === 'video') {
       return new THREE.Euler(Math.PI, 0, 0);
     }

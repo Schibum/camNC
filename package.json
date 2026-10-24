@@ -9,7 +9,8 @@
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-format": "prettier --check \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
-    "prepare": "simple-git-hooks"
+    "prepare": "simple-git-hooks",
+    "sim": "pnpm --filter @wbcnc/fluidnc sim --"
   },
   "devDependencies": {
     "nano-staged": "^1.0.2",

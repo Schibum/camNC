@@ -5,7 +5,9 @@ import { PageHeader } from '@/components/page-header';
 import { useAutoScanMarkers } from '@/hooks/useAutoScanMarkers';
 import { DepthBlendWorker } from '@/hooks/useDepthBlendWorker';
 import { useInitToolpathOffset } from '@/hooks/useInitToolpathOffset';
-import { getCncApi } from '@/lib/fluidnc/fluidnc-singleton';
+import { getCncApi } from '@/lib/fluidnc/machine';
+import { JobProgressPath } from '@/visualize/JobProgressPath';
+import { MachineDock } from '@/components/machine/MachineDock';
 import { PresentCanvas } from '@/scene/PresentCanvas';
 import { MachinePositionMarker } from '@/visualize/MachinePositionMarker';
 import { MachineZeroAxes } from '@/visualize/MachineZeroAxes';
@@ -143,8 +145,8 @@ function VisualizeComponent() {
   function onDbClick(event: ThreeEvent<MouseEvent>) {
     if (snapEnabled) return onClickSnap();
     console.log('onDbClick', event.unprojectedPoint);
-    if (!cncApi?.isConnected()) {
-      toast.error('FluidNC integration not connected');
+    if (!cncApi.canJog.value) {
+      toast.error(cncApi.isConnected.value ? `Machine is busy (${cncApi.state.value})` : 'Machine not connected');
       return;
     }
     const point = event.unprojectedPoint;
@@ -154,7 +156,7 @@ function VisualizeComponent() {
       toast.info('Cannot jog outside machine bounds');
       return;
     }
-    cncApi?.jogToMachineCoordinates(point.x, point.y);
+    cncApi.jogToMachineCoordinates(point.x, point.y).catch(err => toast.error(`Jog failed: ${err.message}`));
     toast.success(`Jogging to ${point.x.toFixed(2)}, ${point.y.toFixed(2)}`);
   }
 
@@ -172,8 +174,8 @@ function VisualizeComponent() {
     if (!snapEnabled) return;
     const pos = snapPos;
     if (!pos) return;
-    if (!cncApi?.isConnected()) {
-      toast.error('FluidNC integration not connected');
+    if (!cncApi.canJog.value) {
+      toast.error(cncApi.isConnected.value ? `Machine is busy (${cncApi.state.value})` : 'Machine not connected');
       return;
     }
     const bounds = getActiveCamSource()?.machineBounds;
@@ -182,82 +184,86 @@ function VisualizeComponent() {
       toast.info('Cannot jog outside machine bounds');
       return;
     }
-    cncApi.jogToMachineCoordinates(pos.x, pos.y);
+    cncApi.jogToMachineCoordinates(pos.x, pos.y).catch(err => toast.error(`Jog failed: ${err.message}`));
     toast.success(`Jogging to ${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}`);
   }
 
   return (
-    <div className="relative w-full h-full">
-      <DepthBlendWorker />
+    <div className="flex flex-row w-full h-dvh">
+      <div className="relative flex-1 min-w-0 h-full">
+        <DepthBlendWorker />
 
-      {/* One canvas for all views: the camera video keeps running when switching between them. */}
-      {/* The canvas is transparent: all views share one dark backdrop around the camera image and the 3D scene. */}
-      <div className="w-full h-dvh absolute top-0 left-0" style={{ background: kDepthSceneBackground }}>
-        <PresentCanvas worldScale="machine" defaultControls={isTop}>
-          {/* <group rotation={[0, 0, Math.PI / 2]}> */}
-          {/*
-            The video loads in its own boundaries, so the 3D views stay usable while the camera is unavailable.
-          */}
-          <ErrorBoundary fallbackRender={({ error }) => <ReportVideoState value={error as Error} onChange={setVideoError} />}>
-            <Suspense fallback={<ReportVideoState value={true} onChange={setVideoLoading} />}>
-              <UnprojectVideoMeshWithStockHeight
-                visible={isTop || showStockVideo}
-                bounds={isTop ? undefined : stockTop}
-                opacity={isTop ? 1 : 0.7}
-                // In the 3D views, the video is drawn first, below the toolpath.
-                renderOrder={isTop ? 0 : -2}
-                onDoubleClick={isTop ? onDbClick : undefined}
-                onPointerMove={isTop ? onPointerMove : undefined}
-              />
-            </Suspense>
-          </ErrorBoundary>
-          {isTop || !toolpath ? (
-            <>
-              <TopCameraMemory memory={topCamera} />
-              <GCodeVisualizer />
-              <MachinePositionMarker />
-              <SnapPositionMarker />
-              <MachineZeroAxes />
-            </>
-          ) : (
-            <DepthScene toolpath={toolpath} view={view} fitKey={fitKey} />
-          )}
-          {/* </group> */}
+        {/* One canvas for all views: the camera video keeps running when switching between them. */}
+        {/* The canvas is transparent: all views share one dark backdrop around the camera image and the 3D scene. */}
+        <div className="w-full h-dvh absolute top-0 left-0" style={{ background: kDepthSceneBackground }}>
+          <PresentCanvas worldScale="machine" defaultControls={isTop}>
+            {/* <group rotation={[0, 0, Math.PI / 2]}> */}
+            {/*
+              The video loads in its own boundaries, so the 3D views stay usable while the camera is unavailable.
+            */}
+            <ErrorBoundary fallbackRender={({ error }) => <ReportVideoState value={error as Error} onChange={setVideoError} />}>
+              <Suspense fallback={<ReportVideoState value={true} onChange={setVideoLoading} />}>
+                <UnprojectVideoMeshWithStockHeight
+                  visible={isTop || showStockVideo}
+                  bounds={isTop ? undefined : stockTop}
+                  opacity={isTop ? 1 : 0.7}
+                  // In the 3D views, the video is drawn first, below the toolpath.
+                  renderOrder={isTop ? 0 : -2}
+                  onDoubleClick={isTop ? onDbClick : undefined}
+                  onPointerMove={isTop ? onPointerMove : undefined}
+                />
+              </Suspense>
+            </ErrorBoundary>
+            {isTop || !toolpath ? (
+              <>
+                <TopCameraMemory memory={topCamera} />
+                <GCodeVisualizer />
+                <MachinePositionMarker />
+                <SnapPositionMarker />
+                <MachineZeroAxes />
+                <JobProgressPath />
+              </>
+            ) : (
+              <DepthScene toolpath={toolpath} view={view} fitKey={fitKey} />
+            )}
+            {/* </group> */}
 
-          {/* <TransformToolpath /> */}
-        </PresentCanvas>
-      </div>
-
-      {isTop && (videoError || videoLoading) && (
-        <div className="dark pointer-events-none absolute inset-0 h-dvh text-foreground">
-          {videoError ? (
-            <div className="flex h-full items-center justify-center p-4 text-center text-red-500">
-              Error loading video: {videoError.message || 'unknown error'}
-            </div>
-          ) : (
-            <LoadingVideoOverlay />
-          )}
+            {/* <TransformToolpath /> */}
+          </PresentCanvas>
         </div>
-      )}
 
-      <div className="pointer-events-none absolute inset-0 flex h-dvh flex-col">
-        <PageHeader title={viewModeTitle(view)} className="dark pointer-events-auto pr-2 flex-wrap h-auto p-1 text-foreground">
-          <div className="pl-2">
-            <ViewSwitcher view={view} hasToolpath={!!toolpath} onSelect={selectView} />
-          </div>
-          <VisualizeToolbar />
-        </PageHeader>
-        {!isTop && toolpath && (
-          <div className="relative min-h-0 flex-1">
-            <div className="absolute top-2 right-2 bottom-12 flex flex-col items-end">
-              <DepthPanel toolpath={toolpath} />
-            </div>
-            <div className="absolute bottom-2 left-2">
-              <DepthHoverReadout toolpath={toolpath} />
-            </div>
+        {isTop && (videoError || videoLoading) && (
+          <div className="dark pointer-events-none absolute inset-0 h-dvh text-foreground">
+            {videoError ? (
+              <div className="flex h-full items-center justify-center p-4 text-center text-red-500">
+                Error loading video: {videoError.message || 'unknown error'}
+              </div>
+            ) : (
+              <LoadingVideoOverlay />
+            )}
           </div>
         )}
+
+        <div className="pointer-events-none absolute inset-0 flex h-dvh flex-col">
+          <PageHeader title={viewModeTitle(view)} className="dark pointer-events-auto pr-2 flex-wrap h-auto p-1 text-foreground">
+            <div className="pl-2">
+              <ViewSwitcher view={view} hasToolpath={!!toolpath} onSelect={selectView} />
+            </div>
+            <VisualizeToolbar />
+          </PageHeader>
+          {!isTop && toolpath && (
+            <div className="relative min-h-0 flex-1">
+              <div className="absolute top-2 right-2 bottom-12 flex flex-col items-end">
+                <DepthPanel toolpath={toolpath} />
+              </div>
+              <div className="absolute bottom-2 left-2">
+                <DepthHoverReadout toolpath={toolpath} />
+              </div>
+            </div>
+          )}
+        </div>
       </div>
+      <MachineDock />
     </div>
   );
 }

@@ -17,7 +17,6 @@
     "@tanstack/router-plugin": "catalog:",
     "@tanstack/zod-adapter": "catalog:",
     "@wbcnc/camera-calibration": "workspace:*",
-    "@wbcnc/fluidnc-api": "workspace:*",
     "@wbcnc/go2webrtc": "workspace:*",
     "@wbcnc/load-opencv": "workspace:*",
     "@wbcnc/public-config": "workspace:*",

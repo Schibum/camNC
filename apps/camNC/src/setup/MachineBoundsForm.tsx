@@ -1,5 +1,5 @@
 import { getFluidSettingsBounds } from '@/lib/fluidnc/fluidnc-settings';
-import { getFluidNcClient } from '@/lib/fluidnc/fluidnc-singleton';
+import { getCncApi } from '@/lib/fluidnc/machine';
 import { useCamSource, useStore } from '@/store/store';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@wbcnc/ui/components/button';
@@ -11,8 +11,7 @@ import z from 'zod';
 
 function UseFluidNcSettingsButton() {
   'use no memo';
-  const client = getFluidNcClient();
-  const isConnected = client.isConnected.value;
+  const isConnected = getCncApi().isConnected.value;
   const formContext = useFormContext<z.infer<typeof schema>>();
 
   async function handleClick(e: React.MouseEvent<HTMLButtonElement>) {

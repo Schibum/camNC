@@ -34,7 +34,6 @@ into machine coordinates.
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
 | `apps/camNC`                                           | Main app (TanStack Start, React 19, react-three-fiber).                                                         |
 | `apps/webrtc-cam`                                      | Runs on a phone: streams its camera to camNC over WebRTC.                                                       |
-| `apps/fluidnc-integration`                             | Runs as a FluidNC WebUI v3 extension: exposes the WebUI API to camNC over WebRTC.                               |
 | `apps/website`                                         | Astro landing page (www.camnc.app).                                                                             |
 | `apps/chessboard`                                      | Static page that displays/prints the calibration chessboard.                                                    |
 | `apps/demos`                                           | Sandbox pages for individual packages.                                                                          |
@@ -42,7 +41,7 @@ into machine coordinates.
 | `packages/camera-calibration`                          | Chessboard calibration UI, zustand store and workers (corner finding, pose uniqueness, `calibrateCamera`).      |
 | `packages/go2webrtc`                                   | Video source abstraction: go2rtc (WebSocket/WebRTC), phone (`webrtc:`), WebTorrent tracker, webcam and URLs.    |
 | `packages/webrtc-channel`                              | `Peer` (perfect negotiation), `WsSignaller`, `RolePeering`, chunked data channel, Comlink middleware.           |
-| `packages/fluidnc-api`                                 | `FluidncApi` (postMessage bridge to the WebUI) and `FluidncServer`/`FluidncClient` over WebRTC + Comlink.       |
+| `packages/fluidnc`                                     | Direct FluidNC WebSocket: `FluidncSocket`, `FluidncProtocol`, parsers, uploads, `FakeFluidnc`, `pnpm sim`.      |
 | `packages/video-worker-utils`                          | Helpers to move video into workers (`MediaStreamTrackProcessor` + polyfill), three.js Comlink transfer handler. |
 | `packages/load-opencv`                                 | Loads the OpenCV.js WASM build from `/opencv_js.js` and exposes a typed `cv2` proxy.                            |
 | `packages/ui`                                          | Shared shadcn/radix components, hooks and theme provider.                                                       |
@@ -62,7 +61,7 @@ generated, don't edit it). New cameras go through the setup wizard:
 1. `setup/url-entry` – choose the video source and its resolution.
 2. `setup/camera-calibration` – estimate intrinsics with a chessboard.
 3. `setup/machine-bounds` – usable machine area (optionally read from the
-   FluidNC `config.yaml`).
+   the running FluidNC config via `$Config/Dump`).
 4. `setup/marker-positions` – machine coordinates of the four ArUco markers
    (ids 0–3).
 5. `setup/point-selection` – detect the markers in the camera image and solve
@@ -82,7 +81,11 @@ generated, don't edit it). New cameras go through the setup wizard:
 - `src/store/store-p3p.ts` – marker detection on averaged still frames and
   extrinsics recomputation.
 - `src/lib/fluidnc` – `CncApi`, a Preact-signals based wrapper around
-  `FluidncClient` that polls machine status and work offsets.
+  `FluidncProtocol` (connection state, status, offsets, alarms, console), and
+  `getCncApi()`, which follows the machine host stored in the settings.
+- `src/components/machine` – the machine UI: status bar, connection step and
+  the machine panel (DRO, jog, zero, probe, overrides, job, SD files, macros,
+  console, config).
 
 ### Rendering
 
@@ -112,27 +115,35 @@ against OpenCV.
 
 ## Remote connections
 
-camNC never talks to the CNC controller or a phone camera directly. Both are
-reached over WebRTC (`@wbcnc/webrtc-channel`). Peers find each other through
-`apps/signal`, a Worker with one Durable Object per room (named by a hash of the
-shared access token), and switch to in-band signalling over their data channel
-once connected.
+The phone camera is reached over WebRTC (`@wbcnc/webrtc-channel`). Peers find
+each other through `apps/signal`, a Worker with one Durable Object per room
+(named by a hash of the shared access token), and switch to in-band signalling
+over their data channel once connected. The CNC controller is reached directly.
 
 - **Phone camera**: `apps/webrtc-cam` runs on the phone and serves its
   `getUserMedia` stream (`useTrysteroServer`); camNC connects with a
-  `webrtc:?accessToken=…` source URL.
-- **FluidNC**: `apps/fluidnc-integration` is loaded as a WebUI v3 extension
-  inside the FluidNC web interface. It talks to the WebUI via `postMessage`
-  (`FluidncApi`) and exposes that API over a WebRTC data channel
-  (`FluidncServer`). camNC uses `FluidncClient` to send G-code commands, upload
-  and run files and read the configuration.
-
-Comlink messages over data channels go through `createChunkedPort`, which
-splits large messages into 16 KiB chunks.
+  `webrtc:?accessToken=…` source URL. Comlink messages over data channels go through `createChunkedPort`, which
+  splits large messages into 16 KiB chunks.
+- **FluidNC**: camNC opens a WebSocket straight to the controller on the LAN
+  (`@wbcnc/fluidnc`). FluidNC 4.x serves it on the HTTP port
+  (`ws://<ip>/?independent_session`), 3.9.9 on HTTP port + 1
+  (`ws://<ip>:81/`, the WebUI v2 socket; port + 2 would kick the WebUI). The
+  variant is detected on connect and remembered. From `https://run.camnc.app`
+  this relies on Chrome/Edge 147+ Local Network Access, which also lifts
+  mixed-content blocking once the user allows it. Uploads are `no-cors` POSTs
+  to `/upload` (FluidNC sends no CORS headers), verified with `$SD/ListJSON`;
+  XMODEM over the socket is the fallback. Only one tab holds the connection
+  (Web Locks), and nothing is re-sent after a reconnect.
 
 ## Testing
 
-Tests use Vitest in browser mode (Playwright/Chromium) because they depend on
+`packages/fluidnc` tests run in Node against `FakeFluidnc` (transcripts in
+`src/testing/transcripts`). `pnpm --filter @wbcnc/fluidnc sim [--v3]` starts the
+real FluidNC 4.1.1 posix simulator with the JP2 LowRider config (plus a
+3.9.9 transport proxy), and `src/sim.integration.test.ts` runs against it when
+`FLUIDNC_SIM_HOST` is set (CI job `fluidnc-sim`).
+
+Other tests use Vitest in browser mode (Playwright/Chromium) because they depend on
 browser APIs such as OpenCV's WASM build, `VideoFrame` and WebRTC. Pure logic
 is tested next to the source (`*.test.ts`). WebRTC integration tests
 signal through an in-memory hub (`test-utils/local-signal-hub.ts`); the signal

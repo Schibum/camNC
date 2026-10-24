@@ -3,7 +3,7 @@ import { ClerkProvider } from '@clerk/clerk-react';
 import { RouterProvider } from '@tanstack/react-router';
 import { setKeepAliveTime } from '@wbcnc/go2webrtc/use-video-source';
 import { createRoot } from 'react-dom/client';
-import { getCncApi } from './lib/fluidnc/fluidnc-singleton';
+import { getCncApi } from './lib/fluidnc/machine';
 import { createRouter } from './router';
 import './style.css';
 
@@ -31,7 +31,7 @@ createRoot(document.getElementById('app')!).render(
         },
       },
     }}>
-    {/* Create the FluidNC connection once the synced settings (incl. fluidncToken) are loaded. */}
+    {/* Connect to the configured machine once the synced settings (incl. the machine host) are loaded. */}
     <SettingsSyncGate onReady={getCncApi}>
       <RouterProvider router={router} />
     </SettingsSyncGate>

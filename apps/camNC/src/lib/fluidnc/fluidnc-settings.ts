@@ -1,22 +1,13 @@
 import log from 'loglevel';
-import { parse as parseYaml } from 'yaml';
-import { computeAxisBounds } from './fluidnc-axis-bounds';
-import { getCncApi } from './fluidnc-singleton';
+import { getCncApi } from './machine';
 
-export async function getFluidSettings() {
-  const cncClient = getCncApi();
-  const settings = await cncClient.readConfigFile();
-  return parseYaml(settings);
-}
-
+/** Usable XY area in machine coordinates, from the controller's running config (`$Config/Dump`). */
 export async function getFluidSettingsBounds() {
   try {
-    const settings = await getFluidSettings();
-    const { min: xmin, max: xmax } = computeAxisBounds(settings.axes.x);
-    const { min: ymin, max: ymax } = computeAxisBounds(settings.axes.y);
+    const { xmin, xmax, ymin, ymax } = await getCncApi().readMachineBounds();
     return { xmin, xmax, ymin, ymax };
   } catch (err) {
-    log.error('could not get/parse FluidNc bounds ' + err);
+    log.error('could not get/parse FluidNC bounds ' + err);
     return null;
   }
 }

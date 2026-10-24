@@ -24,8 +24,10 @@ import { useState } from 'react';
 import { BoundsInfoButton } from '../BoundsInfo';
 import { ZDepthLegend } from '../ZDepthLegend';
 import { DepthBlendButton } from './DepthBlendButton';
+import { MachineStatusBar } from '@/components/machine/MachineStatusBar';
 import { FluidncButton } from './FluidncButton';
 import { TooltipIconButton } from './TooltipIconButton';
+import { openGcodeFile } from '../openGcodeFile';
 
 function PlayPauseButton() {
   const showStillFrame = useShowStillFrame();
@@ -45,31 +47,7 @@ function PlayPauseButton() {
 }
 
 function OpenFileButton() {
-  const updateToolpath = useStore(s => s.updateToolpath);
-
-  const handleFileUpload = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = e => {
-      const contents = e.target?.result;
-      // Process the GCode content
-      updateToolpath(contents as string);
-    };
-    reader.readAsText(file, 'utf-8');
-  };
-
-  function chooseFile() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.gcode, .nc';
-    input.onchange = () => {
-      const file = input.files?.[0];
-      if (file) {
-        handleFileUpload(file);
-      }
-    };
-    input.click();
-  }
-  return <TooltipIconButton label="Open gcode File" icon={<FolderOpen />} shortcut="o" onClick={chooseFile} />;
+  return <TooltipIconButton label="Open gcode File" icon={<FolderOpen />} shortcut="o" onClick={openGcodeFile} />;
 }
 
 function ToolDiameterButton({ onClick }: { onClick: () => void }) {
@@ -234,6 +212,7 @@ export function VisualizeToolbar() {
       <ColorLegendButton />
       <BoundsInfoButton />
       <FluidncButton />
+      <MachineStatusBar />
       {/* <CommandsMenu /> */}
     </div>
   );

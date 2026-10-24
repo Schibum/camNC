@@ -20,6 +20,7 @@ export async function runSetupSmoke(
   assert(['https:', 'http:'].includes(target.protocol), 'CAMNC_SMOKE_URL must be an HTTP(S) URL');
   const context = await browser.newContext({ locale: 'en-US', viewport: { width: 1440, height: 1000 } });
   await context.addInitScript(installSyntheticCamera);
+  await context.addInitScript(installSyntheticFluidNc);
   const page = await context.newPage();
   page.setDefaultTimeout(20_000);
   page.setDefaultNavigationTimeout(45_000);
@@ -27,7 +28,6 @@ export async function runSetupSmoke(
   const consoleErrors = [];
   const consoleMessages = [];
   const report = { baseURL: target.href, startedAt: new Date().toISOString(), checks: [], failedRequests: [], websockets: [] };
-  let widget;
   const urlParts = value => {
     const url = new URL(value);
     return { origin: url.origin, path: url.pathname };
@@ -112,7 +112,8 @@ export async function runSetupSmoke(
       const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
       let dark = 0;
       for (let i = 0; i < data.length; i += 4) {
-        if (Math.max(data[i], data[i + 1], data[i + 2]) < 50) dark++;
+        // Near-black only: the marker squares are black, the view's dark backdrop (#0b0e13 and lighter) is not.
+        if (Math.max(data[i], data[i + 1], data[i + 2]) < 12) dark++;
       }
       return dark;
     }, screenshot.toString('base64'));
@@ -197,19 +198,19 @@ export async function runSetupSmoke(
     check('four rendered ArUco tags are detected and a low-error camera pose is saved');
 
     await navigate('FluidNC');
-    await page.getByText('FluidNC Integration', { exact: true }).waitFor();
-    await page.getByText('Disconnected', { exact: true }).waitFor();
-    const widgetURL = await page.locator('input[readonly]').inputValue();
-    assert.equal(new URL(widgetURL).hostname, 'fluidnc-integration.vercel.app');
+    await page.getByText('Connect to FluidNC', { exact: true }).waitFor();
+    await page.getByText('Not connected', { exact: true }).waitFor();
     await page.getByRole('button', { name: 'Continue', exact: true }).click();
     await page.waitForURL('**/setup/machine-bounds');
-    check('optional FluidNC setup can be skipped while disconnected');
+    check('optional machine connection can be skipped');
 
-    widget = await context.newPage();
-    observePage(widget, 'FluidNC widget');
-    await widget.addInitScript(installSyntheticFluidNc);
-    await widget.goto(widgetURL);
-    await widget.getByText('1 connected', { exact: true }).waitFor({ timeout: 60_000 });
+    await navigate('FluidNC');
+    await page.getByLabel('Controller IP address').fill('192.168.77.7');
+    await page.getByRole('button', { name: 'Connect', exact: true }).click();
+    await page.getByText('Connected', { exact: true }).waitFor();
+    await page.getByText(/FluidNC 3\.9\.9/).waitFor();
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await page.waitForURL('**/setup/machine-bounds');
     const readSettings = page.getByRole('button', { name: 'Read FluidNC Settings', exact: true });
     await page.waitForFunction(() => {
       const button = [...document.querySelectorAll('button')].find(button => button.textContent === 'Read FluidNC Settings');
@@ -225,14 +226,10 @@ export async function runSetupSmoke(
         (name, index) => document.querySelector(`input[name="${name}"]`)?.value === ['0', '700', '0', '550'][index]
       )
     );
-    report.fluidncRequests = await widget.evaluate(() => window.__camncSmokeFluidNc.requests);
-    assert(report.fluidncRequests.some(request => request.type === 'download' && request.url === '/config.yaml'));
-    assert.deepEqual(await widget.evaluate(() => window.__camncSmokeFluidNc.rejected), []);
-    await navigate('FluidNC');
-    await page.getByText('Connected', { exact: true }).waitFor();
-    check('production FluidNC widget pairs over WebRTC and reads simulated controller bounds');
-    await widget.close();
-    await page.getByText('Disconnected', { exact: true }).waitFor();
+    report.fluidncRequests = await page.evaluate(() => window.__camncSmokeFluidNc.requests);
+    assert(report.fluidncRequests.includes('$Config/Dump'));
+    assert.deepEqual(await page.evaluate(() => window.__camncSmokeFluidNc.rejected), []);
+    check('connects to a simulated FluidNC 3.9.9 on port 81 and reads its bounds via $Config/Dump');
 
     await navigate('Top View');
     await page.getByLabel('breadcrumb').getByText(topViewTitle).waitFor();
@@ -354,9 +351,6 @@ export async function runSetupSmoke(
     report.consoleMessages = consoleMessages;
     report.url = page.url();
     await page.screenshot({ path: path.join(outputDir, 'failure.png'), fullPage: true }).catch(() => {});
-    if (widget && !widget.isClosed()) {
-      await widget.screenshot({ path: path.join(outputDir, 'failure-fluidnc-widget.png'), fullPage: true }).catch(() => {});
-    }
     await writeFile(path.join(outputDir, 'report.json'), JSON.stringify(report, null, 2));
     await context.tracing.stop({ path: path.join(outputDir, 'failure-trace.zip') }).catch(() => {});
     throw error;

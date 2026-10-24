@@ -1,4 +1,4 @@
-import { getCncApi } from '@/lib/fluidnc/fluidnc-singleton';
+import { getCncApi } from '@/lib/fluidnc/machine';
 import { useShowMachinePosMarker, useToolDiameter } from '@/store/store';
 import { animated, easings, useSpring } from '@react-spring/three';
 import { Line } from '@react-three/drei';

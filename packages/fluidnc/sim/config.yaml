@@ -1,0 +1,93 @@
+# V1 Engineering Jackpot2 LowRider (JP2_LR) config adapted for the FluidNC posix simulator:
+# all pins are NO_PIN, I2S stepping is replaced by the timed engine and the TMC drivers by
+# null motors. Axis geometry, rates and homing match the real machine.
+board: Jackpot V2 TMC2226 (simulated)
+name: LowRider
+meta: camNC simulator
+
+planner_blocks: 32
+
+stepping:
+  engine: timed
+  idle_ms: 255
+  pulse_us: 2
+  dir_delay_us: 1
+  disable_delay_us: 0
+
+axes:
+  shared_stepper_disable_pin: NO_PIN
+
+  x:
+    steps_per_mm: 50.000
+    max_rate_mm_per_min: 9000.000
+    acceleration_mm_per_sec2: 200.000
+    max_travel_mm: 1220
+    soft_limits: false
+    homing:
+      cycle: 2
+      positive_direction: false
+      mpos_mm: 3
+      feed_mm_per_min: 300.000
+      seek_mm_per_min: 1500.000
+      settle_ms: 500
+      seek_scaler: 1.100
+      feed_scaler: 1.100
+    motor0:
+      limit_neg_pin: NO_PIN
+      hard_limits: false
+      pulloff_mm: 4.000
+
+  y:
+    steps_per_mm: 50.000
+    max_rate_mm_per_min: 9000.000
+    acceleration_mm_per_sec2: 200.000
+    max_travel_mm: 2440
+    soft_limits: false
+    homing:
+      cycle: 2
+      positive_direction: false
+      mpos_mm: 3
+      feed_mm_per_min: 300.000
+      seek_mm_per_min: 1500.000
+      settle_ms: 500
+      seek_scaler: 1.100
+      feed_scaler: 1.100
+    motor0:
+      limit_neg_pin: NO_PIN
+      hard_limits: false
+      pulloff_mm: 4.000
+    motor1:
+      limit_neg_pin: NO_PIN
+      hard_limits: false
+      pulloff_mm: 4.000
+
+  z:
+    steps_per_mm: 200.000
+    max_rate_mm_per_min: 1200.000
+    acceleration_mm_per_sec2: 80.000
+    max_travel_mm: 300.000
+    soft_limits: false
+    homing:
+      cycle: 1
+      positive_direction: true
+      mpos_mm: 3
+      feed_mm_per_min: 300.000
+      seek_mm_per_min: 800.000
+      settle_ms: 500
+      seek_scaler: 1.100
+      feed_scaler: 1.100
+    motor0:
+      limit_pos_pin: NO_PIN
+      hard_limits: false
+      pulloff_mm: 4.000
+    motor1:
+      limit_pos_pin: NO_PIN
+      hard_limits: false
+      pulloff_mm: 4.000
+
+probe:
+  pin: NO_PIN
+  check_mode_start: true
+
+start:
+  must_home: false

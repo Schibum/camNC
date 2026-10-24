@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Vector3 } from 'three';
 
-import { getCncApi } from '@/lib/fluidnc/fluidnc-singleton';
+import { getCncApi } from '@/lib/fluidnc/machine';
 import { useStore } from '@/store/store';
 
 /**
