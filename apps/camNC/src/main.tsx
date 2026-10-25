@@ -1,3 +1,5 @@
+import { DemoGate } from '@/lib/demo/DemoGate';
+import { isDemoMode } from '@/lib/demo/demo-mode';
 import { SettingsSyncGate } from '@/lib/settings-sync/SettingsSyncGate';
 import { ClerkProvider } from '@clerk/clerk-react';
 import { RouterProvider } from '@tanstack/react-router';
@@ -14,7 +16,12 @@ if (!PUBLISHABLE_KEY) {
 }
 
 setKeepAliveTime(60_000);
+
+// The demo's simulated machine and preset are loaded before anything renders or connects.
+if (isDemoMode()) (await import('./lib/demo/demo-machine')).startDemo();
+
 const router = createRouter();
+const Gate = isDemoMode() ? DemoGate : SettingsSyncGate;
 
 createRoot(document.getElementById('app')!).render(
   <ClerkProvider
@@ -32,8 +39,8 @@ createRoot(document.getElementById('app')!).render(
       },
     }}>
     {/* Connect to the configured machine once the synced settings (incl. the machine host) are loaded. */}
-    <SettingsSyncGate onReady={getCncApi}>
+    <Gate onReady={getCncApi}>
       <RouterProvider router={router} />
-    </SettingsSyncGate>
+    </Gate>
   </ClerkProvider>
 );

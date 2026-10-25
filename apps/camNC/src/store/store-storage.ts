@@ -1,3 +1,4 @@
+import { isDemoMode } from '@/lib/demo/demo-mode';
 import { saveUserSettings } from '@/lib/settings-sync/settings-api';
 import { throttle } from 'radashi';
 import superjson from 'superjson';
@@ -47,7 +48,9 @@ export function setServerSettings(serialized: unknown) {
 
 export function createStorage() {
   const storage: PersistStorage<unknown> = {
+    // The demo starts from its preset every time and never reads or writes real settings.
     getItem: name => {
+      if (isDemoMode()) return null;
       if (name === 'settings' && serverSettings) {
         return serverSettings as any;
       }
@@ -57,11 +60,14 @@ export function createStorage() {
     },
     // See https://github.com/pmndrs/zustand/discussions/2125
     setItem: throttle({ interval: 500, trailing: true }, async (name, value) => {
+      if (isDemoMode()) return;
       localStorage.setItem(name, superjson.stringify(value));
       if (name === 'settings') serverSettings = null;
       await saveUserSettings(superjson.serialize(value));
     }),
-    removeItem: name => localStorage.removeItem(name),
+    removeItem: name => {
+      if (!isDemoMode()) localStorage.removeItem(name);
+    },
   };
   return storage;
 }

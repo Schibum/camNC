@@ -1,4 +1,5 @@
 // Client for the settings API served by the camNC Worker (worker/index.ts).
+import { isDemoMode } from '@/lib/demo/demo-mode';
 
 type TokenGetter = () => Promise<string | null>;
 
@@ -10,6 +11,8 @@ export function setSettingsAuth(getter: TokenGetter | null) {
 }
 
 async function authHeaders(): Promise<Record<string, string> | null> {
+  // Last line of defence: the demo must never read or write a real user's settings.
+  if (isDemoMode()) return null;
   const token = await getToken?.();
   return token ? { Authorization: `Bearer ${token}` } : null;
 }

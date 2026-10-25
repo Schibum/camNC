@@ -86,7 +86,13 @@ export class CncApi {
   private lockAbort: AbortController | null = null;
   private readonly zeroTimeoutMs = 5000;
 
-  constructor(private readonly WebSocketImpl?: typeof WebSocket) {}
+  /** `WebSocketImpl` and `fetchImpl` can be swapped for a simulated controller (demo mode, tests). */
+  constructor(
+    private readonly WebSocketImpl?: typeof WebSocket,
+    private readonly fetchImpl?: typeof fetch,
+    /** A controller simulated in the page (demo mode). It never competes for the Web Lock that protects real hardware. */
+    private readonly simulated = false
+  ) {}
 
   /** Connect to `host`, replacing any previous connection. */
   connect(host: string, variant?: FirmwareVariant) {
@@ -118,7 +124,7 @@ export class CncApi {
   /** Hold the Web Lock for as long as we are connected. Waits (as 'other-tab') while another tab has it. */
   private acquireLockThen(open: () => void) {
     const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
-    if (!locks) {
+    if (!locks || this.simulated) {
       open();
       return;
     }
@@ -337,7 +343,7 @@ export class CncApi {
   // --- files and config -----------------------------------------------------------------------------
 
   async uploadGcode(content: string, filename: string, options?: UploadOptions) {
-    await uploadSdFile(this.api, this.host.value!, filename, content, options);
+    await uploadSdFile(this.api, this.host.value!, filename, content, { fetchImpl: this.fetchImpl, ...options });
   }
 
   runFile(filename: string) {

@@ -3,6 +3,7 @@ import { Button } from '@heroui/react';
 import { Separator } from '@radix-ui/react-separator';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage } from '@wbcnc/ui/components/breadcrumb';
 import { SidebarTrigger } from '@wbcnc/ui/components/sidebar';
+import { isDemoMode } from '@/lib/demo/demo-mode';
 import { cn } from '@wbcnc/ui/lib/utils';
 
 export function PageHeader({ title, className, children }: { title: string; className?: string; children?: React.ReactNode }) {
@@ -35,11 +36,13 @@ export function PageHeader({ title, className, children }: { title: string; clas
           />
         </SignedIn>
         <SignedOut>
-          <SignInButton mode="modal" forceRedirectUrl="/">
-            <Button variant="light" size="sm">
-              Sign in
-            </Button>
-          </SignInButton>
+          {!isDemoMode() && (
+            <SignInButton mode="modal" forceRedirectUrl="/">
+              <Button variant="light" size="sm">
+                Sign in
+              </Button>
+            </SignInButton>
+          )}
         </SignedOut>
       </div>
     </header>

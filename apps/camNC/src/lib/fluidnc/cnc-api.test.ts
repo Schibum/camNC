@@ -125,6 +125,16 @@ describe('CncApi', () => {
     await until(() => second.connection.value === 'connected');
   });
 
+  it('does not make a simulated controller compete for the machine lock', async () => {
+    const fake = new FakeFluidnc('v4');
+    const real = await connected(fake);
+    const simulated = new CncApi(fake.WebSocket, fake.fetch, true);
+    apis.push(simulated);
+    simulated.connect(fake.host);
+    await until(() => simulated.connection.value === 'connected');
+    expect(real.connection.value).toBe('connected');
+  });
+
   it('reports an unreachable controller', async () => {
     const fake = new FakeFluidnc('v4');
     fake.reachable = false;

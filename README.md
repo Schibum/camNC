@@ -24,7 +24,9 @@ CamNC is a simple experimental web application that visualizes CNC G-code on a l
 
 ## Usage
 
-To get started, open the application at [https://run.camnc.app/](https://run.camnc.app/).
+To try camNC without any setup, open the [demo](https://run.camnc.app/demo): a recorded machine camera, a sample job and a simulated FluidNC in your browser. You can load your own G-code, and nothing is saved.
+
+To get started with your own machine, open the application at [https://run.camnc.app/](https://run.camnc.app/).
 
 ### Screenshots
 
