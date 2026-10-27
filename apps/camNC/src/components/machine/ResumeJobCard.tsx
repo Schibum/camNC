@@ -212,7 +212,8 @@ export function ResumeJobCard() {
       </Button>
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent className="sm:max-w-lg">
+        {/* A single column that may shrink: otherwise the long G-code lines widen the grid past the dialog. */}
+        <AlertDialogContent className="grid-cols-[minmax(0,1fr)] sm:max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle>Resume from line {line !== null ? line + 1 : '?'}?</AlertDialogTitle>
             <AlertDialogDescription asChild>
@@ -224,7 +225,7 @@ export function ResumeJobCard() {
                       Uploads <code>{kResumeFileName}</code> and starts it. It retracts Z, moves over the restart point and pauses: check
                       the bit is clear, then press Resume to start the spindle, plunge and continue.
                     </p>
-                    <pre className="text-xs bg-muted rounded p-2 overflow-x-auto max-h-48">
+                    <pre className="text-xs bg-muted rounded p-2 whitespace-pre-wrap break-words overflow-y-auto max-h-48">
                       {preview.gcode
                         .split('\n')
                         .slice(0, preview.preambleLines + 3)
