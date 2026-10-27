@@ -1,5 +1,8 @@
 import { ParsedToolpath } from './gcodeParsing';
 
+/** Colour of the already milled part of the toolpath, in the top and the 3D views. */
+export const kJobDoneColor = '#22c55e';
+
 /** Lines that produce toolpath segments (motion words, not offset/dwell/probe/homing commands). */
 const kMotion = /[XYZ]\s*-?[\d.]/i;
 const kNoMotion = /\b(G10|G92|G28|G30|G4|G38\.\d|G53)\b/i;

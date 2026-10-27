@@ -1,13 +1,17 @@
 import { getCncApi } from '@/lib/fluidnc/machine';
 import { useShowMachinePosMarker, useToolDiameter } from '@/store/store';
+import { useComputed } from '@preact/signals-react';
 import { animated, easings, useSpring } from '@react-spring/three';
 import { Line } from '@react-three/drei';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
+import { Group } from 'three';
+import { useSmoothedMachinePos } from './smoothedMachinePos';
 
 /**
  * MachinePositionMarker renders an animated marker at the current
  * machine position (mpos) reported by FluidNC.  It consists of a pulsing
  * ring matching the tool diameter and a thin cross through the centre.
+ * It glides between status reports instead of jumping (see {@link useSmoothedMachinePos}).
  */
 export function MachinePositionMarker({
   opacity = 0.7,
@@ -24,7 +28,9 @@ export function MachinePositionMarker({
 
   // Access CNC API & reactive machine position.
   const cncApi = getCncApi();
-  const mpos = cncApi.machinePos.value; // {x,y,z}
+  // Re-render only when a position appears or disappears; movement is applied per frame below.
+  const hasPos = useComputed(() => cncApi.machinePos.value != null).value;
+  const group = useRef<Group>(null);
 
   // Radius = ½ tool diameter.
   const toolDiameter = useToolDiameter();
@@ -57,6 +63,7 @@ export function MachinePositionMarker({
 
   // Z-elevation: keep slightly above toolpath
   const zElev = 30;
+  useSmoothedMachinePos(group, (mpos, target) => target.position.set(mpos.x, mpos.y, zElev));
 
   // Create alternating coloured arc segments for outer ring
   const segmentPairs = 12; // total color segments (even number)
@@ -78,9 +85,9 @@ export function MachinePositionMarker({
     return arcs;
   }, [ringRadius, innerColor, dashColor]);
 
-  if (!mpos || !visible) return null; // Not yet received a status update.
+  if (!hasPos || !visible) return null; // Not yet received a status update.
   return (
-    <group position={[mpos.x, mpos.y, zElev]} renderOrder={1000 /* draw on top */}>
+    <group ref={group} renderOrder={1000 /* draw on top */}>
       {/* Crosshair */}
       <Line
         points={[

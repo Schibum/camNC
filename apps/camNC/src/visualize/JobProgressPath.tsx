@@ -3,7 +3,7 @@ import { useStore } from '@/store/store';
 import { Line } from '@react-three/drei';
 import { useMemo } from 'react';
 import { kJobFileName } from '@/lib/machine/jobs';
-import { motionLineEnds, progressPointIndex } from './jobProgress';
+import { kJobDoneColor, motionLineEnds, progressPointIndex } from './jobProgress';
 
 /** Draws the part of the loaded toolpath that the running camNC job has already done. */
 export function JobProgressPath() {
@@ -18,5 +18,5 @@ export function JobProgressPath() {
   const end = progressPointIndex(toolpath, lineEnds, job.percent);
   if (end < 2) return null;
   const points = toolpath.pathPoints.slice(0, end).map(p => [p.x + offset.x, p.y + offset.y, 25] as [number, number, number]);
-  return <Line points={points} color="#22c55e" linewidth={3} transparent opacity={0.8} depthTest={false} renderOrder={900} />;
+  return <Line points={points} color={kJobDoneColor} linewidth={3} transparent opacity={0.8} depthTest={false} renderOrder={900} />;
 }
