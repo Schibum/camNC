@@ -2,9 +2,11 @@ import { getCncApi } from '@/lib/fluidnc/machine';
 import { useStore, getMachineBounds } from '@/store/store';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { useEffect } from 'react';
-import { saveJobRecord } from './jobRecord';
+import { JobRecord, saveJobRecord } from './jobRecord';
+import { applyRecord, InterruptedJob, interruptedJob, noteJobStopRequested } from './jobRecovery';
 import type { Macro } from './macros';
-import { getJobChecklist } from './workflow';
+import { buildResumeProgram, parseProgram, programBounds } from './resume';
+import { checkTravel, getJobChecklist } from './workflow';
 
 export function errorText(err: unknown) {
   return err instanceof Error ? err.message : String(err);
@@ -12,10 +14,18 @@ export function errorText(err: unknown) {
 
 /** Name of the file camNC uploads to the SD card for the current toolpath. */
 export const kJobFileName = 'camnc.gcode';
+/** Name of the file for resuming an interrupted job (the original stays on the SD card). */
+export const kResumeFileName = 'camnc-resume.gcode';
+
+/** Whether an SD file (`/sd/camnc.gcode`) is one camNC uploaded for the loaded toolpath. */
+export function isCamncJobFile(file: string) {
+  return [kJobFileName, kResumeFileName].some(name => file === name || file.endsWith(`/${name}`));
+}
 
 /** Feed hold first so the position is kept, then reset to flush the planner. */
 export async function stopJob() {
   const api = getCncApi();
+  noteJobStopRequested();
   api.feedHold();
   const deadline = Date.now() + 3000;
   while (Date.now() < deadline && !(api.state.value === 'Hold' && api.status.value?.subState === 0)) {
@@ -37,37 +47,77 @@ export function setXYZeroFromToolpath(move = false) {
   return promise.catch(() => {});
 }
 
+const kUploadToast = 'upload-gcode';
+
+async function step<T>(promise: Promise<T>, loading: string, success: string) {
+  toast.promise(promise, { id: kUploadToast, loading, success, error: err => `${loading.replace('…', '')} failed: ${errorText(err)}` });
+  return promise;
+}
+
+/** Remember the job just started, so that a reload can show it again (jobRecovery.ts) and it can be resumed (resume.ts). */
+function recordJob(fields: Pick<JobRecord, 'gcode' | 'sdFile' | 'toolpathName'>) {
+  const api = getCncApi();
+  const { toolpathOffset, stockHeight, toolDiameter } = useStore.getState();
+  const wco = api.status.value?.wco;
+  const host = api.host.value;
+  if (!host || !wco) return;
+  void saveJobRecord({
+    host,
+    ...fields,
+    toolpathOffset: { x: toolpathOffset.x, y: toolpathOffset.y, z: toolpathOffset.z },
+    stockHeight,
+    toolDiameter,
+    wco,
+    startedAt: api.jobStartedAt.value ?? Date.now(),
+    homed: api.homed.value,
+    zZeroedAt: api.zZeroedAt.value,
+  }).catch(() => {});
+}
+
 /** Upload the current G-code and run it. Zeroing is a separate step (see the checklist). */
 export async function uploadAndRun() {
   const api = getCncApi();
-  const { toolpath } = useStore.getState();
+  const { toolpath, toolpathName } = useStore.getState();
   if (!toolpath?.gcode) throw new Error('No toolpath loaded');
-  const toastId = 'upload-gcode';
-  const step = async <T>(promise: Promise<T>, loading: string, success: string) => {
-    toast.promise(promise, { id: toastId, loading, success, error: err => `${loading.replace('…', '')} failed: ${errorText(err)}` });
-    return promise;
-  };
   await step(api.uploadGcode(toolpath.gcode, kJobFileName), 'Uploading…', 'Uploaded and verified');
   await step(api.runFile(kJobFileName), 'Starting job…', 'Job started');
-  // So that a reload during the job can show it again (see jobRecovery.ts).
-  const { toolpathName, toolpathOffset, stockHeight, toolDiameter } = useStore.getState();
+  recordJob({ gcode: toolpath.gcode, sdFile: kJobFileName, toolpathName });
+}
+
+/** Machine Z to retract to before moving over the restart point: just below the top of the Z travel. */
+export function resumeSafeZ() {
+  const api = getCncApi();
+  const z = api.travel.value?.z;
+  return z ? z.max - 1 : (api.status.value?.mpos.z ?? null);
+}
+
+/** The program that resumes `job` at `line` (0-based), checked against the machine travel. */
+export function prepareResume(job: InterruptedJob, line: number) {
+  const api = getCncApi();
+  const safeZMachine = resumeSafeZ();
+  if (safeZMachine === null) throw new Error('The machine position is not known yet');
+  const resume = buildResumeProgram(parseProgram(job.record.gcode), { line, safeZMachine, name: job.record.toolpathName ?? undefined });
+  const travel = api.travel.value;
   const wco = api.status.value?.wco;
-  const host = api.host.value;
-  if (host && wco) {
-    void saveJobRecord({
-      host,
-      sdFile: kJobFileName,
-      gcode: toolpath.gcode,
-      toolpathName,
-      toolpathOffset: { x: toolpathOffset.x, y: toolpathOffset.y, z: toolpathOffset.z },
-      stockHeight,
-      toolDiameter,
-      wco,
-      startedAt: api.jobStartedAt.value ?? Date.now(),
-      homed: api.homed.value,
-      zZeroedAt: api.zZeroedAt.value,
-    }).catch(() => {});
-  }
+  const check =
+    travel && wco
+      ? checkTravel({ toolpathBounds: programBounds(parseProgram(resume.gcode)), workOffset: wco, travel, gcode: resume.gcode })
+      : null;
+  return { ...resume, travel: check };
+}
+
+/** Upload and run the program that resumes an interrupted job, and show it as the loaded toolpath. */
+export async function runResume(job: InterruptedJob, line: number) {
+  const api = getCncApi();
+  const resume = prepareResume(job, line);
+  if (resume.travel?.blocking) throw new Error(resume.travel.details?.join(' ') ?? resume.travel.label);
+  const name = `${job.record.toolpathName ?? 'Job'} (from line ${line + 1})`;
+  // Show what runs now, placed like the original.
+  applyRecord(api, { ...job.record, gcode: resume.gcode, toolpathName: name }, { machineState: false });
+  await step(api.uploadGcode(resume.gcode, kResumeFileName), 'Uploading…', 'Uploaded and verified');
+  await step(api.runFile(kResumeFileName), 'Starting job…', 'Job resumed: Resume once the bit is clear');
+  interruptedJob.value = null;
+  recordJob({ gcode: resume.gcode, sdFile: kResumeFileName, toolpathName: name });
 }
 
 export async function runMacro(macro: Macro) {

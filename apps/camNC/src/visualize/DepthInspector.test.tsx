@@ -33,7 +33,7 @@ vi.mock('@/lib/fluidnc/machine', async () => {
     getCncApi: () => ({ status, machinePos: signal(null), workPos: signal(null), jobProgress: signal(null) }),
   };
 });
-vi.mock('@/lib/machine/jobs', () => ({ kJobFileName: 'camnc.gcode' }));
+vi.mock('@/lib/machine/jobs', () => ({ isCamncJobFile: (file: string) => file.endsWith('/camnc.gcode') }));
 
 const gcode = `
 G0 X0 Y0 Z5

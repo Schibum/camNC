@@ -1,5 +1,5 @@
 import { getCncApi } from '@/lib/fluidnc/machine';
-import { kJobFileName } from '@/lib/machine/jobs';
+import { isCamncJobFile } from '@/lib/machine/jobs';
 import { useComputed } from '@preact/signals-react';
 import { useShowMachinePosMarker, useStore, useToolDiameter, useIsCameraReady } from '@/store/store';
 import { Switch } from '@heroui/react';
@@ -439,7 +439,7 @@ function DepthJobProgress({ toolpath }: { toolpath: ParsedToolpath }) {
   const job = getCncApi().jobProgress.value;
   const lineEnds = useMemo(() => motionLineEnds(toolpath.gcode), [toolpath]);
   // Only the file camNC uploaded corresponds to the loaded toolpath.
-  const end = job && job.file.endsWith(kJobFileName) ? progressPointIndex(toolpath, lineEnds, job.percent) : 0;
+  const end = job && isCamncJobFile(job.file) ? progressPointIndex(toolpath, lineEnds, job.percent) : 0;
   const points = useMemo(() => toolpath.pathPoints.slice(0, end).map(p => [p.x, p.y, p.z] as [number, number, number]), [toolpath, end]);
   if (points.length < 2) return null;
   return <Line points={points} color={kJobDoneColor} lineWidth={4} depthTest={false} transparent opacity={0.9} renderOrder={3} />;
