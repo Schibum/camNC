@@ -22,6 +22,7 @@ import { Route as SetupMarkerPositionsRouteImport } from './routes/setup/marker-
 import { Route as SetupMachineBoundsRouteImport } from './routes/setup/machine-bounds'
 import { Route as SetupFluidncRouteImport } from './routes/setup/fluidnc'
 import { Route as SetupEditSettingsRouteImport } from './routes/setup/edit-settings'
+import { Route as SetupCamerasRouteImport } from './routes/setup/cameras'
 import { Route as SetupCameraCalibrationRouteImport } from './routes/setup/camera-calibration'
 import { Route as SettingsHideMachineRouteImport } from './routes/settings/hide-machine'
 import { Route as SettingsBackupRouteImport } from './routes/settings/backup'
@@ -95,6 +96,11 @@ const SetupEditSettingsRoute = SetupEditSettingsRouteImport.update({
   path: '/setup/edit-settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SetupCamerasRoute = SetupCamerasRouteImport.update({
+  id: '/setup/cameras',
+  path: '/setup/cameras',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SetupCameraCalibrationRoute = SetupCameraCalibrationRouteImport.update({
   id: '/setup/camera-calibration',
   path: '/setup/camera-calibration',
@@ -136,6 +142,7 @@ export interface FileRoutesByFullPath {
   '/settings/backup': typeof SettingsBackupRoute
   '/settings/hide-machine': typeof SettingsHideMachineRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
+  '/setup/cameras': typeof SetupCamerasRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
   '/setup/fluidnc': typeof SetupFluidncRoute
   '/setup/machine-bounds': typeof SetupMachineBoundsRoute
@@ -157,6 +164,7 @@ export interface FileRoutesByTo {
   '/settings/backup': typeof SettingsBackupRoute
   '/settings/hide-machine': typeof SettingsHideMachineRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
+  '/setup/cameras': typeof SetupCamerasRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
   '/setup/fluidnc': typeof SetupFluidncRoute
   '/setup/machine-bounds': typeof SetupMachineBoundsRoute
@@ -179,6 +187,7 @@ export interface FileRoutesById {
   '/settings/backup': typeof SettingsBackupRoute
   '/settings/hide-machine': typeof SettingsHideMachineRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
+  '/setup/cameras': typeof SetupCamerasRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
   '/setup/fluidnc': typeof SetupFluidncRoute
   '/setup/machine-bounds': typeof SetupMachineBoundsRoute
@@ -202,6 +211,7 @@ export interface FileRouteTypes {
     | '/settings/backup'
     | '/settings/hide-machine'
     | '/setup/camera-calibration'
+    | '/setup/cameras'
     | '/setup/edit-settings'
     | '/setup/fluidnc'
     | '/setup/machine-bounds'
@@ -223,6 +233,7 @@ export interface FileRouteTypes {
     | '/settings/backup'
     | '/settings/hide-machine'
     | '/setup/camera-calibration'
+    | '/setup/cameras'
     | '/setup/edit-settings'
     | '/setup/fluidnc'
     | '/setup/machine-bounds'
@@ -244,6 +255,7 @@ export interface FileRouteTypes {
     | '/settings/backup'
     | '/settings/hide-machine'
     | '/setup/camera-calibration'
+    | '/setup/cameras'
     | '/setup/edit-settings'
     | '/setup/fluidnc'
     | '/setup/machine-bounds'
@@ -266,6 +278,7 @@ export interface RootRouteChildren {
   SettingsBackupRoute: typeof SettingsBackupRoute
   SettingsHideMachineRoute: typeof SettingsHideMachineRoute
   SetupCameraCalibrationRoute: typeof SetupCameraCalibrationRoute
+  SetupCamerasRoute: typeof SetupCamerasRoute
   SetupEditSettingsRoute: typeof SetupEditSettingsRoute
   SetupFluidncRoute: typeof SetupFluidncRoute
   SetupMachineBoundsRoute: typeof SetupMachineBoundsRoute
@@ -371,6 +384,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SetupEditSettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/setup/cameras': {
+      id: '/setup/cameras'
+      path: '/setup/cameras'
+      fullPath: '/setup/cameras'
+      preLoaderRoute: typeof SetupCamerasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/setup/camera-calibration': {
       id: '/setup/camera-calibration'
       path: '/setup/camera-calibration'
@@ -426,6 +446,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsBackupRoute: SettingsBackupRoute,
   SettingsHideMachineRoute: SettingsHideMachineRoute,
   SetupCameraCalibrationRoute: SetupCameraCalibrationRoute,
+  SetupCamerasRoute: SetupCamerasRoute,
   SetupEditSettingsRoute: SetupEditSettingsRoute,
   SetupFluidncRoute: SetupFluidncRoute,
   SetupMachineBoundsRoute: SetupMachineBoundsRoute,

@@ -31,17 +31,16 @@ export function CamSourceSelector() {
             ))}
           </SelectContent>
         </Select>
-        {activeCamId && (
+        {camOptions.length > 0 && (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="outline" size="icon" asChild>
-                {/* Editing the source keeps the camera's calibration and markers. */}
-                <Link to="/setup/url-entry" aria-label="Change camera source">
+                <Link to="/setup/cameras" aria-label="Manage cameras">
                   <Pencil />
                 </Link>
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Change source, keep calibration</TooltipContent>
+            <TooltipContent>Rename, change source, delete</TooltipContent>
           </Tooltip>
         )}
       </div>

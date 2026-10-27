@@ -1,4 +1,5 @@
 import { PageHeader } from '@/components/page-header';
+import { cameraSourceLabel, isDirectNetworkCamera } from '@/lib/camera/source-label';
 import { isDesktopApp } from '@/lib/desktop/is-desktop';
 import { isCamCalibrated } from '@/store/cam-resolution';
 import {
@@ -11,7 +12,6 @@ import {
 } from '@/store/settings-backup';
 import { ICamSource, useStore } from '@/store/store';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { parseConnectionString } from '@wbcnc/go2webrtc/url-helpers';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,23 +32,6 @@ import { useState } from 'react';
 export const Route = createFileRoute('/settings/backup')({
   component: BackupComponent,
 });
-
-const kSourceLabels: Record<string, string> = {
-  rtsp: 'network camera',
-  go2rtc: 'go2rtc',
-  webtorrent: 'go2rtc (webtorrent)',
-  webrtc: 'phone',
-  webcam: 'webcam',
-  url: 'video URL',
-};
-
-function sourceLabel(url: string) {
-  try {
-    return kSourceLabels[parseConnectionString(url).type] ?? 'camera';
-  } catch {
-    return 'camera';
-  }
-}
 
 function downloadBackup() {
   const blob = new Blob([exportSettingsBackup()], { type: 'application/json' });
@@ -78,7 +61,7 @@ function CameraSummary({ camera }: { camera: ICamSource }) {
       <Camera className="size-4 shrink-0" />
       <span className="font-medium">{camera.name}</span>
       <span className="text-muted-foreground">
-        {sourceLabel(camera.url)}, {camera.maxResolution[0]}×{camera.maxResolution[1]}
+        {cameraSourceLabel(camera.url)}, {camera.maxResolution[0]}×{camera.maxResolution[1]}
       </span>
       {calibrated && (
         <span className="flex flex-row items-center gap-1 text-muted-foreground">
@@ -111,7 +94,7 @@ function RestoreCard() {
     setBackup(null);
     const state = useStore.getState();
     const cam = state.activeCamId ? state.camSources[state.activeCamId] : null;
-    if (isDesktopApp() && cam && sourceLabel(cam.url) !== kSourceLabels.rtsp) {
+    if (isDesktopApp() && cam && !isDirectNetworkCamera(cam.url)) {
       // The usual reason to restore in the app: moving from the browser, where the camera went through go2rtc.
       toast.success('Settings restored. To use the camera directly, switch it to Network camera; its calibration is kept.', {
         duration: 10_000,
