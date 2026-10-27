@@ -28,6 +28,17 @@ export function getCncApi() {
       else api.disconnect();
     };
     follow(useStore.getState().machine);
+    // Close the socket with a close frame when the page goes away, so a reload does not leave a half-open socket
+    // taking one of the controller's few client slots, and release the machine lock for the next page.
+    window.addEventListener('pagehide', () => api.disconnect());
+    window.addEventListener('pageshow', event => {
+      if (event.persisted) follow(useStore.getState().machine);
+    });
+    // Do not wait out the backoff when the reason for the outage is likely gone.
+    window.addEventListener('online', () => api.retryNow());
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') api.retryNow();
+    });
     useStore.subscribe(
       s => s.machine?.host,
       () => follow(useStore.getState().machine)

@@ -26,7 +26,10 @@ export type SocketEvents = {
 export interface FluidncSocketOptions {
   /** IP address or `.local` name, optionally with the HTTP port, e.g. `192.168.1.20` or `127.0.0.1:8848`. */
   host: string;
-  /** Variant remembered from an earlier connection. It is tried first; detection falls back to the other one. */
+  /**
+   * Variant remembered from an earlier connection. Only it is tried; the other one only after
+   * {@link kRoundsBeforeOtherVariant} failed rounds (e.g. after a firmware update).
+   */
   variant?: FirmwareVariant;
   /** Allows injecting a fake for tests. Defaults to the global `WebSocket`. */
   WebSocketImpl?: typeof WebSocket;
@@ -47,6 +50,12 @@ export function normalizeHost(input: string): string {
   if (end !== -1) host = host.slice(0, end);
   return host;
 }
+
+/**
+ * Failed connection rounds before a known variant's counterpart is tried too. 3.9.x refuses the 4.x URL on its HTTP
+ * port anyway, and every extra connection attempt costs its single network task time it may not have.
+ */
+const kRoundsBeforeOtherVariant = 3;
 
 export function socketUrl(host: string, variant: FirmwareVariant): string {
   const url = new URL(`http://${normalizeHost(host)}`);
@@ -81,6 +90,10 @@ export class FluidncSocket {
   private timers: ReturnType<typeof setInterval>[] = [];
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
   private backoff: number;
+  /** Connection rounds that failed in a row. */
+  private failedRounds = 0;
+  /** Do not treat silence as a dead connection before this time (see {@link allowSilence}). */
+  private silentUntil = 0;
   private readonly opts: Required<Omit<FluidncSocketOptions, 'variant'>>;
 
   constructor(options: FluidncSocketOptions) {
@@ -91,7 +104,8 @@ export class FluidncSocket {
       connectTimeoutMs: options.connectTimeoutMs ?? 4000,
       staleTimeoutMs: options.staleTimeoutMs ?? 8000,
       pingIntervalMs: options.pingIntervalMs ?? 10_000,
-      backoffMs: options.backoffMs ?? [500, 10_000],
+      // Gentle on a struggling ESP32: 1 s, 2 s, 4 s, … up to 15 s between rounds.
+      backoffMs: options.backoffMs ?? [1000, 15_000],
     };
     this.backoff = this.opts.backoffMs[0];
   }
@@ -121,6 +135,25 @@ export class FluidncSocket {
     this.afterClose(reason);
   }
 
+  /**
+   * Reconnect right away instead of waiting for the backoff, e.g. when the network comes back or the tab becomes
+   * visible again. Does nothing while connected or connecting.
+   */
+  retryNow() {
+    if (!this.running || this.state !== 'closed') return;
+    clearTimeout(this.reconnectTimer);
+    this.backoff = this.opts.backoffMs[0];
+    void this.connectRound();
+  }
+
+  /**
+   * Keep the connection although nothing is received for up to `ms`. 3.9.x does an HTTP upload in its only network
+   * task, so the socket goes quiet for as long as the upload takes.
+   */
+  allowSilence(ms: number) {
+    this.silentUntil = Math.max(this.silentUntil, Date.now() + ms);
+  }
+
   isOpen() {
     return this.state === 'open' && this.ws?.readyState === 1;
   }
@@ -144,8 +177,10 @@ export class FluidncSocket {
   }
 
   private candidates(): FirmwareVariant[] {
-    if (this.variant === 'v3-81') return ['v3-81', 'v4'];
-    return ['v4', 'v3-81'];
+    const other = (variant: FirmwareVariant): FirmwareVariant => (variant === 'v4' ? 'v3-81' : 'v4');
+    if (!this.variant) return ['v4', 'v3-81'];
+    if (this.failedRounds < kRoundsBeforeOtherVariant) return [this.variant];
+    return [this.variant, other(this.variant)];
   }
 
   private async connectRound() {
@@ -166,6 +201,7 @@ export class FluidncSocket {
         lastError = err instanceof Error ? err.message : String(err);
       }
     }
+    this.failedRounds++;
     this.events.emit('close', { wasOpen: false, reason: lastError });
     this.scheduleReconnect();
   }
@@ -212,6 +248,7 @@ export class FluidncSocket {
     this.partial = '';
     this.lastDataAt = Date.now();
     this.backoff = this.opts.backoffMs[0];
+    this.failedRounds = 0;
 
     ws.addEventListener('message', this.onMessage);
     ws.addEventListener('close', this.onClose);
@@ -219,7 +256,8 @@ export class FluidncSocket {
 
     this.timers.push(
       setInterval(() => {
-        if (Date.now() - this.lastDataAt > this.opts.staleTimeoutMs) {
+        const now = Date.now();
+        if (now > this.silentUntil && now - this.lastDataAt > this.opts.staleTimeoutMs) {
           this.teardown('stale');
           this.afterClose('no data received');
         }

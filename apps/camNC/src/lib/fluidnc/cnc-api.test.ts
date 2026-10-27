@@ -127,9 +127,10 @@ describe('CncApi', () => {
     expect(api.homed.value).toBe(false);
   });
 
-  it('fails immediately while disconnected', async () => {
+  it('rejects commands immediately while disconnected, instead of throwing', async () => {
     const api = new CncApi();
-    expect(() => api.jogRelative({ x: 1 }, 100)).toThrow('not connected');
+    await expect(api.jogRelative({ x: 1 }, 100)).rejects.toThrow('not connected');
+    await expect(api.unlock()).rejects.toThrow('not connected');
   });
 
   it('lets only one instance hold the machine', async () => {
@@ -141,6 +142,49 @@ describe('CncApi', () => {
     await until(() => second.connection.value === 'other-tab');
     first.disconnect();
     await until(() => second.connection.value === 'connected');
+  });
+
+  it('never opens a connection for an attempt cancelled before it got the lock', async () => {
+    const typo = new FakeFluidnc('v4');
+    const fake = new FakeFluidnc('v4');
+    (fake as { host: string }).host = '192.168.1.21';
+    const sockets: string[] = [];
+    // One WebSocket implementation for both controllers, routed by URL.
+    const WebSocketImpl = function (url: string) {
+      sockets.push(url);
+      return new (url.includes(fake.host) ? fake : typo).WebSocket(url);
+    } as unknown as typeof WebSocket;
+    const api = new CncApi(WebSocketImpl);
+    apis.push(api);
+    const states: string[] = [];
+    api.connection.subscribe(state => states.push(state));
+    // Like correcting the host and pressing Connect: the first attempt's lock callback has not run yet.
+    api.connect(typo.host);
+    api.connect(fake.host);
+    await until(() => api.connection.value === 'connected');
+    expect(api.host.value).toBe(fake.host);
+    expect(sockets.every(url => url.includes(fake.host))).toBe(true);
+    expect(typo.openSockets).toHaveLength(0);
+    expect(states).not.toContain('other-tab');
+    // The lock is free again after disconnecting.
+    api.disconnect();
+    expect((await connected(fake)).connection.value).toBe('connected');
+  });
+
+  it('takes the machine over from another tab, which then stops using it', async () => {
+    const fake = new FakeFluidnc('v4');
+    const first = await connected(fake);
+    const second = new CncApi(fake.WebSocket);
+    apis.push(second);
+    second.connect(fake.host);
+    await until(() => second.connection.value === 'other-tab');
+    second.takeOver();
+    await until(() => second.connection.value === 'connected' && first.connection.value === 'taken-over');
+    await expect(first.unlock()).rejects.toThrow('not connected');
+    expect(fake.openSockets).toHaveLength(1);
+    // And back again.
+    first.takeOver();
+    await until(() => first.connection.value === 'connected' && second.connection.value === 'taken-over');
   });
 
   it('does not make a simulated controller compete for the machine lock', async () => {

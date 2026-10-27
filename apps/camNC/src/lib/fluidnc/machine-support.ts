@@ -83,6 +83,11 @@ function isLoopback(host: string) {
   return /^(localhost|127\.|\[?::1\]?)/.test(host);
 }
 
+/** Whether this page itself is served from this computer (e.g. the dev server), which needs no local network permission. */
+export function isLoopbackPage() {
+  return typeof location !== 'undefined' && isLoopback(location.hostname);
+}
+
 /** Query Chrome's local/loopback network permission. Returns `null` where the browser has no such permission. */
 export async function localNetworkPermission(host: string): Promise<PermissionState | null> {
   const names = isLoopback(host) ? ['loopback-network', 'local-network-access'] : ['local-network', 'local-network-access'];
