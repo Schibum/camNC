@@ -3,6 +3,8 @@ name = "camnc-desktop"
 version = "0.1.0"
 description = "camNC desktop app: the camNC web app with direct access to RTSP cameras and the machine controller"
 edition = "2021"
+# Tauri 3 alpha and its CEF runtime need at least this compiler.
+rust-version = "1.95"
 license = "Apache-2.0"
 
 [lib]
