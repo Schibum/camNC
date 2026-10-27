@@ -1,6 +1,7 @@
 mod go2rtc;
 
 use go2rtc::{Go2rtc, StreamInfo};
+use tauri::webview::{PermissionKind, PermissionResponse};
 use tauri::{AppHandle, Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder};
 use tauri_runtime_cef::{Cef, RemoteDebugging};
 
@@ -42,6 +43,11 @@ pub fn run() {
                 .title("camNC")
                 .inner_size(1400.0, 900.0)
                 .min_inner_size(800.0, 600.0)
+                // The webcam source; macOS asks the user once more (NSCameraUsageDescription in Info.plist).
+                .on_permission_request(|_, kind| match kind {
+                    PermissionKind::Camera => PermissionResponse::Allow,
+                    _ => PermissionResponse::Default,
+                })
                 .build()?;
             Ok(())
         })
