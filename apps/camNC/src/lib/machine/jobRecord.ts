@@ -18,6 +18,21 @@ export interface JobRecord {
   zZeroedAt: number | null;
 }
 
+/** Where a job was, saved every few seconds while it runs, to resume it after an interruption (see resume.ts). */
+export interface JobProgressLog {
+  host: string;
+  /** The SD file of the status report, e.g. `/sd/camnc.gcode`. */
+  file: string;
+  /** SD percent and machine position from the same status report. */
+  percent: number;
+  mpos: Position;
+  wco: Position;
+  at: number;
+}
+
+/** Below this SD percent a job that is gone did not finish (FluidNC reports 100 once the file is read). */
+export const kFinishedPercent = 99.9;
+
 export type RecoveryAction =
   /** Restore the job's toolpath and state (nothing else is loaded, or the same toolpath). */
   | { kind: 'restore' }
@@ -25,8 +40,10 @@ export type RecoveryAction =
   | { kind: 'ask' }
   /** A job runs, but it is not provably the recorded one: show its progress without the toolpath. */
   | { kind: 'mismatch'; reason: string }
-  /** The recorded job is no longer running. */
+  /** The recorded job is no longer running, and was last seen near its end. */
   | { kind: 'ended' }
+  /** The recorded job is no longer running, and was last seen part way through: offer to resume it. */
+  | { kind: 'interrupted'; progress: JobProgressLog }
   | { kind: 'none' };
 
 /** Work offsets closer than this (mm) count as unchanged. */
@@ -44,12 +61,16 @@ export function recoveryAction(input: {
   status: MachineStatus;
   currentGcode: string | null;
   lastAlarm: AlarmRecord | null;
+  progress?: JobProgressLog | null;
 }): RecoveryAction {
-  const { record, status, currentGcode, lastAlarm } = input;
+  const { record, status, currentGcode, lastAlarm, progress } = input;
   if (!record) return { kind: 'none' };
   const job = status.job;
   const running = !!job || status.state === 'Run' || status.state === 'Hold';
-  if (!running) return { kind: 'ended' };
+  if (!running) {
+    const ours = progress && progress.file.endsWith(record.sdFile) && progress.at >= record.startedAt;
+    return ours && progress.percent < kFinishedPercent ? { kind: 'interrupted', progress } : { kind: 'ended' };
+  }
   if (!job) return { kind: 'none' };
   if (!job.file.endsWith(record.sdFile)) {
     return { kind: 'mismatch', reason: `The controller runs ${job.file}, not the job camNC started (${record.sdFile}).` };
@@ -64,25 +85,47 @@ export function recoveryAction(input: {
   return { kind: 'restore' };
 }
 
+/**
+ * A job seen ending while connected: did it finish? A Stop or an alarm part way through leave it resumable. The SD
+ * percent does not tell: FluidNC drops it when the file is read, before the last moves are done.
+ */
+export function jobEnding(input: {
+  state: string;
+  lastPercent: number | null;
+  stopRequested: boolean;
+  alarmSinceStart: boolean;
+}): { finished: true } | { finished: false; reason: string } {
+  const at = input.lastPercent !== null ? ` at ${input.lastPercent.toFixed(1)}%` : '';
+  if (input.alarmSinceStart || input.state === 'Alarm')
+    return { finished: false, reason: `The controller stopped the job with an alarm${at}.` };
+  if (input.stopRequested) return { finished: false, reason: `You stopped the job${at}.` };
+  return { finished: true };
+}
+
 // --- storage: IndexedDB, since G-code can be several MB -------------------------------------------------------------
 
 const kDbName = 'camnc-jobs';
 const kStore = 'jobs';
+const kProgressStore = 'progress';
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(kDbName, 1);
-    request.onupgradeneeded = () => request.result.createObjectStore(kStore);
+    const request = indexedDB.open(kDbName, 2);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(kStore)) db.createObjectStore(kStore);
+      if (!db.objectStoreNames.contains(kProgressStore)) db.createObjectStore(kProgressStore);
+    };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
 }
 
-async function withStore<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+async function withStore<T>(name: string, mode: IDBTransactionMode, fn: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
   const db = await openDb();
   try {
     return await new Promise<T>((resolve, reject) => {
-      const request = fn(db.transaction(kStore, mode).objectStore(kStore));
+      const request = fn(db.transaction(name, mode).objectStore(name));
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
@@ -93,13 +136,28 @@ async function withStore<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore
 
 /** The last job started on `host`; a new one replaces it. */
 export function saveJobRecord(record: JobRecord) {
-  return withStore('readwrite', store => store.put(record, record.host)).then(() => {});
+  return withStore(kStore, 'readwrite', store => store.put(record, record.host)).then(() => {});
 }
 
 export function loadJobRecord(host: string): Promise<JobRecord | null> {
-  return withStore<JobRecord | undefined>('readonly', store => store.get(host)).then(record => record ?? null);
+  return withStore<JobRecord | undefined>(kStore, 'readonly', store => store.get(host)).then(record => record ?? null);
 }
 
-export function clearJobRecord(host: string) {
-  return withStore('readwrite', store => store.delete(host)).then(() => {});
+/** Forget the job and where it was. */
+export async function clearJobRecord(host: string) {
+  await withStore(kStore, 'readwrite', store => store.delete(host));
+  await clearJobProgress(host);
+}
+
+/** Kept apart from the record, so that the G-code is not written again every few seconds. */
+export function saveJobProgress(progress: JobProgressLog) {
+  return withStore(kProgressStore, 'readwrite', store => store.put(progress, progress.host)).then(() => {});
+}
+
+export function loadJobProgress(host: string): Promise<JobProgressLog | null> {
+  return withStore<JobProgressLog | undefined>(kProgressStore, 'readonly', store => store.get(host)).then(p => p ?? null);
+}
+
+export function clearJobProgress(host: string) {
+  return withStore(kProgressStore, 'readwrite', store => store.delete(host)).then(() => {});
 }

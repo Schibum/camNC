@@ -1,5 +1,5 @@
 import { getCncApi } from '@/lib/fluidnc/machine';
-import { errorText, kJobFileName, stopJob } from '@/lib/machine/jobs';
+import { errorText, isCamncJobFile, stopJob } from '@/lib/machine/jobs';
 import { pauseHint } from '@/lib/machine/pauseHints';
 import { useStore } from '@/store/store';
 import { Button } from '@wbcnc/ui/components/button';
@@ -38,7 +38,7 @@ function HoldExplanation() {
   const gcode = useStore(s => s.toolpath?.gcode);
   const lastMessage = api.lastMessage.value;
   // Only the file camNC uploaded corresponds to the loaded toolpath.
-  const ours = !!gcode && !!job && job.file.endsWith(kJobFileName);
+  const ours = !!gcode && !!job && isCamncJobFile(job.file);
   const percent = job?.percent;
   const hint = useMemo(() => (ours && percent !== undefined ? pauseHint(gcode!, percent) : null), [ours, gcode, percent]);
   if (status?.state === 'Door')
