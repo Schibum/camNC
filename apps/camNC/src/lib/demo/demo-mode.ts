@@ -7,6 +7,8 @@
  * settings API all check {@link isDemoMode}.
  */
 const kDemoFlag = 'camnc-demo';
+/** `/demo?camera=off`: the demo without its camera, showing the drawn bed like a new user without a camera. */
+const kNoCameraFlag = 'camnc-demo-no-camera';
 
 function detect(): boolean {
   if (typeof location === 'undefined') return false;
@@ -20,10 +22,27 @@ function detect(): boolean {
   }
 }
 
+function detectNoCamera(): boolean {
+  if (typeof location === 'undefined') return false;
+  const param = new URLSearchParams(location.search).get('camera');
+  try {
+    if (param !== null) sessionStorage.setItem(kNoCameraFlag, param === 'off' ? '1' : '0');
+    return sessionStorage.getItem(kNoCameraFlag) === '1';
+  } catch {
+    return param === 'off';
+  }
+}
+
 let demoMode = detect();
+const demoWithoutCamera = demoMode && detectNoCamera();
 
 export function isDemoMode() {
   return demoMode;
+}
+
+/** Whether the demo runs without its camera, see {@link kNoCameraFlag}. */
+export function isDemoWithoutCamera() {
+  return demoWithoutCamera;
 }
 
 /** Switch demo mode on or off without a page load. For tests. */
@@ -35,6 +54,7 @@ export function setDemoModeForTest(value: boolean) {
 export function exitDemo(to = '/') {
   try {
     sessionStorage.removeItem(kDemoFlag);
+    sessionStorage.removeItem(kNoCameraFlag);
   } catch {
     // Nothing to clear.
   }

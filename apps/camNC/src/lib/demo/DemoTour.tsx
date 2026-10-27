@@ -3,7 +3,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { Button } from '@wbcnc/ui/components/button';
 import { X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { exitDemo } from './demo-mode';
+import { exitDemo, isDemoWithoutCamera } from './demo-mode';
 import { kOpenTourEvent } from './tour-events';
 
 const kTourSeen = 'camnc-demo-tour-seen';
@@ -16,10 +16,19 @@ interface TourStep {
   final?: boolean;
 }
 
+const kFirstStep = isDemoWithoutCamera()
+  ? {
+      title: 'Your machine bed, no camera needed',
+      body: 'Without a camera, camNC draws the bed from the machine size it reads from FluidNC, with a 10 mm grid in machine coordinates. The toolpath sits where the machine will cut. Drag it to place it, and double-click the bed to jog there.',
+    }
+  : {
+      title: 'A live camera over a CNC router',
+      body: 'This is a real camera feed above a LowRider bed. camNC straightens it into a top view and draws the toolpath where the machine will cut. Drag the toolpath to place it on the stock.',
+    };
+
 const kSteps: TourStep[] = [
   {
-    title: 'A live camera over a CNC router',
-    body: 'This is a real camera feed above a LowRider bed. camNC straightens it into a top view and draws the toolpath where the machine will cut. Drag the toolpath to place it on the stock.',
+    ...kFirstStep,
     enter: ({ view, machinePanel }) => {
       view('top');
       machinePanel(false);
@@ -48,7 +57,7 @@ const kSteps: TourStep[] = [
   },
   {
     title: 'Ready for your own machine?',
-    body: 'Setting up takes about 15 minutes: a camera (a phone works), four printed ArUco markers and a short calibration. Nothing you did in the demo is saved.',
+    body: 'Start with just your FluidNC: camNC reads the bed size from it and you can jog, preview and run jobs right away. Add a camera later (a phone works, setup takes about 15 minutes). Nothing you did in the demo is saved.',
     final: true,
   },
 ];
@@ -122,7 +131,7 @@ export function DemoTour() {
               <Button size="sm" variant="outline" onClick={close}>
                 Keep exploring
               </Button>
-              <Button size="sm" onClick={() => exitDemo('/setup/url-entry')}>
+              <Button size="sm" onClick={() => exitDemo('/start')}>
                 Set up my machine
               </Button>
             </>

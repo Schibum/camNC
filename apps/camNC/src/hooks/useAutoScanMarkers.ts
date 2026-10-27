@@ -2,7 +2,7 @@ import * as Comlink from 'comlink';
 import { useCallback, useEffect, useRef } from 'react';
 
 import { IMarker } from '@/setup/detect-aruco';
-import { ICamSource, getActiveCamSource, useCamSource, useStore } from '@/store/store';
+import { ICamSource, getActiveCamSource, isCameraReady, useCamSource, useStore } from '@/store/store';
 import { getValidMarkers, kExpectedMarkerCount, setMarkersAndRecompute } from '@/store/store-p3p';
 import type { MarkerScannerWorkerAPI } from '@/workers/markerScanner.worker';
 import { acquireVideoSource, releaseVideoSource } from '@wbcnc/go2webrtc/use-video-source';
@@ -27,6 +27,8 @@ export function useAutoScanMarkers({ intervalMs, firstScanDelayMs = 5_000 }: Aut
   const url = camSource?.url;
   const calibration = camSource?.calibration;
   const maxResolution = camSource?.maxResolution;
+  // Without a calibrated camera (no camera, or one still in setup) the top view shows the drawn bed instead.
+  const ready = isCameraReady(camSource);
 
   const scan = useCallback(async () => {
     if (!serviceRef.current) return;
@@ -39,7 +41,7 @@ export function useAutoScanMarkers({ intervalMs, firstScanDelayMs = 5_000 }: Aut
   // never scanned with a stale source and written into another camera's settings.
   useEffect(() => {
     const camSource = getActiveCamSource();
-    if (!activeCamId || !camSource) return;
+    if (!activeCamId || !camSource || !ready) return;
     const service = new MarkerScannerService(camSource, async markers => {
       if (useStore.getState().activeCamId !== activeCamId) return;
       await ensureOpenCvIsLoaded();
@@ -51,7 +53,7 @@ export function useAutoScanMarkers({ intervalMs, firstScanDelayMs = 5_000 }: Aut
       service.dispose();
       if (serviceRef.current === service) serviceRef.current = null;
     };
-  }, [activeCamId, url, calibration, maxResolution]);
+  }, [activeCamId, url, calibration, maxResolution, ready]);
 }
 
 class MarkerScannerService {

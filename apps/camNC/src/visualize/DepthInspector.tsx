@@ -1,7 +1,7 @@
 import { getCncApi } from '@/lib/fluidnc/machine';
 import { kJobFileName } from '@/lib/machine/jobs';
 import { useComputed } from '@preact/signals-react';
-import { useCamSource, useShowMachinePosMarker, useStore, useToolDiameter } from '@/store/store';
+import { useShowMachinePosMarker, useStore, useToolDiameter, useIsCameraReady } from '@/store/store';
 import { Switch } from '@heroui/react';
 import { GizmoHelper, GizmoViewport, Line, OrbitControls } from '@react-three/drei';
 import { ThreeEvent, useFrame, useThree } from '@react-three/fiber';
@@ -601,8 +601,7 @@ const kZScalePresets = [1, 2, 5, 10];
 /** Floating panel with the 3D view options, depth summary and cut levels of the toolpath. */
 export function DepthPanel({ toolpath }: { toolpath: ParsedToolpath }) {
   const stockHeight = useStore(s => s.stockHeight);
-  const camSource = useCamSource();
-  const canShowVideo = !!camSource?.extrinsics && !!camSource.machineBounds;
+  const canShowVideo = useIsCameraReady();
   const zScale = useDepthView(s => s.zScale);
   const setZScale = useDepthView(s => s.setZScale);
   const showRapids = useDepthView(s => s.showRapids);

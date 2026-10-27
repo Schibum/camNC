@@ -19,11 +19,16 @@ export function TryDemoCard() {
       </CardHeader>
       <CardContent>
         {/* A full page load, so that demo mode is decided before the app starts. */}
-        <Button asChild>
-          <a href="/demo">
-            <FlaskConical /> Open the demo
-          </a>
-        </Button>
+        <div className="flex flex-row flex-wrap items-center gap-2">
+          <Button asChild>
+            <a href="/demo">
+              <FlaskConical /> Open the demo
+            </a>
+          </Button>
+          <Button asChild variant="ghost">
+            <a href="/demo?camera=off">Without a camera</a>
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

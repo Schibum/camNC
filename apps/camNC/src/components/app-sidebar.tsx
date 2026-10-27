@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { Camera, Grid2x2, Grid3x3, HardDriveDownload, Layers, Puzzle, Route, Ruler, Scale3d, ScanQrCode } from 'lucide-react';
+import { Camera, Grid2x2, Grid3x3, HardDriveDownload, Layers, Puzzle, Rocket, Route, Ruler, Scale3d, ScanQrCode } from 'lucide-react';
 import * as React from 'react';
 
 import { useLocation } from '@tanstack/react-router';
@@ -34,9 +34,27 @@ const routes: NavRoute[] = [
     to: '/visualize/2DView',
     icon: Grid2x2,
   },
+  {
+    title: 'Get Started',
+    to: '/start',
+    icon: Rocket,
+  },
 ];
 
-const setupRoutes: NavRoute[] = [
+const machineRoutes: NavRoute[] = [
+  {
+    title: 'FluidNC',
+    to: '/setup/fluidnc',
+    icon: Puzzle,
+  },
+  {
+    title: 'Machine Bounds',
+    to: '/setup/machine-bounds',
+    icon: Scale3d,
+  },
+];
+
+const cameraRoutes: NavRoute[] = [
   {
     title: 'Camera Source',
     to: '/setup/url-entry',
@@ -48,16 +66,6 @@ const setupRoutes: NavRoute[] = [
     icon: Grid3x3,
   },
   {
-    title: 'FluidNC',
-    to: '/setup/fluidnc',
-    icon: Puzzle,
-  },
-  {
-    title: 'Machine Bounds',
-    to: '/setup/machine-bounds',
-    icon: Scale3d,
-  },
-  {
     title: 'Marker Positions',
     to: '/setup/marker-positions',
     icon: Ruler,
@@ -67,13 +75,13 @@ const setupRoutes: NavRoute[] = [
     to: '/setup/point-selection',
     icon: ScanQrCode,
   },
+];
+const settingsRoutes: NavRoute[] = [
   {
     title: 'Debug',
     to: '/setup/edit-settings',
     icon: HardDriveDownload,
   },
-];
-const settingsRoutes: NavRoute[] = [
   {
     title: 'Hide Machine',
     to: '/settings/hide-machine',
@@ -136,7 +144,8 @@ export function AppSidebar({ ...props }: AppSidebarProps) {
       </SidebarHeader>
       <SidebarContent>
         <NavRoutes routes={routes} label="Views" />
-        <NavRoutes routes={setupRoutes} label="Setup" />
+        <NavRoutes routes={machineRoutes} label="Machine" />
+        <NavRoutes routes={cameraRoutes} label="Camera (optional)" />
         <NavRoutes routes={settingsRoutes} label="Settings" />
       </SidebarContent>
       <SidebarAuthStatus />

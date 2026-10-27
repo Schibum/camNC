@@ -1,4 +1,4 @@
-import { usePnPResult, useStore } from '@/store/store';
+import { useIsCameraReady, usePnPResult, useStore } from '@/store/store';
 import { ClientOnly } from '@tanstack/react-router';
 import { Popover, PopoverContent, PopoverTrigger } from '@wbcnc/ui/components/popover';
 import { Info } from 'lucide-react';
@@ -8,9 +8,15 @@ import { RecomputePnpButton } from './RecomputePnpButton';
 import { getTimeAgoLocale } from './timeAgoLocale';
 import { TooltipIconButton } from './toolbar/TooltipIconButton';
 
+/** The camera pose result, only while a camera is in use. */
+function useCameraPnPResult() {
+  const pnpResult = usePnPResult();
+  return useIsCameraReady() ? pnpResult : null;
+}
+
 export function BoundsInfo() {
   const bounds = useStore(s => s.toolpath?.getBounds());
-  const pnpResult = usePnPResult();
+  const pnpResult = useCameraPnPResult();
   const isOld = pnpResult ? Date.now() - pnpResult.lastPnPTime > 60_000 : false;
   const locale = getTimeAgoLocale(typeof navigator === 'undefined' ? undefined : navigator.language);
   return (
@@ -59,7 +65,7 @@ export function BoundsInfo() {
 
 export function BoundsInfoButton() {
   const [open, setOpen] = useState(false);
-  const pnp = usePnPResult();
+  const pnp = useCameraPnPResult();
   const isOld = pnp ? Date.now() - pnp.lastPnPTime > 60_000 : false;
   return (
     <Popover open={open} onOpenChange={setOpen}>

@@ -1,14 +1,13 @@
 import { useStore } from '@/store/store';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { useEffect } from 'react';
-import { isDemoMode } from './demo-mode';
+import { isDemoMode } from '@/lib/demo/demo-mode';
 
 const kGcodeFile = /\.(gcode|nc|ngc|tap|txt)$/i;
 
-/** Demo mode: load a dropped G-code file as the toolpath, entirely in the browser. */
-export function DemoDropZone() {
+/** Load a G-code file dropped anywhere on the page as the toolpath, entirely in the browser. */
+export function GcodeDropZone() {
   useEffect(() => {
-    if (!isDemoMode()) return;
     const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes('Files');
     const onDragOver = (e: DragEvent) => {
       if (hasFiles(e)) e.preventDefault();
@@ -23,7 +22,7 @@ export function DemoDropZone() {
         return;
       }
       useStore.getState().updateToolpath(await file.text(), file.name);
-      toast.success(`Loaded ${file.name}. It stays in your browser.`);
+      toast.success(isDemoMode() ? `Loaded ${file.name}. It stays in your browser.` : `Loaded ${file.name}`);
     };
     window.addEventListener('dragover', onDragOver);
     window.addEventListener('drop', onDrop);

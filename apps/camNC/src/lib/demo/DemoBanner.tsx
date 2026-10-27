@@ -53,7 +53,7 @@ export function DemoBanner() {
         <Button size="sm" variant="ghost" className="h-7 px-2" onClick={openDemoTour}>
           <CircleHelp /> Tour
         </Button>
-        <Button size="sm" className="h-7 px-2" onClick={() => exitDemo('/setup/url-entry')}>
+        <Button size="sm" className="h-7 px-2" onClick={() => exitDemo('/start')}>
           <Wrench /> Set up my machine
         </Button>
         <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => exitDemo('/')}>

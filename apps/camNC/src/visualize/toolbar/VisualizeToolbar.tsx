@@ -1,5 +1,7 @@
 import {
+  useCamSource,
   useHasToolpath,
+  useIsCameraReady,
   useSetShowStillFrame,
   useSetToolpathOpacity,
   useShowStillFrame,
@@ -19,7 +21,7 @@ import {
 } from '@wbcnc/ui/components/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@wbcnc/ui/components/popover';
 import { Slider } from '@wbcnc/ui/components/slider';
-import { Diameter, FolderOpen, MonitorPause, MonitorPlay, Palette, PencilRuler } from 'lucide-react';
+import { Camera, Diameter, FolderOpen, MonitorPause, MonitorPlay, Palette, PencilRuler } from 'lucide-react';
 import { useState } from 'react';
 import { BoundsInfoButton } from '../BoundsInfo';
 import { ZDepthLegend } from '../ZDepthLegend';
@@ -28,6 +30,7 @@ import { MachineStatusBar } from '@/components/machine/MachineStatusBar';
 import { FluidncButton } from './FluidncButton';
 import { TooltipIconButton } from './TooltipIconButton';
 import { openGcodeFile } from '../openGcodeFile';
+import { useNavigate } from '@tanstack/react-router';
 
 function PlayPauseButton() {
   const showStillFrame = useShowStillFrame();
@@ -42,6 +45,20 @@ function PlayPauseButton() {
       icon={showStillFrame ? <MonitorPlay /> : <MonitorPause />}
       shortcut="space"
       onClick={toggleShowStillFrame}
+    />
+  );
+}
+
+/** Without a camera the top view shows the drawn bed: offer adding one, or finishing the setup of one. */
+function AddCameraButton() {
+  const navigate = useNavigate();
+  const hasCamera = !!useCamSource();
+  return (
+    <TooltipIconButton
+      label={hasCamera ? 'Finish camera setup' : 'Add a camera'}
+      icon={<Camera />}
+      onClick={() => navigate({ to: hasCamera ? '/setup/point-selection' : '/setup/url-entry' })}
+      data-testid="add-camera"
     />
   );
 }
@@ -202,11 +219,18 @@ function ColorLegendButton() {
 }
 
 export function VisualizeToolbar() {
+  const cameraReady = useIsCameraReady();
   return (
     <div className="flex gap-0 items-center pl-2">
       <OpenFileButton />
-      <PlayPauseButton />
-      <DepthBlendButton />
+      {cameraReady ? (
+        <>
+          <PlayPauseButton />
+          <DepthBlendButton />
+        </>
+      ) : (
+        <AddCameraButton />
+      )}
       <ToolDiameterDialogButton />
       <StockHeightDialogButton />
       <ColorLegendButton />

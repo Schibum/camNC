@@ -1,5 +1,5 @@
 import { getCncApi } from '@/lib/fluidnc/machine';
-import { getActiveCamSource, useStore } from '@/store/store';
+import { useStore, getMachineBounds } from '@/store/store';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { useEffect } from 'react';
 import { saveJobRecord } from './jobRecord';
@@ -105,7 +105,7 @@ export function useJobChecklist() {
     toolpathBounds: { min: bounds.min, max: bounds.max },
     toolpathOffset: offset,
     machineZero,
-    machineBounds: getActiveCamSource()?.machineBounds,
+    machineBounds: getMachineBounds() ?? undefined,
     toolpathBounds3: { min: bounds.min, max: bounds.max },
     workOffset,
     travel,

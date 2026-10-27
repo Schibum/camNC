@@ -1,5 +1,4 @@
 import { UnprojectVideoMesh } from '@/calibration/Unproject';
-import { EnsureHasCamSource } from '@/components/EnsureHasCamSource';
 import { LoadingVideoOverlay } from '@/components/LoadingVideoOverlay';
 import { PageHeader } from '@/components/page-header';
 import { useAutoScanMarkers } from '@/hooks/useAutoScanMarkers';
@@ -13,6 +12,7 @@ import { MachinePositionMarker } from '@/visualize/MachinePositionMarker';
 import { MachineZeroAxes } from '@/visualize/MachineZeroAxes';
 import { SnapPositionMarker } from '@/visualize/SnapPositionMarker';
 import { GCodeVisualizer } from '@/visualize/Toolpaths';
+import { MachineBedMesh } from '@/visualize/MachineBed';
 import { nearestPointOnToolpath } from '@/visualize/nearestPoint';
 import { VisualizeToolbar } from '@/visualize/toolbar/VisualizeToolbar';
 import { DepthHoverReadout, DepthPanel, DepthScene, kDepthSceneBackground } from '@/visualize/DepthInspector';
@@ -21,7 +21,7 @@ import { useShowStockVideo } from '@/visualize/depthViewStore';
 import { ViewSwitcher } from '@/visualize/toolbar/ViewSwitcher';
 import { kViewModes, ViewMode, viewModeTitle } from '@/visualize/viewModes';
 import { ThreeEvent, useThree } from '@react-three/fiber';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Navigate } from '@tanstack/react-router';
 import { zodValidator } from '@tanstack/zod-adapter';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { ComponentProps, RefObject, Suspense, useEffect, useMemo, useRef, useState } from 'react';
@@ -31,7 +31,9 @@ import { Vector2, Vector3 } from 'three';
 import { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { z } from 'zod';
 import {
-  getActiveCamSource,
+  getMachineBounds,
+  selectMachineBounds,
+  useIsCameraReady,
   useSetSnapPosition,
   useSetSnapToToolpath,
   useSnapPosition,
@@ -39,11 +41,22 @@ import {
   useStore,
 } from '../../store/store';
 
+/**
+ * The top view needs the machine bounds, not a camera: without one it shows the drawn bed. Without bounds, a camera in
+ * setup continues its setup, and everyone else starts on the getting started page.
+ */
+function EnsureWorkspace({ children }: { children: React.ReactNode }) {
+  const hasBounds = useStore(s => !!selectMachineBounds(s));
+  const hasCamera = useStore(s => !!s.activeCamId && !!s.camSources[s.activeCamId]);
+  if (hasBounds) return children;
+  return <Navigate to={hasCamera ? '/setup/point-selection' : '/start'} replace />;
+}
+
 export const Route = createFileRoute('/visualize/2DView')({
   component: () => (
-    <EnsureHasCamSource to="/setup/point-selection" predicate={s => !!s.extrinsics}>
+    <EnsureWorkspace>
       <VisualizeComponent />
-    </EnsureHasCamSource>
+    </EnsureWorkspace>
   ),
   validateSearch: zodValidator(
     z.object({
@@ -123,6 +136,7 @@ function VisualizeComponent() {
     else navigate({ search: { view: next === 'top' ? undefined : next }, replace: true });
   }
 
+  const cameraReady = useIsCameraReady();
   const cncApi = getCncApi();
   useAutoScanMarkers({ intervalMs: 3_000 });
   const snapEnabled = useSnapToToolpath();
@@ -150,7 +164,7 @@ function VisualizeComponent() {
       return;
     }
     const point = event.unprojectedPoint;
-    const bounds = getActiveCamSource()?.machineBounds;
+    const bounds = getMachineBounds();
     if (!bounds) return;
     if (!bounds.containsPoint(new Vector2(point.x, point.y))) {
       toast.info('Cannot jog outside machine bounds');
@@ -178,7 +192,7 @@ function VisualizeComponent() {
       toast.error(cncApi.isConnected.value ? `Machine is busy (${cncApi.state.value})` : 'Machine not connected');
       return;
     }
-    const bounds = getActiveCamSource()?.machineBounds;
+    const bounds = getMachineBounds();
     if (!bounds) return;
     if (!bounds.containsPoint(new Vector2(pos.x, pos.y))) {
       toast.info('Cannot jog outside machine bounds');
@@ -191,7 +205,7 @@ function VisualizeComponent() {
   return (
     <div className="flex flex-row w-full h-dvh">
       <div className="relative flex-1 min-w-0 h-full">
-        <DepthBlendWorker />
+        {cameraReady && <DepthBlendWorker />}
 
         {/* One canvas for all views: the camera video keeps running when switching between them. */}
         {/* The canvas is transparent: all views share one dark backdrop around the camera image and the 3D scene. */}
@@ -201,19 +215,24 @@ function VisualizeComponent() {
             {/*
               The video loads in its own boundaries, so the 3D views stay usable while the camera is unavailable.
             */}
-            <ErrorBoundary fallbackRender={({ error }) => <ReportVideoState value={error as Error} onChange={setVideoError} />}>
-              <Suspense fallback={<ReportVideoState value={true} onChange={setVideoLoading} />}>
-                <UnprojectVideoMeshWithStockHeight
-                  visible={isTop || showStockVideo}
-                  bounds={isTop ? undefined : stockTop}
-                  opacity={isTop ? 1 : 0.7}
-                  // In the 3D views, the video is drawn first, below the toolpath.
-                  renderOrder={isTop ? 0 : -2}
-                  onDoubleClick={isTop ? onDbClick : undefined}
-                  onPointerMove={isTop ? onPointerMove : undefined}
-                />
-              </Suspense>
-            </ErrorBoundary>
+            {cameraReady ? (
+              <ErrorBoundary fallbackRender={({ error }) => <ReportVideoState value={error as Error} onChange={setVideoError} />}>
+                <Suspense fallback={<ReportVideoState value={true} onChange={setVideoLoading} />}>
+                  <UnprojectVideoMeshWithStockHeight
+                    visible={isTop || showStockVideo}
+                    bounds={isTop ? undefined : stockTop}
+                    opacity={isTop ? 1 : 0.7}
+                    // In the 3D views, the video is drawn first, below the toolpath.
+                    renderOrder={isTop ? 0 : -2}
+                    onDoubleClick={isTop ? onDbClick : undefined}
+                    onPointerMove={isTop ? onPointerMove : undefined}
+                  />
+                </Suspense>
+              </ErrorBoundary>
+            ) : (
+              // No camera yet: the drawn bed takes the video's place and its clicks in the top view.
+              isTop && <MachineBedMesh onDoubleClick={onDbClick} onPointerMove={onPointerMove} />
+            )}
             {isTop || !toolpath ? (
               <>
                 <TopCameraMemory memory={topCamera} />
@@ -232,7 +251,7 @@ function VisualizeComponent() {
           </PresentCanvas>
         </div>
 
-        {isTop && (videoError || videoLoading) && (
+        {isTop && cameraReady && (videoError || videoLoading) && (
           <div className="dark pointer-events-none absolute inset-0 h-dvh text-foreground">
             {videoError ? (
               <div className="flex h-full items-center justify-center p-4 text-center text-red-500">

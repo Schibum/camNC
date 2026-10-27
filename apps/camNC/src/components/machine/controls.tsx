@@ -7,7 +7,7 @@ import {
   screenToMachine,
   ScreenAxes,
 } from '@/scene/topViewOrientation';
-import { useCamSource, useStore } from '@/store/store';
+import { useMachineBoundsOrNull, useStore } from '@/store/store';
 import { Button } from '@wbcnc/ui/components/button';
 import { Checkbox } from '@wbcnc/ui/components/checkbox';
 import { Input } from '@wbcnc/ui/components/input';
@@ -68,12 +68,15 @@ function StepPicker({ steps, value, onChange, label }: { steps: number[]; value:
   );
 }
 
-/** Machine axes pointing right / up on screen in Top View, or the standard layout while the camera isn't calibrated. */
+/**
+ * Machine axes pointing right / up on screen in Top View, with the camera image or the drawn bed alike, or the
+ * standard layout while there is no top view (no machine bounds yet).
+ */
 const kTopViewScreenAxes = screenAxesForCamera(kTopViewCameraRotation);
 
 function useScreenAxes(): ScreenAxes {
-  const camSource = useCamSource();
-  return camSource?.extrinsics && camSource.machineBounds ? kTopViewScreenAxes : kStandardScreenAxes;
+  const hasTopView = !!useMachineBoundsOrNull();
+  return hasTopView ? kTopViewScreenAxes : kStandardScreenAxes;
 }
 
 /** Arrow keys jog X/Y in screen directions, PageUp/PageDown jog Z. Holding a key jogs continuously; releasing it cancels the jog. */

@@ -19,7 +19,7 @@ const store = vi.hoisted(() => ({
 // The real store pulls in server-only modules.
 vi.mock('@/store/store', () => ({
   useStore: (selector: (state: typeof store) => unknown) => selector(store),
-  useCamSource: () => (store.hasCamera ? { extrinsics: {}, machineBounds: {} } : null),
+  useIsCameraReady: () => store.hasCamera,
   useMachineBounds: () => new Box2(new Vector2(0, 0), new Vector2(100, 100)),
   useShowMachinePosMarker: () => true,
   useToolDiameter: () => 6,

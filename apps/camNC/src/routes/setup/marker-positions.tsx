@@ -1,4 +1,5 @@
 import { EnsureHasCamSource } from '@/components/EnsureHasCamSource';
+import { EnsureHasMachineBounds } from '@/components/EnsureHasMachineBounds';
 import { PageHeader } from '@/components/page-header';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '@wbcnc/ui/components/card';
@@ -6,8 +7,10 @@ import { MarkerPositionsForm } from '../../setup/MarkerPositionsForm';
 
 export const Route = createFileRoute('/setup/marker-positions')({
   component: () => (
-    <EnsureHasCamSource to="/setup/machine-bounds" predicate={s => !!s.machineBounds}>
-      <RouteComponent />
+    <EnsureHasCamSource to="/setup/camera-calibration" predicate={s => !!s.calibration}>
+      <EnsureHasMachineBounds to="/setup/machine-bounds">
+        <RouteComponent />
+      </EnsureHasMachineBounds>
     </EnsureHasCamSource>
   ),
 });

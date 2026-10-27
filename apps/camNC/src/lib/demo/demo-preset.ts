@@ -58,12 +58,14 @@ function demoCamSource(origin: string): ICamSource {
   };
 }
 
-/** Fill the store with the demo machine, camera and job. Nothing here is ever persisted. */
-export function applyDemoPreset(origin = location.origin) {
+/** Fill the store with the demo machine, camera (unless `camera` is false) and job. Nothing here is ever persisted. */
+export function applyDemoPreset(origin = location.origin, { camera = true } = {}) {
   const id = 'demo-camera';
+  const camSource = demoCamSource(origin);
   useStore.setState({
-    camSources: { [id]: demoCamSource(origin) },
-    activeCamId: id,
+    camSources: camera ? { [id]: camSource } : {},
+    activeCamId: camera ? id : null,
+    machineBounds: camSource.machineBounds!.clone(),
     machine: { host: kDemoMachineHost, variant: 'v4' },
     stockHeight: kDemoStockHeight,
   });
