@@ -1,5 +1,6 @@
 import { MachineConnectionForm } from '@/components/machine/MachineConnectionForm';
 import { PageHeader } from '@/components/page-header';
+import { ICamSource, useCamSource } from '@/store/store';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { Button } from '@wbcnc/ui/components/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@wbcnc/ui/components/card';
@@ -8,8 +9,17 @@ export const Route = createFileRoute('/setup/fluidnc')({
   component: RouteComponent,
 });
 
+/**
+ * Whether the camera needs none of the setup steps after this one: the same chain the route guards check
+ * (calibration → machine bounds → marker positions → camera pose).
+ */
+function isCameraSetupComplete(camSource: ICamSource | null) {
+  return !!camSource?.calibration && !!camSource.machineBounds && !!camSource.markerPositions && !!camSource.extrinsics;
+}
+
 function RouteComponent() {
   const navigate = useNavigate();
+  const setupComplete = isCameraSetupComplete(useCamSource());
   return (
     <div className="w-full h-full">
       <PageHeader title="Machine" />
@@ -26,7 +36,10 @@ function RouteComponent() {
             <div className="flex flex-col gap-4">
               <MachineConnectionForm />
               <div className="flex flex-row gap-2 justify-end">
-                <Button onClick={() => navigate({ to: '/setup/machine-bounds' })}>Continue</Button>
+                {/* Connecting a machine to an already set up camera should not walk through the whole setup again. */}
+                <Button onClick={() => navigate({ to: setupComplete ? '/visualize/2DView' : '/setup/machine-bounds' })}>
+                  {setupComplete ? 'Continue to top view' : 'Continue'}
+                </Button>
               </div>
             </div>
           </CardContent>

@@ -1,9 +1,12 @@
 import { getCncApi } from '@/lib/fluidnc/machine';
-import { errorText, stopJob } from '@/lib/machine/jobs';
+import { errorText, kJobFileName, stopJob } from '@/lib/machine/jobs';
+import { pauseHint } from '@/lib/machine/pauseHints';
+import { useStore } from '@/store/store';
 import { Button } from '@wbcnc/ui/components/button';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { Pause, Play, Square } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { AlarmCard } from './AlarmCard';
 import { OverridesPanel, PositionLine } from './controls';
 import { Section } from './SetupView';
 
@@ -26,8 +29,42 @@ function useTimeLeft(percent: number | undefined, startedAt: number | null) {
   return { elapsed, left: (elapsed * (100 - percent)) / percent };
 }
 
+/** Why the job is on hold and what Resume does next, as far as the uploaded G-code tells. */
+function HoldExplanation() {
+  'use no memo';
+  const api = getCncApi();
+  const status = api.status.value;
+  const job = api.jobProgress.value;
+  const gcode = useStore(s => s.toolpath?.gcode);
+  const lastMessage = api.lastMessage.value;
+  // Only the file camNC uploaded corresponds to the loaded toolpath.
+  const ours = !!gcode && !!job && job.file.endsWith(kJobFileName);
+  const percent = job?.percent;
+  const hint = useMemo(() => (ours && percent !== undefined ? pauseHint(gcode!, percent) : null), [ours, gcode, percent]);
+  if (status?.state === 'Door')
+    return <p className="text-sm rounded-md bg-amber-100 text-amber-900 p-2">Safety door open. Close it, then Resume.</p>;
+  if (status?.state === 'Hold' && status.subState === 1) {
+    return <p className="text-sm rounded-md bg-amber-100 text-amber-900 p-2">Pausing… the machine is slowing down.</p>;
+  }
+  return (
+    <div className="text-sm rounded-md bg-amber-100 text-amber-900 p-2 flex flex-col gap-1" data-testid="hold-explanation">
+      {hint ? (
+        <>
+          <p>{hint.reason}</p>
+          {hint.next && <p className="font-medium">{hint.next}</p>}
+        </>
+      ) : (
+        <p>{ours ? 'Paused with Hold.' : 'Paused.'} Resume continues the job; Stop ends it.</p>
+      )}
+      {lastMessage && !hint?.reason.includes(lastMessage.replace(/^INFO:\s*(MSG,)?/i, '')) && (
+        <p className="text-xs font-mono text-amber-800">Controller: {lastMessage}</p>
+      )}
+    </div>
+  );
+}
+
 /** While a job runs: progress, pause/resume, stop and overrides. Jogging and zeroing are not possible now. */
-export function RunningView() {
+export function RunningView({ onShowConsole }: { onShowConsole?: () => void } = {}) {
   'use no memo';
   const api = getCncApi();
   const job = api.jobProgress.value;
@@ -38,6 +75,7 @@ export function RunningView() {
 
   return (
     <div className="flex flex-col gap-5">
+      <AlarmCard onShowConsole={onShowConsole} />
       <div className="flex flex-col gap-1.5">
         <div className="flex flex-row justify-between items-baseline gap-2">
           <span className="font-medium truncate" title={job?.file}>
@@ -53,11 +91,7 @@ export function RunningView() {
         </div>
       </div>
 
-      {holding && (
-        <p className="text-sm rounded-md bg-amber-100 text-amber-900 p-2">
-          {state === 'Door' ? 'Safety door open.' : 'Paused.'} Resume continues the job; Stop ends it.
-        </p>
-      )}
+      {holding && <HoldExplanation />}
 
       <div className="grid grid-cols-2 gap-2">
         {holding ? (

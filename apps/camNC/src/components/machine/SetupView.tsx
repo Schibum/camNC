@@ -17,8 +17,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@wbcnc/ui/c
 import { Input } from '@wbcnc/ui/components/input';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { cn } from '@wbcnc/ui/lib/utils';
-import { AlertTriangle, Check, ChevronRight, CirclePlay, FolderOpen, Home, LockOpen, Pencil } from 'lucide-react';
+import { AlertTriangle, Check, ChevronRight, CirclePlay, FolderOpen, Home, Pencil } from 'lucide-react';
 import { useState } from 'react';
+import { AlarmCard } from './AlarmCard';
 import { JogPanel, ProbePanel } from './controls';
 import { MacroButtons } from './macros';
 
@@ -35,28 +36,6 @@ export function Section({ title, action, children }: { title: string; action?: R
       </div>
       {children}
     </section>
-  );
-}
-
-function AlarmCard() {
-  'use no memo';
-  const api = getCncApi();
-  const alarm = api.alarm.value;
-  if (api.state.value !== 'Alarm') return null;
-  return (
-    <div className="rounded-md bg-red-600 text-white p-3 text-sm flex flex-col gap-2" role="alert">
-      <div>
-        <b>{alarm ? `ALARM:${alarm.code}` : 'Alarm'}</b> {alarm?.message ?? 'The machine is locked.'}
-      </div>
-      <div className="flex flex-row gap-2">
-        <Button size="sm" variant="secondary" onClick={() => report(api.home(), 'Homing')}>
-          <Home /> Home all
-        </Button>
-        <Button size="sm" variant="secondary" onClick={() => report(api.unlock(), 'Unlock')}>
-          <LockOpen /> Unlock
-        </Button>
-      </div>
-    </div>
   );
 }
 
@@ -175,6 +154,7 @@ function RunSection() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const idle = api.isConnected.value && api.state.value === 'Idle';
   const warnings = checklist.filter(item => !item.ok);
+  const blocked = checklist.some(item => item.blocking);
   if (!hasToolpath) return null;
   return (
     <Section title="Run">
@@ -182,13 +162,27 @@ function RunSection() {
         {checklist.map(item => (
           <li key={item.id} className="flex flex-row gap-2 items-center text-sm">
             {item.ok ? <Check className="size-4 text-green-600 shrink-0" /> : <AlertTriangle className="size-4 text-amber-500 shrink-0" />}
-            <span className={cn(!item.ok && 'text-amber-700 dark:text-amber-400')}>{item.label}</span>
+            <span className={cn(!item.ok && 'text-amber-700 dark:text-amber-400', item.blocking && 'text-red-700 dark:text-red-400')}>
+              {item.label}
+              {item.details && (
+                <ul className="list-disc pl-4 text-xs">
+                  {item.details.map((detail, i) => (
+                    <li key={i}>{detail}</li>
+                  ))}
+                </ul>
+              )}
+            </span>
           </li>
         ))}
       </ul>
-      <Button size="lg" disabled={!idle} onClick={() => setConfirmOpen(true)}>
+      <Button size="lg" disabled={!idle || blocked} onClick={() => setConfirmOpen(true)}>
         <CirclePlay /> Run job
       </Button>
+      {blocked && (
+        <p className="text-xs text-red-700 dark:text-red-400">
+          Fix the travel problem above first: with soft limits on, the controller would stop this job with an alarm.
+        </p>
+      )}
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -221,12 +215,12 @@ function RunSection() {
 }
 
 /** Everything before a job: make the machine ready, load and place the job, zero, run. */
-export function SetupView({ onEditMacros }: { onEditMacros: () => void }) {
+export function SetupView({ onEditMacros, onShowConsole }: { onEditMacros: () => void; onShowConsole?: () => void }) {
   'use no memo';
   const connected = getCncApi().isConnected.value;
   return (
     <div className="flex flex-col gap-5">
-      <AlarmCard />
+      <AlarmCard onShowConsole={onShowConsole} />
       <MachineSection />
       <JobSection />
       {connected && (

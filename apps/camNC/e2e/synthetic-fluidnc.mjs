@@ -23,7 +23,18 @@ export function installSyntheticFluidNc(host = '192.168.77.7') {
     '    homing:',
     '      positive_direction: false',
     '      mpos_mm: 0',
+    '  z:',
+    '    max_travel_mm: 100',
+    '    homing:',
+    '      positive_direction: true',
+    '      mpos_mm: 0',
   ];
+  // Single config items, as camNC reads the travel (`$/axes/x/max_travel_mm=700.000`).
+  const items = {
+    x: { max_travel_mm: '700.000', 'homing/positive_direction': 'false', 'homing/mpos_mm': '0.000', soft_limits: 'true' },
+    y: { max_travel_mm: '550.000', 'homing/positive_direction': 'false', 'homing/mpos_mm': '0.000', soft_limits: 'true' },
+    z: { max_travel_mm: '100.000', 'homing/positive_direction': 'true', 'homing/mpos_mm': '0.000', soft_limits: 'true' },
+  };
   const responses = {
     '$Report/Interval=200': ['[MSG:INFO: websocket auto report interval set to 200 ms]'],
     $I: ['[VER:3.9 FluidNC v3.9.9 (wifi) :]', '[OPT:PHSW]'],
@@ -31,6 +42,9 @@ export function installSyntheticFluidNc(host = '192.168.77.7') {
     '$#': ['[G54:20.000,30.000,0.000]', '[G55:0.000,0.000,0.000]'],
     '$Config/Dump': config,
   };
+  for (const [axis, values] of Object.entries(items)) {
+    for (const [path, value] of Object.entries(values)) responses[`$/axes/${axis}/${path}`] = [`$/axes/${axis}/${path}=${value}`];
+  }
   const requests = [];
   const rejected = [];
   window.__camncSmokeFluidNc = { requests, rejected };

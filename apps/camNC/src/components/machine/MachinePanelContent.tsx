@@ -133,7 +133,11 @@ export function MachinePanelContent({ onClose, className }: { onClose?: () => vo
             </Button>
           </p>
         )}
-        {view === 'running' && connected ? <RunningView /> : <SetupView onEditMacros={() => setDialog('macros')} />}
+        {view === 'running' && connected ? (
+          <RunningView onShowConsole={() => setConsoleOpen(true)} />
+        ) : (
+          <SetupView onEditMacros={() => setDialog('macros')} onShowConsole={() => setConsoleOpen(true)} />
+        )}
       </div>
 
       {consoleOpen && (

@@ -12,8 +12,10 @@ const kConnectionLabels: Record<ConnectionState, string> = {
   connecting: 'Connecting…',
   connected: 'Connected',
   'permission-denied': 'Permission denied',
+  'needs-permission': 'Waiting for permission',
   unreachable: 'Unreachable',
   'other-tab': 'In use by another tab',
+  'taken-over': 'Taken over by another tab',
 };
 
 export function ConnectionBadge() {
@@ -22,7 +24,7 @@ export function ConnectionBadge() {
   const color =
     connection === 'connected'
       ? 'bg-green-500'
-      : connection === 'connecting' || connection === 'other-tab'
+      : connection === 'connecting' || connection === 'other-tab' || connection === 'needs-permission'
         ? 'bg-yellow-500 animate-pulse'
         : connection === 'disconnected'
           ? 'bg-gray-400'

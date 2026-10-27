@@ -19,11 +19,22 @@ const kHelp: Partial<Record<ConnectionState, { title: string; text: string }>> =
     title: 'Controller not reachable',
     text: 'Check the IP address (shown on the FluidNC WebUI or your router), that the controller is powered and in STA mode, and that this computer is on the same network. Browser and controller must be on the same LAN.',
   },
+  'needs-permission': {
+    title: 'Chrome has not allowed local network access yet',
+    text: 'Allow it in the prompt, or in the site settings (lock icon in the address bar → Local network access), then reconnect. Each Chrome profile and each site (e.g. localhost vs. run.camnc.app) asks separately.',
+  },
   'other-tab': {
-    title: 'Machine is used by another camNC tab',
-    text: 'Only one tab can control the machine. Close the other tab and this one takes over automatically.',
+    title: 'camNC is controlling the machine in another tab',
+    text: 'Only one tab or window of this browser profile can control the machine. Close the other one and this tab takes over automatically, or take over now.',
+  },
+  'taken-over': {
+    title: 'Another tab took over the machine',
+    text: 'This tab no longer controls the machine. Take it back here if you want to continue in this tab.',
   },
 };
+
+/** Help states that offer taking the machine over from (or back to) this tab. */
+const kTakeOver: ConnectionState[] = ['other-tab', 'taken-over'];
 
 export function MachineConnectionForm() {
   'use no memo';
@@ -111,7 +122,14 @@ export function MachineConnectionForm() {
         {help && !blocked && (
           <Alert variant="destructive">
             <AlertTitle>{help.title}</AlertTitle>
-            <AlertDescription>{help.text}</AlertDescription>
+            <AlertDescription>
+              {help.text}
+              {kTakeOver.includes(connection) && (
+                <Button type="button" size="sm" variant="outline" className="mt-2" onClick={() => cncApi.takeOver()}>
+                  {connection === 'taken-over' ? 'Take back control' : 'Take over'}
+                </Button>
+              )}
+            </AlertDescription>
           </Alert>
         )}
       </form>

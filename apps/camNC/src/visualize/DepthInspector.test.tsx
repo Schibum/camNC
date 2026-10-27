@@ -21,7 +21,19 @@ vi.mock('@/store/store', () => ({
   useStore: (selector: (state: typeof store) => unknown) => selector(store),
   useCamSource: () => (store.hasCamera ? { extrinsics: {}, machineBounds: {} } : null),
   useMachineBounds: () => new Box2(new Vector2(0, 0), new Vector2(100, 100)),
+  useShowMachinePosMarker: () => true,
+  useToolDiameter: () => 6,
 }));
+
+// No machine connected: the tool marker and the job progress stay hidden.
+vi.mock('@/lib/fluidnc/machine', async () => {
+  const { signal } = await import('@preact/signals-react');
+  const status = signal(null);
+  return {
+    getCncApi: () => ({ status, machinePos: signal(null), workPos: signal(null), jobProgress: signal(null) }),
+  };
+});
+vi.mock('@/lib/machine/jobs', () => ({ kJobFileName: 'camnc.gcode' }));
 
 const gcode = `
 G0 X0 Y0 Z5

@@ -1,4 +1,7 @@
-import { useCamSource, useStore } from '@/store/store';
+import { getCncApi } from '@/lib/fluidnc/machine';
+import { kJobFileName } from '@/lib/machine/jobs';
+import { useComputed } from '@preact/signals-react';
+import { useCamSource, useShowMachinePosMarker, useStore, useToolDiameter } from '@/store/store';
 import { Switch } from '@heroui/react';
 import { GizmoHelper, GizmoViewport, Line, OrbitControls } from '@react-three/drei';
 import { ThreeEvent, useFrame, useThree } from '@react-three/fiber';
@@ -6,7 +9,7 @@ import { Slider } from '@wbcnc/ui/components/slider';
 import { cn } from '@wbcnc/ui/lib/utils';
 import { ChevronDown, ChevronUp, CircleCheck, CircleDashed } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Color, OrthographicCamera, Vector3 } from 'three';
+import { Color, Group, OrthographicCamera, Vector3 } from 'three';
 import { LineMaterial, LineSegments2, LineSegmentsGeometry } from 'three/addons';
 import { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import {
@@ -24,8 +27,10 @@ import {
   ZeroAt,
 } from './depthInspection';
 import { HoverInfo, useDepthView, useHoverInfo, useSelectedLevel, useShowStockVideo, useZeroPlacement } from './depthViewStore';
-import { AxisLabel, BedGrid, DepthRuler, HoverMarker, LevelPlane, StockBlock } from './DepthSceneParts';
+import { AxisLabel, BedGrid, DepthRuler, HoverMarker, LevelPlane, StockBlock, ToolPositionMarker } from './DepthSceneParts';
 import { ParsedToolpath } from './gcodeParsing';
+import { kJobDoneColor, motionLineEnds, progressPointIndex } from './jobProgress';
+import { useSmoothedMachinePos } from './smoothedMachinePos';
 import { getPlasmaColor } from './toolpathColors';
 
 export type DepthViewPreset = '3d' | 'front' | 'side';
@@ -381,12 +386,15 @@ export function DepthScene({ toolpath, view, fitKey }: { toolpath: ParsedToolpat
               selectedLevel={selectedLevel}
               onHover={info => setHover(toolpath, info)}
             />
+            <DepthJobProgress toolpath={toolpath} />
           </group>
           {stockHeight > 0 && <StockBlock center={center} size={planeSize} height={stockHeight} showTop={!showVideo} />}
           {selectedLevel !== null && <LevelPlane center={center} size={planeSize} z={selectedLevel + shift} />}
         </group>
 
         <DepthRuler levels={levels} x={footprint.min.x} y={footprint.min.y} zScale={zScale} shift={shift} selected={selectedLevel} />
+
+        <MachineToolMarker toolpathOffset={workOrigin} sceneZ={sceneZ} length={axisLength} />
 
         {hover && (
           <HoverMarker
@@ -398,6 +406,43 @@ export function DepthScene({ toolpath, view, fitKey }: { toolpath: ParsedToolpat
       </group>
     </>
   );
+}
+
+/**
+ * The machine's tool tip in the 3D views. XY follow the machine position like the top view's marker (minus the
+ * toolpath placement); Z is the work Z, so it lines up with the toolpath when Z was zeroed for this job.
+ * Glides between status reports like the top view's marker.
+ */
+function MachineToolMarker({ toolpathOffset, sceneZ, length }: { toolpathOffset: Vector3; sceneZ: (z: number) => number; length: number }) {
+  'use no memo';
+  const visible = useShowMachinePosMarker();
+  const toolDiameter = useToolDiameter();
+  const cncApi = getCncApi();
+  const hasPos = useComputed(() => cncApi.machinePos.value != null && cncApi.workPos.value != null).value;
+  const group = useRef<Group>(null);
+  useSmoothedMachinePos(group, (mpos, target) => {
+    // Work Z from the smoothed machine Z and the current work offset.
+    const wcoZ = cncApi.status.value?.wco.z ?? 0;
+    target.position.set(mpos.x - toolpathOffset.x, mpos.y - toolpathOffset.y, sceneZ(mpos.z - wcoZ));
+  });
+  if (!visible || !hasPos) return null;
+  return (
+    <group ref={group}>
+      <ToolPositionMarker radius={toolDiameter / 2} length={length} />
+    </group>
+  );
+}
+
+/** The part of the toolpath the running camNC job has already done, in the top view's "done" colour. */
+function DepthJobProgress({ toolpath }: { toolpath: ParsedToolpath }) {
+  'use no memo';
+  const job = getCncApi().jobProgress.value;
+  const lineEnds = useMemo(() => motionLineEnds(toolpath.gcode), [toolpath]);
+  // Only the file camNC uploaded corresponds to the loaded toolpath.
+  const end = job && job.file.endsWith(kJobFileName) ? progressPointIndex(toolpath, lineEnds, job.percent) : 0;
+  const points = useMemo(() => toolpath.pathPoints.slice(0, end).map(p => [p.x, p.y, p.z] as [number, number, number]), [toolpath, end]);
+  if (points.length < 2) return null;
+  return <Line points={points} color={kJobDoneColor} lineWidth={4} depthTest={false} transparent opacity={0.9} renderOrder={3} />;
 }
 
 /** CSS color of the toolpath lines at depth `z`, as drawn in the 3D views. */

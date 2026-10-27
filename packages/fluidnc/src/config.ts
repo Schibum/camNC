@@ -1,6 +1,6 @@
 import { parse as parseYaml } from 'yaml';
 import { computeAxisBounds, FluidAxisConfig } from './parsers/axis-bounds';
-import type { FluidncProtocol } from './protocol';
+import { FluidncError, type FluidncProtocol } from './protocol';
 
 export interface MachineBounds {
   xmin: number;
@@ -11,7 +11,10 @@ export interface MachineBounds {
   zmax: number;
 }
 
-/** Read the running configuration as YAML text (`$Config/Dump`, aka `$CD`). */
+/**
+ * Read the running configuration as YAML text (`$Config/Dump`, aka `$CD`). Slow on 3.9.x and has been seen to coincide
+ * with controller resets, so only use it on explicit request; {@link readAxisTravel} reads single items instead.
+ */
 export async function readConfigText(protocol: FluidncProtocol): Promise<string> {
   const lines = await protocol.send('$Config/Dump', { timeoutMs: 20_000 });
   return lines.filter(line => !line.startsWith('[MSG:')).join('\n');
@@ -23,7 +26,11 @@ export async function readConfigText(protocol: FluidncProtocol): Promise<string>
  */
 export async function readConfigItem(protocol: FluidncProtocol, path: string): Promise<string | null> {
   const prefix = `$/${path}=`;
-  const lines = await protocol.send(`$/${path}`);
+  // Items the config does not contain (e.g. no homing section) answer with an error.
+  const lines = await protocol.send(`$/${path}`).catch(err => {
+    if (err instanceof FluidncError) return [] as string[];
+    throw err;
+  });
   const line = lines.find(l => l.toLowerCase().startsWith(prefix.toLowerCase()));
   return line ? line.slice(prefix.length).trim() : null;
 }
@@ -56,6 +63,40 @@ export function computeMachineBounds(config: Record<string, unknown>): MachineBo
   return { xmin: x.min, xmax: x.max, ymin: y.min, ymax: y.max, zmin: z.min, zmax: z.max };
 }
 
+/** Travel of one axis in machine coordinates, and whether soft limits enforce it. */
+export interface AxisTravel {
+  min: number;
+  max: number;
+  softLimits: boolean;
+}
+
+export type MachineTravel = Record<'x' | 'y' | 'z', AxisTravel | null>;
+
+const toBool = (value: string | null) => (value === null ? undefined : /^(true|1|on|yes)$/i.test(value));
+const toNumber = (value: string | null) => (value === null || value === '' || Number.isNaN(Number(value)) ? undefined : Number(value));
+
+/**
+ * Read each axis' travel with single config item queries (`$/axes/x/max_travel_mm`, …), like FluidNC computes its soft
+ * limits. An axis is `null` when the controller does not report its `max_travel_mm`: then nothing is known, and
+ * guessing FluidNC's defaults could raise false warnings.
+ */
+export async function readAxisTravel(protocol: FluidncProtocol): Promise<MachineTravel> {
+  const read = async (name: 'x' | 'y' | 'z'): Promise<AxisTravel | null> => {
+    const item = (path: string) => readConfigItem(protocol, `axes/${name}/${path}`);
+    const maxTravel = toNumber(await item('max_travel_mm'));
+    if (maxTravel === undefined) return null;
+    const mpos = toNumber(await item('homing/mpos_mm'));
+    const positive = toBool(await item('homing/positive_direction'));
+    const softLimits = toBool(await item('soft_limits')) ?? false;
+    const homing = mpos === undefined && positive === undefined ? undefined : { mpos_mm: mpos, positive_direction: positive };
+    return { ...computeAxisBounds({ max_travel_mm: maxTravel, homing }), softLimits };
+  };
+  return { x: await read('x'), y: await read('y'), z: await read('z') };
+}
+
+/** Machine travel from single config items (see {@link readAxisTravel}). Throws if any axis is not reported. */
 export async function readMachineBounds(protocol: FluidncProtocol): Promise<MachineBounds> {
-  return computeMachineBounds(parseConfig(await readConfigText(protocol)));
+  const { x, y, z } = await readAxisTravel(protocol);
+  if (!x || !y || !z) throw new Error('The controller did not report the axis travel (axes/*/max_travel_mm)');
+  return { xmin: x.min, xmax: x.max, ymin: y.min, ymax: y.max, zmin: z.min, zmax: z.max };
 }

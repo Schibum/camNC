@@ -1,7 +1,12 @@
 import { parseListJson, SdFile, SdListing } from './parsers/list-json';
-import type { FluidncProtocol, MachineStatus } from './protocol';
+import { FluidncAbortError, type FluidncProtocol, type MachineStatus } from './protocol';
 import { httpUrl } from './socket';
 import { xmodemUpload } from './xmodem';
+
+/** How long the socket may stay quiet during an HTTP upload before it counts as dead. */
+const kUploadSilenceMs = 60_000;
+/** How long to wait for an uploaded file to show up, including a reconnect if the socket dropped meanwhile. */
+const kVerifyTimeoutMs = 30_000;
 
 export async function listSdFiles(protocol: FluidncProtocol, path = '/'): Promise<SdListing> {
   const lines = await protocol.send(path === '/' ? '$SD/ListJSON' : `$SD/ListJSON=${path}`, { timeoutMs: 15_000 });
@@ -96,6 +101,8 @@ export async function uploadSdFile(
     form.append(`${filename}S`, String(bytes.length));
     form.append('myfiles', new Blob([bytes as BlobPart], { type: 'application/octet-stream' }), filename);
     const doFetch = options.fetchImpl ?? fetch;
+    // 3.9.x handles the upload in its only network task, so the socket goes quiet meanwhile (about 25 s were seen).
+    protocol.socket.allowSilence(kUploadSilenceMs);
     try {
       await doFetch(httpUrl(host, '/upload'), { method: 'POST', mode: 'no-cors', body: form });
     } catch {
@@ -105,11 +112,16 @@ export async function uploadSdFile(
     options.onProgress?.(1);
   }
 
-  const deadline = Date.now() + (options.verifyTimeoutMs ?? 5_000);
+  const deadline = Date.now() + (options.verifyTimeoutMs ?? kVerifyTimeoutMs);
   let lastSize: number | undefined;
   for (;;) {
-    const file = findFile(await listSdFiles(protocol), filename);
-    lastSize = file?.size;
+    // Should the socket still have dropped during the upload, keep trying until it is back (nothing is re-sent).
+    const listing = await listSdFiles(protocol).catch(err => {
+      if (Date.now() > deadline || !(err instanceof FluidncAbortError)) throw err;
+      return null;
+    });
+    const file = listing && findFile(listing, filename);
+    lastSize = listing ? file?.size : lastSize;
     if (file && file.size === bytes.length) return;
     if (Date.now() > deadline) break;
     await new Promise(resolve => setTimeout(resolve, 300));
