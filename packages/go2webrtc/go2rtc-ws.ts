@@ -58,7 +58,12 @@ export async function connectGo2RtcWs(options: Go2RtcWsOptions): Promise<{
 
     ws.addEventListener('message', async ev => {
       const msg = JSON.parse(ev.data);
-      if (msg.type === 'webrtc/answer') {
+      if (msg.type === 'error') {
+        // E.g. the camera is unreachable or rejects the login. Without this the caller waits forever.
+        reject(new Error(`go2rtc: ${msg.value}`));
+        pc.close();
+        ws.close();
+      } else if (msg.type === 'webrtc/answer') {
         await pc.setRemoteDescription({ type: 'answer', sdp: msg.value });
       } else if (msg.type === 'webrtc/candidate' && msg.value) {
         try {
