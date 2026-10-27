@@ -258,3 +258,33 @@ export function AxisLabel({ position, label, className }: { position: [number, n
     </Html>
   );
 }
+
+/** The machine's current tool tip: a ring of the tool diameter, a dot, and the tool shank going up. */
+export function ToolPositionMarker({ position, radius, length }: { position: Vector3; radius: number; length: number }) {
+  const ring = useMemo(() => {
+    const pts: [number, number, number][] = [];
+    for (let i = 0; i <= 64; i++) {
+      const theta = (i / 64) * Math.PI * 2;
+      pts.push([position.x + Math.cos(theta) * radius, position.y + Math.sin(theta) * radius, position.z]);
+    }
+    return pts;
+  }, [position.x, position.y, position.z, radius]);
+  return (
+    <>
+      <Html position={position} center style={{ pointerEvents: 'none' }} zIndexRange={[10, 0]}>
+        <div className="size-3 rounded-full border-2 border-black/70 bg-yellow-300" />
+      </Html>
+      <Line
+        points={[
+          [position.x, position.y, position.z],
+          [position.x, position.y, position.z + length],
+        ]}
+        color="#fde047"
+        lineWidth={3}
+        depthTest={false}
+        renderOrder={4}
+      />
+      <Line points={ring} color="#fde047" lineWidth={2} depthTest={false} renderOrder={4} />
+    </>
+  );
+}

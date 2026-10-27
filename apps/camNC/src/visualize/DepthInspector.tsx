@@ -1,4 +1,5 @@
-import { useCamSource, useStore } from '@/store/store';
+import { getCncApi } from '@/lib/fluidnc/machine';
+import { useCamSource, useShowMachinePosMarker, useStore, useToolDiameter } from '@/store/store';
 import { Switch } from '@heroui/react';
 import { GizmoHelper, GizmoViewport, Line, OrbitControls } from '@react-three/drei';
 import { ThreeEvent, useFrame, useThree } from '@react-three/fiber';
@@ -24,7 +25,7 @@ import {
   ZeroAt,
 } from './depthInspection';
 import { HoverInfo, useDepthView, useHoverInfo, useSelectedLevel, useShowStockVideo, useZeroPlacement } from './depthViewStore';
-import { AxisLabel, BedGrid, DepthRuler, HoverMarker, LevelPlane, StockBlock } from './DepthSceneParts';
+import { AxisLabel, BedGrid, DepthRuler, HoverMarker, LevelPlane, StockBlock, ToolPositionMarker } from './DepthSceneParts';
 import { ParsedToolpath } from './gcodeParsing';
 import { getPlasmaColor } from './toolpathColors';
 
@@ -388,6 +389,8 @@ export function DepthScene({ toolpath, view, fitKey }: { toolpath: ParsedToolpat
 
         <DepthRuler levels={levels} x={footprint.min.x} y={footprint.min.y} zScale={zScale} shift={shift} selected={selectedLevel} />
 
+        <MachineToolMarker toolpathOffset={workOrigin} sceneZ={sceneZ} length={axisLength} />
+
         {hover && (
           <HoverMarker
             position={new Vector3(hover.point.x, hover.point.y, sceneZ(hover.point.z))}
@@ -398,6 +401,22 @@ export function DepthScene({ toolpath, view, fitKey }: { toolpath: ParsedToolpat
       </group>
     </>
   );
+}
+
+/**
+ * The machine's tool tip in the 3D views. XY follow the machine position like the top view's marker (minus the
+ * toolpath placement); Z is the work Z, so it lines up with the toolpath when Z was zeroed for this job.
+ */
+function MachineToolMarker({ toolpathOffset, sceneZ, length }: { toolpathOffset: Vector3; sceneZ: (z: number) => number; length: number }) {
+  'use no memo';
+  const visible = useShowMachinePosMarker();
+  const toolDiameter = useToolDiameter();
+  const cncApi = getCncApi();
+  const mpos = cncApi.machinePos.value;
+  const wpos = cncApi.workPos.value;
+  if (!visible || !mpos || !wpos) return null;
+  const position = new Vector3(mpos.x - toolpathOffset.x, mpos.y - toolpathOffset.y, sceneZ(wpos.z));
+  return <ToolPositionMarker position={position} radius={toolDiameter / 2} length={length} />;
 }
 
 /** CSS color of the toolpath lines at depth `z`, as drawn in the 3D views. */
