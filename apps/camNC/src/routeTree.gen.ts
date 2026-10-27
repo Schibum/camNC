@@ -24,6 +24,7 @@ import { Route as SetupFluidncRouteImport } from './routes/setup/fluidnc'
 import { Route as SetupEditSettingsRouteImport } from './routes/setup/edit-settings'
 import { Route as SetupCameraCalibrationRouteImport } from './routes/setup/camera-calibration'
 import { Route as SettingsHideMachineRouteImport } from './routes/settings/hide-machine'
+import { Route as SettingsBackupRouteImport } from './routes/settings/backup'
 import { Route as DebugUnprojectRouteImport } from './routes/debug/unproject'
 import { Route as DebugUndistort2RouteImport } from './routes/debug/undistort2'
 import { Route as DebugRawWebgpuRouteImport } from './routes/debug/raw-webgpu'
@@ -104,6 +105,11 @@ const SettingsHideMachineRoute = SettingsHideMachineRouteImport.update({
   path: '/settings/hide-machine',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsBackupRoute = SettingsBackupRouteImport.update({
+  id: '/settings/backup',
+  path: '/settings/backup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DebugUnprojectRoute = DebugUnprojectRouteImport.update({
   id: '/debug/unproject',
   path: '/debug/unproject',
@@ -127,6 +133,7 @@ export interface FileRoutesByFullPath {
   '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
+  '/settings/backup': typeof SettingsBackupRoute
   '/settings/hide-machine': typeof SettingsHideMachineRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
@@ -147,6 +154,7 @@ export interface FileRoutesByTo {
   '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
+  '/settings/backup': typeof SettingsBackupRoute
   '/settings/hide-machine': typeof SettingsHideMachineRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
@@ -168,6 +176,7 @@ export interface FileRoutesById {
   '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
+  '/settings/backup': typeof SettingsBackupRoute
   '/settings/hide-machine': typeof SettingsHideMachineRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
@@ -190,6 +199,7 @@ export interface FileRouteTypes {
     | '/debug/raw-webgpu'
     | '/debug/undistort2'
     | '/debug/unproject'
+    | '/settings/backup'
     | '/settings/hide-machine'
     | '/setup/camera-calibration'
     | '/setup/edit-settings'
@@ -210,6 +220,7 @@ export interface FileRouteTypes {
     | '/debug/raw-webgpu'
     | '/debug/undistort2'
     | '/debug/unproject'
+    | '/settings/backup'
     | '/settings/hide-machine'
     | '/setup/camera-calibration'
     | '/setup/edit-settings'
@@ -230,6 +241,7 @@ export interface FileRouteTypes {
     | '/debug/raw-webgpu'
     | '/debug/undistort2'
     | '/debug/unproject'
+    | '/settings/backup'
     | '/settings/hide-machine'
     | '/setup/camera-calibration'
     | '/setup/edit-settings'
@@ -251,6 +263,7 @@ export interface RootRouteChildren {
   DebugRawWebgpuRoute: typeof DebugRawWebgpuRoute
   DebugUndistort2Route: typeof DebugUndistort2Route
   DebugUnprojectRoute: typeof DebugUnprojectRoute
+  SettingsBackupRoute: typeof SettingsBackupRoute
   SettingsHideMachineRoute: typeof SettingsHideMachineRoute
   SetupCameraCalibrationRoute: typeof SetupCameraCalibrationRoute
   SetupEditSettingsRoute: typeof SetupEditSettingsRoute
@@ -372,6 +385,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsHideMachineRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/backup': {
+      id: '/settings/backup'
+      path: '/settings/backup'
+      fullPath: '/settings/backup'
+      preLoaderRoute: typeof SettingsBackupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/debug/unproject': {
       id: '/debug/unproject'
       path: '/debug/unproject'
@@ -403,6 +423,7 @@ const rootRouteChildren: RootRouteChildren = {
   DebugRawWebgpuRoute: DebugRawWebgpuRoute,
   DebugUndistort2Route: DebugUndistort2Route,
   DebugUnprojectRoute: DebugUnprojectRoute,
+  SettingsBackupRoute: SettingsBackupRoute,
   SettingsHideMachineRoute: SettingsHideMachineRoute,
   SetupCameraCalibrationRoute: SetupCameraCalibrationRoute,
   SetupEditSettingsRoute: SetupEditSettingsRoute,

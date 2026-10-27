@@ -13,10 +13,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@wbcnc/ui/components/alert-dialog';
+import { Alert, AlertDescription } from '@wbcnc/ui/components/alert';
 import { Button } from '@wbcnc/ui/components/button';
+import { toast } from '@wbcnc/ui/components/sonner';
 import { Trash2 } from 'lucide-react';
 import { z } from 'zod';
 import { IOnChangeArgs, VideoSourceSelection } from '../../setup/video-source-selection/VideoSourceSelection';
+import { adaptCamToResolution, isCamCalibrated } from '../../store/cam-resolution';
 import { useCamSource, useStore } from '../../store/store';
 
 export const Route = createFileRoute('/setup/url-entry')({
@@ -82,18 +85,19 @@ function UrlEntryComponent() {
   const handleUrlConfirm = ({ url: newUrl, maxResolution, name: newName }: IOnChangeArgs) => {
     if (isNew || !activeCamId || !currentCamSource) {
       addCamSource(newName, { name: newName, url: newUrl, maxResolution: [maxResolution.width, maxResolution.height] });
-    } else {
-      const [oldWidth, oldHeight] = currentCamSource.maxResolution;
-      const resolutionChanged = oldWidth !== maxResolution.width || oldHeight !== maxResolution.height;
-      updateCamSource(activeCamId, {
-        name: newName,
-        url: newUrl,
-        maxResolution: [maxResolution.width, maxResolution.height],
-        // Intrinsics and marker pixel positions are in pixels of the old resolution and no longer valid.
-        ...(resolutionChanged && { calibration: undefined, extrinsics: undefined, markerPosInCam: undefined }),
-      });
+      navigate({ to: '/setup/camera-calibration' });
+      return;
     }
-    navigate({ to: '/setup/camera-calibration' });
+    const resolution: [number, number] = [maxResolution.width, maxResolution.height];
+    const changes = { name: newName, url: newUrl, maxResolution: resolution, ...adaptCamToResolution(currentCamSource, resolution) };
+    updateCamSource(activeCamId, changes);
+    if (isCamCalibrated({ ...currentCamSource, ...changes })) {
+      // Another source of the same camera: the calibration and markers still hold, no need to set them up again.
+      toast.success('Camera source changed. Calibration and markers were kept.');
+      navigate({ to: '/' });
+    } else {
+      navigate({ to: '/setup/camera-calibration' });
+    }
   };
 
   return (
@@ -101,7 +105,16 @@ function UrlEntryComponent() {
       <PageHeader title="Camera Source" />
       <div className="flex justify-center p-1 flex-row">
         <div className="max-w-xl gap-4 flex flex-1 flex-col">
-          <TryDemoCard />
+          {isNew || !isCamCalibrated(currentCamSource) ? (
+            <TryDemoCard />
+          ) : (
+            <Alert>
+              <AlertDescription>
+                Switching this camera to another source, e.g. from an external go2rtc to a direct network camera, keeps its calibration and
+                markers, as long as the picture keeps its aspect ratio.
+              </AlertDescription>
+            </Alert>
+          )}
           <VideoSourceSelection value={url} onChange={handleUrlConfirm} defaultName={defaultName} key={url} />
           {!isNew && activeCamId && (
             <div className="flex justify-start">

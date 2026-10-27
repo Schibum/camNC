@@ -2,14 +2,13 @@ import { PageHeader } from '@/components/page-header';
 import { Array9, matrix3ToRowMajor } from '@/lib/three-plain';
 import { ICamSource, useCamSource, useStore } from '@/store/store';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { Button } from '@wbcnc/ui/components/button';
 import { Card, CardContent } from '@wbcnc/ui/components/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@wbcnc/ui/components/form';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { Textarea } from '@wbcnc/ui/components/textarea';
 import { useForm } from 'react-hook-form';
-import superjson from 'superjson';
 import { Box2, Matrix3, Vector2, Vector3 } from 'three';
 import { z } from 'zod';
 
@@ -102,57 +101,6 @@ function calibToJson(data: ICamSource) {
   );
 }
 
-function ExportButton() {
-  const camSource = useCamSource();
-
-  function handleClick(e: React.MouseEvent<HTMLButtonElement>) {
-    e.preventDefault();
-    console.log('exporting camSource', camSource);
-    const json = superjson.stringify(camSource);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'cam-source.json';
-    a.click();
-    // Revoke after the download has been triggered.
-    setTimeout(() => URL.revokeObjectURL(url));
-  }
-  return (
-    <Button variant="secondary" onClick={handleClick}>
-      Export
-    </Button>
-  );
-}
-
-function ImportButton({ onImport }: { onImport: (camSource: ICamSource) => void }) {
-  const setCamSource = useStore(state => state.setCamSource);
-  function handleClick(e: React.MouseEvent<HTMLButtonElement>) {
-    e.preventDefault();
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'application/json';
-    input.onchange = e => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const json = superjson.parse<ICamSource>(reader.result as string);
-          setCamSource(json);
-          onImport(json);
-        };
-        reader.readAsText(file);
-      }
-    };
-    input.click();
-  }
-  return (
-    <Button variant="secondary" onClick={handleClick}>
-      Import
-    </Button>
-  );
-}
-
 function CalibrationSettingsForm() {
   const camSource = useCamSource();
   const setCalibration = useStore(state => state.setCamSource);
@@ -173,10 +121,13 @@ function CalibrationSettingsForm() {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        <div className="flex flex-row gap-2">
-          <ExportButton />
-          <ImportButton onImport={camSource => form.setValue('json', calibToJson(camSource))} />
-        </div>
+        <p className="text-sm text-muted-foreground">
+          The active camera&apos;s calibration as JSON. To move your setup to another computer or app, use{' '}
+          <Link to="/settings/backup" className="underline">
+            Backup &amp; Restore
+          </Link>
+          .
+        </p>
         <FormField
           control={form.control as any}
           name="json"

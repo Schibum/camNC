@@ -96,6 +96,21 @@ describe('camera source confirmation', () => {
       url: 'webrtc://phone',
       maxResolution: [1920, 1080],
     });
+    // Calibration and markers still hold, so setup is not repeated.
+    expect(router.navigate).toHaveBeenCalledWith({ to: '/' });
+  });
+
+  it('rescales the calibration when the new source has the same aspect ratio', () => {
+    store.camSources = { existing: { ...configuredCamera(), maxResolution: [1280, 720] } };
+    store.activeCamId = 'existing';
+
+    confirmSource();
+
+    const changes = store.updateCamSource.mock.calls[0]![1] as Partial<ICamSource>;
+    expect(changes.maxResolution).toEqual([1920, 1080]);
+    expect(changes.markerPosInCam!.map(p => p.toArray())).toEqual([[150, 150]]);
+    expect(changes.calibration).toBeDefined();
+    expect(router.navigate).toHaveBeenCalledWith({ to: '/' });
   });
 
   it('clears resolution-dependent calibration when updating an existing camera at a new resolution', () => {
@@ -112,6 +127,7 @@ describe('camera source confirmation', () => {
       extrinsics: undefined,
       markerPosInCam: undefined,
     });
+    expect(router.navigate).toHaveBeenCalledWith({ to: '/setup/camera-calibration' });
   });
 
   it('creates a separate camera when explicitly adding a new source', () => {
