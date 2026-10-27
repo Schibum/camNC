@@ -1,6 +1,6 @@
 import { useStore } from '../../store/store';
 import { CncApi } from './cnc-api';
-import { machineSupport } from './machine-support';
+import { hostBlockedReason, machineSupport } from './machine-support';
 
 let cncApi: CncApi | null = null;
 let simulated: { WebSocket: typeof WebSocket; fetch: typeof fetch } | null = null;
@@ -23,7 +23,8 @@ export function getCncApi() {
   };
   if (typeof window !== 'undefined' && machineSupport().supported) {
     const follow = (machine: ReturnType<typeof useStore.getState>['machine']) => {
-      if (machine?.host) api.connect(machine.host, machine.variant);
+      // A host Chrome would block as mixed content would only retry forever; the form explains it instead.
+      if (machine?.host && !hostBlockedReason(machine.host)) api.connect(machine.host, machine.variant);
       else api.disconnect();
     };
     follow(useStore.getState().machine);

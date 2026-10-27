@@ -1,6 +1,6 @@
 import { ConnectionState } from '@/lib/fluidnc/cnc-api';
 import { getCncApi } from '@/lib/fluidnc/machine';
-import { machineSupport } from '@/lib/fluidnc/machine-support';
+import { hostBlockedReason, machineSupport } from '@/lib/fluidnc/machine-support';
 import { useStore } from '@/store/store';
 import { Alert, AlertDescription, AlertTitle } from '@wbcnc/ui/components/alert';
 import { Button } from '@wbcnc/ui/components/button';
@@ -36,6 +36,7 @@ export function MachineConnectionForm() {
   const connection = cncApi.connection.value;
   const firmware = cncApi.firmware.value;
   const variant = cncApi.variant.value;
+  const blocked = hostBlockedReason(host);
 
   if (!support.supported) {
     return (
@@ -49,7 +50,7 @@ export function MachineConnectionForm() {
   function connect(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = host.trim();
-    if (!trimmed) return;
+    if (!trimmed || hostBlockedReason(trimmed)) return;
     // Force a fresh connect (and variant detection) even if the host did not change.
     if (machine?.host === trimmed) {
       cncApi.disconnect();
@@ -74,7 +75,7 @@ export function MachineConnectionForm() {
               autoComplete="off"
               spellCheck={false}
             />
-            <Button type="submit" disabled={!host.trim()}>
+            <Button type="submit" disabled={!host.trim() || !!blocked}>
               Connect
             </Button>
             {machine && (
@@ -83,9 +84,14 @@ export function MachineConnectionForm() {
               </Button>
             )}
           </div>
+          {blocked && (
+            <p role="alert" className="text-xs text-destructive">
+              {blocked}
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">
-            Use the IP address rather than <code>fluidnc.local</code>: <code>.local</code> names do not resolve reliably on Android and
-            Windows. Chrome will ask to allow access to devices on your local network.
+            Use the IP address. Chrome blocks router names like <code>fluidnc.fritz.box</code> from the HTTPS app, and <code>.local</code>{' '}
+            names do not resolve reliably on Android and Windows. Chrome will ask to allow access to devices on your local network.
           </p>
         </div>
         <div className="flex flex-row gap-2 items-center text-sm">
@@ -102,7 +108,7 @@ export function MachineConnectionForm() {
             </span>
           )}
         </div>
-        {help && (
+        {help && !blocked && (
           <Alert variant="destructive">
             <AlertTitle>{help.title}</AlertTitle>
             <AlertDescription>{help.text}</AlertDescription>
