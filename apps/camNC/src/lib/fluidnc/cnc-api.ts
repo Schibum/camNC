@@ -14,6 +14,7 @@ import {
   Position,
   readConfigText,
   readMachineBounds,
+  readMaxRateXY,
   Realtime,
   runSdFile,
   uploadSdFile,
@@ -37,6 +38,8 @@ export type ConnectionState =
 
 const kLockName = 'camnc-machine';
 const kMaxConsoleLines = 500;
+/** Click-to-jog feed when the controller does not report its max rate. */
+const kFallbackJogFeed = 3000;
 
 /** Jogs only start from these states. */
 export function canJog(state: string | undefined | null) {
@@ -85,6 +88,8 @@ export class CncApi {
   private releaseLock: (() => void) | null = null;
   private lockAbort: AbortController | null = null;
   private readonly zeroTimeoutMs = 5000;
+  /** XY max rate of the connected controller, read on the first click-to-jog. */
+  private maxRateXY: Promise<number> | null = null;
 
   /** `WebSocketImpl` and `fetchImpl` can be swapped for a simulated controller (demo mode, tests). */
   constructor(
@@ -146,6 +151,7 @@ export class CncApi {
   }
 
   private open(host: string, variant?: FirmwareVariant) {
+    this.maxRateXY = null;
     const socket = new FluidncSocket({ host, variant, WebSocketImpl: this.WebSocketImpl });
     const protocol = new FluidncProtocol(socket);
     this.protocol = protocol;
@@ -219,9 +225,21 @@ export class CncApi {
     return this.api.sendLines(text, { timeoutMs });
   }
 
-  /** Move to machine coordinates as a (cancellable) jog. */
-  jogToMachineCoordinates(x: number, y: number, feed = 3000) {
-    return this.api.send(`$J=G53 G21 X${x.toFixed(3)} Y${y.toFixed(3)} F${feed}`);
+  /**
+   * Move to machine coordinates as a (cancellable) jog. Without `feed` it runs at the machine's XY max rate,
+   * the speed a `G0` rapid would use.
+   */
+  async jogToMachineCoordinates(x: number, y: number, feed?: number) {
+    const api = this.api;
+    feed ??= await this.getMaxRateXY(api);
+    return api.send(`$J=G53 G21 X${x.toFixed(3)} Y${y.toFixed(3)} F${feed}`);
+  }
+
+  private getMaxRateXY(api: FluidncProtocol) {
+    this.maxRateXY ??= readMaxRateXY(api)
+      .catch(() => null)
+      .then(rate => rate ?? kFallbackJogFeed);
+    return this.maxRateXY;
   }
 
   jogRelative(delta: { x?: number; y?: number; z?: number }, feed: number) {
