@@ -2,6 +2,7 @@ import { getCncApi } from '@/lib/fluidnc/machine';
 import { getActiveCamSource, useStore } from '@/store/store';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { useEffect } from 'react';
+import { saveJobRecord } from './jobRecord';
 import type { Macro } from './macros';
 import { getJobChecklist } from './workflow';
 
@@ -48,6 +49,25 @@ export async function uploadAndRun() {
   };
   await step(api.uploadGcode(toolpath.gcode, kJobFileName), 'Uploading…', 'Uploaded and verified');
   await step(api.runFile(kJobFileName), 'Starting job…', 'Job started');
+  // So that a reload during the job can show it again (see jobRecovery.ts).
+  const { toolpathName, toolpathOffset, stockHeight, toolDiameter } = useStore.getState();
+  const wco = api.status.value?.wco;
+  const host = api.host.value;
+  if (host && wco) {
+    void saveJobRecord({
+      host,
+      sdFile: kJobFileName,
+      gcode: toolpath.gcode,
+      toolpathName,
+      toolpathOffset: { x: toolpathOffset.x, y: toolpathOffset.y, z: toolpathOffset.z },
+      stockHeight,
+      toolDiameter,
+      wco,
+      startedAt: api.jobStartedAt.value ?? Date.now(),
+      homed: api.homed.value,
+      zZeroedAt: api.zZeroedAt.value,
+    }).catch(() => {});
+  }
 }
 
 export async function runMacro(macro: Macro) {

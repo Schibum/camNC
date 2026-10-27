@@ -1,4 +1,5 @@
 import { useStore } from '../../store/store';
+import { watchJobRecovery } from '../machine/jobRecovery';
 import { CncApi } from './cnc-api';
 import { hostBlockedReason, machineSupport } from './machine-support';
 
@@ -22,6 +23,7 @@ export function getCncApi() {
     if (useStore.getState().machine?.variant !== variant) useStore.getState().setMachineVariant(variant);
   };
   if (typeof window !== 'undefined' && machineSupport().supported) {
+    watchJobRecovery(api);
     const follow = (machine: ReturnType<typeof useStore.getState>['machine']) => {
       // A host Chrome would block as mixed content would only retry forever; the form explains it instead.
       if (machine?.host && !hostBlockedReason(machine.host)) api.connect(machine.host, machine.variant);
