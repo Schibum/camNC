@@ -20,6 +20,7 @@ tauri-plugin-http = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["time", "net", "io-util", "sync"] }
+tauri-plugin-localhost = "2"
 
 # WebKitGTK ships with WebRTC switched off; the camera needs it.
 [target.'cfg(target_os = "linux")'.dependencies]

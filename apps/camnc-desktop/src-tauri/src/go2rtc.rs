@@ -75,6 +75,8 @@ impl Go2rtc {
 }
 
 async fn start<R: Runtime>(app: &AppHandle<R>, inner: &mut Inner) -> Result<u16, String> {
+    let pid_file = app_data_dir(app)?.join("go2rtc.pid");
+    kill_stale(&pid_file);
     let api_port = free_port()?;
     let config = write_config(app, api_port, &inner.streams)?;
     let (mut events, child) = app
@@ -84,6 +86,8 @@ async fn start<R: Runtime>(app: &AppHandle<R>, inner: &mut Inner) -> Result<u16,
         .args(["-config", &config.to_string_lossy()])
         .spawn()
         .map_err(|e| format!("could not start go2rtc: {e}"))?;
+    // If the app is killed rather than quit, go2rtc outlives it; the next start stops that one.
+    let _ = std::fs::write(&pid_file, child.pid().to_string());
     inner.generation += 1;
     let generation = inner.generation;
     inner.running = Some(Running { child, api_port, generation });
@@ -163,10 +167,46 @@ fn config_json(api_port: u16, streams: &BTreeMap<String, String>) -> serde_json:
     })
 }
 
-fn write_config<R: Runtime>(app: &AppHandle<R>, api_port: u16, streams: &BTreeMap<String, String>) -> Result<PathBuf, String> {
+fn app_data_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     std::fs::create_dir_all(&dir).map_err(|e| format!("could not create {}: {e}", dir.display()))?;
-    let path = dir.join("go2rtc.yaml");
+    Ok(dir)
+}
+
+/// Stops a go2rtc left running by an earlier app process, if the pid in `pid_file` is still a go2rtc.
+fn kill_stale(pid_file: &std::path::Path) {
+    let Some(pid) = std::fs::read_to_string(pid_file).ok().and_then(|s| s.trim().parse::<u32>().ok()) else {
+        return;
+    };
+    let _ = std::fs::remove_file(pid_file);
+    let pid = pid.to_string();
+    #[cfg(unix)]
+    {
+        let name = std::process::Command::new("ps").args(["-p", &pid, "-o", "comm="]).output();
+        if name.is_ok_and(|out| String::from_utf8_lossy(&out.stdout).contains("go2rtc")) {
+            let _ = std::process::Command::new("kill").arg(&pid).status();
+        }
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let filter = format!("PID eq {pid}");
+        let name = std::process::Command::new("tasklist")
+            .args(["/FI", &filter, "/NH"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+        if name.is_ok_and(|out| String::from_utf8_lossy(&out.stdout).contains("go2rtc")) {
+            let _ = std::process::Command::new("taskkill")
+                .args(["/PID", &pid, "/F"])
+                .creation_flags(CREATE_NO_WINDOW)
+                .status();
+        }
+    }
+}
+
+fn write_config<R: Runtime>(app: &AppHandle<R>, api_port: u16, streams: &BTreeMap<String, String>) -> Result<PathBuf, String> {
+    let path = app_data_dir(app)?.join("go2rtc.yaml");
     let json = serde_json::to_string_pretty(&config_json(api_port, streams)).map_err(|e| e.to_string())?;
     std::fs::write(&path, json).map_err(|e| format!("could not write {}: {e}", path.display()))?;
     Ok(path)
