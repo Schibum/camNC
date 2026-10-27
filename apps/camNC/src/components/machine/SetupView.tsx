@@ -17,8 +17,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@wbcnc/ui/c
 import { Input } from '@wbcnc/ui/components/input';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { cn } from '@wbcnc/ui/lib/utils';
-import { AlertTriangle, Check, ChevronRight, CirclePlay, FolderOpen, Home, LockOpen, Pencil } from 'lucide-react';
+import { AlertTriangle, Check, ChevronRight, CirclePlay, FolderOpen, Home, Pencil } from 'lucide-react';
 import { useState } from 'react';
+import { AlarmCard } from './AlarmCard';
 import { JogPanel, ProbePanel } from './controls';
 import { MacroButtons } from './macros';
 
@@ -35,28 +36,6 @@ export function Section({ title, action, children }: { title: string; action?: R
       </div>
       {children}
     </section>
-  );
-}
-
-function AlarmCard() {
-  'use no memo';
-  const api = getCncApi();
-  const alarm = api.alarm.value;
-  if (api.state.value !== 'Alarm') return null;
-  return (
-    <div className="rounded-md bg-red-600 text-white p-3 text-sm flex flex-col gap-2" role="alert">
-      <div>
-        <b>{alarm ? `ALARM:${alarm.code}` : 'Alarm'}</b> {alarm?.message ?? 'The machine is locked.'}
-      </div>
-      <div className="flex flex-row gap-2">
-        <Button size="sm" variant="secondary" onClick={() => report(api.home(), 'Homing')}>
-          <Home /> Home all
-        </Button>
-        <Button size="sm" variant="secondary" onClick={() => report(api.unlock(), 'Unlock')}>
-          <LockOpen /> Unlock
-        </Button>
-      </div>
-    </div>
   );
 }
 
@@ -221,12 +200,12 @@ function RunSection() {
 }
 
 /** Everything before a job: make the machine ready, load and place the job, zero, run. */
-export function SetupView({ onEditMacros }: { onEditMacros: () => void }) {
+export function SetupView({ onEditMacros, onShowConsole }: { onEditMacros: () => void; onShowConsole?: () => void }) {
   'use no memo';
   const connected = getCncApi().isConnected.value;
   return (
     <div className="flex flex-col gap-5">
-      <AlarmCard />
+      <AlarmCard onShowConsole={onShowConsole} />
       <MachineSection />
       <JobSection />
       {connected && (

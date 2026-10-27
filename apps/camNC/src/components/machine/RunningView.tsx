@@ -4,6 +4,7 @@ import { Button } from '@wbcnc/ui/components/button';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { Pause, Play, Square } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { AlarmCard } from './AlarmCard';
 import { OverridesPanel, PositionLine } from './controls';
 import { Section } from './SetupView';
 
@@ -27,7 +28,7 @@ function useTimeLeft(percent: number | undefined, startedAt: number | null) {
 }
 
 /** While a job runs: progress, pause/resume, stop and overrides. Jogging and zeroing are not possible now. */
-export function RunningView() {
+export function RunningView({ onShowConsole }: { onShowConsole?: () => void } = {}) {
   'use no memo';
   const api = getCncApi();
   const job = api.jobProgress.value;
@@ -38,6 +39,7 @@ export function RunningView() {
 
   return (
     <div className="flex flex-col gap-5">
+      <AlarmCard onShowConsole={onShowConsole} />
       <div className="flex flex-col gap-1.5">
         <div className="flex flex-row justify-between items-baseline gap-2">
           <span className="font-medium truncate" title={job?.file}>
