@@ -10,18 +10,15 @@ name = "camnc_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "=3.0.0-alpha.4", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
-tauri-plugin-shell = "2"
-tauri-plugin-websocket = "2"
-tauri-plugin-http = "2"
+tauri = { version = "=3.0.0-alpha.5", features = [] }
+# Chromium (CEF) instead of the system webview, so the app behaves like camNC in Chrome on every platform.
+tauri-runtime-cef = { version = "=3.0.0-alpha.6", features = ["devtools"] }
+tauri-plugin-shell = "=3.0.0-alpha.3"
+tauri-plugin-websocket = "=3.0.0-alpha.2"
+tauri-plugin-http = "=3.0.0-alpha.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["time", "net", "io-util", "sync"] }
-tauri-plugin-localhost = "2"
-
-# WebKitGTK ships with WebRTC switched off; the camera needs it.
-[target.'cfg(target_os = "linux")'.dependencies]
-webkit2gtk = { version = "2.0", features = ["v2_40"] }

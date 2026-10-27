@@ -46,11 +46,18 @@ const READY_TIMEOUT: Duration = Duration::from_secs(10);
 
 impl Go2rtc {
     /// Makes sure go2rtc runs and serves `url`, and returns where the web app connects to it.
-    pub async fn stream<R: Runtime>(&self, app: &AppHandle<R>, url: &str) -> Result<StreamInfo, String> {
+    pub async fn stream<R: Runtime>(
+        &self,
+        app: &AppHandle<R>,
+        url: &str,
+    ) -> Result<StreamInfo, String> {
         validate_source(url)?;
         let name = stream_name(url);
         let mut inner = self.inner.lock().await;
-        let is_new = inner.streams.insert(name.clone(), url.to_string()).is_none();
+        let is_new = inner
+            .streams
+            .insert(name.clone(), url.to_string())
+            .is_none();
 
         if is_new {
             if let Some(running) = inner.running.take() {
@@ -61,7 +68,10 @@ impl Go2rtc {
             Some(running) => running.api_port,
             None => start(app, &mut inner).await?,
         };
-        Ok(StreamInfo { host: format!("http://127.0.0.1:{api_port}"), src: name })
+        Ok(StreamInfo {
+            host: format!("http://127.0.0.1:{api_port}"),
+            src: name,
+        })
     }
 
     /// Stops go2rtc, e.g. when the app exits.
@@ -90,7 +100,11 @@ async fn start<R: Runtime>(app: &AppHandle<R>, inner: &mut Inner) -> Result<u16,
     let _ = std::fs::write(&pid_file, child.pid().to_string());
     inner.generation += 1;
     let generation = inner.generation;
-    inner.running = Some(Running { child, api_port, generation });
+    inner.running = Some(Running {
+        child,
+        api_port,
+        generation,
+    });
 
     let handle = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -104,7 +118,11 @@ async fn start<R: Runtime>(app: &AppHandle<R>, inner: &mut Inner) -> Result<u16,
                     // The next stream request starts it again with every stream from the config.
                     let state = handle.state::<Go2rtc>();
                     let mut inner = state.inner.lock().await;
-                    if inner.running.as_ref().is_some_and(|r| r.generation == generation) {
+                    if inner
+                        .running
+                        .as_ref()
+                        .is_some_and(|r| r.generation == generation)
+                    {
                         inner.running = None;
                     }
                     break;
@@ -123,7 +141,10 @@ fn validate_source(url: &str) -> Result<(), String> {
     let scheme = url.split_once("://").map(|(s, _)| s.to_ascii_lowercase());
     match scheme.as_deref() {
         Some("rtsp" | "rtsps" | "rtmp") => Ok(()),
-        _ => Err(format!("unsupported camera URL, expected rtsp://…: {}", redact(url))),
+        _ => Err(format!(
+            "unsupported camera URL, expected rtsp://…: {}",
+            redact(url)
+        )),
     }
 }
 
@@ -141,14 +162,20 @@ fn stream_name(url: &str) -> String {
 /// The URL with any `user:password@` removed, for error messages.
 fn redact(url: &str) -> String {
     match (url.find("://"), url.rfind('@')) {
-        (Some(scheme_end), Some(at)) if at > scheme_end => format!("{}***{}", &url[..scheme_end + 3], &url[at..]),
+        (Some(scheme_end), Some(at)) if at > scheme_end => {
+            format!("{}***{}", &url[..scheme_end + 3], &url[at..])
+        }
         _ => url.to_string(),
     }
 }
 
 fn free_port() -> Result<u16, String> {
-    let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| format!("no free port for go2rtc: {e}"))?;
-    listener.local_addr().map(|a| a.port()).map_err(|e| e.to_string())
+    let listener =
+        TcpListener::bind("127.0.0.1:0").map_err(|e| format!("no free port for go2rtc: {e}"))?;
+    listener
+        .local_addr()
+        .map(|a| a.port())
+        .map_err(|e| e.to_string())
 }
 
 /// go2rtc reads YAML, and JSON is valid YAML.
@@ -169,20 +196,26 @@ fn config_json(api_port: u16, streams: &BTreeMap<String, String>) -> serde_json:
 
 fn app_data_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    std::fs::create_dir_all(&dir).map_err(|e| format!("could not create {}: {e}", dir.display()))?;
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| format!("could not create {}: {e}", dir.display()))?;
     Ok(dir)
 }
 
 /// Stops a go2rtc left running by an earlier app process, if the pid in `pid_file` is still a go2rtc.
 fn kill_stale(pid_file: &std::path::Path) {
-    let Some(pid) = std::fs::read_to_string(pid_file).ok().and_then(|s| s.trim().parse::<u32>().ok()) else {
+    let Some(pid) = std::fs::read_to_string(pid_file)
+        .ok()
+        .and_then(|s| s.trim().parse::<u32>().ok())
+    else {
         return;
     };
     let _ = std::fs::remove_file(pid_file);
     let pid = pid.to_string();
     #[cfg(unix)]
     {
-        let name = std::process::Command::new("ps").args(["-p", &pid, "-o", "comm="]).output();
+        let name = std::process::Command::new("ps")
+            .args(["-p", &pid, "-o", "comm="])
+            .output();
         if name.is_ok_and(|out| String::from_utf8_lossy(&out.stdout).contains("go2rtc")) {
             let _ = std::process::Command::new("kill").arg(&pid).status();
         }
@@ -205,9 +238,14 @@ fn kill_stale(pid_file: &std::path::Path) {
     }
 }
 
-fn write_config<R: Runtime>(app: &AppHandle<R>, api_port: u16, streams: &BTreeMap<String, String>) -> Result<PathBuf, String> {
+fn write_config<R: Runtime>(
+    app: &AppHandle<R>,
+    api_port: u16,
+    streams: &BTreeMap<String, String>,
+) -> Result<PathBuf, String> {
     let path = app_data_dir(app)?.join("go2rtc.yaml");
-    let json = serde_json::to_string_pretty(&config_json(api_port, streams)).map_err(|e| e.to_string())?;
+    let json =
+        serde_json::to_string_pretty(&config_json(api_port, streams)).map_err(|e| e.to_string())?;
     std::fs::write(&path, json).map_err(|e| format!("could not write {}: {e}", path.display()))?;
     Ok(path)
 }
@@ -242,7 +280,10 @@ mod tests {
     fn stream_name_is_stable_and_hides_credentials() {
         let url = "rtsp://admin:secret@192.168.1.5/";
         assert_eq!(stream_name(url), stream_name(url));
-        assert_ne!(stream_name(url), stream_name("rtsp://admin:secret@192.168.1.6/"));
+        assert_ne!(
+            stream_name(url),
+            stream_name("rtsp://admin:secret@192.168.1.6/")
+        );
         assert!(!stream_name(url).contains("secret"));
     }
 

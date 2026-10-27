@@ -1,10 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "What the camNC frontend may do: the app's own page only (served on 127.0.0.1:41987 in builds, the vite dev server in development).",
-  "windows": [
-    "main"
-  ],
+  "description": "What the camNC frontend may do.",
+  "windows": ["main"],
   "permissions": [
     "core:default",
     "allow-go2rtc-stream",
@@ -35,11 +33,5 @@
         }
       ]
     }
-  ],
-  "remote": {
-    "urls": [
-      "http://127.0.0.1:41987/*",
-      "http://localhost:5173/*"
-    ]
-  }
+  ]
 }

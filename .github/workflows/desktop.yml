@@ -2,20 +2,20 @@ name: Desktop app
 permissions:
   contents: write
 
-# Builds the Tauri desktop app (apps/camnc-desktop) for macOS and Windows. Pull requests that touch it get unsigned
+# Builds the Tauri desktop app (apps/camnc-desktop) for macOS (Apple silicon) and Windows. Pull requests that touch it get unsigned
 # build artifacts; a `desktop-v*` tag creates a draft GitHub release with the installers.
 on:
   workflow_dispatch:
   push:
     tags:
-      - "desktop-v*"
+      - 'desktop-v*'
   pull_request:
     branches:
       - main
     paths:
-      - "apps/camnc-desktop/**"
-      - "apps/camNC/src/lib/desktop/**"
-      - ".github/workflows/desktop.yml"
+      - 'apps/camnc-desktop/**'
+      - 'apps/camNC/src/lib/desktop/**'
+      - '.github/workflows/desktop.yml'
 
 jobs:
   build:
@@ -24,11 +24,11 @@ jobs:
       matrix:
         include:
           - platform: macos-latest
-            target: universal-apple-darwin
-            args: --target universal-apple-darwin
+            target: aarch64-apple-darwin
+            args: ''
           - platform: windows-latest
             target: x86_64-pc-windows-msvc
-            args: ""
+            args: ''
     name: Build (${{ matrix.target }})
     runs-on: ${{ matrix.platform }}
     steps:
@@ -39,13 +39,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-          cache: "pnpm"
+          cache: 'pnpm'
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target == 'universal-apple-darwin' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: apps/camnc-desktop/src-tauri -> target
+      # CEF's C++ wrapper is built with CMake and Ninja.
+      - uses: seanmiddleditch/gha-setup-ninja@v5
+      # The CEF binary distribution (~1 GB) the build downloads.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/tauri-cef
+            ~\AppData\Local\tauri-cef
+          key: tauri-cef-${{ matrix.target }}-${{ hashFiles('apps/camnc-desktop/src-tauri/Cargo.lock') }}
+          restore-keys: tauri-cef-${{ matrix.target }}-
       - run: pnpm install --frozen-lockfile
       - name: Download go2rtc
         run: node apps/camnc-desktop/scripts/fetch-go2rtc.mjs ${{ matrix.target }}

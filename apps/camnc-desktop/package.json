@@ -9,6 +9,6 @@
     "desktop:build": "node scripts/fetch-go2rtc.mjs && tauri build"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.12.4"
+    "@tauri-apps/cli": "3.0.0-alpha.5"
   }
 }
