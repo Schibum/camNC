@@ -129,6 +129,10 @@ export async function runSetupSmoke(
 
   try {
     await page.goto(target.href);
+    // A first visit lands on Get started, which works without a camera; the camera setup is one link away.
+    await page.getByRole('link', { name: 'Set it up now', exact: true }).click();
+    await page.waitForURL('**/setup/url-entry');
+    check('first visit opens Get started, with a link to the camera setup');
     await page.getByRole('tab', { name: 'Webcam', exact: true }).click();
     await page.getByRole('textbox', { name: 'Name of camera/machine setup' }).fill('Setup smoke camera');
     await page.getByText('camNC smoke camera', { exact: true }).waitFor();

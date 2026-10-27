@@ -44,6 +44,7 @@ export interface ICamSource {
   maxResolution: ITuple;
   // Technically machine is independent of source, but multiple cams per machine
   // seems rare enough that we'll store it here for now.
+  /** @deprecated Machine bounds belong to the machine, see `machineBounds` in the store. Still written for older builds. */
   machineBounds?: Box2;
   // Position of markers in camera coordinates.
   markerPosInCam?: Vector2[];
@@ -99,6 +100,8 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
     // new, should probably go into a backend instead at some point
     camSources: {} as Record<string, ICamSource>,
     activeCamId: null as string | null,
+    /** Usable XY area of the machine in machine coordinates. Known without a camera, e.g. read from FluidNC. */
+    machineBounds: null as Box2 | null,
 
     toolDiameter: 3.0, // Default tool diameter in mm
     toolpath: null as ParsedToolpath | null,
@@ -138,6 +141,13 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
   (set) => ({
     setToolpathOffset: (offset: Vector3) => set(state => {
       state.toolpathOffset = offset;
+    }),
+    /** Sets the machine bounds, also on the active camera so that builds that keep them there still find them. */
+    setMachineBounds: (xmin: number, ymin: number, xmax: number, ymax: number) => set(state => {
+      const bounds = new Box2(new Vector2(xmin, ymin), new Vector2(xmax, ymax));
+      state.machineBounds = bounds;
+      const cam = state.activeCamId ? state.camSources[state.activeCamId] : undefined;
+      if (cam) cam.machineBounds = bounds.clone();
     }),
     setShowStillFrame: (show: boolean) => set(state => {
       state.showStillFrame = show;
@@ -193,22 +203,6 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
             : undefined;
           if (!cam) throw new Error('configure source first');
           cam.extrinsics = extrinsics;
-        }),
-      setMachineBounds: (
-        xmin: number,
-        ymin: number,
-        xmax: number,
-        ymax: number
-      ) =>
-        set(state => {
-          const cam = state.activeCamId
-            ? state.camSources[state.activeCamId]
-            : undefined;
-          if (!cam) throw new Error('configure source first');
-          cam.machineBounds = new Box2(
-            new Vector2(xmin, ymin),
-            new Vector2(xmax, ymax)
-          );
         }),
       setMarkerPosInCam: (points: Vector2[]) =>
         set(state => {
@@ -335,6 +329,7 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
     toolDiameter: state.toolDiameter,
     camSources: state.camSources,
     activeCamId: state.activeCamId,
+    machineBounds: state.machineBounds,
     machine: state.machine,
     macros: state.macros,
     machinePrefs: state.machinePrefs,
@@ -377,10 +372,30 @@ export const useSetToolpathOpacity = () => useStore(state => state.setToolpathOp
 export const useSetIsToolpathDragging = () => useStore(state => state.setIsToolpathDragging);
 export const useIsToolpathHovered = () => useStore(state => state.isToolpathHovered || state.isToolpathDragging);
 
+type StoreState = ReturnType<typeof useStore.getState>;
+
+/** The machine bounds, falling back to those of the active camera from settings saved before they moved to the machine. */
+export function selectMachineBounds(state: Pick<StoreState, 'machineBounds' | 'camSources' | 'activeCamId'>): Box2 | null {
+  return state.machineBounds ?? (state.activeCamId ? state.camSources[state.activeCamId]?.machineBounds : undefined) ?? null;
+}
+
+export function getMachineBounds() {
+  return selectMachineBounds(useStore.getState());
+}
+
+/** The machine bounds, or `null` while they are not set up. */
+export const useMachineBoundsOrNull = () => useStore(selectMachineBounds);
+
+/** Whether the active camera is set up far enough to map its video onto the machine. */
+export function isCameraReady(camSource: ICamSource | null | undefined) {
+  return !!camSource?.url && !!camSource.calibration && !!camSource.extrinsics;
+}
+
+export const useIsCameraReady = () => useStore(state => isCameraReady(state.activeCamId ? state.camSources[state.activeCamId] : null));
+
 /** The usable machine area in machine coordinates (mm). Bounds may be negative, e.g. when homing in positive direction with mpos 0. */
 export function useMachineBounds(): Box2 {
-  const camSource = useCamSource();
-  const bounds = camSource?.machineBounds;
+  const bounds = useMachineBoundsOrNull();
   if (!bounds) {
     throw new Error('Machine bounds not set');
   }

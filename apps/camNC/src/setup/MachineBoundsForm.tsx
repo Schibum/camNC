@@ -1,6 +1,6 @@
 import { getFluidSettingsBounds } from '@/lib/fluidnc/fluidnc-settings';
 import { getCncApi } from '@/lib/fluidnc/machine';
-import { useCamSource, useStore } from '@/store/store';
+import { useMachineBoundsOrNull, useStore } from '@/store/store';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@wbcnc/ui/components/button';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@wbcnc/ui/components/form';
@@ -50,12 +50,25 @@ const schema = z
     path: ['ymax'],
   });
 
-export function MachineBoundsForm({ onConfirmed }: { onConfirmed: () => void }) {
-  const camSource = useCamSource();
-  const bounds = camSource?.machineBounds;
-  const setMachineBounds = useStore(state => state.camSourceSetters.setMachineBounds);
+export type MachineBoundsValues = z.infer<typeof schema>;
+
+export function MachineBoundsForm({
+  onConfirmed,
+  initial,
+  submitLabel = 'Confirm',
+  showReadButton = true,
+}: {
+  onConfirmed: () => void;
+  /** Values to start from instead of the saved bounds, e.g. read from the controller. */
+  initial?: MachineBoundsValues;
+  submitLabel?: string;
+  /** Offer reading the bounds from the connected controller. */
+  showReadButton?: boolean;
+}) {
+  const bounds = useMachineBoundsOrNull();
+  const setMachineBounds = useStore(state => state.setMachineBounds);
   const form = useForm({
-    defaultValues: {
+    defaultValues: initial ?? {
       xmin: bounds?.min.x ?? 6,
       xmax: bounds?.max.x ?? 600,
       ymin: bounds?.min.y ?? 6,
@@ -129,8 +142,8 @@ export function MachineBoundsForm({ onConfirmed }: { onConfirmed: () => void }) 
           />
         </div>
         <div className="flex gap-2">
-          <UseFluidNcSettingsButton />
-          <Button type="submit">Confirm</Button>
+          {showReadButton && <UseFluidNcSettingsButton />}
+          <Button type="submit">{submitLabel}</Button>
         </div>
       </form>
     </Form>

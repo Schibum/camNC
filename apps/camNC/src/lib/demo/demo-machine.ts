@@ -1,5 +1,6 @@
 import { setSimulatedMachine } from '@/lib/fluidnc/machine';
 import { DemoFluidnc } from '@wbcnc/fluidnc/demo';
+import { isDemoWithoutCamera } from './demo-mode';
 import { applyDemoPreset } from './demo-preset';
 
 let demo: DemoFluidnc | null = null;
@@ -17,5 +18,5 @@ export function startDemo() {
   if (demo) return;
   demo = new DemoFluidnc();
   setSimulatedMachine({ WebSocket: demo.WebSocket, fetch: demo.fetch });
-  applyDemoPreset();
+  applyDemoPreset(location.origin, { camera: !isDemoWithoutCamera() });
 }

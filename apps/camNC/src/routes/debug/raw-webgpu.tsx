@@ -2,7 +2,7 @@ import { PageHeader } from '@/components/page-header';
 import { RemapStepParams } from '@/depth/remapPipeline';
 import type { Config, VideoPipelineWorkerAPI } from '@/depth/videoPipeline.worker';
 import { useAutoScanMarkers } from '@/hooks/useAutoScanMarkers';
-import { useCalibrationData, useCameraExtrinsics, useCamResolution, useCamSource, useVideoUrl } from '@/store/store';
+import { useCalibrationData, useCameraExtrinsics, useCamResolution, useMachineBoundsOrNull, useVideoUrl } from '@/store/store';
 import { createFileRoute } from '@tanstack/react-router';
 import { useVideoSource } from '@wbcnc/go2webrtc/use-video-source';
 import { createVideoStreamProcessor, registerThreeJsTransferHandlers } from '@wbcnc/video-worker-utils';
@@ -22,8 +22,7 @@ function RawWebGPURoute() {
   const calibration = useCalibrationData();
   const camRes = useCamResolution();
   const { R, t } = useCameraExtrinsics();
-  const camSource = useCamSource();
-  const bounds = camSource?.machineBounds ?? new Box2();
+  const bounds = useMachineBoundsOrNull() ?? new Box2();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [displaySize, setDisplaySize] = useState<[number, number]>([1024, 1024]);

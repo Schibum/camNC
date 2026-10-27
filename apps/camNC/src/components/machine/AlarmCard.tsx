@@ -1,6 +1,6 @@
 import { getCncApi } from '@/lib/fluidnc/machine';
 import { explainAlarm, kUnknownAlarmHelp, TravelBounds } from '@/lib/machine/alarms';
-import { useCamSource } from '@/store/store';
+import { useMachineBoundsOrNull } from '@/store/store';
 import { Button } from '@wbcnc/ui/components/button';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { Home, LockOpen } from 'lucide-react';
@@ -18,13 +18,12 @@ const fmt = (n: number) => n.toFixed(2);
 export function AlarmCard({ onShowConsole }: { onShowConsole?: () => void }) {
   'use no memo';
   const api = getCncApi();
-  const camSource = useCamSource();
+  const bounds = useMachineBoundsOrNull();
   // Status reports can show the alarm while (re)connecting, before commands are accepted.
   const connected = api.isConnected.value;
   const lastAlarm = api.lastAlarm.value;
   if (api.state.value !== 'Alarm') return null;
 
-  const bounds = camSource?.machineBounds;
   const travel: TravelBounds = bounds ? { X: { min: bounds.min.x, max: bounds.max.x }, Y: { min: bounds.min.y, max: bounds.max.y } } : {};
   // Only an alarm the controller has not left since is the current one.
   const known = lastAlarm && !lastAlarm.cleared ? lastAlarm : null;

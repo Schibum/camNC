@@ -5,12 +5,12 @@ import React, { Suspense, useEffect, useMemo, useRef } from 'react';
 import { Matrix4, Object3D, Vector2, Vector3 } from 'three';
 import { Line2, LineGeometry, LineMaterial } from 'three/addons';
 import {
-  useCamSource,
   useIsToolpathHovered,
   useSetIsToolpathDragging,
   useStore,
   useToolDiameter,
   useToolpathOpacity,
+  useMachineBounds,
 } from '../store/store';
 import { LineAxesHelper } from './LineAxesHelper';
 import { ToolpathCanvasPlane } from './ToolpathCanvasPlane';
@@ -126,8 +126,7 @@ function ToolpathBackgroundPlane() {
 }
 
 function UseableMachineSpaceOutline() {
-  const machineBounds = useCamSource()?.machineBounds;
-  if (!machineBounds) throw new Error('No machine bounds found');
+  const machineBounds = useMachineBounds();
   const corners = useMemo(() => {
     return [
       [machineBounds.min.x, machineBounds.min.y],

@@ -5,10 +5,12 @@ import { BoundsInfo } from './BoundsInfo';
 import { getTimeAgoLocale } from './timeAgoLocale';
 
 const pnpResult = vi.hoisted(() => ({ lastPnPTime: Date.now() - 120_000, lastReprojectionError: 0.2 }));
+const camera = vi.hoisted(() => ({ ready: true }));
 
 vi.mock('@/store/store', () => ({
   useStore: (selector: (state: { toolpath: undefined }) => unknown) => selector({ toolpath: undefined }),
   usePnPResult: () => pnpResult,
+  useIsCameraReady: () => camera.ready,
 }));
 vi.mock('@tanstack/react-router', () => ({
   ClientOnly: ({ children }: { children: ReactNode }) => children,
@@ -17,6 +19,7 @@ vi.mock('./RecomputePnpButton', () => ({ RecomputePnpButton: () => null }));
 
 afterEach(() => {
   cleanup();
+  camera.ready = true;
   vi.restoreAllMocks();
 });
 
@@ -48,5 +51,14 @@ describe('BoundsInfo relative time', () => {
     expect(container.querySelector('time')?.textContent).toBe(
       new Intl.RelativeTimeFormat(expectedLocale, { numeric: 'auto', style: 'long' }).format(-2, 'minute')
     );
+  });
+});
+
+describe('BoundsInfo without a camera', () => {
+  it('leaves out the camera pose, e.g. one saved before the camera was removed', () => {
+    camera.ready = false;
+    const { container } = render(<BoundsInfo />);
+    expect(container.textContent).not.toContain('PnP');
+    expect(container.textContent).toContain('No toolpath loaded');
   });
 });

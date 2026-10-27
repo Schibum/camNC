@@ -1,6 +1,6 @@
 import { MachineConnectionForm } from '@/components/machine/MachineConnectionForm';
 import { PageHeader } from '@/components/page-header';
-import { ICamSource, useCamSource } from '@/store/store';
+import { ICamSource, isCameraReady, useCamSource, useMachineBoundsOrNull } from '@/store/store';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { Button } from '@wbcnc/ui/components/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@wbcnc/ui/components/card';
@@ -10,16 +10,18 @@ export const Route = createFileRoute('/setup/fluidnc')({
 });
 
 /**
- * Whether the camera needs none of the setup steps after this one: the same chain the route guards check
- * (calibration → machine bounds → marker positions → camera pose).
+ * The next setup step after connecting: the machine bounds when unknown, the rest of a camera setup in progress
+ * (marker positions → camera pose), or straight to the top view, which works without a camera.
  */
-function isCameraSetupComplete(camSource: ICamSource | null) {
-  return !!camSource?.calibration && !!camSource.machineBounds && !!camSource.markerPositions && !!camSource.extrinsics;
+function nextStep(camSource: ICamSource | null, hasBounds: boolean) {
+  if (!hasBounds) return '/setup/machine-bounds' as const;
+  if (camSource?.calibration && !isCameraReady(camSource)) return '/setup/marker-positions' as const;
+  return '/visualize/2DView' as const;
 }
 
 function RouteComponent() {
   const navigate = useNavigate();
-  const setupComplete = isCameraSetupComplete(useCamSource());
+  const next = nextStep(useCamSource(), !!useMachineBoundsOrNull());
   return (
     <div className="w-full h-full">
       <PageHeader title="Machine" />
@@ -36,10 +38,8 @@ function RouteComponent() {
             <div className="flex flex-col gap-4">
               <MachineConnectionForm />
               <div className="flex flex-row gap-2 justify-end">
-                {/* Connecting a machine to an already set up camera should not walk through the whole setup again. */}
-                <Button onClick={() => navigate({ to: setupComplete ? '/visualize/2DView' : '/setup/machine-bounds' })}>
-                  {setupComplete ? 'Continue to top view' : 'Continue'}
-                </Button>
+                {/* Connecting a machine should not walk through steps that are already done. */}
+                <Button onClick={() => navigate({ to: next })}>{next === '/visualize/2DView' ? 'Continue to top view' : 'Continue'}</Button>
               </div>
             </div>
           </CardContent>

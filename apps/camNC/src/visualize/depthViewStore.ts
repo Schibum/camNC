@@ -1,4 +1,4 @@
-import { useCamSource, useStore } from '@/store/store';
+import { useStore, useIsCameraReady } from '@/store/store';
 import { Vector3 } from 'three';
 import { create } from 'zustand';
 import { guessZeroAt, ZeroAt } from './depthInspection';
@@ -53,9 +53,9 @@ export function useHoverInfo(toolpath: ParsedToolpath | null | undefined) {
 
 /** Whether the live camera image can and should be shown on the stock top in the 3D views. */
 export function useShowStockVideo() {
-  const camSource = useCamSource();
+  const cameraReady = useIsCameraReady();
   const videoEnabled = useDepthView(s => s.videoEnabled);
-  return !!camSource?.extrinsics && !!camSource.machineBounds && videoEnabled;
+  return cameraReady && videoEnabled;
 }
 
 /**

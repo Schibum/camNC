@@ -12,6 +12,7 @@ import {
   useSetDepthBlendInitializing,
   useSetMaskTexture,
   useVideoUrl,
+  useMachineBoundsOrNull,
 } from '@/store/store';
 import { useVideoSource } from '@wbcnc/go2webrtc/use-video-source';
 import { toast } from '@wbcnc/ui/components/sonner';
@@ -57,10 +58,10 @@ export function useDepthBlendWorker() {
   const camRes = useCamResolution();
   const { R, t } = useCameraExtrinsics();
   const camSource = useCamSource();
-  if (!camSource || !camSource.machineBounds) {
+  const bounds = useMachineBoundsOrNull();
+  if (!camSource || !bounds) {
     throw new Error('No camera source found');
   }
-  const bounds = camSource.machineBounds!;
 
   const depthSettings = useDepthSettings();
 

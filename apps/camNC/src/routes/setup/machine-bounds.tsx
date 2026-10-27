@@ -1,19 +1,21 @@
-import { EnsureHasCamSource } from '@/components/EnsureHasCamSource';
 import { PageHeader } from '@/components/page-header';
+import { isCameraReady, useStore } from '@/store/store';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '@wbcnc/ui/components/card';
 import { MachineBoundsForm } from '../../setup/MachineBoundsForm';
 
 export const Route = createFileRoute('/setup/machine-bounds')({
-  component: () => (
-    <EnsureHasCamSource to="/setup/camera-calibration" predicate={s => !!s.calibration}>
-      <RouteComponent />
-    </EnsureHasCamSource>
-  ),
+  // The bounds belong to the machine, so they can be set up without a camera.
+  component: RouteComponent,
 });
 
 function RouteComponent() {
   const navigate = useNavigate();
+  // A camera that is being set up continues with its markers, otherwise the bed is ready to use.
+  const cameraInSetup = useStore(s => {
+    const cam = s.activeCamId ? s.camSources[s.activeCamId] : null;
+    return !!cam?.calibration && !isCameraReady(cam);
+  });
   return (
     <div className="w-full h-full">
       <PageHeader title="Machine Bounds" />
@@ -25,7 +27,7 @@ function RouteComponent() {
           <CardContent>
             <MachineBoundsForm
               onConfirmed={() => {
-                navigate({ to: '/setup/marker-positions' });
+                navigate({ to: cameraInSetup ? '/setup/marker-positions' : '/visualize/2DView' });
               }}
             />
           </CardContent>

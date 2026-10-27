@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setSettingsAuth, fetchUserSettings, saveUserSettings } from '@/lib/settings-sync/settings-api';
 import { createStorage } from '@/store/store-storage';
-import { getActiveCamSource, useStore } from '@/store/store';
+import { getActiveCamSource, getMachineBounds, useStore } from '@/store/store';
 import { isDemoMode, setDemoModeForTest } from './demo-mode';
 import { applyDemoPreset, kDemoMachineHost } from './demo-preset';
 
@@ -70,5 +70,13 @@ describe('demo preset', () => {
     expect(state.toolDiameter).toBe(6);
     const bounds = state.toolpath!.getBounds();
     expect(bounds.max.x - bounds.min.x).toBeGreaterThan(190);
+  });
+
+  it('leaves out the camera for the camera-free demo, keeping the machine bounds', () => {
+    applyDemoPreset('https://example.test', { camera: false });
+    expect(getActiveCamSource()).toBeNull();
+    expect(useStore.getState().camSources).toEqual({});
+    expect(getMachineBounds()?.max.toArray()).toEqual([621, 1241]);
+    expect(useStore.getState().machine?.host).toBe(kDemoMachineHost);
   });
 });
