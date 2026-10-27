@@ -82,10 +82,16 @@ describe('ChunkedMessagePort', () => {
     const { a, b } = createPeers();
 
     const seen: string[] = [];
-    b.onmessage = e => seen.push(e.data as string);
+    // Each message crosses two MessageChannel hops, so wait for all of them instead of a fixed delay.
+    const done = new Promise<void>(res => {
+      b.onmessage = e => {
+        seen.push(e.data as string);
+        if (seen.length === 3) res();
+      };
+    });
     ['first', 'second', 'third'].forEach(msg => a.postMessage(msg));
 
-    await new Promise(res => setTimeout(res, 10));
+    await done;
     expect(seen).toEqual(['first', 'second', 'third']);
   });
 
