@@ -1,10 +1,12 @@
 import { Hint } from '@/components/Hint';
+import { isDesktopApp } from '@/lib/desktop/is-desktop';
 import {
   buildConnectionUrl,
   genRandomWebrtc,
   Go2rtcConnectionParams,
   parseConnectionString,
   RtcConnectionParams,
+  RtspConnectionParams,
   WebcamConnectionParams,
   WebrtcConnectionParams,
   WebtorrentConnectionParams,
@@ -18,6 +20,7 @@ import { ConnectDialog } from './ConnectDialog';
 import { Go2RtcLocalTab } from './Go2RtcLocalTab';
 import { Go2RtcWebtorrentTab } from './Go2RtcWebtorrentTab';
 import { PhoneTab } from './PhoneTab';
+import { RtspTab } from './RtspTab';
 import { UrlTab } from './UrlTab';
 import { WebcamTab } from './WebcamTab';
 
@@ -51,7 +54,7 @@ export function VideoSourceSelection({
     return undefined;
   }, [value]);
 
-  const [sourceType, setSourceType] = useState<string>(defaults?.type || 'webrtc');
+  const [sourceType, setSourceType] = useState<string>(defaults?.type || (isDesktopApp() ? 'rtsp' : 'webrtc'));
   const [connectParams, setConnectParams] = useState<RtcConnectionParams | null>(null);
   const [name, setName] = useState<string>(defaultName);
   function onSubmit(params: RtcConnectionParams, maxResolution: VideoDimensions) {
@@ -73,6 +76,7 @@ export function VideoSourceSelection({
   );
   const webcamDefaults: WebcamConnectionParams =
     defaults?.type === 'webcam' ? defaults : { type: 'webcam' as const, deviceId: '', idealWidth: 4096, idealHeight: 2160 };
+  const rtspDefaults: RtspConnectionParams = defaults?.type === 'rtsp' ? defaults : { type: 'rtsp' as const, url: '' };
   const go2rtcDefaults: Go2rtcConnectionParams =
     defaults?.type === 'go2rtc' ? defaults : { type: 'go2rtc' as const, host: 'localhost:1984', src: 'camera1' };
 
@@ -99,15 +103,21 @@ export function VideoSourceSelection({
             className="text-blue-500 hover:underline mx-1">
             (mount)
           </a>
-          , but it requires running
-          <a
-            href="https://github.com/AlexxIT/go2rtc"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-500 hover:underline mx-1">
-            go2rtc
-          </a>
-          as a gateway, e.g. on a Raspberry&nbsp;Pi&nbsp;Zero.
+          {isDesktopApp() ? (
+            <>, and the desktop app connects to it directly under Network camera.</>
+          ) : (
+            <>
+              , but it requires running
+              <a
+                href="https://github.com/AlexxIT/go2rtc"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-500 hover:underline mx-1">
+                go2rtc
+              </a>
+              as a gateway, e.g. on a Raspberry&nbsp;Pi&nbsp;Zero.
+            </>
+          )}
         </p>
         <p className="mb-1">
           <strong>Note:</strong> Prefer the local go2rtc version when possible, since it has lower connection latency and does not depend on
@@ -120,6 +130,11 @@ export function VideoSourceSelection({
       </Form>
       <Tabs className="w-full" value={sourceType} onValueChange={setSourceType}>
         <TabsList className="w-full">
+          {isDesktopApp() && (
+            <TabsTrigger value="rtsp" className="flex-auto whitespace-normal">
+              Network camera
+            </TabsTrigger>
+          )}
           <TabsTrigger value="webcam" className="flex-auto whitespace-normal">
             Webcam
           </TabsTrigger>
@@ -136,6 +151,11 @@ export function VideoSourceSelection({
             URL
           </TabsTrigger>
         </TabsList>
+        {isDesktopApp() && (
+          <TabsContent value="rtsp">
+            <RtspTab defaults={rtspDefaults} onConnect={onConnect} />
+          </TabsContent>
+        )}
         <TabsContent value="webcam">
           <WebcamTab defaults={webcamDefaults} onSubmit={onSubmit} />
         </TabsContent>

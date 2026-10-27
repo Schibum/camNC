@@ -1,4 +1,5 @@
 import { isDemoMode } from '@/lib/demo/demo-mode';
+import { isDesktopApp } from '@/lib/desktop/is-desktop';
 import { normalizeHost } from '@wbcnc/fluidnc';
 
 /** First Chrome/Edge version that applies Local Network Access to WebSockets (and lifts mixed content for them). */
@@ -34,8 +35,8 @@ export function machineSupport(
   nav: Navigator & { userAgentData?: { brands?: UADataBrand[] } } = navigator,
   protocol = location.protocol
 ): MachineSupport {
-  // The demo machine is simulated in the page, so it works in every browser.
-  if (isDemoMode() || protocol === 'http:') return { supported: true };
+  // The demo machine is simulated in the page, so it works in every browser. The desktop app connects from Rust.
+  if (isDemoMode() || isDesktopApp() || protocol === 'http:') return { supported: true };
   const version = chromiumVersion(nav);
   if (version === null) return { supported: false, reason: 'Machine control needs Chrome or Edge (version 147 or later).' };
   if (version < kMinChromeVersion) {
@@ -72,7 +73,7 @@ function hostname(input: string) {
  * Returns why the host cannot be used, or `null` when it can.
  */
 export function hostBlockedReason(input: string, protocol = location.protocol): string | null {
-  if (protocol !== 'https:' || isDemoMode()) return null;
+  if (protocol !== 'https:' || isDemoMode() || isDesktopApp()) return null;
   const host = hostname(input);
   if (!host) return null;
   if (host === 'localhost' || host.endsWith('.local') || isPrivateIpv4(host) || isPrivateIpv6(host)) return null;

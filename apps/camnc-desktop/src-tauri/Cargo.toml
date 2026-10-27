@@ -1,0 +1,26 @@
+[package]
+name = "camnc-desktop"
+version = "0.1.0"
+description = "camNC desktop app: the camNC web app with direct access to RTSP cameras and the machine controller"
+edition = "2021"
+license = "Apache-2.0"
+
+[lib]
+name = "camnc_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+tauri-plugin-websocket = "2"
+tauri-plugin-http = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["time", "net", "io-util", "sync"] }
+
+# WebKitGTK ships with WebRTC switched off; the camera needs it.
+[target.'cfg(target_os = "linux")'.dependencies]
+webkit2gtk = { version = "2.0", features = ["v2_40"] }

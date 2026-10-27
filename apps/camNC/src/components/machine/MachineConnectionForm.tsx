@@ -1,3 +1,4 @@
+import { isDesktopApp } from '@/lib/desktop/is-desktop';
 import { ConnectionState } from '@/lib/fluidnc/cnc-api';
 import { getCncApi } from '@/lib/fluidnc/machine';
 import { hostBlockedReason, machineSupport } from '@/lib/fluidnc/machine-support';
@@ -100,10 +101,14 @@ export function MachineConnectionForm() {
               {blocked}
             </p>
           )}
-          <p className="text-xs text-muted-foreground">
-            Use the IP address. Chrome blocks router names like <code>fluidnc.fritz.box</code> from the HTTPS app, and <code>.local</code>{' '}
-            names do not resolve reliably on Android and Windows. Chrome will ask to allow access to devices on your local network.
-          </p>
+          {isDesktopApp() ? (
+            <p className="text-xs text-muted-foreground">The controller&apos;s IP address or network name, e.g. 192.168.1.20.</p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Use the IP address. Chrome blocks router names like <code>fluidnc.fritz.box</code> from the HTTPS app, and <code>.local</code>{' '}
+              names do not resolve reliably on Android and Windows. Chrome will ask to allow access to devices on your local network.
+            </p>
+          )}
         </div>
         <div className="flex flex-row gap-2 items-center text-sm">
           <ConnectionBadge />
