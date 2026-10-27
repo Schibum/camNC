@@ -1,11 +1,13 @@
 import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react';
 import { SidebarFooter, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@wbcnc/ui/components/sidebar';
 import { isDemoMode } from '@/lib/demo/demo-mode';
+import { isDesktopApp } from '@/lib/desktop/is-desktop';
 import { LogIn } from 'lucide-react';
 
 export function SidebarAuthStatus() {
-  // Signing in would not carry over to the real app, which only syncs outside the demo.
-  if (isDemoMode()) return null;
+  // Signing in would not carry over to the real app, which only syncs outside the demo. The desktop app has no
+  // sign-in (no Clerk) and keeps its settings on this computer.
+  if (isDemoMode() || isDesktopApp()) return null;
   return (
     <SidebarFooter className="mt-auto">
       <SidebarMenu>

@@ -29,6 +29,12 @@ describe('url-helpers', () => {
         src: 'camera1',
       });
     });
+    it('should parse rtsp urls', () => {
+      const url = 'rtsp://admin:p%24ss@192.168.1.20:554/h264Preview_01_main';
+      expect(parseConnectionString(url)).toEqual({ type: 'rtsp', url });
+      expect(buildConnectionUrl(parseConnectionString(url))).toBe(url);
+      expect(parseConnectionString('rtsps://cam.local/stream')).toEqual({ type: 'rtsp', url: 'rtsps://cam.local/stream' });
+    });
     it('should parse webcam urls', () => {
       const url = 'webcam:?deviceId=123';
 

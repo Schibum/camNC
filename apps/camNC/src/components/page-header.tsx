@@ -4,6 +4,7 @@ import { Separator } from '@radix-ui/react-separator';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage } from '@wbcnc/ui/components/breadcrumb';
 import { SidebarTrigger } from '@wbcnc/ui/components/sidebar';
 import { isDemoMode } from '@/lib/demo/demo-mode';
+import { isDesktopApp } from '@/lib/desktop/is-desktop';
 import { cn } from '@wbcnc/ui/lib/utils';
 
 export function PageHeader({ title, className, children }: { title: string; className?: string; children?: React.ReactNode }) {
@@ -25,26 +26,33 @@ export function PageHeader({ title, className, children }: { title: string; clas
         </Breadcrumb>
       </div>
       {children}
-      <div className="ml-auto mr-2 flex items-center">
-        <SignedIn>
-          <UserButton
-            appearance={{
-              elements: {
-                userButtonAvatarBox: { height: '1.5rem', width: '1.5rem' },
-              },
-            }}
-          />
-        </SignedIn>
-        <SignedOut>
-          {!isDemoMode() && (
-            <SignInButton mode="modal" forceRedirectUrl="/">
-              <Button variant="light" size="sm">
-                Sign in
-              </Button>
-            </SignInButton>
-          )}
-        </SignedOut>
-      </div>
+      {/* The desktop app has no sign-in (no Clerk). */}
+      {!isDesktopApp() && <AccountButtons />}
     </header>
+  );
+}
+
+function AccountButtons() {
+  return (
+    <div className="ml-auto mr-2 flex items-center">
+      <SignedIn>
+        <UserButton
+          appearance={{
+            elements: {
+              userButtonAvatarBox: { height: '1.5rem', width: '1.5rem' },
+            },
+          }}
+        />
+      </SignedIn>
+      <SignedOut>
+        {!isDemoMode() && (
+          <SignInButton mode="modal" forceRedirectUrl="/">
+            <Button variant="light" size="sm">
+              Sign in
+            </Button>
+          </SignInButton>
+        )}
+      </SignedOut>
+    </div>
   );
 }

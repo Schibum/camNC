@@ -1,6 +1,7 @@
 import { connect as connectTorrent } from './client';
 import { createClient } from './trystero';
 import { connectGo2RtcWs } from './go2rtc-ws';
+import { getRtspGateway } from './rtsp-gateway';
 
 import {
   RtcConnectionParams,
@@ -9,6 +10,7 @@ import {
   WebrtcConnectionParams,
   WebtorrentConnectionParams,
   Go2rtcConnectionParams,
+  RtspConnectionParams,
   parseConnectionString,
 } from './url-helpers';
 
@@ -87,11 +89,13 @@ function webrtcVideoSource(params: WebrtcConnectionParams): VideoSource {
   };
 }
 
-function go2rtcVideoSource(params: Go2rtcConnectionParams): VideoSource {
-  const connectPromise = connectGo2RtcWs({
-    host: params.host,
-    src: params.src,
-  });
+function go2rtcVideoSource(params: Go2rtcConnectionParams | RtspConnectionParams): VideoSource {
+  const connectPromise =
+    params.type === 'rtsp'
+      ? Promise.resolve()
+          .then(() => getRtspGateway()(params.url))
+          .then(connectGo2RtcWs)
+      : connectGo2RtcWs({ host: params.host, src: params.src });
 
   async function dispose() {
     try {
@@ -167,6 +171,7 @@ export function videoSource(url: string): VideoSource {
     case 'webrtc':
       return webrtcVideoSource(rtcParams);
     case 'go2rtc':
+    case 'rtsp':
       return go2rtcVideoSource(rtcParams);
     case 'url':
       return urlVideoSource(rtcParams);

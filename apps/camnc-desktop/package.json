@@ -1,0 +1,14 @@
+{
+  "name": "@wbcnc/camnc-desktop",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "tauri": "tauri",
+    "fetch-go2rtc": "node scripts/fetch-go2rtc.mjs",
+    "desktop:dev": "node scripts/fetch-go2rtc.mjs && tauri dev",
+    "desktop:build": "node scripts/fetch-go2rtc.mjs && tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.4"
+  }
+}
