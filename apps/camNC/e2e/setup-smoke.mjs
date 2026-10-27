@@ -200,16 +200,17 @@ export async function runSetupSmoke(
     await navigate('FluidNC');
     await page.getByText('Connect to FluidNC', { exact: true }).waitFor();
     await page.getByText('Not connected', { exact: true }).waitFor();
-    await page.getByRole('button', { name: 'Continue', exact: true }).click();
-    await page.waitForURL('**/setup/machine-bounds');
-    check('optional machine connection can be skipped');
+    // The camera is fully set up by now, so Continue skips the remaining setup steps.
+    await page.getByRole('button', { name: 'Continue to top view', exact: true }).click();
+    await page.waitForURL('**/visualize/2DView');
+    check('optional machine connection can be skipped, straight to the top view once the camera is set up');
 
     await navigate('FluidNC');
     await page.getByLabel('Controller IP address').fill('192.168.77.7');
     await page.getByRole('button', { name: 'Connect', exact: true }).click();
     await page.getByText('Connected', { exact: true }).waitFor();
     await page.getByText(/FluidNC 3\.9\.9/).waitFor();
-    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await navigate('Machine Bounds');
     await page.waitForURL('**/setup/machine-bounds');
     const readSettings = page.getByRole('button', { name: 'Read FluidNC Settings', exact: true });
     await page.waitForFunction(() => {
