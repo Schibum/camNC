@@ -5,7 +5,7 @@
  *   FLUIDNC_SIM_HOST=127.0.0.1:8850 pnpm vitest run sim.integration   # v3 personality
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { readMachineBounds } from './config';
+import { readMachineBounds, readMaxRateXY } from './config';
 import { deleteSdFile, listSdFiles, runSdFile, uploadSdFile } from './files';
 import { FluidncAbortError, FluidncProtocol, MachineStatus } from './protocol';
 import { FluidncSocket } from './socket';
@@ -51,6 +51,10 @@ describe.skipIf(!host)('FluidNC simulator', () => {
     const moved = protocol.status!.mpos.x - start;
     expect(moved).toBeGreaterThan(0);
     expect(moved).toBeLessThan(200);
+  });
+
+  it('reads the XY max rate', async () => {
+    expect(await readMaxRateXY(protocol)).toBeGreaterThan(0);
   });
 
   it('sets work offsets with G10', async () => {

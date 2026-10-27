@@ -55,6 +55,24 @@ describe('CncApi', () => {
     expect(fake.received.at(-1)).toBe('G90');
   });
 
+  it('jogs to a clicked point at the XY max rate', async () => {
+    const fake = new FakeFluidnc('v4');
+    fake.respond = line =>
+      line === '$/axes/x/max_rate_mm_per_min'
+        ? ['$/axes/x/max_rate_mm_per_min=9000.000', 'ok']
+        : line === '$/axes/y/max_rate_mm_per_min'
+          ? ['$/axes/y/max_rate_mm_per_min=8000.000', 'ok']
+          : undefined;
+    const api = await connected(fake);
+    await api.jogToMachineCoordinates(50, 60);
+    await api.jogToMachineCoordinates(70, 80);
+    expect(fake.received.filter(l => l.startsWith('$J='))).toEqual([
+      '$J=G53 G21 X50.000 Y60.000 F8000',
+      '$J=G53 G21 X70.000 Y80.000 F8000',
+    ]);
+    expect(fake.received.filter(l => l.includes('max_rate'))).toHaveLength(2);
+  });
+
   it('reports alarms and rejects queued commands', async () => {
     const fake = new FakeFluidnc('v4');
     const api = await connected(fake);
