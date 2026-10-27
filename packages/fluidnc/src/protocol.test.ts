@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { readMachineBounds } from './config';
+import { readAxisTravel, readMachineBounds } from './config';
 import { listSdFiles, runSdFile, uploadSdFile } from './files';
 import { FluidncAbortError, FluidncError, FluidncProtocol, MachineStatus, Realtime } from './protocol';
 import { FluidncSocket } from './socket';
@@ -117,10 +117,14 @@ describe.each(['v3-81', 'v4'] as const)('FluidncProtocol on %s', variant => {
     await expect(protocol.send('G0 X5')).rejects.toThrow('controller reset');
   });
 
-  it('reads axis bounds from $Config/Dump (JP2 LowRider)', async () => {
+  it('reads axis bounds with single config items, without $Config/Dump (JP2 LowRider)', async () => {
     const fake = new FakeFluidnc(variant);
     const protocol = await connect(fake);
     expect(await readMachineBounds(protocol)).toEqual({ xmin: 3, xmax: 1223, ymin: 3, ymax: 2443, zmin: -297, zmax: 3 });
+    const travel = await readAxisTravel(protocol);
+    expect(travel.z).toEqual({ min: -297, max: 3, softLimits: expect.any(Boolean) });
+    expect(fake.received.filter(line => line === '$Config/Dump' || line === '$CD')).toEqual([]);
+    expect(fake.received).toContain('$/axes/z/max_travel_mm');
   });
 
   it.each(['http', 'xmodem'] as const)('uploads over %s, verifies with ListJSON and runs the file', async method => {

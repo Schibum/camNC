@@ -1,7 +1,7 @@
 import log from 'loglevel';
 import { getCncApi } from './machine';
 
-/** Usable XY area in machine coordinates, from the controller's running config (`$Config/Dump`). */
+/** Usable XY area in machine coordinates, from the controller's running config (single `$/axes/…` items). */
 export async function getFluidSettingsBounds() {
   try {
     const { xmin, xmax, ymin, ymax } = await getCncApi().readMachineBounds();

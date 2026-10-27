@@ -228,9 +228,11 @@ export async function runSetupSmoke(
       )
     );
     report.fluidncRequests = await page.evaluate(() => window.__camncSmokeFluidNc.requests);
-    assert(report.fluidncRequests.includes('$Config/Dump'));
+    // Single config items only: a full $Config/Dump is slow on 3.9.x and has coincided with controller resets.
+    assert(report.fluidncRequests.includes('$/axes/x/max_travel_mm'));
+    assert(!report.fluidncRequests.includes('$Config/Dump'));
     assert.deepEqual(await page.evaluate(() => window.__camncSmokeFluidNc.rejected), []);
-    check('connects to a simulated FluidNC 3.9.9 on port 81 and reads its bounds via $Config/Dump');
+    check('connects to a simulated FluidNC 3.9.9 on port 81 and reads its bounds from single config items');
 
     await navigate('Top View');
     await page.getByLabel('breadcrumb').getByText(topViewTitle).waitFor();

@@ -1,3 +1,4 @@
+import { parseConfig } from '../config';
 import { kErrorMessages } from '../parsers/errors';
 import { FirmwareVariant, socketUrl } from '../socket';
 import v3Transcript from './transcripts/v3.9.9-jackpot2.json';
@@ -212,6 +213,12 @@ export class FakeFluidnc {
       this.emit(recorded);
       return;
     }
+    const item = line.match(/^\$\/([\w/]+)$/);
+    if (item) {
+      // A single config item like `$/axes/x/max_travel_mm`, answered from the recorded config dump.
+      const value = this.configItem(item[1]!);
+      return value === undefined ? this.error('Invalid $ statement') : this.ok([`$/${item[1]}=${value}`]);
+    }
     const assign = line.match(/^\$([\w/]+)=(.*)$/);
     if (line === '$SD/ListJSON') return this.ok([this.listJson()]);
     if (assign?.[1] === 'Report/Interval') return this.ok([`[MSG:INFO: websocket auto report interval set to ${assign[2]} ms]`]);
@@ -238,6 +245,19 @@ export class FakeFluidnc {
     if (line.startsWith('$J=')) return this.jog(line.slice(3));
     if (line.startsWith('$')) return this.ok();
     return this.gcode(line);
+  }
+
+  private configItem(path: string): string | undefined {
+    const dump = this.transcript.responses['$Config/Dump'];
+    if (!dump) return undefined;
+    let node: unknown = parseConfig(dump.filter(l => l !== 'ok' && !l.startsWith('[MSG:')).join('\n'));
+    for (const key of path.split('/')) {
+      if (!node || typeof node !== 'object') return undefined;
+      const entries = Object.entries(node as Record<string, unknown>);
+      node = entries.find(([k]) => k.toLowerCase() === key.toLowerCase())?.[1];
+    }
+    if (node === undefined || node === null || typeof node === 'object') return undefined;
+    return typeof node === 'number' ? node.toFixed(3) : String(node);
   }
 
   private listJson() {

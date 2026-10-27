@@ -154,6 +154,7 @@ function RunSection() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const idle = api.isConnected.value && api.state.value === 'Idle';
   const warnings = checklist.filter(item => !item.ok);
+  const blocked = checklist.some(item => item.blocking);
   if (!hasToolpath) return null;
   return (
     <Section title="Run">
@@ -161,13 +162,27 @@ function RunSection() {
         {checklist.map(item => (
           <li key={item.id} className="flex flex-row gap-2 items-center text-sm">
             {item.ok ? <Check className="size-4 text-green-600 shrink-0" /> : <AlertTriangle className="size-4 text-amber-500 shrink-0" />}
-            <span className={cn(!item.ok && 'text-amber-700 dark:text-amber-400')}>{item.label}</span>
+            <span className={cn(!item.ok && 'text-amber-700 dark:text-amber-400', item.blocking && 'text-red-700 dark:text-red-400')}>
+              {item.label}
+              {item.details && (
+                <ul className="list-disc pl-4 text-xs">
+                  {item.details.map((detail, i) => (
+                    <li key={i}>{detail}</li>
+                  ))}
+                </ul>
+              )}
+            </span>
           </li>
         ))}
       </ul>
-      <Button size="lg" disabled={!idle} onClick={() => setConfirmOpen(true)}>
+      <Button size="lg" disabled={!idle || blocked} onClick={() => setConfirmOpen(true)}>
         <CirclePlay /> Run job
       </Button>
+      {blocked && (
+        <p className="text-xs text-red-700 dark:text-red-400">
+          Fix the travel problem above first: with soft limits on, the controller would stop this job with an alarm.
+        </p>
+      )}
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

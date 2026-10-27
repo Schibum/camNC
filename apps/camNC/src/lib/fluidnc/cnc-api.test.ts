@@ -46,7 +46,8 @@ describe('CncApi', () => {
     expect(fake.received).toEqual(
       expect.arrayContaining([
         '$J=G91 G21 X10.000 Z-1.000 F3000',
-        '$J=G53 G21 X50.000 Y60.000 F3000',
+        // The fake answers max_rate_mm_per_min from its recorded config: the JP2's 9000 mm/min.
+        '$J=G53 G21 X50.000 Y60.000 F9000',
         'G10 L20 P0 Z0',
         'G38.2 Z-50 F100',
         'G10 L20 P0 Z0.5',

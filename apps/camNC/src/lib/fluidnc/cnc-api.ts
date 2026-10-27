@@ -13,6 +13,8 @@ import {
   ParsedOffset,
   Position,
   readConfigText,
+  MachineTravel,
+  readAxisTravel,
   readMachineBounds,
   readMaxRateXY,
   Realtime,
@@ -112,6 +114,9 @@ export class CncApi {
   private recentMessages: { text: string; at: number }[] = [];
   /** XY max rate of the connected controller, read on the first click-to-jog. */
   private maxRateXY: Promise<number> | null = null;
+  /** Axis travel of the connected controller (null per axis when unknown), read on demand while idle. */
+  public readonly travel = signal<MachineTravel | null>(null);
+  private travelRead: Promise<void> | null = null;
 
   /** `WebSocketImpl` and `fetchImpl` can be swapped for a simulated controller (demo mode, tests). */
   constructor(
@@ -229,6 +234,8 @@ export class CncApi {
 
   private open(host: string, variant?: FirmwareVariant) {
     this.maxRateXY = null;
+    this.travel.value = null;
+    this.travelRead = null;
     const socket = new FluidncSocket({ host, variant, WebSocketImpl: this.WebSocketImpl });
     const protocol = new FluidncProtocol(socket);
     this.protocol = protocol;
@@ -323,6 +330,23 @@ export class CncApi {
     const api = this.api;
     feed ??= await this.getMaxRateXY(api);
     return api.send(`$J=G53 G21 X${x.toFixed(3)} Y${y.toFixed(3)} F${feed}`);
+  }
+
+  /**
+   * Read the axis travel for the pre-job check, once per connection. Only while idle: on 3.9.x even single config
+   * queries compete with a running job for the controller's time.
+   */
+  ensureTravel() {
+    if (this.travelRead || !this.isConnected.value || this.state.value !== 'Idle') return;
+    const protocol = this.protocol!;
+    this.travelRead = readAxisTravel(protocol)
+      .then(travel => {
+        if (this.protocol === protocol) this.travel.value = travel;
+      })
+      .catch(() => {
+        // Try again next time.
+        if (this.protocol === protocol) this.travelRead = null;
+      });
   }
 
   private getMaxRateXY(api: FluidncProtocol) {
