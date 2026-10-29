@@ -251,9 +251,11 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
         el.pause();
       }
     } catch (error) {
-      console.error('[CalibrationStore] Failed to start camera:', error);
       worker?.terminate();
       el.pause();
+      // stopCamera() aborted this start; nothing failed.
+      if (get().stopRequested && error instanceof DOMException && error.name === 'AbortError') return;
+      console.error('[CalibrationStore] Failed to start camera:', error);
       throw error;
     } finally {
       resolveStart();

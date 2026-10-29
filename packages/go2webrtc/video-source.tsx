@@ -130,6 +130,9 @@ function webcamVideoSource(params: WebcamConnectionParams): VideoSource {
         deviceId: params.deviceId,
         ...(params.idealWidth && { width: { ideal: params.idealWidth } }),
         ...(params.idealHeight && { height: { ideal: params.idealHeight } }),
+        // Some cameras also offer rotated formats (e.g. 1080×1920 next to 1920×1080), and without an aspect ratio the
+        // browser may pick either, a different one on each connect. Calibration needs the same picture every time.
+        ...(params.idealWidth && params.idealHeight && { aspectRatio: { ideal: params.idealWidth / params.idealHeight } }),
       },
     });
     const videoTrack = stream.getVideoTracks()[0];
