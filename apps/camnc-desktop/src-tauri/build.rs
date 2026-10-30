@@ -5,6 +5,8 @@ fn main() {
             "go2rtc_stream",
             "discover_cameras",
             "onvif_streams",
+            "ready_update",
+            "restart_to_update",
         ]),
     ))
     .expect("failed to run tauri-build");

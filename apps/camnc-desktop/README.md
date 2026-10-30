@@ -46,12 +46,26 @@ const page = browser.contexts()[0].pages()[0];
 - Only RTSP/RTMP camera URLs are accepted. Adding a camera restarts go2rtc with the new config.
 - The HTTP plugin may only reach private network addresses and `.local` names (`src-tauri/capabilities/default.json`).
 
-## Releases
+## Releases and updates
 
-`.github/workflows/desktop.yml` builds an Apple silicon macOS app and a Windows installer on pull requests that touch the
-app, and a draft GitHub release for a `desktop-v*` tag. Not set up yet: macOS signing and notarization, Windows signing,
-and the updater (needs a signing key pair, `pnpm tauri signer generate`).
+`.github/workflows/desktop.yml` builds macOS (Apple silicon, `.dmg`), Windows (NSIS installer) and Linux (AppImage and
+`.deb`):
+
+- Pull requests that touch the app get the bundles as build artifacts.
+- Every push to `main` that touches the app or the web app is released as `desktop-v0.1.<run number>`, marked as the
+  latest release. The rolling `desktop-latest` release holds the `latest.json` that installed apps check.
+- Release builds check for an update 10 seconds after start and then every 4 hours. A newer version is downloaded in the
+  background and the app offers a restart; it never restarts on its own, so a running job is not interrupted. On Windows
+  the installer runs at that restart.
+
+Updates are signed with a minisign key pair (`pnpm tauri signer generate`). The public key is in `tauri.conf.json`
+(`plugins.updater.pubkey`), and the private key goes into the `TAURI_SIGNING_PRIVATE_KEY` repository secret. Without the
+secret, main builds but nothing is released. Development builds never update.
+
+Not set up yet: macOS signing with a Developer ID and notarization, and Windows code signing. macOS builds are signed ad
+hoc, so the first start of a downloaded app needs right-click → Open (or `xattr -dr com.apple.quarantine camNC.app`);
+updates afterwards install without that. Windows shows a SmartScreen warning on first install.
 
 ## Linux
 
-Builds with GTK 4 (`libgtk-4-dev`); not part of the release workflow yet.
+Builds with GTK 4 (`libgtk-4-dev`) on Ubuntu 24.04 or newer.

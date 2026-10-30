@@ -1,5 +1,6 @@
 mod discovery;
 mod go2rtc;
+mod updater;
 
 use go2rtc::{Go2rtc, StreamInfo};
 use tauri::webview::{PermissionKind, PermissionResponse};
@@ -58,7 +59,9 @@ pub fn run() {
         // blocking nor Chrome's Local Network Access permission applies.
         .plugin(tauri_plugin_websocket::init())
         .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Go2rtc::default())
+        .manage(updater::UpdaterState::default())
         .setup(|app| {
             WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
                 .title("camNC")
@@ -70,12 +73,18 @@ pub fn run() {
                     _ => PermissionResponse::Default,
                 })
                 .build()?;
+            // Development builds are not released, so they would always find an "update".
+            if !cfg!(debug_assertions) {
+                updater::spawn(app.handle().clone());
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             go2rtc_stream,
             discover_cameras,
-            onvif_streams
+            onvif_streams,
+            updater::ready_update,
+            updater::restart_to_update
         ])
         .build(tauri::generate_context!())
         .expect("error while building the camNC desktop app")

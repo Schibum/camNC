@@ -21,6 +21,8 @@ tauri-runtime-cef = { version = "=3.0.0-alpha.6", features = ["devtools"] }
 tauri-plugin-shell = "=3.0.0-alpha.3"
 tauri-plugin-websocket = "=3.0.0-alpha.2"
 tauri-plugin-http = "=3.0.0-alpha.3"
+# Release builds update themselves from the latest GitHub release.
+tauri-plugin-updater = "=3.0.0-alpha.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["time", "net", "io-util", "sync"] }

@@ -27,5 +27,14 @@
     "macOS": {
       "minimumSystemVersion": "13.3"
     }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERERTU2MDlFNjNENjI2MUEKUldRYUp0WmpubURsM1ZUTXg0eGZqQUdoeUN0NXpJeFY5UFIrOGxxQ2JWYzlMMXlHY2RQUll1ZEwK",
+      "endpoints": ["https://github.com/Schibum/camNC/releases/download/desktop-latest/latest.json"],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

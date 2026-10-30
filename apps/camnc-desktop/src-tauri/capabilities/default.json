@@ -10,6 +10,8 @@
     "allow-go2rtc-stream",
     "allow-discover-cameras",
     "allow-onvif-streams",
+    "allow-ready-update",
+    "allow-restart-to-update",
     "websocket:default",
     {
       "identifier": "http:default",
