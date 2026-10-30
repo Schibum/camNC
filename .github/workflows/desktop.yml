@@ -49,9 +49,12 @@ jobs:
             bundles: nsis
           - platform: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
-            bundles: appimage,deb
+            # The AppImage step of tauri-cli 3.0.0-alpha.5 (quick-sharun) hung for over an hour in CI, so Linux ships as
+            # .deb for now, which the updater cannot replace.
+            bundles: deb
     name: Build (${{ matrix.target }})
     runs-on: ${{ matrix.platform }}
+    timeout-minutes: 45
     defaults:
       run:
         shell: bash
