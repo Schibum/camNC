@@ -47,11 +47,10 @@ const kSurfaceFragment = /* glsl */ `
   uniform float uZScale;
   uniform vec3 uColor;
   uniform bool uHideTop;
+  uniform vec3 uBackground;
   varying vec3 vPos;
 
   void main() {
-    // The camera image covers the uncut stock top, the surface only shows where material was removed.
-    if (uHideTop && uZRange.y - vPos.z < 1e-3) discard;
     // Cut through the stock: leave a hole. Uses the interpolated height, so hole edges follow the mesh.
     if (vPos.z <= uBottom + 1e-3) discard;
     vec3 scaled = vPos * vec3(1.0, 1.0, uZScale);
@@ -63,6 +62,12 @@ const kSurfaceFragment = /* glsl */ `
     float depth = clamp((top - vPos.z) / max(top - uBottom, 1e-3), 0.0, 1.0);
     bool uncut = top - vPos.z < 1e-3;
     vec3 color = uncut ? uColor * 1.08 : uColor * (0.92 - depth * 0.35);
+    // The camera image is blended over the uncut top: a dark top keeps it looking as without the simulation.
+    if (uncut && uHideTop) {
+      gl_FragColor = vec4(uBackground, 1.0);
+      #include <colorspace_fragment>
+      return;
+    }
     gl_FragColor = vec4(color * diffuse, 1.0);
     #include <colorspace_fragment>
   }
@@ -209,10 +214,9 @@ function StockSurface({
           uZScale: { value: 1 },
           uColor: { value: kStockColor.clone() },
           uHideTop: { value: false },
+          uBackground: { value: new Color('#161b24') },
         },
         side: DoubleSide,
-        // In the transparent pass like the camera image, so that renderOrder draws the stock after it.
-        transparent: true,
       }),
     []
   );
@@ -233,7 +237,6 @@ function StockSurface({
               uColor: { value: kStockColor.clone().multiplyScalar(shade) },
             },
             side: DoubleSide,
-            transparent: true,
           })
       ),
     []

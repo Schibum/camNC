@@ -226,6 +226,8 @@ function VisualizeComponent() {
                     visible={isTop || showStockVideo}
                     bounds={isTop ? undefined : stockTop}
                     opacity={isTop ? 1 : 0.7}
+                    // On the simulated stock, only on its uncut top: cuts below it must not be covered.
+                    onlyOnDepth={!isTop && simEnabled}
                     // In the 3D views, the video is drawn first, below the toolpath.
                     renderOrder={isTop ? 0 : -2}
                     onDoubleClick={isTop ? onDbClick : undefined}
