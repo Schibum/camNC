@@ -2,7 +2,7 @@
 // Downloads the pinned go2rtc release into src-tauri/binaries/, named the way Tauri expects sidecars:
 // `go2rtc-<target triple>[.exe]`. Usage: `node scripts/fetch-go2rtc.mjs [target triple]` (default: this machine's).
 import { execFileSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -41,7 +41,8 @@ async function download(asset, dest) {
       // first on the PATH, and it neither reads zip files nor takes `C:` paths.
       const tar = process.platform === 'win32' ? join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe') : 'tar';
       execFileSync(tar, ['-xf', zip, '-C', tmp]);
-      renameSync(join(tmp, asset.includes('win') ? 'go2rtc.exe' : 'go2rtc'), dest);
+      // Copied, because the temp folder can be on another drive (Windows runners).
+      copyFileSync(join(tmp, asset.includes('win') ? 'go2rtc.exe' : 'go2rtc'), dest);
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }
