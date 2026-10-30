@@ -127,7 +127,9 @@ function webcamVideoSource(params: WebcamConnectionParams): VideoSource {
   async function connect() {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: {
-        deviceId: params.deviceId,
+        // Exact: otherwise the browser falls back to another camera when this one is busy, e.g. measuring the
+        // resolution of a different camera than calibration later gets.
+        ...(params.deviceId && { deviceId: { exact: params.deviceId } }),
         ...(params.idealWidth && { width: { ideal: params.idealWidth } }),
         ...(params.idealHeight && { height: { ideal: params.idealHeight } }),
         // Some cameras also offer rotated formats (e.g. 1080×1920 next to 1920×1080), and without an aspect ratio the
