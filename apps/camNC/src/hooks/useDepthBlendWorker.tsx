@@ -19,30 +19,65 @@ import { toast } from '@wbcnc/ui/components/sonner';
 import { Suspense, useEffect, useMemo } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 
-function DepthBlendWorkerSuspending() {
-  useDepthBlendWorker();
+type VideoSourceSrc = ReturnType<typeof useVideoSource>['src'];
+
+const kVideoErrorToastId = 'depth-blend-video-source-error';
+
+function errorMessage(error: unknown) {
+  return error instanceof Error && error.message ? error.message : 'unknown error';
+}
+
+function DepthBlendWorkerInner({ vidSource }: { vidSource: VideoSourceSrc }) {
+  useDepthBlendWorker(vidSource);
   return null;
+}
+
+// Suspends until the video source is connected, then starts the worker in its own boundary so a failing
+// video source is not reported as a worker failure.
+function DepthBlendVideoSource({ videoUrl }: { videoUrl: string }) {
+  const { src } = useVideoSource(videoUrl);
+  useEffect(() => {
+    // The source (re)connected: a previous connection error no longer applies.
+    toast.dismiss(kVideoErrorToastId);
+  }, [src]);
+  return (
+    <ErrorBoundary
+      fallback={null}
+      onError={error => {
+        console.error('Error loading depth blend worker', error);
+        toast.error(`Error loading depth blend worker: ${errorMessage(error)}`, { duration: Infinity, closeButton: true });
+      }}>
+      <DepthBlendWorkerInner vidSource={src} />
+    </ErrorBoundary>
+  );
 }
 
 // Adds useDepthBlendWorker no-op instead of suspending while video is loading.
 export function DepthBlendWorker() {
+  const videoUrl = useVideoUrl();
   return (
-    <Suspense fallback={null}>
-      <ErrorBoundary
-        fallback={null}
-        onError={() => {
-          console.error('Error loading depth blend worker');
-          toast.error('Error loading depth blend worker', { duration: Infinity, closeButton: true });
-        }}>
-        <DepthBlendWorkerSuspending />
-      </ErrorBoundary>
-    </Suspense>
+    <ErrorBoundary
+      fallback={null}
+      // Retry when the user picks another video source.
+      resetKeys={[videoUrl]}
+      onError={error => {
+        console.error('Error connecting to video source', error);
+        toast.error(`Video source failed: ${errorMessage(error)}`, {
+          id: kVideoErrorToastId,
+          duration: Infinity,
+          closeButton: true,
+        });
+      }}>
+      <Suspense fallback={null}>
+        <DepthBlendVideoSource videoUrl={videoUrl} />
+      </Suspense>
+    </ErrorBoundary>
   );
 }
 
 // Connect React state with DepthBlendManager
 // eslint-disable-next-line react-refresh/only-export-components
-export function useDepthBlendWorker() {
+export function useDepthBlendWorker(vidSource: VideoSourceSrc) {
   const depthBlendManager = DepthBlendManager.getInstance();
 
   const enabled = useDepthBlendEnabled();
@@ -50,9 +85,6 @@ export function useDepthBlendWorker() {
   const setInitializing = useSetDepthBlendInitializing();
   const setMaskTex = useSetMaskTexture();
   const setBgTex = useSetBgTexture();
-
-  const videoUrl = useVideoUrl();
-  const { src: vidSource } = useVideoSource(videoUrl);
 
   const calibration = useCalibrationData();
   const camRes = useCamResolution();
