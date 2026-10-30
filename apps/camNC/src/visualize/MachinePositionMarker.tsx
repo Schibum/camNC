@@ -7,6 +7,12 @@ import { useMemo, useRef } from 'react';
 import { Group } from 'three';
 import { useSmoothedMachinePos } from './smoothedMachinePos';
 
+// Above the toolpath (and the job progress path at 900) in the top view.
+const kOnTop = 1000;
+// The toolpath is drawn in the transparent pass, after opaque objects, so the marker must be transparent
+// too and ignore depth: otherwise the toolpath is painted over it.
+const kOnTopProps = { transparent: true, depthTest: false, depthWrite: false, renderOrder: kOnTop } as const;
+
 /**
  * MachinePositionMarker renders an animated marker at the current
  * machine position (mpos) reported by FluidNC.  It consists of a pulsing
@@ -87,7 +93,7 @@ export function MachinePositionMarker({
 
   if (!hasPos || !visible) return null; // Not yet received a status update.
   return (
-    <group ref={group} renderOrder={1000 /* draw on top */}>
+    <group ref={group} renderOrder={kOnTop}>
       {/* Crosshair */}
       <Line
         points={[
@@ -96,6 +102,7 @@ export function MachinePositionMarker({
         ]}
         color="#ffff00"
         linewidth={lineThickness}
+        {...kOnTopProps}
       />
       <Line
         points={[
@@ -104,15 +111,16 @@ export function MachinePositionMarker({
         ]}
         color="#ffff00"
         linewidth={lineThickness}
+        {...kOnTopProps}
       />
 
       {/* Inner constant ring (solid) */}
-      <Line points={innerCirclePoints} color="#ffff00" transparent opacity={opacity} linewidth={lineThickness} />
+      <Line points={innerCirclePoints} color="#ffff00" opacity={opacity} linewidth={lineThickness} {...kOnTopProps} />
 
       {/* Alternating coloured outer ring */}
-      <animated.group rotation-z={rot}>
+      <animated.group rotation-z={rot} renderOrder={kOnTop}>
         {arcSegments.map(({ points, color }, idx) => (
-          <Line key={idx} points={points} color={color} linewidth={lineThickness} />
+          <Line key={idx} points={points} color={color} linewidth={lineThickness} {...kOnTopProps} />
         ))}
       </animated.group>
     </group>

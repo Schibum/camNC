@@ -1,19 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import {
-  Bug,
-  Camera,
-  Cctv,
-  Grid2x2,
-  Grid3x3,
-  HardDriveDownload,
-  Layers,
-  Puzzle,
-  Rocket,
-  Route,
-  Ruler,
-  Scale3d,
-  ScanQrCode,
-} from 'lucide-react';
+import { Bug, Camera, Cctv, Grid2x2, Grid3x3, HardDriveDownload, Layers, Puzzle, Rocket, Ruler, Scale3d, ScanQrCode } from 'lucide-react';
 import * as React from 'react';
 
 import { useLocation } from '@tanstack/react-router';
@@ -29,6 +15,7 @@ import {
   useSidebar,
 } from '@wbcnc/ui/components/sidebar';
 import { useEffect } from 'react';
+import { CamNcBrand } from './CamNcLogo';
 import { CamSourceSelector } from './CamSourceSelector';
 import { SidebarAuthStatus } from './sidebar-auth';
 
@@ -153,14 +140,9 @@ export function AppSidebar({ ...props }: AppSidebarProps) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <a href="#">
-                <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                  <Route className="size-4" />
-                </div>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">CamNC</span>
-                </div>
-              </a>
+              <Link to="/visualize/2DView">
+                <CamNcBrand />
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

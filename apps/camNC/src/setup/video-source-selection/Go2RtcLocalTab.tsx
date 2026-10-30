@@ -8,6 +8,7 @@ import { Textarea } from '@wbcnc/ui/components/textarea';
 import { ExternalLink } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
+import { kMinChromeVersion } from '@/lib/fluidnc/machine-support';
 
 const schema = z.object({
   host: z.string().min(1).url(),
@@ -88,7 +89,13 @@ export function Go2RtcLocalTab({
                 Running go2rtc on <code>localhost</code>? You can stick to plain HTTP without any extra setup.
               </p>
               <p className="text-sm text-muted-foreground">
-                For any other host/IP you&apos;ll need HTTPS. Generate a certificate for the host, using{' '}
+                On another machine in your network, plain HTTP also works in Chrome or Edge {kMinChromeVersion}+ if you enter its local IP
+                address or <code>.local</code> name (e.g.&nbsp;<code>http://192.168.1.20:1984</code>). Chrome asks once for permission to
+                access devices on your local network; allow it.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Other host names (e.g.&nbsp;<code>go2rtc.fritz.box</code>) and other browsers need HTTPS. Generate a certificate for the
+                host using{' '}
                 <a className="text-blue-500 hover:underline" href="https://github.com/FiloSottile/mkcert" target="_blank" rel="noreferrer">
                   mkcert
                   <ExternalLink className="size-4 inline-block" />
