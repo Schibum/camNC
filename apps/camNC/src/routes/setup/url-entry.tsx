@@ -19,6 +19,8 @@ import { toast } from '@wbcnc/ui/components/sonner';
 import { Trash2 } from 'lucide-react';
 import { z } from 'zod';
 import { IOnChangeArgs, VideoSourceSelection } from '../../setup/video-source-selection/VideoSourceSelection';
+import { AddCameraSteps } from '@/components/AddCameraSteps';
+import { uniqueCameraName } from '@/lib/camera/source-label';
 import { hasSetup } from '../../store/cam-import';
 import { adaptCamToResolution, isCamCalibrated } from '../../store/cam-resolution';
 import { useCamSource, useStore } from '../../store/store';
@@ -74,25 +76,28 @@ function UrlEntryComponent() {
   const navigate = useNavigate();
   const { new: isNew } = Route.useSearch();
   const camSources = useStore(state => state.camSources);
-  const camNames = Object.values(camSources).map(source => source.name);
   const currentCamSource = useCamSource();
   const activeCamId = useStore(state => state.activeCamId);
   const url = isNew ? '' : currentCamSource?.url;
-  const defaultName = isNew ? `New Camera Source ${camNames.length + 1}` : (currentCamSource?.name ?? 'default');
+  const adding = isNew || !activeCamId || !currentCamSource;
 
   const updateCamSource = useStore(state => state.updateCamSource);
   const addCamSource = useStore(state => state.addCamSource);
 
-  const handleUrlConfirm = ({ url: newUrl, maxResolution, name: newName }: IOnChangeArgs) => {
-    if (isNew || !activeCamId || !currentCamSource) {
+  const handleUrlConfirm = ({ url: newUrl, maxResolution, name: sourceName }: IOnChangeArgs) => {
+    if (adding) {
+      const newName = uniqueCameraName(
+        sourceName,
+        Object.values(camSources).map(source => source.name)
+      );
       addCamSource(newName, { name: newName, url: newUrl, maxResolution: [maxResolution.width, maxResolution.height] });
       // Offer to start from a camera that is already set up, often the same camera with another source.
       const canCopySetup = Object.values(useStore.getState().camSources).some(hasSetup);
-      navigate({ to: canCopySetup ? '/setup/import-setup' : '/setup/camera-calibration' });
+      navigate(canCopySetup ? { to: '/setup/import-setup', search: { adding: true } } : { to: '/setup/camera-calibration' });
       return;
     }
     const resolution: [number, number] = [maxResolution.width, maxResolution.height];
-    const changes = { name: newName, url: newUrl, maxResolution: resolution, ...adaptCamToResolution(currentCamSource, resolution) };
+    const changes = { url: newUrl, maxResolution: resolution, ...adaptCamToResolution(currentCamSource, resolution) };
     updateCamSource(activeCamId, changes);
     if (isCamCalibrated({ ...currentCamSource, ...changes })) {
       // Another source of the same camera: the calibration and markers still hold, no need to set them up again.
@@ -105,10 +110,11 @@ function UrlEntryComponent() {
 
   return (
     <div className="w-full h-full">
-      <PageHeader title="Camera Source" />
+      <PageHeader title={adding ? 'Add camera' : `Change source of "${currentCamSource.name}"`} />
       <div className="flex justify-center p-1 flex-row">
         <div className="max-w-xl gap-4 flex flex-1 flex-col">
-          {isNew || !isCamCalibrated(currentCamSource) ? (
+          {adding && <AddCameraSteps current="source" showReuse={Object.values(camSources).some(hasSetup)} />}
+          {adding || !isCamCalibrated(currentCamSource) ? (
             <TryDemoCard />
           ) : (
             <Alert>
@@ -118,8 +124,8 @@ function UrlEntryComponent() {
               </AlertDescription>
             </Alert>
           )}
-          <VideoSourceSelection value={url} onChange={handleUrlConfirm} defaultName={defaultName} key={url} />
-          {!isNew && activeCamId && (
+          <VideoSourceSelection value={url} onChange={handleUrlConfirm} key={url} />
+          {!adding && (
             <div className="flex justify-start">
               <DeleteCameraButton />
             </div>

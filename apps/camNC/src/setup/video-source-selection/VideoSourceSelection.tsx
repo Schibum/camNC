@@ -1,4 +1,5 @@
 import { Hint } from '@/components/Hint';
+import { suggestCameraName } from '@/lib/camera/source-label';
 import { isDesktopApp, kDesktopDownloadUrl } from '@/lib/desktop/is-desktop';
 import {
   buildConnectionUrl,
@@ -14,7 +15,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@wbcnc/ui/components/tabs';
 import { useMemo, useState } from 'react';
 
-import { Form, Input } from '@heroui/react';
 import { VideoDimensions } from '@wbcnc/go2webrtc/video-source';
 import { ConnectDialog } from './ConnectDialog';
 import { Go2RtcLocalTab } from './Go2RtcLocalTab';
@@ -31,18 +31,11 @@ function getRandomWebrtcDefaults(): WebrtcConnectionParams {
 export interface IOnChangeArgs {
   url: string;
   maxResolution: VideoDimensions;
+  /** A name for a new camera: what the source knows (e.g. the camera's model), else one made from the source. */
   name: string;
 }
 
-export function VideoSourceSelection({
-  value = '',
-  onChange,
-  defaultName,
-}: {
-  value?: string;
-  onChange: (value: IOnChangeArgs) => void;
-  defaultName: string;
-}) {
+export function VideoSourceSelection({ value = '', onChange }: { value?: string; onChange: (value: IOnChangeArgs) => void }) {
   const defaults = useMemo(() => {
     try {
       if (value) {
@@ -60,14 +53,15 @@ export function VideoSourceSelection({
   const showWebtorrent = !isDesktopApp() || defaults?.type === 'webtorrent';
   const [sourceType, setSourceType] = useState<string>(defaults?.type || (isDesktopApp() ? 'rtsp' : 'webrtc'));
   const [connectParams, setConnectParams] = useState<RtcConnectionParams | null>(null);
-  const [name, setName] = useState<string>(defaultName);
-  function onSubmit(params: RtcConnectionParams, maxResolution: VideoDimensions) {
+  const [sourceName, setSourceName] = useState<string | undefined>();
+  function onSubmit(params: RtcConnectionParams, maxResolution: VideoDimensions, name?: string) {
     setConnectParams(null);
-    console.log('VideoSourceSelection onSubmit', params, maxResolution);
-    onChange({ url: buildConnectionUrl(params), maxResolution, name });
+    onChange({ url: buildConnectionUrl(params), maxResolution, name: name ?? sourceName ?? suggestCameraName(params) });
   }
 
-  function onConnect(params: RtcConnectionParams) {
+  function onConnect(params: RtcConnectionParams, name?: unknown) {
+    // Form tabs pass their submit event as the second argument.
+    setSourceName(typeof name === 'string' ? name : undefined);
     setConnectParams(params);
   }
 
@@ -135,9 +129,6 @@ export function VideoSourceSelection({
         )}
       </Hint>
 
-      <Form>
-        <Input value={name} onChange={e => setName(e.target.value)} label="Name of camera/machine setup" isRequired />
-      </Form>
       <Tabs className="w-full" value={sourceType} onValueChange={setSourceType}>
         <TabsList className="w-full">
           {isDesktopApp() && (

@@ -92,7 +92,6 @@ describe('camera source confirmation', () => {
 
     expect(store.addCamSource).not.toHaveBeenCalled();
     expect(store.updateCamSource).toHaveBeenCalledExactlyOnceWith('existing', {
-      name: 'Phone camera',
       url: 'webrtc://phone',
       maxResolution: [1920, 1080],
     });
@@ -120,7 +119,6 @@ describe('camera source confirmation', () => {
     confirmSource();
 
     expect(store.updateCamSource).toHaveBeenCalledExactlyOnceWith('existing', {
-      name: 'Phone camera',
       url: 'webrtc://phone',
       maxResolution: [1920, 1080],
       calibration: undefined,
@@ -145,6 +143,6 @@ describe('camera source confirmation', () => {
       maxResolution: [1920, 1080],
     });
     // The existing camera is set up, so the new one may start from its setup.
-    expect(router.navigate).toHaveBeenCalledWith({ to: '/setup/import-setup' });
+    expect(router.navigate).toHaveBeenCalledWith({ to: '/setup/import-setup', search: { adding: true } });
   });
 });

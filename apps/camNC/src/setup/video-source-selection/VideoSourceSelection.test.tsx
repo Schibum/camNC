@@ -33,17 +33,14 @@ describe('phone source pairing', () => {
   it.each([
     { source: 'a new phone', value: '' },
     { source: 'an existing phone', value: buildConnectionUrl({ type: 'webrtc', accessToken: 'existing-phone-token' }) },
-  ])('keeps $source paired through name edits and preview cancellation', async ({ value }) => {
+  ])('keeps $source paired through preview cancellation', async ({ value }) => {
     const onChange = vi.fn();
-    const screen = await render(<VideoSourceSelection value={value} defaultName="My machine" onChange={onChange} />);
+    const screen = await render(<VideoSourceSelection value={value} onChange={onChange} />);
     const getPairingUrl = () => screen.getByTestId('phone-pairing').element().getAttribute('data-url')!;
     const originalPairingUrl = getPairingUrl();
     const accessToken = new URL(originalPairingUrl).searchParams.get('accessToken')!;
     const originalConnectionUrl = buildConnectionUrl({ type: 'webrtc', accessToken });
     if (value) expect(originalConnectionUrl).toBe(value);
-
-    await screen.getByRole('textbox', { name: 'Name of camera/machine setup' }).fill('Renamed machine');
-    expect(getPairingUrl()).toBe(originalPairingUrl);
 
     await screen.getByRole('button', { name: 'Connect', exact: true }).click();
     await expect.element(screen.getByTestId('preview-url')).toHaveTextContent(originalConnectionUrl);
@@ -58,7 +55,7 @@ describe('phone source pairing', () => {
     expect(onChange).toHaveBeenCalledExactlyOnceWith({
       url: originalConnectionUrl,
       maxResolution: { width: 1080, height: 1920 },
-      name: 'Renamed machine',
+      name: 'Phone',
     });
     await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument();
     expect(getPairingUrl()).toBe(originalPairingUrl);

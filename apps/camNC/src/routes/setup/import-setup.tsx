@@ -4,13 +4,11 @@ import { cameraSourceLabel } from '@/lib/camera/source-label';
 import { hasSetup, importSetup, ImportScope, setupStatus, suggestImportSource } from '@/store/cam-import';
 import { adaptCamToResolution, isCamCalibrated } from '@/store/cam-resolution';
 import { ICamSource, useCamSource, useStore } from '@/store/store';
-import {
-  detectMarkersInStillFrame,
-  formatReprojectionError,
-  getValidMarkers,
-  kExpectedMarkerCount,
-  setMarkersAndRecompute,
-} from '@/store/store-p3p';
+import { AddCameraSteps } from '@/components/AddCameraSteps';
+import { checkSetupAgainstPicture, SetupCheck } from '@/lib/camera/check-setup';
+import { formatReprojectionError, kExpectedMarkerCount } from '@/store/store-p3p';
+import { zodValidator } from '@tanstack/zod-adapter';
+import { z } from 'zod';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { Alert, AlertDescription } from '@wbcnc/ui/components/alert';
 import { Button } from '@wbcnc/ui/components/button';
@@ -26,10 +24,13 @@ export const Route = createFileRoute('/setup/import-setup')({
       <ImportSetupComponent />
     </EnsureHasCamSource>
   ),
+  validateSearch: zodValidator(
+    z.object({
+      /** Part of adding a camera, rather than opened for an existing one. */
+      adding: z.boolean().optional(),
+    })
+  ),
 });
-
-/** Below this, an imported setup matches the live picture well enough to skip the setup steps. */
-const kGoodReprojectionErrorPx = 3;
 
 const kScopes: { value: ImportScope; label: string; description: string }[] = [
   {
@@ -50,13 +51,7 @@ const kScopes: { value: ImportScope; label: string; description: string }[] = [
   },
 ];
 
-type Check =
-  | { state: 'idle' }
-  | { state: 'checking' }
-  /** All markers found, but the copied setup doesn't fit the picture well. */
-  | { state: 'off'; error: number }
-  | { state: 'missing'; found: number }
-  | { state: 'failed'; message: string };
+type Check = { state: 'idle' } | { state: 'checking' } | Exclude<SetupCheck, { state: 'good' }>;
 
 function CheckResult({
   check,
@@ -129,6 +124,7 @@ function SourceChoice({
 
 function ImportSetupComponent() {
   const navigate = useNavigate();
+  const { adding } = Route.useSearch();
   const target = useCamSource()!;
   const activeCamId = useStore(state => state.activeCamId)!;
   const camSources = useStore(state => state.camSources);
@@ -157,22 +153,13 @@ function ImportSetupComponent() {
       return;
     }
     setCheck({ state: 'checking' });
-    try {
-      const markers = getValidMarkers(await detectMarkersInStillFrame());
-      if (markers.length < kExpectedMarkerCount) {
-        setCheck({ state: 'missing', found: markers.length });
-        return;
-      }
-      const error = setMarkersAndRecompute(markers);
-      if (error > kGoodReprojectionErrorPx) {
-        setCheck({ state: 'off', error });
-        return;
-      }
-      toast.success(`Copied the setup of "${from.name}" and checked it against the picture. ${formatReprojectionError(error)}`);
-      finish();
-    } catch (e) {
-      setCheck({ state: 'failed', message: (e as Error).message });
+    const result = await checkSetupAgainstPicture();
+    if (result.state !== 'good') {
+      setCheck(result);
+      return;
     }
+    toast.success(`Copied the setup of "${from.name}" and checked it against the picture. ${formatReprojectionError(result.error)}`);
+    finish();
   }
 
   /** Gives the existing camera this camera's source instead, so one physical camera keeps one entry. */
@@ -193,9 +180,10 @@ function ImportSetupComponent() {
   const checking = check.state === 'checking';
   return (
     <div className="w-full h-full">
-      <PageHeader title="Start from an existing camera" />
+      <PageHeader title={adding ? 'Add camera' : 'Copy setup from another camera'} />
       <div className="flex justify-center p-1 flex-row">
         <div className="max-w-xl gap-4 flex flex-1 flex-col pb-8">
+          {adding && <AddCameraSteps current="reuse" showReuse />}
           <Card>
             <CardHeader>
               <CardTitle>Reuse a camera&apos;s setup?</CardTitle>

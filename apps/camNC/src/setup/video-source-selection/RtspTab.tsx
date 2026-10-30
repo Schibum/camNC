@@ -29,7 +29,8 @@ const schema = z.object({
   type: z.literal('rtsp'),
 });
 
-type OnConnect = (params: RtspConnectionParams) => void;
+/** `name` is the camera's own name, when discovery found one. */
+type OnConnect = (params: RtspConnectionParams, name?: string) => void;
 
 function hostOf(url: string) {
   return /^rtsps?:\/\/(?:[^@/]*@)?([^:/?#]+)/i.exec(url)?.[1] ?? null;
@@ -107,7 +108,7 @@ function CameraLogin({ camera, onConnect }: { camera: FoundCamera; onConnect: On
 
   function connect() {
     const url = usePreset ? buildRtspUrl(camera.host, user, password, path) : streamUrl;
-    if (url) onConnect({ type: 'rtsp', url });
+    if (url) onConnect({ type: 'rtsp', url }, camera.name || camera.hardware ? cameraLabel(camera) : undefined);
   }
 
   return (
@@ -179,7 +180,7 @@ function ManualUrlForm({ defaults, onConnect }: { defaults: RtspConnectionParams
   });
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onConnect)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(values => onConnect(values))} className="space-y-4">
         <FormField
           control={form.control}
           name="url"
