@@ -24,7 +24,16 @@ describe('machine bounds', () => {
     const bounds = new Box2(new Vector2(1, 2), new Vector2(3, 4));
     const camSources: Record<string, ICamSource> = { a: { name: 'Cam', url: 'x', maxResolution: [1, 1], machineBounds: bounds } };
     expect(selectMachineBounds({ machineBounds: null, activeCamId: 'a', camSources })).toBe(bounds);
-    expect(selectMachineBounds({ machineBounds: null, activeCamId: null, camSources })).toBeNull();
+    expect(selectMachineBounds({ machineBounds: null, activeCamId: null, camSources: {} })).toBeNull();
+  });
+
+  it("fall back to another camera's, e.g. after adding a camera to a setup from before bounds moved to the machine", () => {
+    const bounds = new Box2(new Vector2(3, 3), new Vector2(621, 1241));
+    const camSources: Record<string, ICamSource> = {
+      old: { name: 'Reolink', url: 'x', maxResolution: [1, 1], machineBounds: bounds },
+      added: { name: 'New', url: 'y', maxResolution: [1, 1] },
+    };
+    expect(selectMachineBounds({ machineBounds: null, activeCamId: 'added', camSources })).toBe(bounds);
   });
 });
 
