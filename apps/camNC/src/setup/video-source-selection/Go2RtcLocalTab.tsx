@@ -9,6 +9,7 @@ import { ExternalLink } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { kMinChromeVersion } from '@/lib/fluidnc/machine-support';
+import { DesktopAppHint } from './DesktopAppHint';
 
 const schema = z.object({
   host: z.string().min(1).url(),
@@ -43,6 +44,7 @@ export function Go2RtcLocalTab({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <DesktopAppHint />
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onConnect)} className="space-y-4">
             <FormField

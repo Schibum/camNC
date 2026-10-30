@@ -1,5 +1,5 @@
 import { Hint } from '@/components/Hint';
-import { isDesktopApp } from '@/lib/desktop/is-desktop';
+import { isDesktopApp, kDesktopDownloadUrl } from '@/lib/desktop/is-desktop';
 import {
   buildConnectionUrl,
   genRandomWebrtc,
@@ -119,7 +119,11 @@ export function VideoSourceSelection({
                 className="text-blue-500 hover:underline mx-1">
                 go2rtc
               </a>
-              as a gateway, e.g. on a Raspberry&nbsp;Pi&nbsp;Zero.
+              as a gateway, e.g. on a Raspberry&nbsp;Pi&nbsp;Zero. The
+              <a href={kDesktopDownloadUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline mx-1">
+                camNC desktop app
+              </a>
+              connects to it directly, without go2rtc.
             </>
           )}
         </p>

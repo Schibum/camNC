@@ -9,6 +9,7 @@ import { ExternalLink } from 'lucide-react';
 import { useForm, UseFormReturn } from 'react-hook-form';
 import { stringify } from 'yaml';
 import { z } from 'zod';
+import { DesktopAppHint } from './DesktopAppHint';
 
 const go2rtcSchema = z.object({
   share: z.string().min(10),
@@ -87,6 +88,7 @@ export function Go2RtcWebtorrentTab({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
+        <DesktopAppHint />
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onConnect)} className="space-y-8">
             <FormField
