@@ -1,3 +1,4 @@
+mod discovery;
 mod go2rtc;
 
 use go2rtc::{Go2rtc, StreamInfo};
@@ -17,6 +18,22 @@ async fn go2rtc_stream(
     url: String,
 ) -> Result<StreamInfo, String> {
     go2rtc.stream(&app, &url).await
+}
+
+/// Looks for IP cameras on the local network (ONVIF discovery and the RTSP port).
+#[tauri::command]
+async fn discover_cameras() -> Vec<discovery::FoundCamera> {
+    discovery::discover().await
+}
+
+/// Asks an ONVIF camera for its streams with the login; the URLs include the login.
+#[tauri::command]
+async fn onvif_streams(
+    onvif_url: String,
+    user: String,
+    password: String,
+) -> Result<Vec<discovery::CameraStream>, String> {
+    discovery::onvif_streams(&onvif_url, &user, &password).await
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -55,7 +72,11 @@ pub fn run() {
                 .build()?;
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![go2rtc_stream])
+        .invoke_handler(tauri::generate_handler![
+            go2rtc_stream,
+            discover_cameras,
+            onvif_streams
+        ])
         .build(tauri::generate_context!())
         .expect("error while building the camNC desktop app")
         .run(|app, event| {

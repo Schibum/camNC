@@ -24,3 +24,11 @@ tauri-plugin-http = "=3.0.0-alpha.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["time", "net", "io-util", "sync"] }
+# Camera discovery (ONVIF over HTTP to the camera).
+reqwest = { version = "0.13", default-features = false }
+sha1 = "0.10"
+base64 = "0.22"
+getrandom = "0.3"
+url = "2"
+percent-encoding = "2"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
