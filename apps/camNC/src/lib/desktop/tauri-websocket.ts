@@ -16,8 +16,9 @@ const kCloseTimeoutMs = 2000;
  * A browser-like `WebSocket` whose connection is made by the desktop app's Rust side, so a `ws://` controller on
  * the LAN works on every webview engine, without mixed-content blocking or a local network permission.
  *
- * It implements what `FluidncSocket` uses: `readyState`, `binaryType = 'arraybuffer'`, `send`, `close` and the
- * `open`/`message`/`error`/`close` events. Sends are queued, so the controller gets them in order.
+ * It implements what `FluidncSocket` and the WebRTC signaller use: `readyState`, `binaryType = 'arraybuffer'`, `send`,
+ * `close` and the `open`/`message`/`error`/`close` events, also as `on…` handlers. Sends are queued, so the server gets
+ * them in order.
  */
 export class TauriWebSocket extends EventTarget {
   static readonly CONNECTING = 0;
@@ -34,8 +35,17 @@ export class TauriWebSocket extends EventTarget {
   /** Messages that arrived before the connect call returned, delivered right after `open` like a browser would. */
   private early: ChannelMessage[] = [];
 
+  onopen: ((ev: Event) => void) | null = null;
+  onmessage: ((ev: MessageEvent) => void) | null = null;
+  onerror: ((ev: Event) => void) | null = null;
+  onclose: ((ev: CloseEvent) => void) | null = null;
+
   constructor(readonly url: string) {
     super();
+    this.addEventListener('open', ev => this.onopen?.(ev));
+    this.addEventListener('message', ev => this.onmessage?.(ev as MessageEvent));
+    this.addEventListener('error', ev => this.onerror?.(ev));
+    this.addEventListener('close', ev => this.onclose?.(ev as CloseEvent));
     // The channel is listening before the connection exists, so a greeting sent right after the handshake is kept.
     const channel = new Channel<ChannelMessage>();
     channel.onmessage = message => {

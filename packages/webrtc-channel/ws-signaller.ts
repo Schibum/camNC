@@ -14,6 +14,16 @@ export interface WsSignallerOptions {
   WebSocketImpl?: typeof WebSocket;
 }
 
+let defaultWebSocketImpl: typeof WebSocket | undefined;
+
+/**
+ * The WebSocket class signallers use unless `WebSocketImpl` is given. The desktop app connects through its native side,
+ * because the signal worker only accepts the web app's origins.
+ */
+export function setSignalWebSocket(impl: typeof WebSocket | undefined) {
+  defaultWebSocketImpl = impl;
+}
+
 /** `SIGNAL_URL`, or `?signalUrl=ws://localhost:8787` to test against a local `wrangler dev`. */
 export function defaultSignalUrl(): string {
   return new URLSearchParams(globalThis.location?.search ?? '').get('signalUrl') ?? SIGNAL_URL;
@@ -93,7 +103,7 @@ export class WsSignaller implements Signaller {
 
   private connect() {
     if (this.stopped || !this.url) return;
-    const WS = this.opts.WebSocketImpl ?? WebSocket;
+    const WS = this.opts.WebSocketImpl ?? defaultWebSocketImpl ?? WebSocket;
     const ws = new WS(this.url);
     this.ws = ws;
     this.welcomed = false;

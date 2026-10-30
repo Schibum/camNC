@@ -117,4 +117,21 @@ describe('TauriWebSocket', () => {
     expect(event.code).toBe(1006);
     expect(event.wasClean).toBe(false);
   });
+
+  it('also reports events to on… handlers, as the signaller uses them', async () => {
+    const plugin = fakePlugin();
+    const ws = new TauriWebSocket('wss://signal.camnc.app/');
+    const seen: string[] = [];
+    ws.onopen = () => seen.push('open');
+    ws.onmessage = e => seen.push(`message ${e.data}`);
+    ws.onclose = e => seen.push(`close ${e.code}`);
+    await Promise.resolve();
+    const closed = nextEvent(ws, 'close');
+    plugin.open();
+    await nextEvent(ws, 'open');
+    plugin.push({ type: 'Text', data: 'hi' });
+    plugin.push({ type: 'Close', data: { code: 1000, reason: '' } });
+    await closed;
+    expect(seen).toEqual(['open', 'message hi', 'close 1000']);
+  });
 });
