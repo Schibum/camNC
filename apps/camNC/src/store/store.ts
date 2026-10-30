@@ -6,6 +6,7 @@ import { combine, persist, subscribeWithSelector } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 import { ParsedToolpath, parseGCode } from '../visualize/gcodeParsing';
 import { parseToolInfo } from '../visualize/guess-tools';
+import { guessStockHeight } from '../visualize/depthInspection';
 import { useMemo } from 'react';
 import { createStorage } from './store-storage';
 import type { FirmwareVariant } from '@wbcnc/fluidnc';
@@ -112,6 +113,8 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
     toolpathOffset: new Vector3(0, 0, 0),
     toolpathOpacity: 1,
     stockHeight: 0,
+    // After loading another file, where the stock height came from until it is entered or confirmed for that file.
+    stockHeightCheck: null as 'previous' | 'guessed' | null,
     // Visualisation toggles
     showMachinePosMarker: true,
     showMachineZero: true,
@@ -243,6 +246,10 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
     }),
     setStockHeight: (height: number) => set(state => {
       state.stockHeight = height;
+      state.stockHeightCheck = null;
+    }),
+    confirmStockHeight: () => set(state => {
+      state.stockHeightCheck = null;
     }),
     setToolpathOpacity: (opacity: number) =>
       set(state => {
@@ -251,8 +258,13 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
     // Update Toolpath from GCode
     updateToolpath: (gcode: string, name?: string) => set(state => {
       console.log('updateToolpath');
-      state.toolpath = parseGCode(gcode);
+      const toolpath = parseGCode(gcode);
+      state.toolpath = toolpath;
       state.toolpathName = name ?? null;
+      // The stock height was entered for the previous file: prefill a guess from this one, and have it checked.
+      const guess = guessStockHeight(toolpath);
+      if (guess !== null) state.stockHeight = guess;
+      state.stockHeightCheck = guess !== null ? 'guessed' : 'previous';
       const tools = parseToolInfo(gcode);
       console.debug('guessed tools', tools);
       if (tools.length > 0 && tools[0].isFlat) {

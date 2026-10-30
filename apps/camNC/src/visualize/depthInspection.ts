@@ -137,6 +137,16 @@ export function getCutZRange(toolpath: ParsedToolpath): { min: number; max: numb
 }
 
 /**
+ * Stock height guessed from a toolpath zeroed on the stock top: the depth of the deepest cut, which is the stock
+ * height for jobs that cut through. Null for toolpaths zeroed at the bottom, which do not tell.
+ */
+export function guessStockHeight(toolpath: ParsedToolpath): number | null {
+  const { min } = getCutZRange(toolpath);
+  if (!Number.isFinite(min) || min >= -kOvercutTolerance) return null;
+  return Math.round(-min * 10) / 10;
+}
+
+/**
  * Depth colors per path point (rgb triples) over the cutting Z range, adjusted to stay readable against `background`.
  */
 function getContrastingZHeightColors(toolpath: ParsedToolpath, background: Color) {

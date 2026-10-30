@@ -83,9 +83,7 @@ export function useHoverInfo(toolpath: ParsedToolpath | null | undefined) {
 export function useShowStockVideo() {
   const cameraReady = useIsCameraReady();
   const videoEnabled = useDepthView(s => s.videoEnabled);
-  // The simulated stock is opaque and has its own top surface.
-  const simEnabled = useDepthView(s => s.simEnabled);
-  return cameraReady && videoEnabled && !simEnabled;
+  return cameraReady && videoEnabled;
 }
 
 /**

@@ -16,10 +16,11 @@ import {
 } from 'three';
 import { useToolDiameter } from '@/store/store';
 import { getStockFootprint, isRapidSegment } from '../depthInspection';
-import { useDepthView } from '../depthViewStore';
+import { useDepthView, useShowStockVideo } from '../depthViewStore';
 import { ParsedToolpath } from '../gcodeParsing';
 import { parseToolInfo } from '../guess-tools';
 import { ToolPositionMarker } from '../DepthSceneParts';
+import { kJobDoneColor } from '../jobProgress';
 import { HeightmapStamper, heightmapSize } from './HeightmapStamper';
 import { currentPlayhead } from './jobTimeline';
 import { resolveToolShape } from './toolShapes';
@@ -45,9 +46,12 @@ const kSurfaceFragment = /* glsl */ `
   uniform float uBottom;
   uniform float uZScale;
   uniform vec3 uColor;
+  uniform bool uHideTop;
   varying vec3 vPos;
 
   void main() {
+    // The camera image covers the uncut stock top, the surface only shows where material was removed.
+    if (uHideTop && uZRange.y - vPos.z < 1e-3) discard;
     // Cut through the stock: leave a hole. Uses the interpolated height, so hole edges follow the mesh.
     if (vPos.z <= uBottom + 1e-3) discard;
     vec3 scaled = vPos * vec3(1.0, 1.0, uZScale);
@@ -129,6 +133,7 @@ export function SimulatedStock({ toolpath, zTop, stockHeight }: { toolpath: Pars
   const toolDiameter = useToolDiameter();
   const toolShape = useDepthView(s => s.toolShape);
   const zScale = useDepthView(s => s.zScale);
+  const showVideo = useShowStockVideo();
   const tools = useMemo(() => parseToolInfo(toolpath.gcode), [toolpath]);
   const footprint = useMemo(() => getStockFootprint(toolpath), [toolpath]);
   const bounds = toolpath.getBounds();
@@ -157,8 +162,9 @@ export function SimulatedStock({ toolpath, zTop, stockHeight }: { toolpath: Pars
         zTop={zTop}
         bottom={bottom}
         zScale={zScale}
+        showVideo={showVideo}
       />
-      <RemainingPath toolpath={toolpath} />
+      <ToolpathLines toolpath={toolpath} />
     </>
   );
 }
@@ -171,6 +177,7 @@ function StockSurface({
   zTop,
   bottom,
   zScale,
+  showVideo,
 }: {
   texture: Texture;
   footprint: Box2;
@@ -179,6 +186,7 @@ function StockSurface({
   zTop: number;
   bottom: number;
   zScale: number;
+  showVideo: boolean;
 }) {
   const sizeX = footprint.max.x - footprint.min.x;
   const sizeY = footprint.max.y - footprint.min.y;
@@ -200,8 +208,11 @@ function StockSurface({
           uBottom: { value: 0 },
           uZScale: { value: 1 },
           uColor: { value: kStockColor.clone() },
+          uHideTop: { value: false },
         },
         side: DoubleSide,
+        // In the transparent pass like the camera image, so that renderOrder draws the stock after it.
+        transparent: true,
       }),
     []
   );
@@ -222,6 +233,7 @@ function StockSurface({
               uColor: { value: kStockColor.clone().multiplyScalar(shade) },
             },
             side: DoubleSide,
+            transparent: true,
           })
       ),
     []
@@ -235,8 +247,9 @@ function StockSurface({
       material.uniforms.uBottom.value = bottom;
     }
     surface.uniforms.uZScale.value = zScale;
+    surface.uniforms.uHideTop.value = showVideo;
     for (const material of walls) material.uniforms.uFootprint.value = [footprint.min.x, footprint.min.y, sizeX, sizeY];
-  }, [surface, walls, texture, zLow, zTop, bottom, size, sizeX, sizeY, zScale, footprint]);
+  }, [surface, walls, texture, zLow, zTop, bottom, size, sizeX, sizeY, zScale, footprint, showVideo]);
 
   const center: [number, number, number] = [(footprint.min.x + footprint.max.x) / 2, (footprint.min.y + footprint.max.y) / 2, 0];
   return (
@@ -249,12 +262,12 @@ function StockSurface({
   );
 }
 
-/** The toolpath still ahead of the playhead, as thin lines. */
-function RemainingPath({ toolpath }: { toolpath: ParsedToolpath }) {
+/** The toolpath as thin lines: ahead of the playhead in light blue, the part already done in a dimmer green. */
+function ToolpathLines({ toolpath }: { toolpath: ParsedToolpath }) {
   const showRapids = useDepthView(s => s.showRapids);
-  const lines = useMemo(() => {
+  const { ahead, done } = useMemo(() => {
     const points = toolpath.pathPoints;
-    // Slot i - 1 holds the segment ending at point i, so the draw range can start at the playhead.
+    // Slot i - 1 holds the segment ending at point i, so the draw ranges can split at the playhead.
     const positions = new Float32Array(Math.max(points.length - 1, 0) * 6);
     const colors = new Float32Array(positions.length);
     const cut = new Color('#7dd3fc');
@@ -268,29 +281,46 @@ function RemainingPath({ toolpath }: { toolpath: ParsedToolpath }) {
       const c = isRapid ? rapid : cut;
       colors.set([c.r, c.g, c.b, c.r, c.g, c.b], (i - 1) * 6);
     }
-    const geom = new BufferGeometry();
-    geom.setAttribute('position', new Float32BufferAttribute(positions, 3));
-    geom.setAttribute('color', new Float32BufferAttribute(colors, 3));
-    const material = new LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.45, depthTest: false });
-    const segments = new LineSegments(geom, material);
-    segments.frustumCulled = false;
-    segments.renderOrder = 2;
-    segments.raycast = () => null;
-    return segments;
+    const position = new Float32BufferAttribute(positions, 3);
+    const lines = (material: LineBasicMaterial, withColors: boolean) => {
+      // Both share the positions, each with its own draw range.
+      const geom = new BufferGeometry();
+      geom.setAttribute('position', position);
+      if (withColors) geom.setAttribute('color', new Float32BufferAttribute(colors, 3));
+      const segments = new LineSegments(geom, material);
+      segments.frustumCulled = false;
+      segments.renderOrder = 2;
+      segments.raycast = () => null;
+      return segments;
+    };
+    return {
+      ahead: lines(new LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.45, depthTest: false }), true),
+      done: lines(new LineBasicMaterial({ color: kJobDoneColor, transparent: true, opacity: 0.6, depthTest: false }), false),
+    };
   }, [toolpath, showRapids]);
   useEffect(
     () => () => {
-      lines.geometry.dispose();
-      (lines.material as LineBasicMaterial).dispose();
+      for (const lines of [ahead, done]) {
+        lines.geometry.dispose();
+        (lines.material as LineBasicMaterial).dispose();
+      }
     },
-    [lines]
+    [ahead, done]
   );
   useFrame(() => {
-    const { index } = currentPlayhead(toolpath);
-    const first = Math.max(index - 1, 0) * 2;
-    lines.geometry.setDrawRange(first, Math.max(lines.geometry.attributes.position.count - first, 0));
+    const { index, fraction } = currentPlayhead(toolpath);
+    const count = ahead.geometry.attributes.position.count;
+    // The segment under the tool counts as ahead until it is complete.
+    const split = Math.min((fraction >= 1 ? index : Math.max(index - 1, 0)) * 2, count);
+    ahead.geometry.setDrawRange(split, count - split);
+    done.geometry.setDrawRange(0, split);
   });
-  return <primitive object={lines} />;
+  return (
+    <>
+      <primitive object={done} />
+      <primitive object={ahead} />
+    </>
+  );
 }
 
 /**

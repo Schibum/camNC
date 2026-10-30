@@ -559,9 +559,13 @@ function Stat({ label, value, className }: { label: string; value: string; class
 function StockHeightItem({ onFocusChange }: { onFocusChange?: (focused: boolean) => void }) {
   const stockHeight = useStore(s => s.stockHeight);
   const setStockHeight = useStore(s => s.setStockHeight);
+  const check = useStore(s => s.stockHeightCheck);
+  const confirmStockHeight = useStore(s => s.confirmStockHeight);
   // Text being typed, so intermediate input like "1." is kept until the field loses focus.
   const [draft, setDraft] = useState<string | null>(null);
   const isSet = stockHeight > 0;
+  // Carried over from the previous file: highlighted like an unset height until confirmed.
+  const needsCheck = isSet && check !== null;
   const onChange = (text: string) => {
     setDraft(text);
     const value = Number(text);
@@ -571,9 +575,9 @@ function StockHeightItem({ onFocusChange }: { onFocusChange?: (focused: boolean)
     <label
       className={cn(
         'flex items-center gap-2 rounded-md px-2 py-1.5 text-xs',
-        isSet ? 'bg-white/5' : 'bg-amber-400/15 text-amber-100 ring-1 ring-amber-300/40'
+        isSet && !needsCheck ? 'bg-white/5' : 'bg-amber-400/15 text-amber-100 ring-1 ring-amber-300/40'
       )}>
-      {isSet ? (
+      {isSet && !needsCheck ? (
         <CircleCheck className="size-4 shrink-0 text-emerald-400" aria-hidden />
       ) : (
         <CircleDashed className="size-4 shrink-0 text-amber-300" aria-hidden />
@@ -581,6 +585,11 @@ function StockHeightItem({ onFocusChange }: { onFocusChange?: (focused: boolean)
       <span className="grid flex-1 leading-tight">
         <span className="font-medium">Stock height</span>
         {!isSet && <span className="text-[10px] text-amber-200/80">Not set, needed for the stock</span>}
+        {needsCheck && (
+          <span className="text-[10px] text-amber-200/80">
+            {check === 'guessed' ? 'Guessed from the deepest cut, check it' : 'From the previous file, check it'}
+          </span>
+        )}
       </span>
       <span className="flex items-center rounded bg-black/30 ring-1 ring-white/10 focus-within:ring-sky-400/70">
         <input
@@ -602,6 +611,18 @@ function StockHeightItem({ onFocusChange }: { onFocusChange?: (focused: boolean)
         />
         <span className="pr-1.5 pl-0.5 text-[10px] text-muted-foreground">mm</span>
       </span>
+      {/* After the input, so that the label keeps labelling the input. */}
+      {needsCheck && (
+        <button
+          type="button"
+          className="rounded bg-amber-300/90 px-1.5 py-0.5 text-[10px] font-semibold text-slate-900 hover:bg-amber-200"
+          onClick={e => {
+            e.preventDefault();
+            confirmStockHeight();
+          }}>
+          OK
+        </button>
+      )}
     </label>
   );
 }
@@ -611,6 +632,7 @@ const kZScalePresets = [1, 2, 5, 10];
 /** Floating panel with the 3D view options, depth summary and cut levels of the toolpath. */
 export function DepthPanel({ toolpath }: { toolpath: ParsedToolpath }) {
   const stockHeight = useStore(s => s.stockHeight);
+  const stockHeightCheck = useStore(s => s.stockHeightCheck);
   const canShowVideo = useIsCameraReady();
   const zScale = useDepthView(s => s.zScale);
   const setZScale = useDepthView(s => s.setZScale);
@@ -655,8 +677,8 @@ export function DepthPanel({ toolpath }: { toolpath: ParsedToolpath }) {
         </span>
         {collapsed ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
       </button>
-      {/* Kept visible while collapsed until it is set. */}
-      {(!collapsed || stockHeight === 0 || editingStock) && (
+      {/* Kept visible while collapsed until it is set and confirmed for this file. */}
+      {(!collapsed || stockHeight === 0 || stockHeightCheck !== null || editingStock) && (
         <div className="border-t border-white/10 px-2 py-2">
           <StockHeightItem onFocusChange={setEditingStock} />
         </div>
