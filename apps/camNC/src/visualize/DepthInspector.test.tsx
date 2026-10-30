@@ -9,10 +9,15 @@ import { parseGCode } from './gcodeParsing';
 
 const store = vi.hoisted(() => ({
   stockHeight: 0,
+  stockHeightCheck: null as 'previous' | 'guessed' | null,
   toolpathOffset: { x: 0, y: 0, z: 0 },
   hasCamera: false,
   setStockHeight: (height: number) => {
     store.stockHeight = height;
+    store.stockHeightCheck = null;
+  },
+  confirmStockHeight: () => {
+    store.stockHeightCheck = null;
   },
 }));
 
@@ -53,6 +58,7 @@ function renderPanel(code: string) {
 afterEach(() => {
   cleanup();
   store.stockHeight = 0;
+  store.stockHeightCheck = null;
   store.hasCamera = false;
   useDepthView.setState({ selected: null, hover: null, videoEnabled: true, zeroAt: null });
 });
@@ -106,6 +112,19 @@ describe('DepthPanel', () => {
       expect(screen.getByText(label).nextElementSibling?.textContent).toBe(value);
     }
     expect(screen.getByRole<HTMLInputElement>('spinbutton', { name: 'Stock height' }).value).toBe('3');
+  });
+
+  it('asks to check a guessed stock height', () => {
+    store.stockHeight = 12;
+    store.stockHeightCheck = 'guessed';
+    const { rerender } = renderPanel(gcode);
+    expect(screen.getByText('Guessed from the deepest cut, check it')).toBeTruthy();
+    // Stays visible with the panel collapsed until confirmed.
+    fireEvent.click(screen.getByRole('button', { expanded: true }));
+    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
+    expect(store.stockHeightCheck).toBeNull();
+    rerender(<DepthPanel toolpath={parseGCode(gcode)} />);
+    expect(screen.queryByRole('spinbutton', { name: 'Stock height' })).toBeNull();
   });
 
   it('asks for the stock height until it is set', () => {

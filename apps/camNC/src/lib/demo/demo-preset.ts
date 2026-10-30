@@ -67,8 +67,7 @@ export function applyDemoPreset(origin = location.origin, { camera = true } = {}
     activeCamId: camera ? id : null,
     machineBounds: camSource.machineBounds!.clone(),
     machine: { host: kDemoMachineHost, variant: 'v4' },
-    stockHeight: kDemoStockHeight,
   });
   useStore.getState().updateToolpath(demoGcode(), kDemoGcodeName);
-  useStore.setState({ toolDiameter: 6 });
+  useStore.setState({ toolDiameter: 6, stockHeight: kDemoStockHeight, stockHeightCheck: null });
 }

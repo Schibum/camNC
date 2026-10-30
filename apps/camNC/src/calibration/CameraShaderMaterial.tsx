@@ -12,7 +12,16 @@ import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 
-export function CameraShaderMaterial({ texture, opacity = 1 }: { texture: THREE.Texture; opacity?: number }) {
+export function CameraShaderMaterial({
+  texture,
+  opacity = 1,
+  onlyOnDepth = false,
+}: {
+  texture: THREE.Texture;
+  opacity?: number;
+  // Draw only where something already drawn lies at the plane's depth, e.g. the uncut top of the simulated stock.
+  onlyOnDepth?: boolean;
+}) {
   // These are your extrinsics (rotation and translation) from world to camera space.
   const { R, t } = useCameraExtrinsics();
   // Get your intrinsic matrix via your custom hook.
@@ -232,6 +241,11 @@ export function CameraShaderMaterial({ texture, opacity = 1 }: { texture: THREE.
       transparent={opacity < 1}
       // Let what lies below a see-through plane show, e.g. the stock box in the 3D views.
       depthWrite={opacity >= 1}
+      // Pushed back slightly, so that it passes on surfaces coplanar with it and fails on anything behind.
+      depthFunc={onlyOnDepth ? THREE.GreaterEqualDepth : THREE.LessEqualDepth}
+      polygonOffset={onlyOnDepth}
+      polygonOffsetFactor={1}
+      polygonOffsetUnits={8}
     />
   );
 }
