@@ -31,7 +31,7 @@ declare module 'gcode-toolpath' {
   export default class GCodeToolpath {
     constructor(options?: GCodeToolpathOptions);
     loadFromFile(filePath: string, callback?: (err?: Error) => void): void;
-    loadFromStringSync(gcode: string, callback?: (err?: Error) => void): void;
+    loadFromStringSync(gcode: string, callback?: (data: { line: string; words: [string, number][] }, index: number) => void): void;
     forEach(callback: (command: GCodeCommand) => void): void;
   }
 }

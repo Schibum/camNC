@@ -32,6 +32,8 @@ import { ParsedToolpath } from './gcodeParsing';
 import { kJobDoneColor, motionLineEnds, progressPointIndex } from './jobProgress';
 import { useSmoothedMachinePos } from './smoothedMachinePos';
 import { getPlasmaColor } from './toolpathColors';
+import { SimToolMarker, SimulatedStock } from './stockSim/SimulatedStock';
+import { kToolShapeChoices } from './stockSim/toolShapes';
 
 export type DepthViewPreset = '3d' | 'front' | 'side';
 
@@ -301,6 +303,7 @@ export function DepthScene({ toolpath, view, fitKey }: { toolpath: ParsedToolpat
   const toolpathOffset = useStore(s => s.toolpathOffset);
   const zScale = useDepthView(s => s.zScale);
   const showRapids = useDepthView(s => s.showRapids);
+  const simEnabled = useDepthView(s => s.simEnabled);
   const setHover = useDepthView(s => s.setHover);
   const showVideo = useShowStockVideo();
   const selectedLevel = useSelectedLevel(toolpath);
@@ -379,22 +382,29 @@ export function DepthScene({ toolpath, view, fitKey }: { toolpath: ParsedToolpat
 
         <group scale={[1, 1, zScale]}>
           <group position-z={shift}>
-            <ToolpathSegments
-              toolpath={toolpath}
-              showRapids={showRapids}
-              dashSize={xySize / 150}
-              selectedLevel={selectedLevel}
-              onHover={info => setHover(toolpath, info)}
-            />
-            <DepthJobProgress toolpath={toolpath} />
+            {simEnabled ? (
+              <SimulatedStock toolpath={toolpath} zTop={-shift} stockHeight={stockHeight} />
+            ) : (
+              <>
+                <ToolpathSegments
+                  toolpath={toolpath}
+                  showRapids={showRapids}
+                  dashSize={xySize / 150}
+                  selectedLevel={selectedLevel}
+                  onHover={info => setHover(toolpath, info)}
+                />
+                <DepthJobProgress toolpath={toolpath} />
+              </>
+            )}
           </group>
-          {stockHeight > 0 && <StockBlock center={center} size={planeSize} height={stockHeight} showTop={!showVideo} />}
+          {stockHeight > 0 && !simEnabled && <StockBlock center={center} size={planeSize} height={stockHeight} showTop={!showVideo} />}
           {selectedLevel !== null && <LevelPlane center={center} size={planeSize} z={selectedLevel + shift} />}
         </group>
 
         <DepthRuler levels={levels} x={footprint.min.x} y={footprint.min.y} zScale={zScale} shift={shift} selected={selectedLevel} />
 
         <MachineToolMarker toolpathOffset={workOrigin} sceneZ={sceneZ} length={axisLength} />
+        {simEnabled && <SimToolMarker toolpath={toolpath} sceneZ={sceneZ} length={axisLength} />}
 
         {hover && (
           <HoverMarker
@@ -608,6 +618,10 @@ export function DepthPanel({ toolpath }: { toolpath: ParsedToolpath }) {
   const setShowRapids = useDepthView(s => s.setShowRapids);
   const videoEnabled = useDepthView(s => s.videoEnabled);
   const setVideoEnabled = useDepthView(s => s.setVideoEnabled);
+  const simEnabled = useDepthView(s => s.simEnabled);
+  const setSimEnabled = useDepthView(s => s.setSimEnabled);
+  const toolShape = useDepthView(s => s.toolShape);
+  const setToolShape = useDepthView(s => s.setToolShape);
   const setSelected = useDepthView(s => s.setSelected);
   const selectedLevel = useSelectedLevel(toolpath);
   const [collapsed, setCollapsed] = useState(false);
@@ -678,6 +692,29 @@ export function DepthPanel({ toolpath }: { toolpath: ParsedToolpath }) {
                   </button>
                 ))}
               </div>
+            </div>
+            <div className="grid gap-1">
+              <Switch size="sm" isSelected={simEnabled} onValueChange={setSimEnabled}>
+                <span className="text-xs">Material removal</span>
+              </Switch>
+              {simEnabled && (
+                <div className="flex gap-0.5 rounded-md bg-white/10 p-0.5" role="group" aria-label="Tool shape">
+                  {kToolShapeChoices.map(choice => (
+                    <button
+                      key={choice.value}
+                      type="button"
+                      aria-pressed={toolShape === choice.value}
+                      title={choice.value === 'auto' ? 'From the tool table in the file, flat otherwise' : undefined}
+                      className={cn(
+                        'flex-1 whitespace-nowrap rounded px-0.5 py-0.5 text-[10px]',
+                        toolShape === choice.value ? 'bg-white/90 font-semibold text-slate-900 shadow-sm' : 'text-muted-foreground'
+                      )}
+                      onClick={() => setToolShape(choice.value)}>
+                      {choice.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <Switch size="sm" isSelected={showRapids} onValueChange={setShowRapids}>
               <span className="text-xs">Rapids</span>
