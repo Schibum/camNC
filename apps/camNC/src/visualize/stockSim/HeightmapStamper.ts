@@ -171,6 +171,8 @@ export class HeightmapStamper {
   private readonly scene = new Scene();
   private readonly camera = new Camera();
   private readonly material: RawShaderMaterial;
+  // The partial segment is instance 0 of its own geometry, so it needs a material whose range starts at 0.
+  private readonly partialMaterial: RawShaderMaterial;
   private readonly segments: InstancedBufferGeometry;
   private readonly partial: InstancedBufferGeometry;
   private readonly partialStart: InstancedBufferAttribute;
@@ -218,6 +220,7 @@ export class HeightmapStamper {
     }
 
     this.material = createStampMaterial(domain);
+    this.partialMaterial = createStampMaterial(domain);
     this.segments = createQuad(new InstancedBufferGeometry());
     this.segments.setAttribute('aStart', new InstancedBufferAttribute(this.starts, 3));
     this.segments.setAttribute('aEnd', new InstancedBufferAttribute(this.ends, 3));
@@ -234,7 +237,7 @@ export class HeightmapStamper {
     this.partial.instanceCount = 1;
 
     this.segmentMesh = new Mesh(this.segments, this.material);
-    this.partialMesh = new Mesh(this.partial, this.material);
+    this.partialMesh = new Mesh(this.partial, this.partialMaterial);
     for (const mesh of [this.segmentMesh, this.partialMesh]) {
       mesh.frustumCulled = false;
       this.scene.add(mesh);
@@ -294,6 +297,7 @@ export class HeightmapStamper {
     this.target.depthTexture?.dispose();
     this.target.dispose();
     this.material.dispose();
+    this.partialMaterial.dispose();
     this.segments.dispose();
     this.partial.dispose();
   }

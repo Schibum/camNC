@@ -104,4 +104,19 @@ describe('HeightmapStamper', () => {
     expect(heightAt(20, 20)).toBeLessThan(-2.9);
     stamper.dispose();
   });
+
+  it('cuts the segment under the playhead while playing forward', () => {
+    const shape: ToolShape = { kind: 'flat', radius: 3 };
+    // One long cut along X at Z -2.
+    const { toolpath, stamper } = makeStamper('G0 X-5 Y0 Z1\nG1 Z-2 F100\nG1 X25 F500\nG0 Z1\n', shape);
+    const last = toolpath.pathPoints.length - 2;
+    // Playback: first the start of the long cut, then further along it, as consecutive frames do.
+    stamper.update(renderer, { index: last, fraction: 0.1 });
+    stamper.update(renderer, { index: last, fraction: 0.6 });
+    const heightAt = readHeights(stamper);
+    // x = 10 (60 % of the way from -5 to 25) is cut, x = 20 is not yet.
+    expect(heightAt(Math.round((9 + 10) / 0.5), 20)).toBeCloseTo(-2, 2);
+    expect(heightAt(Math.round((20 + 10) / 0.5), 20)).toBeCloseTo(0, 2);
+    stamper.dispose();
+  });
 });
