@@ -99,7 +99,7 @@ jobs:
           node -e '
             const release = process.env.RELEASE === "true";
             const config = { version: process.env.VERSION, bundle: { createUpdaterArtifacts: release, macOS: { signingIdentity: "-" } } };
-            if (process.platform === "linux") config.build = { beforeBundleCommand: `bash ${process.env.GITHUB_WORKSPACE}/apps/camnc-desktop/scripts/linux-cef-gl.sh` };
+            config.build = { beforeBundleCommand: `node "${process.env.GITHUB_WORKSPACE}/apps/camnc-desktop/scripts/cef-bundle-files.mjs"` };
             require("fs").writeFileSync("release.conf.json", JSON.stringify(config));
           '
           pnpm tauri build --bundles ${{ matrix.bundles }} --config release.conf.json

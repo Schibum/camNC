@@ -69,6 +69,8 @@ updates afterwards install without that. Windows shows a SmartScreen warning on 
 
 ## Linux
 
-Builds with GTK 4 (`libgtk-4-dev`) on Ubuntu 24.04 or newer. CEF 154 no longer ships `libEGL.so` and `libGLESv2.so`,
-which the Tauri alpha bundlers still copy, so release builds put the system's GL dispatch libraries there
-(`scripts/linux-cef-gl.sh`, needs `libegl1` and `libgles2`).
+Builds with GTK 4 (`libgtk-4-dev`) on Ubuntu 24.04 or newer.
+
+CEF 154 no longer ships `libEGL` and `libGLESv2`, which the Linux and Windows bundlers of the Tauri alpha still copy.
+CI runs `scripts/cef-bundle-files.mjs` before bundling, which puts the system's GL libraries there on Linux (needs
+`libegl1` and `libgles2`) and empty placeholders on Windows.
