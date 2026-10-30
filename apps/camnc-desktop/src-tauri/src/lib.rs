@@ -3,7 +3,7 @@ mod go2rtc;
 use go2rtc::{Go2rtc, StreamInfo};
 use tauri::webview::{PermissionKind, PermissionResponse};
 use tauri::{AppHandle, Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder};
-use tauri_runtime_cef::{Cef, RemoteDebugging};
+use tauri_runtime_cef::{Cef, RemoteDebugging, SecretStorage};
 
 /// In debug builds, Chromium's DevTools protocol listens here, so Playwright (`chromium.connectOverCDP`) and
 /// `chrome://inspect` can drive and debug the app like the web app in Chrome.
@@ -25,10 +25,14 @@ pub fn run() {
     // including WebRTC, WebGPU and the cross-origin isolation OpenCV's threads need.
     let mut cef = Cef::default();
     if cfg!(debug_assertions) {
-        cef = cef.remote_debugging(RemoteDebugging::Port {
-            port: DEBUG_CDP_PORT,
-            allowed_origins: vec![],
-        });
+        cef = cef
+            .remote_debugging(RemoteDebugging::Port {
+                port: DEBUG_CDP_PORT,
+                allowed_origins: vec![],
+            })
+            // Debug builds are ad-hoc signed, so the keychain item Chromium keeps its cookie key in would ask for the
+            // login password after every rebuild. The app keeps no cookies worth protecting.
+            .secret_storage(SecretStorage::Mock);
     }
     tauri::Builder::default()
         .runtime(cef)
