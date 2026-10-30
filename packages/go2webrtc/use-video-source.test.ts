@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { videoSource, type VideoSource } from './video-source';
-import { acquireVideoSource, getVideoSource, releaseVideoSource, setKeepAliveTime } from './use-video-source';
+import { acquireVideoSource, disposeIdleVideoSources, getVideoSource, releaseVideoSource, setKeepAliveTime } from './use-video-source';
 
 vi.mock('./video-source', () => ({ videoSource: vi.fn() }));
 
@@ -72,5 +72,29 @@ describe('shared video source disposal', () => {
     releaseVideoSource(url);
     await vi.advanceTimersByTimeAsync(100);
     expect(newSource.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('disposes idle matching sources at once and leaves sources in use alone', async () => {
+    const idle = createSource('rtsp://cam-a/stream');
+    const inUse = createSource('rtsp://cam-b/stream');
+    const other = createSource('webcam:?deviceId=x');
+    vi.mocked(videoSource).mockReturnValueOnce(idle).mockReturnValueOnce(inUse).mockReturnValueOnce(other);
+    acquireVideoSource('rtsp://cam-a/stream');
+    acquireVideoSource('rtsp://cam-b/stream');
+    acquireVideoSource('webcam:?deviceId=x');
+    releaseVideoSource('rtsp://cam-a/stream');
+    releaseVideoSource('webcam:?deviceId=x');
+
+    disposeIdleVideoSources(url => url.startsWith('rtsp:'));
+
+    expect(idle.dispose).toHaveBeenCalledTimes(1);
+    expect(inUse.dispose).not.toHaveBeenCalled();
+    expect(other.dispose).not.toHaveBeenCalled();
+    const fresh = createSource('rtsp://cam-a/stream');
+    vi.mocked(videoSource).mockReturnValueOnce(fresh);
+    expect(getVideoSource('rtsp://cam-a/stream')).toBe(fresh);
+    // The disposed source's grace timer no longer runs.
+    await vi.advanceTimersByTimeAsync(100);
+    expect(idle.dispose).toHaveBeenCalledTimes(1);
   });
 });

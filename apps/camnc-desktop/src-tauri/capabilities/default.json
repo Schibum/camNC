@@ -2,9 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "What the camNC frontend may do.",
-  "windows": [
-    "main"
-  ],
+  "windows": ["main"],
   "permissions": [
     "core:default",
     "allow-go2rtc-stream",
@@ -30,6 +28,24 @@
         },
         {
           "url": "http://*.local:*"
+        },
+        {
+          "url": "http://*.fritz.box:*"
+        },
+        {
+          "url": "http://*.localdomain:*"
+        },
+        {
+          "url": "http://*.internal:*"
+        },
+        {
+          "url": "http://*.home.arpa:*"
+        },
+        {
+          "url": "http://*.home:*"
+        },
+        {
+          "url": "http://*.lan:*"
         },
         {
           "url": "http://127.0.0.1:*"

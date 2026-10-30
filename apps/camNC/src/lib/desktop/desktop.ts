@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { setRtspGateway } from '@wbcnc/go2webrtc/rtsp-gateway';
+import { disposeIdleVideoSources } from '@wbcnc/go2webrtc/use-video-source';
 import { setSignalWebSocket } from '@wbcnc/go2webrtc/trystero';
 import { isDesktopApp } from './is-desktop';
 import { TauriWebSocket } from './tauri-websocket';
@@ -20,10 +21,16 @@ export function initDesktopApp() {
   // The phone camera's pairing server accepts only the web app's origins; the native socket sends none.
   setSignalWebSocket(TauriWebSocket as unknown as typeof WebSocket);
   watchForUpdates();
-  setRtspGateway(url =>
-    invoke<{ host: string; src: string }>('go2rtc_stream', { url }).catch(err => {
+  let go2rtcHost: string | undefined;
+  setRtspGateway(async url => {
+    const stream = await invoke<{ host: string; src: string }>('go2rtc_stream', { url }).catch(err => {
       // Commands reject with the plain string the Rust side returned.
       throw err instanceof Error ? err : new Error(String(err));
-    })
-  );
+    });
+    // A new camera restarts go2rtc on another port, which ends the streams of cameras kept connected for a quick
+    // switch back: those have to connect again.
+    if (go2rtcHost && stream.host !== go2rtcHost) disposeIdleVideoSources(source => /^rtsps?:/i.test(source));
+    go2rtcHost = stream.host;
+    return stream;
+  });
 }

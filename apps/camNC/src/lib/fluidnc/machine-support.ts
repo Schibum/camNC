@@ -73,11 +73,22 @@ function hostname(input: string) {
  * Returns why the host cannot be used, or `null` when it can.
  */
 export function hostBlockedReason(input: string, protocol = location.protocol): string | null {
-  if (protocol !== 'https:' || isDemoMode() || isDesktopApp()) return null;
+  if (isDesktopApp()) return desktopHostBlockedReason(input);
+  if (protocol !== 'https:' || isDemoMode()) return null;
   const host = hostname(input);
   if (!host) return null;
   if (host === 'localhost' || host.endsWith('.local') || isPrivateIpv4(host) || isPrivateIpv6(host)) return null;
   return `Chrome blocks "${host}" from the HTTPS app: only a local IP address (like 192.168.1.20) or a .local name is allowed. Enter the controller's IP address instead (shown on the FluidNC WebUI or in your router).`;
+}
+
+/** LAN name suffixes the desktop app's HTTP scope allows (`apps/camnc-desktop/src-tauri/capabilities/default.json`). */
+const kDesktopLanSuffixes = ['.local', '.lan', '.home', '.home.arpa', '.internal', '.localdomain', '.fritz.box'];
+
+/** The desktop app reaches the controller through Rust, but its file uploads may only go to private IPv4 addresses and LAN names. */
+function desktopHostBlockedReason(input: string): string | null {
+  const host = hostname(input);
+  if (!host || host === 'localhost' || isPrivateIpv4(host) || kDesktopLanSuffixes.some(suffix => host.endsWith(suffix))) return null;
+  return `The desktop app only connects to controllers on your local network: enter its IP address (like 192.168.1.20) or a name ending in .local, .lan or .fritz.box.`;
 }
 
 function isLoopback(host: string) {

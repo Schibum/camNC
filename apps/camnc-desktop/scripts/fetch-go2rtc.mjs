@@ -37,8 +37,10 @@ async function download(asset, dest) {
     try {
       const zip = join(tmp, asset);
       writeFileSync(zip, bytes);
-      // bsdtar (macOS, Windows 10+) reads zip files.
-      execFileSync('tar', ['-xf', zip, '-C', tmp]);
+      // bsdtar (macOS, Windows 10+) reads zip files. On Windows it is named by path, because Git Bash's GNU tar may come
+      // first on the PATH, and it neither reads zip files nor takes `C:` paths.
+      const tar = process.platform === 'win32' ? join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe') : 'tar';
+      execFileSync(tar, ['-xf', zip, '-C', tmp]);
       renameSync(join(tmp, asset.includes('win') ? 'go2rtc.exe' : 'go2rtc'), dest);
     } finally {
       rmSync(tmp, { recursive: true, force: true });

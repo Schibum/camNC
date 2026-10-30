@@ -44,7 +44,7 @@ const page = browser.contexts()[0].pages()[0];
 - go2rtc's API listens on `127.0.0.1` only, on a random port, and only allows `/api/ws`. Streams come from its config
   file, which the app writes, so no other program or web page can add sources (e.g. `exec:`) through the API.
 - Only RTSP/RTMP camera URLs are accepted. Adding a camera restarts go2rtc with the new config.
-- The HTTP plugin may only reach private network addresses and `.local` names (`src-tauri/capabilities/default.json`).
+- The HTTP plugin may only reach private network addresses and LAN names (`.local`, `.lan`, `.home`, `.fritz.box`, …) (`src-tauri/capabilities/default.json`).
 
 ## Releases and updates
 
