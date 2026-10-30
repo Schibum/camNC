@@ -49,9 +49,7 @@ jobs:
             bundles: nsis
           - platform: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
-            # The AppImage bundler of tauri-cli 3.0.0-alpha.5 fails to copy CEF's libEGL.so, so Linux ships as .deb for
-            # now, which the updater cannot replace.
-            bundles: deb
+            bundles: appimage,deb
     name: Build (${{ matrix.target }})
     runs-on: ${{ matrix.platform }}
     defaults:
@@ -77,7 +75,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-4-dev libnss3 libnspr4 libatk-bridge2.0-0 libgbm1 libxkbcommon0 libxcomposite1 \
-            libxdamage1 libxrandr2 libasound2t64 file
+            libxdamage1 libxrandr2 libasound2t64 libegl1 libgles2 file
       # The CEF binary distribution (~1 GB) the build downloads.
       - uses: actions/cache@v4
         with:
@@ -101,15 +99,10 @@ jobs:
           node -e '
             const release = process.env.RELEASE === "true";
             const config = { version: process.env.VERSION, bundle: { createUpdaterArtifacts: release, macOS: { signingIdentity: "-" } } };
+            if (process.platform === "linux") config.build = { beforeBundleCommand: `bash ${process.env.GITHUB_WORKSPACE}/apps/camnc-desktop/scripts/linux-cef-gl.sh` };
             require("fs").writeFileSync("release.conf.json", JSON.stringify(config));
           '
           pnpm tauri build --bundles ${{ matrix.bundles }} --config release.conf.json
-      - name: Show the CEF files (Linux bundling failed)
-        if: failure() && runner.os == 'Linux'
-        run: |
-          env | grep -i cef || true
-          find ~/.cache/tauri-cef apps/camnc-desktop/src-tauri/target/release -maxdepth 4 \( -name 'libEGL*' -o -name 'libcef*' -o -name 'icudtl.dat' -o -name 'libvk_swiftshader*' -o -name 'libvulkan*' \) 2>/dev/null
-          ls -la ~/.cache/tauri-cef/*/* 2>/dev/null | head -60
       - name: Collect bundles
         run: |
           mkdir -p dist

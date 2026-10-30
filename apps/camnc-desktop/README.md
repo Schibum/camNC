@@ -48,7 +48,8 @@ const page = browser.contexts()[0].pages()[0];
 
 ## Releases and updates
 
-`.github/workflows/desktop.yml` builds macOS (Apple silicon, `.dmg`), Windows (NSIS installer) and Linux (`.deb`):
+`.github/workflows/desktop.yml` builds macOS (Apple silicon, `.dmg`), Windows (NSIS installer) and Linux (AppImage and
+`.deb`):
 
 - Pull requests that touch the app get the bundles as build artifacts.
 - Every push to `main` that touches the app or the web app is released as `desktop-v0.1.<run number>`, marked as the
@@ -56,8 +57,7 @@ const page = browser.contexts()[0].pages()[0];
 - Release builds check for an update 10 seconds after start and then every 4 hours. A newer version is downloaded in the
   background and the app offers a restart; it never restarts on its own, so a running job is not interrupted. On Windows
   the installer runs at that restart.
-- Linux does not update itself yet: the updater only replaces AppImages, and the AppImage bundler of the Tauri 3 alpha
-  fails on CEF's files. Install a newer `.deb` from the releases instead.
+- On Linux the AppImage updates itself; a `.deb` install does not.
 
 Updates are signed with a minisign key pair (`pnpm tauri signer generate`). The public key is in `tauri.conf.json`
 (`plugins.updater.pubkey`), and the private key goes into the `TAURI_SIGNING_PRIVATE_KEY` repository secret. Without the
@@ -69,4 +69,6 @@ updates afterwards install without that. Windows shows a SmartScreen warning on 
 
 ## Linux
 
-Builds with GTK 4 (`libgtk-4-dev`) on Ubuntu 24.04 or newer.
+Builds with GTK 4 (`libgtk-4-dev`) on Ubuntu 24.04 or newer. CEF 154 no longer ships `libEGL.so` and `libGLESv2.so`,
+which the Tauri alpha bundlers still copy, so release builds put the system's GL dispatch libraries there
+(`scripts/linux-cef-gl.sh`, needs `libegl1` and `libgles2`).
