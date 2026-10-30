@@ -73,6 +73,29 @@ const kSurfaceFragment = /* glsl */ `
   }
 `;
 
+// Stock bottom: flat, with holes where the job cut through.
+const kBottomVertex = /* glsl */ `
+  uniform float uBottom;
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position.xy, uBottom, 1.0);
+  }
+`;
+
+const kBottomFragment = /* glsl */ `
+  uniform sampler2D uHeight;
+  uniform vec2 uZRange;
+  uniform float uBottom;
+  uniform vec3 uColor;
+  varying vec2 vUv;
+  void main() {
+    if (mix(uZRange.x, uZRange.y, texture(uHeight, vUv).r) <= uBottom + 1e-3) discard;
+    gl_FragColor = vec4(uColor, 1.0);
+    #include <colorspace_fragment>
+  }
+`;
+
 const kWallVertex = /* glsl */ `
   uniform sampler2D uHeight;
   uniform vec2 uZRange;
@@ -241,10 +264,25 @@ function StockSurface({
       ),
     []
   );
-  useEffect(() => () => [surface, ...walls].forEach(m => m.dispose()), [surface, walls]);
+  const bottomFace = useMemo(
+    () =>
+      new ShaderMaterial({
+        vertexShader: kBottomVertex,
+        fragmentShader: kBottomFragment,
+        uniforms: {
+          uHeight: { value: null },
+          uZRange: { value: [0, 0] },
+          uBottom: { value: 0 },
+          uColor: { value: kStockColor.clone().multiplyScalar(0.5) },
+        },
+        side: DoubleSide,
+      }),
+    []
+  );
+  useEffect(() => () => [surface, bottomFace, ...walls].forEach(m => m.dispose()), [surface, bottomFace, walls]);
 
   useEffect(() => {
-    for (const material of [surface, ...walls]) {
+    for (const material of [surface, bottomFace, ...walls]) {
       material.uniforms.uHeight.value = texture;
       material.uniforms.uZRange.value = [zLow, zTop];
       material.uniforms.uBottom.value = bottom;
@@ -252,12 +290,13 @@ function StockSurface({
     surface.uniforms.uZScale.value = zScale;
     surface.uniforms.uHideTop.value = showVideo;
     for (const material of walls) material.uniforms.uFootprint.value = [footprint.min.x, footprint.min.y, sizeX, sizeY];
-  }, [surface, walls, texture, zLow, zTop, bottom, size, sizeX, sizeY, zScale, footprint, showVideo]);
+  }, [surface, bottomFace, walls, texture, zLow, zTop, bottom, size, sizeX, sizeY, zScale, footprint, showVideo]);
 
   const center: [number, number, number] = [(footprint.min.x + footprint.max.x) / 2, (footprint.min.y + footprint.max.y) / 2, 0];
   return (
     <>
       <mesh geometry={surfaceGeometry} material={surface} position={center} raycast={() => null} frustumCulled={false} />
+      <mesh geometry={surfaceGeometry} material={bottomFace} position={center} raycast={() => null} frustumCulled={false} />
       {walls.map((material, i) => (
         <mesh key={i} geometry={wall} material={material} raycast={() => null} frustumCulled={false} />
       ))}
