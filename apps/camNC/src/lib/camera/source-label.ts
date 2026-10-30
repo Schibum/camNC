@@ -60,3 +60,24 @@ export function uniqueCameraName(name: string, taken: string[]): string {
     if (!taken.includes(`${name} ${i}`)) return `${name} ${i}`;
   }
 }
+
+/** Where a camera's video comes from, without the login, e.g. "192.168.1.5 · /h264Preview_01_main". */
+export function cameraSourceDetail(url: string): string | null {
+  try {
+    const params = parseConnectionString(url);
+    switch (params.type) {
+      case 'rtsp': {
+        const parsed = new URL(params.url);
+        return [parsed.hostname, `${parsed.pathname}${parsed.search}`].filter(part => part && part !== '/').join(' · ');
+      }
+      case 'go2rtc':
+        return `${params.src} on ${params.host}`;
+      case 'url':
+        return hostOf(params.url);
+      default:
+        return null;
+    }
+  } catch {
+    return null;
+  }
+}

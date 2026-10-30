@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { suggestCameraName, uniqueCameraName } from './source-label';
+import { cameraSourceDetail, suggestCameraName, uniqueCameraName } from './source-label';
 
 describe('camera names', () => {
   it('names a camera after its source', () => {
@@ -15,5 +15,10 @@ describe('camera names', () => {
   it('numbers a name that is taken', () => {
     expect(uniqueCameraName('Phone', [])).toBe('Phone');
     expect(uniqueCameraName('Phone', ['Phone', 'Phone 2'])).toBe('Phone 3');
+  });
+
+  it('describes where the video comes from without the login', () => {
+    expect(cameraSourceDetail('rtsp://admin:secret@192.168.1.5:554/h264Preview_01_main')).toBe('192.168.1.5 · /h264Preview_01_main');
+    expect(cameraSourceDetail('webcam:?deviceId=x')).toBeNull();
   });
 });

@@ -2,7 +2,7 @@ import { CameraNameInput, DeleteCameraButton } from '@/components/camera/CameraC
 import { CameraStatusDot } from '@/components/CamSourceSelector';
 import { PageHeader } from '@/components/page-header';
 import { checkSetupAgainstPicture, SetupCheck } from '@/lib/camera/check-setup';
-import { cameraSourceLabel } from '@/lib/camera/source-label';
+import { cameraSourceDetail, cameraSourceLabel } from '@/lib/camera/source-label';
 import { VideoPreview } from '@/setup/video-source-selection/VideoPreview';
 import { hasSetup } from '@/store/cam-import';
 import { ICamSource, isCameraReady, useStore } from '@/store/store';
@@ -190,6 +190,7 @@ function CameraPage() {
                 </CardHeader>
                 <CardContent className="text-sm">
                   <p className="first-letter:uppercase">{cameraSourceLabel(camera.url)}</p>
+                  {cameraSourceDetail(camera.url) && <p className="break-all">{cameraSourceDetail(camera.url)}</p>}
                   <p className="text-muted-foreground">
                     {camera.maxResolution[0]}×{camera.maxResolution[1]}
                   </p>
