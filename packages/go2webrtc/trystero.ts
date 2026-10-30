@@ -6,6 +6,8 @@ import log from 'loglevel';
 import { useEffect, useRef, useState } from 'react';
 import { createSerializer } from './asyncSerializer';
 
+export { setSignalWebSocket } from '@wbcnc/webrtc-channel/ws-signaller';
+
 export enum ServerState {
   IDLE = 'idle',
   STREAMING = 'streaming',

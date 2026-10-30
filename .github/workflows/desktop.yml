@@ -1,0 +1,161 @@
+name: Desktop app
+permissions:
+  contents: write
+
+# Builds the Tauri desktop app (apps/camnc-desktop) for macOS (Apple silicon), Windows and Linux.
+# - Pull requests that touch it get unsigned build artifacts.
+# - Every push to main that touches the app is released as `desktop-v0.1.<run number>`. Installed apps find it through the
+#   `latest.json` of the rolling `desktop-latest` release and update themselves. Releasing needs the updater signing key
+#   in the TAURI_SIGNING_PRIVATE_KEY secret; without it, main only builds.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/camNC/**'
+      - 'apps/camnc-desktop/**'
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/desktop.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'apps/camnc-desktop/**'
+      - 'apps/camNC/src/lib/desktop/**'
+      - '.github/workflows/desktop.yml'
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  # Runs one after another, so a cold build (about 10 minutes) is not thrown away by the next push.
+  cancel-in-progress: false
+
+env:
+  VERSION: 0.1.${{ github.run_number }}
+  RELEASE: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            bundles: app,dmg
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: nsis
+          - platform: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            # The AppImage step of tauri-cli 3.0.0-alpha.5 (quick-sharun) hung for over an hour in CI, so Linux ships as
+            # .deb for now, which the updater cannot replace.
+            bundles: deb
+    name: Build (${{ matrix.target }})
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: 'pnpm'
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/camnc-desktop/src-tauri -> target
+      # CEF's C++ wrapper is built with CMake and Ninja.
+      - uses: seanmiddleditch/gha-setup-ninja@v5
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-4-dev libnss3 libnspr4 libatk-bridge2.0-0 libgbm1 libxkbcommon0 libxcomposite1 \
+            libxdamage1 libxrandr2 libasound2t64 libegl1 libgles2 file
+      # The CEF binary distribution (~1 GB) the build downloads.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/tauri-cef
+            ~\AppData\Local\tauri-cef
+            ~/.cache/tauri-cef
+          key: tauri-cef-${{ matrix.target }}-${{ hashFiles('apps/camnc-desktop/src-tauri/Cargo.lock') }}
+          restore-keys: tauri-cef-${{ matrix.target }}-
+      - run: pnpm install --frozen-lockfile
+      - name: Download go2rtc
+        run: node apps/camnc-desktop/scripts/fetch-go2rtc.mjs ${{ matrix.target }}
+      - name: Build
+        working-directory: apps/camnc-desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
+        run: |
+          # Released builds get the run's version and signed update bundles. macOS bundles are signed ad hoc, which Apple
+          # silicon needs to run them at all.
+          node -e '
+            const release = process.env.RELEASE === "true";
+            const config = { version: process.env.VERSION, bundle: { createUpdaterArtifacts: release, macOS: { signingIdentity: "-" } } };
+            config.build = { beforeBundleCommand: "node scripts/cef-bundle-files.mjs" };
+            require("fs").writeFileSync("release.conf.json", JSON.stringify(config));
+          '
+          pnpm tauri build --bundles ${{ matrix.bundles }} --config release.conf.json
+      - name: Collect bundles
+        run: |
+          mkdir -p dist
+          bundle=apps/camnc-desktop/src-tauri/target/release/bundle
+          find "$bundle" -maxdepth 2 -type f \( -name '*.dmg' -o -name '*.app.tar.gz' -o -name '*.app.tar.gz.sig' \
+            -o -name '*-setup.exe' -o -name '*-setup.exe.sig' -o -name '*.AppImage' -o -name '*.AppImage.sig' -o -name '*.deb' \) \
+            -exec cp {} dist/ \;
+          # The macOS update bundle is named after the app only; give it the version and architecture like the others.
+          for file in dist/camNC.app.tar.gz*; do
+            [ -e "$file" ] && mv "$file" "dist/camNC_${VERSION}_aarch64${file#dist/camNC}"
+          done
+          ls -la dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: camnc-desktop-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for the signing key
+        id: key
+        env:
+          HAS_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: |
+          echo "present=$HAS_KEY" >> "$GITHUB_OUTPUT"
+          if [ "$HAS_KEY" != true ]; then echo "::warning::TAURI_SIGNING_PRIVATE_KEY is not set, so nothing is released."; fi
+      - uses: actions/download-artifact@v4
+        if: steps.key.outputs.present == 'true'
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish the release
+        if: steps.key.outputs.present == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: desktop-v${{ env.VERSION }}
+        run: |
+          node apps/camnc-desktop/scripts/updater-manifest.mjs dist "$VERSION" \
+            "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG" > latest.json
+          cat latest.json
+          gh release create "$TAG" dist/* --target "$GITHUB_SHA" --latest --title "camNC desktop $VERSION" \
+            --notes "Built from $GITHUB_SHA on main. Installed apps update to this version on their own."
+          # The rolling release whose latest.json the installed apps check.
+          if ! gh release view desktop-latest > /dev/null 2>&1; then
+            gh release create desktop-latest --prerelease --latest=false --title "camNC desktop: update feed" \
+              --notes "Points installed desktop apps to the newest release. Download installers from the desktop-v* releases."
+          fi
+          gh release upload desktop-latest latest.json --clobber

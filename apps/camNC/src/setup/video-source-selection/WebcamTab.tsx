@@ -11,7 +11,7 @@ export function WebcamTab({
   onSubmit,
 }: {
   defaults: WebcamConnectionParams;
-  onSubmit: (params: WebcamConnectionParams, maxResolution: VideoDimensions) => void;
+  onSubmit: (params: WebcamConnectionParams, maxResolution: VideoDimensions, name?: string) => void;
 }) {
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState(defaults.deviceId);
@@ -55,7 +55,8 @@ export function WebcamTab({
   }
 
   function handleConfirm() {
-    onSubmit(getParams(), videoPreviewRef.current!.getMaxResolution());
+    const label = devices.find(device => device.deviceId === selectedDeviceId)?.label;
+    onSubmit(getParams(), videoPreviewRef.current!.getMaxResolution(), label || undefined);
   }
 
   return (

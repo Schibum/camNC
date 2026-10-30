@@ -22,7 +22,7 @@ vi.mock('@tanstack/react-router', () => ({
 
 vi.mock('@/components/page-header', () => ({ PageHeader: () => null }));
 vi.mock('../store/store', () => ({
-  useStore: (selector: (state: typeof store) => unknown) => selector(store),
+  useStore: Object.assign((selector: (state: typeof store) => unknown) => selector(store), { getState: () => store }),
   useCamSource: () => (store.activeCamId ? store.camSources[store.activeCamId] : null),
 }));
 vi.mock('./video-source-selection/VideoSourceSelection', () => ({
@@ -92,10 +92,24 @@ describe('camera source confirmation', () => {
 
     expect(store.addCamSource).not.toHaveBeenCalled();
     expect(store.updateCamSource).toHaveBeenCalledExactlyOnceWith('existing', {
-      name: 'Phone camera',
       url: 'webrtc://phone',
       maxResolution: [1920, 1080],
     });
+    // Calibration and markers still hold, so setup is not repeated.
+    expect(router.navigate).toHaveBeenCalledWith({ to: '/' });
+  });
+
+  it('rescales the calibration when the new source has the same aspect ratio', () => {
+    store.camSources = { existing: { ...configuredCamera(), maxResolution: [1280, 720] } };
+    store.activeCamId = 'existing';
+
+    confirmSource();
+
+    const changes = store.updateCamSource.mock.calls[0]![1] as Partial<ICamSource>;
+    expect(changes.maxResolution).toEqual([1920, 1080]);
+    expect(changes.markerPosInCam!.map(p => p.toArray())).toEqual([[150, 150]]);
+    expect(changes.calibration).toBeDefined();
+    expect(router.navigate).toHaveBeenCalledWith({ to: '/' });
   });
 
   it('clears resolution-dependent calibration when updating an existing camera at a new resolution', () => {
@@ -105,13 +119,13 @@ describe('camera source confirmation', () => {
     confirmSource();
 
     expect(store.updateCamSource).toHaveBeenCalledExactlyOnceWith('existing', {
-      name: 'Phone camera',
       url: 'webrtc://phone',
       maxResolution: [1920, 1080],
       calibration: undefined,
       extrinsics: undefined,
       markerPosInCam: undefined,
     });
+    expect(router.navigate).toHaveBeenCalledWith({ to: '/setup/camera-calibration' });
   });
 
   it('creates a separate camera when explicitly adding a new source', () => {
@@ -128,5 +142,7 @@ describe('camera source confirmation', () => {
       url: 'webrtc://phone',
       maxResolution: [1920, 1080],
     });
+    // The existing camera is set up, so the new one may start from its setup.
+    expect(router.navigate).toHaveBeenCalledWith({ to: '/setup/import-setup', search: { adding: true } });
   });
 });

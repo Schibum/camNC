@@ -1,6 +1,7 @@
 import { connect as connectTorrent } from './client';
 import { createClient } from './trystero';
 import { connectGo2RtcWs } from './go2rtc-ws';
+import { getRtspGateway } from './rtsp-gateway';
 
 import {
   RtcConnectionParams,
@@ -9,6 +10,7 @@ import {
   WebrtcConnectionParams,
   WebtorrentConnectionParams,
   Go2rtcConnectionParams,
+  RtspConnectionParams,
   parseConnectionString,
 } from './url-helpers';
 
@@ -87,11 +89,13 @@ function webrtcVideoSource(params: WebrtcConnectionParams): VideoSource {
   };
 }
 
-function go2rtcVideoSource(params: Go2rtcConnectionParams): VideoSource {
-  const connectPromise = connectGo2RtcWs({
-    host: params.host,
-    src: params.src,
-  });
+function go2rtcVideoSource(params: Go2rtcConnectionParams | RtspConnectionParams): VideoSource {
+  const connectPromise =
+    params.type === 'rtsp'
+      ? Promise.resolve()
+          .then(() => getRtspGateway()(params.url))
+          .then(connectGo2RtcWs)
+      : connectGo2RtcWs({ host: params.host, src: params.src });
 
   async function dispose() {
     try {
@@ -123,9 +127,14 @@ function webcamVideoSource(params: WebcamConnectionParams): VideoSource {
   async function connect() {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: {
-        deviceId: params.deviceId,
+        // Exact: otherwise the browser falls back to another camera when this one is busy, e.g. measuring the
+        // resolution of a different camera than calibration later gets.
+        ...(params.deviceId && { deviceId: { exact: params.deviceId } }),
         ...(params.idealWidth && { width: { ideal: params.idealWidth } }),
         ...(params.idealHeight && { height: { ideal: params.idealHeight } }),
+        // Some cameras also offer rotated formats (e.g. 1080×1920 next to 1920×1080), and without an aspect ratio the
+        // browser may pick either, a different one on each connect. Calibration needs the same picture every time.
+        ...(params.idealWidth && params.idealHeight && { aspectRatio: { ideal: params.idealWidth / params.idealHeight } }),
       },
     });
     const videoTrack = stream.getVideoTracks()[0];
@@ -167,6 +176,7 @@ export function videoSource(url: string): VideoSource {
     case 'webrtc':
       return webrtcVideoSource(rtcParams);
     case 'go2rtc':
+    case 'rtsp':
       return go2rtcVideoSource(rtcParams);
     case 'url':
       return urlVideoSource(rtcParams);

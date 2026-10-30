@@ -49,6 +49,8 @@ interface CameraSlice {
   startPromise: Promise<void> | null;
   // Flag to indicate a stop was requested during start
   stopRequested: boolean;
+  // Video element of an in-flight startCamera, so a stop can abort its play() (which waits for the first frame)
+  startingElement: HTMLVideoElement | null;
 
   startCamera: (source: MediaStream | string, resolution?: Resolution) => Promise<void>;
   stopCamera: () => void;
@@ -127,6 +129,7 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
   maxResolution: null,
   startPromise: null,
   stopRequested: false,
+  startingElement: null,
 
   onLoadedMetadata: (el: HTMLVideoElement, maxResolution?: Resolution) => {
     if (get().stopRequested) return;
@@ -161,12 +164,11 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
     const startPromise = new Promise<void>(res => {
       resolveStart = res;
     });
-    set({ startPromise, stopRequested: false });
-
     const el = document.createElement('video');
     el.autoplay = true;
     el.playsInline = true;
     el.muted = true;
+    set({ startPromise, stopRequested: false, startingElement: el });
     let worker: Worker | null = null;
 
     // Everything below must be inside try so that startPromise always settles; otherwise every later
@@ -249,20 +251,25 @@ const createCameraSlice: StateCreator<CalibrationState, [], [], CameraSlice> = (
         el.pause();
       }
     } catch (error) {
-      console.error('[CalibrationStore] Failed to start camera:', error);
       worker?.terminate();
       el.pause();
+      // stopCamera() aborted this start; nothing failed.
+      if (get().stopRequested && error instanceof DOMException && error.name === 'AbortError') return;
+      console.error('[CalibrationStore] Failed to start camera:', error);
       throw error;
     } finally {
       resolveStart();
-      set({ startPromise: null });
+      set({ startPromise: null, startingElement: null });
     }
   },
 
   stopCamera: () => {
-    const { videoElement, workerCleanup } = get();
+    const { videoElement, workerCleanup, startingElement } = get();
     // Signal any in-flight startCamera to abort
     set({ stopRequested: true });
+    // A start waits in play() until the first frame, forever if none ever arrives (e.g. a stream the browser cannot
+    // decode); pausing rejects that play(), so the next startCamera does not wait behind it.
+    startingElement?.pause();
 
     // Clean up active worker if any
     if (workerCleanup) {

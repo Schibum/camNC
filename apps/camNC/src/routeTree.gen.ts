@@ -20,13 +20,17 @@ import { Route as SetupPointSelectionRouteImport } from './routes/setup/point-se
 import { Route as SetupNewCamMatrixRouteImport } from './routes/setup/new-cam-matrix'
 import { Route as SetupMarkerPositionsRouteImport } from './routes/setup/marker-positions'
 import { Route as SetupMachineBoundsRouteImport } from './routes/setup/machine-bounds'
+import { Route as SetupImportSetupRouteImport } from './routes/setup/import-setup'
 import { Route as SetupFluidncRouteImport } from './routes/setup/fluidnc'
 import { Route as SetupEditSettingsRouteImport } from './routes/setup/edit-settings'
 import { Route as SetupCameraCalibrationRouteImport } from './routes/setup/camera-calibration'
 import { Route as SettingsHideMachineRouteImport } from './routes/settings/hide-machine'
+import { Route as SettingsBackupRouteImport } from './routes/settings/backup'
 import { Route as DebugUnprojectRouteImport } from './routes/debug/unproject'
 import { Route as DebugUndistort2RouteImport } from './routes/debug/undistort2'
 import { Route as DebugRawWebgpuRouteImport } from './routes/debug/raw-webgpu'
+import { Route as SetupCamerasIndexRouteImport } from './routes/setup/cameras.index'
+import { Route as SetupCamerasCamIdRouteImport } from './routes/setup/cameras.$camId'
 
 const StartRoute = StartRouteImport.update({
   id: '/start',
@@ -84,6 +88,11 @@ const SetupMachineBoundsRoute = SetupMachineBoundsRouteImport.update({
   path: '/setup/machine-bounds',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SetupImportSetupRoute = SetupImportSetupRouteImport.update({
+  id: '/setup/import-setup',
+  path: '/setup/import-setup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SetupFluidncRoute = SetupFluidncRouteImport.update({
   id: '/setup/fluidnc',
   path: '/setup/fluidnc',
@@ -104,6 +113,11 @@ const SettingsHideMachineRoute = SettingsHideMachineRouteImport.update({
   path: '/settings/hide-machine',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsBackupRoute = SettingsBackupRouteImport.update({
+  id: '/settings/backup',
+  path: '/settings/backup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DebugUnprojectRoute = DebugUnprojectRouteImport.update({
   id: '/debug/unproject',
   path: '/debug/unproject',
@@ -119,6 +133,16 @@ const DebugRawWebgpuRoute = DebugRawWebgpuRouteImport.update({
   path: '/debug/raw-webgpu',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SetupCamerasIndexRoute = SetupCamerasIndexRouteImport.update({
+  id: '/setup/cameras/',
+  path: '/setup/cameras/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SetupCamerasCamIdRoute = SetupCamerasCamIdRouteImport.update({
+  id: '/setup/cameras/$camId',
+  path: '/setup/cameras/$camId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -127,10 +151,12 @@ export interface FileRoutesByFullPath {
   '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
+  '/settings/backup': typeof SettingsBackupRoute
   '/settings/hide-machine': typeof SettingsHideMachineRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
   '/setup/fluidnc': typeof SetupFluidncRoute
+  '/setup/import-setup': typeof SetupImportSetupRoute
   '/setup/machine-bounds': typeof SetupMachineBoundsRoute
   '/setup/marker-positions': typeof SetupMarkerPositionsRoute
   '/setup/new-cam-matrix': typeof SetupNewCamMatrixRoute
@@ -139,6 +165,8 @@ export interface FileRoutesByFullPath {
   '/visualize/2DView': typeof Visualize2DViewRoute
   '/visualize/VisualizeCommands': typeof VisualizeVisualizeCommandsRoute
   '/setup': typeof SetupIndexRoute
+  '/setup/cameras/$camId': typeof SetupCamerasCamIdRoute
+  '/setup/cameras': typeof SetupCamerasIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -147,10 +175,12 @@ export interface FileRoutesByTo {
   '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
+  '/settings/backup': typeof SettingsBackupRoute
   '/settings/hide-machine': typeof SettingsHideMachineRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
   '/setup/fluidnc': typeof SetupFluidncRoute
+  '/setup/import-setup': typeof SetupImportSetupRoute
   '/setup/machine-bounds': typeof SetupMachineBoundsRoute
   '/setup/marker-positions': typeof SetupMarkerPositionsRoute
   '/setup/new-cam-matrix': typeof SetupNewCamMatrixRoute
@@ -159,6 +189,8 @@ export interface FileRoutesByTo {
   '/visualize/2DView': typeof Visualize2DViewRoute
   '/visualize/VisualizeCommands': typeof VisualizeVisualizeCommandsRoute
   '/setup': typeof SetupIndexRoute
+  '/setup/cameras/$camId': typeof SetupCamerasCamIdRoute
+  '/setup/cameras': typeof SetupCamerasIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -168,10 +200,12 @@ export interface FileRoutesById {
   '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
+  '/settings/backup': typeof SettingsBackupRoute
   '/settings/hide-machine': typeof SettingsHideMachineRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
   '/setup/fluidnc': typeof SetupFluidncRoute
+  '/setup/import-setup': typeof SetupImportSetupRoute
   '/setup/machine-bounds': typeof SetupMachineBoundsRoute
   '/setup/marker-positions': typeof SetupMarkerPositionsRoute
   '/setup/new-cam-matrix': typeof SetupNewCamMatrixRoute
@@ -180,6 +214,8 @@ export interface FileRoutesById {
   '/visualize/2DView': typeof Visualize2DViewRoute
   '/visualize/VisualizeCommands': typeof VisualizeVisualizeCommandsRoute
   '/setup/': typeof SetupIndexRoute
+  '/setup/cameras/$camId': typeof SetupCamerasCamIdRoute
+  '/setup/cameras/': typeof SetupCamerasIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -190,10 +226,12 @@ export interface FileRouteTypes {
     | '/debug/raw-webgpu'
     | '/debug/undistort2'
     | '/debug/unproject'
+    | '/settings/backup'
     | '/settings/hide-machine'
     | '/setup/camera-calibration'
     | '/setup/edit-settings'
     | '/setup/fluidnc'
+    | '/setup/import-setup'
     | '/setup/machine-bounds'
     | '/setup/marker-positions'
     | '/setup/new-cam-matrix'
@@ -202,6 +240,8 @@ export interface FileRouteTypes {
     | '/visualize/2DView'
     | '/visualize/VisualizeCommands'
     | '/setup'
+    | '/setup/cameras/$camId'
+    | '/setup/cameras'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -210,10 +250,12 @@ export interface FileRouteTypes {
     | '/debug/raw-webgpu'
     | '/debug/undistort2'
     | '/debug/unproject'
+    | '/settings/backup'
     | '/settings/hide-machine'
     | '/setup/camera-calibration'
     | '/setup/edit-settings'
     | '/setup/fluidnc'
+    | '/setup/import-setup'
     | '/setup/machine-bounds'
     | '/setup/marker-positions'
     | '/setup/new-cam-matrix'
@@ -222,6 +264,8 @@ export interface FileRouteTypes {
     | '/visualize/2DView'
     | '/visualize/VisualizeCommands'
     | '/setup'
+    | '/setup/cameras/$camId'
+    | '/setup/cameras'
   id:
     | '__root__'
     | '/'
@@ -230,10 +274,12 @@ export interface FileRouteTypes {
     | '/debug/raw-webgpu'
     | '/debug/undistort2'
     | '/debug/unproject'
+    | '/settings/backup'
     | '/settings/hide-machine'
     | '/setup/camera-calibration'
     | '/setup/edit-settings'
     | '/setup/fluidnc'
+    | '/setup/import-setup'
     | '/setup/machine-bounds'
     | '/setup/marker-positions'
     | '/setup/new-cam-matrix'
@@ -242,6 +288,8 @@ export interface FileRouteTypes {
     | '/visualize/2DView'
     | '/visualize/VisualizeCommands'
     | '/setup/'
+    | '/setup/cameras/$camId'
+    | '/setup/cameras/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -251,10 +299,12 @@ export interface RootRouteChildren {
   DebugRawWebgpuRoute: typeof DebugRawWebgpuRoute
   DebugUndistort2Route: typeof DebugUndistort2Route
   DebugUnprojectRoute: typeof DebugUnprojectRoute
+  SettingsBackupRoute: typeof SettingsBackupRoute
   SettingsHideMachineRoute: typeof SettingsHideMachineRoute
   SetupCameraCalibrationRoute: typeof SetupCameraCalibrationRoute
   SetupEditSettingsRoute: typeof SetupEditSettingsRoute
   SetupFluidncRoute: typeof SetupFluidncRoute
+  SetupImportSetupRoute: typeof SetupImportSetupRoute
   SetupMachineBoundsRoute: typeof SetupMachineBoundsRoute
   SetupMarkerPositionsRoute: typeof SetupMarkerPositionsRoute
   SetupNewCamMatrixRoute: typeof SetupNewCamMatrixRoute
@@ -263,6 +313,8 @@ export interface RootRouteChildren {
   Visualize2DViewRoute: typeof Visualize2DViewRoute
   VisualizeVisualizeCommandsRoute: typeof VisualizeVisualizeCommandsRoute
   SetupIndexRoute: typeof SetupIndexRoute
+  SetupCamerasCamIdRoute: typeof SetupCamerasCamIdRoute
+  SetupCamerasIndexRoute: typeof SetupCamerasIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -344,6 +396,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SetupMachineBoundsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/setup/import-setup': {
+      id: '/setup/import-setup'
+      path: '/setup/import-setup'
+      fullPath: '/setup/import-setup'
+      preLoaderRoute: typeof SetupImportSetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/setup/fluidnc': {
       id: '/setup/fluidnc'
       path: '/setup/fluidnc'
@@ -372,6 +431,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsHideMachineRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/backup': {
+      id: '/settings/backup'
+      path: '/settings/backup'
+      fullPath: '/settings/backup'
+      preLoaderRoute: typeof SettingsBackupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/debug/unproject': {
       id: '/debug/unproject'
       path: '/debug/unproject'
@@ -393,6 +459,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DebugRawWebgpuRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/setup/cameras/': {
+      id: '/setup/cameras/'
+      path: '/setup/cameras'
+      fullPath: '/setup/cameras'
+      preLoaderRoute: typeof SetupCamerasIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/setup/cameras/$camId': {
+      id: '/setup/cameras/$camId'
+      path: '/setup/cameras/$camId'
+      fullPath: '/setup/cameras/$camId'
+      preLoaderRoute: typeof SetupCamerasCamIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -403,10 +483,12 @@ const rootRouteChildren: RootRouteChildren = {
   DebugRawWebgpuRoute: DebugRawWebgpuRoute,
   DebugUndistort2Route: DebugUndistort2Route,
   DebugUnprojectRoute: DebugUnprojectRoute,
+  SettingsBackupRoute: SettingsBackupRoute,
   SettingsHideMachineRoute: SettingsHideMachineRoute,
   SetupCameraCalibrationRoute: SetupCameraCalibrationRoute,
   SetupEditSettingsRoute: SetupEditSettingsRoute,
   SetupFluidncRoute: SetupFluidncRoute,
+  SetupImportSetupRoute: SetupImportSetupRoute,
   SetupMachineBoundsRoute: SetupMachineBoundsRoute,
   SetupMarkerPositionsRoute: SetupMarkerPositionsRoute,
   SetupNewCamMatrixRoute: SetupNewCamMatrixRoute,
@@ -415,6 +497,8 @@ const rootRouteChildren: RootRouteChildren = {
   Visualize2DViewRoute: Visualize2DViewRoute,
   VisualizeVisualizeCommandsRoute: VisualizeVisualizeCommandsRoute,
   SetupIndexRoute: SetupIndexRoute,
+  SetupCamerasCamIdRoute: SetupCamerasCamIdRoute,
+  SetupCamerasIndexRoute: SetupCamerasIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

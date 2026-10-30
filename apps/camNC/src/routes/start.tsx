@@ -1,5 +1,6 @@
 import { MachineConnectionForm } from '@/components/machine/MachineConnectionForm';
 import { PageHeader } from '@/components/page-header';
+import { isDesktopApp } from '@/lib/desktop/is-desktop';
 import { TryDemoCard } from '@/lib/demo/TryDemoCard';
 import { MachineBoundsForm } from '@/setup/MachineBoundsForm';
 import { BedFromMachine } from '@/start/BedFromMachine';
@@ -9,7 +10,7 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { Button } from '@wbcnc/ui/components/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@wbcnc/ui/components/card';
 import { toast } from '@wbcnc/ui/components/sonner';
-import { Camera } from 'lucide-react';
+import { Camera, HardDriveUpload } from 'lucide-react';
 import { useState } from 'react';
 
 export const Route = createFileRoute('/start')({
@@ -84,6 +85,12 @@ function StartComponent() {
             <Camera className="size-4" /> Have a camera above your machine?{' '}
             <Link to="/setup/url-entry" className="underline">
               Set it up now
+            </Link>
+          </p>
+          <p className="text-sm text-muted-foreground px-1 flex flex-row items-center gap-2">
+            <HardDriveUpload className="size-4" /> Already set up camNC {isDesktopApp() ? 'in the browser' : 'elsewhere'}?{' '}
+            <Link to="/settings/backup" className="underline">
+              Restore a backup
             </Link>
           </p>
         </div>

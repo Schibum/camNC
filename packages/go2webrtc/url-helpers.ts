@@ -30,8 +30,15 @@ export interface Go2rtcConnectionParams {
   src: string;
 }
 
+/** A camera's own RTSP stream. Only the desktop app can open it, through its bundled go2rtc (see `rtsp-gateway.ts`). */
+export interface RtspConnectionParams {
+  type: 'rtsp';
+  url: string;
+}
+
 export type RtcConnectionParams =
   | WebrtcConnectionParams
+  | RtspConnectionParams
   | WebtorrentConnectionParams
   | UrlConnectionParams
   | WebcamConnectionParams
@@ -81,6 +88,9 @@ export function parseConnectionString(connectionString: string): RtcConnectionPa
     case 'https:':
     case 'http:':
       return { type: 'url', url: connectionString };
+    case 'rtsp:':
+    case 'rtsps:':
+      return { type: 'rtsp', url: connectionString };
     default:
       throw new Error('unsupported protocol');
   }
@@ -97,6 +107,7 @@ export function buildConnectionUrl(params: RtcConnectionParams) {
     case 'webcam':
       return buildWebcamConnectionUrl(params);
     case 'url':
+    case 'rtsp':
       return params.url;
     default:
       throw new Error('unsupported connection type');

@@ -386,9 +386,14 @@ export const useIsToolpathHovered = () => useStore(state => state.isToolpathHove
 
 type StoreState = ReturnType<typeof useStore.getState>;
 
-/** The machine bounds, falling back to those of the active camera from settings saved before they moved to the machine. */
+/**
+ * The machine bounds. Settings saved before they moved to the machine only have them on a camera: the active camera's
+ * are used, else any camera's, since all cameras look at the same machine.
+ */
 export function selectMachineBounds(state: Pick<StoreState, 'machineBounds' | 'camSources' | 'activeCamId'>): Box2 | null {
-  return state.machineBounds ?? (state.activeCamId ? state.camSources[state.activeCamId]?.machineBounds : undefined) ?? null;
+  if (state.machineBounds) return state.machineBounds;
+  const active = state.activeCamId ? state.camSources[state.activeCamId]?.machineBounds : undefined;
+  return active ?? Object.values(state.camSources).find(cam => cam.machineBounds)?.machineBounds ?? null;
 }
 
 export function getMachineBounds() {

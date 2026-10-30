@@ -3,7 +3,7 @@
 This repository is a pnpm/Turborepo workspace that contains the **camNC**
 application and a collection of supporting packages.
 
-CamNC is a simple experimental web application that visualizes CNC G-code on a live camera feed (IP camera via [go2rtc](https://github.com/AlexxIT/go2rtc), old phone, webcam, etc.). It renders an orthographic 2D top-down view of the G-code on top of the camera image, adjusted for perspective effects through camera calibration and pose estimation.
+CamNC is a simple experimental web application that visualizes CNC G-code on a live camera feed (IP camera, old phone, webcam, etc.). It renders an orthographic 2D top-down view of the G-code on top of the camera image, adjusted for perspective effects through camera calibration and pose estimation.
 
 ## Features
 
@@ -17,7 +17,9 @@ CamNC is a simple experimental web application that visualizes CNC G-code on a l
 - Camera, mounted so it has a clear view of the CNC table. E.g.:
   - Old smartphone
     - [Ceiling mount 3d print model](https://makerworld.com/en/models/1455114-ceiling-top-down-phone-mount-with-ball-joint#profileId-1516416)
-  - IP camera. Requires [go2rtc](https://github.com/AlexxIT/go2rtc) gateway to expose stream in a compatible way. Go2rtc can run on a Raspberry Pi Zero or any local machine.
+  - IP camera, e.g. a Reolink. Two ways to connect it:
+    - **camNC desktop app** (easiest): finds RTSP/ONVIF cameras on your network and connects to them directly, with go2rtc built in. No Raspberry Pi or other gateway needed. See [Desktop app](#desktop-app).
+    - **Web app**: needs a [go2rtc](https://github.com/AlexxIT/go2rtc) gateway to expose the stream in a browser-compatible way. Go2rtc can run on a Raspberry Pi Zero or any local machine.
     - [Reolink E1 Zoom 3d print model](https://makerworld.com/en/models/1461605-reolink-e1-zoom-ceiling-down-mount-looking-down#profileId-1524062)
 
 - (Optional) CNC controller running [FluidNC](http://wiki.fluidnc.com/) 3.9.9 or 4.1.x (reference: V1 Engineering Jackpot2 on a LowRider V4). Machine control needs Chrome or Edge 147+, and browser and controller must be on the same LAN (FluidNC in STA mode). Other browsers can use camNC as a viewer.
@@ -27,6 +29,17 @@ CamNC is a simple experimental web application that visualizes CNC G-code on a l
 To try camNC without any setup, open the [demo](https://run.camnc.app/demo): a recorded machine camera, a sample job and a simulated FluidNC in your browser. You can load your own G-code, and nothing is saved.
 
 To get started with your own machine, open the application at [https://run.camnc.app/](https://run.camnc.app/).
+
+### Desktop app
+
+The desktop app is camNC with Chromium built in, for macOS (Apple silicon), Windows and Linux. On top of the web app it
+connects to IP cameras directly (it finds them on your network and lists their streams, no go2rtc setup needed) and talks
+to the machine controller without browser restrictions.
+
+Download the installer for your platform from the [latest release](https://github.com/Schibum/camNC/releases/latest).
+Every change on `main` is released automatically, and installed apps update themselves: an update is downloaded in the
+background and used after the next restart. See [apps/camnc-desktop](apps/camnc-desktop/README.md) for details and
+building it yourself.
 
 ### Screenshots
 

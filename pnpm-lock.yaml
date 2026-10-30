@@ -473,6 +473,12 @@ importers:
       '@tanstack/zod-adapter':
         specifier: 'catalog:'
         version: 1.128.0(@tanstack/react-router@1.128.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(zod@3.25.76)
+      '@tauri-apps/api':
+        specifier: 3.0.0-alpha.3
+        version: 3.0.0-alpha.3
+      '@tauri-apps/plugin-http':
+        specifier: 3.0.0-alpha.3
+        version: 3.0.0-alpha.3
       '@techstark/opencv-js':
         specifier: 'catalog:'
         version: 4.11.0-release.1
@@ -738,6 +744,12 @@ importers:
       wrangler:
         specifier: 4.72.0
         version: 4.72.0(@cloudflare/workers-types@4.20260702.1)
+
+  apps/camnc-desktop:
+    devDependencies:
+      '@tauri-apps/cli':
+        specifier: 3.0.0-alpha.5
+        version: 3.0.0-alpha.5
 
   apps/chessboard:
     devDependencies:
@@ -5399,6 +5411,83 @@ packages:
     peerDependencies:
       '@tanstack/react-router': '>=1.43.2'
       zod: ^3.23.8
+
+  '@tauri-apps/api@3.0.0-alpha.3':
+    resolution: {integrity: sha512-lkMIhoFGZP7t23ykG12iNvYklhkf407Zibq0MsAWQAAADVLQbhUdp/vIXvHfodqO8NdovkKPoG493wg/Crn9qg==}
+
+  '@tauri-apps/cli-darwin-arm64@3.0.0-alpha.5':
+    resolution: {integrity: sha512-wRUbFQN5n07Kk5eAFDd/YtB33sYt0H5tFupcHIqS4XnqXjZb5oVvKQRDs96wvidUPAOVEQzN7jmKvP1H42/tEw==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@tauri-apps/cli-darwin-x64@3.0.0-alpha.5':
+    resolution: {integrity: sha512-l3oLDnJ58nxnjU3yETdpZvy0b5SocM32h/C3isT68ohsaszWzYQoPxB/sllC9mVSYUbRmgLf0jHZBiCD0bqX5w==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@tauri-apps/cli-linux-arm-gnueabihf@3.0.0-alpha.5':
+    resolution: {integrity: sha512-m2WDczfS1OkteHmhkBTxGbQUtKpj0TkqXs6s2cJa11kwRVTS/QSBwN+MjMrX3wAR3f68IU/liTI/iGV1ogc9Iw==}
+    engines: {node: '>= 10'}
+    cpu: [arm]
+    os: [linux]
+
+  '@tauri-apps/cli-linux-arm64-gnu@3.0.0-alpha.5':
+    resolution: {integrity: sha512-9/QRqUp9EvVEK0ard48JKYmfzcNpl0EQ43/oUJfKC9vox7ijjgXaVeZH1YZDusdpu1rjcxkzxegIPUCMME6AjQ==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+
+  '@tauri-apps/cli-linux-arm64-musl@3.0.0-alpha.5':
+    resolution: {integrity: sha512-SxU3dbIHcA9WTSrS469aUmz8cdwE3QzCBVgJEyxSPEkI7xlWSMPAH1CyjZjpf97FM0FD2QvMY/gs7vf+1E3EBA==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+
+  '@tauri-apps/cli-linux-riscv64-gnu@3.0.0-alpha.5':
+    resolution: {integrity: sha512-d9PzysM/T5skp5lOjlsQjRQLy8FbjulYSq0eYZhxySqGPhS5m5Ok9HwDI2CCl2iYMHutIxA20jd5zxL2szZMJQ==}
+    engines: {node: '>= 10'}
+    cpu: [riscv64]
+    os: [linux]
+
+  '@tauri-apps/cli-linux-x64-gnu@3.0.0-alpha.5':
+    resolution: {integrity: sha512-nnYAZe0naGlneyOpJhK3aubL/R5hv0X3JYzmAAOcdcYakNm9V00bZIfa0FhY/kjxTQx4MsMj0ItO06638W+0Pw==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+
+  '@tauri-apps/cli-linux-x64-musl@3.0.0-alpha.5':
+    resolution: {integrity: sha512-FMvfSHYCDO4dZm58gBUzT8USxUW7nkOnZ3AKwWVc8sylJuWfTjXkWr2Ia5vhDGpt0JSirODGB4NlYYsdwbRAVQ==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+
+  '@tauri-apps/cli-win32-arm64-msvc@3.0.0-alpha.5':
+    resolution: {integrity: sha512-1++QwxPDNoORHbbIkBxQpLgT6QX9RNrb23fy0tK7rApqbH1bakfMdNq0OdqkNkSXzRaxau0bBm5im/sOV8WYUg==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [win32]
+
+  '@tauri-apps/cli-win32-ia32-msvc@3.0.0-alpha.5':
+    resolution: {integrity: sha512-cQVLHOi5uCBUXcrX5rGmtGZrFzmro1CWTzjlY/puVUjWBTwjQrn2zpz0cKEXGHlG9HGvqo7NGdhYYnHUrznMrQ==}
+    engines: {node: '>= 10'}
+    cpu: [ia32]
+    os: [win32]
+
+  '@tauri-apps/cli-win32-x64-msvc@3.0.0-alpha.5':
+    resolution: {integrity: sha512-rxwuXdgw3MZ8W7kmdgkkQX9G1vuuSn1iiZ9oZm3snAtWD99nZ/uM8ws5Qlr0psFtjuvL5XME/BCrb0v+r2+yzw==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [win32]
+
+  '@tauri-apps/cli@3.0.0-alpha.5':
+    resolution: {integrity: sha512-hISwd/X4CsjRKGugm8OxF9KkULCskBZoVROpdA0H8pPesQtHbIJxvFnJgHMV2WjgrrJENTNL3Q3R9Mc2YuCIcA==}
+    engines: {node: '>= 10'}
+    hasBin: true
+
+  '@tauri-apps/plugin-http@3.0.0-alpha.3':
+    resolution: {integrity: sha512-Mji5ZxiZP3b3ImmgbLjgyRJ7QD1pIlfAWccJs6a72bgL+Tu9Ep5iV8d7ZMJWRhrYD0h/++YXeaGrILWnXCuKuA==}
 
   '@techstark/opencv-js@4.11.0-release.1':
     resolution: {integrity: sha512-d5h8cMiSbbnme5+I1ta4++EJ3mkca1zkVNh0A4+5ASJYOmO5OhVPRX3oPnNzs9I3KyGVX7QeFU8gVoI7I0w8RQ==}
@@ -15851,6 +15940,59 @@ snapshots:
     dependencies:
       '@tanstack/react-router': 1.128.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       zod: 3.25.76
+
+  '@tauri-apps/api@3.0.0-alpha.3': {}
+
+  '@tauri-apps/cli-darwin-arm64@3.0.0-alpha.5':
+    optional: true
+
+  '@tauri-apps/cli-darwin-x64@3.0.0-alpha.5':
+    optional: true
+
+  '@tauri-apps/cli-linux-arm-gnueabihf@3.0.0-alpha.5':
+    optional: true
+
+  '@tauri-apps/cli-linux-arm64-gnu@3.0.0-alpha.5':
+    optional: true
+
+  '@tauri-apps/cli-linux-arm64-musl@3.0.0-alpha.5':
+    optional: true
+
+  '@tauri-apps/cli-linux-riscv64-gnu@3.0.0-alpha.5':
+    optional: true
+
+  '@tauri-apps/cli-linux-x64-gnu@3.0.0-alpha.5':
+    optional: true
+
+  '@tauri-apps/cli-linux-x64-musl@3.0.0-alpha.5':
+    optional: true
+
+  '@tauri-apps/cli-win32-arm64-msvc@3.0.0-alpha.5':
+    optional: true
+
+  '@tauri-apps/cli-win32-ia32-msvc@3.0.0-alpha.5':
+    optional: true
+
+  '@tauri-apps/cli-win32-x64-msvc@3.0.0-alpha.5':
+    optional: true
+
+  '@tauri-apps/cli@3.0.0-alpha.5':
+    optionalDependencies:
+      '@tauri-apps/cli-darwin-arm64': 3.0.0-alpha.5
+      '@tauri-apps/cli-darwin-x64': 3.0.0-alpha.5
+      '@tauri-apps/cli-linux-arm-gnueabihf': 3.0.0-alpha.5
+      '@tauri-apps/cli-linux-arm64-gnu': 3.0.0-alpha.5
+      '@tauri-apps/cli-linux-arm64-musl': 3.0.0-alpha.5
+      '@tauri-apps/cli-linux-riscv64-gnu': 3.0.0-alpha.5
+      '@tauri-apps/cli-linux-x64-gnu': 3.0.0-alpha.5
+      '@tauri-apps/cli-linux-x64-musl': 3.0.0-alpha.5
+      '@tauri-apps/cli-win32-arm64-msvc': 3.0.0-alpha.5
+      '@tauri-apps/cli-win32-ia32-msvc': 3.0.0-alpha.5
+      '@tauri-apps/cli-win32-x64-msvc': 3.0.0-alpha.5
+
+  '@tauri-apps/plugin-http@3.0.0-alpha.3':
+    dependencies:
+      '@tauri-apps/api': 3.0.0-alpha.3
 
   '@techstark/opencv-js@4.11.0-release.1': {}
 

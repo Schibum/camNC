@@ -1,0 +1,36 @@
+[package]
+name = "camnc-desktop"
+version = "0.1.0"
+description = "camNC desktop app: the camNC web app with direct access to RTSP cameras and the machine controller"
+edition = "2021"
+# Tauri 3 alpha and its CEF runtime need at least this compiler.
+rust-version = "1.95"
+license = "Apache-2.0"
+
+[lib]
+name = "camnc_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "=3.0.0-alpha.4", features = [] }
+
+[dependencies]
+tauri = { version = "=3.0.0-alpha.5", features = [] }
+# Chromium (CEF) instead of the system webview, so the app behaves like camNC in Chrome on every platform.
+tauri-runtime-cef = { version = "=3.0.0-alpha.6", features = ["devtools"] }
+tauri-plugin-shell = "=3.0.0-alpha.3"
+tauri-plugin-websocket = "=3.0.0-alpha.2"
+tauri-plugin-http = "=3.0.0-alpha.3"
+# Release builds update themselves from the latest GitHub release.
+tauri-plugin-updater = "=3.0.0-alpha.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["time", "net", "io-util", "sync"] }
+# Camera discovery (ONVIF over HTTP to the camera).
+reqwest = { version = "0.13", default-features = false }
+sha1 = "0.10"
+base64 = "0.22"
+getrandom = "0.3"
+url = "2"
+percent-encoding = "2"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }

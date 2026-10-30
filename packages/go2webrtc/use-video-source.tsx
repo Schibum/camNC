@@ -65,6 +65,19 @@ export function releaseVideoSource(url: string): void {
   scheduleIdleDispose(url, entry);
 }
 
+/**
+ * Disposes the cached sources nothing uses right now whose URL matches, so the next use connects again. For when what
+ * they are connected to went away, e.g. the desktop app restarted the go2rtc that serves its RTSP cameras.
+ */
+export function disposeIdleVideoSources(matches: (url: string) => boolean): void {
+  for (const [url, entry] of cache) {
+    if (entry.refs !== 0 || !matches(url)) continue;
+    clearTimeout(entry.timer);
+    cache.delete(url);
+    entry.vs.dispose().catch(console.error);
+  }
+}
+
 export function useVideoSource(url: string) {
   // Create the shared VideoSource (no ref count change yet)
   const vs = useMemo(() => getVideoSource(url), [url]);

@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { Camera, Grid2x2, Grid3x3, HardDriveDownload, Layers, Puzzle, Rocket, Ruler, Scale3d, ScanQrCode } from 'lucide-react';
+import { Bug, Cctv, Grid2x2, HardDriveDownload, Layers, Puzzle, Rocket, Scale3d } from 'lucide-react';
 import * as React from 'react';
 
 import { useLocation } from '@tanstack/react-router';
@@ -55,38 +55,29 @@ const machineRoutes: NavRoute[] = [
   },
 ];
 
+// Each camera's source and setup steps are on its own page, reached from here or the camera switcher.
 const cameraRoutes: NavRoute[] = [
   {
-    title: 'Camera Source',
-    to: '/setup/url-entry',
-    icon: Camera,
-  },
-  {
-    title: 'Camera Calibration',
-    to: '/setup/camera-calibration',
-    icon: Grid3x3,
-  },
-  {
-    title: 'Marker Positions',
-    to: '/setup/marker-positions',
-    icon: Ruler,
-  },
-  {
-    title: 'Markers in Camera',
-    to: '/setup/point-selection',
-    icon: ScanQrCode,
+    title: 'Cameras',
+    to: '/setup/cameras',
+    icon: Cctv,
   },
 ];
 const settingsRoutes: NavRoute[] = [
   {
-    title: 'Debug',
-    to: '/setup/edit-settings',
+    title: 'Backup & Restore',
+    to: '/settings/backup',
     icon: HardDriveDownload,
   },
   {
     title: 'Hide Machine',
     to: '/settings/hide-machine',
     icon: Layers,
+  },
+  {
+    title: 'Debug',
+    to: '/setup/edit-settings',
+    icon: Bug,
   },
 ];
 

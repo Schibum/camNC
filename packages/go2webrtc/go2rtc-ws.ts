@@ -41,6 +41,7 @@ export async function connectGo2RtcWs(options: Go2RtcWsOptions): Promise<{
   const ws = new WebSocket(`${base.replace(/\/$/, '')}/api/ws?src=${encodeURIComponent(options.src)}`);
 
   return new Promise((resolve, reject) => {
+    let answered = false;
     ws.addEventListener('open', async () => {
       pc.addEventListener('icecandidate', ev => {
         if (ws.readyState !== WebSocket.OPEN) return;
@@ -58,7 +59,19 @@ export async function connectGo2RtcWs(options: Go2RtcWsOptions): Promise<{
 
     ws.addEventListener('message', async ev => {
       const msg = JSON.parse(ev.data);
-      if (msg.type === 'webrtc/answer') {
+      if (msg.type === 'error') {
+        // Before the answer, the offer failed: e.g. the camera is unreachable or rejects the login, and without this
+        // the caller would wait forever. Later errors are about other tracks (e.g. "codecs not matched" for audio)
+        // while the video keeps playing, so they are only logged, as go2rtc's own player does.
+        if (answered) {
+          console.warn(`go2rtc: ${msg.value}`);
+          return;
+        }
+        reject(new Error(`go2rtc: ${msg.value}`));
+        pc.close();
+        ws.close();
+      } else if (msg.type === 'webrtc/answer') {
+        answered = true;
         await pc.setRemoteDescription({ type: 'answer', sdp: msg.value });
       } else if (msg.type === 'webrtc/candidate' && msg.value) {
         try {

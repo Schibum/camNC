@@ -1,10 +1,13 @@
 import { Hint } from '@/components/Hint';
+import { suggestCameraName } from '@/lib/camera/source-label';
+import { isDesktopApp, kDesktopDownloadUrl } from '@/lib/desktop/is-desktop';
 import {
   buildConnectionUrl,
   genRandomWebrtc,
   Go2rtcConnectionParams,
   parseConnectionString,
   RtcConnectionParams,
+  RtspConnectionParams,
   WebcamConnectionParams,
   WebrtcConnectionParams,
   WebtorrentConnectionParams,
@@ -12,12 +15,12 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@wbcnc/ui/components/tabs';
 import { useMemo, useState } from 'react';
 
-import { Form, Input } from '@heroui/react';
 import { VideoDimensions } from '@wbcnc/go2webrtc/video-source';
 import { ConnectDialog } from './ConnectDialog';
 import { Go2RtcLocalTab } from './Go2RtcLocalTab';
 import { Go2RtcWebtorrentTab } from './Go2RtcWebtorrentTab';
 import { PhoneTab } from './PhoneTab';
+import { RtspTab } from './RtspTab';
 import { UrlTab } from './UrlTab';
 import { WebcamTab } from './WebcamTab';
 
@@ -28,18 +31,11 @@ function getRandomWebrtcDefaults(): WebrtcConnectionParams {
 export interface IOnChangeArgs {
   url: string;
   maxResolution: VideoDimensions;
+  /** A name for a new camera: what the source knows (e.g. the camera's model), else one made from the source. */
   name: string;
 }
 
-export function VideoSourceSelection({
-  value = '',
-  onChange,
-  defaultName,
-}: {
-  value?: string;
-  onChange: (value: IOnChangeArgs) => void;
-  defaultName: string;
-}) {
+export function VideoSourceSelection({ value = '', onChange }: { value?: string; onChange: (value: IOnChangeArgs) => void }) {
   const defaults = useMemo(() => {
     try {
       if (value) {
@@ -51,16 +47,21 @@ export function VideoSourceSelection({
     return undefined;
   }, [value]);
 
-  const [sourceType, setSourceType] = useState<string>(defaults?.type || 'webrtc');
+  // The desktop app plays network cameras through its own go2rtc, so the external go2rtc tabs only stay for a camera
+  // that still uses one.
+  const showGo2rtc = !isDesktopApp() || defaults?.type === 'go2rtc';
+  const showWebtorrent = !isDesktopApp() || defaults?.type === 'webtorrent';
+  const [sourceType, setSourceType] = useState<string>(defaults?.type || (isDesktopApp() ? 'rtsp' : 'webrtc'));
   const [connectParams, setConnectParams] = useState<RtcConnectionParams | null>(null);
-  const [name, setName] = useState<string>(defaultName);
-  function onSubmit(params: RtcConnectionParams, maxResolution: VideoDimensions) {
+  const [sourceName, setSourceName] = useState<string | undefined>();
+  function onSubmit(params: RtcConnectionParams, maxResolution: VideoDimensions, name?: string) {
     setConnectParams(null);
-    console.log('VideoSourceSelection onSubmit', params, maxResolution);
-    onChange({ url: buildConnectionUrl(params), maxResolution, name });
+    onChange({ url: buildConnectionUrl(params), maxResolution, name: name ?? sourceName ?? suggestCameraName(params) });
   }
 
-  function onConnect(params: RtcConnectionParams) {
+  function onConnect(params: RtcConnectionParams, name?: unknown) {
+    // Form tabs pass their submit event as the second argument.
+    setSourceName(typeof name === 'string' ? name : undefined);
     setConnectParams(params);
   }
 
@@ -73,6 +74,7 @@ export function VideoSourceSelection({
   );
   const webcamDefaults: WebcamConnectionParams =
     defaults?.type === 'webcam' ? defaults : { type: 'webcam' as const, deviceId: '', idealWidth: 4096, idealHeight: 2160 };
+  const rtspDefaults: RtspConnectionParams = defaults?.type === 'rtsp' ? defaults : { type: 'rtsp' as const, url: '' };
   const go2rtcDefaults: Go2rtcConnectionParams =
     defaults?.type === 'go2rtc' ? defaults : { type: 'go2rtc' as const, host: 'localhost:1984', src: 'camera1' };
 
@@ -99,55 +101,82 @@ export function VideoSourceSelection({
             className="text-blue-500 hover:underline mx-1">
             (mount)
           </a>
-          , but it requires running
-          <a
-            href="https://github.com/AlexxIT/go2rtc"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-500 hover:underline mx-1">
-            go2rtc
-          </a>
-          as a gateway, e.g. on a Raspberry&nbsp;Pi&nbsp;Zero.
+          {isDesktopApp() ? (
+            <>, and the desktop app connects to it directly under Network camera.</>
+          ) : (
+            <>
+              , but it requires running
+              <a
+                href="https://github.com/AlexxIT/go2rtc"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-500 hover:underline mx-1">
+                go2rtc
+              </a>
+              as a gateway, e.g. on a Raspberry&nbsp;Pi&nbsp;Zero. The
+              <a href={kDesktopDownloadUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline mx-1">
+                camNC desktop app
+              </a>
+              connects to it directly, without go2rtc.
+            </>
+          )}
         </p>
-        <p className="mb-1">
-          <strong>Note:</strong> Prefer the local go2rtc version when possible, since it has lower connection latency and does not depend on
-          torrent tracker uptime.
-        </p>
+        {!isDesktopApp() && (
+          <p className="mb-1">
+            <strong>Note:</strong> Prefer the local go2rtc version when possible, since it has lower connection latency and does not depend
+            on torrent tracker uptime.
+          </p>
+        )}
       </Hint>
 
-      <Form>
-        <Input value={name} onChange={e => setName(e.target.value)} label="Name of camera/machine setup" isRequired />
-      </Form>
       <Tabs className="w-full" value={sourceType} onValueChange={setSourceType}>
         <TabsList className="w-full">
+          {isDesktopApp() && (
+            <TabsTrigger value="rtsp" className="flex-auto whitespace-normal">
+              Network camera
+            </TabsTrigger>
+          )}
           <TabsTrigger value="webcam" className="flex-auto whitespace-normal">
             Webcam
           </TabsTrigger>
           <TabsTrigger value="webrtc" className="flex-auto whitespace-normal">
             Phone
           </TabsTrigger>
-          <TabsTrigger value="go2rtc" className="flex-auto whitespace-normal">
-            go2rtc (local)
-          </TabsTrigger>
-          <TabsTrigger value="webtorrent" className="flex-auto whitespace-normal">
-            go2rtc (webtorrent)
-          </TabsTrigger>
+          {showGo2rtc && (
+            <TabsTrigger value="go2rtc" className="flex-auto whitespace-normal">
+              go2rtc (local)
+            </TabsTrigger>
+          )}
+          {showWebtorrent && (
+            <TabsTrigger value="webtorrent" className="flex-auto whitespace-normal">
+              go2rtc (webtorrent)
+            </TabsTrigger>
+          )}
           <TabsTrigger value="url" className="flex-auto whitespace-normal">
             URL
           </TabsTrigger>
         </TabsList>
+        {isDesktopApp() && (
+          <TabsContent value="rtsp">
+            <RtspTab defaults={rtspDefaults} onConnect={onConnect} />
+          </TabsContent>
+        )}
         <TabsContent value="webcam">
           <WebcamTab defaults={webcamDefaults} onSubmit={onSubmit} />
         </TabsContent>
         <TabsContent value="webrtc">
           <PhoneTab defaults={webrtcDefaults} onConnect={onConnect} />
         </TabsContent>
-        <TabsContent value="go2rtc">
-          <Go2RtcLocalTab defaults={go2rtcDefaults} onConnect={onConnect} />
-        </TabsContent>
-        <TabsContent value="webtorrent">
-          <Go2RtcWebtorrentTab defaults={webtorrentDefaults} onConnect={onConnect} />
-        </TabsContent>
+        {showGo2rtc && (
+          <TabsContent value="go2rtc">
+            <Go2RtcLocalTab defaults={go2rtcDefaults} onConnect={onConnect} />
+          </TabsContent>
+        )}
+        {showWebtorrent && (
+          <TabsContent value="webtorrent">
+            <Go2RtcWebtorrentTab defaults={webtorrentDefaults} onConnect={onConnect} />
+          </TabsContent>
+        )}
         <TabsContent value="url">
           <UrlTab defaults={urlDefaults} onConnect={onConnect} />
         </TabsContent>

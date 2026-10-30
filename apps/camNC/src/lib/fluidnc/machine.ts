@@ -1,4 +1,5 @@
 import { useStore } from '../../store/store';
+import { desktopMachineTransport, isDesktopApp } from '../desktop/desktop';
 import { watchJobRecovery } from '../machine/jobRecovery';
 import { CncApi } from './cnc-api';
 import { hostBlockedReason, machineSupport } from './machine-support';
@@ -17,7 +18,9 @@ export function setSimulatedMachine(transport: { WebSocket: typeof WebSocket; fe
  */
 export function getCncApi() {
   if (cncApi) return cncApi;
-  const api = new CncApi(simulated?.WebSocket, simulated?.fetch, !!simulated);
+  // The desktop app talks to the controller through its Rust side, which no mixed-content or LAN permission blocks.
+  const transport = simulated ?? (isDesktopApp() ? desktopMachineTransport : null);
+  const api = new CncApi(transport?.WebSocket, transport?.fetch, !!simulated);
   cncApi = api;
   api.onVariantDetected = variant => {
     if (useStore.getState().machine?.variant !== variant) useStore.getState().setMachineVariant(variant);

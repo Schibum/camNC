@@ -1,0 +1,59 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "What the camNC frontend may do.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "allow-go2rtc-stream",
+    "allow-discover-cameras",
+    "allow-onvif-streams",
+    "allow-ready-update",
+    "allow-restart-to-update",
+    "websocket:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        {
+          "url": "http://10.*:*"
+        },
+        {
+          "url": "http://172.*:*"
+        },
+        {
+          "url": "http://192.168.*:*"
+        },
+        {
+          "url": "http://169.254.*:*"
+        },
+        {
+          "url": "http://*.local:*"
+        },
+        {
+          "url": "http://*.fritz.box:*"
+        },
+        {
+          "url": "http://*.localdomain:*"
+        },
+        {
+          "url": "http://*.internal:*"
+        },
+        {
+          "url": "http://*.home.arpa:*"
+        },
+        {
+          "url": "http://*.home:*"
+        },
+        {
+          "url": "http://*.lan:*"
+        },
+        {
+          "url": "http://127.0.0.1:*"
+        },
+        {
+          "url": "http://localhost:*"
+        }
+      ]
+    }
+  ]
+}

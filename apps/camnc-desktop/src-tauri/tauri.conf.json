@@ -1,0 +1,40 @@
+{
+  "$schema": "https://schema.tauri.app/config/3",
+  "productName": "camNC",
+  "version": "0.1.0",
+  "identifier": "com.w69b.camnc",
+  "build": {
+    "frontendDist": "../../camNC/dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "pnpm --filter @wbcnc/camNC dev",
+    "beforeBuildCommand": "pnpm --filter @wbcnc/camNC build"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": null,
+      "headers": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp"
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "externalBin": ["binaries/go2rtc"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "macOS": {
+      "minimumSystemVersion": "13.3"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERERTU2MDlFNjNENjI2MUEKUldRYUp0WmpubURsM1ZUTXg0eGZqQUdoeUN0NXpJeFY5UFIrOGxxQ2JWYzlMMXlHY2RQUll1ZEwK",
+      "endpoints": ["https://github.com/Schibum/camNC/releases/download/desktop-latest/latest.json"],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}
