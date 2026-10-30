@@ -11,6 +11,38 @@ on:
       - main
 
 jobs:
+  checks:
+    name: Format, lint and types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        name: Install pnpm
+        with:
+          run_install: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      # Turborepo's local cache, so packages whose inputs did not change replay their result.
+      - name: Cache Turborepo
+        uses: actions/cache@v4
+        with:
+          path: .turbo/cache
+          key: turbo-checks-${{ github.sha }}
+          restore-keys: turbo-checks-
+      - name: Check formatting
+        run: pnpm run check-format
+      - name: Run linting
+        run: pnpm run lint
+      - name: Check types
+        run: pnpm run check-types
+
   test:
     name: Run tests
     runs-on: ubuntu-latest
@@ -29,14 +61,29 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Check formatting
-        run: pnpm run check-format
-      - name: Run linting
-        run: pnpm run lint
-      - name: Check types
-        run: pnpm run check-types
+      # Turborepo's local cache, so packages whose inputs did not change replay their result.
+      - name: Cache Turborepo
+        uses: actions/cache@v4
+        with:
+          path: .turbo/cache
+          key: turbo-test-${{ github.sha }}
+          restore-keys: turbo-test-
+      - name: Get the Playwright version
+        id: playwright
+        run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
       - name: Install Playwright Browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm exec playwright install --with-deps chromium #--no-shell
+      # The cached browsers still need their system libraries.
+      - name: Install Playwright system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
       - name: Run tests
         run: pnpm run test
       - name: Build

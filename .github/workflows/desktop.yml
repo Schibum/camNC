@@ -3,7 +3,7 @@ permissions:
   contents: write
 
 # Builds the Tauri desktop app (apps/camnc-desktop) for macOS (Apple silicon), Windows and Linux.
-# - Pull requests that touch it get unsigned build artifacts.
+# - Pull requests that touch it get an unsigned Linux build. The `desktop-all-platforms` label builds macOS and Windows too.
 # - Every push to main that touches the app is released as `desktop-v0.1.<run number>`. Installed apps find it through the
 #   `latest.json` of the rolling `desktop-latest` release and update themselves. Releasing needs the updater signing key
 #   in the TAURI_SIGNING_PRIVATE_KEY secret; without it, main only builds.
@@ -21,6 +21,7 @@ on:
   pull_request:
     branches:
       - main
+    types: [opened, synchronize, reopened, labeled]
     paths:
       - 'apps/camnc-desktop/**'
       - 'apps/camNC/src/lib/desktop/**'
@@ -36,22 +37,32 @@ env:
   RELEASE: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
 
 jobs:
+  # Picks the platforms: Linux only on pull requests, all three on main, on manual runs and with the label.
+  platforms:
+    # Adding any other label to a pull request does not rebuild it.
+    if: github.event.action != 'labeled' || github.event.label.name == 'desktop-all-platforms'
+    runs-on: ubuntu-latest
+    outputs:
+      include: ${{ steps.pick.outputs.include }}
+    steps:
+      - id: pick
+        env:
+          ALL: ${{ github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'desktop-all-platforms') }}
+        run: |
+          macos='{"platform":"macos-latest","target":"aarch64-apple-darwin","bundles":"app,dmg"}'
+          windows='{"platform":"windows-latest","target":"x86_64-pc-windows-msvc","bundles":"nsis"}'
+          # The AppImage step of tauri-cli 3.0.0-alpha.5 (quick-sharun) hung for over an hour in CI, so Linux ships as
+          # .deb for now, which the updater cannot replace.
+          linux='{"platform":"ubuntu-24.04","target":"x86_64-unknown-linux-gnu","bundles":"deb"}'
+          if [ "$ALL" = true ]; then include="[$macos,$windows,$linux]"; else include="[$linux]"; fi
+          echo "include=$include" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: platforms
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - platform: macos-latest
-            target: aarch64-apple-darwin
-            bundles: app,dmg
-          - platform: windows-latest
-            target: x86_64-pc-windows-msvc
-            bundles: nsis
-          - platform: ubuntu-24.04
-            target: x86_64-unknown-linux-gnu
-            # The AppImage step of tauri-cli 3.0.0-alpha.5 (quick-sharun) hung for over an hour in CI, so Linux ships as
-            # .deb for now, which the updater cannot replace.
-            bundles: deb
+        include: ${{ fromJSON(needs.platforms.outputs.include) }}
     name: Build (${{ matrix.target }})
     runs-on: ${{ matrix.platform }}
     timeout-minutes: 45
@@ -71,6 +82,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: apps/camnc-desktop/src-tauri -> target
+          # Also keep what a failed build compiled, so the next run does not start cold.
+          cache-on-failure: true
       # CEF's C++ wrapper is built with CMake and Ninja.
       - uses: seanmiddleditch/gha-setup-ninja@v5
       - name: Install Linux dependencies
@@ -79,19 +92,24 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgtk-4-dev libnss3 libnspr4 libatk-bridge2.0-0 libgbm1 libxkbcommon0 libxcomposite1 \
             libxdamage1 libxrandr2 libasound2t64 libegl1 libgles2 file
-      # The CEF binary distribution (~1 GB) the build downloads.
-      - uses: actions/cache@v4
+      # The CEF binary distribution (~1 GB) the build downloads. It only changes with the `cef` crate's version.
+      - name: Get the CEF version
+        id: cef
+        run: echo "version=$(grep -A1 '^name = "cef"$' apps/camnc-desktop/src-tauri/Cargo.lock | sed -n 's/^version = "\(.*\)"$/\1/p')" >> "$GITHUB_OUTPUT"
+      - name: Restore CEF
+        id: cef-cache
+        uses: actions/cache/restore@v4
         with:
           path: |
             ~/Library/Caches/tauri-cef
             ~\AppData\Local\tauri-cef
             ~/.cache/tauri-cef
-          key: tauri-cef-${{ matrix.target }}-${{ hashFiles('apps/camnc-desktop/src-tauri/Cargo.lock') }}
-          restore-keys: tauri-cef-${{ matrix.target }}-
+          key: tauri-cef-${{ matrix.target }}-${{ steps.cef.outputs.version }}
       - run: pnpm install --frozen-lockfile
       - name: Download go2rtc
         run: node apps/camnc-desktop/scripts/fetch-go2rtc.mjs ${{ matrix.target }}
       - name: Build
+        id: build
         working-directory: apps/camnc-desktop
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -106,6 +124,16 @@ jobs:
             require("fs").writeFileSync("release.conf.json", JSON.stringify(config));
           '
           pnpm tauri build --bundles ${{ matrix.bundles }} --config release.conf.json
+      # Saved even when bundling fails, since CEF is downloaded during the compile.
+      - name: Save CEF
+        if: ${{ !cancelled() && steps.cef-cache.outputs.cache-hit != 'true' && steps.build.outcome != 'skipped' }}
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/Library/Caches/tauri-cef
+            ~\AppData\Local\tauri-cef
+            ~/.cache/tauri-cef
+          key: tauri-cef-${{ matrix.target }}-${{ steps.cef.outputs.version }}
       - name: Collect bundles
         run: |
           mkdir -p dist
