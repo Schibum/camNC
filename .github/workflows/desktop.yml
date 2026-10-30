@@ -109,6 +109,10 @@ jobs:
           find "$bundle" -maxdepth 2 -type f \( -name '*.dmg' -o -name '*.app.tar.gz' -o -name '*.app.tar.gz.sig' \
             -o -name '*-setup.exe' -o -name '*-setup.exe.sig' -o -name '*.AppImage' -o -name '*.AppImage.sig' -o -name '*.deb' \) \
             -exec cp {} dist/ \;
+          # The macOS update bundle is named after the app only; give it the version and architecture like the others.
+          for file in dist/camNC.app.tar.gz*; do
+            [ -e "$file" ] && mv "$file" "dist/camNC_${VERSION}_aarch64${file#dist/camNC}"
+          done
           ls -la dist
       - uses: actions/upload-artifact@v4
         with:
