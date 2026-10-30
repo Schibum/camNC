@@ -62,7 +62,70 @@ pub async fn discover() -> Vec<FoundCamera> {
         });
         camera.rtsp = true;
     }
+    // Cameras that ignore the multicast probe (or a network that drops it) may still serve ONVIF on a usual port.
+    let missing: Vec<Ipv4Addr> = cameras
+        .iter()
+        .filter(|(_, c)| c.onvif_url.is_none())
+        .map(|(ip, _)| *ip)
+        .collect();
+    let probed = futures_util::future::join_all(missing.into_iter().map(|ip| async move {
+        let (onvif, reolink) = tokio::join!(find_onvif(ip), port_open(ip, REOLINK_PORT));
+        (ip, onvif, reolink)
+    }))
+    .await;
+    for (ip, onvif, reolink) in probed {
+        if let Some(camera) = cameras.get_mut(&ip) {
+            camera.onvif_url = onvif;
+            // Reolink's own protocol port; lets the app suggest Reolink's stream paths.
+            if reolink && camera.name.is_none() {
+                camera.name = Some("Reolink".into());
+            }
+        }
+    }
     cameras.into_values().collect()
+}
+
+/// Ports ONVIF device services commonly listen on: Reolink 8000, most others 80, Tapo 2020.
+const ONVIF_PORTS: [u16; 4] = [8000, 80, 2020, 8080];
+const REOLINK_PORT: u16 = 9000;
+
+async fn port_open(ip: Ipv4Addr, port: u16) -> bool {
+    tokio::time::timeout(CONNECT_TIMEOUT, TcpStream::connect((ip, port)))
+        .await
+        .is_ok_and(|r| r.is_ok())
+}
+
+/// The ONVIF device service URL of `ip`, if one of the usual ports answers GetSystemDateAndTime, which ONVIF
+/// devices must answer without a login.
+async fn find_onvif(ip: Ipv4Addr) -> Option<String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(2))
+        .build()
+        .ok()?;
+    for port in ONVIF_PORTS {
+        if !port_open(ip, port).await {
+            continue;
+        }
+        let url = format!("http://{ip}:{port}/onvif/device_service");
+        let envelope = r#"<?xml version="1.0" encoding="UTF-8"?><s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"><s:Body><GetSystemDateAndTime xmlns="http://www.onvif.org/ver10/device/wsdl"/></s:Body></s:Envelope>"#;
+        let Ok(response) = client
+            .post(&url)
+            .header("Content-Type", "application/soap+xml; charset=utf-8")
+            .body(envelope)
+            .send()
+            .await
+        else {
+            continue;
+        };
+        if response
+            .text()
+            .await
+            .is_ok_and(|text| text.contains("GetSystemDateAndTimeResponse"))
+        {
+            return Some(url);
+        }
+    }
+    None
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -153,12 +216,7 @@ async fn scan_rtsp() -> Vec<Ipv4Addr> {
     let probes = (1..=254u8)
         .map(|d| Ipv4Addr::new(a, b, c, d))
         .filter(|ip| *ip != own)
-        .map(|ip| async move {
-            let open = tokio::time::timeout(CONNECT_TIMEOUT, TcpStream::connect((ip, RTSP_PORT)))
-                .await
-                .is_ok_and(|r| r.is_ok());
-            open.then_some(ip)
-        });
+        .map(|ip| async move { port_open(ip, RTSP_PORT).await.then_some(ip) });
     futures_util::future::join_all(probes)
         .await
         .into_iter()
