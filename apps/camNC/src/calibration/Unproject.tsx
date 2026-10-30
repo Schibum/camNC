@@ -12,6 +12,7 @@ export const UnprojectVideoMesh = ({
   overSize = 50,
   bounds,
   opacity = 1,
+  onlyOnDepth,
   ref,
   ...props
 }: {
@@ -19,6 +20,7 @@ export const UnprojectVideoMesh = ({
   // Area to cover (machine coordinates), defaults to the machine bounds plus `overSize`.
   bounds?: THREE.Box2;
   opacity?: number;
+  onlyOnDepth?: boolean;
 } & ThreeElements['mesh']) => {
   const machineBounds = useMachineBounds();
   const useStillFrame = useShowStillFrame();
@@ -42,9 +44,9 @@ export const UnprojectVideoMesh = ({
   return (
     <mesh ref={ref} geometry={planeGeometry} {...props}>
       {useStillFrame ? (
-        <CameraShaderMaterial key="stillFrame" texture={stillFrameTexture} opacity={opacity} />
+        <CameraShaderMaterial key="stillFrame" texture={stillFrameTexture} opacity={opacity} onlyOnDepth={onlyOnDepth} />
       ) : (
-        <CameraShaderMaterial key="video" texture={videoTexture} opacity={opacity} />
+        <CameraShaderMaterial key="video" texture={videoTexture} opacity={opacity} onlyOnDepth={onlyOnDepth} />
       )}
     </mesh>
   );

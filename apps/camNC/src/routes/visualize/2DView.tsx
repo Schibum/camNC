@@ -1,3 +1,5 @@
+import { isDemoMode } from '@/lib/demo/demo-mode';
+import { cn } from '@wbcnc/ui/lib/utils';
 import { UnprojectVideoMesh } from '@/calibration/Unproject';
 import { LoadingVideoOverlay } from '@/components/LoadingVideoOverlay';
 import { PageHeader } from '@/components/page-header';
@@ -16,8 +18,9 @@ import { MachineBedMesh } from '@/visualize/MachineBed';
 import { nearestPointOnToolpath } from '@/visualize/nearestPoint';
 import { VisualizeToolbar } from '@/visualize/toolbar/VisualizeToolbar';
 import { DepthHoverReadout, DepthPanel, DepthScene, kDepthSceneBackground } from '@/visualize/DepthInspector';
+import { useDepthView, useShowStockVideo } from '@/visualize/depthViewStore';
+import { SimTimeline } from '@/visualize/stockSim/SimTimeline';
 import { getStockFootprint } from '@/visualize/depthInspection';
-import { useShowStockVideo } from '@/visualize/depthViewStore';
 import { ViewSwitcher } from '@/visualize/toolbar/ViewSwitcher';
 import { kViewModes, ViewMode, viewModeTitle } from '@/visualize/viewModes';
 import { ThreeEvent, useThree } from '@react-three/fiber';
@@ -122,6 +125,7 @@ function VisualizeComponent() {
   const [fitKey, setFitKey] = useState(0);
   const topCamera = useRef<TopCameraState | null>(null);
   const showStockVideo = useShowStockVideo();
+  const simEnabled = useDepthView(s => s.simEnabled);
   const [videoLoading, setVideoLoading] = useState<true | null>(null);
   const [videoError, setVideoError] = useState<Error | null>(null);
   const toolpathOffset = useStore(s => s.toolpathOffset);
@@ -222,6 +226,8 @@ function VisualizeComponent() {
                     visible={isTop || showStockVideo}
                     bounds={isTop ? undefined : stockTop}
                     opacity={isTop ? 1 : 0.7}
+                    // On the simulated stock, only on its uncut top: cuts below it must not be covered.
+                    onlyOnDepth={!isTop && simEnabled}
                     // In the 3D views, the video is drawn first, below the toolpath.
                     renderOrder={isTop ? 0 : -2}
                     onDoubleClick={isTop ? onDbClick : undefined}
@@ -275,9 +281,16 @@ function VisualizeComponent() {
               <div className="absolute top-2 right-2 bottom-12 flex flex-col items-end">
                 <DepthPanel toolpath={toolpath} />
               </div>
-              <div className="absolute bottom-2 left-2">
-                <DepthHoverReadout toolpath={toolpath} />
-              </div>
+              {simEnabled ? (
+                // Leaves room for the axis gizmo in the bottom right corner, and for the demo banner.
+                <div className={cn('absolute left-2 right-36', isDemoMode() ? 'bottom-16' : 'bottom-2')}>
+                  <SimTimeline toolpath={toolpath} />
+                </div>
+              ) : (
+                <div className="absolute bottom-2 left-2">
+                  <DepthHoverReadout toolpath={toolpath} />
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildDepthGeometryData,
   closestPointOnSegment,
+  guessStockHeight,
   contrastRatio,
   fadeOutsideLevel,
   getCutDepthLevels,
@@ -162,5 +163,16 @@ describe('level highlighting', () => {
     // Grayed: equal components, darker than the original red.
     expect(faded[0]).toBeCloseTo(faded[1]);
     expect(faded[0]).toBeLessThan(1);
+  });
+});
+
+describe('guessStockHeight', () => {
+  it('takes the deepest cut of a toolpath zeroed on the stock top', () => {
+    expect(guessStockHeight(parseGCode('G0 X0 Y0 Z5\nG1 Z-6.03 F100\nG1 X10\nG0 Z5'))).toBe(6);
+  });
+
+  it('has no guess for toolpaths zeroed at the bottom or only touching the surface', () => {
+    expect(guessStockHeight(parseGCode('G0 X0 Y0 Z15\nG1 Z8 F100\nG1 X10\nG0 Z15'))).toBeNull();
+    expect(guessStockHeight(parseGCode('G0 X0 Y0 Z5\nG1 Z-0.2 F100\nG1 X10\nG0 Z5'))).toBeNull();
   });
 });

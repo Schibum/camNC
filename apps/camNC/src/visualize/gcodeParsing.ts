@@ -5,6 +5,9 @@ export class ParsedToolpath {
   public pathPoints: Vector3[] = [];
   // Index of the modal that corresponds to the path point (starting point of the segment)
   public modals: Modal[] = [];
+  // Feed rate (mm/min, as programmed) and 1-based G-code line of the move ending at each path point.
+  public feeds: number[] = [];
+  public lines: number[] = [];
   public numArcSegments = 30;
   private bounds?: Box3;
   // Original GCode string
@@ -55,6 +58,13 @@ export interface Tool {
 export function parseGCode(gcode: string): ParsedToolpath {
   const parsed = new ParsedToolpath();
 
+  // 1-based line numbers of the non-blank lines, which are the ones the interpreter reports.
+  const sourceLines: number[] = [];
+  gcode.split('\n').forEach((line, i) => {
+    if (line.trim().length > 0) sourceLines.push(i + 1);
+  });
+  let feed = 0;
+
   try {
     // Create a new toolpath instance with callbacks
     const toolpath = new GCodeToolpath({
@@ -72,7 +82,14 @@ export function parseGCode(gcode: string): ParsedToolpath {
       },
     });
 
-    toolpath.loadFromStringSync(gcode);
+    // Called after each line: the points it added get its line number and feed rate (an F word applies to its own line).
+    toolpath.loadFromStringSync(gcode, (data: { words: [string, number][] }, index: number) => {
+      for (const [letter, value] of data.words) if (letter === 'F') feed = value;
+      for (let i = parsed.feeds.length; i < parsed.pathPoints.length; i++) {
+        parsed.feeds.push(feed);
+        parsed.lines.push(sourceLines[index] ?? 0);
+      }
+    });
     parsed.gcode = gcode;
     return parsed;
   } catch (error) {

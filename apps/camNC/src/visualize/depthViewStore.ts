@@ -3,6 +3,7 @@ import { Vector3 } from 'three';
 import { create } from 'zustand';
 import { guessZeroAt, ZeroAt } from './depthInspection';
 import { ParsedToolpath } from './gcodeParsing';
+import { ToolShapeChoice } from './stockSim/toolShapes';
 
 export interface HoverInfo {
   point: Vector3;
@@ -25,6 +26,21 @@ interface DepthViewState {
   setZeroAt: (zeroAt: ZeroAt | null) => void;
   setSelected: (toolpath: ParsedToolpath, z: number | null) => void;
   setHover: (toolpath: ParsedToolpath, info: HoverInfo | null) => void;
+  // Material removal simulation.
+  simEnabled: boolean;
+  // Playhead in seconds of estimated job time, null for the end of the job.
+  simTime: number | null;
+  simPlaying: boolean;
+  simSpeed: number;
+  // Keep the playhead on the running job's progress.
+  simFollowJob: boolean;
+  toolShape: ToolShapeChoice;
+  setSimEnabled: (simEnabled: boolean) => void;
+  setSimTime: (simTime: number | null) => void;
+  setSimPlaying: (simPlaying: boolean) => void;
+  setSimSpeed: (simSpeed: number) => void;
+  setSimFollowJob: (simFollowJob: boolean) => void;
+  setToolShape: (toolShape: ToolShapeChoice) => void;
 }
 
 /** UI state of the 3D depth views, shared between the scene inside the canvas and the overlay panel. */
@@ -41,6 +57,18 @@ export const useDepthView = create<DepthViewState>()(set => ({
   setZeroAt: zeroAt => set({ zeroAt }),
   setSelected: (toolpath, z) => set({ selected: z === null ? null : { toolpath, z } }),
   setHover: (toolpath, info) => set({ hover: info ? { toolpath, info } : null }),
+  simEnabled: false,
+  simTime: null,
+  simPlaying: false,
+  simSpeed: 50,
+  simFollowJob: false,
+  toolShape: 'auto',
+  setSimEnabled: simEnabled => set({ simEnabled, simPlaying: false }),
+  setSimTime: simTime => set({ simTime }),
+  setSimPlaying: simPlaying => set({ simPlaying }),
+  setSimSpeed: simSpeed => set({ simSpeed }),
+  setSimFollowJob: simFollowJob => set({ simFollowJob, simPlaying: false }),
+  setToolShape: toolShape => set({ toolShape }),
 }));
 
 export function useSelectedLevel(toolpath: ParsedToolpath) {
