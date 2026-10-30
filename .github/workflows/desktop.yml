@@ -104,6 +104,12 @@ jobs:
             require("fs").writeFileSync("release.conf.json", JSON.stringify(config));
           '
           pnpm tauri build --bundles ${{ matrix.bundles }} --config release.conf.json
+      - name: Show the CEF files (Linux bundling failed)
+        if: failure() && runner.os == 'Linux'
+        run: |
+          env | grep -i cef || true
+          find ~/.cache/tauri-cef apps/camnc-desktop/src-tauri/target/release -maxdepth 4 \( -name 'libEGL*' -o -name 'libcef*' -o -name 'icudtl.dat' -o -name 'libvk_swiftshader*' -o -name 'libvulkan*' \) 2>/dev/null
+          ls -la ~/.cache/tauri-cef/*/* 2>/dev/null | head -60
       - name: Collect bundles
         run: |
           mkdir -p dist
