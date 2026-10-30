@@ -1,6 +1,6 @@
 import { PageHeader } from '@/components/page-header';
 import { cameraSourceLabel } from '@/lib/camera/source-label';
-import { isCamCalibrated } from '@/store/cam-resolution';
+import { hasSetup, setupStatus } from '@/store/cam-import';
 import { ICamSource, useStore } from '@/store/store';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import {
@@ -17,7 +17,7 @@ import {
 import { Button } from '@wbcnc/ui/components/button';
 import { Card, CardContent } from '@wbcnc/ui/components/card';
 import { Input } from '@wbcnc/ui/components/input';
-import { Check, Copy, Grid3x3, Plus, Trash2, Video } from 'lucide-react';
+import { Check, Copy, Grid3x3, Import, Plus, Trash2, Video } from 'lucide-react';
 import { useState } from 'react';
 
 export const Route = createFileRoute('/setup/cameras')({
@@ -51,12 +51,6 @@ function CameraNameInput({ id, name }: { id: string; name: string }) {
   );
 }
 
-function setupStatus(camera: ICamSource) {
-  if (isCamCalibrated(camera)) return 'calibrated, markers set';
-  if (camera.calibration) return 'calibrated, markers not set';
-  return 'not calibrated';
-}
-
 function DeleteCameraButton({ id, name }: { id: string; name: string }) {
   const deleteCamSource = useStore(state => state.deleteCamSource);
   return (
@@ -88,8 +82,9 @@ function CameraCard({ id, camera, active }: { id: string; camera: ICamSource; ac
   const navigate = useNavigate();
   const setActiveCam = useStore(state => state.setActiveCam);
   const addCamSource = useStore(state => state.addCamSource);
+  const canCopySetup = useStore(state => Object.entries(state.camSources).some(([otherId, other]) => otherId !== id && hasSetup(other)));
 
-  function openFor(to: '/setup/url-entry' | '/setup/camera-calibration') {
+  function openFor(to: '/setup/url-entry' | '/setup/camera-calibration' | '/setup/import-setup') {
     setActiveCam(id);
     navigate({ to });
   }
@@ -119,6 +114,15 @@ function CameraCard({ id, camera, active }: { id: string; camera: ICamSource; ac
           <Button variant="secondary" size="sm" onClick={() => openFor('/setup/camera-calibration')}>
             <Grid3x3 /> Calibrate
           </Button>
+          {canCopySetup && (
+            <Button
+              variant="ghost"
+              size="sm"
+              title="Copy the calibration and markers of another camera, e.g. the same camera with another source"
+              onClick={() => openFor('/setup/import-setup')}>
+              <Import /> Copy setup from…
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"

@@ -19,6 +19,7 @@ import { toast } from '@wbcnc/ui/components/sonner';
 import { Trash2 } from 'lucide-react';
 import { z } from 'zod';
 import { IOnChangeArgs, VideoSourceSelection } from '../../setup/video-source-selection/VideoSourceSelection';
+import { hasSetup } from '../../store/cam-import';
 import { adaptCamToResolution, isCamCalibrated } from '../../store/cam-resolution';
 import { useCamSource, useStore } from '../../store/store';
 
@@ -85,7 +86,9 @@ function UrlEntryComponent() {
   const handleUrlConfirm = ({ url: newUrl, maxResolution, name: newName }: IOnChangeArgs) => {
     if (isNew || !activeCamId || !currentCamSource) {
       addCamSource(newName, { name: newName, url: newUrl, maxResolution: [maxResolution.width, maxResolution.height] });
-      navigate({ to: '/setup/camera-calibration' });
+      // Offer to start from a camera that is already set up, often the same camera with another source.
+      const canCopySetup = Object.values(useStore.getState().camSources).some(hasSetup);
+      navigate({ to: canCopySetup ? '/setup/import-setup' : '/setup/camera-calibration' });
       return;
     }
     const resolution: [number, number] = [maxResolution.width, maxResolution.height];
