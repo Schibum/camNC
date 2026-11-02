@@ -1,19 +1,80 @@
+<div align="center">
+
 # camNC
 
+**See your CNC toolpath on the real machine bed. Then cut it.**
+
+[![Try the demo](https://img.shields.io/badge/try-the%20demo-7c3aed)](https://run.camnc.app/demo)
+[![Desktop app](https://img.shields.io/badge/desktop-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2ea44f)](#desktop-app-recommended)
+[![FluidNC](https://img.shields.io/badge/FluidNC-3.9.9%20%C2%B7%204.1.x-555)](#run-the-job-from-the-same-screen)
+
+| Camera image (wide-angle lens, rotated to match)                                                                       | camNC top view of the same frame, with the toolpath                                                                                    |
+| ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| <img alt="Raw camera image of the bed with lens distortion and perspective" src="docs/images/readme/camera-raw.jpg" /> | <img alt="Corrected top view of the same frame with a knife block toolpath, colored by depth" src="docs/images/readme/top-view.jpg" /> |
+
+_The raw camera image (left, rotated to match) and camNC's corrected top view of the same frame with a toolpath on the bed_
+
+</div>
+
 camNC shows your CNC toolpath on a live camera image of the machine bed, so you can check stock placement, offsets and
-clamps before the spindle starts. Mount a camera above the machine (an old phone, a webcam or an IP camera), print four
-ArUco markers, and camNC turns the camera's perspective view into a calibrated, top-down view in machine coordinates with
-the G-code drawn on top.
+clamps before the spindle starts. It also runs the job: connect to FluidNC, zero, probe and start from the same screen,
+and preview the cut in 3D first.
+
+camNC is built for the [V1 Engineering LowRider V4](https://docs.v1e.com/lowrider/) running FluidNC, and that is the
+machine it is tested on. It should work just as well on other FluidNC machines.
+
+[![camNC cutting a small oak board (YouTube)](https://img.youtube.com/vi/KKgJ9J6dmqE/0.jpg)](https://www.youtube.com/watch?v=KKgJ9J6dmqE)
+
+_Cutting a small oak board with camNC (YouTube)_
 
 This repository is a pnpm/Turborepo monorepo with the camNC app, its desktop version and the supporting packages.
 
-## Features
+## See the toolpath where it will cut
 
-- Overlay the G-code toolpath on a live camera feed, corrected for lens distortion and perspective
-- Built-in camera calibration (OpenCV) and pose estimation from four ArUco markers
-- Machine control for FluidNC (3.9.9 and 4.1.x): DRO, jogging, zeroing, Z probing, overrides, macros, SD jobs with
-  progress on the toolpath, and a console
-- Optional "hide machine" mode that masks the gantry out of the image using monocular depth estimation
+Mount a camera above the machine (an old phone, a webcam or an IP camera) and print four ArUco markers. camNC calibrates
+the camera with OpenCV, finds its pose from the markers and corrects lens distortion and perspective, so you get a
+top-down view in machine coordinates with the G-code drawn on top. Drag the toolpath onto the stock and check clamps and
+offsets before the spindle starts.
+
+## Run the job from the same screen
+
+camNC talks to FluidNC (3.9.9 and 4.1.x) directly. Home, jog, set XY zero to the toolpath, probe Z and run the job from
+the SD card. A checklist catches a missed home or probe, and a green line on the camera image shows how far the job has
+got. Feed and spindle overrides, macros and a console are one click away.
+
+<img alt="A job running at 52 %, with progress drawn on the toolpath and the machine panel open" src="docs/images/readme/fluidnc-job.jpg" />
+
+## Preview the cut in 3D
+
+The 3D, front and side views simulate the stock being cut with flat, ball and V-bits. Scrub through the job on the
+timeline, scale Z to spot shallow passes, and project the camera image onto the stock.
+
+https://github.com/user-attachments/assets/72eb52e3-9d17-4891-b868-672bbb155564
+
+<img alt="3D material removal preview of a knife block finished with a 6 mm ball end mill" src="docs/images/readme/removal-ball.jpg" />
+
+## No camera yet?
+
+Start with just FluidNC. camNC draws the bed from the machine size it reports, with a 10 mm grid in machine coordinates,
+and you can jog, preview and run jobs right away. Add a camera later.
+
+<img alt="The drawn machine bed with the toolpath, without a camera" src="docs/images/readme/no-camera.jpg" />
+
+## Hide the machine
+
+This experimental feature estimates monocular depth with the Depth Anything V2 model and masks everything above the work
+surface, so the gantry disappears from the image (only tested with the [LowRider V4 beam](https://docs.v1e.com/lowrider/)).
+It assumes the largest depth cluster is the table and masks everything above a configurable offset:
+
+https://github.com/user-attachments/assets/a89cd4fe-92ce-4c37-b2a1-7ad5d3012fee
+
+## How accurate is it?
+
+Three crosses engraved one after another, each positioned by drag-and-drop on the camera image. Y is off by 1–2 mm, X
+lines up well. The setup used an old Pixel 5 on a ~120×60 cm [MPCNC LowRider V4](https://docs.v1e.com/lowrider/), with a
+reprojection error of around 2:
+
+https://github.com/user-attachments/assets/0c16f067-9cb2-4bc9-9941-f04e23f4bc24
 
 ## Getting started
 
@@ -65,31 +126,6 @@ or any computer on your network, and pick the _go2rtc_ source in camNC. The desk
 | Four ArUco markers          | Printed and fixed at known machine positions; camNC uses them to find the camera pose and keep it up to date                                                                                                                                                                                                            |
 | Calibration chessboard      | Printed or shown on a screen, used once per camera during setup                                                                                                                                                                                                                                                         |
 | FluidNC controller          | Optional. 3.9.9 or 4.1.x, for machine control (reference machine: V1 Engineering Jackpot2 on a LowRider V4)                                                                                                                                                                                                             |
-
-## Screenshots
-
-Original camera image from a Reolink E1 Zoom. Note the lens distortion and perspective - both are compensated, so you get an orthographic top down view instead for the overlays:
-
-<img width="1339" alt="Screenshot 2025-06-04 at 16 04 00" src="https://github.com/user-attachments/assets/39062592-b1a4-4a1c-abfd-be1a90b5517b" />
-
-Example overlays:
-
-<img width="473" alt="Screenshot 2025-06-04 at 11 52 41" src="https://github.com/user-attachments/assets/7de1504d-b0ca-4db3-bff7-a958a1131071" />
-
-https://github.com/user-attachments/assets/a38d152a-4533-4eb4-9d5e-f3c68fd1d5c0
-
-This demonstrates engraving a cross positioned via drag-and-drop in the camera stream, aiming to align three successive crosses. The results show a Y-axis deviation of 1–2 mm, while the X-axis aligns well. The setup used an old Pixel 5 and a ~120×60 cm [MPCNC Lowrider V4](https://docs.v1e.com/lowrider/) build, with a reprojection error of around 2:
-
-https://github.com/user-attachments/assets/0c16f067-9cb2-4bc9-9941-f04e23f4bc24
-
-Hide-machine feature:
-This experimental feature estimates monocular depth using the Depth Anything V2 model to mask objects above the work surface and "hide" the machine (only tested with the [LowRider V4 beam](https://docs.v1e.com/lowrider/)). Assumes the largest depth cluster is the table and masks everything above a configurable offset:
-
-https://github.com/user-attachments/assets/a89cd4fe-92ce-4c37-b2a1-7ad5d3012fee
-
-Example cutting a small board:
-
-[![cutting oak](https://img.youtube.com/vi/KKgJ9J6dmqE/0.jpg)](https://www.youtube.com/watch?v=KKgJ9J6dmqE)
 
 ## Repository layout
 
