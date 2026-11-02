@@ -8,9 +8,11 @@
 [![Desktop app](https://img.shields.io/badge/desktop-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2ea44f)](#desktop-app-recommended)
 [![FluidNC](https://img.shields.io/badge/FluidNC-3.9.9%20%C2%B7%204.1.x-555)](#run-the-job-from-the-same-screen)
 
-https://github.com/user-attachments/assets/6afe5e75-1081-4584-b53a-2baa7b500f88
+| Camera image (wide-angle lens, rotated to match)                                                                       | camNC top view of the same frame, with the toolpath                                                                                    |
+| ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| <img alt="Raw camera image of the bed with lens distortion and perspective" src="docs/images/readme/camera-raw.jpg" /> | <img alt="Corrected top view of the same frame with a knife block toolpath, colored by depth" src="docs/images/readme/top-view.jpg" /> |
 
-_Material removal preview: the demo job played back at 10× with a 90° V-bit_
+_The raw camera image (left, rotated to match) and camNC's corrected top view of the same frame with a toolpath on the bed_
 
 </div>
 
@@ -34,10 +36,6 @@ the camera with OpenCV, finds its pose from the markers and corrects lens distor
 top-down view in machine coordinates with the G-code drawn on top. Drag the toolpath onto the stock and check clamps and
 offsets before the spindle starts.
 
-| Camera image (wide-angle lens, rotated to match)                                                                       | camNC top view of the same frame, with the toolpath                                                                                    |
-| ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| <img alt="Raw camera image of the bed with lens distortion and perspective" src="docs/images/readme/camera-raw.jpg" /> | <img alt="Corrected top view of the same frame with a knife block toolpath, colored by depth" src="docs/images/readme/top-view.jpg" /> |
-
 ## Run the job from the same screen
 
 camNC talks to FluidNC (3.9.9 and 4.1.x) directly. Home, jog, set XY zero to the toolpath, probe Z and run the job from
@@ -50,6 +48,8 @@ got. Feed and spindle overrides, macros and a console are one click away.
 
 The 3D, front and side views simulate the stock being cut with flat, ball and V-bits. Scrub through the job on the
 timeline, scale Z to spot shallow passes, and project the camera image onto the stock.
+
+https://github.com/user-attachments/assets/6afe5e75-1081-4584-b53a-2baa7b500f88
 
 <img alt="3D material removal preview of a knife block finished with a 6 mm ball end mill" src="docs/images/readme/removal-ball.jpg" />
 
