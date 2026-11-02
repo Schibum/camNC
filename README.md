@@ -34,9 +34,9 @@ the camera with OpenCV, finds its pose from the markers and corrects lens distor
 top-down view in machine coordinates with the G-code drawn on top. Drag the toolpath onto the stock and check clamps and
 offsets before the spindle starts.
 
-| Camera image (Reolink E1 Zoom)                                                                                                                            | camNC top view with the toolpath                                                                                                      |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| <img alt="Raw camera image with lens distortion and perspective" src="https://github.com/user-attachments/assets/39062592-b1a4-4a1c-abfd-be1a90b5517b" /> | <img alt="Corrected top view with a knife block toolpath drawn on the bed, colored by depth" src="docs/images/readme/top-view.jpg" /> |
+| Camera image (wide-angle lens, rotated to match)                                                                       | camNC top view of the same frame, with the toolpath                                                                                    |
+| ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| <img alt="Raw camera image of the bed with lens distortion and perspective" src="docs/images/readme/camera-raw.jpg" /> | <img alt="Corrected top view of the same frame with a knife block toolpath, colored by depth" src="docs/images/readme/top-view.jpg" /> |
 
 ## Run the job from the same screen
 
