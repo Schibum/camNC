@@ -24,8 +24,14 @@ To use camNC with your own machine, pick one of these:
 
 ### Desktop app (recommended)
 
-Download the installer for macOS (Apple silicon), Windows or Linux (`.deb`) from the
-[latest release](https://github.com/Schibum/camNC/releases/latest).
+Download the installer for your computer:
+
+- [macOS (Apple silicon)](https://github.com/Schibum/camNC/releases/latest/download/camNC-macOS-AppleSilicon.dmg)
+- [Windows (64-bit)](https://github.com/Schibum/camNC/releases/latest/download/camNC-Windows-x64-setup.exe)
+- [Linux (64-bit, `.deb`)](https://github.com/Schibum/camNC/releases/latest/download/camNC-Linux-x64.deb)
+
+These always point to the newest build; all versions are on the
+[releases page](https://github.com/Schibum/camNC/releases).
 
 The desktop app is camNC with its own Chromium built in. It finds IP cameras on your network (ONVIF, or any camera with
 RTSP) and connects to them directly, so you don't need a Raspberry Pi, go2rtc or any other gateway. It also talks to
