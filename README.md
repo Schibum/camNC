@@ -49,7 +49,7 @@ got. Feed and spindle overrides, macros and a console are one click away.
 The 3D, front and side views simulate the stock being cut with flat, ball and V-bits. Scrub through the job on the
 timeline, scale Z to spot shallow passes, and project the camera image onto the stock.
 
-https://github.com/user-attachments/assets/6afe5e75-1081-4584-b53a-2baa7b500f88
+https://github.com/user-attachments/assets/72eb52e3-9d17-4891-b868-672bbb155564
 
 <img alt="3D material removal preview of a knife block finished with a 6 mm ball end mill" src="docs/images/readme/removal-ball.jpg" />
 
