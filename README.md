@@ -16,10 +16,14 @@ _Material removal preview, scrubbing through the job with a 90° V-bit_
 
 camNC shows your CNC toolpath on a live camera image of the machine bed, so you can check stock placement, offsets and
 clamps before the spindle starts. It also runs the job: connect to FluidNC, zero, probe and start from the same screen,
-and preview the cut in 3D first. [Watch it cut a small oak board](https://www.youtube.com/watch?v=KKgJ9J6dmqE).
+and preview the cut in 3D first.
 
 camNC is built for the [V1 Engineering LowRider V4](https://docs.v1e.com/lowrider/) running FluidNC, and that is the
 machine it is tested on. It should work just as well on other FluidNC machines.
+
+[![camNC cutting a small oak board (YouTube)](https://img.youtube.com/vi/KKgJ9J6dmqE/0.jpg)](https://www.youtube.com/watch?v=KKgJ9J6dmqE)
+
+_Cutting a small oak board with camNC (YouTube)_
 
 This repository is a pnpm/Turborepo monorepo with the camNC app, its desktop version and the supporting packages.
 
@@ -62,7 +66,9 @@ This experimental feature estimates monocular depth with the Depth Anything V2 m
 surface, so the gantry disappears from the image (only tested with the [LowRider V4 beam](https://docs.v1e.com/lowrider/)).
 It assumes the largest depth cluster is the table and masks everything above a configurable offset:
 
-https://github.com/user-attachments/assets/a89cd4fe-92ce-4c37-b2a1-7ad5d3012fee
+[![Hide machine: the gantry is masked out of the camera image (click for the full video)](docs/images/readme/hide-machine.gif)](https://github.com/user-attachments/assets/a89cd4fe-92ce-4c37-b2a1-7ad5d3012fee)
+
+_Sped up 3×. Click for the full video._
 
 ## How accurate is it?
 
@@ -70,7 +76,9 @@ Three crosses engraved one after another, each positioned by drag-and-drop on th
 lines up well. The setup used an old Pixel 5 on a ~120×60 cm [MPCNC LowRider V4](https://docs.v1e.com/lowrider/), with a
 reprojection error of around 2:
 
-https://github.com/user-attachments/assets/0c16f067-9cb2-4bc9-9941-f04e23f4bc24
+[![Engraving three crosses placed on the camera image (click for the full video)](docs/images/readme/accuracy.gif)](https://github.com/user-attachments/assets/0c16f067-9cb2-4bc9-9941-f04e23f4bc24)
+
+_Sped up 2.5×. Click for the full video._
 
 ## Getting started
 
