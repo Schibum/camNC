@@ -1,47 +1,66 @@
-# camNC Monorepo
+# camNC
 
-This repository is a pnpm/Turborepo workspace that contains the **camNC**
-application and a collection of supporting packages.
+camNC shows your CNC toolpath on a live camera image of the machine bed, so you can check stock placement, offsets and
+clamps before the spindle starts. Mount a camera above the machine (an old phone, a webcam or an IP camera), print four
+ArUco markers, and camNC turns the camera's perspective view into a calibrated, top-down view in machine coordinates with
+the G-code drawn on top.
 
-CamNC is a simple experimental web application that visualizes CNC G-code on a live camera feed (IP camera, old phone, webcam, etc.). It renders an orthographic 2D top-down view of the G-code on top of the camera image, adjusted for perspective effects through camera calibration and pose estimation.
+This repository is a pnpm/Turborepo monorepo with the camNC app, its desktop version and the supporting packages.
 
 ## Features
 
-- Overlay live G-code preview on a camera feed with perspective correction
-- Integrated calibration tool (OpenCV) to estimate camera intrinsics
-- Perspective-n-Point (PnP) pose estimation using ArUco markers
-- Built-in machine control for FluidNC (3.9.9 and 4.1.x) over a direct WebSocket: DRO, jogging, zeroing, Z probing, overrides, macros, SD jobs with progress on the toolpath, and a console
+- Overlay the G-code toolpath on a live camera feed, corrected for lens distortion and perspective
+- Built-in camera calibration (OpenCV) and pose estimation from four ArUco markers
+- Machine control for FluidNC (3.9.9 and 4.1.x): DRO, jogging, zeroing, Z probing, overrides, macros, SD jobs with
+  progress on the toolpath, and a console
+- Optional "hide machine" mode that masks the gantry out of the image using monocular depth estimation
 
-## Requirements
+## Getting started
 
-- Camera, mounted so it has a clear view of the CNC table. E.g.:
-  - Old smartphone
-    - [Ceiling mount 3d print model](https://makerworld.com/en/models/1455114-ceiling-top-down-phone-mount-with-ball-joint#profileId-1516416)
-  - IP camera, e.g. a Reolink. Two ways to connect it:
-    - **camNC desktop app** (easiest): finds RTSP/ONVIF cameras on your network and connects to them directly, with go2rtc built in. No Raspberry Pi or other gateway needed. See [Desktop app](#desktop-app).
-    - **Web app**: needs a [go2rtc](https://github.com/AlexxIT/go2rtc) gateway to expose the stream in a browser-compatible way. Go2rtc can run on a Raspberry Pi Zero or any local machine.
-    - [Reolink E1 Zoom 3d print model](https://makerworld.com/en/models/1461605-reolink-e1-zoom-ceiling-down-mount-looking-down#profileId-1524062)
+**Try it first:** the [demo](https://run.camnc.app/demo) runs in your browser with a recorded machine camera, a sample
+job and a simulated FluidNC. You can load your own G-code, and nothing is saved.
 
-- (Optional) CNC controller running [FluidNC](http://wiki.fluidnc.com/) 3.9.9 or 4.1.x (reference: V1 Engineering Jackpot2 on a LowRider V4). Machine control needs Chrome or Edge 147+, and browser and controller must be on the same LAN (FluidNC in STA mode). Other browsers can use camNC as a viewer.
+To use camNC with your own machine, pick one of these:
 
-## Usage
+### Desktop app (recommended)
 
-To try camNC without any setup, open the [demo](https://run.camnc.app/demo): a recorded machine camera, a sample job and a simulated FluidNC in your browser. You can load your own G-code, and nothing is saved.
+Download the installer for macOS (Apple silicon), Windows or Linux (`.deb`) from the
+[latest release](https://github.com/Schibum/camNC/releases/latest).
 
-To get started with your own machine, open the application at [https://run.camnc.app/](https://run.camnc.app/).
+The desktop app is camNC with its own Chromium built in. It finds IP cameras on your network (ONVIF, or any camera with
+RTSP) and connects to them directly, so you don't need a Raspberry Pi, go2rtc or any other gateway. It also talks to
+FluidNC without browser restrictions and works offline. On macOS and Windows it updates itself in the background (the
+update is used after the next restart); on Linux, install a newer `.deb` from the releases.
 
-### Desktop app
+The app is not code-signed yet, so the first start shows a warning:
 
-The desktop app is camNC with Chromium built in, for macOS (Apple silicon), Windows and Linux. On top of the web app it
-connects to IP cameras directly (it finds them on your network and lists their streams, no go2rtc setup needed) and talks
-to the machine controller without browser restrictions.
+- **macOS:** open the app once, then allow it under System Settings → Privacy & Security → _Open Anyway_. Or run
+  `xattr -dr com.apple.quarantine /Applications/camNC.app`.
+- **Windows:** SmartScreen warns about an unknown publisher; choose _More info_ → _Run anyway_.
 
-Download the installer for your platform from the [latest release](https://github.com/Schibum/camNC/releases/latest).
-Every change on `main` is released automatically, and installed apps update themselves: an update is downloaded in the
-background and used after the next restart. See [apps/camnc-desktop](apps/camnc-desktop/README.md) for details and
-building it yourself.
+Settings stay on your computer; there is no sign-in or sync in the desktop app. See
+[apps/camnc-desktop](apps/camnc-desktop/README.md) for building it yourself.
 
-### Screenshots
+### In the browser
+
+Open [run.camnc.app](https://run.camnc.app/), no install needed. Phone cameras and webcams work out of the box. For
+machine control, use Chrome or Edge 147+ on the same network as the controller (FluidNC in STA mode); other browsers can
+use camNC as a viewer.
+
+Browsers can't open an IP camera's RTSP stream. To use an IP camera in the browser, run a
+[go2rtc](https://github.com/AlexxIT/go2rtc) gateway that re-streams it over WebRTC, for example on a Raspberry Pi Zero
+or any computer on your network, and pick the _go2rtc_ source in camNC. The desktop app makes this unnecessary.
+
+## What you need
+
+| Part                        | Notes                                                                                                                                                                                                                                                                                                                   |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Camera with a top-down view | An old smartphone ([ceiling mount](https://makerworld.com/en/models/1455114-ceiling-top-down-phone-mount-with-ball-joint#profileId-1516416)), a webcam, or an IP camera such as a Reolink E1 Zoom ([mount](https://makerworld.com/en/models/1461605-reolink-e1-zoom-ceiling-down-mount-looking-down#profileId-1524062)) |
+| Four ArUco markers          | Printed and fixed at known machine positions; camNC uses them to find the camera pose and keep it up to date                                                                                                                                                                                                            |
+| Calibration chessboard      | Printed or shown on a screen, used once per camera during setup                                                                                                                                                                                                                                                         |
+| FluidNC controller          | Optional. 3.9.9 or 4.1.x, for machine control (reference machine: V1 Engineering Jackpot2 on a LowRider V4)                                                                                                                                                                                                             |
+
+## Screenshots
 
 Original camera image from a Reolink E1 Zoom. Note the lens distortion and perspective - both are compensated, so you get an orthographic top down view instead for the overlays:
 
@@ -78,16 +97,18 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the pieces fit together
 ### Apps
 
 - **camNC** – main camera overlay application ([run.camnc.app](https://run.camnc.app/)).
+- **camnc-desktop** – the desktop app: camNC packaged with Tauri and CEF, with a go2rtc sidecar for IP cameras.
 - **webrtc-cam** – runs on a phone and streams its camera to camNC via WebRTC.
 - **website** – Astro landing page ([www.camnc.app](https://www.camnc.app/)).
 - **chessboard** – displays/prints the chessboard pattern for camera calibration.
 - **demos** – sandbox showcasing individual packages.
+- **signal** – Cloudflare Worker that relays WebRTC signalling between camNC and phone cameras.
 
 ### Packages
 
 - **camera-calibration** – React components, store and workers for calibrating a camera with OpenCV.
 - **fluidnc** – direct WebSocket connection to FluidNC (transport detection, command queue, parsers, uploads), a scripted fake and the `pnpm sim` FluidNC simulator.
-- **go2webrtc** – video sources (go2rtc, phone via WebRTC, WebTorrent, webcam, URL).
+- **go2webrtc** – video sources (go2rtc, RTSP via the desktop app's go2rtc, phone via WebRTC, WebTorrent, webcam, URL).
 - **webrtc-channel** – WebRTC peer, WebSocket signalling client and data channel helpers.
 - **video-worker-utils** – helpers for processing video frames in web workers.
 - **load-opencv** – loads OpenCV.js in the browser.

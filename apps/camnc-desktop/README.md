@@ -1,14 +1,21 @@
 # camNC desktop app
 
 The camNC web app packaged with [Tauri 3](https://v3.tauri.app) (alpha) and its [CEF runtime](https://v3.tauri.app/develop/cef/),
-for macOS and Windows. The app ships its own Chromium, so it behaves like camNC in Chrome on every platform (WebRTC, WebGPU,
+for macOS, Windows and Linux. The app ships its own Chromium, so it behaves like camNC in Chrome on every platform (WebRTC, WebGPU,
 cross-origin isolation for OpenCV's threads). It bundles the built web app (`apps/camNC/dist`), so it works offline, and
 adds what a browser cannot do:
 
-- **IP cameras over RTSP.** A [go2rtc](https://github.com/AlexxIT/go2rtc) sidecar runs on `127.0.0.1` and serves the
-  camera to the page over WebRTC. Pick _Network camera_ in the camera setup and enter the camera's `rtsp://` URL.
+- **IP cameras without a gateway.** _Network camera_ in the camera setup lists the cameras on the local network
+  (`src-tauri/src/discovery.rs`): ONVIF cameras answer a WS-Discovery probe and, after the login, report their own
+  stream URLs; other cameras are found by scanning the local /24 for the RTSP port and offered vendor path presets. An
+  `rtsp://` URL can also be entered by hand. A [go2rtc](https://github.com/AlexxIT/go2rtc) sidecar on `127.0.0.1` then
+  serves the stream to the page over WebRTC, so users need no Raspberry Pi or separate go2rtc setup.
 - **Machine control without browser restrictions.** The FluidNC socket and file upload go through Rust
   (`tauri-plugin-websocket`, `tauri-plugin-http`), so no mixed-content blocking or local network permission applies.
+
+Users install it from the [latest release](https://github.com/Schibum/camNC/releases/latest); the root
+[README](../../README.md#desktop-app-recommended) has the user-facing install notes. This file is for building and
+releasing it.
 
 The web code detects the app with `isDesktopApp()` (`apps/camNC/src/lib/desktop`). In the app there is no sign-in:
 settings stay on this computer and are not synced.
@@ -64,7 +71,8 @@ Updates are signed with a minisign key pair (`pnpm tauri signer generate`). The 
 secret, main builds but nothing is released. Development builds never update.
 
 Not set up yet: macOS signing with a Developer ID and notarization, and Windows code signing. macOS builds are signed ad
-hoc, so the first start of a downloaded app needs right-click → Open (or `xattr -dr com.apple.quarantine camNC.app`);
+hoc, so the first start of a downloaded app needs System Settings → Privacy & Security → _Open Anyway_ (or
+`xattr -dr com.apple.quarantine /Applications/camNC.app`);
 updates afterwards install without that. Windows shows a SmartScreen warning on first install.
 
 ## Linux

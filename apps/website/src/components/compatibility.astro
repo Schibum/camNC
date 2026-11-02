@@ -12,6 +12,9 @@ import ContentSection from "~/components/content-section.astro";
         <strong class="text-default">Camera:</strong> Mounted so it has a clear view of the CNC table. Options include:
         <ul class="list-disc space-y-2 pl-5 mt-2">
           <li>
+            <strong>Webcam</strong> - Any webcam with a clear view of the table.
+          </li>
+          <li>
             <strong>Old smartphone</strong> -
             <a href="https://makerworld.com/en/models/1455114-ceiling-top-down-phone-mount-with-ball-joint#profileId-1516416"
                class="text-primary hover:underline" target="_blank" rel="noopener">
@@ -19,11 +22,16 @@ import ContentSection from "~/components/content-section.astro";
             </a>
           </li>
           <li>
-            <strong>IP camera</strong> - Requires
+            <strong>IP camera</strong>, e.g. a Reolink - The
+            <a href="https://github.com/Schibum/camNC/releases/latest"
+               class="text-primary hover:underline" target="_blank" rel="noopener">
+              camNC desktop app
+            </a> (macOS, Windows, Linux) finds it on your network and connects directly, no Raspberry Pi or gateway needed.
+            In the browser, it needs a
             <a href="https://github.com/AlexxIT/go2rtc"
                class="text-primary hover:underline" target="_blank" rel="noopener">
               go2rtc
-            </a> gateway to expose stream in a compatible way. Go2rtc can run on a Raspberry Pi Zero or any local machine.
+            </a> gateway.
             <a href="https://makerworld.com/en/models/1461605-reolink-e1-zoom-ceiling-down-mount-looking-down#profileId-1524062"
                class="text-primary hover:underline ml-1" target="_blank" rel="noopener">
               Reolink E1 Zoom 3D print model
@@ -37,10 +45,11 @@ import ContentSection from "~/components/content-section.astro";
       </li>
       <li>
         <strong class="text-default">(Optional) CNC controller:</strong>
-        <a href="http://wiki.fluidnc.com/en/features/webui"
+        <a href="http://wiki.fluidnc.com/"
            class="text-primary hover:underline" target="_blank" rel="noopener">
-          FluidNC WebUI v3
-        </a> integration for click-to-jog and sending programs directly. Does not work offline ATM, so FluidNC needs to run in STA mode.
+          FluidNC
+        </a> 3.9.9 or 4.1.x for jogging, zeroing, probing and running jobs from camNC. Works in the desktop app, or in Chrome or
+        Edge 147+ on the same network as the controller (FluidNC in STA mode).
       </li>
     </ul>
   </div>

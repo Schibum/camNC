@@ -24,15 +24,19 @@ into machine coordinates.
 
 ```
  camera source ──► video element ──► CameraShaderMaterial ──► orthographic r3f scene
- (go2rtc, phone,     (shared,         (machine XY → K[R|t]      + toolpath plane
-  webcam, URL)        ref-counted)     → distort → sample)        + markers, machine pos
+ (go2rtc, RTSP*,     (shared,         (machine XY → K[R|t]      + toolpath plane
+  phone, webcam,      ref-counted)     → distort → sample)        + markers, machine pos
+  URL)
+
+ * desktop app only, through its go2rtc sidecar
 ```
 
 ## Workspace layout
 
 | Path                                                   | Purpose                                                                                                         |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| `apps/camNC`                                           | Main app (TanStack Start, React 19, react-three-fiber).                                                         |
+| `apps/camNC`                                           | Main app (TanStack Router, React 19, react-three-fiber), served by a Cloudflare Worker.                         |
+| `apps/camnc-desktop`                                   | Desktop app: `apps/camNC` in Tauri 3 + CEF, with camera discovery, a go2rtc sidecar and native sockets.         |
 | `apps/webrtc-cam`                                      | Runs on a phone: streams its camera to camNC over WebRTC.                                                       |
 | `apps/website`                                         | Astro landing page (www.camnc.app).                                                                             |
 | `apps/chessboard`                                      | Static page that displays/prints the calibration chessboard.                                                    |
@@ -76,8 +80,10 @@ generated, don't edit it). New cameras go through the setup wizard:
   `camSources` keyed by id, with `activeCamId` selecting the current one.
   Matrices and vectors are three.js objects, serialised with superjson
   (`store-storage.ts`). Settings are persisted to localStorage and synced to
-  the server for signed-in users (`src/db`, Clerk + Drizzle/Neon via TanStack
-  Start server functions).
+  the server for signed-in users (`src/lib/settings-sync`, talking to the
+  `/api` routes of the app's Cloudflare Worker in `worker/`, which stores them
+  in D1 via Drizzle; sign-in with Clerk). The desktop app has no sign-in and
+  keeps settings local.
 - `src/store/store-p3p.ts` – marker detection on averaged still frames and
   extrinsics recomputation.
 - `src/lib/fluidnc` – `CncApi`, a Preact-signals based wrapper around
@@ -134,6 +140,29 @@ over their data channel once connected. The CNC controller is reached directly.
   to `/upload` (FluidNC sends no CORS headers), verified with `$SD/ListJSON`;
   XMODEM over the socket is the fallback. Only one tab holds the connection
   (Web Locks), and nothing is re-sent after a reconnect.
+
+## Desktop app
+
+`apps/camnc-desktop` wraps the built web app (`apps/camNC/dist`) in Tauri 3 with
+the CEF runtime, so it runs the same Chromium on macOS, Windows and Linux. The
+web code checks `isDesktopApp()` and, at startup, `initDesktopApp()`
+(`apps/camNC/src/lib/desktop`) swaps in native pieces:
+
+- **IP cameras**: the _Network camera_ setup tab calls the Rust side to find
+  cameras (`src-tauri/src/discovery.rs`: ONVIF WS-Discovery, plus a scan of the
+  local /24 for RTSP port 554) and to ask ONVIF cameras for their stream URLs.
+  An `rtsp:` source is resolved through `setRtspGateway` (`@wbcnc/go2webrtc`):
+  the app writes the camera into the config of a bundled go2rtc
+  (`src-tauri/src/go2rtc.rs`), which listens on `127.0.0.1` and serves the
+  stream over its WebRTC WebSocket like any go2rtc source.
+- **FluidNC**: `desktopMachineTransport` routes the controller WebSocket and
+  uploads through `tauri-plugin-websocket` and `tauri-plugin-http`, so Local
+  Network Access and mixed-content rules don't apply.
+- **Updates**: `src-tauri/src/updater.rs` and `lib/desktop/updates.ts` check
+  the signed `latest.json` of the rolling release and offer a restart.
+
+See [apps/camnc-desktop/README.md](../apps/camnc-desktop/README.md) for builds
+and releases.
 
 ## Testing
 
