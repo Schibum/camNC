@@ -8,9 +8,9 @@
 [![Desktop app](https://img.shields.io/badge/desktop-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2ea44f)](#desktop-app-recommended)
 [![FluidNC](https://img.shields.io/badge/FluidNC-3.9.9%20%C2%B7%204.1.x-555)](#run-the-job-from-the-same-screen)
 
-<img src="docs/images/readme/removal.gif" alt="camNC simulating a pocket being cut in 3D, scrubbing through the job timeline" width="820" />
+https://github.com/user-attachments/assets/6afe5e75-1081-4584-b53a-2baa7b500f88
 
-_Material removal preview, scrubbing through the job with a 90° V-bit_
+_Material removal preview: the demo job played back at 10× with a 90° V-bit_
 
 </div>
 
