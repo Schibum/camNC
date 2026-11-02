@@ -176,11 +176,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: desktop-v${{ env.VERSION }}
         run: |
-          node apps/camnc-desktop/scripts/updater-manifest.mjs dist "$VERSION" \
-            "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG" > latest.json
+          base="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG"
+          # Names that say the platform, and release notes with a download table.
+          node apps/camnc-desktop/scripts/release-assets.mjs dist "$VERSION" "$GITHUB_SHA" "$base" notes.md
+          node apps/camnc-desktop/scripts/updater-manifest.mjs dist "$VERSION" "$base" > latest.json
           cat latest.json
+          # The signatures are in latest.json, so the .sig files are not published.
+          rm -f dist/*.sig
           gh release create "$TAG" dist/* --target "$GITHUB_SHA" --latest --title "camNC desktop $VERSION" \
-            --notes "Built from $GITHUB_SHA on main. Installed apps update to this version on their own."
+            --notes-file notes.md
           # The rolling release whose latest.json the installed apps check.
           if ! gh release view desktop-latest > /dev/null 2>&1; then
             gh release create desktop-latest --prerelease --latest=false --title "camNC desktop: update feed" \
