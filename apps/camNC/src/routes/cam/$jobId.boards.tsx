@@ -4,10 +4,12 @@ import { BoardInspector } from '@/cam/boards/BoardInspector';
 import { BoardList } from '@/cam/boards/BoardList';
 import { NestView } from '@/cam/boards/NestView';
 import { dropTargetAt, useBoardDrag } from '@/cam/boards/boardDrag';
-import { useBoardPlans, useCamJob, useCamModel, useSaveCamJob } from '@/cam/camQueries';
+import { camKeys, useBoardPlans, useCamJob, useCamModel, useSaveCamJob } from '@/cam/camQueries';
+import type { CamJobV1 } from '@/cam/jobDb';
 import { CamJobBar } from '@/cam/model/CamJobBar';
 import { kDefaultPlan } from '@/cam/planSettings';
 import { useJobBoards } from '@/cam/useJobBoards';
+import { useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, useParams } from '@tanstack/react-router';
 import { Button } from '@wbcnc/ui/components/button';
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
@@ -25,6 +27,7 @@ function BoardsStep() {
   const { data: job, isPending } = useCamJob(jobId);
   const model = useCamModel(job);
   const save = useSaveCamJob();
+  const queryClient = useQueryClient();
   const { instances, boards, changed } = useJobBoards(job, model.data);
   const plans = useBoardPlans(
     job,
@@ -74,11 +77,16 @@ function BoardsStep() {
       toast.error(`${inst.name} is ${+inst.thickness.toFixed(1)} mm thick, board ${target.name} is ${target.thickness} mm.`);
       return false;
     }
+    // Moved by hand: pinned to the target board, so auto-fill leaves it there.
     saveBoards(
       boards.map(({ board }) =>
         board.id === boardId
-          ? { ...board, items: [...board.items.filter(i => i !== itemId), itemId] }
-          : { ...board, items: board.items.filter(i => i !== itemId) }
+          ? {
+              ...without(board, itemId),
+              items: [...board.items.filter(i => i !== itemId), itemId],
+              pinned: [...unpinned(board, itemId), itemId],
+            }
+          : without(board, itemId)
       )
     );
     setSelectedId(boardId);
@@ -97,25 +105,38 @@ function BoardsStep() {
       [itemId]
     );
     saveBoards([
-      ...boards.map(({ board }) => ({ ...board, items: board.items.filter(i => i !== itemId) })),
-      { ...b, holdDown: from.holdDown, tabs: from.tabs },
+      ...boards.map(({ board }) => without(board, itemId)),
+      { ...b, holdDown: from.holdDown, tabs: from.tabs, pinned: [itemId] },
     ]);
     setSelectedId(b.id);
   };
 
+  const unpin = (itemId: string) =>
+    saveBoards(boards.map(({ board }) => (board.pinned?.includes(itemId) ? { ...board, pinned: unpinned(board, itemId) } : board)));
+
   const autoFill = () => {
     const stock = job.stock ?? [];
     if (!stock.length) return toast.error('Add the boards you have to the stock list first.');
-    const res = autoFillFromStock(
-      boards.map(b => b.board),
-      instances,
-      stock,
-      plan.bit.diameter,
-      plan.material
-    );
+    const before = boards.map(b => b.board);
+    const res = autoFillFromStock(before, instances, stock, plan.bit.diameter, plan.material);
     saveBoards(res.boards);
-    if (res.tooBig.length) toast.warning(`${res.tooBig.map(id => byId.get(id)?.name).join(', ')}: bigger than every stock board.`);
-    else toast.success(`${res.boards.length} boards from stock`);
+    const names = (ids: string[]) => ids.map(id => byId.get(id)?.name ?? id).join(', ');
+    const problems = [
+      res.tooBig.length && `${names(res.tooBig)}: bigger than every stock board.`,
+      res.short.length && `${names(res.short)}: not enough stock left.`,
+    ].filter(Boolean);
+    const stockBoards = res.boards.filter(b => !b.size.fit && stock.some(s => +s.thickness.toFixed(1) === b.thickness)).length;
+    // Auto-fill replaces the user's grouping: offer the way back. Undo restores the boards on the latest job (the
+    // stock list may have changed since).
+    const action = {
+      label: 'Undo',
+      onClick: () => {
+        const latest = queryClient.getQueryData<CamJobV1>(camKeys.job(job.id)) ?? job;
+        save.mutate({ ...latest, boards: before });
+      },
+    };
+    if (problems.length) toast.warning(problems.join(' '), { action, duration: 10_000 });
+    else toast.success(`Parts placed on ${stockBoards} ${stockBoards === 1 ? 'board' : 'boards'} from stock`, { action, duration: 10_000 });
   };
 
   const addBoard = () => {
@@ -145,6 +166,7 @@ function BoardsStep() {
           onSelect={setSelectedId}
           onMove={move}
           onNewBoard={toNewBoard}
+          onUnpin={unpin}
           stock={job.stock ?? []}
           onStockChange={stock => save.mutate({ ...job, stock })}
         />
@@ -219,6 +241,14 @@ function BoardsStep() {
     </Shell>
   );
 }
+
+const unpinned = (board: BoardV1, itemId: string) => (board.pinned ?? []).filter(i => i !== itemId);
+/** The board without this body (nor its pin). */
+const without = (board: BoardV1, itemId: string): BoardV1 => ({
+  ...board,
+  items: board.items.filter(i => i !== itemId),
+  ...(board.pinned && { pinned: unpinned(board, itemId) }),
+});
 
 /**
  * Drag a part from the nest view (pointer events: mouse, pen and touch) onto a board card or the "new board" zone.

@@ -1,5 +1,6 @@
 import type { HoldDown } from '@wbcnc/cam';
 import { clampKeepOuts, nestRects, placedSize, type NestResult, type Rect } from '@wbcnc/cam/nest';
+import { autoNest, type SheetPacker } from './autoNest';
 import type { BoardRequest, CamPartInfo } from './camTypes';
 import type { MaterialKey } from './planSettings';
 
@@ -8,6 +9,8 @@ export interface StockBoardV1 {
   thickness: number;
   w: number;
   h: number;
+  /** How many of these boards there are; undefined = as many as needed. */
+  quantity?: number;
 }
 
 export interface BoardV1 {
@@ -28,6 +31,8 @@ export interface BoardV1 {
   measuredThickness?: number;
   /** Bodies on this board, as instance ids (see `instancesOf`). */
   items: string[];
+  /** Bodies the user put on this board by hand: auto-fill leaves them here. */
+  pinned?: string[];
 }
 
 /** One body to cut: the k-th of a group of identical bodies. */
@@ -107,10 +112,10 @@ export function newBoard(boards: BoardV1[], thickness: number, material: Materia
  */
 export function reconcileBoards(boards: BoardV1[] | undefined, instances: PartInstance[], material: MaterialKey): BoardV1[] {
   const byId = new Map(instances.map(i => [i.id, i]));
-  let out = (boards ?? []).map(b => ({
-    ...b,
-    items: b.items.filter(id => byId.get(id)?.thickness !== undefined && thicknessKey(byId.get(id)!.thickness) === b.thickness),
-  }));
+  let out = (boards ?? []).map(b => {
+    const items = b.items.filter(id => byId.get(id)?.thickness !== undefined && thicknessKey(byId.get(id)!.thickness) === b.thickness);
+    return b.pinned ? { ...b, items, pinned: b.pinned.filter(id => items.includes(id)) } : { ...b, items };
+  });
   const placed = new Set(out.flatMap(b => b.items));
   for (const inst of instances) {
     if (placed.has(inst.id)) continue;
@@ -205,8 +210,10 @@ export function boardRequest(board: BoardV1, nest: BoardNest, instances: PartIns
 }
 
 /**
- * Put every body on boards from the stock list: per thickness, fill the biggest stock board, overflow onto the next.
- * Thicknesses without stock keep fitted boards. Returns the new boards and the bodies that fit on no stock board.
+ * Put every body on boards from the stock list, per thickness, using as little stock as possible (see `autoNest`).
+ * Bodies the user moved by hand (`pinned`) stay on their board, and free bodies fill the room left on such a board
+ * first when it has a fixed size. Thicknesses without stock keep their boards. Bodies that fit on no stock board
+ * (`tooBig`) or are left when the stock runs out (`short`) go on a fitted board of their own.
  */
 export function autoFillFromStock(
   boards: BoardV1[],
@@ -214,34 +221,73 @@ export function autoFillFromStock(
   stock: StockBoardV1[],
   bit: number,
   material: MaterialKey
-): { boards: BoardV1[]; tooBig: string[] } {
+): { boards: BoardV1[]; tooBig: string[]; short: string[] } {
   const out: BoardV1[] = [];
   const tooBig: string[] = [];
+  const short: string[] = [];
+  const byId = new Map(instances.map(i => [i.id, i]));
   const thicknesses = [...new Set(instances.map(i => thicknessKey(i.thickness)))].sort((a, b) => b - a);
   for (const t of thicknesses) {
-    const sheets = stock.filter(s => thicknessKey(s.thickness) === t).sort((a, b) => b.w * b.h - a.w * a.h);
+    const sheets = stock.filter(s => thicknessKey(s.thickness) === t);
     const old = boards.filter(b => b.thickness === t);
-    let left = instances.filter(i => thicknessKey(i.thickness) === t).map(i => i.id);
+    const mine = instances.filter(i => thicknessKey(i.thickness) === t).map(i => i.id);
     if (!sheets.length) {
-      out.push(...(old.length ? old : [newBoard(out, t, material, left)]));
+      out.push(...(old.length ? old : [newBoard(out, t, material, mine)]));
       continue;
     }
-    const sheet = sheets[0];
-    while (left.length) {
-      const board = { ...newBoard(out, t, old[0]?.material ?? material, left), size: { fit: false as const, w: sheet.w, h: sheet.h } };
-      if (old[0]) Object.assign(board, { holdDown: old[0].holdDown, tabs: old[0].tabs });
-      const nest = nestBoard(board, instances, bit);
-      const placed = nest.placements.map(p => p.id);
-      if (!placed.length) {
-        tooBig.push(...left);
-        break;
-      }
-      out.push({ ...board, items: placed });
-      left = left.filter(id => !placed.includes(id));
+    const template = { ...newBoard([], t, old[0]?.material ?? material) };
+    if (old[0]) Object.assign(template, { holdDown: old[0].holdDown, tabs: old[0].tabs });
+    const fresh = (items: string[], size: BoardV1['size']): BoardV1 => ({ ...template, id: crypto.randomUUID(), items, size });
+
+    const kept = old.flatMap(b => {
+      const pinned = (b.pinned ?? []).filter(id => b.items.includes(id) && mine.includes(id));
+      return pinned.length ? [{ ...b, items: pinned, pinned }] : [];
+    });
+    let free = mine.filter(id => !kept.some(b => b.items.includes(id)));
+    const left = new Map(sheets.map(s => [s.id, s.quantity ?? Infinity]));
+    for (const b of kept) {
+      if (b.size.fit) continue;
+      const { w, h } = b.size;
+      const sheet = sheets.find(s => s.w === w && s.h === h && left.get(s.id)! > 0);
+      if (sheet) left.set(sheet.id, left.get(sheet.id)! - 1);
+      if (!free.length) continue;
+      const placed = new Set(nestBoard({ ...b, items: [...b.items, ...free] }, instances, bit).placements.map(p => p.id));
+      const items = [...b.items, ...free.filter(id => placed.has(id))];
+      if (!b.items.every(id => placed.has(id)) || nestBoard({ ...b, items }, instances, bit).unplaced.length) continue;
+      b.items = items;
+      free = free.filter(id => !placed.has(id));
     }
+
+    const pack: SheetPacker = (ids, sheet) => {
+      const nest = nestBoard(fresh(ids, { fit: false, w: sheet.w, h: sheet.h }), instances, bit);
+      return {
+        placed: nest.placements.map(p => p.id),
+        used: nest.placements.map(p => {
+          const r = placedRect(p, byId.get(p.id)!);
+          return { ...r, w: r.w + nest.gap, h: r.h + nest.gap };
+        }),
+      };
+    };
+    const res = autoNest(
+      free.map(id => ({ id, w: byId.get(id)!.size[0], h: byId.get(id)!.size[1] })),
+      sheets.map(s => ({ id: s.id, w: s.w, h: s.h, quantity: Number.isFinite(left.get(s.id)) ? left.get(s.id) : undefined })),
+      pack
+    );
+    out.push(...kept, ...res.boards.map(b => fresh(b.items, { fit: false, w: b.sheet.w, h: b.sheet.h })));
+    if (res.tooBig.length || res.short.length) out.push(fresh([...res.tooBig, ...res.short], { fit: true }));
+    tooBig.push(...res.tooBig);
+    short.push(...res.short);
   }
   // A fresh layout: name the boards A, B, C… in order (kept boards of other thicknesses too, so names stay unique).
-  return { boards: out.map((b, i) => ({ ...b, name: letter(i) })), tooBig };
+  // Boards with parts placed by hand keep their name.
+  const taken = new Set(out.filter(b => b.pinned?.length).map(b => b.name));
+  let k = 0;
+  const named = out.map(b => {
+    if (b.pinned?.length) return b;
+    while (taken.has(letter(k))) k++;
+    return { ...b, name: letter(k++) };
+  });
+  return { boards: named, tooBig, short };
 }
 
 /** Bounding rectangle of a placed body (for hit testing / labels). */

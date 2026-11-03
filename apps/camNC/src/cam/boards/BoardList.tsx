@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@wbcnc/ui/components/dropdown-menu';
 import { cn } from '@wbcnc/ui/lib/utils';
-import { GripVertical, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
+import { GripVertical, MoreHorizontal, Pin, PinOff, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { kHoldDownLabels, type BoardV1, type PartInstance, type StockBoardV1 } from '../boards';
 import type { PlanResult } from '../camTypes';
@@ -23,7 +23,7 @@ const sameThickness = (a: number, b: number) => +a.toFixed(1) === +b.toFixed(1);
 /**
  * Boards with their bodies, and the stock list. A body moves to another board of the same thickness by dragging its
  * chip (or the part in the nest view) onto that board, or with its "Move to…" menu; dropping on "New board" splits it
- * onto a board of its own.
+ * onto a board of its own. Parts moved by hand are pinned (auto-fill leaves them on their board) until unpinned.
  */
 export function BoardList({
   boards,
@@ -33,6 +33,7 @@ export function BoardList({
   onSelect,
   onMove,
   onNewBoard,
+  onUnpin,
   stock,
   onStockChange,
 }: {
@@ -45,6 +46,8 @@ export function BoardList({
   onMove: (itemId: string, boardId: string) => boolean;
   /** Put a body on a new board of its thickness. */
   onNewBoard: (itemId: string) => void;
+  /** Let auto-fill move a body again. */
+  onUnpin: (itemId: string) => void;
   stock: StockBoardV1[];
   onStockChange: (stock: StockBoardV1[]) => void;
 }) {
@@ -105,6 +108,8 @@ export function BoardList({
                   key={id}
                   name={byId.get(id)?.name ?? id}
                   unplaced={nest.unplaced.includes(id)}
+                  pinned={!!board.pinned?.includes(id)}
+                  onUnpin={() => onUnpin(id)}
                   onDragStart={() => drag.start(id, byId.get(id)?.thickness ?? board.thickness)}
                   onDragEnd={() => {
                     drag.end();
@@ -160,6 +165,8 @@ function PartChip({
   name,
   dragId,
   unplaced,
+  pinned,
+  onUnpin,
   targets,
   onDragStart,
   onDragEnd,
@@ -168,6 +175,8 @@ function PartChip({
   name: string;
   dragId: string;
   unplaced: boolean;
+  pinned: boolean;
+  onUnpin: () => void;
   targets: BoardV1[];
   onDragStart: () => void;
   onDragEnd: () => void;
@@ -190,6 +199,11 @@ function PartChip({
       )}>
       <GripVertical className="size-3 text-muted-foreground" aria-hidden />
       {name}
+      {pinned && (
+        <span role="img" aria-label="Placed by hand" title="Placed by hand: auto-fill keeps it on this board">
+          <Pin className="size-3 text-muted-foreground" aria-hidden />
+        </span>
+      )}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
@@ -209,6 +223,14 @@ function PartChip({
           <DropdownMenuItem onSelect={() => onMoveTo('new')}>
             <Plus className="size-3" /> New board
           </DropdownMenuItem>
+          {pinned && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={onUnpin}>
+                <PinOff className="size-3" /> Let auto-fill move it
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </span>
@@ -216,8 +238,11 @@ function PartChip({
 }
 
 function StockList({ stock, onChange }: { stock: StockBoardV1[]; onChange: (s: StockBoardV1[]) => void }) {
-  const [draft, setDraft] = useState({ thickness: '', w: '', h: '' });
-  const valid = [draft.thickness, draft.w, draft.h].every(v => parseFloat(v) > 0);
+  const [draft, setDraft] = useState({ thickness: '', w: '', h: '', quantity: '' });
+  const quantity = draft.quantity.trim() ? Number(draft.quantity) : undefined;
+  const valid =
+    [draft.thickness, draft.w, draft.h].every(v => parseFloat(v) > 0) &&
+    (quantity === undefined || (Number.isInteger(quantity) && quantity > 0));
   return (
     <section aria-label="Stock list" className="mt-2 flex flex-col gap-2 border-t pt-3">
       <h3 className="text-[13px] font-semibold">Stock list</h3>
@@ -225,6 +250,7 @@ function StockList({ stock, onChange }: { stock: StockBoardV1[]; onChange: (s: S
         <div key={s.id} className="flex items-center justify-between font-mono text-xs">
           <span>
             {fmt(s.thickness)} mm · {fmt(s.w)} × {fmt(s.h)}
+            {s.quantity !== undefined && ` · ${s.quantity} pcs`}
           </span>
           <Button
             variant="ghost"
@@ -237,12 +263,15 @@ function StockList({ stock, onChange }: { stock: StockBoardV1[]; onChange: (s: S
         </div>
       ))}
       <form
-        className="grid grid-cols-[1fr_1fr_1fr_auto] items-center gap-1"
+        className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] items-center gap-1"
         onSubmit={e => {
           e.preventDefault();
           if (!valid) return;
-          onChange([...stock, { id: crypto.randomUUID(), thickness: +draft.thickness, w: +draft.w, h: +draft.h }]);
-          setDraft({ thickness: '', w: '', h: '' });
+          onChange([
+            ...stock,
+            { id: crypto.randomUUID(), thickness: +draft.thickness, w: +draft.w, h: +draft.h, ...(quantity && { quantity }) },
+          ]);
+          setDraft({ thickness: '', w: '', h: '', quantity: '' });
         }}>
         <Input
           aria-label="Stock thickness"
@@ -265,11 +294,21 @@ function StockList({ stock, onChange }: { stock: StockBoardV1[]; onChange: (s: S
           value={draft.h}
           onChange={e => setDraft({ ...draft, h: e.target.value })}
         />
+        <Input
+          aria-label="Stock quantity"
+          placeholder="pcs"
+          className="h-7 px-1.5 font-mono text-xs"
+          value={draft.quantity}
+          onChange={e => setDraft({ ...draft, quantity: e.target.value })}
+        />
         <Button type="submit" variant="outline" size="icon" className="size-7" aria-label="Add stock board" disabled={!valid}>
           <Plus className="size-3" />
         </Button>
       </form>
-      <p className="text-xs text-muted-foreground">Boards you have, in mm. “Auto-fill from stock” puts the parts on them.</p>
+      <p className="text-xs text-muted-foreground">
+        Boards you have, in mm, and how many (empty: as many as needed). “Auto-fill from stock” puts the parts on as little of them as it
+        can and keeps parts you moved by hand where they are.
+      </p>
     </section>
   );
 }
