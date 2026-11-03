@@ -2,6 +2,7 @@ import { Button } from '@wbcnc/ui/components/button';
 import { cn } from '@wbcnc/ui/lib/utils';
 import { Check, RotateCcw, RotateCw, X } from 'lucide-react';
 import { useEffect } from 'react';
+import { Hint } from '../Hint';
 import { loadIntoMachineView } from '../showOnMachine';
 import { stockTopOf } from '../boards';
 import { entryTitle, useCamMachine, type QueueEntry } from './camMachine';
@@ -53,9 +54,11 @@ export function CamQueueCard() {
       <div className="flex items-center gap-2">
         <h3 className="text-sm font-semibold">CAM job{job ? `: ${job.name}` : ''}</h3>
         <span className="grow" />
-        <Button size="icon" variant="ghost" className="size-6" aria-label="Leave the CAM job" onClick={leave}>
-          <X className="size-3.5" />
-        </Button>
+        <Hint text="Closes the queue here. Which boards are done is forgotten; the job itself stays.">
+          <Button size="icon" variant="ghost" className="size-6" aria-label="Leave the CAM job" onClick={leave}>
+            <X className="size-3.5" />
+          </Button>
+        </Hint>
       </div>
       {loading && !queue.length && <p className="text-xs text-muted-foreground">Making the programs…</p>}
       <ol className="flex flex-col gap-1 text-[13px]" aria-label="Board queue">
@@ -98,15 +101,19 @@ export function CamQueueCard() {
                   askew, turn the program:
                 </p>
                 <div className="flex items-center gap-1.5">
-                  <Button size="sm" variant="outline" aria-label="Turn 0.5° clockwise" onClick={() => turn(-0.5)}>
-                    <RotateCw />
-                  </Button>
+                  <Hint text="Turn the program 0.5° clockwise, to match a board that lies askew.">
+                    <Button size="sm" variant="outline" aria-label="Turn 0.5° clockwise" onClick={() => turn(-0.5)}>
+                      <RotateCw />
+                    </Button>
+                  </Hint>
                   <span className="w-16 text-center font-mono" aria-label="Rotation">
                     {deg.toFixed(1)}°
                   </span>
-                  <Button size="sm" variant="outline" aria-label="Turn 0.5° counterclockwise" onClick={() => turn(0.5)}>
-                    <RotateCcw />
-                  </Button>
+                  <Hint text="Turn the program 0.5° counterclockwise, to match a board that lies askew.">
+                    <Button size="sm" variant="outline" aria-label="Turn 0.5° counterclockwise" onClick={() => turn(0.5)}>
+                      <RotateCcw />
+                    </Button>
+                  </Hint>
                   <span className="text-xs text-muted-foreground">about the XY zero (lower left)</span>
                 </div>
               </div>
@@ -129,12 +136,16 @@ export function CamQueueCard() {
           )}
           <p className="text-muted-foreground">Then load and run it below. When it’s done:</p>
           <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => load(current)}>
-              Load {current.kind === 'tabs' ? 'tab removal' : 'program'}
-            </Button>
-            <Button size="sm" onClick={next}>
-              Done, next
-            </Button>
+            <Hint text="Puts this program in the machine view, ready to run.">
+              <Button size="sm" variant="outline" onClick={() => load(current)}>
+                Load {current.kind === 'tabs' ? 'tab removal' : 'program'}
+              </Button>
+            </Hint>
+            <Hint text="Marks this one as cut and loads the next program in the queue.">
+              <Button size="sm" onClick={next}>
+                Done, next
+              </Button>
+            </Hint>
           </div>
         </div>
       )}

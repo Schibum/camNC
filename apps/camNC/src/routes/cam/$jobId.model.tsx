@@ -2,6 +2,7 @@ import { PageHeader } from '@/components/page-header';
 import { camKeys, useCamJob, useCamModel, useSaveCamJob } from '@/cam/camQueries';
 import { replaceModel } from '@/cam/jobDb';
 import { CamJobBar } from '@/cam/model/CamJobBar';
+import { Hint } from '@/cam/Hint';
 import { ModelViewport, type ModelView } from '@/cam/model/ModelViewport';
 import { PartInspector } from '@/cam/model/PartInspector';
 import { PartList } from '@/cam/model/PartList';
@@ -46,9 +47,11 @@ function ModelStep() {
       step="Model"
       actions={
         <>
-          <Button size="sm" variant="outline" onClick={() => void replace()}>
-            Replace model…
-          </Button>
+          <Hint text="Open a new version of the model (STEP or STL). The job keeps its boards and settings.">
+            <Button size="sm" variant="outline" onClick={() => void replace()}>
+              Replace model…
+            </Button>
+          </Hint>
           <Button size="sm" asChild>
             <Link to="/cam/$jobId/boards" params={{ jobId: job.id }}>
               Next: Boards
@@ -86,13 +89,14 @@ function ModelStep() {
           <div className="flex items-center gap-2 px-4 py-3">
             <div role="group" aria-label="View" className="flex overflow-hidden rounded-md border">
               {(['assembled', 'flat'] as ModelView[]).map(v => (
-                <button
-                  key={v}
-                  aria-pressed={view === v}
-                  onClick={() => setView(v)}
-                  className={cn('h-8 px-3 text-sm', view === v ? 'bg-muted font-medium' : 'text-muted-foreground')}>
-                  {v === 'assembled' ? 'As modeled' : 'Laid flat'}
-                </button>
+                <Hint key={v} text={kViewHints[v]} side="bottom">
+                  <button
+                    aria-pressed={view === v}
+                    onClick={() => setView(v)}
+                    className={cn('h-8 px-3 text-sm', view === v ? 'bg-muted font-medium' : 'text-muted-foreground')}>
+                    {v === 'assembled' ? 'As modeled' : 'Laid flat'}
+                  </button>
+                </Hint>
               ))}
             </div>
             <span className="grow" />
@@ -116,6 +120,11 @@ function ModelStep() {
     </Shell>
   );
 }
+
+const kViewHints: Record<ModelView, string> = {
+  assembled: 'The parts where they sit in your model.',
+  flat: 'Each part turned so its machined side faces up, the way it lies on the board.',
+};
 
 function Shell({ bar, message, children }: { bar?: React.ReactNode; message?: string; children?: React.ReactNode }) {
   return (

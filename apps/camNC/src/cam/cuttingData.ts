@@ -39,6 +39,18 @@ export const kCuttingLabels: Record<CuttingField, { label: string; unit: string;
   wallFinish: { label: 'Wall finish', unit: 'mm left, then full depth · 0 = off', step: 0.05, min: 0 },
 };
 
+/** What each value does, for its tooltip: the consequence, not the mechanism. */
+export const kCuttingHints: Record<CuttingField, string> = {
+  feed: 'How fast the bit moves through the wood. Faster saves time but loads the bit; too slow can burn the wood.',
+  plungeFeed: 'How fast the bit goes down into the wood. Slower is gentler on the bit.',
+  stepdown: 'How deep each pass cuts. Less is gentler on the bit and slower.',
+  stepover: 'How far each pocket pass moves sideways. Less leaves a smoother floor and is slower.',
+  rpm: 'How fast the spindle turns. The program starts the spindle at this speed; with a router, set its dial to match.',
+  finalFeedFactor: 'Speed of the last pass around each part, as a share of the feed: slower gives a cleaner edge.',
+  wallFinish:
+    'Depth passes stay this far off the pocket walls, then one full-depth pass cuts them to size: cleaner walls, a little slower. 0 turns it off.',
+};
+
 export const kSourceLabels: Record<CuttingSource, string> = {
   job: 'this job',
   saved: 'saved',

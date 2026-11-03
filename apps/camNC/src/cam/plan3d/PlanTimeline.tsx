@@ -3,6 +3,7 @@ import { cn } from '@wbcnc/ui/lib/utils';
 import { Pause, Play } from 'lucide-react';
 import { useMemo, useRef } from 'react';
 import { formatDuration } from '@/visualize/stockSim/jobTimeline';
+import { Hint } from '../Hint';
 import { timelineLayout, timeToX, xToTime, type PlanModel } from './planModel';
 
 const kSpeeds = [5, 20, 60, 200];
@@ -45,14 +46,16 @@ export function PlanTimeline({
 
   return (
     <div className="flex items-center gap-3 border-t border-zinc-200 bg-white px-3 py-2.5 dark:border-zinc-800 dark:bg-zinc-950">
-      <Button
-        size="icon"
-        variant="outline"
-        className="size-8 shrink-0"
-        onClick={() => onPlaying(!playing)}
-        aria-label={playing ? 'Pause' : 'Play'}>
-        {playing ? <Pause className="size-4" /> : <Play className="size-4" />}
-      </Button>
+      <Hint text={playing ? 'Pause the simulated cut.' : 'Play the cut in the view, at the speed on the right.'}>
+        <Button
+          size="icon"
+          variant="outline"
+          className="size-8 shrink-0"
+          onClick={() => onPlaying(!playing)}
+          aria-label={playing ? 'Pause' : 'Play'}>
+          {playing ? <Pause className="size-4" /> : <Play className="size-4" />}
+        </Button>
+      </Hint>
       <div
         ref={track}
         className="relative h-7 min-w-0 flex-1 cursor-pointer touch-none select-none"
@@ -111,17 +114,19 @@ export function PlanTimeline({
       <div className="w-24 shrink-0 text-right text-xs text-zinc-500 tabular-nums dark:text-zinc-400">
         {formatDuration(time)} / {formatDuration(model.total)}
       </div>
-      <select
-        className="h-8 rounded-md border border-zinc-200 bg-white px-1 text-xs dark:border-zinc-800 dark:bg-zinc-950"
-        value={speed}
-        onChange={e => onSpeed(Number(e.target.value))}
-        aria-label="Speed">
-        {kSpeeds.map(s => (
-          <option key={s} value={s}>
-            {s}×
-          </option>
-        ))}
-      </select>
+      <Hint text="Simulation speed: 20× plays 20 seconds of cutting each second.">
+        <select
+          className="h-8 rounded-md border border-zinc-200 bg-white px-1 text-xs dark:border-zinc-800 dark:bg-zinc-950"
+          value={speed}
+          onChange={e => onSpeed(Number(e.target.value))}
+          aria-label="Speed">
+          {kSpeeds.map(s => (
+            <option key={s} value={s}>
+              {s}×
+            </option>
+          ))}
+        </select>
+      </Hint>
     </div>
   );
 }

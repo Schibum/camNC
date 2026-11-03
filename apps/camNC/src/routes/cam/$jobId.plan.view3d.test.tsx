@@ -26,6 +26,15 @@ afterEach(() => {
   localStorage.removeItem('camnc-plan-3d-view');
 });
 
+/** The accessible description: the text of the elements `aria-describedby` points to. */
+const description = (el: Element) =>
+  (el.getAttribute('aria-describedby') ?? '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(id => document.getElementById(id)?.textContent ?? '')
+    .join(' ')
+    .trim();
+
 const pressed = (group: HTMLElement) =>
   within(group)
     .getAllByRole('button')
@@ -63,6 +72,22 @@ describe('CAM plan step, 3D view', () => {
     expect(Number(playhead.getAttribute('aria-valuenow'))).toBeLessThan(Number(playhead.getAttribute('aria-valuemax')));
     expect(within(view).queryByRole('button', { name: /^Hide / })).toBeNull();
 
+    // Every toggle and icon-only button says what it does.
+    for (const name of [
+      'Result',
+      'Toolpath',
+      '3D',
+      'Top',
+      'Perspective',
+      'Orthographic',
+      'See through',
+      'Show the whole board',
+      'Play',
+      'Pause',
+    ])
+      for (const b of within(view).queryAllByRole('button', { name })) expect(description(b), name).not.toBe('');
+    expect(description(within(view).getByRole('combobox', { name: 'Speed' }))).toMatch(/seconds of cutting/);
+
     // Toolpath: no timeline, an eye per op, rapids can be hidden.
     const show = within(view).getByRole('group', { name: 'Show' });
     expect(pressed(show)).toEqual(['Result']);
@@ -71,6 +96,8 @@ describe('CAM plan step, 3D view', () => {
     expect(within(view).queryByRole('slider', { name: 'Playhead' })).toBeNull();
     const eyes = within(view).getAllByRole('button', { name: /^Hide / });
     expect(eyes).toHaveLength(rows.length);
+    expect(description(eyes[0])).toMatch(/still cut/);
+    expect(description(within(view).getByRole('button', { name: 'Rapids' }))).toMatch(/fast moves/);
     fireEvent.click(eyes[0]);
     expect(within(view).getAllByRole('button', { name: /^Show (?!all$)/ })).toHaveLength(1);
     fireEvent.click(within(view).getByRole('button', { name: 'Rapids' }));

@@ -2,6 +2,7 @@ import { Checkbox } from '@wbcnc/ui/components/checkbox';
 import { cn } from '@wbcnc/ui/lib/utils';
 import { FlipVertical2 } from 'lucide-react';
 import type { CamPartInfo } from '../camTypes';
+import { Hint } from '../Hint';
 import { fmt, groupParts } from './partFormat';
 
 const count = (ps: CamPartInfo[]) => ps.reduce((n, p) => n + p.names.length, 0);
@@ -92,12 +93,14 @@ function PartCard({
         selected && 'border-primary bg-muted',
         !milled && 'bg-transparent'
       )}>
-      <Checkbox
-        checked={milled}
-        onCheckedChange={v => onMilledChange(v === true)}
-        aria-label={`Mill ${part.name}`}
-        className="mt-0.5 size-[18px]"
-      />
+      <Hint text={milled ? 'Milled: it goes on a board. Untick to leave it out.' : 'Not milled: tick to put it on a board.'} side="right">
+        <Checkbox
+          checked={milled}
+          onCheckedChange={v => onMilledChange(v === true)}
+          aria-label={`Mill ${part.name}`}
+          className="mt-0.5 size-[18px]"
+        />
+      </Hint>
       <button
         onClick={onClick}
         aria-pressed={selected}

@@ -3,6 +3,7 @@ import { Checkbox } from '@wbcnc/ui/components/checkbox';
 import { Label } from '@wbcnc/ui/components/label';
 import { cn } from '@wbcnc/ui/lib/utils';
 import type { CamPartInfo } from '../camTypes';
+import { Hint } from '../Hint';
 import { fmt } from './partFormat';
 
 function insideCorners(r: number | null) {
@@ -122,15 +123,30 @@ function MilledControl({
   return (
     <div
       className={cn('flex flex-col gap-2 rounded-lg border p-3', milled ? 'border-primary/50 bg-primary/5' : 'border-border bg-muted/40')}>
-      <div className="flex items-center gap-2.5">
-        <Checkbox id="mill-part" checked={milled} onCheckedChange={v => onChange(v === true)} className="size-5" />
-        <Label htmlFor="mill-part" className="text-sm font-medium">
-          {notFlat ? 'Mill as a flat board anyway' : 'Mill this part'}
-        </Label>
-        <span className={cn('ml-auto text-xs', milled ? 'text-primary' : 'text-muted-foreground')}>
-          {milled ? 'on a board' : 'not milled'}
-        </span>
-      </div>
+      <Hint
+        id="mill-part-hint"
+        side="left"
+        text={
+          notFlat
+            ? 'Cuts its outline, holes and pockets from a flat board. Its sloped and curved faces come out square.'
+            : 'Unticked, the part stays out of the boards: for 3D-printed or bought parts.'
+        }>
+        <div className="flex items-center gap-2.5">
+          <Checkbox
+            id="mill-part"
+            checked={milled}
+            onCheckedChange={v => onChange(v === true)}
+            aria-describedby="mill-part-hint"
+            className="size-5"
+          />
+          <Label htmlFor="mill-part" className="text-sm font-medium">
+            {notFlat ? 'Mill as a flat board anyway' : 'Mill this part'}
+          </Label>
+          <span className={cn('ml-auto text-xs', milled ? 'text-primary' : 'text-muted-foreground')}>
+            {milled ? 'on a board' : 'not milled'}
+          </span>
+        </div>
+      </Hint>
       {notFlat && (
         <p className="text-[13px] leading-relaxed text-amber-700 dark:text-amber-400">
           3D part: {Math.round(slopedShare * 100)}% of its top is sloped or curved, which a flat bit can’t make. Left out of the boards

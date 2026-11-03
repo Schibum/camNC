@@ -6,6 +6,7 @@ import { missingParts, useJobBoards, type MissingPart } from '@/cam/useJobBoards
 import { freezeSpacing, spacingProblem } from '@/cam/boards';
 import { orderBoardQueue } from '@wbcnc/cam/board';
 import { CamJobBar } from '@/cam/model/CamJobBar';
+import { Hint } from '@/cam/Hint';
 import { PlanSettingsPanel } from '@/cam/plan/PlanSettingsPanel';
 import { CuttingDataEditor } from '@/cam/plan/CuttingDataEditor';
 import { cuttingKey, kCuttingLabels, kSourceLabels, resolveCutting, useCuttingData, type CuttingField } from '@/cam/cuttingData';
@@ -153,18 +154,32 @@ function PlanStep() {
               {fmtMin(totalMin)} min cutting
             </span>
             <BitChip value={settings} onChange={savePlan} />
-            <Button disabled={!allReady} onClick={takeToMachine}>
-              <Factory /> Take the job to the machine
-            </Button>
-            <Button variant="outline" disabled={!safe} onClick={showOnMachine}>
-              <Play /> Show board {current.board.name} on machine
-            </Button>
+            <Hint
+              wrap
+              text={
+                allReady
+                  ? 'Opens the machine view with every board in cutting order: place, align, zero and cut each one, with the bit swaps in between.'
+                  : 'Opens the machine view with every board in cutting order, once every board has toolpaths that pass the checks.'
+              }>
+              <Button disabled={!allReady} onClick={takeToMachine}>
+                <Factory /> Take the job to the machine
+              </Button>
+            </Hint>
+            <Hint
+              wrap
+              text={`Loads only board ${current.board.name}’s ${result && result.programs.length > 1 ? 'first program' : 'program'} into the machine view, to check or run it on its own.`}>
+              <Button variant="outline" disabled={!safe} onClick={showOnMachine}>
+                <Play /> Show board {current.board.name} on machine
+              </Button>
+            </Hint>
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="icon" variant="ghost" aria-label="More actions">
-                  <MoreHorizontal />
-                </Button>
-              </DropdownMenuTrigger>
+              <Hint text={`More actions: download board ${current.board.name}’s G-code.`}>
+                <DropdownMenuTrigger asChild>
+                  <Button size="icon" variant="ghost" aria-label="More actions">
+                    <MoreHorizontal />
+                  </Button>
+                </DropdownMenuTrigger>
+              </Hint>
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Board {current.board.name}</DropdownMenuLabel>
                 {result?.programs.map(p => (
@@ -322,15 +337,19 @@ function OperationsTable({ name, plan, editFor }: { name: string; plan: PlanResu
           <th className="py-2 pr-3 font-medium">#</th>
           <th className="py-2 pr-3 font-medium">Operation</th>
           <th className="py-2 pr-3 font-medium">Bit</th>
-          <th className="py-2 pr-3 font-medium">Depth (Z from bottom)</th>
-          <th className="py-2 pr-3 font-medium">Passes</th>
-          <th className="py-2 pr-3 font-medium" title="The deepest single pass">
+          <HeaderCell hint="Where the operation starts and ends cutting, in mm up from the bottom of the board (Z0).">
+            Depth (Z from bottom)
+          </HeaderCell>
+          <HeaderCell hint="How many depths the operation cuts at. More passes take longer but each one is lighter.">Passes</HeaderCell>
+          <HeaderCell hint="How deep each pass cuts. Less is gentler on the bit and slower. Click a value to change it.">
             Stepdown
-          </th>
-          <th className="py-2 pr-3 font-medium" title="Sideways step between pocket rings">
+          </HeaderCell>
+          <HeaderCell hint="How far each pocket pass moves sideways. Less leaves a smoother floor and is slower. Click a value to change it.">
             Stepover
-          </th>
-          <th className="py-2 pr-3 font-medium">Feed</th>
+          </HeaderCell>
+          <HeaderCell hint="How fast the bit moves through the wood, in mm/min; a second value is the slower final pass. Click a value to change it.">
+            Feed
+          </HeaderCell>
           <th className="py-2 font-medium">Time</th>
         </tr>
       </thead>
@@ -357,6 +376,19 @@ function OperationsTable({ name, plan, editFor }: { name: string; plan: PlanResu
         })}
       </tbody>
     </table>
+  );
+}
+
+/** A column header with a tooltip (it takes keyboard focus to show it) and the explanation as its description. */
+function HeaderCell({ hint, children }: { hint: string; children: React.ReactNode }) {
+  return (
+    <th className="py-2 pr-3 font-medium">
+      <Hint text={hint}>
+        <span tabIndex={0} className="cursor-help underline decoration-muted-foreground/40 decoration-dotted underline-offset-4">
+          {children}
+        </span>
+      </Hint>
+    </th>
   );
 }
 
@@ -399,9 +431,12 @@ function MissingBanner({
           </Link>
         </Button>
         {missing.length > 0 && !tight.length && (
-          <Button size="sm" variant="ghost" onClick={onLeaveOut}>
-            Leave {missing.length === 1 ? 'it' : 'them'} out
-          </Button>
+          <Hint
+            text={`The job goes ahead without ${missing.length === 1 ? 'this part' : 'these parts'}: ${missing.length === 1 ? 'it isn’t' : 'they aren’t'} cut. Fit ${missing.length === 1 ? 'it' : 'them'} on Boards to cut ${missing.length === 1 ? 'it' : 'them'} after all.`}>
+            <Button size="sm" variant="ghost" onClick={onLeaveOut}>
+              Leave {missing.length === 1 ? 'it' : 'them'} out
+            </Button>
+          </Hint>
         )}
       </div>
     </div>

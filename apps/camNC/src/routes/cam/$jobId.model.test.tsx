@@ -43,6 +43,8 @@ describe('CAM model step', () => {
 
     fireEvent.click(within(thin).getByRole('button', { name: /back/ }));
     expect(screen.getByRole('heading', { name: 'back' })).toBeTruthy();
+    expect(screen.getByLabelText('Mill this part').getAttribute('aria-describedby')).toBe('mill-part-hint');
+    expect(document.getElementById('mill-part-hint')!.textContent).toMatch(/stays out of the boards/);
     fireEvent.click(screen.getByLabelText('Mill this part'));
     const notMilled = screen.getByRole('region', { name: 'Not milled' });
     await waitFor(() => expect(within(notMilled).getByText('back')).toBeTruthy());

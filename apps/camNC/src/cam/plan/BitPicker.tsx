@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 import { bitKey } from '../cuttingData';
+import { Hint } from '../Hint';
 import { type PlanSettingsV1 } from '../planSettings';
 import { useBits, useToolLibrary, type StoredBit } from '../toolLibrary';
 import { ImportToolLibrary } from './ImportToolLibrary';
@@ -156,13 +157,15 @@ export function BitSettings({ value, onChange }: { value: PlanSettingsV1; onChan
 export function BitChip({ value, onChange }: { value: PlanSettingsV1; onChange: (v: PlanSettingsV1) => void }) {
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button size="sm" variant="outline" aria-label={`Bit: ⌀${value.bit.diameter} ${value.bit.name}. Change the bit`}>
-          <span className="text-muted-foreground">Bit:</span> ⌀{value.bit.diameter} · {value.bit.name}
-          {value.smallBit && <span className="text-muted-foreground">+ ⌀{value.smallBit.diameter}</span>}
-          <ChevronDown />
-        </Button>
-      </PopoverTrigger>
+      <Hint text="The bit for the whole job. It sets the margin and gap between parts on the boards, and every toolpath.">
+        <PopoverTrigger asChild>
+          <Button size="sm" variant="outline" aria-label={`Bit: ⌀${value.bit.diameter} ${value.bit.name}. Change the bit`}>
+            <span className="text-muted-foreground">Bit:</span> ⌀{value.bit.diameter} · {value.bit.name}
+            {value.smallBit && <span className="text-muted-foreground">+ ⌀{value.smallBit.diameter}</span>}
+            <ChevronDown />
+          </Button>
+        </PopoverTrigger>
+      </Hint>
       <PopoverContent className="w-96" align="end">
         <BitSettings value={value} onChange={onChange} />
       </PopoverContent>

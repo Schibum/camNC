@@ -1,6 +1,15 @@
 import { cn } from '@wbcnc/ui/lib/utils';
 import { PageHeader } from '@/components/page-header';
-import { autoFillFromStock, dropPart, newBoard, relayoutBoard, type BoardV1, type PartDrop, type PartPosition } from '@/cam/boards';
+import {
+  autoFillFromStock,
+  dropPart,
+  layoutSummary,
+  newBoard,
+  relayoutBoard,
+  type BoardV1,
+  type PartDrop,
+  type PartPosition,
+} from '@/cam/boards';
 import { BoardDrawings } from '@/cam/boards/BoardDrawings';
 import { BoardInspector } from '@/cam/boards/BoardInspector';
 import { BoardList } from '@/cam/boards/BoardList';
@@ -8,6 +17,7 @@ import { BitChip } from '@/cam/plan/BitPicker';
 import { camKeys, useBoardPlans, useCamJob, useCamModel, useSaveCamJob } from '@/cam/camQueries';
 import type { CamJobV1 } from '@/cam/jobDb';
 import { CamJobBar } from '@/cam/model/CamJobBar';
+import { Hint } from '@/cam/Hint';
 import { kDefaultPlan } from '@/cam/planSettings';
 import { useJobBoards } from '@/cam/useJobBoards';
 import { useQueryClient } from '@tanstack/react-query';
@@ -228,42 +238,52 @@ function BoardsStep() {
               <Plus /> New {selected.board.thickness} mm board
             </Button>
             <div className="flex">
-              <Button size="sm" variant="outline" className="rounded-r-none" onClick={() => autoFill()}>
-                Auto-fill from stock
-              </Button>
+              <Hint text="Puts the parts on boards from your stock list. Parts you moved by hand stay where they are.">
+                <Button size="sm" variant="outline" className="rounded-r-none" onClick={() => autoFill()}>
+                  Auto-fill from stock
+                </Button>
+              </Hint>
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="sm" variant="outline" className="rounded-l-none border-l-0 px-1.5" aria-label="More layout actions">
-                    <ChevronDown />
-                  </Button>
-                </DropdownMenuTrigger>
+                <Hint text="More layout actions: re-lay out everything from scratch.">
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" variant="outline" className="rounded-l-none border-l-0 px-1.5" aria-label="More layout actions">
+                      <ChevronDown />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </Hint>
                 <DropdownMenuContent align="start">
                   <DropdownMenuItem onSelect={relayoutAll}>Re-lay out everything (unpin all)</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-            <div role="group" aria-label="Auto-fill optimizes for" className="flex rounded-md border p-0.5 text-xs">
-              {(
-                [
-                  ['boards', 'Fewest boards'],
-                  ['wood', 'Least wood'],
-                ] as const
-              ).map(([value, label]) => (
-                <button
-                  key={value}
-                  aria-pressed={(job.nestObjective ?? 'boards') === value}
-                  onClick={() => save.mutate({ ...job, nestObjective: value })}
-                  className={cn(
-                    'rounded px-2 py-1',
-                    (job.nestObjective ?? 'boards') === value ? 'bg-muted font-medium' : 'text-muted-foreground hover:bg-muted/60'
-                  )}>
-                  {label}
-                </button>
+            <span id="nest-objective-label" className="text-xs text-muted-foreground">
+              Auto-fill prefers:
+            </span>
+            <div
+              role="group"
+              aria-label="Auto-fill optimizes for"
+              aria-describedby="nest-objective-label"
+              className="flex rounded-md border p-0.5 text-xs">
+              {kObjectives.map(([value, label, hint]) => (
+                <Hint key={value} text={hint}>
+                  <button
+                    aria-pressed={(job.nestObjective ?? 'boards') === value}
+                    onClick={() => save.mutate({ ...job, nestObjective: value })}
+                    className={cn(
+                      'rounded px-2 py-1',
+                      (job.nestObjective ?? 'boards') === value ? 'bg-muted font-medium' : 'text-muted-foreground hover:bg-muted/60'
+                    )}>
+                    {label}
+                  </button>
+                </Hint>
               ))}
             </div>
             <span className="grow" />
             <span className="text-xs text-muted-foreground">Rectangle nesting for now. True-shape nesting is planned.</span>
           </div>
+          <p role="status" aria-label="Layout result" className="-mt-1.5 px-4 pb-2 text-xs text-muted-foreground">
+            {layoutSummary(boards)}
+          </p>
           <BoardDrawings
             boards={boards}
             instances={instances}
@@ -296,10 +316,16 @@ function BoardsStep() {
               </span>
             )}
             <span className="grow" />
-            <span>
-              Board {selected.board.name}: edge margin {selected.nest.margin} mm · gap {selected.nest.gap} mm
-            </span>
-            <span>{partArea}</span>
+            <Hint text="Edge margin: free border inside the board edge. Gap: space between parts, so their outline cuts never meet. Change them in the board settings on the right.">
+              <span tabIndex={0}>
+                Board {selected.board.name}: edge margin {selected.nest.margin} mm · gap {selected.nest.gap} mm
+              </span>
+            </Hint>
+            {partArea && (
+              <Hint text="Share of this board covered by parts. The rest is offcut.">
+                <span tabIndex={0}>{partArea}</span>
+              </Hint>
+            )}
           </div>
         </main>
         <BoardInspector
@@ -319,6 +345,12 @@ function BoardsStep() {
     </Shell>
   );
 }
+
+/** Auto-fill's objective: value, label, what it costs. */
+const kObjectives = [
+  ['boards', 'Fewest boards', 'Fewer setups at the machine, may waste a bit more wood.'],
+  ['wood', 'Least wood', 'Least sheet area, may need more boards.'],
+] as const;
 
 const unpinned = (board: BoardV1, itemId: string) => (board.pinned ?? []).filter(i => i !== itemId);
 /** The board's positions without this body's (when it has positions). */

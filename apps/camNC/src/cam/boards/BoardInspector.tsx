@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { kStockAllowance, stockTopOf, type BoardNest, type BoardV1, type StockBoardV1 } from '../boards';
 import type { MaterialKey } from '../planSettings';
 import { kHoldDownLabels } from '../boards';
+import { Hint } from '../Hint';
 
 const fmt = (v: number) => `${+v.toFixed(1)}`;
 
@@ -16,18 +17,18 @@ function NumberField({
   value,
   onCommit,
   min = 0,
-  title,
+  hint,
 }: {
   id: string;
   label: string;
   value: number;
   onCommit: (v: number) => void;
   min?: number;
-  /** Explanation on hover. */
-  title?: string;
+  /** What the value does: tooltip and the input's accessible description. */
+  hint?: string;
 }) {
-  return (
-    <div className="flex flex-col gap-1" title={title}>
+  const field = (
+    <div className="flex flex-col gap-1">
       <Label htmlFor={id} className="text-xs font-normal text-muted-foreground">
         {label}
       </Label>
@@ -42,8 +43,16 @@ function NumberField({
           if (Number.isFinite(v) && v >= min && v !== value) onCommit(v);
         }}
         onKeyDown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+        aria-describedby={hint ? `${id}-hint` : undefined}
       />
     </div>
+  );
+  return hint ? (
+    <Hint text={hint} id={`${id}-hint`}>
+      {field}
+    </Hint>
+  ) : (
+    field
   );
 }
 
@@ -84,13 +93,16 @@ export function BoardInspector({
         <h2 className="text-[15px] font-semibold">Board {board.name}</h2>
         <span className="grow" />
         {onRelayout && board.items.length > 0 && (
-          <Button
-            size="sm"
-            variant="outline"
-            title={board.pinned?.length ? 'Nest its parts afresh: unpins them' : 'Nest its parts afresh'}
-            onClick={onRelayout}>
-            Re-lay out
-          </Button>
+          <Hint
+            text={
+              board.pinned?.length
+                ? 'Nests this board’s parts afresh. Parts you placed by hand are unpinned and may move.'
+                : 'Nests this board’s parts afresh.'
+            }>
+            <Button size="sm" variant="outline" onClick={onRelayout}>
+              Re-lay out
+            </Button>
+          </Hint>
         )}
       </div>
       <div className="grid grid-cols-2 gap-2">
@@ -138,14 +150,14 @@ export function BoardInspector({
         <NumberField
           id="board-margin"
           label="Edge margin"
-          title="Free border inside the board edge. The outline cut and its lead-in need about the bit plus 2 mm."
+          hint="Free border inside the board edge, so the outline cut and its lead-in stay on the board: about the bit plus 2 mm."
           value={nest.margin}
           onCommit={margin => onChange({ ...board, margin })}
         />
         <NumberField
           id="board-gap"
           label="Gap between parts"
-          title="Space between parts, so neighbouring outline cuts never meet: the bit plus a few mm."
+          hint="Space between parts, so neighbouring outline cuts never meet. At least the bit; the bit plus a few mm is safe."
           value={nest.gap}
           onCommit={gap => onChange({ ...board, gap })}
           min={bit}
@@ -164,7 +176,7 @@ export function BoardInspector({
         <NumberField
           id="board-thickness"
           label="Stock thickness"
-          title="Measure the board with a caliper. Cutting starts at this height; Z0 is the bottom of the board."
+          hint="Measure the board with a caliper: cutting starts at this height. Too high cuts air at first, too low makes the first pass deeper."
           value={stockTopOf(board)}
           onCommit={t => onChange({ ...board, measuredThickness: t })}
           min={board.thickness}
@@ -197,16 +209,19 @@ export function BoardInspector({
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-2 text-[13px] font-semibold">Hold-down</legend>
         {(Object.keys(kHoldDownLabels) as HoldDown[]).map(h => (
-          <label key={h} className="flex items-center gap-2 text-[13px]">
-            <input
-              type="radio"
-              name="hold-down"
-              checked={board.holdDown === h}
-              onChange={() => onChange({ ...board, holdDown: h })}
-              className="accent-primary"
-            />
-            {kHoldDownLabels[h]}
-          </label>
+          <Hint key={h} text={kHoldDownHints[h]} id={`hold-down-${h}-hint`} side="left">
+            <label className="flex items-center gap-2 self-start text-[13px]">
+              <input
+                type="radio"
+                name="hold-down"
+                checked={board.holdDown === h}
+                onChange={() => onChange({ ...board, holdDown: h })}
+                aria-describedby={`hold-down-${h}-hint`}
+                className="accent-primary"
+              />
+              {kHoldDownLabels[h]}
+            </label>
+          </Hint>
         ))}
         <p className="text-xs leading-relaxed text-muted-foreground">{kHoldDownHints[board.holdDown]}</p>
       </fieldset>
@@ -216,6 +231,7 @@ export function BoardInspector({
           <NumberField
             id="tab-w"
             label="Tab W"
+            hint="Tab width along the edge. Wider holds the part better but leaves more to cut off."
             value={board.tabs.width}
             onCommit={width => onChange({ ...board, tabs: { ...board.tabs, width } })}
             min={1}
@@ -223,6 +239,7 @@ export function BoardInspector({
           <NumberField
             id="tab-h"
             label="Tab H"
+            hint="Tab height above the bottom of the board. Taller holds the part better but leaves more to cut off."
             value={board.tabs.height}
             onCommit={height => onChange({ ...board, tabs: { ...board.tabs, height } })}
             min={0.5}
@@ -230,6 +247,7 @@ export function BoardInspector({
           <NumberField
             id="tab-n"
             label="Min #"
+            hint="Fewest tabs on each part; long outlines get more. More tabs hold small parts steadier."
             value={board.tabs.minCount}
             onCommit={minCount => onChange({ ...board, tabs: { ...board.tabs, minCount: Math.round(minCount) } })}
             min={1}

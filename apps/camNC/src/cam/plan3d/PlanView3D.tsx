@@ -6,6 +6,7 @@ import { Vector3 } from 'three';
 import { playheadAt, type Playhead } from '@/visualize/stockSim/jobTimeline';
 import type { ToolShape } from '@/visualize/stockSim/toolShapes';
 import type { BoardRequest, CamPartInfo, PlanResult } from '../camTypes';
+import { Hint } from '../Hint';
 import { PartGhost, StockBox } from './BoardGhosts';
 import { CameraRig } from './CameraRig';
 import { OpList } from './OpList';
@@ -109,8 +110,8 @@ export function PlanView3D({
               value={mode}
               onChange={setMode}
               options={[
-                ['result', 'Result'],
-                ['toolpath', 'Toolpath'],
+                ['result', 'Result', 'The board as it comes out, cut up to the playhead.'],
+                ['toolpath', 'Toolpath', 'Every move of the bit, at its real depth.'],
               ]}
             />
             <Segmented
@@ -118,8 +119,8 @@ export function PlanView3D({
               value={view}
               onChange={setView}
               options={[
-                ['3d', '3D'],
-                ['top', 'Top'],
+                ['3d', '3D', 'Look at the board at an angle. Drag to turn it.'],
+                ['top', 'Top', 'Look straight down on the board.'],
               ]}
             />
             <Segmented
@@ -127,25 +128,32 @@ export function PlanView3D({
               value={projection[view]}
               onChange={setProjection}
               options={[
-                ['perspective', 'Perspective'],
-                ['orthographic', 'Orthographic'],
+                ['perspective', 'Perspective', 'Far things look smaller, like in a photo.'],
+                ['orthographic', 'Orthographic', 'No perspective: sizes compare true across the whole board.'],
               ]}
             />
-            <Toggle pressed={seeThrough} onChange={setSeeThrough}>
+            <Toggle
+              pressed={seeThrough}
+              onChange={setSeeThrough}
+              hint="A see-through board: the toolpaths and the finished parts show through it.">
               See through
             </Toggle>
             {mode === 'toolpath' && (
-              <Toggle pressed={showRapids} onChange={setShowRapids}>
+              <Toggle
+                pressed={showRapids}
+                onChange={setShowRapids}
+                hint="Show the fast moves between cuts, with the bit up out of the wood.">
                 Rapids
               </Toggle>
             )}
-            <button
-              className={cn(kChip, 'px-2')}
-              aria-label={selected !== null ? 'Zoom to the operation' : 'Show the whole board'}
-              title={selected !== null ? 'Zoom to the operation' : 'Show the whole board'}
-              onClick={() => setFitCount(c => c + 1)}>
-              <Focus className="size-3.5" />
-            </button>
+            <Hint text={selected !== null ? 'Zoom back to the selected operation.' : 'Fit the whole board in the view again.'}>
+              <button
+                className={cn(kChip, 'px-2')}
+                aria-label={selected !== null ? 'Zoom to the operation' : 'Show the whole board'}
+                onClick={() => setFitCount(c => c + 1)}>
+                <Focus className="size-3.5" />
+              </button>
+            </Hint>
           </div>
           <div className="pointer-events-none absolute right-2.5 bottom-2.5 max-w-[60%] rounded-md bg-black/50 px-2.5 py-1 text-xs text-zinc-200">
             {hint}
@@ -299,30 +307,44 @@ function Segmented<T extends string>({
   label: string;
   value: T;
   onChange: (v: T) => void;
-  options: [T, string][];
+  /** Value, label, what it shows. */
+  options: [T, string, string][];
 }) {
   return (
     <div role="group" aria-label={label} className={cn(kChip, 'overflow-hidden p-0.5')}>
-      {options.map(([v, text]) => (
-        <button
-          key={v}
-          aria-pressed={v === value}
-          onClick={() => onChange(v)}
-          className={cn('h-full rounded px-2.5', v === value ? 'bg-white text-zinc-900' : 'hover:bg-white/10')}>
-          {text}
-        </button>
+      {options.map(([v, text, hint]) => (
+        <Hint key={v} text={hint} side="bottom">
+          <button
+            aria-pressed={v === value}
+            onClick={() => onChange(v)}
+            className={cn('h-full rounded px-2.5', v === value ? 'bg-white text-zinc-900' : 'hover:bg-white/10')}>
+            {text}
+          </button>
+        </Hint>
       ))}
     </div>
   );
 }
 
-function Toggle({ pressed, onChange, children }: { pressed: boolean; onChange: (p: boolean) => void; children: React.ReactNode }) {
+function Toggle({
+  pressed,
+  onChange,
+  hint,
+  children,
+}: {
+  pressed: boolean;
+  onChange: (p: boolean) => void;
+  hint: string;
+  children: React.ReactNode;
+}) {
   return (
-    <button
-      aria-pressed={pressed}
-      onClick={() => onChange(!pressed)}
-      className={cn(kChip, 'px-2.5', pressed && 'bg-white text-zinc-900 hover:text-zinc-900')}>
-      {children}
-    </button>
+    <Hint text={hint} side="bottom">
+      <button
+        aria-pressed={pressed}
+        onClick={() => onChange(!pressed)}
+        className={cn(kChip, 'px-2.5', pressed && 'bg-white text-zinc-900 hover:text-zinc-900')}>
+        {children}
+      </button>
+    </Hint>
   );
 }

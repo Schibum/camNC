@@ -14,6 +14,7 @@ import { GripVertical, MoreHorizontal, Pin, PinOff, Plus, Trash2 } from 'lucide-
 import { useState } from 'react';
 import { kHoldDownLabels, type BoardV1, type PartInstance, type StockBoardV1 } from '../boards';
 import type { PlanResult } from '../camTypes';
+import { Hint } from '../Hint';
 import type { JobBoard } from '../useJobBoards';
 import { kDragType, useBoardDrag } from './boardDrag';
 
@@ -200,18 +201,22 @@ function PartChip({
       <GripVertical className="size-3 text-muted-foreground" aria-hidden />
       {name}
       {pinned && (
-        <span role="img" aria-label="Placed by hand" title="Pinned: placed by hand, auto-fill keeps it here. ⋯ › Unpin to let it move">
-          <Pin className="size-3 text-muted-foreground" aria-hidden />
-        </span>
+        <Hint text="Pinned: you placed it by hand, so auto-fill leaves it on this board. ⋯ › Unpin lets it move again.">
+          <span role="img" aria-label="Placed by hand" tabIndex={0} className="rounded-full">
+            <Pin className="size-3 text-muted-foreground" aria-hidden />
+          </span>
+        </Hint>
       )}
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            aria-label={`Move ${name}`}
-            className="ml-0.5 rounded-full px-1 text-muted-foreground hover:bg-muted hover:text-foreground">
-            <MoreHorizontal className="size-3" />
-          </button>
-        </DropdownMenuTrigger>
+        <Hint text={pinned ? 'Move it to another board or a new one, or unpin it.' : 'Move it to another board or a new one.'}>
+          <DropdownMenuTrigger asChild>
+            <button
+              aria-label={`Move ${name}`}
+              className="ml-0.5 rounded-full px-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+              <MoreHorizontal className="size-3" />
+            </button>
+          </DropdownMenuTrigger>
+        </Hint>
         <DropdownMenuContent align="start">
           <DropdownMenuLabel className="text-xs">Move {name} to</DropdownMenuLabel>
           {targets.map(b => (
@@ -252,14 +257,16 @@ function StockList({ stock, onChange }: { stock: StockBoardV1[]; onChange: (s: S
             {fmt(s.thickness)} mm · {fmt(s.w)} × {fmt(s.h)}
             {s.quantity !== undefined && ` · ${s.quantity} pcs`}
           </span>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-6"
-            aria-label="Remove stock board"
-            onClick={() => onChange(stock.filter(x => x !== s))}>
-            <Trash2 className="size-3" />
-          </Button>
+          <Hint text="Remove it from the stock list. Boards already laid out stay as they are.">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-6"
+              aria-label="Remove stock board"
+              onClick={() => onChange(stock.filter(x => x !== s))}>
+              <Trash2 className="size-3" />
+            </Button>
+          </Hint>
         </div>
       ))}
       <form
@@ -301,9 +308,11 @@ function StockList({ stock, onChange }: { stock: StockBoardV1[]; onChange: (s: S
           value={draft.quantity}
           onChange={e => setDraft({ ...draft, quantity: e.target.value })}
         />
-        <Button type="submit" variant="outline" size="icon" className="size-7" aria-label="Add stock board" disabled={!valid}>
-          <Plus className="size-3" />
-        </Button>
+        <Hint text="Add this board to the stock list: thickness, width and height in mm, quantity optional." wrap>
+          <Button type="submit" variant="outline" size="icon" className="size-7" aria-label="Add stock board" disabled={!valid}>
+            <Plus className="size-3" />
+          </Button>
+        </Hint>
       </form>
       <p className="text-xs text-muted-foreground">
         Boards you have, in mm, and how many (empty: as many as needed). “Auto-fill from stock” puts the parts on as little of them as it

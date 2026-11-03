@@ -31,6 +31,15 @@ const PlanStep = (Route as unknown as { options: { component: ComponentType } })
 
 afterEach(cleanup);
 
+/** The accessible description: the text of the elements `aria-describedby` points to. */
+const description = (el: Element) =>
+  (el.getAttribute('aria-describedby') ?? '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(id => document.getElementById(id)?.textContent ?? '')
+    .join(' ')
+    .trim();
+
 describe('CAM plan step', () => {
   it('makes one safe program per board, inner features before outlines, and hands it to the machine view', async () => {
     const bytes = await (await fetch(stepUrl)).arrayBuffer();
@@ -152,6 +161,20 @@ describe('CAM plan step', () => {
     expect(screen.getByRole('button', { name: /Take the job to the machine/ })).toHaveProperty('disabled', true);
     expect(screen.getByRole('button', { name: 'Show board A on machine' })).toHaveProperty('disabled', true);
     expect(screen.queryByText(/Safety checks passed/)).toBeNull();
+    // What each action does, also while it can't be used yet.
+    expect(description(screen.getByRole('button', { name: /Take the job to the machine/ }))).toMatch(/every board in cutting order/);
+    expect(description(screen.getByRole('button', { name: 'Show board A on machine' }))).toMatch(/^Loads only board A/);
+    expect(description(screen.getByRole('button', { name: 'More actions' }))).toMatch(/G-code/);
+    expect(description(screen.getByRole('button', { name: /^Bit: / }))).toMatch(/whole job/);
+    expect(description(within(alert).getByRole('button', { name: 'Leave them out' }))).toMatch(/without these parts/);
+    const table = screen.getByRole('table', { name: 'Operations for board A' });
+    for (const [header, hint] of [
+      ['Passes', /depths/],
+      ['Stepdown', /How deep each pass cuts/],
+      ['Stepover', /sideways/],
+      ['Feed', /mm\/min/],
+    ] as const)
+      expect(description(within(within(table).getByRole('columnheader', { name: header })).getByText(header))).toMatch(hint);
 
     fireEvent.click(within(alert).getByRole('button', { name: 'Leave them out' }));
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull(), { timeout: 10_000 });

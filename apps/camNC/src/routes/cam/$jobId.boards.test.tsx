@@ -24,6 +24,15 @@ const BoardsStep = (Route as unknown as { options: { component: ComponentType } 
 
 afterEach(cleanup);
 
+/** The accessible description: the text of the elements `aria-describedby` points to. */
+const description = (el: Element) =>
+  (el.getAttribute('aria-describedby') ?? '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(id => document.getElementById(id)?.textContent ?? '')
+    .join(' ')
+    .trim();
+
 /** HTML5 drag and drop between the board cards. */
 function drag(chip: HTMLElement, target: HTMLElement) {
   const dataTransfer = new DataTransfer();
@@ -68,7 +77,7 @@ describe('CAM boards step', () => {
     fireEvent.click(await screen.findByRole('menuitem', { name: /New board/ }));
     const c = await screen.findByRole('region', { name: 'Board C' });
     expect(within(c).getByText('Part 2')).toBeTruthy();
-    expect(within(c).getByRole('img', { name: 'Placed by hand' })).toBeTruthy();
+    expect(description(within(c).getByRole('img', { name: 'Placed by hand' }))).toMatch(/^Pinned:/);
 
     // One 8 mm stock board size, as many as needed.
     const stockList = within(screen.getByRole('region', { name: 'Stock list' }));
@@ -235,6 +244,14 @@ describe('CAM boards step', () => {
     const floating = () => [...document.querySelectorAll('circle > title')].filter(t => /this tab holds nothing/.test(t.textContent ?? ''));
     await waitFor(() => expect(floating().length).toBeGreaterThan(0), { timeout: 60_000 });
     const group = within(screen.getByRole('group', { name: 'Auto-fill optimizes for' }));
+    expect(screen.getByText('Auto-fill prefers:')).toBeTruthy();
+    expect(description(group.getByRole('button', { name: 'Fewest boards' }))).toBe(
+      'Fewer setups at the machine, may waste a bit more wood.'
+    );
+    expect(description(group.getByRole('button', { name: 'Least wood' }))).toBe('Least sheet area, may need more boards.');
+    expect(description(screen.getByRole('button', { name: 'More layout actions' }))).toMatch(/re-lay out everything/);
+    expect(description(screen.getByRole('button', { name: 'Auto-fill from stock' }))).toMatch(/stock list/);
+    expect(screen.getByRole('status', { name: 'Layout result' }).textContent).toMatch(/^2 boards, \d+ % yield$/);
     expect(group.getByRole('button', { name: 'Fewest boards' }).getAttribute('aria-pressed')).toBe('true');
     fireEvent.click(group.getByRole('button', { name: 'Least wood' }));
     await waitFor(async () => expect((await getJob(job.id))!.nestObjective).toBe('wood'), { timeout: 10_000 });

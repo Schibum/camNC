@@ -7,6 +7,7 @@ import { useId, useState } from 'react';
 import {
   cuttingKey,
   kCuttingFields,
+  kCuttingHints,
   kCuttingLabels,
   kSourceLabels,
   without,
@@ -15,6 +16,7 @@ import {
   type CuttingData,
   type CuttingField,
 } from '../cuttingData';
+import { Hint } from '../Hint';
 import type { MaterialKey } from '../planSettings';
 
 const bitName = (bit: LibraryTool) => `⌀${bit.diameter} ${bit.name}`;
@@ -67,30 +69,38 @@ export function CuttingDataEditor({
         const id = `${uid}-${field}`;
         return (
           <div key={field} className="grid grid-cols-[1fr_96px_auto] items-center gap-x-2 text-[13px]">
-            <label htmlFor={id} className="flex flex-col">
-              <span>{label}</span>
-              <span className="text-[11px] text-muted-foreground">
-                {unit} · {kSourceLabels[source[field]]}
-              </span>
-            </label>
-            <Input
-              id={id}
-              type="number"
-              min={0}
-              step={step}
-              className="h-8 font-mono"
-              value={draft[field] ?? String(values[field])}
-              onChange={e => setDraft(d => ({ ...d, [field]: e.target.value }))}
-            />
+            <Hint text={kCuttingHints[field]} id={`${id}-hint`} side="left">
+              <div className="col-span-2 grid grid-cols-subgrid items-center">
+                <label htmlFor={id} className="flex flex-col">
+                  <span>{label}</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {unit} · {kSourceLabels[source[field]]}
+                  </span>
+                </label>
+                <Input
+                  id={id}
+                  type="number"
+                  min={0}
+                  step={step}
+                  className="h-8 font-mono"
+                  aria-describedby={`${id}-hint`}
+                  value={draft[field] ?? String(values[field])}
+                  onChange={e => setDraft(d => ({ ...d, [field]: e.target.value }))}
+                />
+              </div>
+            </Hint>
             {(source[field] === 'job' || source[field] === 'saved') && !(field in draft) ? (
-              <Button
-                size="icon"
-                variant="ghost"
-                className="size-7"
-                aria-label={`${label}: back to the ${saved?.[field] !== undefined && source[field] === 'job' ? 'saved' : 'library or default'} value`}
-                onClick={() => undo(field)}>
-                <RotateCcw className="size-3.5" />
-              </Button>
+              <Hint
+                text={`Forget this change and use the ${saved?.[field] !== undefined && source[field] === 'job' ? 'saved' : 'library or default'} value again.`}>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="size-7"
+                  aria-label={`${label}: back to the ${saved?.[field] !== undefined && source[field] === 'job' ? 'saved' : 'library or default'} value`}
+                  onClick={() => undo(field)}>
+                  <RotateCcw className="size-3.5" />
+                </Button>
+              </Hint>
             ) : (
               <span className="w-7" />
             )}

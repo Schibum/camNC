@@ -1,0 +1,140 @@
+import { TooltipProvider } from '@wbcnc/ui/components/tooltip';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { kDefaultTabs, layoutSummary, type BoardNest, type BoardV1 } from './boards';
+import { BoardInspector } from './boards/BoardInspector';
+import { kCuttingFields, kCuttingHints, kCuttingLabels } from './cuttingData';
+import { useCamMachine } from './machine/camMachine';
+import { CamQueueCard } from './machine/CamQueueCard';
+import { BitChip } from './plan/BitPicker';
+import { CuttingDataEditor } from './plan/CuttingDataEditor';
+import { kDefaultBit, kDefaultPlan } from './planSettings';
+
+const queue = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
+vi.mock('./machine/useMachineQueue', () => ({ useMachineQueue: () => queue.value }));
+vi.mock('./showOnMachine', () => ({ loadIntoMachineView: vi.fn() }));
+
+afterEach(() => {
+  cleanup();
+  useCamMachine.setState(useCamMachine.getInitialState(), true);
+});
+
+/** The accessible description: the text of the elements `aria-describedby` points to. */
+function description(el: Element) {
+  const ids = el.getAttribute('aria-describedby')?.split(/\s+/).filter(Boolean) ?? [];
+  return ids
+    .map(id => document.getElementById(id)?.textContent ?? '')
+    .join(' ')
+    .trim();
+}
+
+const board: BoardV1 = {
+  id: 'b1',
+  name: 'A',
+  thickness: 8,
+  material: 'oak',
+  size: { fit: true },
+  holdDown: 'tabs',
+  tabs: kDefaultTabs,
+  items: ['p1'],
+  pinned: ['p1'],
+};
+const nest: BoardNest = {
+  board: { w: 400, h: 300 },
+  placements: [],
+  unplaced: [],
+  yield: 0,
+  gap: 8,
+  margin: 6,
+  keepOuts: [],
+};
+
+describe('CAM controls explain themselves', () => {
+  it('board settings: hold-down options, spacing, stock thickness, tabs and Re-lay out have descriptions', () => {
+    render(
+      <TooltipProvider>
+        <BoardInspector board={board} nest={nest} stock={[]} bit={3.175} onChange={() => {}} onRelayout={() => {}} />
+      </TooltipProvider>
+    );
+    expect(description(screen.getByRole('radio', { name: 'Fixture + tape' }))).toMatch(/no tabs/);
+    expect(description(screen.getByRole('radio', { name: 'Tabs' }))).toMatch(/bridges hold each part/);
+    expect(description(screen.getByRole('radio', { name: 'Tabs + guided removal' }))).toMatch(/stops at each tab/);
+    expect(description(screen.getByRole('radio', { name: 'Clamps only' }))).toMatch(/Clamps on two corners/);
+    expect(description(screen.getByLabelText('Edge margin'))).toMatch(/border inside the board edge/);
+    expect(description(screen.getByLabelText('Gap between parts'))).toMatch(/outline cuts never meet/);
+    expect(description(screen.getByLabelText('Stock thickness'))).toMatch(/caliper/);
+    expect(description(screen.getByLabelText('Tab W'))).toMatch(/^Tab width/);
+    expect(description(screen.getByLabelText('Tab H'))).toMatch(/^Tab height/);
+    expect(description(screen.getByLabelText('Min #'))).toMatch(/^Fewest tabs/);
+    expect(description(screen.getByRole('button', { name: 'Re-lay out' }))).toMatch(/unpinned and may move/);
+  });
+
+  it('a tooltip opens on keyboard focus, with the same text as the description', async () => {
+    render(
+      <TooltipProvider>
+        <BoardInspector board={board} nest={nest} stock={[]} bit={3.175} onChange={() => {}} onRelayout={() => {}} />
+      </TooltipProvider>
+    );
+    const button = screen.getByRole('button', { name: 'Re-lay out' });
+    // Focus as the keyboard gives it (a headless page may not dispatch focus events for element.focus()).
+    act(() => button.focus());
+    fireEvent.focus(button);
+    expect((await screen.findByRole('tooltip')).textContent).toBe(description(button));
+  });
+
+  it('every cutting data field says what it does', () => {
+    render(
+      <TooltipProvider>
+        <CuttingDataEditor bit={kDefaultBit} material="oak" />
+      </TooltipProvider>
+    );
+    for (const field of kCuttingFields) {
+      const input = screen.getByRole('spinbutton', { name: new RegExp(`^${kCuttingLabels[field].label}`) });
+      expect(description(input)).toBe(kCuttingHints[field]);
+    }
+    expect(kCuttingHints.stepdown).toBe('How deep each pass cuts. Less is gentler on the bit and slower.');
+  });
+
+  it('the bit chip explains what the bit decides', () => {
+    render(
+      <TooltipProvider>
+        <BitChip value={kDefaultPlan} onChange={() => {}} />
+      </TooltipProvider>
+    );
+    expect(description(screen.getByRole('button', { name: /^Bit: / }))).toMatch(/margin and gap/);
+  });
+
+  it('the machine queue: rotation, load, done and leave have names and descriptions', () => {
+    const plan = { size: [400, 300, 8.3], bits: [3.175], programs: [{ tool: 1, diameter: 3.175, gcode: 'G0', timeMin: 3 }] };
+    const entry = {
+      key: 'b1:bit:0',
+      board: { board },
+      kind: 'bit',
+      program: 0,
+      firstOfBoard: true,
+      plan,
+    };
+    queue.value = { job: { name: 'job' }, queue: [entry], current: entry, done: [], tabRemoval: undefined, loading: false };
+    useCamMachine.setState({ jobId: 'j1' });
+    render(
+      <TooltipProvider>
+        <CamQueueCard />
+      </TooltipProvider>
+    );
+    const card = within(screen.getByRole('region', { name: 'CAM job' }));
+    expect(description(card.getByRole('button', { name: 'Leave the CAM job' }))).toMatch(/Closes the queue/);
+    expect(description(card.getByRole('button', { name: 'Turn 0.5° clockwise' }))).toMatch(/askew/);
+    expect(description(card.getByRole('button', { name: 'Turn 0.5° counterclockwise' }))).toMatch(/askew/);
+    expect(description(card.getByRole('button', { name: 'Load program' }))).toMatch(/machine view/);
+    expect(description(card.getByRole('button', { name: 'Done, next' }))).toMatch(/loads the next program/);
+  });
+
+  it('sums up the layout: boards with parts, and part area over board area', () => {
+    const b = (w: number, h: number, y: number, parts = 1) => ({ nest: { board: { w, h }, yield: y, placements: Array(parts).fill({}) } });
+    expect(layoutSummary([b(100, 100, 0.9), b(100, 100, 0.7)])).toBe('2 boards, 80 % yield');
+    // By area, not the mean of the yields; boards without parts don't count.
+    expect(layoutSummary([b(300, 100, 0.9), b(100, 100, 0.5), b(100, 100, 0, 0)])).toBe('2 boards, 80 % yield');
+    expect(layoutSummary([b(100, 100, 0.81)])).toBe('1 board, 81 % yield');
+    expect(layoutSummary([])).toBe('No part placed yet.');
+  });
+});

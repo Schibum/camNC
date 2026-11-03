@@ -2,6 +2,7 @@ import { Button } from '@wbcnc/ui/components/button';
 import { cn } from '@wbcnc/ui/lib/utils';
 import { Eye, EyeOff } from 'lucide-react';
 import { formatDuration } from '@/visualize/stockSim/jobTimeline';
+import { Hint } from '../Hint';
 import { groupOpsOf, type PlanModel } from './planModel';
 import type { Plan3dMode } from './plan3dViewStore';
 
@@ -70,13 +71,21 @@ export function OpList({
                   </span>
                 </button>
                 {mode === 'toolpath' && (
-                  <button
-                    aria-label={`${isHidden ? 'Show' : 'Hide'} ${g.label}`}
-                    aria-pressed={!isHidden}
-                    className="mr-1 rounded p-1 text-muted-foreground hover:bg-zinc-100 hover:text-foreground dark:hover:bg-zinc-800"
-                    onClick={() => onToggleHidden(n)}>
-                    {isHidden ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                  </button>
+                  <Hint
+                    side="left"
+                    text={
+                      isHidden
+                        ? 'Hidden in this view only: it is still cut. Click to show it.'
+                        : 'Hide it in this view only: it is still cut.'
+                    }>
+                    <button
+                      aria-label={`${isHidden ? 'Show' : 'Hide'} ${g.label}`}
+                      aria-pressed={!isHidden}
+                      className="mr-1 rounded p-1 text-muted-foreground hover:bg-zinc-100 hover:text-foreground dark:hover:bg-zinc-800"
+                      onClick={() => onToggleHidden(n)}>
+                      {isHidden ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  </Hint>
                 )}
               </div>
               {isSelected && mode === 'result' && (
