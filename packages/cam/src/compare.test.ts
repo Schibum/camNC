@@ -134,9 +134,16 @@ async function compareWithFusion({ label, part, settings = {}, fusionFile }: Com
       `${OUT_DIR}/${label}.tabs.png`
     );
   }
-  // Same paths with Fusion-like settings (full-depth pockets, full-feed final pass) to compare raw path efficiency.
+  // Same paths with the Fusion setups' depths and feeds (full-depth pockets, 4 mm outline roughing, full-feed final
+  // pass) to compare raw path efficiency; our defaults step down less (see the camNC time column).
   const fusionLike = toGcode(
-    camPart(features, { ...settings, finalFeedFactor: 1, material: { name: 'fusion-like', stepdownFactor: 100 } })
+    camPart(features, {
+      ...settings,
+      finalFeedFactor: 1,
+      material: { name: 'fusion-like', stepdownFactor: 100 },
+      maxStepdown: undefined,
+      profileStepdown: 4,
+    })
   );
 
   const oursRaw = readGcode(ours);

@@ -194,6 +194,7 @@ function OperationsTable({ name, plan }: { name: string; plan: PlanResult }) {
         {fmtZ(op.zTop)} → {fmtZ(op.zBottom)}
       </td>
       <td className="py-2 pr-3 font-mono">{op.depthSteps}</td>
+      <td className="py-2 pr-3 font-mono">{+op.stepdown.toFixed(2)} mm</td>
       <td className="py-2 pr-3 font-mono">{op.feeds.join(' / ')}</td>
       <td className="py-2 font-mono">{fmtMin(timeMin)}</td>
     </tr>
@@ -207,6 +208,9 @@ function OperationsTable({ name, plan }: { name: string; plan: PlanResult }) {
           <th className="py-2 pr-3 font-medium">Bit</th>
           <th className="py-2 pr-3 font-medium">Depth (Z from bottom)</th>
           <th className="py-2 pr-3 font-medium">Passes</th>
+          <th className="py-2 pr-3 font-medium" title="The deepest single pass">
+            Stepdown
+          </th>
           <th className="py-2 pr-3 font-medium">Feed</th>
           <th className="py-2 font-medium">Time</th>
         </tr>

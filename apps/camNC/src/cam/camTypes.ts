@@ -43,6 +43,8 @@ export interface OpSummary {
   zBottom: number;
   /** Distinct depths the operation cuts at (pocket stepdowns, outline roughing + final). */
   depthSteps: number;
+  /** The deepest single step down, mm, from where the operation starts cutting. */
+  stepdown: number;
   /** Cutting feeds used, fastest first (the final pass may be slower). */
   feeds: number[];
   timeMin: number;

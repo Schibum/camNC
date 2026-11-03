@@ -180,15 +180,18 @@ function summarize(
   const ops: OpSummary[] = cam.operations.map(op => {
     const zs = op.passes.flatMap(p => p.pts.map(q => q[2]));
     const levels = new Set(op.passes.map(p => Math.min(...p.pts.map(q => q[2])).toFixed(2)));
+    // Where it starts cutting: a deeper pocket starts at the floor of the one before.
+    const zTop = op.kind === 'pocket' ? Math.min(cam.stockTop, Math.max(...zs)) : cam.stockTop;
+    const depths = [zTop, ...[...levels].map(Number).sort((a, b) => b - a)];
     return {
       name: op.name,
       label: label(op.name, partTop),
       kind: op.kind,
       tool: { number: op.tool.number, diameter: op.tool.diameter },
-      // Where it starts cutting: a deeper pocket starts at the floor of the one before.
-      zTop: op.kind === 'pocket' ? Math.min(cam.stockTop, Math.max(...zs)) : cam.stockTop,
+      zTop,
       zBottom: Math.min(...zs),
       depthSteps: levels.size,
+      stepdown: Math.max(...depths.slice(1).map((z, i) => depths[i] - z)),
       feeds: [...new Set(op.passes.flatMap(p => p.feeds.slice(1)))].sort((a, b) => b - a),
       timeMin: one([op]).timeMin,
     };

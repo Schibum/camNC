@@ -45,19 +45,41 @@ function board(): PartFeatures {
   };
 }
 
+describe('stepdown', () => {
+  const levels = (op: { passes: { pts: number[][] }[] }) => [...new Set(op.passes.map(p => +Math.min(...p.pts.map(q => q[2])).toFixed(3)))];
+
+  it('a max stepdown limits pockets and outline roughing alike', () => {
+    const [pocket, , outline] = camPart(board(), { maxStepdown: 4 }).operations;
+    expect(levels(pocket)).toEqual([4]);
+    expect(levels(outline)).toEqual([4.5, 1, -0.3]);
+  });
+
+  it('an outline-only stepdown (Fusion setups) leaves the pockets alone', () => {
+    const [pocket, , outline] = camPart(board(), { profileStepdown: 4 }).operations;
+    expect(levels(pocket)).toEqual([6.667, 5.333, 4]);
+    expect(levels(outline)).toEqual([4.5, 1, -0.3]);
+  });
+
+  it('softer materials take deeper steps', () => {
+    const [, , outline] = camPart(board(), { material: { name: 'mdf', stepdownFactor: 1 } }).operations;
+    expect(levels(outline)).toEqual([5.667, 3.333, 1, -0.3]);
+  });
+});
+
 describe('spike 3/4: toolpaths + gcode', () => {
   it('orders pocket, hole, outline and steps down as configured', () => {
     const cam = camPart(board());
     expect(cam.operations.map(o => o.name)).toEqual(['Pocket 1 z=4', 'Hole 1', 'Outline 1']);
     const [pocket, hole, outline] = cam.operations;
-    // 4mm deep at 0.75D = 2.38mm stepdown -> 2 levels
-    expect(new Set(pocket.passes.flatMap(p => p.pts.map(q => q[2].toFixed(3))))).toContain('4.000');
-    // Outline: roughing 8 -> 1 in <= 4mm steps (4.5, 1), then the final pass at -0.3, half feed.
-    expect(outline.passes.map(p => p.pts[1][2])).toEqual([4.5, 1, -0.3]);
-    expect(outline.passes[2].feeds[1]).toBe(900);
+    // Oak: 0.5D = 1.59 mm stepdown. The pocket, 4 mm deep, takes 3 levels.
+    const pocketLevels = [...new Set(pocket.passes.map(p => Math.min(...p.pts.map(q => q[2])).toFixed(3)))];
+    expect(pocketLevels).toEqual(['6.667', '5.333', '4.000']);
+    // Outline: roughing 8 -> 1 in <= 1.59 mm steps (5 levels), then the final pass at -0.3, half feed.
+    expect(outline.passes.map(p => +p.pts[1][2].toFixed(3))).toEqual([6.6, 5.2, 3.8, 2.4, 1, -0.3]);
+    expect(outline.passes.at(-1)!.feeds[1]).toBe(900);
     expect(hole.passes.at(-1)!.pts[1][2]).toBe(-0.3);
     // Climb: outline loop runs clockwise (negative signed area).
-    const pts = outline.passes[2].pts;
+    const pts = outline.passes.at(-1)!.pts;
     let a = 0;
     for (let i = 1; i < pts.length; i++) a += pts[i - 1][0] * pts[i][1] - pts[i][0] * pts[i - 1][1];
     expect(a).toBeLessThan(0);
@@ -235,8 +257,8 @@ describe('pocket wall pass', () => {
   it('joins and leaves the wall on tangent arcs inside the pocket, never pushing into it', () => {
     const [pocket] = camPart(mortiseBoard(), { cutThrough: false }).operations;
     const walls = pocket.passes.filter(p => p.clearLink);
-    // One wall pass per depth step (2 for 4.2mm at 0.75D).
-    expect(walls).toHaveLength(2);
+    // One wall pass per depth step (3 for 4.2mm at 0.5D in oak).
+    expect(walls).toHaveLength(3);
     for (const pass of walls) {
       const pts = pass.pts;
       const lead = 6; // quarter arc samples before the wall, and after it

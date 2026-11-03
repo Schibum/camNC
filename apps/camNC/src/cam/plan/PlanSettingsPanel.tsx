@@ -2,9 +2,44 @@ import type { LibraryTool } from '@wbcnc/cam';
 import { Input } from '@wbcnc/ui/components/input';
 import { Label } from '@wbcnc/ui/components/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wbcnc/ui/components/select';
+import { MATERIALS } from '@wbcnc/cam/settings';
 import { kDefaultBit, type PlanSettingsV1 } from '../planSettings';
 import { useToolLibrary } from '../toolLibrary';
 import { ImportToolLibrary } from './ImportToolLibrary';
+
+const fmt = (v: number) => `${+v.toFixed(2)}`;
+
+/** Depth per pass for pockets and outline roughing: empty means by material, e.g. oak half the bit diameter. */
+function MaxStepdown({ value, set }: { value: PlanSettingsV1; set: (patch: Partial<PlanSettingsV1>) => void }) {
+  const d = value.bit.diameter;
+  const byMaterial = Object.values(MATERIALS)
+    .map(m => `${m.name} ${fmt(m.stepdownFactor * d)}`)
+    .join(', ');
+  return (
+    <section className="flex flex-col gap-1.5">
+      <Label htmlFor="plan-max-stepdown">Max stepdown (mm)</Label>
+      <Input
+        id="plan-max-stepdown"
+        type="number"
+        min={0.1}
+        step={0.1}
+        className="font-mono"
+        placeholder="By material"
+        value={value.maxStepdown ?? ''}
+        onChange={e => {
+          if (e.target.value === '') return set({ maxStepdown: undefined });
+          const v = parseFloat(e.target.value);
+          if (Number.isFinite(v) && v >= 0.1) set({ maxStepdown: v });
+        }}
+      />
+      <p className="text-xs text-muted-foreground">
+        {value.maxStepdown
+          ? `Pockets and outline roughing cut at most ${fmt(value.maxStepdown)} mm per pass (${fmt(value.maxStepdown / d)} × the bit).`
+          : `Empty: by material, with this bit ${byMaterial} mm per pass.`}
+      </p>
+    </section>
+  );
+}
 
 const bitKey = (b: LibraryTool) => `${b.number}|${b.diameter}|${b.name}`;
 const bitLabel = (b: LibraryTool) => `⌀ ${b.diameter} · ${b.name}`;
@@ -68,6 +103,8 @@ export function PlanSettingsPanel({ value, onChange }: { value: PlanSettingsV1; 
             : 'For slots or corners narrower than the main bit.'}
         </p>
       </section>
+
+      <MaxStepdown value={value} set={set} />
 
       <section className="flex flex-col gap-1.5">
         <Label htmlFor="plan-final-feed">Final pass feed</Label>

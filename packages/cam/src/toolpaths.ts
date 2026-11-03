@@ -18,8 +18,10 @@ export interface CamSettings {
   feed: number;
   plungeFeed: number;
   stepoverFactor: number;
-  /** Max stepdown for the outline roughing passes. */
-  profileStepdown: number;
+  /** Max stepdown in mm for pockets and outline roughing; default: the material's factor × the bit diameter. */
+  maxStepdown?: number;
+  /** Max stepdown for the outline roughing passes only (overrides the above, e.g. to match a Fusion setup). */
+  profileStepdown?: number;
   /** Roughing passes stop this high above the stock bottom... */
   profileRoughBottom: number;
   /** ...leaving this much radial stock for the final pass: the outline's wall allowance. */
@@ -58,7 +60,6 @@ export const DEFAULT_SETTINGS: CamSettings = {
   feed: 1800,
   plungeFeed: 480,
   stepoverFactor: 0.4,
-  profileStepdown: 4,
   profileRoughBottom: 1,
   leaveStock: 0.1,
   pocketWallAllowance: 0,
@@ -326,6 +327,11 @@ function components(paths: PathsD): PathsD[] {
   return comps;
 }
 
+/** How deep one pass cuts with this bit: the user's max stepdown, else the material's share of the diameter. */
+export function stepdownFor(tool: Tool, s: Pick<CamSettings, 'maxStepdown' | 'material'>): number {
+  return s.maxStepdown ?? s.material.stepdownFactor * tool.diameter;
+}
+
 function depthLevels(top: number, bottom: number, maxStep: number): number[] {
   const n = Math.max(1, Math.ceil((top - bottom) / maxStep - 1e-9));
   return Array.from({ length: n }, (_, k) => top - ((k + 1) * (top - bottom)) / n);
@@ -346,7 +352,7 @@ export function pocketOperation(
 ): Operation {
   const r = tool.diameter / 2;
   const stepover = s.stepoverFactor * tool.diameter;
-  const stepdown = s.material.stepdownFactor * tool.diameter;
+  const stepdown = stepdownFor(tool, s);
   const passes: Pass[] = [];
   let pos = { x: 0, y: 0 };
   const comps = components(region);
@@ -557,7 +563,8 @@ export function profileOperation(name: string, loopShape: PathD, topZ: number, t
   const rough = rotateToLongestEdge(orient(roughRaw));
   const final = rotateToNearest(orient(finalRaw), rough[0]);
 
-  const roughLevels = topZ - s.profileRoughBottom > 0.01 ? depthLevels(topZ, s.profileRoughBottom, s.profileStepdown) : [];
+  const roughLevels =
+    topZ - s.profileRoughBottom > 0.01 ? depthLevels(topZ, s.profileRoughBottom, s.profileStepdown ?? stepdownFor(tool, s)) : [];
   roughLevels.forEach((z, i) => {
     const pts = closeLoop(rough, z);
     passes.push({ pts, feeds: pts.map((_, k) => (k === 0 ? s.plungeFeed : s.feed)), link: i === 0 ? 'retract' : 'direct' });

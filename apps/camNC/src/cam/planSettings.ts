@@ -15,6 +15,8 @@ export interface PlanSettingsV1 {
   cutBelow: number;
   /** 2 mm high, 5 mm long holding tabs, at least 3 per outline. */
   tabs: boolean;
+  /** Max depth per pass, mm, for pockets and outline roughing. Unset: the material's share of the bit diameter. */
+  maxStepdown?: number;
 }
 
 export const kDefaultBit: LibraryTool = { number: 1, diameter: 3.175, name: '1/8″ flat', feed: 1800, plungeFeed: 480 };
@@ -42,5 +44,6 @@ export function toCamSettings(p: PlanSettingsV1, material: MaterialKey = p.mater
     finalFeedFactor: p.finalFeedFactor,
     finalZ: -p.cutBelow,
     tabs: p.tabs ? DEFAULT_TABS : false,
+    maxStepdown: p.maxStepdown,
   };
 }

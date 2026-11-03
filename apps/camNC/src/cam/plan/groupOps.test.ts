@@ -10,6 +10,7 @@ const op = (label: string, over: Partial<OpSummary> = {}): OpSummary => ({
   zTop: 8,
   zBottom: -0.3,
   depthSteps: 3,
+  stepdown: 1.5,
   feeds: [1800, 900],
   timeMin: 0.5,
   ...over,

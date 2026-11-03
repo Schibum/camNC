@@ -5,12 +5,13 @@
 
 export interface Material {
   name: string;
-  /** Pocket stepdown as a fraction of the tool diameter. */
+  /** Stepdown (pockets and outline roughing) as a fraction of the tool diameter. */
   stepdownFactor: number;
 }
 
 export const MATERIALS = {
-  oak: { name: 'oak', stepdownFactor: 0.75 },
+  // Hardwood: half the diameter keeps small bits (1/8") alive at full feed.
+  oak: { name: 'oak', stepdownFactor: 0.5 },
   softwood: { name: 'softwood', stepdownFactor: 1 },
   plywood: { name: 'plywood', stepdownFactor: 0.75 },
   mdf: { name: 'mdf', stepdownFactor: 1 },

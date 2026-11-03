@@ -53,16 +53,36 @@ describe('CAM plan step', () => {
     expect(labels.slice(firstOutline).every(l => l.includes('Outline'))).toBe(true);
     expect(labels.filter(l => l.includes('Outline'))).toHaveLength(5);
     expect(screen.getByText(/Safety checks passed/)).toBeTruthy();
+    // Oak with the 1/8" bit: no pass deeper than half the diameter, shown per operation.
+    const stepdowns = (t: HTMLElement) =>
+      within(t)
+        .getAllByRole('row')
+        .slice(1)
+        .map(r => parseFloat(within(r).getAllByRole('cell')[5].textContent!));
+    expect(Math.max(...stepdowns(table))).toBeLessThanOrEqual(1.59);
 
     fireEvent.click(screen.getByRole('button', { name: /Show on machine/ }));
     const [gcode, name] = store.updateToolpath.mock.calls[0];
     expect(name).toBe('kinderregal-eiche board A.gcode');
-    expect(gcode).toContain('(Part: Board A)');
+    expect(gcode).toContain('(Board A)');
+    expect(gcode).toMatch(/\(X0 Y0 = lower left corner of board A, [\d.]+ x [\d.]+ mm\. Z0 = stock bottom\)/);
     expect(navigate).toHaveBeenCalledWith({ to: '/visualize/2DView' });
     // The machine view gets the board's setup: stock top 8 + 0.3 allowance, Z0 at the bottom, the 1/8" flat bit.
     expect(store.setStockHeight).toHaveBeenCalledWith(8.3);
     expect(store.setToolDiameter).toHaveBeenCalledWith(3.175);
     expect(depth.setZeroAt).toHaveBeenCalledWith('bottom');
     expect(depth.setToolShape).toHaveBeenCalledWith('flat');
-  }, 90_000);
+
+    // A max stepdown of 3.5 mm (what the Fusion setups use for the outline) makes fewer, deeper passes: the 7.3 mm of
+    // outline roughing in 3 even steps of 2.43 instead of 5 of 1.46.
+    fireEvent.change(screen.getByLabelText('Max stepdown (mm)'), { target: { value: '3.5' } });
+    await vi.waitFor(
+      () => {
+        const deeper = stepdowns(screen.getByRole('table', { name: 'Operations for board A' }));
+        expect(Math.max(...deeper)).toBeGreaterThan(2.4);
+        expect(Math.max(...deeper)).toBeLessThanOrEqual(3.5);
+      },
+      { timeout: 30_000 }
+    );
+  }, 120_000);
 });
