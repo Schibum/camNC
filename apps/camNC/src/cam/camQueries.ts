@@ -93,13 +93,22 @@ export function useBoardPlans(
   });
 }
 
+/** Per job id, the number of the newest save started (see useSaveCamJob). */
+const latestSave = new Map<string, number>();
+
 export function useSaveCamJob() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: saveJob,
-    onMutate: job => queryClient.setQueryData(camKeys.job(job.id), job),
-    onSuccess: saved => {
-      queryClient.setQueryData(camKeys.job(saved.id), saved);
+    onMutate: job => {
+      queryClient.setQueryData(camKeys.job(job.id), job);
+      const save = (latestSave.get(job.id) ?? 0) + 1;
+      latestSave.set(job.id, save);
+      return { save };
+    },
+    onSuccess: (saved, _job, context) => {
+      // Only the newest save writes back: a slow earlier one must not bring back the job it held.
+      if (context?.save === latestSave.get(saved.id)) queryClient.setQueryData(camKeys.job(saved.id), saved);
       void queryClient.invalidateQueries({ queryKey: camKeys.jobs });
     },
   });

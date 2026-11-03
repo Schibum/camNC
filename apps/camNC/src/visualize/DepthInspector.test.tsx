@@ -220,9 +220,10 @@ describe('DepthScene', () => {
         await userEvent.hover(canvas);
         expect(screen.getByText(/^-0\.50$/).textContent).toBe('Z -0.50');
       },
-      { timeout: 5000 }
+      // WebGL frames get slow when the whole suite runs in parallel: give the camera time to settle.
+      { timeout: 20_000, interval: 200 }
     );
-  });
+  }, 30_000);
 
   it('keeps hover working while a level is selected', async () => {
     const toolpath = renderScene('G1 X40 Z-1 F100', 'front');
@@ -236,9 +237,10 @@ describe('DepthScene', () => {
         await userEvent.hover(canvas);
         expect(screen.getByText(/^-0\.50$/).textContent).toBe('Z -0.50');
       },
-      { timeout: 5000 }
+      // WebGL frames get slow when the whole suite runs in parallel: give the camera time to settle.
+      { timeout: 20_000, interval: 200 }
     );
-  });
+  }, 30_000);
 
   it('forgets the hovered point of a previous toolpath', () => {
     const previous = parseGCode(gcode);

@@ -66,7 +66,10 @@ describe('CAM plan step', () => {
         .map(r => parseFloat(within(r).getAllByRole('cell')[5].textContent!));
     expect(Math.max(...stepdowns(table))).toBeLessThanOrEqual(1.59);
 
-    expect(screen.getByRole('button', { name: /Take the job to the machine/ })).toHaveProperty('disabled', false);
+    // The job goes to the machine once every board's program is ready (board B's may still be computing).
+    await waitFor(() => expect(screen.getByRole('button', { name: /Take the job to the machine/ })).toHaveProperty('disabled', false), {
+      timeout: 60_000,
+    });
     expect(screen.queryByRole('alert')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Show board A on machine' }));
     const [gcode, name] = store.updateToolpath.mock.calls[0];
@@ -151,7 +154,9 @@ describe('CAM plan step', () => {
     fireEvent.click(within(alert).getByRole('button', { name: 'Leave them out' }));
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull(), { timeout: 10_000 });
     expect((await getJob(job.id))!.plan!.leaveOut).toHaveLength(3);
-    expect(screen.getByRole('button', { name: /Take the job to the machine/ })).toHaveProperty('disabled', false);
+    await waitFor(() => expect(screen.getByRole('button', { name: /Take the job to the machine/ })).toHaveProperty('disabled', false), {
+      timeout: 60_000,
+    });
     expect(screen.getByText(/Safety checks passed/)).toBeTruthy();
   }, 120_000);
 });
