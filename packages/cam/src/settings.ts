@@ -25,6 +25,8 @@ export interface TabSettings {
   minCount: number;
   /** Target distance between tabs; more tabs on longer outlines. */
   spacing: number;
+  /** Where exactly (part coordinates, on the outline): placed by the board's tab plan. Default: spread over straight runs. */
+  centers?: { x: number; y: number }[];
 }
 
 export const DEFAULT_TABS: TabSettings = { height: 2, width: 5, minCount: 3, spacing: 250 };

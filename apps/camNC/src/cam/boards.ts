@@ -1,4 +1,4 @@
-import type { FlipRegistration } from '@wbcnc/cam';
+import type { FlipRegistration, TabFallback } from '@wbcnc/cam';
 import type { HoldDown } from '@wbcnc/cam';
 import { clampKeepOuts, nestRects, placedSize, type NestResult, type Placement, type Rect } from '@wbcnc/cam/nest';
 import { autoNest, type NestObjective, type SheetPacker } from './autoNest';
@@ -39,6 +39,8 @@ export interface BoardV1 {
   flip?: FlipRegistration | 'off';
   /** Pin diameter for a flip on dowel pins, mm (default 6). */
   dowelDiameter?: number;
+  /** Per body (instance id): what it gets if its tabs can't hold, over the job's default. */
+  tabFallbacks?: Record<string, TabFallback>;
   /** Bodies the user put on this board by hand: auto-fill leaves them here. */
   pinned?: string[];
   /**
@@ -338,7 +340,12 @@ export function flipOf(board: BoardV1, instances: PartInstance[]): FlipRegistrat
   return instances.some(i => board.items.includes(i.id) && i.needsFlip) ? 'camera' : 'off';
 }
 
-export function boardRequest(board: BoardV1, nest: BoardNest, instances: PartInstance[]): BoardRequest {
+export function boardRequest(
+  board: BoardV1,
+  nest: BoardNest,
+  instances: PartInstance[],
+  hold: { tabFallback?: TabFallback; skin?: number } = {}
+): BoardRequest {
   const byId = new Map(instances.map(i => [i.id, i]));
   return {
     id: board.id,
@@ -352,6 +359,8 @@ export function boardRequest(board: BoardV1, nest: BoardNest, instances: PartIns
     ...(flipOf(board, instances) !== 'off' && {
       flip: { registration: flipOf(board, instances) as FlipRegistration, dowelDiameter: board.dowelDiameter },
     }),
+    ...(hold.tabFallback && { tabFallback: hold.tabFallback }),
+    ...(hold.skin !== undefined && { skin: hold.skin }),
     parts: nest.placements.map(p => ({
       id: p.id,
       partId: byId.get(p.id)!.partId,
@@ -359,6 +368,7 @@ export function boardRequest(board: BoardV1, nest: BoardNest, instances: PartIns
       x: p.x,
       y: p.y,
       rotated: p.rotated,
+      ...(board.tabFallbacks?.[p.id] && { tabFallback: board.tabFallbacks[p.id] }),
     })),
   };
 }

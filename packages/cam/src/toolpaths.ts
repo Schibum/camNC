@@ -13,6 +13,7 @@ export interface Tool {
 
 export { MATERIALS, DEFAULT_TABS, type Material, type TabSettings } from './settings';
 import { MATERIALS, DEFAULT_TABS, type Material, type TabSettings } from './settings';
+import type { PartHolding } from './tabPlan';
 
 export interface CamSettings {
   tools: Tool[];
@@ -45,6 +46,11 @@ export interface CamSettings {
   innerCornerRadius: number;
   /** Final outline pass goes down to here (below the stock bottom). */
   finalZ: number;
+  /**
+   * The outline's final pass stops here instead (above the stock bottom): a bottom skin holds the part in the board
+   * until it's freed at the machine. Holes still go through.
+   */
+  outlineFloor?: number;
   finalFeedFactor: number;
   climb: boolean;
   rampAngleDeg: number;
@@ -105,12 +111,16 @@ export interface Operation {
   pauseBefore?: string;
   /** For people, in the words of the Model step's feature list: "9 pockets 4.2 deep + edge groove to 4.2". */
   title?: string;
+  /** Pause (M0) after this operation with this message, the spindle off and the bit up (e.g. "take the part out"). */
+  pauseAfter?: string;
 }
 
 export interface PartCam {
   stockTop: number;
   operations: Operation[];
   warnings: string[];
+  /** Boards with tabs: how each part is held (tabs where they hold, or its fallback). */
+  holding?: PartHolding[];
 }
 
 // ---- helpers ----
@@ -803,18 +813,20 @@ export function profileOperation(name: string, loopShape: PathD, topZ: number, t
   const rough = rotateToLongestEdge(orient(roughRaw));
   const final = rotateToNearest(orient(finalRaw), rough[0]);
 
-  const roughLevels =
-    topZ - s.profileRoughBottom > 0.01 ? depthLevels(topZ, s.profileRoughBottom, s.profileStepdown ?? stepdownFor(tool, s)) : [];
+  // A bottom skin (outlines only): the final pass stops there, and roughing never goes below it.
+  const floorZ = inside ? s.finalZ : (s.outlineFloor ?? s.finalZ);
+  const roughBottom = Math.max(s.profileRoughBottom, floorZ);
+  const roughLevels = topZ - roughBottom > 0.01 ? depthLevels(topZ, roughBottom, s.profileStepdown ?? stepdownFor(tool, s)) : [];
   roughLevels.forEach((z, i) => {
     const pts = closeLoop(rough, z);
     passes.push({ pts, feeds: pts.map((_, k) => (k === 0 ? s.plungeFeed : s.feed)), link: i === 0 ? 'retract' : 'direct' });
   });
-  const fpts = closeLoop(final, s.finalZ);
+  const fpts = closeLoop(final, floorZ);
   const ffeed = s.feed * s.finalFeedFactor;
   passes.push({ pts: fpts, feeds: fpts.map((_, k) => (k === 0 ? s.plungeFeed : ffeed)), link: passes.length ? 'direct' : 'retract' });
 
   if (s.tabs && !inside) {
-    const centers = placeTabs(final, s.tabs, tool);
+    const centers = s.tabs.centers ?? placeTabs(final, s.tabs, tool);
     const half = (s.tabs.width + tool.diameter) / 2;
     for (let i = 0; i < passes.length; i++) {
       const p = passes[i];

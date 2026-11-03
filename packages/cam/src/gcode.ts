@@ -154,7 +154,15 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
   out.push(`M0 (MSG Spindle starts at ${rpm} RPM next. Manual spindle: turn it on now)`);
   out.push(`M3 S${rpm}`, `G4 P${fmt(opts.spindleDwell ?? 3)}`);
 
+  // After a pause with the spindle off: start it again and let it come up to speed before cutting on.
+  let spindleOff = false;
+  const spindleOn = () => {
+    if (!spindleOff) return;
+    out.push(`M3 S${rpm}`, `G4 P${fmt(opts.spindleDwell ?? 3)}`);
+    spindleOff = false;
+  };
   cam.operations.forEach((op, oi) => {
+    spindleOn();
     if (op.pauseBefore) {
       move('G0', { z: safeZ });
       out.push(`M0 (MSG ${op.pauseBefore.replace(/[()]/g, '')})`);
@@ -217,6 +225,12 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
         }
       }
     });
+    if (op.pauseAfter) {
+      // Bit up and spindle off before anyone reaches in; nothing moves until Resume.
+      move('G0', { z: safeZ });
+      out.push('M5', `M0 (MSG ${op.pauseAfter.replace(/[()]/g, '')})`);
+      spindleOff = true;
+    }
   });
   move('G0', { z: safeZ });
   out.push('M5');

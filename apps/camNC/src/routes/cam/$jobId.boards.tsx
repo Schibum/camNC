@@ -230,6 +230,17 @@ function BoardsStep() {
           onMove={move}
           onNewBoard={toNewBoard}
           onUnpin={unpin}
+          onTabFallback={(itemId, f) =>
+            saveBoards(
+              boards.map(({ board }) => {
+                if (!board.items.includes(itemId)) return board;
+                const own = { ...board.tabFallbacks };
+                if (f) own[itemId] = f;
+                else delete own[itemId];
+                return { ...board, tabFallbacks: own };
+              })
+            )
+          }
           stock={job.stock ?? []}
           onStockChange={stock => save.mutate({ ...job, stock })}
         />
@@ -337,6 +348,8 @@ function BoardsStep() {
           bit={plan.bit.diameter}
           onChange={updateBoard}
           onRelayout={() => relayout(selected.board)}
+          tabHold={{ fallback: plan.tabFallback, skin: plan.skin }}
+          onTabHold={h => save.mutate({ ...job, plan: { ...plan, tabFallback: h.fallback, skin: h.skin } })}
           flip={
             selected.board.flip || instances.some(i => selected.board.items.includes(i.id) && i.needsFlip)
               ? flipOf(selected.board, instances)

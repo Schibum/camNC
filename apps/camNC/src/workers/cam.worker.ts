@@ -9,6 +9,8 @@ import {
   flatMatrix,
   groupIdentical,
   dowelSpots,
+  freePartsProgram,
+  kDefaultSkin,
   flipPart,
   holdCheck,
   sideBSpec,
@@ -32,7 +34,17 @@ import {
 import * as Comlink from 'comlink';
 // Lazy: this worker only starts when a model is opened, and occt only loads the wasm on the first STEP file.
 import occtWasmUrl from 'occt-import-js/dist/occt-import-js.wasm?url';
-import type { BoardRequest, BodyMesh, CamPartInfo, ModelImport, OpSummary, Outline2D, PlanResult, TabRemovalResult } from '../cam/camTypes';
+import type {
+  BoardRequest,
+  BodyMesh,
+  FreePartsResult,
+  CamPartInfo,
+  ModelImport,
+  OpSummary,
+  Outline2D,
+  PlanResult,
+  TabRemovalResult,
+} from '../cam/camTypes';
 
 /** Parts of the models imported in this worker, by model key, so generating G-code needs no re-import. */
 /** A loaded part: its features, and those of its underside once turned over (side B), by turn axis. */
@@ -121,6 +133,20 @@ const api = {
     return { gcode, tabs, timeMin: metrics(readGcode(gcode), cam.stockTop).timeMin };
   },
 
+  /** After cutting a board with bottom-skin parts: frees them one at a time (cut the skin, bit up, spindle off, pause). */
+  async generateFreeParts(key: string, board: BoardRequest, settings: Partial<CamSettings>): Promise<FreePartsResult> {
+    const cam = camBoard(boardSpec(key, board), settings);
+    const feed = (settings.feed ?? 1800) * (settings.finalFeedFactor ?? 0.5);
+    const free = freePartsProgram(cam, { feed, plungeFeed: settings.plungeFeed ?? 480, finalZ: settings.finalZ ?? -0.3 });
+    const gcode = toGcode(free.cam, {
+      partName: `Board ${board.name}: free the parts`,
+      board: board.name,
+      stockSize: [board.w, board.h, board.stockTop],
+      spindleRpm: settings.spindleRpm,
+    });
+    return { gcode, parts: free.parts, timeMin: metrics(readGcode(gcode), cam.stockTop).timeMin };
+  },
+
   /** One program for a whole board: its parts at their nested positions, operations grouped by bit. */
   async generateBoard(key: string, board: BoardRequest, settings: Partial<CamSettings>): Promise<PlanResult> {
     const spec = boardSpec(key, board);
@@ -152,7 +178,9 @@ const api = {
     }
     // The hold check runs on the board as laid out, before it's turned to lie like the stock on the bed.
     const flat = board.rotationDeg ? camBoard({ ...spec, rotationDeg: 0 }, settings) : cam;
-    return usesTabs(board.holdDown) ? { ...plan, hold: holdCheck(flat, board) } : plan;
+    if (!usesTabs(board.holdDown)) return plan;
+    const holding = (cam.holding ?? []).map(h => ({ name: h.name, how: h.how, spots: h.spots }));
+    return { ...plan, hold: holdCheck(flat, board), holding, skin: board.skin ?? kDefaultSkin };
   },
 };
 
@@ -162,7 +190,7 @@ function boardSpec(key: string, board: BoardRequest): BoardSpec {
     tabs: { ...DEFAULT_TABS, ...board.tabs },
     parts: board.parts.map(p => {
       const { part, features } = loaded(key, p.partId);
-      return { id: p.id, name: p.name, features, size: part.size, x: p.x, y: p.y, rotated: p.rotated };
+      return { id: p.id, name: p.name, features, size: part.size, x: p.x, y: p.y, rotated: p.rotated, tabFallback: p.tabFallback };
     }),
   };
 }

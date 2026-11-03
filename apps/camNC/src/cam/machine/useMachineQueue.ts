@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { camWorker, modelKey, useBoardPlans, useCamJob, useCamModel } from '../camQueries';
-import type { TabRemovalResult } from '../camTypes';
+import type { FreePartsResult, TabRemovalResult } from '../camTypes';
 import { useCuttingData } from '../cuttingData';
 import { kDefaultPlan, toCamSettings } from '../planSettings';
 import { useJobBoards } from '../useJobBoards';
@@ -34,6 +34,12 @@ export function useMachineQueue() {
     staleTime: Infinity,
     queryFn: (): Promise<TabRemovalResult> => camWorker().generateTabRemoval(modelKey(job!), current!.board.request, settings),
   });
+  const free = useQuery({
+    queryKey: ['cam', 'free-parts', job?.id, job?.fileName, current?.board.request, settings],
+    enabled: !!job && current?.kind === 'free',
+    staleTime: Infinity,
+    queryFn: (): Promise<FreePartsResult> => camWorker().generateFreeParts(modelKey(job!), current!.board.request, settings),
+  });
   return {
     job,
     loading: !!jobId && (!model.data || plans.some(p => p.isPending && p.fetchStatus !== 'idle')),
@@ -41,5 +47,6 @@ export function useMachineQueue() {
     current,
     done,
     tabRemoval: tabs.data,
+    freeParts: free.data,
   };
 }

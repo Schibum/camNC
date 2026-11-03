@@ -3,7 +3,7 @@ import { isCamncJobFile } from '@/lib/machine/jobs';
 import { useStore } from '@/store/store';
 import { Line } from '@react-three/drei';
 import { useMemo } from 'react';
-import { currentTab, useCamMachine } from './camMachine';
+import { currentTab, partsTakenOut, useCamMachine } from './camMachine';
 
 const kOutline = '#a78bfa';
 const kTab = '#f59e0b';
@@ -42,6 +42,8 @@ export function CamBoardOverlay() {
   const running = !!gcode && !!job && isCamncJobFile(job.file);
   const at = overlay.tabs ? Math.max(1, running ? currentTab(gcode!, job!.percent) : 1) : 0;
   const next = overlay.tabs?.find(t => t.index === at);
+  // Freeing skin parts: the part being cut free, then taken out (the pauses read so far).
+  const freeing = overlay.freeParts?.[running ? partsTakenOut(gcode!, job!.percent) : 0];
   return (
     <group position={[offset.x, offset.y, 0]}>
       <Line points={outline} color={kOutline} lineWidth={2} dashed dashSize={6} gapSize={4} />
@@ -51,6 +53,12 @@ export function CamBoardOverlay() {
           <meshBasicMaterial color={kTab} transparent opacity={t.index < at ? 0.35 : 1} />
         </mesh>
       ))}
+      {freeing && (
+        <mesh position={[freeing.at.x, freeing.at.y, 0.3]}>
+          <ringGeometry args={[14, 20, 48]} />
+          <meshBasicMaterial color={kHold} transparent opacity={0.85} />
+        </mesh>
+      )}
       {next && (
         <mesh position={[next.hold.x, next.hold.y, 0.3]}>
           <ringGeometry args={[14, 20, 48]} />

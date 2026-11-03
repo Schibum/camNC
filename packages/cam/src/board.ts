@@ -1,5 +1,6 @@
 import type { PartFeatures } from './features';
 import { dowelOperations, type DowelSpec } from './flip';
+import { boardToPart, kDefaultSkin, planTabs, type PartHolding, type TabFallback } from './tabPlan';
 import type { Vec3 } from './geom';
 import { camPart, DEFAULT_TABS, type CamSettings, type Operation, type PartCam, type TabSettings } from './toolpaths';
 
@@ -13,6 +14,8 @@ export interface BoardPart {
   features: PartFeatures;
   /** Part size laid flat (before turning). */
   size: Vec3;
+  /** Where its tabs can't hold: this instead of the board's fallback. */
+  tabFallback?: TabFallback;
   /** Lower left corner on the board, and whether the part is turned 90° counterclockwise. */
   x: number;
   y: number;
@@ -37,6 +40,10 @@ export interface BoardSpec {
   parts: BoardPart[];
   /** A flip on dowel pins: side A drills the pin holes (board and spoilboard) before anything else. */
   dowels?: DowelSpec;
+  /** With tabs: parts without spots for tabs that hold get this, unless they have their own. Default: a bottom skin. */
+  tabFallback?: TabFallback;
+  /** Bottom skin thickness, mm (default 1). */
+  skin?: number;
 }
 
 /** Tabs for hold-downs that use them. */
@@ -69,8 +76,19 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
   const turn = rotateAboutOrigin(board.rotationDeg ?? 0);
   const warnings: string[] = [];
   const ops: { op: Operation; part: BoardPart; index: number }[] = [];
+  // Tabs only where they hold; the other parts get their fallback (a bottom skin by default).
+  const holding = tabs ? planTabs(board, settings) : undefined;
   for (const part of board.parts) {
-    const cam = camPart(part.features, { ...settings, tabs, stockTop });
+    const h = holding?.get(part.id);
+    const own: Partial<CamSettings> =
+      h?.how === 'placed' && tabs
+        ? { tabs: { ...tabs, centers: h.tabs.map(q => boardToPart(part, q)) } }
+        : h?.how === 'skin'
+          ? { tabs: false, outlineFloor: board.skin ?? kDefaultSkin }
+          : h?.how === 'self'
+            ? { tabs: false }
+            : {};
+    const cam = camPart(part.features, { ...settings, tabs, stockTop, ...own });
     warnings.push(...cam.warnings.map(w => `${part.name}: ${w}`));
     cam.operations.forEach((op, index) =>
       ops.push({
@@ -121,7 +139,7 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
       }
     }
   }
-  return { stockTop, operations, warnings };
+  return { stockTop, operations, warnings, ...(holding && { holding: [...holding.values()] }) };
 }
 
 /** Bits in the order a board program uses them. */

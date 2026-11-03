@@ -11,6 +11,8 @@ export interface BoardOverlay {
   rotationDeg: number;
   /** Guided tab removal: the tabs and where to hold the part, in program coordinates. */
   tabs?: TabStop[];
+  /** Freeing bottom-skin parts: the parts in program order, a spot on each (program coordinates). */
+  freeParts?: { name: string; at: { x: number; y: number } }[];
 }
 
 /** The CAM job being cut at the machine: which program is loaded, what's done, how each board lies on the bed. */
@@ -45,8 +47,8 @@ export interface QueueEntry {
   /** `${boardId}:bit:${index}`, `${boardId}:flip`, `${boardId}:b:bit:${index}` or `${boardId}:tabs`. */
   key: string;
   board: JobBoard;
-  /** A program for one bit, turning the board over for side B, or the guided tab removal. */
-  kind: 'bit' | 'flip' | 'tabs';
+  /** A program for one bit, turning the board over for side B, freeing bottom-skin parts, or the guided tab removal. */
+  kind: 'bit' | 'flip' | 'free' | 'tabs';
   /** The board's second side (turned over): `plan` is side B's. */
   sideB?: boolean;
   /** How side B lines up (flip and side B entries). */
@@ -100,6 +102,10 @@ export function machineQueue(boards: JobBoard[], plans: (PlanResult | undefined)
           })),
         ]
       : []),
+    // Bottom-skin parts: cut free one at a time, after everything else on the board.
+    ...(plan!.holding?.some(h => h.how === 'skin')
+      ? [{ key: `${board.board.id}:free`, board, kind: 'free' as const, program: 0, firstOfBoard: false, plan: plan! }]
+      : []),
     ...(board.board.holdDown === 'tabs-guided'
       ? [{ key: `${board.board.id}:tabs`, board, kind: 'tabs' as const, program: 0, firstOfBoard: false, plan: plan! }]
       : []),
@@ -124,11 +130,25 @@ export function currentTab(gcode: string, percent: number): number {
   return tab;
 }
 
+/** How many parts the freeing program has paused for so far ("Take out …"), from FluidNC's SD percent. */
+export function partsTakenOut(gcode: string, percent: number): number {
+  const read = (percent / 100) * new TextEncoder().encode(gcode).length;
+  let n = 0,
+    offset = 0;
+  for (const line of gcode.split('\n')) {
+    offset += new TextEncoder().encode(line).length + 1;
+    if (offset > read + 2) break;
+    if (line.startsWith('M0 (MSG Take out ')) n++;
+  }
+  return n;
+}
+
 /** "Board A · T2 ⌀6", "Board B · ⌀3.175", "Board A · remove tabs". */
 export function entryTitle(e: QueueEntry) {
   const board = `Board ${e.board.board.name}`;
   if (e.kind === 'tabs') return `${board} · remove tabs`;
   if (e.kind === 'flip') return `${board} · turn over`;
+  if (e.kind === 'free') return `${board} · free parts`;
   const p = e.plan.programs[e.program];
   const side = e.sideB ? ' side B' : '';
   return e.plan.programs.length > 1 ? `${board}${side} · T${p.tool} ⌀${p.diameter}` : `${board}${side} · ⌀${p.diameter}`;

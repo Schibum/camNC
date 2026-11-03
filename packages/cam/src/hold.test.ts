@@ -56,8 +56,10 @@ describe('do the tabs hold?', () => {
       { id: 'a', name: 'a', features: plain(), size: [200, 100, 8], x: 5.2, y: 5.2, rotated: false },
       { id: 'b', name: 'b', features: plain(), size: [200, 100, 8], x: 5.2, y: 113.2, rotated: false },
     ];
-    const board = spec(parts, 210.4, 218.4);
+    // "Tabs anyway": where they'd go without looking (the fallback when there's no spot that holds).
+    const board = { ...spec(parts, 210.4, 218.4), tabFallback: 'tabs' as const };
     const holds = holdCheck(camBoard(board, {}), board);
+    expect(holds).toHaveLength(2);
     for (const h of holds) {
       expect(h.tabs.length).toBeGreaterThan(0);
       expect(h.anchored).toBe(0);
@@ -72,7 +74,7 @@ describe('do the tabs hold?', () => {
     expect(holdCheck(camBoard(roomy, {}), roomy).every(h => h.ok)).toBe(true);
   });
 
-  it('kinderregal board A as nested by default (gap 8, margin 5.2): flags the parts whose tabs float', async () => {
+  it('kinderregal board A as nested by default (gap 8, margin 5.2): tabs only where they hold, every part held', async () => {
     const bodies = (await loadStep(readStep('kinderregal eiche'))).bodies.map(detectFlat).filter(p => Math.abs(p.thickness - 8) < 0.5);
     const items = bodies.map(b => ({ id: b.name, w: b.size[0], h: b.size[1] }));
     const nest = nestRects(items, { gap: 8, margin: 5.2 });
@@ -84,7 +86,6 @@ describe('do the tabs hold?', () => {
     const holds = holdCheck(camBoard(board, {}), board);
     console.info(holds.map(h => `${h.part}: ${h.anchored}/${h.tabs.length} tabs hold`).join(', '));
     expect(holds).toHaveLength(5);
-    expect(holds.some(h => !h.ok)).toBe(true);
-    expect(holds.flatMap(h => h.tabs).some(t => !t.anchored)).toBe(true);
+    expect(holds.every(h => h.ok && h.anchored === h.tabs.length)).toBe(true);
   }, 120_000);
 });

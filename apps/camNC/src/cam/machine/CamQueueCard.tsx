@@ -16,9 +16,15 @@ const fmt = (v: number) => `${+v.toFixed(2)}`;
  */
 export function CamQueueCard() {
   const { jobId, active, setActive, markDone, setRotation, rotation, leave, setOverlay } = useCamMachine();
-  const { job, queue, current, done, tabRemoval, loading } = useMachineQueue();
+  const { job, queue, current, done, tabRemoval, freeParts, loading } = useMachineQueue();
   const gcodeOf = (e: QueueEntry) =>
-    e.kind === 'flip' ? undefined : e.kind === 'tabs' ? tabRemoval?.gcode : e.plan.programs[e.program].gcode;
+    e.kind === 'flip'
+      ? undefined
+      : e.kind === 'tabs'
+        ? tabRemoval?.gcode
+        : e.kind === 'free'
+          ? freeParts?.gcode
+          : e.plan.programs[e.program].gcode;
   const load = (e: QueueEntry) => {
     setActive(e.key);
     const gcode = gcodeOf(e);
@@ -30,6 +36,7 @@ export function CamQueueCard() {
       h: e.plan.size[1],
       rotationDeg: rotation[e.board.board.id] ?? 0,
       tabs: e.kind === 'tabs' ? tabRemoval?.tabs : undefined,
+      freeParts: e.kind === 'free' ? freeParts?.parts : undefined,
     });
   };
   // Turning the board (or the tab program arriving) makes a new program: reload the one that's loaded.
@@ -80,9 +87,11 @@ export function CamQueueCard() {
                 <span className="font-mono text-xs text-muted-foreground">
                   {e.kind === 'flip'
                     ? ''
-                    : e.kind === 'tabs'
-                      ? `${tabRemoval && isNow ? tabRemoval.tabs.length : '…'} tabs`
-                      : `${Math.ceil(e.plan.programs[e.program].timeMin)} min`}
+                    : e.kind === 'free'
+                      ? `${freeParts && isNow ? freeParts.parts.length : '…'} parts`
+                      : e.kind === 'tabs'
+                        ? `${tabRemoval && isNow ? tabRemoval.tabs.length : '…'} tabs`
+                        : `${Math.ceil(e.plan.programs[e.program].timeMin)} min`}
                 </span>
               </button>
             </li>
@@ -154,6 +163,13 @@ export function CamQueueCard() {
               Don’t move the board: XY stays.
             </p>
           )}
+          {current.kind === 'free' && (
+            <p>
+              <span className="font-medium">Free the parts:</span> the program cuts one part’s bottom skin at a time, then lifts the bit,
+              stops the spindle and pauses. Take out the part ringed green in the camera view, then press Resume: the spindle starts again
+              before the next one.
+            </p>
+          )}
           {current.kind === 'tabs' && (
             <p>
               <span className="font-medium">Remove the tabs:</span> the program stops before each tab. Hold the part at the green mark in
@@ -165,7 +181,7 @@ export function CamQueueCard() {
             {current.kind !== 'flip' && (
               <Hint text="Puts this program in the machine view, ready to run.">
                 <Button size="sm" variant="outline" onClick={() => load(current)}>
-                  Load {current.kind === 'tabs' ? 'tab removal' : 'program'}
+                  Load {current.kind === 'tabs' ? 'tab removal' : current.kind === 'free' ? 'parts freeing' : 'program'}
                 </Button>
               </Hint>
             )}

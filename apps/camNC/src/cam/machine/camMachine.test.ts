@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PlanResult } from '../camTypes';
 import type { JobBoard } from '../useJobBoards';
-import { currentTab, entryTitle, machineQueue } from './camMachine';
+import { currentTab, entryTitle, machineQueue, partsTakenOut } from './camMachine';
 
 const plan = (bits: number[]): PlanResult =>
   ({
@@ -46,6 +46,26 @@ describe('machine queue', () => {
     // Side B runs its own program.
     expect(q[2].plan).toBe(a.sideB);
     expect(q[2].sideB).toBe(true);
+  });
+
+  it('bottom-skin parts: a "free parts" step after the board, before the tab removal; which part is next', () => {
+    const a = { ...plan([3.175]), holding: [{ name: 'p', how: 'skin' as const, spots: 0 }] };
+    const q = machineQueue([board('A', 'tabs-guided')], [a]);
+    expect(q.map(entryTitle)).toEqual(['Board A · ⌀3.175', 'Board A · free parts', 'Board A · remove tabs']);
+    const g = [
+      'G1 X1',
+      'G0 Z13',
+      'M5',
+      'M0 (MSG Take out a, then continue)',
+      'M3 S15000',
+      'G1 X2',
+      'M5',
+      'M0 (MSG Take out b, then continue)',
+    ].join('\n');
+    const at = (text: string) => (100 * (g.indexOf(text) + text.length + 1)) / g.length;
+    expect(partsTakenOut(g, 0)).toBe(0);
+    expect(partsTakenOut(g, at('Take out a, then continue)'))).toBe(1);
+    expect(partsTakenOut(g, at('Take out b, then continue)'))).toBe(2);
   });
 
   it('knows which tab the removal program is at from the SD progress', () => {

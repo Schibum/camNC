@@ -1,4 +1,4 @@
-import type { FlipRegistration } from '@wbcnc/cam';
+import type { FlipRegistration, TabFallback } from '@wbcnc/cam';
 import type { HoldDown } from '@wbcnc/cam';
 import { MATERIALS } from '@wbcnc/cam/settings';
 import { Button } from '@wbcnc/ui/components/button';
@@ -91,7 +91,12 @@ export function BoardInspector({
   onRelayout,
   onDelete,
   flip,
+  tabHold,
+  onTabHold,
 }: {
+  /** The job's default for parts whose tabs can't hold, and the bottom skin. */
+  tabHold?: { fallback?: TabFallback; skin?: number };
+  onTabHold?: (h: { fallback?: TabFallback; skin?: number }) => void;
   /** The board's second side as in effect (see `flipOf`); undefined when no part needs one and none was chosen. */
   flip?: FlipRegistration | 'off';
   board: BoardV1;
@@ -246,6 +251,37 @@ export function BoardInspector({
         ))}
         <p className="text-xs leading-relaxed text-muted-foreground">{kHoldDownHints[board.holdDown]}</p>
       </fieldset>
+
+      {tabs && tabHold && onTabHold && (
+        <section className="flex flex-col gap-1.5" aria-label="Where tabs can't hold">
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Tabs go only on straight edges facing stock that holds them. A part with no such edge gets (for the whole job; each part can
+            choose its own in its ⋯ menu):
+          </p>
+          <div className="grid grid-cols-[1fr_88px] items-end gap-2">
+            <Select value={tabHold.fallback ?? 'skin'} onValueChange={v => onTabHold({ ...tabHold, fallback: v as TabFallback })}>
+              <SelectTrigger aria-label="Parts whose tabs can't hold get" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="skin">Bottom skin (freed at the machine)</SelectItem>
+                <SelectItem value="tabs">Tabs anyway (may not hold)</SelectItem>
+                <SelectItem value="self">No tabs: I hold it down</SelectItem>
+              </SelectContent>
+            </Select>
+            {(tabHold.fallback ?? 'skin') === 'skin' && (
+              <NumberField
+                id="skin"
+                label="Skin (mm)"
+                hint="How much of the board's bottom stays under such a part until it's freed at the machine."
+                value={tabHold.skin ?? 1}
+                onCommit={skin => onTabHold({ ...tabHold, skin })}
+                min={0.3}
+              />
+            )}
+          </div>
+        </section>
+      )}
 
       {tabs && (
         <div className="grid grid-cols-3 gap-2">

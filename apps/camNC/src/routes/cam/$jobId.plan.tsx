@@ -86,13 +86,14 @@ function PlanStep() {
   const result = side === 'b' && sideA?.sideB ? sideA.sideB : sideA;
   const onSideB = result !== sideA;
   const empty = !!result && result.ops.length === 0;
-  // Parts whose tabs don't hold are shown as errors in Checks but don't block yet: today's default layout (tight gaps
-  // with tabs) has them, until a hold-down strategy that avoids them is chosen.
-  const safe = !!result && result.safety.length === 0 && !empty && !blocked;
+  // A part neither held by its tabs nor given a fallback would come loose: that blocks, like a safety rule.
+  const safe = !!result && result.safety.length === 0 && !empty && !blocked && loose(sideA).length === 0;
   const allReady =
     ready &&
     !blocked &&
-    queue.every(e => e.plan!.ops.length > 0 && e.plan!.safety.length === 0 && (e.plan!.sideB?.safety.length ?? 0) === 0);
+    queue.every(
+      e => e.plan!.ops.length > 0 && e.plan!.safety.length === 0 && (e.plan!.sideB?.safety.length ?? 0) === 0 && !loose(e.plan).length
+    );
   const totalMin = queue.reduce((t, e) => t + (e.plan?.timeMin ?? 0), 0);
   const swaps = queue.reduce(
     (n, e, i) => n + Math.max(0, e.bits.length - 1) + (i > 0 && queue[i - 1].bits.at(-1) !== e.bits[0] ? 1 : 0),
@@ -445,6 +446,12 @@ function SideSwitch({ plan, side, onSide }: { plan: PlanResult; side: 'a' | 'b';
   );
 }
 
+/** Parts that would come loose: their tabs don't hold, and they have no fallback (tabs anyway, or held by hand). */
+function loose(plan: PlanResult | undefined) {
+  if (!plan?.hold) return [];
+  return plan.hold.filter(h => !h.ok && (plan.holding?.find(x => x.name === h.part)?.how ?? 'placed') === 'placed');
+}
+
 /** Parts the job would silently not cut, and spacing too tight for the bit: fix on Boards or leave them out. */
 function MissingBanner({
   jobId,
@@ -498,17 +505,38 @@ function MissingBanner({
 
 /** `checked`: false while the job is blocked (missing parts, nothing to cut): no "passed" for an incomplete job. */
 function Checks({ plan, checked }: { plan: PlanResult; checked: boolean }) {
-  const loose = (plan.hold ?? []).filter(h => !h.ok);
+  const how = (part: string) => plan.holding?.find(h => h.name === part)?.how;
+  const skins = (plan.holding ?? []).filter(h => h.how === 'skin');
   return (
     <div className="flex flex-col gap-1.5 text-[13px]">
-      {loose.map(h => (
+      {loose(plan).map(h => (
         <p key={h.part} className="flex gap-2 text-destructive">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-          {h.part}: {h.anchored === 0 ? 'none' : `only ${h.anchored}`} of its {h.tabs.length} tabs would hold it. A tab into a strip of
-          stock too narrow to hold (between two cuts, or at the board’s edge) holds nothing, so the part comes loose. Leave more room around
-          it on the Boards step (gap or edge margin).
+          {h.part}: {h.anchored === 0 ? 'none' : `only ${h.anchored}`} of its {h.tabs.length} tabs would hold it, so it would come loose. On
+          the Boards step, give it a bottom skin (its ⋯ menu), or more room around it.
         </p>
       ))}
+      {(plan.hold ?? [])
+        .filter(h => !h.ok && how(h.part) === 'tabs')
+        .map(h => (
+          <p key={h.part} className="flex gap-2 text-amber-700 dark:text-amber-400">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+            {h.part}: tabs anyway, as you chose: {h.anchored} of {h.tabs.length} hold. Keep an eye on it on the last pass.
+          </p>
+        ))}
+      {(plan.holding ?? [])
+        .filter(h => h.how === 'self')
+        .map(h => (
+          <p key={h.name} className="flex gap-2 text-muted-foreground">
+            {h.name}: no tabs, cut free: hold it down yourself (tape, clamps), as you chose.
+          </p>
+        ))}
+      {skins.length > 0 && (
+        <p className="text-muted-foreground">
+          {skins.map(h => h.name).join(', ')}: no edge where tabs would hold, so {skins.length === 1 ? 'it keeps' : 'they keep'} a{' '}
+          {plan.skin ?? 1} mm bottom skin. At the machine, “Free parts” cuts {skins.length === 1 ? 'it' : 'them'} free one at a time.
+        </p>
+      )}
       {!checked ? null : plan.safety.length === 0 ? (
         <p className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
           <ShieldCheck className="size-4" /> Safety checks passed: no rapid moves in the stock, stays on the board, never deeper than the

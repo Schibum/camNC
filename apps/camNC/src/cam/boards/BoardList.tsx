@@ -1,3 +1,4 @@
+import type { TabFallback } from '@wbcnc/cam';
 import { MATERIALS } from '@wbcnc/cam/settings';
 import { Button } from '@wbcnc/ui/components/button';
 import { Input } from '@wbcnc/ui/components/input';
@@ -10,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@wbcnc/ui/components/dropdown-menu';
 import { cn } from '@wbcnc/ui/lib/utils';
-import { GripVertical, MoreHorizontal, Pin, PinOff, Plus, Trash2 } from 'lucide-react';
+import { Check, GripVertical, MoreHorizontal, Pin, PinOff, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { kHoldDownLabels, type BoardV1, type PartInstance, type StockBoardV1 } from '../boards';
 import type { PlanResult } from '../camTypes';
@@ -35,9 +36,12 @@ export function BoardList({
   onMove,
   onNewBoard,
   onUnpin,
+  onTabFallback,
   stock,
   onStockChange,
 }: {
+  /** A body's own fallback if its tabs can't hold (undefined: the job's default). */
+  onTabFallback: (itemId: string, fallback: TabFallback | undefined) => void;
   boards: JobBoard[];
   instances: PartInstance[];
   plans: (PlanResult | undefined)[];
@@ -111,6 +115,9 @@ export function BoardList({
                   unplaced={nest.unplaced.includes(id)}
                   pinned={!!board.pinned?.includes(id)}
                   onUnpin={() => onUnpin(id)}
+                  holding={plans[i]?.holding?.find(h => h.name === byId.get(id)?.name)?.how}
+                  fallback={board.tabFallbacks?.[id]}
+                  onFallback={f => onTabFallback(id, f)}
                   onDragStart={() => drag.start(id, byId.get(id)?.thickness ?? board.thickness)}
                   onDragEnd={() => {
                     drag.end();
@@ -168,6 +175,9 @@ function PartChip({
   unplaced,
   pinned,
   onUnpin,
+  holding,
+  fallback,
+  onFallback,
   targets,
   onDragStart,
   onDragEnd,
@@ -178,6 +188,10 @@ function PartChip({
   unplaced: boolean;
   pinned: boolean;
   onUnpin: () => void;
+  /** How it's held on its board (tabs placed where they hold, or a fallback); undefined without tabs. */
+  holding?: 'placed' | TabFallback;
+  fallback?: TabFallback;
+  onFallback: (f: TabFallback | undefined) => void;
   targets: BoardV1[];
   onDragStart: () => void;
   onDragEnd: () => void;
@@ -200,6 +214,20 @@ function PartChip({
       )}>
       <GripVertical className="size-3 text-muted-foreground" aria-hidden />
       {name}
+      {holding === 'skin' && (
+        <span
+          className="ml-0.5 rounded bg-muted px-1 text-[10px] text-muted-foreground"
+          title="Held by a bottom skin: no edge where tabs would hold">
+          skin
+        </span>
+      )}
+      {holding === 'tabs' && (
+        <span
+          className="ml-0.5 rounded bg-amber-500/15 px-1 text-[10px] text-amber-700 dark:text-amber-400"
+          title="Tabs anyway: they may not hold">
+          tabs?
+        </span>
+      )}
       {pinned && (
         <Hint text="Pinned: you placed it by hand, so auto-fill leaves it on this board. ⋯ › Unpin lets it move again.">
           <span role="img" aria-label="Placed by hand" tabIndex={0} className="rounded-full">
@@ -234,6 +262,24 @@ function PartChip({
               <DropdownMenuItem onSelect={onUnpin}>
                 <PinOff className="size-3" /> Unpin (auto-fill may move it)
               </DropdownMenuItem>
+            </>
+          )}
+          {holding && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs">If its tabs can’t hold it</DropdownMenuLabel>
+              {(
+                [
+                  [undefined, 'Job default'],
+                  ['skin', 'Bottom skin'],
+                  ['tabs', 'Tabs anyway'],
+                  ['self', 'Hold it down myself'],
+                ] as const
+              ).map(([f, label]) => (
+                <DropdownMenuItem key={label} onSelect={() => onFallback(f)}>
+                  <Check className={cn('size-3', fallback !== f && 'invisible')} /> {label}
+                </DropdownMenuItem>
+              ))}
             </>
           )}
         </DropdownMenuContent>

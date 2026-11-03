@@ -70,8 +70,9 @@ describe('CAM plan step', () => {
     expect(screen.getByText(/Safety checks passed/)).toBeTruthy();
     // What the CAM core notes in the G-code shows here too, in plain words: the mortises' corners stay round.
     expect(screen.getByText(/Inside corners stay rounded to the bit radius \(1\.59 mm\)/)).toBeTruthy();
-    // The default layout (tabs, 8 mm gaps, 5.2 mm edge): most tabs end in strips too narrow to hold.
-    expect(screen.getAllByText(/tabs would hold it/).length).toBeGreaterThan(0);
+    // The default layout (tabs, 8 mm gaps, 5.2 mm edge): tabs only where they hold, every part held.
+    expect(screen.queryByText(/tabs would hold it/)).toBeNull();
+    expect(screen.queryByText(/bottom skin/)).toBeNull();
     // Oak with the 1/8" bit: no pass deeper than half the diameter, shown per operation.
     const stepdowns = (t: HTMLElement) =>
       within(t)
@@ -191,5 +192,32 @@ describe('CAM plan step', () => {
       timeout: 60_000,
     });
     expect(screen.getByText(/Safety checks passed/)).toBeTruthy();
+  }, 120_000);
+
+  it('parts with no edge where tabs would hold keep a bottom skin, freed at the machine', async () => {
+    const bytes = await (await fetch(stepUrl)).arrayBuffer();
+    const job = await createJob(new File([bytes], 'kinderregal-eiche.step'));
+    const copy = new Uint8Array(bytes.slice(0));
+    const model = await camWorker().importModel(Comlink.transfer(copy, [copy.buffer]), job.fileName, modelKey(job));
+    // Only the back, alone on its board with a 4 mm margin: after its cut, nothing beyond a tab is wide enough to hold it.
+    const parts = model.parts.map(p => ({ id: p.id, name: p.name, quantity: p.names.length, milled: p.name === 'back' }));
+    const boards = reconcileBoards(
+      undefined,
+      instancesOf(model.parts, id => parts.find(p => p.id === id)!.milled),
+      'oak'
+    ).map(b => ({ ...b, margin: 4 }));
+    await saveJob({ ...job, parts, boards });
+    params.jobId = job.id;
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <PlanStep />
+      </QueryClientProvider>
+    );
+    expect((await screen.findByText(/1 mm bottom skin/, {}, { timeout: 60_000 })).textContent).toMatch(/^back: .*Free parts/);
+    // Held by the skin: nothing comes loose, nothing blocks.
+    expect(screen.queryByText(/tabs would hold it/)).toBeNull();
+    await waitFor(() => expect(screen.getByRole('button', { name: /Take the job to the machine/ })).toHaveProperty('disabled', false), {
+      timeout: 60_000,
+    });
   }, 120_000);
 });

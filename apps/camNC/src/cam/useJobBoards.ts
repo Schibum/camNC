@@ -36,7 +36,7 @@ export function useJobBoards(job: CamJobV1 | null | undefined, model: ModelImpor
       changed,
       boards: boards.map(board => {
         const nest = nestBoard(board, instances, plan.bit.diameter);
-        return { board, nest, request: boardRequest(board, nest, instances) };
+        return { board, nest, request: boardRequest(board, nest, instances, { tabFallback: plan.tabFallback, skin: plan.skin }) };
       }),
     };
   }, [job, model]);

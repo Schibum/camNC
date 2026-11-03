@@ -27,6 +27,8 @@ export type { SafetyIssue, SafetyLimits } from './safety';
 export { nestRects, clampKeepOuts, placedSize } from './nest';
 export type { Rect, NestItem, NestOptions, NestResult, Placement } from './nest';
 export { holdCheck } from './hold';
+export { planTabs, freePartsProgram, kDefaultSkin } from './tabPlan';
+export type { TabFallback, PartHolding } from './tabPlan';
 export { sideBSpec, dowelSpots, dowelOperations } from './flip';
 export type { FlipRegistration, DowelSpec } from './flip';
 export type { HoldOptions, PartHold, TabHold } from './hold';

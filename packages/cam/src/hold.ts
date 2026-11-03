@@ -53,8 +53,29 @@ function pieces(region: PathsD): PathsD[] {
  * two neighbouring cuts holds nothing.
  */
 export function holdCheck(cam: PartCam, board: { w: number; h: number }, opts: HoldOptions = {}): PartHold[] {
-  const minWeb = opts.minWeb ?? 3;
   const minTabs = opts.minTabs ?? 2;
+  const { parts, held } = holdState(cam, board, opts);
+  return parts.map(({ part, interior, tabs, r }) => {
+    const checked = tabs.map(({ at, dir }) => ({ at, anchored: held(beyond(at, dir, r, interior)) }));
+    const count = checked.filter(t => t.anchored).length;
+    return { part, tabs: checked, anchored: count, ok: count >= Math.min(minTabs, Math.max(1, tabs.length)) && tabs.length > 0 };
+  });
+}
+
+/** Just past the cut beside a spot on the bit's path, on the side away from the part: what a tab there holds on to. */
+export function beyond(at: P2, dir: P2, r: number, interior: PathsD): P2 {
+  const l = Math.hypot(dir.x, dir.y) || 1;
+  let n = { x: -dir.y / l, y: dir.x / l };
+  if (inside({ x: at.x + n.x * (r + 0.1), y: at.y + n.y * (r + 0.1) }, interior)) n = { x: -n.x, y: -n.y };
+  return { x: at.x + n.x * (r + 0.6), y: at.y + n.y * (r + 0.6) };
+}
+
+/**
+ * The board after every through cut: each part's interior and tabs, and `held(p)`: whether p lies in stock that is at
+ * least `minWeb` wide all the way to the board's edge (or an anchor).
+ */
+export function holdState(cam: PartCam, board: { w: number; h: number }, opts: HoldOptions = {}) {
+  const minWeb = opts.minWeb ?? 3;
   const cuts: PathsD = [];
   // The tabs' own material: left out when judging the stock beyond them (it would widen a thin strip).
   const bridges: PathsD = [];
@@ -98,6 +119,12 @@ export function holdCheck(cam: PartCam, board: { w: number; h: number }, opts: H
         }
       }
       flush();
+      // A tab right at the end of the pass.
+      if (tab.length > 1) {
+        const [p, q] = [tab[0], tab[tab.length - 1]];
+        tabs.push({ at: { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 }, dir: { x: q.x - p.x, y: q.y - p.y } });
+        tabLines.push(tab);
+      }
       cuts.push(...inflatePathsD(lines, r, JoinType.Round, EndType.Round, 2, PRECISION));
       bridges.push(...inflatePathsD(tabLines, r, JoinType.Round, EndType.Butt, 2, PRECISION));
       if (op.feature === 'outline') {
@@ -124,16 +151,5 @@ export function holdCheck(cam: PartCam, board: { w: number; h: number }, opts: H
       (opts.anchors && polyArea(difference(piece, difference(piece, opts.anchors))) > 1e-6)
   );
   const held = (p: P2) => anchored.some(piece => inside(p, piece));
-
-  return parts.map(({ part, interior, tabs, r }) => {
-    const checked = tabs.map(({ at, dir }) => {
-      const l = Math.hypot(dir.x, dir.y) || 1;
-      let n = { x: -dir.y / l, y: dir.x / l };
-      // The normal away from the part.
-      if (inside({ x: at.x + n.x * (r + 0.1), y: at.y + n.y * (r + 0.1) }, interior)) n = { x: -n.x, y: -n.y };
-      return { at, anchored: held({ x: at.x + n.x * (r + 0.6), y: at.y + n.y * (r + 0.6) }) };
-    });
-    const count = checked.filter(t => t.anchored).length;
-    return { part, tabs: checked, anchored: count, ok: count >= Math.min(minTabs, Math.max(1, tabs.length)) && tabs.length > 0 };
-  });
+  return { parts, held };
 }

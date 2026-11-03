@@ -40,6 +40,7 @@ describe('3D Plan view settings', () => {
       view: 'top',
       projection: { top: 'perspective', '3d': 'perspective' },
       showRapids: false,
+      compare: false,
     });
 
     // A fresh page: defaults first, then what was saved.
