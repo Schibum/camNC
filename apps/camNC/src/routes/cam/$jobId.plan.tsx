@@ -1,6 +1,7 @@
 import { PageHeader } from '@/components/page-header';
 import { useBoardPlans, useCamJob, useCamModel, useSaveCamJob } from '@/cam/camQueries';
-import type { PlanResult } from '@/cam/camTypes';
+import type { OpSummary, PlanResult } from '@/cam/camTypes';
+import { groupOps } from '@/cam/plan/groupOps';
 import { useJobBoards } from '@/cam/useJobBoards';
 import { orderBoardQueue } from '@wbcnc/cam/board';
 import { CamJobBar } from '@/cam/model/CamJobBar';
@@ -13,7 +14,8 @@ import { zodValidator } from '@tanstack/zod-adapter';
 import { Button } from '@wbcnc/ui/components/button';
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
 import { cn } from '@wbcnc/ui/lib/utils';
-import { AlertTriangle, Download, Play, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, ChevronRight, Download, Play, ShieldCheck } from 'lucide-react';
+import { useState } from 'react';
 import { z } from 'zod';
 
 export const Route = createFileRoute('/cam/$jobId/plan')({
@@ -169,6 +171,22 @@ function BitsLine({ plan }: { plan: PlanResult }) {
 }
 
 function OperationsTable({ name, plan }: { name: string; plan: PlanResult }) {
+  const rows = groupOps(plan.ops);
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const toggle = (key: string) => setOpen(s => (s.has(key) ? new Set([...s].filter(k => k !== key)) : new Set([...s, key])));
+  const row = (op: OpSummary, label: React.ReactNode, n: React.ReactNode, timeMin: number, key: string, sub = false) => (
+    <tr key={key} className={cn('border-b', sub && 'text-muted-foreground')}>
+      <td className="py-2 pr-3 font-mono">{n}</td>
+      <td className={cn('py-2 pr-3', sub && 'pl-6')}>{label}</td>
+      <td className="py-2 pr-3 font-mono">⌀{op.tool.diameter}</td>
+      <td className="py-2 pr-3 font-mono">
+        {fmtZ(op.zTop)} → {fmtZ(op.zBottom)}
+      </td>
+      <td className="py-2 pr-3 font-mono">{op.depthSteps}</td>
+      <td className="py-2 pr-3 font-mono">{op.feeds.join(' / ')}</td>
+      <td className="py-2 font-mono">{fmtMin(timeMin)}</td>
+    </tr>
+  );
   return (
     <table className="w-full border-collapse text-[13px]" aria-label={`Operations for ${name}`}>
       <thead>
@@ -183,19 +201,26 @@ function OperationsTable({ name, plan }: { name: string; plan: PlanResult }) {
         </tr>
       </thead>
       <tbody>
-        {plan.ops.map((op, i) => (
-          <tr key={op.name} className="border-b">
-            <td className="py-2 pr-3 font-mono">{i + 1}</td>
-            <td className="py-2 pr-3">{op.label}</td>
-            <td className="py-2 pr-3 font-mono">⌀{op.tool.diameter}</td>
-            <td className="py-2 pr-3 font-mono">
-              {fmtZ(op.zTop)} → {fmtZ(op.zBottom)}
-            </td>
-            <td className="py-2 pr-3 font-mono">{op.depthSteps}</td>
-            <td className="py-2 pr-3 font-mono">{op.feeds.join(' / ')}</td>
-            <td className="py-2 font-mono">{fmtMin(op.timeMin)}</td>
-          </tr>
-        ))}
+        {rows.flatMap((g, i) => {
+          const label =
+            g.count > 1 ? (
+              <button
+                className="inline-flex items-center gap-1 hover:underline"
+                aria-expanded={open.has(g.key)}
+                onClick={() => toggle(g.key)}>
+                <ChevronRight className={cn('size-3.5 transition-transform', open.has(g.key) && 'rotate-90')} />
+                {g.label} <span className="text-muted-foreground">×{g.count}</span>
+              </button>
+            ) : (
+              g.label
+            );
+          return [
+            row(g.op, label, i + 1, g.timeMin, g.key),
+            ...(open.has(g.key)
+              ? g.members.map((m, k) => row(plan.ops[m], `${k + 1} of ${g.count}`, '', plan.ops[m].timeMin, `${g.key}#${m}`, true))
+              : []),
+          ];
+        })}
       </tbody>
     </table>
   );
