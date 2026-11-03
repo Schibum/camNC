@@ -199,6 +199,8 @@ a blocker on the Plan step with fix actions.
 
 Before trusting camNC's programs with good wood. Use the machine queue ("Take the job to the machine") throughout.
 
+The flow up to the machine can be tried first on the branch preview, https://feat-cam-mvp-camnc-preview.plainoss.workers.dev.
+
 **1. Air cut** (kinderregal board A, nothing on the bed):
 
 - [ ] Zero Z 10 mm above the spoilboard (Z0 raised), so every pass runs in the air.
