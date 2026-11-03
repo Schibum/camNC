@@ -23,6 +23,13 @@ export interface InterruptedJob {
 
 export const interruptedJob = signal<InterruptedJob | null>(null);
 
+/**
+ * Name of the toolpath the running camNC job was started from (e.g. "regal Board A side B · ⌀6.gcode"), so the
+ * Running view can show it instead of the SD file name, which is always the same. Null when the running job is not
+ * provably the one camNC started.
+ */
+export const runningJobName = signal<string | null>(null);
+
 /** Forget the interrupted job (the user dismissed it). */
 export function dismissInterruptedJob() {
   const job = interruptedJob.value;
@@ -54,6 +61,7 @@ export function applyRecord(api: CncApi, record: JobRecord, { machineState }: { 
   store.setStockHeight(record.stockHeight);
   store.setToolDiameter(record.toolDiameter);
   if (machineState) {
+    runningJobName.value = record.toolpathName;
     api.jobStartedAt.value = record.startedAt;
     api.homed.value = record.homed;
     api.zZeroedAt.value = record.zZeroedAt;
@@ -127,6 +135,8 @@ export function watchJobRecovery(api: CncApi) {
             toast.success('Restored the running job', { description: 'Its toolpath, placement and progress are shown again.' });
             break;
           case 'ask':
+            // The same SD file and work offset: it is the recorded job, only another toolpath is loaded.
+            runningJobName.value = record.toolpathName;
             toast('A job camNC started is still running', {
               description: 'You have loaded a different toolpath since. Show the running job instead?',
               duration: Infinity,
@@ -134,6 +144,7 @@ export function watchJobRecovery(api: CncApi) {
             });
             break;
           case 'mismatch':
+            runningJobName.value = null;
             toast.info('A job is running from the SD card', {
               description: `${action.reason} Its progress is shown without the toolpath.`,
             });

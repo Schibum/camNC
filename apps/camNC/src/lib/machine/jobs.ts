@@ -3,7 +3,7 @@ import { useStore, getMachineBounds } from '@/store/store';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { useEffect } from 'react';
 import { JobRecord, saveJobRecord } from './jobRecord';
-import { applyRecord, InterruptedJob, interruptedJob, noteJobStopRequested } from './jobRecovery';
+import { applyRecord, InterruptedJob, interruptedJob, noteJobStopRequested, runningJobName } from './jobRecovery';
 import type { Macro } from './macros';
 import { buildResumeProgram, parseProgram, programBounds } from './resume';
 import { checkTravel, getJobChecklist } from './workflow';
@@ -20,6 +20,15 @@ export const kResumeFileName = 'camnc-resume.gcode';
 /** Whether an SD file (`/sd/camnc.gcode`) is one camNC uploaded for the loaded toolpath. */
 export function isCamncJobFile(file: string) {
   return [kJobFileName, kResumeFileName].some(name => file === name || file.endsWith(`/${name}`));
+}
+
+/**
+ * What to call the running job: the name of the toolpath camNC started it from (a CAM program is named after the
+ * job, board, side and step, see CamQueueCard), else the SD file name. Without the `.gcode` extension.
+ */
+export function runningJobTitle(file: string | undefined, toolpathName: string | null) {
+  const name = file && isCamncJobFile(file) && toolpathName ? toolpathName : file?.split('/').pop();
+  return name?.replace(/\.(gcode|nc|ngc|gc|tap)$/i, '');
 }
 
 /** Feed hold first so the position is kept, then reset to flush the planner. */
@@ -80,6 +89,7 @@ export async function uploadAndRun() {
   const { toolpath, toolpathName } = useStore.getState();
   if (!toolpath?.gcode) throw new Error('No toolpath loaded');
   await step(api.uploadGcode(toolpath.gcode, kJobFileName), 'Uploading…', 'Uploaded and verified');
+  runningJobName.value = toolpathName;
   await step(api.runFile(kJobFileName), 'Starting job…', 'Job started');
   recordJob({ gcode: toolpath.gcode, sdFile: kJobFileName, toolpathName });
 }
@@ -115,6 +125,7 @@ export async function runResume(job: InterruptedJob, line: number) {
   // Show what runs now, placed like the original.
   applyRecord(api, { ...job.record, gcode: resume.gcode, toolpathName: name }, { machineState: false });
   await step(api.uploadGcode(resume.gcode, kResumeFileName), 'Uploading…', 'Uploaded and verified');
+  runningJobName.value = name;
   await step(api.runFile(kResumeFileName), 'Starting job…', 'Job resumed: Resume once the bit is clear');
   interruptedJob.value = null;
   recordJob({ gcode: resume.gcode, sdFile: kResumeFileName, toolpathName: name });

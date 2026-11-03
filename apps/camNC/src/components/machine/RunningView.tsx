@@ -1,5 +1,6 @@
 import { getCncApi } from '@/lib/fluidnc/machine';
-import { errorText, isCamncJobFile, stopJob } from '@/lib/machine/jobs';
+import { errorText, isCamncJobFile, runningJobTitle, stopJob } from '@/lib/machine/jobs';
+import { runningJobName } from '@/lib/machine/jobRecovery';
 import { pauseHint } from '@/lib/machine/pauseHints';
 import { useStore } from '@/store/store';
 import { Button } from '@wbcnc/ui/components/button';
@@ -71,7 +72,7 @@ export function RunningView({ onShowConsole }: { onShowConsole?: () => void } = 
   const state = api.state.value;
   const holding = state === 'Hold' || state === 'Door';
   const time = useTimeLeft(job?.percent, api.jobStartedAt.value);
-  const file = job?.file.split('/').pop();
+  const title = runningJobTitle(job?.file, runningJobName.value);
 
   return (
     <div className="flex flex-col gap-5">
@@ -79,7 +80,7 @@ export function RunningView({ onShowConsole }: { onShowConsole?: () => void } = 
       <div className="flex flex-col gap-1.5">
         <div className="flex flex-row justify-between items-baseline gap-2">
           <span className="font-medium truncate" title={job?.file}>
-            {file ?? 'Running'}
+            {title ?? 'Running'}
           </span>
           {job && <span className="text-2xl font-semibold tabular-nums">{job.percent.toFixed(1)}%</span>}
         </div>
