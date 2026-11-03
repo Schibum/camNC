@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { camBoard, type BoardSpec } from './board';
 import { extractFeatures, type PartFeatures } from './features';
 import { readStep } from './fixtures';
-import { dowelSpots, sideBSpec } from './flip';
+import { dowelClearance, dowelOperations, dowelProblem, dowelSpots, sideBSpec } from './flip';
 import { toGcode } from './gcode';
 import { bounds2 } from './geom';
 import { detectFlat, flipPart, loadStep } from './import';
@@ -85,6 +85,66 @@ describe('flip setups', () => {
     expect(cam.operations.slice(0, pins.length)).toEqual(pins);
     expect(Math.min(...pins.flatMap(o => o.passes.flatMap(p => p.pts.map(q => q[2]))))).toBeCloseTo(-6);
     expect(checkGcodeSafety(toGcode(cam), { stockTop: 8, size: [400, 200], minZ: -6, toolRadius: 3.175 / 2 })).toEqual([]);
+  });
+
+  it('pin holes in thick stock step down at the stepdown, into the spoilboard too', () => {
+    const thick = board({ thickness: 18.3, parts: [] });
+    const ops = dowelOperations(
+      thick,
+      { at: [{ x: 10, y: 100 }], diameter: 6, depth: 6 },
+      { tools: [{ number: 1, diameter: 3.175, stepdown: 1.6 }] }
+    );
+    expect(ops).toHaveLength(1);
+    const z = [18.3, ...ops[0].passes.map(p => Math.min(...p.pts.map(q => q[2])))];
+    expect(z.at(-1)).toBeCloseTo(-6);
+    for (let i = 1; i < z.length; i++) expect(z[i - 1] - z[i]).toBeLessThanOrEqual(1.6);
+  });
+
+  it('says so when no bit can cut the pin hole, and gets out of the way when one can', () => {
+    const b = board();
+    for (const diameter of [6, 6.35])
+      expect(dowelProblem(b, 6, { tools: [{ number: 1, diameter }] })).toMatch(
+        new RegExp(`⌀${diameter} bit can’t cut a ⌀6 dowel pin hole`)
+      );
+    expect(dowelProblem(b, 6, { tools: [{ number: 1, diameter: 5.9 }] })).toBeUndefined();
+    expect(dowelProblem(b, 6, { tools: [{ number: 1, diameter: 3.175 }] })).toBeUndefined();
+    // A smaller second bit does the job.
+    expect(
+      dowelProblem(b, 6, {
+        tools: [
+          { number: 1, diameter: 6 },
+          { number: 2, diameter: 2 },
+        ],
+      })
+    ).toBeUndefined();
+  });
+
+  it('keeps the pin holes out of the outlines’ kerf', () => {
+    // A part at x=12 with a 6 mm bit: its kerf reaches down to x=5.9, a pin at (6,6) would run into it.
+    const part = {
+      id: 'p',
+      name: 'p',
+      features: plain(300, 60),
+      size: [300, 60, 8] as [number, number, number],
+      x: 12,
+      y: 70,
+      rotated: false,
+    };
+    const b = board({ parts: [part] });
+    const settings = { tools: [{ number: 1, diameter: 6 }] };
+    const clearance = dowelClearance(settings);
+    expect(clearance).toBeCloseTo(9.1);
+    const spots = dowelSpots(b, 6, clearance)!;
+    const kerf = { x0: 12 - 6.1, y0: 70 - 6.1, x1: 312 + 6.1, y1: 130 + 6.1 };
+    for (const s of spots.flatMap(p => [p, { x: p.x, y: b.h - p.y }])) {
+      const dx = Math.max(kerf.x0 - s.x, 0, s.x - kerf.x1);
+      const dy = Math.max(kerf.y0 - s.y, 0, s.y - kerf.y1);
+      expect(Math.hypot(dx, dy) - 3).toBeGreaterThanOrEqual(0);
+    }
+    // The room at the board's edge doesn't grow with the bit: pins still fit a tight board.
+    expect(Math.min(...spots.map(p => p.x))).toBeLessThan(clearance);
+    // No part: the pins go 3 mm from the edge, as before.
+    expect(Math.min(...dowelSpots(board({ parts: [] }), 6, clearance)!.map(p => p.x))).toBe(6);
   });
 
   describe('after side B, with the board turned over: freeing skin parts and tab removal', () => {

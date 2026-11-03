@@ -607,7 +607,7 @@ export function pocketOperation(
   topZ: number,
   floorZ: number,
   tool: Tool,
-  s: CamSettings,
+  settings: CamSettings,
   solid?: PathsD
 ): Operation {
   const s = cuttingWith(tool, settings);
@@ -853,7 +853,9 @@ export function profileOperation(
   if (!loops) {
     const finalRaw = one(offset(shape, sign * r));
     const roughRaw = one(offset(shape, sign * (r + s.leaveStock)));
-    const rough = roughRaw && rotateToLongestEdge(orient(roughRaw));
+    // A hole hardly wider than the bit has no room for the allowance: rough on the final path.
+    const roughPath = roughRaw ?? finalRaw;
+    const rough = roughPath && rotateToLongestEdge(orient(roughPath));
     loops = rough && finalRaw ? { rough, final: rotateToNearest(orient(finalRaw), rough[0]) } : null;
     if (!loopCache.has(loopShape)) loopCache.set(loopShape, new Map());
     loopCache.get(loopShape)!.set(key, loops);
@@ -865,7 +867,13 @@ export function profileOperation(
   // A bottom skin (outlines only): the final pass stops there, and roughing never goes below it.
   const floorZ = inside ? s.finalZ : (s.outlineFloor ?? s.finalZ);
   const roughBottom = Math.max(s.profileRoughBottom, floorZ);
-  const roughLevels = topZ - roughBottom > 0.01 ? depthLevels(topZ, roughBottom, s.profileStepdown ?? stepdownFor(tool, s)) : [];
+  const profileStep = s.profileStepdown ?? stepdownFor(tool, s);
+  // Normally the final pass takes what's left to just below the board. Far below it (dowel holes, into the spoilboard)
+  // that would be one lap many mm deep in a full-width cut: roughing goes on down, the final pass takes one more step.
+  const deep = floorZ < -kDeepBelowStock;
+  const roughTo = deep ? floorZ : roughBottom;
+  const roughLevels = topZ - roughTo > 0.01 ? depthLevels(topZ, roughTo, profileStep) : [];
+  if (deep) roughLevels.pop();
   roughLevels.forEach((z, i) => {
     const pts = closeLoop(rough, z);
     passes.push({ pts, feeds: pts.map((_, k) => (k === 0 ? s.plungeFeed : s.feed)), link: i === 0 ? 'retract' : 'direct' });

@@ -8,6 +8,8 @@ import {
   extractFeatures,
   flatMatrix,
   groupIdentical,
+  dowelClearance,
+  dowelProblem,
   dowelSpots,
   freePartsProgram,
   kDefaultSkin,
@@ -122,10 +124,11 @@ const api = {
     let problem: string | undefined;
     if (flip?.registration === 'dowels') {
       const diameter = flip.dowelDiameter ?? 6;
-      const at = dowelSpots(spec, diameter, 3);
+      problem = dowelProblem(spec, diameter, settings);
+      const at = problem ? undefined : dowelSpots(spec, diameter, dowelClearance(settings));
       if (at) spec.dowels = { at, diameter, depth: 6 };
       else
-        problem = `No room for two ⌀${diameter} dowel pins clear of the parts: make the board bigger, or re-align with the camera instead.`;
+        problem ??= `No room for two ⌀${diameter} dowel pins clear of the parts: make the board bigger, or re-align with the camera instead.`;
     }
     const cam = camBoard(spec, settings);
     // The second side cuts the undersides: the warning that they need one is answered.

@@ -165,6 +165,15 @@ describe('CAM plan step, the guided programs after the cutting', () => {
     expect(screen.getByText(/Safety checks passed/)).toBeTruthy();
   }, 150_000);
 
+  it('dowel pin holes that can’t be cut block the job', async () => {
+    const problem = 'The ⌀6 bit can’t cut a ⌀6 dowel pin hole';
+    plans.tamper = p => ({ ...(p as PlanResult), flip: { registration: 'dowels', problem } });
+    await open(stepUrl, 'kinderregal-eiche.step', b => b);
+    await opList();
+    expect(screen.getByText(problem)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Take the job to the machine/ })).toHaveProperty('disabled', true);
+  }, 150_000);
+
   it('a guided program that breaks a safety rule blocks the job and flags the Operations tab; warnings get an amber mark', async () => {
     plans.tamper = p => {
       const plan = p as PlanResult;

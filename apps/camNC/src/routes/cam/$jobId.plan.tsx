@@ -111,6 +111,7 @@ function PlanStep() {
     releaseSafety.length === 0 &&
     !empty &&
     !blocked &&
+    !sideA?.flip?.problem &&
     loose(sideA).length === 0 &&
     !unstable(sideA);
   // They come last: on side B, with the board turned over, when there is one.
@@ -124,6 +125,7 @@ function PlanStep() {
         e.plan!.safety.length === 0 &&
         (e.plan!.sideB?.safety.length ?? 0) === 0 &&
         releaseProblems(e.plan).length === 0 &&
+        !e.plan!.flip?.problem &&
         !loose(e.plan).length &&
         !unstable(e.plan)
     );

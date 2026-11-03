@@ -43,7 +43,7 @@ export {
 export type { HoldPoint, HoldKind } from './holdPoints';
 export { planTabs, freePartsProgram, kDefaultSkin } from './tabPlan';
 export type { TabFallback, PartHolding } from './tabPlan';
-export { sideBSpec, dowelSpots, dowelOperations } from './flip';
+export { sideBSpec, dowelClearance, dowelProblem, dowelSpots, dowelOperations } from './flip';
 export type { FlipRegistration, DowelSpec, TurnedOver } from './flip';
 export type { HoldOptions, PartHold, TabHold, HoldEvent } from './hold';
 export {

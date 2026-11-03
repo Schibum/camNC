@@ -398,6 +398,51 @@ describe('tab borders', () => {
   });
 });
 
+describe('profile depth', () => {
+  const circle = (d: number) =>
+    Array.from({ length: 72 }, (_, i) => ({
+      x: 50 + (d / 2) * Math.cos(-(i / 72) * 2 * Math.PI),
+      y: 50 + (d / 2) * Math.sin(-(i / 72) * 2 * Math.PI),
+    }));
+  const pinBoard = (d: number): PartFeatures => ({
+    ...board(),
+    thickness: 18.3,
+    levels: [],
+    pockets: [],
+    outlines: [],
+    throughHoles: [circle(d)],
+  });
+  const levels = (op: { passes: { pts: number[][] }[] }) => op.passes.map(p => Math.min(...p.pts.map(q => q[2])));
+
+  it('a hole far below the board steps down at the stepdown all the way', () => {
+    const [op] = camPart(pinBoard(6), { tools: [{ number: 1, diameter: 3.175, stepdown: 1.6 }], finalZ: -6 }).operations;
+    const z = [18.3, ...levels(op)];
+    expect(z.at(-1)).toBeCloseTo(-6);
+    for (let i = 1; i < z.length; i++) {
+      expect(z[i - 1] - z[i]).toBeGreaterThan(0);
+      expect(z[i - 1] - z[i]).toBeLessThanOrEqual(1.6);
+    }
+    // One pass at full depth, on the final path: what tab removal and freeing look for.
+    expect(z.filter(v => Math.abs(v + 6) < 1e-6)).toHaveLength(1);
+  });
+
+  it('a normal through cut stays as it was: rough to 1 mm, then the final pass', () => {
+    const [op] = camPart(pinBoard(10), { tools: [{ number: 1, diameter: 3.175, stepdown: 1.6 }] }).operations;
+    expect(levels(op).slice(-2)).toEqual([1, -0.3]);
+    expect(
+      levels(camPart(pinBoard(10), { tools: [{ number: 1, diameter: 3.175, stepdown: 1.6 }], finalZ: -1 }).operations[0]).slice(-2)
+    ).toEqual([1, -1]);
+  });
+
+  it('a hole hardly wider than the bit is still cut', () => {
+    for (const d of [5.9, 5.8]) {
+      const [op] = camPart(pinBoard(6), { tools: [{ number: 1, diameter: d }] }).operations;
+      expect(op.passes.length).toBeGreaterThan(1);
+      expect(levels(op).at(-1)).toBeCloseTo(-0.3);
+    }
+  });
+});
+
 describe('per-bit cutting data', () => {
   const main: Tool = { number: 1, diameter: 6, feed: 3000, plungeFeed: 900, rpm: 18000, stepover: 2.4, finalFeedFactor: 0.5 };
   const small: Tool = { number: 2, diameter: 2, feed: 500, plungeFeed: 150, rpm: 24000, stepover: 0.5, finalFeedFactor: 0.8 };
