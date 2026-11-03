@@ -254,7 +254,7 @@ export function BoardDrawings({
                     ? `Board ${board.name}, empty`
                     : `Board ${board.name}, ${fmt(nest.board.w)} by ${fmt(nest.board.h)} mm, with ${nest.placements.length} parts`
                 }
-                className="shrink-0 touch-none"
+                className={cn('shrink-0 touch-none transition-opacity', fetching[i] && plans[i] && 'opacity-70')}
                 dragging={dragging?.from === board.id ? dragging.item : null}
                 preview={
                   target && dragging

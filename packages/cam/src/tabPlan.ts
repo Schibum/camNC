@@ -19,6 +19,8 @@ export interface PartHolding {
   how: 'placed' | TabFallback;
   /** Placed tabs, board coordinates. */
   tabs: P2[];
+  /** Placed: how many it should have had (Min #, or more on long sides), when fewer fit. */
+  wanted?: number;
 }
 
 export const kDefaultSkin = 1;
@@ -73,11 +75,11 @@ export function planTabs(
       .map(c => ({ ...c, out: outward(c, r, ccw) }));
     // Asked only of the spots tried (a part has a thousand), once each.
     const holds = new Map<Spot, boolean>();
-    const picked = pickTabs(spots, s => holds.get(s) ?? holds.set(s, held(s.out.far)).get(s)!, loop, tabs.minCount, room);
+    const { tabs: picked, wanted } = pickTabs(spots, s => holds.get(s) ?? holds.set(s, held(s.out.far)).get(s)!, loop, tabs.minCount, room);
     out.set(
       part.id,
       picked.length >= minTabs
-        ? { id: part.id, name: part.name, how: 'placed', tabs: picked }
+        ? { id: part.id, name: part.name, how: 'placed', tabs: picked, ...(picked.length < wanted && { wanted }) }
         : { id: part.id, name: part.name, how: fallback, tabs: [] }
     );
   }
@@ -107,7 +109,13 @@ function outward(c: { at: P2; dir: P2 }, r: number, ccw: boolean): { far: P2; si
  * each side, each the spot that holds nearest its place. A part held on one side only pivots about it on the last
  * pass: no opposite pair, no tabs (its fallback).
  */
-function pickTabs(spots: Spot[], holds: (s: Spot) => boolean, loop: P2[], minCount: number, minApart: number): P2[] {
+function pickTabs(
+  spots: Spot[],
+  holds: (s: Spot) => boolean,
+  loop: P2[],
+  minCount: number,
+  minApart: number
+): { tabs: P2[]; wanted: number } {
   const xs = loop.map(p => p.x),
     ys = loop.map(p => p.y);
   const w = Math.max(...xs) - Math.min(...xs),
@@ -118,7 +126,7 @@ function pickTabs(spots: Spot[], holds: (s: Spot) => boolean, loop: P2[], minCou
   ];
   pairs.sort((a, b) => b.len - a.len);
   const pair = pairs.find(p => p.sides.every(s => spots.some(c => c.out.side === s && holds(c))));
-  if (!pair) return [];
+  if (!pair) return { tabs: [], wanted: minCount };
   const per = pair.len >= kTwoTabEdge ? 2 : 1;
   const total = Math.max(minCount, 2 * per);
   const key = (p: P2) => p[pair.along];
@@ -138,7 +146,19 @@ function pickTabs(spots: Spot[], holds: (s: Spot) => boolean, loop: P2[], minCou
       if (best) out.push(best.at);
     }
   });
-  return out;
+  // Short of the count (short edges, few spots that hold): more wherever there's room, each as far from the others as
+  // can be (the other two sides too).
+  while (out.length < total) {
+    const apart = (c: Spot) => Math.min(...out.map(q => Math.hypot(c.at.x - q.x, c.at.y - q.y)));
+    const next = spots
+      .map(c => ({ c, d: apart(c) }))
+      .filter(x => x.d >= minApart)
+      .sort((a, b) => b.d - a.d)
+      .find(x => holds(x.c));
+    if (!next) break;
+    out.push(next.c.at);
+  }
+  return { tabs: out, wanted: total };
 }
 
 /** Convex hull, counterclockwise (monotone chain). */

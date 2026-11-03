@@ -44,10 +44,12 @@ function BoardsStep() {
   const save = useSaveCamJob();
   const queryClient = useQueryClient();
   const { instances, boards, changed } = useJobBoards(job, model.data);
+  // While a board is planned again (a part moved, Min # changed), its tabs stay drawn as they were, dimmed.
   const plans = useBoardPlans(
     job,
     boards.map(b => ({ request: b.request, material: b.board.material })),
-    !!model.data
+    !!model.data,
+    { keepShown: true }
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
 

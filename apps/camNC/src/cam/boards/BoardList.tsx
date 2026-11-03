@@ -139,6 +139,7 @@ export function BoardList({
               {kHoldDownLabels[board.holdDown]} · {bits.length || 1} {bits.length > 1 ? 'bits' : 'bit'}
               {nest.unplaced.length > 0 && <span className="text-destructive"> · {nest.unplaced.length} don’t fit</span>}
             </span>
+            {usesTabs(board.holdDown) && <HoldingNotes holding={plans[i]?.holding} board={board} />}
           </section>
         );
       })}
@@ -389,5 +390,30 @@ function StockList({ stock, onChange }: { stock: StockBoardV1[]; onChange: (s: S
         it can and keeps parts you moved by hand where they are.
       </p>
     </section>
+  );
+}
+
+const kFallbackNote: Record<TabFallback, string> = {
+  skin: 'keeps a bottom skin, freed at the machine',
+  tabs: 'gets tabs anyway (they may not hold)',
+  self: 'gets no tabs: hold it down yourself',
+};
+
+/** Per part, where its tabs fell short: fewer than Min # fit, or no two opposite sides hold (its fallback). */
+export function HoldingNotes({ holding, board }: { holding: PlanResult['holding']; board: BoardV1 }) {
+  const notes = (holding ?? []).flatMap(h =>
+    h.how === 'placed'
+      ? h.wanted
+        ? [`${h.name}: ${h.tabs} of ${h.wanted} tabs fit (short edges or little stock that holds around it).`]
+        : []
+      : [`${h.name}: no two opposite edges where tabs hold, so it ${kFallbackNote[h.how]}.`]
+  );
+  if (!notes.length) return null;
+  return (
+    <ul aria-label={`Tabs on board ${board.name}`} className="flex flex-col gap-0.5 text-xs text-amber-700 dark:text-amber-400">
+      {notes.map(n => (
+        <li key={n}>{n}</li>
+      ))}
+    </ul>
   );
 }

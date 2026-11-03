@@ -76,7 +76,8 @@ export interface PlanResult {
    */
   hold?: { part: string; tabs: { at: { x: number; y: number }; anchored: boolean }[]; anchored: number; ok: boolean }[];
   /** With tabs: how each part is held: tabs where they hold, or its fallback (a bottom skin, tabs anyway, by hand). */
-  holding?: { name: string; how: 'placed' | TabFallback }[];
+  /** Per part: tabs placed (`tabs` of them; `wanted` when fewer fit than asked), or its fallback. */
+  holding?: { name: string; how: 'placed' | TabFallback; tabs: number; wanted?: number }[];
   /** Bottom skin thickness, mm, for the parts that have one. */
   skin?: number;
   /** The board's second side, after turning it over top to bottom: the programs for the parts' undersides. */

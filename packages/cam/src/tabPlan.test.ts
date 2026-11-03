@@ -105,6 +105,24 @@ describe('tab placement', () => {
     for (const x of xs) expect(x > 200 && x < 1000).toBe(true);
   });
 
+  it('Min # is a target: short edges take what fits, the other sides the rest; fewer than asked is said, not dropped', () => {
+    const small = rect(0, 0, 30, 20);
+    const f = { ...plain(), footprint: [small], outlines: [small] };
+    const part = { id: 's', name: 's', features: f, size: [30, 20, 8] as [number, number, number], x: 30, y: 30, rotated: false };
+    const at = (minCount: number) => planTabs({ ...roomy([part], 90, 80), tabs: { ...DEFAULT_TABS, minCount } }, {}).get('s')!;
+    const counts = [2, 3, 4, 5, 6, 8].map(n => at(n).tabs.length);
+    // Never fewer for a higher Min #, never none.
+    for (let i = 1; i < counts.length; i++) expect(counts[i]).toBeGreaterThanOrEqual(counts[i - 1]);
+    expect(Math.min(...counts)).toBeGreaterThanOrEqual(2);
+    const many = at(8);
+    expect(many.how).toBe('placed');
+    // Beyond what the long sides take: the ends get some too.
+    expect(many.tabs.some(t => t.x < 30 || t.x > 60)).toBe(true);
+    expect(many.tabs.length).toBeLessThan(8);
+    expect(many.wanted).toBe(8);
+    expect(at(2).wanted).toBeUndefined();
+  });
+
   it('held on one side only is not held: the part gets its fallback', () => {
     // Against the lower left corner (5.2 mm margins hold nothing), free stock only to the right and above.
     const b = roomy([{ id: 'a', name: 'a', features: plain(), size: [200, 100, 8], x: 5.2, y: 5.2, rotated: false }], 400, 300);
