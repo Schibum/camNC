@@ -101,17 +101,22 @@ export const boardBits = (cam: PartCam) =>
 
 /**
  * Board queue that reuses the bit in the collet: start with boards whose first bit is `startBit` (or the smallest),
- * and after each board pick one that starts with the bit the last one ended with. Stable otherwise.
+ * and after each board pick one that starts with the bit the last one ended with -- preferring one that also ends
+ * with it, so the bit stays in for the boards after it too. Stable otherwise.
  */
 export function orderBoardQueue<T extends { bits: number[] }>(boards: T[], startBit?: number): T[] {
   const left = [...boards];
   const out: T[] = [];
   let bit = startBit ?? Math.min(...boards.flatMap(b => b.bits.slice(0, 1)));
   while (left.length) {
-    const i = Math.max(
-      0,
-      left.findIndex(b => b.bits[0] === bit)
-    );
+    const keeps = left.findIndex(b => b.bits[0] === bit && b.bits.at(-1) === bit);
+    const i =
+      keeps >= 0
+        ? keeps
+        : Math.max(
+            0,
+            left.findIndex(b => b.bits[0] === bit)
+          );
     const [next] = left.splice(i, 1);
     out.push(next);
     bit = next.bits.at(-1) ?? bit;
