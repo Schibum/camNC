@@ -172,7 +172,9 @@ function BoardsStep() {
               </span>
             )}
             <span className="grow" />
-            <span>gap {selected.nest.gap} mm = bit + 4</span>
+            <span>
+              edge margin {selected.nest.margin} mm · gap {selected.nest.gap} mm
+            </span>
             <span>{partArea}</span>
           </div>
         </main>

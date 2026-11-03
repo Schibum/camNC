@@ -68,6 +68,8 @@ export interface BoardRequest {
   w: number;
   h: number;
   thickness: number;
+  /** Stock top Z (thickness + allowance, or measured). */
+  stockTop: number;
   holdDown: HoldDown;
   tabs: { width: number; height: number; minCount: number };
   parts: { id: string; partId: string; name: string; x: number; y: number; rotated: boolean }[];

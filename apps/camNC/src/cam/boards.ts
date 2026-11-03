@@ -20,6 +20,12 @@ export interface BoardV1 {
   size: { fit: true } | { fit: false; w: number; h: number };
   holdDown: HoldDown;
   tabs: { width: number; height: number; minCount: number };
+  /** Free border inside the board edge, mm; default bit + 2 (`defaultMargin`). */
+  margin?: number;
+  /** Space between parts, mm; default bit + 4 (`boardGap`). */
+  gap?: number;
+  /** Stock thickness measured at the machine; default the parts' thickness + `kStockAllowance`. */
+  measuredThickness?: number;
   /** Bodies on this board, as instance ids (see `instancesOf`). */
   items: string[];
 }
@@ -40,9 +46,13 @@ export const kHoldDownLabels = {
   clamps: 'Clamps only',
 } as const;
 
-export const kBoardMargin = 20;
+/** Default border inside the board edge: the outline cut (bit) plus 2 mm stays on the board. */
+export const defaultMargin = (bit: number) => +(bit + 2).toFixed(1);
 /** Gap between parts: the bit plus 4 mm, so outline cuts never meet. */
 export const boardGap = (bit: number) => Math.ceil(bit + 4);
+/** Boards are bought a little thicker than the parts: cutting starts at thickness + this unless measured. */
+export const kStockAllowance = 0.3;
+export const stockTopOf = (board: BoardV1) => board.measuredThickness ?? +(board.thickness + kStockAllowance).toFixed(2);
 export const kDefaultTabs = { width: 5, height: 2, minCount: 3 };
 const kClamp = { w: 60, h: 40 };
 
@@ -99,31 +109,62 @@ export function reconcileBoards(boards: BoardV1[] | undefined, instances: PartIn
 
 export interface BoardNest extends NestResult {
   gap: number;
+  margin: number;
   keepOuts: Rect[];
+}
+
+const kMaxElongation = 2.5;
+
+/**
+ * Fit a board to its parts, but not as a strip: the smallest area can be one long row (2.4 m for the kinderregal
+ * sides and shelves). Beyond 2.5:1, nest on a width near the square root of the parts' area instead.
+ */
+function fitCompact(items: { id: string; w: number; h: number }[], gap: number, margin: number): NestResult {
+  const fit = nestRects(items, { gap, margin });
+  const { w, h } = fit.board;
+  if (!items.length || Math.max(w, h) / Math.min(w, h) <= kMaxElongation) return fit;
+  const area = items.reduce((a, i) => a + (i.w + gap) * (i.h + gap), 0);
+  const width = Math.max(...items.map(i => i.w)) + 2 * margin;
+  for (const W of [Math.sqrt(area) * 1.2, Math.sqrt(area) * 1.5, Math.sqrt(area) * 2].map(x =>
+    Math.max(width, Math.ceil(x + 2 * margin))
+  )) {
+    const n = nestRects(items, { gap, margin, board: { w: W, h: 1e6 } });
+    if (n.unplaced.length) continue;
+    const used = n.placements.map(p => {
+      const i = items.find(x => x.id === p.id)!;
+      return { x: p.x + (p.rotated ? i.h : i.w), y: p.y + (p.rotated ? i.w : i.h) };
+    });
+    const board = { w: Math.max(...used.map(u => u.x)) + margin, h: Math.max(...used.map(u => u.y)) + margin };
+    const partArea = items.reduce((a, i) => a + i.w * i.h, 0);
+    if (Math.max(board.w, board.h) / Math.min(board.w, board.h) <= kMaxElongation)
+      return { ...n, board, yield: partArea / (board.w * board.h) };
+  }
+  return fit;
 }
 
 /** Lay out a board's bodies: rectangle nesting, clamp keep-outs for "clamps only". */
 export function nestBoard(board: BoardV1, instances: PartInstance[], bit: number): BoardNest {
   const byId = new Map(instances.map(i => [i.id, i]));
   const items = board.items.flatMap(id => (byId.has(id) ? [{ id, w: byId.get(id)!.size[0], h: byId.get(id)!.size[1] }] : []));
-  const gap = boardGap(bit);
+  const gap = board.gap ?? boardGap(bit);
+  const margin = board.margin ?? defaultMargin(bit);
   const clamps = board.holdDown === 'clamps';
   if (!board.size.fit) {
     const fixed = { w: board.size.w, h: board.size.h };
     const keepOuts = clamps ? clampKeepOuts(fixed, kClamp) : [];
-    return { ...nestRects(items, { gap, margin: kBoardMargin, keepOuts, board: fixed }), gap, keepOuts };
+    return { ...nestRects(items, { gap, margin, keepOuts, board: fixed }), gap, margin, keepOuts };
   }
-  let nest = nestRects(items, { gap, margin: kBoardMargin });
-  if (!clamps) return { ...nest, gap, keepOuts: [] };
+  let nest = fitCompact(items, gap, margin);
+  if (!clamps) return { ...nest, gap, margin, keepOuts: [] };
   // Clamps need free corners: grow the fitted board until the parts fit around them.
   for (let extra = kClamp.h; extra <= 4 * kClamp.h; extra += kClamp.h / 2) {
     const fixed = { w: nest.board.w, h: nest.board.h + extra };
     const keepOuts = clampKeepOuts(fixed, kClamp);
-    const n = nestRects(items, { gap, margin: kBoardMargin, keepOuts, board: fixed });
-    if (!n.unplaced.length) return { ...n, gap, keepOuts };
+    const n = nestRects(items, { gap, margin, keepOuts, board: fixed });
+    if (!n.unplaced.length) return { ...n, gap, margin, keepOuts };
     nest = nest.unplaced.length ? n : nest;
   }
-  return { ...nest, gap, keepOuts: clampKeepOuts(nest.board, kClamp) };
+  return { ...nest, gap, margin, keepOuts: clampKeepOuts(nest.board, kClamp) };
 }
 
 export function boardRequest(board: BoardV1, nest: BoardNest, instances: PartInstance[]): BoardRequest {
@@ -134,6 +175,7 @@ export function boardRequest(board: BoardV1, nest: BoardNest, instances: PartIns
     w: nest.board.w,
     h: nest.board.h,
     thickness: board.thickness,
+    stockTop: stockTopOf(board),
     holdDown: board.holdDown,
     tabs: board.tabs,
     parts: nest.placements.map(p => ({

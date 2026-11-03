@@ -104,8 +104,8 @@ const api = {
       }),
     };
     const cam = camBoard(spec, settings);
-    const size: [number, number, number] = [board.w, board.h, board.thickness];
-    return summarize(cam, toGcode(cam, { partName: `Board ${board.name}`, stockSize: size }), size, settings);
+    const size: [number, number, number] = [board.w, board.h, board.stockTop];
+    return summarize(cam, toGcode(cam, { partName: `Board ${board.name}`, stockSize: size }), size, settings, board.thickness);
   },
 };
 
@@ -133,14 +133,21 @@ const label = (name: string, top: number) => {
 };
 
 /** Per-operation numbers, safety rules and a preview of a generated program. */
-function summarize(cam: PartCam, gcode: string, size: [number, number, number], settings: Partial<CamSettings>): PlanResult {
+/** `partTop`: the parts' top face, which pocket depths are measured from (the stock may be thicker). */
+function summarize(
+  cam: PartCam,
+  gcode: string,
+  size: [number, number, number],
+  settings: Partial<CamSettings>,
+  partTop = cam.stockTop
+): PlanResult {
   const one = (ops: typeof cam.operations) => metrics(readGcode(toGcode({ ...cam, operations: ops })), cam.stockTop);
   const ops: OpSummary[] = cam.operations.map(op => {
     const zs = op.passes.flatMap(p => p.pts.map(q => q[2]));
     const levels = new Set(op.passes.map(p => Math.min(...p.pts.map(q => q[2])).toFixed(2)));
     return {
       name: op.name,
-      label: label(op.name, cam.stockTop),
+      label: label(op.name, partTop),
       kind: op.kind,
       tool: { number: op.tool.number, diameter: op.tool.diameter },
       // Where it starts cutting: a deeper pocket starts at the floor of the one before.
