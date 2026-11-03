@@ -63,18 +63,21 @@ function PlanStep() {
     (n, e, i) => n + Math.max(0, e.bits.length - 1) + (i > 0 && queue[i - 1].bits.at(-1) !== e.bits[0] ? 1 : 0),
     0
   );
-  const fileName = `${job.name} board ${current.board.name}.gcode`;
+  // One program per bit: "<job> board A.gcode", or "<job> board A T1.gcode", "… T2.gcode" with several bits.
+  const programName = (p: PlanResult['programs'][number]) =>
+    `${job.name} board ${current.board.name}${result && result.programs.length > 1 ? ` T${p.tool}` : ''}.gcode`;
 
   const showOnMachine = () => {
     if (!result || !safe) return;
-    loadIntoMachineView(result, fileName);
+    const first = result.programs[0];
+    loadIntoMachineView({ ...result, gcode: first.gcode, bits: [first.diameter] }, programName(first));
     void navigate({ to: '/visualize/2DView' });
   };
-  const download = () => {
-    if (!result || !safe) return;
+  const download = (p: PlanResult['programs'][number]) => {
+    if (!safe) return;
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([result.gcode], { type: 'text/plain' }));
-    a.download = fileName;
+    a.href = URL.createObjectURL(new Blob([p.gcode], { type: 'text/plain' }));
+    a.download = programName(p);
     a.click();
     URL.revokeObjectURL(a.href);
   };
@@ -123,12 +126,19 @@ function PlanStep() {
                 <Button disabled={!safe} onClick={showOnMachine}>
                   <Play /> Show on machine
                 </Button>
-                <Button variant="outline" disabled={!safe} onClick={download}>
-                  <Download /> Download board {current.board.name}
-                </Button>
+                {result.programs.map(p => (
+                  <Button key={p.tool} variant="outline" disabled={!safe} onClick={() => download(p)}>
+                    <Download />{' '}
+                    {result.programs.length > 1
+                      ? `Board ${current.board.name} · T${p.tool} ⌀${p.diameter}`
+                      : `Download board ${current.board.name}`}
+                  </Button>
+                ))}
                 <span className="text-xs text-muted-foreground">
-                  One program per board, Z0 at the bottom of the board, XY zero at its lower left corner.
-                  {result.bits.length > 1 && ' The simulation shows the first bit for the whole program.'}
+                  {result.programs.length > 1
+                    ? 'One program per bit: run them in order, swap the bit and zero Z in between; the board stays put.'
+                    : 'One program per board.'}{' '}
+                  Z0 at the bottom of the board, XY zero at its lower left corner.
                 </span>
               </div>
             </>
@@ -146,7 +156,7 @@ function BitsLine({ plan }: { plan: PlanResult }) {
     <div className="flex flex-wrap items-center gap-2 rounded-lg bg-muted/40 px-3.5 py-2.5 text-[13px]">
       {plan.bits.map((d, i) => (
         <span key={d} className="flex items-center gap-2">
-          {i > 0 && <span className="text-muted-foreground">→ pause: swap bit, re-zero Z →</span>}
+          {i > 0 && <span className="text-muted-foreground">→ next program: swap bit, zero Z →</span>}
           <span className="inline-flex size-7 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
             ⌀
           </span>

@@ -55,8 +55,13 @@ export interface PlanResult {
   /** Broken safety rules (empty when fine): never shown as a downloadable program then. */
   safety: string[];
   ops: OpSummary[];
-  /** Bit diameters in the order the program uses them (one M0 swap between each). */
+  /** Bit diameters in the order the program uses them. */
   bits: number[];
+  /**
+   * What to run: one program per bit (FluidNC can't zero Z during an M0 pause, so bit swaps happen between programs).
+   * A single-bit board has one program, the same as `gcode`.
+   */
+  programs: { tool: number; diameter: number; gcode: string; timeMin: number }[];
   size: [number, number, number];
   path: [number, number, number][][];
 }

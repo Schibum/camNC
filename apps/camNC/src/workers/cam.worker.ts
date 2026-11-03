@@ -13,6 +13,7 @@ import {
   loadStl,
   metrics,
   readGcode,
+  splitByBit,
   summarizePart,
   toGcode,
   type BoardSpec,
@@ -105,7 +106,15 @@ const api = {
     };
     const cam = camBoard(spec, settings);
     const size: [number, number, number] = [board.w, board.h, board.stockTop];
-    return summarize(cam, toGcode(cam, { partName: `Board ${board.name}`, stockSize: size }), size, settings, board.thickness);
+    const result = summarize(cam, toGcode(cam, { partName: `Board ${board.name}`, stockSize: size }), size, settings, board.thickness);
+    const programs = splitByBit(cam);
+    if (programs.length > 1)
+      result.programs = programs.map(p => {
+        const tool = p.operations[0].tool;
+        const gcode = toGcode(p, { partName: `Board ${board.name}, bit T${tool.number} D=${tool.diameter}`, stockSize: size });
+        return { tool: tool.number, diameter: tool.diameter, gcode, timeMin: metrics(readGcode(gcode), cam.stockTop).timeMin };
+      });
+    return result;
   },
 };
 
@@ -172,6 +181,14 @@ function summarize(
     safety,
     ops,
     bits: boardBits(cam),
+    programs: [
+      {
+        tool: cam.operations[0]?.tool.number ?? 1,
+        diameter: cam.operations[0]?.tool.diameter ?? 0,
+        gcode,
+        timeMin: metrics(moves, cam.stockTop).timeMin,
+      },
+    ],
     size,
     // Cutting moves inside the stock, for the preview.
     path: moves.filter(m => !m.rapid && Math.min(m.from[2], m.to[2]) < cam.stockTop - 1e-3).map(m => [m.from, m.to]),

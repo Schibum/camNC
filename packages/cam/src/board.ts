@@ -141,3 +141,18 @@ export function orderBoardQueue<T extends { bits: number[] }>(boards: T[], start
   }
   return out;
 }
+
+/**
+ * One program per bit, in cutting order. FluidNC can't jog, probe or set Z while a program is paused at M0, so a
+ * bit swap with a new Z zero can't happen inside one program: the board stays put, the user swaps the bit, zeroes Z
+ * with the normal flow and starts the next program.
+ */
+export function splitByBit(cam: PartCam): PartCam[] {
+  const out: PartCam[] = [];
+  for (const op of cam.operations) {
+    const last = out.at(-1);
+    if (last && last.operations[0].tool.diameter === op.tool.diameter) last.operations.push(op);
+    else out.push({ stockTop: cam.stockTop, operations: [op], warnings: out.length ? [] : cam.warnings });
+  }
+  return out;
+}

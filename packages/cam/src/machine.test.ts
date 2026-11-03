@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readGcode } from './analyze';
-import { camBoard, type BoardSpec } from './board';
+import { camBoard, splitByBit, type BoardSpec } from './board';
 import type { PartFeatures } from './features';
 import { toGcode } from './gcode';
 import { checkGcodeSafety } from './safety';
@@ -65,6 +65,28 @@ describe('at the machine', () => {
       expect(turned[i][1]).toBeCloseTo(q[0] * Math.sin(a) + q[1] * Math.cos(a), 6);
       expect(turned[i][2]).toBe(q[2]);
     });
+  });
+
+  it('one program per bit, each without a bit-swap pause', () => {
+    const f = features();
+    // A 3.1 mm slot only the 3 mm bit fits; the rest is cut with the 6 mm bit.
+    const slot = rect(60, 80, 240, 83.1);
+    f.pockets.push({ floorZ: 2, region: [slot], strictRegion: [slot], above: [], area: 180 * 3.1 });
+    const cam = camBoard(board({ holdDown: 'fixture-tape', parts: [{ ...board().parts[0], features: f }] }), {
+      tools: [
+        { number: 1, diameter: 6, name: 'flat end mill' },
+        { number: 2, diameter: 3, name: 'flat end mill' },
+      ],
+    });
+    const programs = splitByBit(cam);
+    expect(programs.map(p => p.operations.map(o => o.tool.diameter))).toEqual([[3], [6, 6]]);
+    expect(programs.flatMap(p => p.operations)).toEqual(cam.operations);
+    for (const p of programs) {
+      const gcode = toGcode(p);
+      expect(gcode).not.toContain('Change to');
+      expect(gcode).toContain('M0 (MSG Turn ON spindle 15000RPM)');
+      expect(checkGcodeSafety(gcode, { stockTop: 8, size: [340, 140], minZ: -0.3, toolRadius: 3 })).toEqual([]);
+    }
   });
 
   it('guided tab removal: one pause per tab, then a cut through it at the final depth', () => {
