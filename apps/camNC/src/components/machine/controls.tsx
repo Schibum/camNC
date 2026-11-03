@@ -310,8 +310,14 @@ function OverrideSlider({ kind, label }: { kind: 'feed' | 'spindle'; label: stri
           isDisabled={!api.isConnected.value}
         />
       </div>
-      <Button size="sm" variant="ghost" onClick={() => api.setOverride(kind, 100)} disabled={!api.isConnected.value}>
-        100%
+      {/* The slider label shows the current value; this only resets it. FluidNC clamps feed and spindle overrides to 10-200%. */}
+      <Button
+        size="sm"
+        variant="ghost"
+        title="Reset to 100%"
+        onClick={() => api.setOverride(kind, 100)}
+        disabled={!api.isConnected.value || current === 100}>
+        Reset
       </Button>
     </div>
   );

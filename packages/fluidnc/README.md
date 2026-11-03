@@ -20,7 +20,13 @@ runs in Node for tests.
 ```bash
 pnpm sim         # FluidNC 4.1.1 posix build on 127.0.0.1:8848 with the JP2 LowRider config
 pnpm sim --v3    # plus a 3.9.9 transport proxy: use host 127.0.0.1:8850 in camNC
+pnpm sim --speed 4  # motion runs 4x faster than real time
 ```
+
+FluidNC clamps the feed override to 10–200% at compile time (`FeedOverride::Max` in 4.1.1 and 3.9.9), so
+`--speed` is the way to make simulated jobs finish sooner. It applies `sim/sim-speed.patch`, which scales the
+posix step timer by `FLUIDNC_SIM_SPEED`; a cached build without the patch is rebuilt once. Dwells, spindle
+delays and status reports still run in real time.
 
 The first run clones FluidNC v4.1.1 and builds it with PlatformIO (`pio`) into `~/.cache/camnc`.
 `pnpm sim --docker` builds and runs the linux build in Docker instead.
