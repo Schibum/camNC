@@ -1,0 +1,15 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      // The Fusion comparison parses G-code with the app's parser and checks.
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/apps/camNC/src/visualize/gcodeParsing.ts",
+        "$TURBO_ROOT$/apps/camNC/src/visualize/gcodeChecks.ts",
+        "$TURBO_ROOT$/apps/camNC/src/visualize/guess-tools.tsx"
+      ]
+    }
+  }
+}
