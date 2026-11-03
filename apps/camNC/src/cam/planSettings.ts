@@ -44,7 +44,8 @@ export function jobCutting(p: PlanSettingsV1): Partial<CuttingData> {
 
 /**
  * The CAM settings for one board's material. `saved`: the cutting data saved per bit + material (`useCuttingData`);
- * the main bit's feeds and speed drive the program, each bit steps down by its own data.
+ * each bit cuts by its own. The settings' own feeds and speed are the main bit's: it cuts the outlines, and what follows
+ * them (freeing the parts, removing tabs).
  */
 export function toCamSettings(
   p: PlanSettingsV1,
@@ -61,6 +62,12 @@ export function toCamSettings(
       diameter: b.diameter,
       name: 'flat end mill',
       stepdown: cut[i].stepdown,
+      feed: cut[i].feed,
+      plungeFeed: cut[i].plungeFeed,
+      rpm: cut[i].rpm,
+      stepover: cut[i].stepover,
+      finalFeedFactor: cut[i].finalFeedFactor,
+      fluteLength: b.fluteLength,
     })),
     material: MATERIALS[material],
     feed: main.feed,

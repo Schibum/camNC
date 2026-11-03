@@ -361,6 +361,62 @@ describe('names in comments', () => {
   });
 });
 
+describe('per-bit cutting data', () => {
+  const main: Tool = { number: 1, diameter: 6, feed: 3000, plungeFeed: 900, rpm: 18000, stepover: 2.4, finalFeedFactor: 0.5 };
+  const small: Tool = { number: 2, diameter: 2, feed: 500, plungeFeed: 150, rpm: 24000, stepover: 0.5, finalFeedFactor: 0.8 };
+  /** A pocket only the small bit reaches, next to the board with its pocket for the main one. */
+  function twoBits(): PartFeatures {
+    const f = board();
+    const slot = rect(100, 40, 104, 70);
+    return {
+      ...f,
+      pockets: [...f.pockets, { floorZ: 6, region: [slot], strictRegion: [slot], above: [], area: 120 }],
+      throughHoles: [],
+    };
+  }
+  const allFeeds = (ops: { passes: { feeds: number[] }[] }[]) => new Set(ops.flatMap(o => o.passes.flatMap(p => p.feeds)));
+
+  it('each bit cuts with its own feed, plunge feed, stepover, and its program starts the spindle at its speed', () => {
+    const cam = camPart(twoBits(), { tools: [main, small], feed: main.feed, plungeFeed: main.plungeFeed, spindleRpm: main.rpm });
+    const [ofSmall, ofMain] = [cam.operations.filter(o => o.tool === small), cam.operations.filter(o => o.tool === main)];
+    expect(ofSmall.length).toBeGreaterThan(0);
+    expect(ofMain.length).toBeGreaterThan(0);
+    expect(allFeeds(ofSmall)).toEqual(new Set([500, 150]));
+    expect([...allFeeds(ofMain)].every(f => f === 3000 || f === 900 || f === 1500)).toBe(true);
+    const programs = splitByBit(cam).map(p => toGcode(p, { spindleRpm: main.rpm }));
+    expect(programs).toHaveLength(2);
+    expect(programs[0]).toMatch(/^M3 S24000$/m);
+    expect(programs[0]).toContain('Spindle starts at 24000 RPM');
+    expect(programs[0]).not.toMatch(/F3000|S18000/);
+    expect(programs[1]).toMatch(/^M3 S18000$/m);
+    expect(programs[1]).not.toMatch(/F500\b|S24000/);
+  });
+
+  it('uses the bit’s own stepover and final feed factor', () => {
+    const rings = (tool: Tool) => camPart(board(), { tools: [{ ...tool, diameter: 3 }] }).operations[0].passes.length;
+    expect(rings({ number: 1, diameter: 3, stepover: 0.6 })).toBeGreaterThan(rings({ number: 1, diameter: 3, stepover: 2 }));
+    const outline = camPart(board(), { tools: [small] }).operations.at(-1)!;
+    expect(outline.passes.at(-1)!.feeds[1]).toBeCloseTo(400);
+  });
+
+  it('a job with one bit comes out identical, the data on the bit or in the settings', () => {
+    const data = { feed: 2400, plungeFeed: 360, stepoverFactor: 0.4, finalFeedFactor: 0.5 };
+    const before = toGcode(camPart(board(), { tools: [{ number: 1, diameter: 3.175 }], ...data, tabs: DEFAULT_TABS }), {
+      spindleRpm: 18000,
+    });
+    const onTool: Tool = {
+      number: 1,
+      diameter: 3.175,
+      feed: 2400,
+      plungeFeed: 360,
+      rpm: 18000,
+      stepover: 0.4 * 3.175,
+      finalFeedFactor: 0.5,
+    };
+    expect(toGcode(camPart(board(), { tools: [onTool], ...data, tabs: DEFAULT_TABS }), { spindleRpm: 18000 })).toBe(before);
+  });
+});
+
 describe('pocket wall pass', () => {
   /** Closed pocket 9 x 21 like the kinderregal mortises, 4.2 deep in an 8 mm board. */
   function mortiseBoard(): PartFeatures {

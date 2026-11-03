@@ -9,6 +9,16 @@ export interface Tool {
   name?: string;
   /** Depth per pass with this bit (its cutting data); default: the material's share of the diameter. */
   stepdown?: number;
+  /** The rest of this bit's cutting data; default: the job's (`CamSettings`). */
+  feed?: number;
+  plungeFeed?: number;
+  /** Spindle speed of the program this bit cuts (M3 S). */
+  rpm?: number;
+  /** Sideways step between pocket rings, mm. */
+  stepover?: number;
+  finalFeedFactor?: number;
+  /** Length of cut, mm: deeper cuts get a warning. */
+  fluteLength?: number;
 }
 
 export { MATERIALS, DEFAULT_TABS, type Material, type TabSettings } from './settings';
@@ -21,7 +31,7 @@ export interface CamSettings {
   feed: number;
   plungeFeed: number;
   stepoverFactor: number;
-  /** Spindle speed the program starts the spindle at (M3 S). */
+  /** Spindle speed the program starts the spindle at (M3 S), for a bit without its own. */
   spindleRpm?: number;
   /** Max stepdown in mm for pockets and outline roughing; default: the material's factor × the bit diameter. */
   maxStepdown?: number;
@@ -389,6 +399,17 @@ function depthLevels(top: number, bottom: number, maxStep: number): number[] {
 
 // ---- operations ----
 
+/** The settings a bit cuts with: its own cutting data over the job's. */
+function cuttingWith(tool: Tool, s: CamSettings): CamSettings {
+  return {
+    ...s,
+    feed: tool.feed ?? s.feed,
+    plungeFeed: tool.plungeFeed ?? s.plungeFeed,
+    stepoverFactor: tool.stepover ? tool.stepover / tool.diameter : s.stepoverFactor,
+    finalFeedFactor: tool.finalFeedFactor ?? s.finalFeedFactor,
+  };
+}
+
 /** Wall allowance of pockets open to the edge when none is set: a light full-depth pass finishes their walls. */
 const kOpenWallAllowance = 0.2;
 
@@ -589,6 +610,7 @@ export function pocketOperation(
   s: CamSettings,
   solid?: PathsD
 ): Operation {
+  const s = cuttingWith(tool, settings);
   const r = tool.diameter / 2;
   const stepover = s.stepoverFactor * tool.diameter;
   const stepdown = stepdownFor(tool, s);
@@ -797,7 +819,18 @@ export function placeTabs(loop: Loop, tabs: TabSettings, tool: Tool): { x: numbe
 /** profileOperation's bit loops per shape (and bit radius, allowance, direction). */
 const loopCache = new WeakMap<PathD, Map<string, { rough: Loop; final: Loop } | null>>();
 
-export function profileOperation(name: string, loopShape: PathD, topZ: number, tool: Tool, s: CamSettings, inside = false): Operation {
+/** A final pass this far or more below the stock bottom (dowel holes) is too deep to take in one go. */
+const kDeepBelowStock = 1;
+
+export function profileOperation(
+  name: string,
+  loopShape: PathD,
+  topZ: number,
+  tool: Tool,
+  settings: CamSettings,
+  inside = false
+): Operation {
+  const s = cuttingWith(tool, settings);
   const r = tool.diameter / 2;
   const sign = inside ? -1 : 1;
   const shape = [inside ? [...loopShape].reverse() : loopShape];

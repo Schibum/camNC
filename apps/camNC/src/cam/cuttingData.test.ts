@@ -1,3 +1,4 @@
+import { camPart, splitByBit, toGcode, type PartFeatures } from '@wbcnc/cam';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cuttingKey, defaultCutting, resolveCutting, useCuttingData } from './cuttingData';
 import { kDefaultPlan, toCamSettings } from './planSettings';
@@ -5,6 +6,27 @@ import { kDefaultPlan, toCamSettings } from './planSettings';
 const bit = { number: 1, diameter: 3.175, name: '1/8 mill v1', feed: 2400, plungeFeed: 360, rpm: 18000, stepover: 1.27 };
 
 afterEach(() => useCuttingData.setState({ saved: {} }));
+
+const rect = (x0: number, y0: number, x1: number, y1: number) => [
+  { x: x0, y: y0 },
+  { x: x1, y: y0 },
+  { x: x1, y: y1 },
+  { x: x0, y: y1 },
+];
+const part = (): PartFeatures => {
+  const outline = rect(0, 0, 200, 100);
+  const pocket = rect(30, 40, 70, 60);
+  return {
+    thickness: 8,
+    footprint: [outline],
+    outlines: [outline],
+    throughHoles: [],
+    levels: [],
+    pockets: [{ floorZ: 4, region: [pocket], strictRegion: [pocket], above: [], area: 800 }],
+    bottomFaces: [],
+    slopedArea: 0,
+  };
+};
 
 describe('cutting data', () => {
   it('takes each value from this job, else saved for the bit + material, else the library, else the default', () => {
@@ -50,6 +72,43 @@ describe('cutting data', () => {
       [3.175, 1.4],
       [1.5, 0.5],
     ]);
+  });
+
+  it('gives each bit its own cutting data, by the same lookup: the small bit’s saved feed is not ignored', () => {
+    const big = { number: 1, diameter: 6, name: '6 mm', feed: 3000, plungeFeed: 900, rpm: 18000 };
+    const small = { number: 2, diameter: 2, name: '2 mm', feed: 600, plungeFeed: 150, rpm: 24000, fluteLength: 8 };
+    const plan = { ...kDefaultPlan, bit: big, smallBit: small };
+    const s = toCamSettings(plan, 'oak', { [cuttingKey(small, 'oak')]: { feed: 500 } });
+    expect(s.tools![0]).toMatchObject({ diameter: 6, feed: 3000, plungeFeed: 900, rpm: 18000, stepover: 2.4, finalFeedFactor: 0.5 });
+    expect(s.tools![1]).toMatchObject({
+      diameter: 2,
+      feed: 500,
+      plungeFeed: 150,
+      rpm: 24000,
+      stepover: 0.8,
+      finalFeedFactor: 0.5,
+      fluteLength: 8,
+    });
+    // This job's overrides are the main bit's only.
+    expect(toCamSettings({ ...plan, cutting: { feed: 2500 } }, 'oak').tools!.map(t => t.feed)).toEqual([2500, 600]);
+
+    // ...and they reach the small bit's program.
+    const slot = rect(100, 40, 104, 70);
+    const f: PartFeatures = { ...part(), pockets: [{ floorZ: 6, region: [slot], strictRegion: [slot], above: [], area: 120 }] };
+    const programs = splitByBit(camPart(f, s)).map(p => toGcode(p, { spindleRpm: s.spindleRpm }));
+    expect(programs).toHaveLength(2);
+    expect(programs[0]).toMatch(/^M3 S24000$/m);
+    expect(programs[0]).toMatch(/F500\b/);
+    expect(programs[0]).toMatch(/F150\b/);
+    expect(programs[0]).not.toMatch(/F3000|F900\b|S18000/);
+    expect(programs[1]).toMatch(/^M3 S18000$/m);
+    expect(programs[1]).toMatch(/F3000\b/);
+  });
+
+  it('a job with one bit makes the same G-code as with one set of feeds', () => {
+    const s = toCamSettings({ ...kDefaultPlan, bit, cutting: { feed: 2100 } }, 'oak');
+    const plain = { ...s, tools: s.tools!.map(t => ({ number: t.number, diameter: t.diameter, name: t.name, stepdown: t.stepdown })) };
+    expect(toGcode(camPart(part(), s), { spindleRpm: s.spindleRpm })).toBe(toGcode(camPart(part(), plain), { spindleRpm: s.spindleRpm }));
   });
 
   it('turns the wall finish on for pockets when set (off by default)', () => {

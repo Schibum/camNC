@@ -71,6 +71,7 @@ export interface GcodeOptions {
   /** The board's name ("A"): the header then says XY0 is that board's lower left corner. */
   board?: string;
   stockSize?: Vec3;
+  /** For a bit without its own speed (`Tool.rpm`). */
   spindleRpm?: number;
   /** Seconds to wait after M3 for the spindle to reach speed. */
   spindleDwell?: number;
@@ -121,7 +122,7 @@ const toolLine = (t: Tool, zMin: number) =>
 export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
   const diameters = new Set(cam.operations.map(o => o.tool.diameter));
   if (diameters.size > 1) throw new Error(`One program per bit: split the ${diameters.size} bits with splitByBit first`);
-  const rpm = opts.spindleRpm ?? 15000;
+  const rpm = cam.operations[0]?.tool.rpm ?? opts.spindleRpm ?? 15000;
   const safeZ = opts.safeZ ?? cam.stockTop + 5;
   const retractZ = opts.retractZ ?? cam.stockTop + 2;
   const approachZ = cam.stockTop + 1;
