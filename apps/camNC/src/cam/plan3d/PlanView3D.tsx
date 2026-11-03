@@ -1,0 +1,328 @@
+import { Canvas } from '@react-three/fiber';
+import { cn } from '@wbcnc/ui/lib/utils';
+import { Focus } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Vector3 } from 'three';
+import { playheadAt, type Playhead } from '@/visualize/stockSim/jobTimeline';
+import type { ToolShape } from '@/visualize/stockSim/toolShapes';
+import type { BoardRequest, CamPartInfo, PlanResult } from '../camTypes';
+import { PartGhost, StockBox } from './BoardGhosts';
+import { CameraRig } from './CameraRig';
+import { OpList } from './OpList';
+import { kViewBackground } from './palette';
+import { boardBox, buildPlanModel, cutBounds, groupOpsOf, type PlanModel } from './planModel';
+import { usePlan3dView } from './plan3dViewStore';
+import { PlanTimeline } from './PlanTimeline';
+import { SimLines, SimStock } from './SimStock';
+import { ToolpathLayers } from './ToolpathLayers';
+
+/** See-through stock opacity: cuts and toolpaths show through, the board's shape still reads. */
+const kSeeThroughOpacity = 0.3;
+/** Zoom to an op: at least this much board (mm) on the short side of the view, so a small hole keeps its context. */
+const kOpMinSpan = 16;
+
+/**
+ * The board's program in 3D. Result: the simulated board up to the playhead, with the timeline. Toolpath: every op's
+ * moves at their real depth. One op list for both; selecting an op frames it.
+ */
+export function PlanView3D({
+  plan,
+  board,
+  parts,
+  className,
+}: {
+  plan: PlanResult;
+  board: BoardRequest;
+  parts: CamPartInfo[];
+  className?: string;
+}) {
+  const model = useMemo(() => buildPlanModel(plan), [plan]);
+  const { mode, seeThrough, view, projection, showRapids, setMode, setSeeThrough, setView, setProjection, setShowRapids } = usePlan3dView();
+
+  // Per program: the playhead starts at the end (the finished board), nothing selected or hidden.
+  const [ui, setUi] = useState(() => ({ model, time: model.total, selected: null as number | null, hidden: new Set<number>() }));
+  const current = ui.model === model ? ui : { model, time: model.total, selected: null, hidden: new Set<number>() };
+  const { time, selected, hidden } = current;
+  const update = (patch: Partial<typeof current>) => setUi({ ...current, ...patch });
+  const setTime = (t: number) => update({ time: t });
+  const [playing, setPlaying] = useState(false);
+  const [speed, setSpeed] = useState(20);
+  const [fitCount, setFitCount] = useState(0);
+
+  useEffect(() => {
+    if (!playing) return;
+    let last = performance.now();
+    let raf = requestAnimationFrame(function tick(now) {
+      const dt = (now - last) / 1000;
+      last = now;
+      setUi(s => {
+        if (s.model !== model) return s;
+        const next = Math.min(s.time + dt * speed, model.total);
+        if (next >= model.total) setPlaying(false);
+        return { ...s, time: next };
+      });
+      raf = requestAnimationFrame(tick);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [playing, speed, model]);
+
+  const selectedOps = useMemo(() => (selected === null ? [] : groupOpsOf(model, selected)), [model, selected]);
+  const bitRadius = (selected !== null ? model.groups[selected].op.tool.diameter : (plan.bits[0] ?? 3)) / 2;
+  const frameBox = useMemo(
+    () => (selectedOps.length && cutBounds(model.toolpath, selectedOps, bitRadius, plan.size[2])) || boardBox(plan),
+    [model, selectedOps, bitRadius, plan]
+  );
+  const frameKey = `${board.id}:${plan.size.join('x')}:${selected ?? 'board'}:${fitCount}`;
+
+  const label = selected !== null ? model.groups[selected].label : null;
+  const hint =
+    mode === 'result'
+      ? label
+        ? `${label}: solid where it has cut, a tint where it still cuts`
+        : 'Select an operation to see what it removes'
+      : label
+        ? `${label} on its own`
+        : 'Click an operation to isolate it';
+
+  return (
+    <section
+      aria-label={`3D view of board ${board.name}`}
+      data-mode={mode}
+      className={cn('flex h-[540px] overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800', className)}>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="relative min-h-0 flex-1" style={{ background: kViewBackground }}>
+          <Canvas dpr={[1, 2]} className="absolute! inset-0">
+            <color attach="background" args={[kViewBackground]} />
+            <Scene model={model} plan={plan} board={board} parts={parts} time={mode === 'result' ? time : model.total} ui={current} />
+            <CameraRig
+              box={frameBox}
+              frameKey={frameKey}
+              view={view}
+              projection={projection[view]}
+              margin={selected !== null ? 1.6 : 1.12}
+              minSpan={selected !== null ? kOpMinSpan : 0}
+            />
+          </Canvas>
+          <div className="absolute top-2.5 left-2.5 flex flex-wrap gap-1.5">
+            <Segmented
+              label="Show"
+              value={mode}
+              onChange={setMode}
+              options={[
+                ['result', 'Result'],
+                ['toolpath', 'Toolpath'],
+              ]}
+            />
+            <Segmented
+              label="View"
+              value={view}
+              onChange={setView}
+              options={[
+                ['3d', '3D'],
+                ['top', 'Top'],
+              ]}
+            />
+            <Segmented
+              label="Projection"
+              value={projection[view]}
+              onChange={setProjection}
+              options={[
+                ['perspective', 'Perspective'],
+                ['orthographic', 'Orthographic'],
+              ]}
+            />
+            <Toggle pressed={seeThrough} onChange={setSeeThrough}>
+              See through
+            </Toggle>
+            {mode === 'toolpath' && (
+              <Toggle pressed={showRapids} onChange={setShowRapids}>
+                Rapids
+              </Toggle>
+            )}
+            <button
+              className={cn(kChip, 'px-2')}
+              aria-label={selected !== null ? 'Zoom to the operation' : 'Show the whole board'}
+              title={selected !== null ? 'Zoom to the operation' : 'Show the whole board'}
+              onClick={() => setFitCount(c => c + 1)}>
+              <Focus className="size-3.5" />
+            </button>
+          </div>
+          <div className="pointer-events-none absolute right-2.5 bottom-2.5 max-w-[60%] rounded-md bg-black/50 px-2.5 py-1 text-xs text-zinc-200">
+            {hint}
+          </div>
+        </div>
+        {mode === 'result' && (
+          <PlanTimeline
+            model={model}
+            time={time}
+            onTime={t => {
+              setPlaying(false);
+              setTime(t);
+            }}
+            playing={playing}
+            onPlaying={p => {
+              if (p && time >= model.total) setTime(0);
+              setPlaying(p);
+            }}
+            speed={speed}
+            onSpeed={setSpeed}
+            selected={selected}
+            onSelect={g => update({ selected: g === selected ? null : g })}
+          />
+        )}
+      </div>
+      <OpList
+        model={model}
+        mode={mode}
+        time={mode === 'result' ? time : model.total}
+        selected={selected}
+        onSelect={g => update({ selected: g })}
+        hidden={hidden}
+        onToggleHidden={g => update({ hidden: new Set(hidden.has(g) ? [...hidden].filter(h => h !== g) : [...hidden, g]) })}
+        onTime={t => {
+          setPlaying(false);
+          setTime(t);
+        }}
+      />
+    </section>
+  );
+}
+
+function Scene({
+  model,
+  plan,
+  board,
+  parts,
+  time,
+  ui,
+}: {
+  model: PlanModel;
+  plan: PlanResult;
+  board: BoardRequest;
+  parts: CamPartInfo[];
+  time: number;
+  ui: { selected: number | null; hidden: ReadonlySet<number> };
+}) {
+  const { mode, seeThrough, showRapids } = usePlan3dView();
+  const { selected, hidden } = ui;
+  const playhead = playheadAt(model.times, time);
+  const selectedOps = useMemo(() => (selected === null ? [] : groupOpsOf(model, selected)), [model, selected]);
+  const highlight = selected !== null ? model.groups[selected].color : '#ffffff';
+  const toolShape = useCallback(
+    (tool: number | undefined): ToolShape => {
+      const d = plan.programs.find(p => p.tool === tool)?.diameter ?? plan.bits[0] ?? 3;
+      return { kind: 'flat', radius: d / 2 };
+    },
+    [plan]
+  );
+  const [w, h, top] = plan.size;
+  const groupOps = useMemo(() => model.groups.map((_, n) => groupOpsOf(model, n)), [model]);
+
+  return (
+    <>
+      <ambientLight intensity={0.9} />
+      <directionalLight position={[w * 0.3, -h, Math.max(w, h)]} intensity={1.4} />
+      {mode === 'toolpath' && seeThrough ? (
+        <StockBox size={plan.size} />
+      ) : (
+        <SimStock
+          toolpath={model.toolpath}
+          size={plan.size}
+          toolShape={toolShape}
+          playhead={playhead}
+          selected={selectedOps}
+          highlight={highlight}
+          opacity={seeThrough ? kSeeThroughOpacity : 1}
+        />
+      )}
+      {seeThrough && <PartGhost board={board} parts={parts} />}
+      {mode === 'toolpath' ? (
+        <ToolpathLayers model={model} hidden={hidden} isolated={selected} showRapids={showRapids} onTop={seeThrough} />
+      ) : selected !== null ? (
+        <SimLines
+          toolpath={model.toolpath}
+          ops={selectedOps}
+          playhead={playhead}
+          color={highlight}
+          opacity={1}
+          doneOpacity={0.7}
+          onTop={seeThrough}
+        />
+      ) : seeThrough ? (
+        model.groups.map((g, n) => (
+          <SimLines key={g.key} toolpath={model.toolpath} ops={groupOps[n]} playhead={playhead} color={g.color} opacity={0.8} onTop />
+        ))
+      ) : (
+        time < model.total && (
+          <SimLines
+            toolpath={model.toolpath}
+            ops={model.ops}
+            playhead={playhead}
+            color="#f4f4f5"
+            opacity={0.45}
+            doneOpacity={0}
+            onTop={false}
+          />
+        )
+      )}
+      {mode === 'result' && time < model.total && (
+        <ToolMarker model={model} playhead={playhead} radius={toolShape(model.toolpath.modals[playhead.index]?.tool).radius} top={top} />
+      )}
+    </>
+  );
+}
+
+/** The bit at the playhead: a faint cylinder standing on the cut. */
+function ToolMarker({ model, playhead, radius, top }: { model: PlanModel; playhead: Playhead; radius: number; top: number }) {
+  const points = model.toolpath.pathPoints;
+  const b = points[Math.min(playhead.index, points.length - 1)];
+  const a = points[Math.max(playhead.index - 1, 0)];
+  const p = new Vector3().lerpVectors(a, b, playhead.fraction);
+  const length = Math.max(top - p.z, 0) + 20;
+  return (
+    <mesh position={[p.x, p.y, p.z + length / 2]} rotation={[Math.PI / 2, 0, 0]} renderOrder={4}>
+      <cylinderGeometry args={[radius, radius, length, 24]} />
+      <meshBasicMaterial color="#f4f4f5" transparent opacity={0.55} depthTest={false} />
+    </mesh>
+  );
+}
+
+const kChip =
+  'inline-flex h-7 items-center rounded-md border border-white/15 bg-zinc-950/70 text-xs text-zinc-300 backdrop-blur hover:text-white';
+
+function Segmented<T extends string>({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: T;
+  onChange: (v: T) => void;
+  options: [T, string][];
+}) {
+  return (
+    <div role="group" aria-label={label} className={cn(kChip, 'overflow-hidden p-0.5')}>
+      {options.map(([v, text]) => (
+        <button
+          key={v}
+          aria-pressed={v === value}
+          onClick={() => onChange(v)}
+          className={cn('h-full rounded px-2.5', v === value ? 'bg-white text-zinc-900' : 'hover:bg-white/10')}>
+          {text}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Toggle({ pressed, onChange, children }: { pressed: boolean; onChange: (p: boolean) => void; children: React.ReactNode }) {
+  return (
+    <button
+      aria-pressed={pressed}
+      onClick={() => onChange(!pressed)}
+      className={cn(kChip, 'px-2.5', pressed && 'bg-white text-zinc-900 hover:text-zinc-900')}>
+      {children}
+    </button>
+  );
+}

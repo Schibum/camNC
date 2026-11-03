@@ -11,7 +11,7 @@ import { CuttingDataEditor } from '@/cam/plan/CuttingDataEditor';
 import { cuttingKey, kCuttingLabels, kSourceLabels, resolveCutting, useCuttingData, type CuttingField } from '@/cam/cuttingData';
 import { Popover, PopoverContent, PopoverTrigger } from '@wbcnc/ui/components/popover';
 import type { ComponentProps } from 'react';
-import { ToolpathPreview } from '@/cam/plan/ToolpathPreview';
+import { PlanView3D } from '@/cam/plan3d/PlanView3D';
 import { jobCutting, kDefaultPlan } from '@/cam/planSettings';
 import { loadIntoMachineView } from '@/cam/showOnMachine';
 import { useCamMachine } from '@/cam/machine/camMachine';
@@ -183,9 +183,12 @@ function PlanStep() {
               ) : (
                 <>
                   <BitsLine plan={result} />
-                  <div className={cn('relative rounded-lg bg-muted/30 p-3 transition-opacity', current.fetching && 'opacity-60')}>
-                    <ToolpathPreview plan={result} className="mx-auto block max-h-[320px] w-full" />
-                  </div>
+                  <PlanView3D
+                    plan={result}
+                    board={current.request}
+                    parts={model.data.parts}
+                    className={cn('shrink-0 transition-opacity', current.fetching && 'opacity-60')}
+                  />
                   <OperationsTable
                     name={`board ${current.board.name}`}
                     plan={result}

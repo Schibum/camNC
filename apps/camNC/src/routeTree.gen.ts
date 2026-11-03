@@ -31,7 +31,6 @@ import { Route as SettingsBackupRouteImport } from './routes/settings/backup'
 import { Route as DebugUnprojectRouteImport } from './routes/debug/unproject'
 import { Route as DebugUndistort2RouteImport } from './routes/debug/undistort2'
 import { Route as DebugRawWebgpuRouteImport } from './routes/debug/raw-webgpu'
-import { Route as CamPoc3dRouteImport } from './routes/cam/poc-3d'
 import { Route as SetupCamerasIndexRouteImport } from './routes/setup/cameras.index'
 import { Route as SetupCamerasCamIdRouteImport } from './routes/setup/cameras.$camId'
 import { Route as CamJobIdPlanRouteImport } from './routes/cam/$jobId.plan'
@@ -149,11 +148,6 @@ const DebugRawWebgpuRoute = DebugRawWebgpuRouteImport.update({
   path: '/debug/raw-webgpu',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CamPoc3dRoute = CamPoc3dRouteImport.update({
-  id: '/cam/poc-3d',
-  path: '/cam/poc-3d',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const SetupCamerasIndexRoute = SetupCamerasIndexRouteImport.update({
   id: '/setup/cameras/',
   path: '/setup/cameras/',
@@ -184,7 +178,6 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/demo': typeof DemoRoute
   '/start': typeof StartRoute
-  '/cam/poc-3d': typeof CamPoc3dRoute
   '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
@@ -214,7 +207,6 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/demo': typeof DemoRoute
   '/start': typeof StartRoute
-  '/cam/poc-3d': typeof CamPoc3dRoute
   '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
@@ -245,7 +237,6 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/demo': typeof DemoRoute
   '/start': typeof StartRoute
-  '/cam/poc-3d': typeof CamPoc3dRoute
   '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
@@ -277,7 +268,6 @@ export interface FileRouteTypes {
     | '/'
     | '/demo'
     | '/start'
-    | '/cam/poc-3d'
     | '/debug/raw-webgpu'
     | '/debug/undistort2'
     | '/debug/unproject'
@@ -307,7 +297,6 @@ export interface FileRouteTypes {
     | '/'
     | '/demo'
     | '/start'
-    | '/cam/poc-3d'
     | '/debug/raw-webgpu'
     | '/debug/undistort2'
     | '/debug/unproject'
@@ -337,7 +326,6 @@ export interface FileRouteTypes {
     | '/'
     | '/demo'
     | '/start'
-    | '/cam/poc-3d'
     | '/debug/raw-webgpu'
     | '/debug/undistort2'
     | '/debug/unproject'
@@ -368,7 +356,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DemoRoute: typeof DemoRoute
   StartRoute: typeof StartRoute
-  CamPoc3dRoute: typeof CamPoc3dRoute
   DebugRawWebgpuRoute: typeof DebugRawWebgpuRoute
   DebugUndistort2Route: typeof DebugUndistort2Route
   DebugUnprojectRoute: typeof DebugUnprojectRoute
@@ -551,13 +538,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DebugRawWebgpuRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/cam/poc-3d': {
-      id: '/cam/poc-3d'
-      path: '/cam/poc-3d'
-      fullPath: '/cam/poc-3d'
-      preLoaderRoute: typeof CamPoc3dRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/setup/cameras/': {
       id: '/setup/cameras/'
       path: '/setup/cameras'
@@ -600,7 +580,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DemoRoute: DemoRoute,
   StartRoute: StartRoute,
-  CamPoc3dRoute: CamPoc3dRoute,
   DebugRawWebgpuRoute: DebugRawWebgpuRoute,
   DebugUndistort2Route: DebugUndistort2Route,
   DebugUnprojectRoute: DebugUnprojectRoute,
