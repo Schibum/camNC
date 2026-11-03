@@ -4,6 +4,7 @@ import {
   camPart,
   DEFAULT_TABS,
   checkGcodeSafety,
+  checkProgramSafety,
   detectFlat,
   extractFeatures,
   flatMatrix,
@@ -134,16 +135,18 @@ const api = {
     // The second side cuts the undersides: the warning that they need one is answered.
     if (flip) cam.warnings = cam.warnings.filter(w => !w.includes('flipped'));
     const size: [number, number, number] = [board.w, board.h, board.stockTop];
-    let plan = summarize(cam, `Board ${board.name}`, size, settings, board.thickness, board.name);
+    let plan = summarize(cam, `Board ${board.name}`, size, settings, board.thickness, board.name, sideRotation(board, false));
     if (flip) {
       const b = camBoard(
-        sideBSpec(spec, p => flippedFeatures(key, p.id, board, p.rotated)),
+        sideBSpec({ ...spec, rotationDeg: sideRotation(board, true) }, p => flippedFeatures(key, p.id, board, p.rotated)),
         { ...settings, cutThrough: false }
       );
       plan = {
         ...plan,
         flip: { registration: flip.registration, dowels: spec.dowels?.at, dowelDiameter: spec.dowels?.diameter, problem },
-        ...(b.operations.length && { sideB: summarize(b, `Board ${board.name} side B`, size, settings, board.stockTop, board.name) }),
+        ...(b.operations.length && {
+          sideB: summarize(b, `Board ${board.name} side B`, size, settings, board.stockTop, board.name, sideRotation(board, true)),
+        }),
       };
     }
     // The hold check runs on the board as laid out, before it's turned to lie like the stock on the bed.
@@ -223,10 +226,12 @@ function releasePrograms(flat: PartCam, board: BoardRequest, settings: Partial<C
   ) => {
     if (!cam.operations.length) return;
     const count = cam.operations.filter(o => o.pauseAfter || o.pauseBefore).length;
-    const made = releaseProgram(kind, title, note(count), count, cam, board, settings, turned ? flat.stockTop - layer + finalZ : finalZ);
+    const minZ = turned ? flat.stockTop - layer + finalZ : finalZ;
+    const made = releaseProgram(kind, title, note(count), count, cam, board, settings, minZ, rotationDeg);
     out.push({ ...made, turned, ...more });
   };
-  const turn = onBed(board);
+  const rotationDeg = sideRotation(board, turned);
+  const turn = rotateAboutOrigin(rotationDeg);
   if (flat.holding?.some(h => h.how === 'skin')) {
     const program = freePartsProgram(flat, { feed, plungeFeed, finalZ, ...flipped, pause: !taped }); // Taped down: nothing to take out in between.
     add(
@@ -269,7 +274,8 @@ function releaseProgram(
   cam: PartCam,
   board: BoardRequest,
   settings: Partial<CamSettings>,
-  minZ: number
+  minZ: number,
+  rotationDeg: number
 ): ReleaseProgram {
   const { tool } = cam.operations[0];
   const size: [number, number, number] = [board.w, board.h, board.stockTop];
@@ -289,20 +295,25 @@ function releaseProgram(
     pauses,
     note,
     ops: opSummaries(cam, cam.stockTop).map(op => ({ ...op, program: { kind, title, note } })),
-    safety: checkGcodeSafety(gcode, { stockTop: cam.stockTop, size: [size[0], size[1]], minZ, toolRadius: tool.diameter / 2 }).map(
-      i => `${title}: ${i.message}`
-    ),
+    safety: checkGcodeSafety(gcode, {
+      stockTop: cam.stockTop,
+      size: [size[0], size[1]],
+      rotationDeg,
+      minZ,
+      toolRadius: tool.diameter / 2,
+    }).map(i => `${title}: ${i.message}`),
     turned: false,
   };
 }
 
+/** The angle a side of the board lies at on the bed. Turned over it can lie differently; unless corrected, like side A. */
+const sideRotation = (board: BoardRequest, turned: boolean) => (turned ? board.sideBRotationDeg : undefined) ?? board.rotationDeg ?? 0;
 /** Board coordinates -> the program's: turned like the board lies on the bed. */
-const onBed = (board: BoardRequest) => rotateAboutOrigin(board.rotationDeg ?? 0);
-const turn2 = (turn: ReturnType<typeof onBed>, p: { x: number; y: number }) => {
+const turn2 = (turn: ReturnType<typeof rotateAboutOrigin>, p: { x: number; y: number }) => {
   const [x, y] = turn([p.x, p.y, 0]);
   return { x, y };
 };
-const turnCam = (cam: PartCam, turn: ReturnType<typeof onBed>): PartCam => ({
+const turnCam = (cam: PartCam, turn: ReturnType<typeof rotateAboutOrigin>): PartCam => ({
   ...cam,
   operations: cam.operations.map(op => ({ ...op, passes: op.passes.map(p => ({ ...p, pts: p.pts.map(turn) })) })),
 });
@@ -377,7 +388,8 @@ function summarize(
   size: [number, number, number],
   settings: Partial<CamSettings>,
   partTop = cam.stockTop,
-  board?: string
+  board?: string,
+  rotationDeg = 0
 ): PlanResult {
   const split = splitByBit(cam);
   const programs = split.map(p => {
@@ -391,17 +403,14 @@ function summarize(
     return { tool: tool.number, diameter: tool.diameter, gcode, timeMin: metrics(readGcode(gcode), cam.stockTop).timeMin };
   });
   const ops = opSummaries(cam, partTop);
-  const safety = programs.flatMap(p =>
-    checkGcodeSafety(p.gcode, {
+  const safety = programs.flatMap((p, i) =>
+    checkProgramSafety(split[i], p.gcode, {
       stockTop: cam.stockTop,
       size: [size[0], size[1]],
-      // Dowel pin holes go into the spoilboard on purpose.
-      minZ: Math.min(
-        settings.finalZ ?? -0.3,
-        ...cam.operations.filter(o => o.name.startsWith('Dowel pin hole')).flatMap(o => o.passes.flatMap(q => q.pts.map(v => v[2])))
-      ),
+      rotationDeg,
+      minZ: settings.finalZ ?? -0.3,
       toolRadius: p.diameter / 2,
-    }).map(i => i.message)
+    }).map(issue => issue.message)
   );
   // The whole job, for the preview and the totals.
   const moves = programs.flatMap(p => readGcode(p.gcode));

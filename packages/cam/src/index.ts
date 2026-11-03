@@ -22,7 +22,7 @@ export { summarizePart } from './summary';
 export type { FeatureChip, PartSummary } from './summary';
 export { parseFusionToolLibrary } from './tools';
 export type { LibraryTool } from './tools';
-export { checkGcodeSafety, kMaxFeed } from './safety';
+export { checkGcodeSafety, checkProgramSafety, kMaxFeed } from './safety';
 export type { SafetyIssue, SafetyLimits } from './safety';
 export { nestRects, clampKeepOuts, placedSize } from './nest';
 export type { Rect, NestItem, NestOptions, NestResult, Placement } from './nest';

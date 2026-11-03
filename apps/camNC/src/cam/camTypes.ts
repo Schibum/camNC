@@ -148,6 +148,8 @@ export interface BoardRequest {
   stockTop: number;
   /** Board lying askew on the bed: the program is turned about the XY zero (degrees, counterclockwise). */
   rotationDeg?: number;
+  /** The board turned over can lie at another angle than side A (camera registration); unset: as side A. */
+  sideBRotationDeg?: number;
   holdDown: HoldDown;
   /** Where the board is screwed or clamped down (board frame). None: taped, or held at its edges. */
   holdPoints?: HoldPoint[];

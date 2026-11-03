@@ -1,11 +1,14 @@
 import { readGcode } from './analyze';
-import { kMaxGcodeLine } from './gcode';
+import { kMaxGcodeLine, toGcode } from './gcode';
+import type { PartCam } from './toolpaths';
 
 export interface SafetyLimits {
   /** Z of the stock top (Z0 = stock bottom). */
   stockTop: number;
   /** Board size in X and Y (the part's bounding box, X0 Y0 at its lower left). */
   size: [number, number];
+  /** The board lies turned by this much about the XY zero (degrees, counterclockwise), and the program with it. */
+  rotationDeg?: number;
   /** Deepest allowed Z (the through-cut depth, e.g. -0.3). */
   minZ: number;
   /** Largest tool radius used: tool centers may go this far + `margin` outside the board. */
@@ -49,6 +52,10 @@ export function checkGcodeSafety(gcode: string, limits: SafetyLimits): SafetyIss
     if (encoder.encode(line).length > kMaxGcodeLine)
       issues.push({ rule: 'line-too-long', move: -1, message: `line ${i + 1} is longer than FluidNC accepts: ${line.slice(0, 40)}…` });
   });
+  // A move's place on the board: turned back by the angle the board lies at.
+  const a = (-(limits.rotationDeg ?? 0) * Math.PI) / 180;
+  const cos = Math.cos(a),
+    sin = Math.sin(a);
   readGcode(gcode).forEach((m, i) => {
     // The machine starts wherever it is: the first move only says where it goes.
     if (i === 0 && m.rapid) return;
@@ -61,7 +68,8 @@ export function checkGcodeSafety(gcode: string, limits: SafetyLimits): SafetyIss
         move: i,
         message: `rapid move at Z${+lowest.toFixed(3)} to (${fmt(m.to)}) is inside the stock`,
       });
-    const [x, y] = m.to;
+    const x = m.to[0] * cos - m.to[1] * sin;
+    const y = m.to[0] * sin + m.to[1] * cos;
     const inside = x >= -reach && y >= -reach && x <= limits.size[0] + reach && y <= limits.size[1] + reach;
     if (!inside && lowest < limits.stockTop + clearance)
       issues.push({ rule: 'outside-board', move: i, message: `move to (${fmt(m.to)}) leaves the board` });
@@ -83,4 +91,20 @@ export function checkGcodeSafety(gcode: string, limits: SafetyLimits): SafetyIss
     }
   });
   return issues;
+}
+
+/**
+ * The rules for a program made from `cam`. Dowel pin holes go into the spoilboard on purpose: only they may go below
+ * `limits.minZ`, every other operation of the program is held to it.
+ */
+export function checkProgramSafety(cam: PartCam, gcode: string, limits: SafetyLimits): SafetyIssue[] {
+  const isDowelHole = (o: PartCam['operations'][number]) => o.name.startsWith('Dowel pin hole');
+  const holes = cam.operations.filter(isDowelHole);
+  if (!holes.length) return checkGcodeSafety(gcode, limits);
+  const rest = cam.operations.filter(o => !isDowelHole(o));
+  const deepest = Math.min(limits.minZ, ...holes.flatMap(o => o.passes.flatMap(p => p.pts.map(q => q[2]))));
+  return [
+    ...checkGcodeSafety(gcode, { ...limits, minZ: deepest }),
+    ...(rest.length ? checkGcodeSafety(toGcode({ ...cam, operations: rest }), limits).filter(i => i.rule === 'too-deep') : []),
+  ];
 }
