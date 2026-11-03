@@ -99,11 +99,23 @@ export function freezeSpacing(boards: BoardV1[], bit: number): BoardV1[] {
   return boards.map(b => ({ ...b, margin: b.margin ?? defaultMargin(bit, b.holdDown), gap: b.gap ?? boardGap(bit, b.holdDown) }));
 }
 
-/** Why a board's spacing is too tight for this bit: the cut around each part needs the bit's width (+1 mm). */
+/**
+ * Why a board's gap is too tight for this bit: the cut around each part needs the bit's width (+1 mm), or one part's
+ * outline cut eats into its neighbour. Blocks the job.
+ */
 export function spacingProblem(board: BoardV1, nest: { gap: number; margin: number }, bit: number): string | null {
   if (nest.gap < bit + 1) return `Board ${board.name}: the ${nest.gap} mm gap between parts is too narrow for the ⌀${bit} bit.`;
-  if (nest.margin < bit / 2 + 1) return `Board ${board.name}: the ${nest.margin} mm edge margin is too narrow for the ⌀${bit} bit.`;
   return null;
+}
+
+/**
+ * The outline cuts run past the board's edge (the margin is narrower than the bit): the bit only cuts air there, fine
+ * unless something holds the board down there. A note, not a blocker (on tab boards the hold check catches parts the
+ * thin strip left at the edge can't hold).
+ */
+export function edgeNote(board: BoardV1, nest: { gap: number; margin: number }, bit: number): string | null {
+  if (nest.margin >= bit) return null;
+  return `Board ${board.name}: the outline cuts run past the board edge (${nest.margin} mm margin, ⌀${bit} bit). Fine if nothing is clamped or screwed there.`;
 }
 /** Boards are bought a little thicker than the parts: cutting starts at thickness + this unless measured. */
 export const kStockAllowance = 0.3;

@@ -206,6 +206,41 @@ describe('board programs (kinderregal eiche, 8 mm parts)', () => {
   });
 });
 
+describe('outline cuts past the board edge', () => {
+  it('a margin narrower than the bit: the cut runs into air past the edge, and the safety check accepts it', () => {
+    const rect = [
+      { x: 0, y: 0 },
+      { x: 200, y: 0 },
+      { x: 200, y: 100 },
+      { x: 0, y: 100 },
+    ];
+    const features: PartFeatures = {
+      thickness: 8,
+      footprint: [rect],
+      outlines: [rect],
+      throughHoles: [],
+      levels: [],
+      pockets: [],
+      bottomFaces: [],
+      slopedArea: 0,
+    };
+    // 2 mm from the board's edges, with a 6 mm bit: the outline's centreline lies outside the board.
+    const board: BoardSpec = {
+      id: 'e',
+      name: 'E',
+      w: 204,
+      h: 104,
+      thickness: 8,
+      holdDown: 'fixture-tape',
+      parts: [{ id: 'p', name: 'p', features, size: [200, 100, 8], x: 2, y: 2, rotated: false }],
+    };
+    const cam = camBoard(board, { tools: [T6] });
+    const xs = cam.operations.flatMap(o => o.passes.flatMap(p => p.pts.map(q => q[0])));
+    expect(Math.min(...xs)).toBeLessThan(0);
+    expect(safety(board, toGcode(cam), 3)).toEqual([]);
+  });
+});
+
 describe('orderBoardQueue', () => {
   /** Bit swaps for a queue, starting with `start` in the collet: between boards and inside each board. */
   const swaps = (queue: { bits: number[] }[], start: number) => {

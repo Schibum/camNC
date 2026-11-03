@@ -10,6 +10,7 @@ import {
   reconcileBoards,
   relayoutBoard,
   spacingProblem,
+  edgeNote,
   stockTopOf,
   type BoardV1,
   type PartInstance,
@@ -383,6 +384,16 @@ describe('boards', () => {
       expect(spacingProblem(frozen, nestBoard(frozen, sides, 8), 8)).toMatch(/8 mm gap between parts is too narrow for the ⌀8 bit/);
       // Values the user set stay.
       expect(freezeSpacing([{ ...stock, gap: 12 }], 3.175)[0].gap).toBe(12);
+    });
+
+    it('an edge margin narrower than the bit is a note, not a problem: the cut runs past the edge, into air', () => {
+      const edge = { ...stock, margin: 2, gap: 8 };
+      const nest = nestBoard(edge, sides, 6);
+      expect(spacingProblem(edge, nest, 6)).toBeNull();
+      expect(edgeNote(edge, nest, 6)).toBe(
+        'Board A: the outline cuts run past the board edge (2 mm margin, ⌀6 bit). Fine if nothing is clamped or screwed there.'
+      );
+      expect(edgeNote(edge, nest, 2)).toBeNull();
     });
   });
 

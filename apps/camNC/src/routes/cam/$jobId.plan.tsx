@@ -6,7 +6,7 @@ import type { OpSummary, PlanResult } from '@/cam/camTypes';
 import type { FlipRegistration } from '@wbcnc/cam';
 import { groupOps } from '@/cam/plan/groupOps';
 import { missingParts, useJobBoards, type MissingPart } from '@/cam/useJobBoards';
-import { freezeSpacing, spacingProblem } from '@/cam/boards';
+import { edgeNote, freezeSpacing, spacingProblem } from '@/cam/boards';
 import { orderBoardQueue } from '@wbcnc/cam/board';
 import { CamJobBar } from '@/cam/model/CamJobBar';
 import { Hint } from '@/cam/Hint';
@@ -83,6 +83,7 @@ function PlanStep() {
   const missing = missingParts(boards, instances);
   const unresolved = missing.filter(m => !settings.leaveOut?.includes(m.id));
   const tight = boards.flatMap(b => spacingProblem(b.board, b.nest, settings.bit.diameter) ?? []);
+  const edges = boards.flatMap(b => edgeNote(b.board, b.nest, settings.bit.diameter) ?? []);
   const blocked = unresolved.length > 0 || tight.length > 0;
   // The last programs stay shown while settings change, but only fresh ones go to the machine or a file.
   const ready = plans.every(p => p.data && !p.isPlaceholderData);
@@ -223,6 +224,7 @@ function PlanStep() {
             jobId={job.id}
             missing={unresolved}
             tight={tight}
+            edges={edges}
             onLeaveOut={() => save.mutate({ ...job, plan: { ...settings, leaveOut: missing.map(m => m.id) } })}
           />
 
@@ -473,14 +475,34 @@ function MissingBanner({
   jobId,
   missing,
   tight,
+  edges,
   onLeaveOut,
 }: {
   jobId: string;
   missing: MissingPart[];
   tight: string[];
+  /** Notes, not blockers: outline cuts that run past the board's edge. */
+  edges: string[];
   onLeaveOut: () => void;
 }) {
-  if (!missing.length && !tight.length) return null;
+  const fix = (
+    <Button size="sm" variant="outline" asChild>
+      <Link to="/cam/$jobId/boards" params={{ jobId }}>
+        Fix on Boards
+      </Link>
+    </Button>
+  );
+  if (!missing.length && !tight.length)
+    return edges.length ? (
+      <div role="status" className="flex flex-col gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3.5 text-[13px]">
+        {edges.map(t => (
+          <p key={t} className="flex gap-2">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" /> {t}
+          </p>
+        ))}
+        <div className="pl-6">{fix}</div>
+      </div>
+    ) : null;
   return (
     <div role="alert" className="flex flex-col gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3.5 text-[13px]">
       {missing.length > 0 && (
@@ -500,12 +522,13 @@ function MissingBanner({
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" /> {t}
         </p>
       ))}
+      {edges.map(t => (
+        <p key={t} className="flex gap-2">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" /> {t}
+        </p>
+      ))}
       <div className="flex flex-wrap items-center gap-2 pl-6">
-        <Button size="sm" variant="outline" asChild>
-          <Link to="/cam/$jobId/boards" params={{ jobId }}>
-            Fix on Boards
-          </Link>
-        </Button>
+        {fix}
         {missing.length > 0 && !tight.length && (
           <Hint
             text={`The job goes ahead without ${missing.length === 1 ? 'this part' : 'these parts'}: ${missing.length === 1 ? 'it isn’t' : 'they aren’t'} cut. Fit ${missing.length === 1 ? 'it' : 'them'} on Boards to cut ${missing.length === 1 ? 'it' : 'them'} after all.`}>
