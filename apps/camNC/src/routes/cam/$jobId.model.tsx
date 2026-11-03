@@ -1,14 +1,14 @@
 import { PageHeader } from '@/components/page-header';
 import { camKeys, useCamJob, useCamModel, useSaveCamJob } from '@/cam/camQueries';
 import { replaceModel } from '@/cam/jobDb';
-import { CamJobBar, NextStepButton } from '@/cam/model/CamJobBar';
+import { CamJobBar } from '@/cam/model/CamJobBar';
 import { ModelViewport, type ModelView } from '@/cam/model/ModelViewport';
 import { PartInspector } from '@/cam/model/PartInspector';
 import { PartList } from '@/cam/model/PartList';
 import { pickModelFile } from '@/cam/openModelFile';
 import { kModelFile } from '@/cam/jobDb';
 import { useQueryClient } from '@tanstack/react-query';
-import { createFileRoute, useNavigate, useParams } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate, useParams } from '@tanstack/react-router';
 import { Button } from '@wbcnc/ui/components/button';
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
 import { toast } from '@wbcnc/ui/components/sonner';
@@ -49,7 +49,11 @@ function ModelStep() {
           <Button size="sm" variant="outline" onClick={() => void replace()}>
             Replace model…
           </Button>
-          <NextStepButton hint="Boards and nesting come next; meanwhile plan each part on its own.">Next: Boards</NextStepButton>
+          <Button size="sm" asChild>
+            <Link to="/cam/$jobId/boards" params={{ jobId: job.id }}>
+              Next: Boards
+            </Link>
+          </Button>
         </>
       }
     />
@@ -105,7 +109,7 @@ function ModelStep() {
             part={part}
             milled={milled(part.id)}
             onMilledChange={v => setMilled(part.id, v)}
-            onPlan={() => void navigate({ to: '/cam/$jobId/plan', params: { jobId: job.id }, search: { part: part.id } })}
+            onPlan={() => void navigate({ to: '/cam/$jobId/boards', params: { jobId: job.id } })}
           />
         )}
       </div>

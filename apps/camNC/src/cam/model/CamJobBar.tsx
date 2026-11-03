@@ -1,5 +1,4 @@
 import { Link } from '@tanstack/react-router';
-import { Button } from '@wbcnc/ui/components/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@wbcnc/ui/components/tooltip';
 import { cn } from '@wbcnc/ui/lib/utils';
 import type { ReactNode } from 'react';
@@ -7,9 +6,10 @@ import type { ReactNode } from 'react';
 const kSteps = ['Model', 'Boards', 'Plan', 'Check'] as const;
 export type CamStep = (typeof kSteps)[number];
 
-// Boards and Check come in later milestones.
-const kRoutes: Partial<Record<CamStep, '/cam/$jobId/model' | '/cam/$jobId/plan'>> = {
+// Check comes in a later milestone.
+const kRoutes: Partial<Record<CamStep, '/cam/$jobId/model' | '/cam/$jobId/boards' | '/cam/$jobId/plan'>> = {
   Model: '/cam/$jobId/model',
+  Boards: '/cam/$jobId/boards',
   Plan: '/cam/$jobId/plan',
 };
 
@@ -62,22 +62,6 @@ function StepLink({ active, enabled, children }: { active: boolean; enabled: boo
     <Tooltip>
       <TooltipTrigger asChild>{el}</TooltipTrigger>
       <TooltipContent>Coming next</TooltipContent>
-    </Tooltip>
-  );
-}
-
-export function NextStepButton({ children, hint }: { children: ReactNode; hint: string }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        {/* Disabled buttons don't fire pointer events; the span carries the tooltip. */}
-        <span tabIndex={0}>
-          <Button size="sm" disabled>
-            {children}
-          </Button>
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>{hint}</TooltipContent>
     </Tooltip>
   );
 }

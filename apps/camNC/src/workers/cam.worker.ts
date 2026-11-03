@@ -1,5 +1,8 @@
 import {
+  boardBits,
+  camBoard,
   camPart,
+  DEFAULT_TABS,
   checkGcodeSafety,
   detectFlat,
   extractFeatures,
@@ -11,7 +14,9 @@ import {
   readGcode,
   summarizePart,
   toGcode,
+  type BoardSpec,
   type CamSettings,
+  type PartCam,
   type FlatPart,
   type PartFeatures,
   type StepBody,
@@ -19,7 +24,7 @@ import {
 import * as Comlink from 'comlink';
 // Lazy: this worker only starts when a model is opened, and occt only loads the wasm on the first STEP file.
 import occtWasmUrl from 'occt-import-js/dist/occt-import-js.wasm?url';
-import type { BodyMesh, CamPartInfo, ModelImport, OpSummary, PlanResult } from '../cam/camTypes';
+import type { BoardRequest, BodyMesh, CamPartInfo, ModelImport, OpSummary, Outline2D, PlanResult } from '../cam/camTypes';
 
 /** Parts of the models imported in this worker, by model key, so generating G-code needs no re-import. */
 const models = new Map<string, Map<string, { part: FlatPart; features: PartFeatures }>>();
@@ -51,7 +56,20 @@ const api = {
       const features = notFlat ? emptyFeatures(g.part) : extractFeatures(g.part.mesh, g.part.thickness);
       cache.set(id, { part: g.part, features });
       const summary = summarizePart(g.part, features);
-      return { id, name: g.names[0], names: g.names, size: g.part.size, thickness: g.part.thickness, summary };
+      const shape = (paths: { x: number; y: number }[][]): Outline2D => paths.map(p => p.map(q => [+q.x.toFixed(2), +q.y.toFixed(2)]));
+      return {
+        id,
+        name: g.names[0],
+        names: g.names,
+        size: g.part.size,
+        thickness: g.part.thickness,
+        summary,
+        shape: {
+          outlines: shape(features.outlines),
+          holes: shape(features.throughHoles),
+          pockets: features.pockets.map(p => ({ depth: g.part.thickness - p.floorZ, region: shape(p.strictRegion) })),
+        },
+      };
     });
     const meshes: BodyMesh[] = bodies.map((b, i) => ({
       name: b.name,
@@ -69,55 +87,85 @@ const api = {
 
   /** Toolpaths and FluidNC G-code for one part of an imported model, with per-operation numbers and safety checks. */
   async generate(key: string, partId: string, settings: Partial<CamSettings>): Promise<PlanResult> {
-    const entry = models.get(key)?.get(partId);
-    if (!entry) throw new Error('Open the model again: this part is not loaded.');
-    const { part, features } = entry;
+    const { part, features } = loaded(key, partId);
     const cam = camPart(features, settings);
-    const gcode = toGcode(cam, { partName: part.name, stockSize: part.size });
-    const one = (ops: typeof cam.operations) => metrics(readGcode(toGcode({ ...cam, operations: ops })), cam.stockTop);
-    const ops: OpSummary[] = cam.operations.map(op => {
-      const zs = op.passes.flatMap(p => p.pts.map(q => q[2]));
-      const levels = new Set(op.passes.map(p => Math.min(...p.pts.map(q => q[2])).toFixed(2)));
-      return {
-        name: op.name,
-        label: label(op.name, cam.stockTop),
-        kind: op.kind,
-        tool: { number: op.tool.number, diameter: op.tool.diameter },
-        // Where it starts cutting: a deeper pocket starts at the floor of the one before.
-        zTop: op.kind === 'pocket' ? Math.min(cam.stockTop, Math.max(...zs)) : cam.stockTop,
-        zBottom: Math.min(...zs),
-        depthSteps: levels.size,
-        feeds: [...new Set(op.passes.flatMap(p => p.feeds.slice(1)))].sort((a, b) => b - a),
-        timeMin: one([op]).timeMin,
-      };
-    });
-    const moves = readGcode(gcode);
-    const safety = checkGcodeSafety(gcode, {
-      stockTop: cam.stockTop,
-      size: [part.size[0], part.size[1]],
-      minZ: settings.finalZ ?? -0.3,
-      toolRadius: Math.max(0, ...cam.operations.map(o => o.tool.diameter / 2)),
-    }).map(i => i.message);
-    return {
-      gcode,
-      timeMin: metrics(moves, cam.stockTop).timeMin,
-      warnings: cam.warnings,
-      safety,
-      ops,
-      size: part.size,
-      // Cutting moves inside the stock, for the preview.
-      path: moves.filter(m => !m.rapid && Math.min(m.from[2], m.to[2]) < cam.stockTop - 1e-3).map(m => [m.from, m.to]),
+    return summarize(cam, toGcode(cam, { partName: part.name, stockSize: part.size }), part.size, settings);
+  },
+
+  /** One program for a whole board: its parts at their nested positions, operations grouped by bit. */
+  async generateBoard(key: string, board: BoardRequest, settings: Partial<CamSettings>): Promise<PlanResult> {
+    const spec: BoardSpec = {
+      ...board,
+      tabs: { ...DEFAULT_TABS, ...board.tabs },
+      parts: board.parts.map(p => {
+        const { part, features } = loaded(key, p.partId);
+        return { id: p.id, name: p.name, features, size: part.size, x: p.x, y: p.y, rotated: p.rotated };
+      }),
     };
+    const cam = camBoard(spec, settings);
+    const size: [number, number, number] = [board.w, board.h, board.thickness];
+    return summarize(cam, toGcode(cam, { partName: `Board ${board.name}`, stockSize: size }), size, settings);
   },
 };
 
+function loaded(key: string, partId: string) {
+  const entry = models.get(key)?.get(partId);
+  if (!entry) throw new Error('Open the model again: this part is not loaded.');
+  return entry;
+}
+
+/** "left: Pocket 2 z=3.5" -> "left · Pocket 4.5 deep" (board programs prefix the part). */
 const label = (name: string, top: number) => {
-  const z = name.match(/z=([\d.]+)/);
-  if (z) return `Pocket ${+(top - +z[1]).toFixed(2)} deep`;
-  if (name.startsWith('Hole')) return 'Through hole';
-  if (name.startsWith('Outline')) return 'Outline: rough + final pass';
-  return name;
+  const [, prefix, op] = name.match(/^(?:(.+): )?(.+)$/)!;
+  const z = op.match(/z=([\d.]+)/);
+  const text = z
+    ? `Pocket ${+(top - +z[1]).toFixed(2)} deep`
+    : op.startsWith('Hole')
+      ? 'Through hole'
+      : op.startsWith('Outline')
+        ? 'Outline: rough + final pass'
+        : op;
+  return prefix ? `${prefix} · ${text}` : text;
 };
+
+/** Per-operation numbers, safety rules and a preview of a generated program. */
+function summarize(cam: PartCam, gcode: string, size: [number, number, number], settings: Partial<CamSettings>): PlanResult {
+  const one = (ops: typeof cam.operations) => metrics(readGcode(toGcode({ ...cam, operations: ops })), cam.stockTop);
+  const ops: OpSummary[] = cam.operations.map(op => {
+    const zs = op.passes.flatMap(p => p.pts.map(q => q[2]));
+    const levels = new Set(op.passes.map(p => Math.min(...p.pts.map(q => q[2])).toFixed(2)));
+    return {
+      name: op.name,
+      label: label(op.name, cam.stockTop),
+      kind: op.kind,
+      tool: { number: op.tool.number, diameter: op.tool.diameter },
+      // Where it starts cutting: a deeper pocket starts at the floor of the one before.
+      zTop: op.kind === 'pocket' ? Math.min(cam.stockTop, Math.max(...zs)) : cam.stockTop,
+      zBottom: Math.min(...zs),
+      depthSteps: levels.size,
+      feeds: [...new Set(op.passes.flatMap(p => p.feeds.slice(1)))].sort((a, b) => b - a),
+      timeMin: one([op]).timeMin,
+    };
+  });
+  const moves = readGcode(gcode);
+  const safety = checkGcodeSafety(gcode, {
+    stockTop: cam.stockTop,
+    size: [size[0], size[1]],
+    minZ: settings.finalZ ?? -0.3,
+    toolRadius: Math.max(0, ...cam.operations.map(o => o.tool.diameter / 2)),
+  }).map(i => i.message);
+  return {
+    gcode,
+    timeMin: metrics(moves, cam.stockTop).timeMin,
+    warnings: cam.warnings,
+    safety,
+    ops,
+    bits: boardBits(cam),
+    size,
+    // Cutting moves inside the stock, for the preview.
+    path: moves.filter(m => !m.rapid && Math.min(m.from[2], m.to[2]) < cam.stockTop - 1e-3).map(m => [m.from, m.to]),
+  };
+}
 
 function emptyFeatures(part: FlatPart): PartFeatures {
   return {

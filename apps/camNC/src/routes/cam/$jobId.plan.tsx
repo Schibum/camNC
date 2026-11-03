@@ -1,6 +1,8 @@
 import { PageHeader } from '@/components/page-header';
-import { useCamJob, useCamModel, useCamPlan, useSaveCamJob } from '@/cam/camQueries';
-import type { CamPartInfo, PlanResult } from '@/cam/camTypes';
+import { useBoardPlans, useCamJob, useCamModel, useSaveCamJob } from '@/cam/camQueries';
+import type { PlanResult } from '@/cam/camTypes';
+import { useJobBoards } from '@/cam/useJobBoards';
+import { orderBoardQueue } from '@wbcnc/cam/board';
 import { CamJobBar } from '@/cam/model/CamJobBar';
 import { PlanSettingsPanel } from '@/cam/plan/PlanSettingsPanel';
 import { ToolpathPreview } from '@/cam/plan/ToolpathPreview';
@@ -16,35 +18,52 @@ import { z } from 'zod';
 
 export const Route = createFileRoute('/cam/$jobId/plan')({
   component: PlanStep,
-  validateSearch: zodValidator(z.object({ part: z.string().optional() })),
+  validateSearch: zodValidator(z.object({ board: z.string().optional() })),
 });
 
 const fmtMin = (m: number) => `${Math.floor(m)}:${String(Math.round((m % 1) * 60)).padStart(2, '0')}`;
 const fmtZ = (z: number) => `${+z.toFixed(2)}`;
 
-/** Step 3 of a CAM job: operations, bit and settings for one part, its G-code, and handing it to the machine view. */
+/**
+ * Step 3: one program per board, in a queue that reuses the bit in the collet. Shows each board's operations (by bit,
+ * inner features first), hands the program to the machine view or downloads it.
+ */
 function PlanStep() {
   const { jobId } = useParams({ from: '/cam/$jobId/plan' });
-  const { part: partParam } = useSearch({ from: '/cam/$jobId/plan' });
+  const { board: boardParam } = useSearch({ from: '/cam/$jobId/plan' });
   const navigate = useNavigate();
   const { data: job, isPending } = useCamJob(jobId);
   const model = useCamModel(job);
   const save = useSaveCamJob();
-  const milledParts = (model.data?.parts ?? []).filter(p => !p.summary.notFlat && (job?.parts.find(j => j.id === p.id)?.milled ?? true));
-  const part = milledParts.find(p => p.id === partParam) ?? milledParts[0];
-  const plan = useCamPlan(job, part?.id, !!model.data);
+  const { boards } = useJobBoards(job, model.data);
+  const active = boards.filter(b => b.request.parts.length);
+  const plans = useBoardPlans(
+    job,
+    active.map(b => ({ request: b.request, material: b.board.material })),
+    !!model.data
+  );
 
   if (isPending) return <Shell />;
   if (!job) return <Shell message="This job doesn't exist (any more)." />;
   const bar = <CamJobBar jobId={job.id} fileName={job.fileName} step="Plan" />;
   if (model.isError) return <Shell bar={bar} message={`Could not read ${job.fileName}: ${model.error.message}`} />;
   if (!model.data) return <Shell bar={bar} loading={`Reading ${job.fileName}…`} />;
-  if (!part) return <Shell bar={bar} message="No part to mill: mark parts as milled in the Model step." />;
+  if (!active.length) return <Shell bar={bar} message="No part to mill: mark parts as milled in the Model step." />;
 
   const settings = job.plan ?? kDefaultPlan;
-  const fileName = `${job.name} ${part.name}.gcode`;
-  const result = plan.data;
+  const ready = plans.every(p => p.data);
+  // Queue: start with the main bit, then boards that start with the bit the last one ended with.
+  const entries = active.map((b, i) => ({ ...b, plan: plans[i].data, fetching: plans[i].isFetching, bits: plans[i].data?.bits ?? [] }));
+  const queue = ready ? orderBoardQueue(entries, Math.min(...entries.flatMap(e => e.bits.slice(0, 1)))) : entries;
+  const current = queue.find(e => e.board.id === boardParam) ?? queue[0];
+  const result = current.plan;
   const safe = !!result && result.safety.length === 0;
+  const totalMin = queue.reduce((t, e) => t + (e.plan?.timeMin ?? 0), 0);
+  const swaps = queue.reduce(
+    (n, e, i) => n + Math.max(0, e.bits.length - 1) + (i > 0 && queue[i - 1].bits.at(-1) !== e.bits[0] ? 1 : 0),
+    0
+  );
+  const fileName = `${job.name} board ${current.board.name}.gcode`;
 
   const showOnMachine = () => {
     if (!result || !safe) return;
@@ -65,29 +84,26 @@ function PlanStep() {
       <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[1fr_320px]">
         <main className="flex min-h-0 min-w-0 flex-col gap-4 overflow-y-auto p-5">
           <div className="flex flex-wrap items-center gap-2">
-            <div role="tablist" aria-label="Parts" className="flex flex-wrap gap-1">
-              {milledParts.map(p => (
+            <div role="tablist" aria-label="Boards in cutting order" className="flex flex-wrap gap-1">
+              {queue.map((e, i) => (
                 <button
-                  key={p.id}
+                  key={e.board.id}
                   role="tab"
-                  aria-selected={p.id === part.id}
-                  onClick={() => void navigate({ to: '.', search: { part: p.id }, replace: true })}
+                  aria-selected={e === current}
+                  onClick={() => void navigate({ to: '.', search: { board: e.board.id }, replace: true })}
                   className={cn(
                     'h-8 rounded-md px-3 text-sm',
-                    p.id === part.id ? 'bg-muted font-medium' : 'text-muted-foreground hover:bg-muted/60'
+                    e === current ? 'bg-muted font-medium' : 'text-muted-foreground hover:bg-muted/60'
                   )}>
-                  {p.name}
-                  {p.names.length > 1 && <span className="text-muted-foreground"> ×{p.names.length}</span>}
+                  {i + 1} · {e.board.name} {e.board.thickness} mm
                 </button>
               ))}
             </div>
             <span className="grow" />
-            {result && (
-              <span className="text-[13px] text-muted-foreground">
-                {result.ops.length} operations · ⌀ {settings.bit.diameter} · ≈ {fmtMin(result.timeMin)} min per part
-                {part.names.length > 1 && `, ${part.names.length} parts`}
-              </span>
-            )}
+            <span className="text-[13px] text-muted-foreground">
+              Job: {queue.length} {queue.length === 1 ? 'board' : 'boards'} · {swaps} bit {swaps === 1 ? 'swap' : 'swaps'} · ≈{' '}
+              {fmtMin(totalMin)} min cutting
+            </span>
           </div>
 
           {!result ? (
@@ -96,10 +112,11 @@ function PlanStep() {
             </div>
           ) : (
             <>
-              <div className={cn('relative rounded-lg bg-muted/30 p-3 transition-opacity', plan.isFetching && 'opacity-60')}>
-                <ToolpathPreview plan={result} className="mx-auto block max-h-[340px] w-full" />
+              <BitsLine plan={result} />
+              <div className={cn('relative rounded-lg bg-muted/30 p-3 transition-opacity', current.fetching && 'opacity-60')}>
+                <ToolpathPreview plan={result} className="mx-auto block max-h-[320px] w-full" />
               </div>
-              <OperationsTable part={part} plan={result} />
+              <OperationsTable name={`board ${current.board.name}`} plan={result} />
               <OrderBar plan={result} />
               <Checks plan={result} />
               <div className="flex flex-wrap items-center gap-2">
@@ -107,10 +124,10 @@ function PlanStep() {
                   <Play /> Show on machine
                 </Button>
                 <Button variant="outline" disabled={!safe} onClick={download}>
-                  <Download /> Download .gcode
+                  <Download /> Download board {current.board.name}
                 </Button>
                 <span className="text-xs text-muted-foreground">
-                  Opens in the top view with the material removal preview. One file per part, Z0 at the bottom of the board.
+                  One program per board, Z0 at the bottom of the board, XY zero at its lower left corner.
                 </span>
               </div>
             </>
@@ -122,13 +139,32 @@ function PlanStep() {
   );
 }
 
-function OperationsTable({ part, plan }: { part: CamPartInfo; plan: PlanResult }) {
+/** The bits this board uses, in order, and the pause between them. */
+function BitsLine({ plan }: { plan: PlanResult }) {
   return (
-    <table className="w-full border-collapse text-[13px]" aria-label={`Operations for ${part.name}`}>
+    <div className="flex flex-wrap items-center gap-2 rounded-lg bg-muted/40 px-3.5 py-2.5 text-[13px]">
+      {plan.bits.map((d, i) => (
+        <span key={d} className="flex items-center gap-2">
+          {i > 0 && <span className="text-muted-foreground">→ pause: swap bit, re-zero Z →</span>}
+          <span className="inline-flex size-7 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+            ⌀
+          </span>
+          <span className="font-medium">{d} mm flat</span>
+        </span>
+      ))}
+      <span className="text-muted-foreground">· smallest bit first, inner features before outlines</span>
+    </div>
+  );
+}
+
+function OperationsTable({ name, plan }: { name: string; plan: PlanResult }) {
+  return (
+    <table className="w-full border-collapse text-[13px]" aria-label={`Operations for ${name}`}>
       <thead>
         <tr className="border-b text-left text-xs text-muted-foreground">
           <th className="py-2 pr-3 font-medium">#</th>
           <th className="py-2 pr-3 font-medium">Operation</th>
+          <th className="py-2 pr-3 font-medium">Bit</th>
           <th className="py-2 pr-3 font-medium">Depth (Z from bottom)</th>
           <th className="py-2 pr-3 font-medium">Passes</th>
           <th className="py-2 pr-3 font-medium">Feed</th>
@@ -140,6 +176,7 @@ function OperationsTable({ part, plan }: { part: CamPartInfo; plan: PlanResult }
           <tr key={op.name} className="border-b">
             <td className="py-2 pr-3 font-mono">{i + 1}</td>
             <td className="py-2 pr-3">{op.label}</td>
+            <td className="py-2 pr-3 font-mono">⌀{op.tool.diameter}</td>
             <td className="py-2 pr-3 font-mono">
               {fmtZ(op.zTop)} → {fmtZ(op.zBottom)}
             </td>

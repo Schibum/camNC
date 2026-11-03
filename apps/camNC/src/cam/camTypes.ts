@@ -1,4 +1,7 @@
-import type { PartSummary } from '@wbcnc/cam';
+import type { HoldDown, PartSummary } from '@wbcnc/cam';
+
+/** Closed polygons as [x, y] point lists, in the part's flat frame (mm). */
+export type Outline2D = [number, number][][];
 
 /** One part to make: a group of identical bodies, laid flat (Z up, Z0 = bottom face). */
 export interface CamPartInfo {
@@ -10,6 +13,8 @@ export interface CamPartInfo {
   size: [number, number, number];
   thickness: number;
   summary: PartSummary;
+  /** Top view for the nesting view. */
+  shape: { outlines: Outline2D; holes: Outline2D; pockets: { depth: number; region: Outline2D }[] };
 }
 
 /** A body for display, in the model's coordinates; `flat` (column-major 4x4) lays it flat. */
@@ -50,6 +55,20 @@ export interface PlanResult {
   /** Broken safety rules (empty when fine): never shown as a downloadable program then. */
   safety: string[];
   ops: OpSummary[];
+  /** Bit diameters in the order the program uses them (one M0 swap between each). */
+  bits: number[];
   size: [number, number, number];
   path: [number, number, number][][];
+}
+
+/** A board to generate: which bodies sit where. */
+export interface BoardRequest {
+  id: string;
+  name: string;
+  w: number;
+  h: number;
+  thickness: number;
+  holdDown: HoldDown;
+  tabs: { width: number; height: number; minCount: number };
+  parts: { id: string; partId: string; name: string; x: number; y: number; rotated: boolean }[];
 }

@@ -1,10 +1,13 @@
-import { DEFAULT_TABS, MATERIALS, type CamSettings, type LibraryTool } from '@wbcnc/cam';
+import type { CamSettings, LibraryTool } from '@wbcnc/cam';
+import { DEFAULT_TABS, MATERIALS } from '@wbcnc/cam/settings';
 
 export type MaterialKey = keyof typeof MATERIALS;
 
 /** What the Plan step lets you choose; stored with the job. */
 export interface PlanSettingsV1 {
   bit: LibraryTool;
+  /** Optional smaller bit for features the main bit can't reach; boards then pause once to swap. */
+  smallBit?: LibraryTool;
   material: MaterialKey;
   /** Final outline pass speed as a fraction of the feed: 0.5 for a clean edge, 1 like Fusion. */
   finalFeedFactor: number;
@@ -24,10 +27,16 @@ export const kDefaultPlan: PlanSettingsV1 = {
   tabs: false,
 };
 
-export function toCamSettings(p: PlanSettingsV1): Partial<CamSettings> {
+export function toCamSettings(p: PlanSettingsV1, material: MaterialKey = p.material): Partial<CamSettings> {
+  const bits = [p.bit, ...(p.smallBit && p.smallBit.diameter < p.bit.diameter ? [p.smallBit] : [])];
   return {
-    tools: [{ number: p.bit.number, diameter: p.bit.diameter, name: 'flat end mill' }],
-    material: MATERIALS[p.material],
+    // Distinct tool numbers, so the program's tools table and swaps name them apart.
+    tools: bits.map((b, i) => ({
+      number: i === 0 ? b.number : Math.max(b.number, p.bit.number + 1),
+      diameter: b.diameter,
+      name: 'flat end mill',
+    })),
+    material: MATERIALS[material],
     feed: p.bit.feed ?? 1800,
     plungeFeed: p.bit.plungeFeed ?? 480,
     finalFeedFactor: p.finalFeedFactor,

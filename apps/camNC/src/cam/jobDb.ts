@@ -1,3 +1,4 @@
+import type { BoardV1, StockBoardV1 } from './boards';
 import type { PlanSettingsV1 } from './planSettings';
 
 /**
@@ -24,6 +25,10 @@ export interface CamJobV1 {
   parts: CamJobPartV1[];
   /** Plan step choices (bit, material, ...); defaults until changed. */
   plan?: PlanSettingsV1;
+  /** Boards the parts are nested on; derived per thickness until the user changes them. */
+  boards?: BoardV1[];
+  /** Board sizes the user has in the workshop, for "Auto-fill from stock". */
+  stock?: StockBoardV1[];
 }
 
 const kDbName = 'camnc-cam';

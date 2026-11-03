@@ -1,7 +1,7 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Comlink from 'comlink';
 import type { CamWorkerAPI } from '../workers/cam.worker';
-import type { ModelImport, PlanResult } from './camTypes';
+import type { BoardRequest, ModelImport, PlanResult } from './camTypes';
 import { kDefaultPlan, toCamSettings } from './planSettings';
 import { getJob, getModelBytes, listJobs, saveJob, type CamJobV1 } from './jobDb';
 
@@ -66,6 +66,27 @@ export function useCamPlan(job: CamJobV1 | null | undefined, partId: string | un
     gcTime: 60_000,
     placeholderData: prev => prev,
     queryFn: (): Promise<PlanResult> => camWorker().generate(modelKey(job!), partId!, settings),
+  });
+}
+
+/** Programs for every board (they decide the queue order by their bits); recomputed when a board or setting changes. */
+export function useBoardPlans(
+  job: CamJobV1 | null | undefined,
+  boards: { request: BoardRequest; material: string }[],
+  modelReady: boolean
+) {
+  const plan = job?.plan ?? kDefaultPlan;
+  return useQueries({
+    queries: boards.map(({ request, material }) => {
+      const settings = toCamSettings(plan, material as typeof plan.material);
+      return {
+        queryKey: ['cam', 'board-plan', job?.id ?? '', job?.fileName ?? '', request, settings] as const,
+        enabled: !!job && modelReady && request.parts.length > 0,
+        staleTime: Infinity,
+        gcTime: 60_000,
+        queryFn: (): Promise<PlanResult> => camWorker().generateBoard(modelKey(job!), request, settings),
+      };
+    }),
   });
 }
 

@@ -1,11 +1,11 @@
-import { MATERIALS, parseFusionToolLibrary, type LibraryTool } from '@wbcnc/cam';
+import type { LibraryTool } from '@wbcnc/cam';
+import { parseFusionToolLibrary } from '@wbcnc/cam/tools';
 import { Button } from '@wbcnc/ui/components/button';
-import { Checkbox } from '@wbcnc/ui/components/checkbox';
 import { Input } from '@wbcnc/ui/components/input';
 import { Label } from '@wbcnc/ui/components/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wbcnc/ui/components/select';
 import { toast } from '@wbcnc/ui/components/sonner';
-import { kDefaultBit, type MaterialKey, type PlanSettingsV1 } from '../planSettings';
+import { kDefaultBit, type PlanSettingsV1 } from '../planSettings';
 import { useToolLibrary } from '../toolLibrary';
 
 const bitKey = (b: LibraryTool) => `${b.number}|${b.diameter}|${b.name}`;
@@ -37,6 +37,9 @@ export function PlanSettingsPanel({ value, onChange }: { value: PlanSettingsV1; 
   if (!bits.some(b => bitKey(b) === bitKey(value.bit))) bits.push(value.bit);
   const set = (patch: Partial<PlanSettingsV1>) => onChange({ ...value, ...patch });
   const feed = value.bit.feed ?? 1800;
+  const smaller = [...bits, ...(value.smallBit ? [value.smallBit] : [])].filter(
+    (b, i, all) => b.diameter < value.bit.diameter && all.findIndex(x => bitKey(x) === bitKey(b)) === i
+  );
 
   return (
     <aside className="flex min-h-0 flex-col gap-4 overflow-y-auto border-l p-4">
@@ -66,21 +69,26 @@ export function PlanSettingsPanel({ value, onChange }: { value: PlanSettingsV1; 
       </section>
 
       <section className="flex flex-col gap-1.5">
-        <Label htmlFor="plan-material">Material</Label>
-        <Select value={value.material} onValueChange={m => set({ material: m as MaterialKey })}>
-          <SelectTrigger id="plan-material" className="w-full">
+        <Label htmlFor="plan-small-bit">Second, smaller bit (optional)</Label>
+        <Select
+          value={value.smallBit ? bitKey(value.smallBit) : 'none'}
+          onValueChange={k => set({ smallBit: k === 'none' ? undefined : bits.find(b => bitKey(b) === k) })}>
+          <SelectTrigger id="plan-small-bit" className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {Object.entries(MATERIALS).map(([k, m]) => (
-              <SelectItem key={k} value={k}>
-                {m.name[0].toUpperCase() + m.name.slice(1)} · stepdown {m.stepdownFactor} × ⌀
+            <SelectItem value="none">None</SelectItem>
+            {smaller.map(b => (
+              <SelectItem key={bitKey(b)} value={bitKey(b)}>
+                {bitLabel(b)}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
         <p className="text-xs text-muted-foreground">
-          Pockets go {+(MATERIALS[value.material].stepdownFactor * value.bit.diameter).toFixed(2)} mm deeper per pass.
+          {value.smallBit
+            ? 'Cuts what the main bit can’t reach, first. Boards that need it pause once to swap bits.'
+            : 'For slots or corners narrower than the main bit.'}
         </p>
       </section>
 
@@ -114,14 +122,6 @@ export function PlanSettingsPanel({ value, onChange }: { value: PlanSettingsV1; 
         />
         <p className="text-xs text-muted-foreground">The final pass ends at Z−{value.cutBelow}, in the spoilboard.</p>
       </section>
-
-      <div className="flex gap-2">
-        <Checkbox id="plan-tabs" checked={value.tabs} onCheckedChange={v => set({ tabs: v === true })} className="mt-0.5" />
-        <div>
-          <Label htmlFor="plan-tabs">Holding tabs</Label>
-          <p className="text-xs text-muted-foreground">5 mm long, 2 mm high, at least 3, so the part stays put on the last pass.</p>
-        </div>
-      </div>
 
       <span className="grow" />
       <p className="rounded-lg bg-muted/50 p-3 text-xs leading-relaxed text-muted-foreground">

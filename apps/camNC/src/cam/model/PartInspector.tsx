@@ -20,7 +20,7 @@ export function PartInspector({
   part: CamPartInfo;
   milled: boolean;
   onMilledChange: (milled: boolean) => void;
-  /** Go to toolpaths + G-code for this part. */
+  /** Go on to the Boards step. */
   onPlan: () => void;
 }) {
   const { summary } = part;
@@ -101,7 +101,7 @@ export function PartInspector({
       </div>
       {milled && !summary.notFlat && (
         <Button onClick={onPlan} className="w-full">
-          Make G-code for this part
+          Arrange on boards
         </Button>
       )}
     </aside>

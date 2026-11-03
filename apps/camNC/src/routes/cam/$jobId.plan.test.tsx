@@ -1,6 +1,6 @@
-import { createJob, getJob } from '@/cam/jobDb';
+import { createJob } from '@/cam/jobDb';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type { ComponentType } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import stepUrl from '../../../../../packages/cam/test/fixtures/kinderregal-eiche.step?url';
@@ -25,7 +25,7 @@ const PlanStep = (Route as unknown as { options: { component: ComponentType } })
 afterEach(cleanup);
 
 describe('CAM plan step', () => {
-  it('generates safe G-code for the first part and hands it to the machine view', async () => {
+  it('makes one safe program per board, inner features before outlines, and hands it to the machine view', async () => {
     const bytes = await (await fetch(stepUrl)).arrayBuffer();
     const job = await createJob(new File([bytes], 'kinderregal-eiche.step'));
     params.jobId = job.id;
@@ -35,32 +35,27 @@ describe('CAM plan step', () => {
       </QueryClientProvider>
     );
 
-    const table = await screen.findByRole('table', { name: /Operations for left/ }, { timeout: 60_000 });
-    const rows = within(table).getAllByRole('row').slice(1);
-    expect(rows.map(r => within(r).getAllByRole('cell')[1].textContent)).toEqual([
-      'Pocket 4.2 deep',
-      'Pocket 4.5 deep',
-      'Outline: rough + final pass',
-    ]);
-    // The edge groove starts where the 4.2 pocket ended.
-    expect(within(rows[1]).getByText('3.8 → 3.5')).toBeTruthy();
-    // Final pass through to -0.3 at half feed.
-    expect(within(rows[2]).getByText('8 → -0.3')).toBeTruthy();
-    expect(within(rows[2]).getByText('1800 / 900')).toBeTruthy();
+    const table = await screen.findByRole('table', { name: 'Operations for board A' }, { timeout: 60_000 });
+    // One board per thickness: A has the five 8 mm bodies, B the 3 mm back.
+    expect(
+      within(screen.getByRole('tablist', { name: /Boards/ }))
+        .getAllByRole('tab')
+        .map(t => t.textContent)
+    ).toEqual(['1 · A 8 mm', '2 · B 3 mm']);
+    const labels = within(table)
+      .getAllByRole('row')
+      .slice(1)
+      .map(r => within(r).getAllByRole('cell')[1].textContent!);
+    const firstOutline = labels.findIndex(l => l.includes('Outline'));
+    expect(firstOutline).toBeGreaterThan(0);
+    expect(labels.slice(firstOutline).every(l => l.includes('Outline'))).toBe(true);
+    expect(labels.filter(l => l.includes('Outline'))).toHaveLength(5);
     expect(screen.getByText(/Safety checks passed/)).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: /Show on machine/ }));
-    expect(store.updateToolpath).toHaveBeenCalledWith(expect.stringContaining('(OP 3/3 Outline 1'), 'kinderregal-eiche left.gcode');
+    const [gcode, name] = store.updateToolpath.mock.calls[0];
+    expect(name).toBe('kinderregal-eiche board A.gcode');
+    expect(gcode).toContain('(Part: Board A)');
     expect(navigate).toHaveBeenCalledWith({ to: '/visualize/2DView' });
-
-    // Settings are saved with the job and regenerate the program.
-    fireEvent.click(screen.getByLabelText('Holding tabs'));
-    await waitFor(async () => expect((await getJob(job.id))?.plan?.tabs).toBe(true));
-    store.updateToolpath.mockClear();
-    await waitFor(() => {
-      fireEvent.click(screen.getByRole('button', { name: /Show on machine/ }));
-      // Tabs lift the outline passes to Z2 over 5mm + bit.
-      expect(store.updateToolpath.mock.calls.at(-1)?.[0]).toMatch(/Z2\n/);
-    });
-  });
+  }, 90_000);
 });

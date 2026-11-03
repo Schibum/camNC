@@ -9,28 +9,8 @@ export interface Tool {
   name?: string;
 }
 
-export interface Material {
-  name: string;
-  /** Pocket stepdown as a fraction of the tool diameter. */
-  stepdownFactor: number;
-}
-
-export const MATERIALS = {
-  oak: { name: 'oak', stepdownFactor: 0.75 },
-  softwood: { name: 'softwood', stepdownFactor: 1 },
-  plywood: { name: 'plywood', stepdownFactor: 0.75 },
-  mdf: { name: 'mdf', stepdownFactor: 1 },
-} satisfies Record<string, Material>;
-
-export interface TabSettings {
-  /** Above the stock bottom (Z0). */
-  height: number;
-  /** Length of material left, along the cut. */
-  width: number;
-  minCount: number;
-  /** Target distance between tabs; more tabs on longer outlines. */
-  spacing: number;
-}
+export { MATERIALS, DEFAULT_TABS, type Material, type TabSettings } from './settings';
+import { MATERIALS, DEFAULT_TABS, type Material, type TabSettings } from './settings';
 
 export interface CamSettings {
   tools: Tool[];
@@ -88,8 +68,6 @@ export const DEFAULT_SETTINGS: CamSettings = {
   tabs: false,
   cutThrough: true,
 };
-
-export const DEFAULT_TABS: TabSettings = { height: 2, width: 5, minCount: 3, spacing: 250 };
 
 /** A continuous cutting move. The tool reaches pts[0] either by retract/rapid/plunge or by a direct feed move. */
 export interface Pass {
