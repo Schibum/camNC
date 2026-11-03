@@ -158,6 +158,19 @@ describe('rapids and links over holds', () => {
     expect(jobHoldClashes({ h: 300, holdPoints: [hold] }, 18, [{ gcode, diameter: 6 }])).toEqual([]);
   });
 
+  it('side B lies at its own angle: its programs are turned back by that one', () => {
+    const hold = screw(100, 100);
+    const turn = rotateAboutOrigin(10);
+    const [ax, ay] = turn([50, 200, 5]);
+    const [bx, by] = turn([150, 200, 5]);
+    const gcode = `G0 Z30\nG0 X${ax} Y${ay}\nG1 Z5 F300\nG1 X${bx} Y${by}\n`;
+    const on = (rotationDeg: number, sideBRotationDeg?: number) =>
+      jobHoldClashes({ h: 300, rotationDeg, sideBRotationDeg, holdPoints: [hold] }, 18, [{ gcode, diameter: 6, turned: true }]);
+    expect(on(10)).toEqual([hold]);
+    expect(on(0, 10)).toEqual([hold]);
+    expect(on(10, 0)).toEqual([]);
+  });
+
   it('programs for the turned board meet the holds in the same spots on the wood: at x, H - y', () => {
     const hold: HoldPoint = { x: 100, y: 3, kind: 'clamp', d: 6, w: 20, dir: { x: 0, y: 1 }, height: 5 };
     // On the bed, the lower edge of the board as it now lies: the upper edge when side A was cut.

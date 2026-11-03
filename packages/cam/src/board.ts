@@ -5,7 +5,16 @@ import { boardToPart, kDefaultSkin, planTabs, type PartHolding, type TabFallback
 import type { Vec3 } from './geom';
 import type { BottomLayer, HoldOptions } from './hold';
 import { holdClashes, holdHeight, type HoldPoint } from './holdPoints';
-import { camPart, DEFAULT_SETTINGS, DEFAULT_TABS, fluteWarnings, type CamSettings, type Operation, type PartCam, type TabSettings } from './toolpaths';
+import {
+  camPart,
+  DEFAULT_SETTINGS,
+  DEFAULT_TABS,
+  fluteWarnings,
+  type CamSettings,
+  type Operation,
+  type PartCam,
+  type TabSettings,
+} from './toolpaths';
 
 /**
  * How the parts are held while cutting. `tabs` / `tabs-guided`: tabs into held stock (removed by hand, or by a guided
@@ -178,19 +187,21 @@ function aboveHolds(
 /**
  * Holds in the way of a job's programs, every move as the G-code has it: cuts, links, rapids and the way back to X0 Y0.
  * `turned`: a program for the board turned over, whose holds are back in the same spots on the wood (x, H - y on the
- * bed). The board may lie askew: back to the holds' frame first.
+ * bed). The board may lie askew, turned over at its own angle: back to the holds' frame first.
  */
 export function jobHoldClashes(
-  board: Pick<BoardSpec, 'h' | 'rotationDeg' | 'holdPoints'>,
+  board: Pick<BoardSpec, 'h' | 'rotationDeg' | 'holdPoints'> & { sideBRotationDeg?: number },
   stockTop: number,
   programs: { gcode: string; diameter: number; turned?: boolean }[]
 ): HoldPoint[] {
   const holds = board.holdPoints ?? [];
   if (!holds.length) return [];
-  const back = rotateAboutOrigin(-(board.rotationDeg ?? 0));
+  const backA = rotateAboutOrigin(-(board.rotationDeg ?? 0));
+  const backB = rotateAboutOrigin(-(board.sideBRotationDeg ?? board.rotationDeg ?? 0));
   const paths = programs.map(p => {
     // The first move only says where the machine goes: it starts wherever it is, and goes straight up.
     const moves = readGcode(p.gcode).slice(1);
+    const back = p.turned ? backB : backA;
     return {
       turned: !!p.turned,
       cut: { r: p.diameter / 2, pts: moves.length ? [back(moves[0].from), ...moves.map(m => back(m.to))] : [] },

@@ -164,7 +164,7 @@ const api = {
     // Holds in the way of any move of any program: side B and the turned programs find them in the same spots on the wood.
     const clashes = spec.holdPoints?.length
       ? {
-          holdClash: jobHoldClashes(spec, flat.stockTop, [
+          holdClash: jobHoldClashes({ ...spec, sideBRotationDeg: board.sideBRotationDeg }, flat.stockTop, [
             ...plan.programs,
             ...(plan.sideB?.programs ?? []).map(p => ({ ...p, turned: true })),
             ...release,
