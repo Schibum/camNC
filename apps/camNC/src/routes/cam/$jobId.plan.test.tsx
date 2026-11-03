@@ -7,7 +7,8 @@ import stepUrl from '../../../../../packages/cam/test/fixtures/kinderregal-eiche
 import { Route } from './$jobId.plan';
 
 const params = vi.hoisted(() => ({ jobId: '' }));
-const store = vi.hoisted(() => ({ updateToolpath: vi.fn() }));
+const store = vi.hoisted(() => ({ updateToolpath: vi.fn(), setStockHeight: vi.fn(), setToolDiameter: vi.fn() }));
+const depth = vi.hoisted(() => ({ setZeroAt: vi.fn(), setToolShape: vi.fn() }));
 const navigate = vi.hoisted(() => vi.fn());
 
 vi.mock('@tanstack/react-router', () => ({
@@ -19,6 +20,7 @@ vi.mock('@tanstack/react-router', () => ({
 }));
 vi.mock('@/components/page-header', () => ({ PageHeader: () => null }));
 vi.mock('@/store/store', () => ({ useStore: { getState: () => store } }));
+vi.mock('@/visualize/depthViewStore', () => ({ useDepthView: { getState: () => depth } }));
 
 const PlanStep = (Route as unknown as { options: { component: ComponentType } }).options.component;
 
@@ -57,5 +59,10 @@ describe('CAM plan step', () => {
     expect(name).toBe('kinderregal-eiche board A.gcode');
     expect(gcode).toContain('(Part: Board A)');
     expect(navigate).toHaveBeenCalledWith({ to: '/visualize/2DView' });
+    // The machine view gets the board's setup: stock top 8 + 0.3 allowance, Z0 at the bottom, the 1/8" flat bit.
+    expect(store.setStockHeight).toHaveBeenCalledWith(8.3);
+    expect(store.setToolDiameter).toHaveBeenCalledWith(3.175);
+    expect(depth.setZeroAt).toHaveBeenCalledWith('bottom');
+    expect(depth.setToolShape).toHaveBeenCalledWith('flat');
   }, 90_000);
 });

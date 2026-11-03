@@ -7,7 +7,7 @@ import { CamJobBar } from '@/cam/model/CamJobBar';
 import { PlanSettingsPanel } from '@/cam/plan/PlanSettingsPanel';
 import { ToolpathPreview } from '@/cam/plan/ToolpathPreview';
 import { kDefaultPlan } from '@/cam/planSettings';
-import { useStore } from '@/store/store';
+import { loadIntoMachineView } from '@/cam/showOnMachine';
 import { createFileRoute, useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { zodValidator } from '@tanstack/zod-adapter';
 import { Button } from '@wbcnc/ui/components/button';
@@ -67,7 +67,7 @@ function PlanStep() {
 
   const showOnMachine = () => {
     if (!result || !safe) return;
-    useStore.getState().updateToolpath(result.gcode, fileName);
+    loadIntoMachineView(result, fileName);
     void navigate({ to: '/visualize/2DView' });
   };
   const download = () => {
@@ -128,6 +128,7 @@ function PlanStep() {
                 </Button>
                 <span className="text-xs text-muted-foreground">
                   One program per board, Z0 at the bottom of the board, XY zero at its lower left corner.
+                  {result.bits.length > 1 && ' The simulation shows the first bit for the whole program.'}
                 </span>
               </div>
             </>
