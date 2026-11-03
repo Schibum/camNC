@@ -4,6 +4,7 @@ import type { CamWorkerAPI } from '../workers/cam.worker';
 import type { BoardRequest, ModelImport, PlanResult } from './camTypes';
 import { useCamMachine } from './machine/camMachine';
 import { kDefaultPlan, toCamSettings } from './planSettings';
+import { rebaseJob } from './rebaseJob';
 import { useCuttingData } from './cuttingData';
 import { getJob, getModelBytes, listJobs, saveJob, type CamJobV1 } from './jobDb';
 import { modelReadError } from './openModelFile';
@@ -148,12 +149,15 @@ export function useBoardPlans(
   });
 }
 
-export function useSaveCamJob() {
+/**
+ * Saves the job. `rendered`: the job the caller builds its saves from; what a save changed from it goes on top of the job
+ * as it is now, so a save right after another (before the next render) doesn't undo it (`rebaseJob`).
+ */
+export function useSaveCamJob(rendered?: CamJobV1 | null) {
   const queryClient = useQueryClient();
-  return useMutation({
+  const mutation = useMutation({
     mutationFn: saveJob,
     onMutate: job => {
-      queryClient.setQueryData(camKeys.job(job.id), job);
       const save = (latestSave.get(job.id) ?? 0) + 1;
       latestSave.set(job.id, save);
       return { save };
@@ -164,4 +168,16 @@ export function useSaveCamJob() {
       void queryClient.invalidateQueries({ queryKey: camKeys.jobs });
     },
   });
+  const base = useRef(rendered);
+  base.current = rendered;
+  return {
+    ...mutation,
+    mutate: (job: CamJobV1) => {
+      const current = queryClient.getQueryData<CamJobV1>(camKeys.job(job.id));
+      const next = base.current && current ? rebaseJob(base.current, job, current) : job;
+      // Now, not in onMutate (a tick later): the next save may come before that.
+      queryClient.setQueryData(camKeys.job(next.id), next);
+      mutation.mutate(next);
+    },
+  };
 }

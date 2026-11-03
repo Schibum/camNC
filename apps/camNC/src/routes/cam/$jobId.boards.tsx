@@ -43,7 +43,7 @@ function BoardsStep() {
   const { jobId } = useParams({ from: '/cam/$jobId/boards' });
   const { data: job, isPending } = useCamJob(jobId);
   const model = useCamModel(job);
-  const save = useSaveCamJob();
+  const save = useSaveCamJob(job);
   const queryClient = useQueryClient();
   const { instances, boards, changed } = useJobBoards(job, model.data);
   // While a board is planned again (a part moved, Min # changed), its tabs stay drawn as they were, dimmed.

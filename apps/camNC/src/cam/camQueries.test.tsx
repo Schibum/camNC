@@ -42,4 +42,27 @@ describe('saving a CAM job', () => {
     expect(boardsNow()).toEqual(['A', 'B', 'C']);
     expect(client.getQueryData<CamJobV1>(camKeys.job('j'))!.updatedAt).toBe(2);
   });
+
+  it('two saves built from the same render, with no render between them: the second keeps what the first changed', async () => {
+    pending.length = 0;
+    const board = (id: string, over: object) => ({ id, name: id, items: [], ...over });
+    const rendered = { ...job([]), boards: [board('A', { items: ['p'] }), board('C', {})] } as unknown as CamJobV1;
+    const client = new QueryClient();
+    client.setQueryData(camKeys.job('j'), rendered);
+    const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    const { result } = renderHook(() => useSaveCamJob(rendered), { wrapper });
+    const save = result.current;
+    await act(async () => {
+      // The drop moves p to C; right after it, a size field on C commits, from the same render where C is still empty.
+      save.mutate({ ...rendered, boards: [board('A', {}), board('C', { items: ['p'] })] } as unknown as CamJobV1);
+      save.mutate({ ...rendered, boards: [board('A', { items: ['p'] }), board('C', { margin: 9 })] } as unknown as CamJobV1);
+    });
+    await vi.waitFor(() => expect(pending).toHaveLength(2));
+    // The last write to the database has both, and neither board lost its part.
+    const c = pending[1].job.boards!.find(b => b.id === 'C')!;
+    expect(c.items).toEqual(['p']);
+    expect(c.margin).toBe(9);
+    expect(pending[1].job.boards!.find(b => b.id === 'A')!.items).toEqual([]);
+    expect(client.getQueryData<CamJobV1>(camKeys.job('j'))!.boards!.find(b => b.id === 'C')!.items).toEqual(['p']);
+  });
 });

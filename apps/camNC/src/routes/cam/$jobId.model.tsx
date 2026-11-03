@@ -26,7 +26,7 @@ function ModelStep() {
   const { jobId } = useParams({ from: '/cam/$jobId/model' });
   const { data: job, isPending: jobPending } = useCamJob(jobId);
   const model = useCamModel(job);
-  const save = useSaveCamJob();
+  const save = useSaveCamJob(job);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [selected, setSelected] = useState<string | null>(null);

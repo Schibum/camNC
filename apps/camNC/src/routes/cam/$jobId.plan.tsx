@@ -53,7 +53,7 @@ function PlanStep() {
   const { data: job, isPending } = useCamJob(jobId);
   const model = useCamModel(job);
   const [side, setSide] = useState<'a' | 'b'>('a');
-  const save = useSaveCamJob();
+  const save = useSaveCamJob(job);
   const { boards, instances } = useJobBoards(job, model.data);
   const active = boards.filter(b => b.request.parts.length);
   const plans = useBoardPlans(
