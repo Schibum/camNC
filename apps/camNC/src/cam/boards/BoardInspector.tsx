@@ -322,7 +322,11 @@ export function BoardInspector({
           />
         </div>
       )}
-      {tabs && <p className="text-xs text-muted-foreground">Tabs sit on the long straight edges; moving them by hand comes later.</p>}
+      {tabs && (
+        <p className="text-xs text-muted-foreground">
+          Tabs sit on straight edges where the stock beyond them holds. Moving them by hand comes later.
+        </p>
+      )}
 
       {flip && (
         <section className="flex flex-col gap-1.5" aria-label="Second side">
