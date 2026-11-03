@@ -5,6 +5,7 @@ export default defineConfig({
   test: {
     globals: false,
     environment: 'node',
+    setupFiles: ['src/testSetup.ts'],
     // Loading a STEP fixture and extracting features in beforeAll takes > 10 s on a busy CI runner.
     testTimeout: 120_000,
     hookTimeout: 120_000,
