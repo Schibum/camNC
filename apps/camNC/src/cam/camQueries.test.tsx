@@ -2,8 +2,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { camKeys, useSaveCamJob } from './camQueries';
-import type { CamJobV1 } from './jobDb';
+import { camKeys, modelKey, useSaveCamJob } from './camQueries';
+import { createJob, replaceModel, type CamJobV1 } from './jobDb';
 
 // Saves that finish in the order the test says, like IndexedDB writes on a slow machine.
 const pending = vi.hoisted(() => [] as { job: CamJobV1; resolve: (j: CamJobV1) => void }[]);
@@ -64,5 +64,18 @@ describe('saving a CAM job', () => {
     expect(c.margin).toBe(9);
     expect(pending[1].job.boards!.find(b => b.id === 'A')!.items).toEqual([]);
     expect(client.getQueryData<CamJobV1>(camKeys.job('j'))!.boards!.find(b => b.id === 'C')!.items).toEqual(['p']);
+  });
+});
+
+describe('the model of a job', () => {
+  it('a replaced file of the same name is another model: its key and the worker’s change', async () => {
+    const original = await createJob(new File(['one'], 'same.step'));
+    const replaced = await replaceModel(original, new File(['two'], 'same.step'));
+    expect(replaced.fileName).toBe(original.fileName);
+    expect(modelKey(replaced)).not.toBe(modelKey(original));
+    expect(camKeys.model(modelKey(replaced))).not.toEqual(camKeys.model(modelKey(original)));
+    expect(modelKey(await replaceModel(replaced, new File(['three'], 'same.step')))).not.toBe(modelKey(replaced));
+    // Saved jobs from before there were revisions.
+    expect(modelKey({ ...original, modelRevision: undefined })).toBe(modelKey(original));
   });
 });

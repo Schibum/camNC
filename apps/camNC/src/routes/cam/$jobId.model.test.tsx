@@ -8,10 +8,16 @@ import type { ComponentType, ReactNode } from 'react';
 import '@/style.css';
 import { page } from '@vitest/browser/context';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import otherStepUrl from '../../../../../packages/cam/test/fixtures/besteckkasten.step?url';
 import stepUrl from '../../../../../packages/cam/test/fixtures/kinderregal-eiche.step?url';
 import { Route } from './$jobId.model';
 
 const params = vi.hoisted(() => ({ jobId: '' }));
+const picked = vi.hoisted(() => ({ file: null as File | null }));
+vi.mock('@/cam/openModelFile', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/cam/openModelFile')>()),
+  pickModelFile: async () => picked.file,
+}));
 
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (options: unknown) => ({ options }),
@@ -71,6 +77,33 @@ describe('CAM model step', () => {
     await waitFor(() => expect(within(notMilled).getByText('back')).toBeTruthy());
     await waitFor(async () => expect((await getJob(job.id))?.parts.find(p => p.name === 'back')?.milled).toBe(false));
   }, 90_000);
+
+  it('replacing the model with a file of the same name reads the new one, without a reload', async () => {
+    const bytes = await (await fetch(stepUrl)).arrayBuffer();
+    const job = await createJob(new File([bytes], 'model.step'));
+    params.jobId = job.id;
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ModelStep />
+      </QueryClientProvider>
+    );
+    await screen.findByRole('region', { name: '8 mm boards' }, { timeout: 60_000 });
+    // The sizes of the parts: the geometry, whatever they are called (names stay with the job, by part id).
+    const sizes = () => screen.queryAllByText(/^\d+(\.\d+)? × \d+(\.\d+)?$/).map(e => e.textContent);
+    const before = sizes();
+    expect(before.length).toBeGreaterThan(0);
+
+    picked.file = new File([await (await fetch(otherStepUrl)).arrayBuffer()], 'model.step');
+    fireEvent.click(screen.getByRole('button', { name: 'Replace model…' }));
+    await waitFor(
+      () => {
+        expect(sizes().length).toBeGreaterThan(0);
+        expect(sizes()).not.toEqual(before);
+      },
+      { timeout: 60_000 }
+    );
+    expect((await getJob(job.id))?.modelRevision).toBe(1);
+  }, 120_000);
 
   it('names each identical body, and renames a part in place', async () => {
     const bytes = await (await fetch(stepUrl)).arrayBuffer();

@@ -21,8 +21,8 @@ export function camWorker() {
 export const camKeys = {
   jobs: ['cam', 'jobs'] as const,
   job: (id: string) => ['cam', 'job', id] as const,
-  model: (id: string, fileName: string) => ['cam', 'model', id, fileName] as const,
-  plan: (id: string, fileName: string, partId: string, settings: unknown) => ['cam', 'plan', id, fileName, partId, settings] as const,
+  model: (key: string) => ['cam', 'model', key] as const,
+  plan: (key: string, partId: string, settings: unknown) => ['cam', 'plan', key, partId, settings] as const,
 };
 
 export const useCamJobs = () => useQuery({ queryKey: camKeys.jobs, queryFn: listJobs });
@@ -46,7 +46,7 @@ export function useCamModel(job: CamJobV1 | null | undefined) {
   );
   return useQuery({
     select,
-    queryKey: camKeys.model(job?.id ?? '', job?.fileName ?? ''),
+    queryKey: camKeys.model(job ? modelKey(job) : ''),
     enabled: !!job,
     staleTime: Infinity,
     gcTime: 5 * 60_000,
@@ -90,14 +90,15 @@ export function useCamModel(job: CamJobV1 | null | undefined) {
   });
 }
 
-export const modelKey = (job: CamJobV1) => `${job.id}:${job.fileName}`;
+/** One version of a job's model: what its parts and programs are computed from. */
+export const modelKey = (job: CamJobV1) => `${job.id}:${job.fileName}:${job.modelRevision ?? 0}`;
 
 /** Toolpaths + G-code of one part with the job's plan settings; recomputed (~0.3s) when they change. */
 export function useCamPlan(job: CamJobV1 | null | undefined, partId: string | undefined, modelReady: boolean) {
   const saved = useCuttingData(s => s.saved);
   const settings = toCamSettings(job?.plan ?? kDefaultPlan, undefined, saved);
   return useQuery({
-    queryKey: camKeys.plan(job?.id ?? '', job?.fileName ?? '', partId ?? '', settings),
+    queryKey: camKeys.plan(job ? modelKey(job) : '', partId ?? '', settings),
     enabled: !!job && !!partId && modelReady,
     staleTime: Infinity,
     gcTime: 60_000,
@@ -128,7 +129,7 @@ export function useBoardPlans(
       // The guided tab removal is planned with the board: only boards that have one plan again when this changes.
       const perPart = request.holdDown === 'tabs-guided' && !pauseEachTab;
       return {
-        queryKey: ['cam', 'board-plan', job?.id ?? '', job?.fileName ?? '', request, settings, perPart] as const,
+        queryKey: ['cam', 'board-plan', job ? modelKey(job) : '', request, settings, perPart] as const,
         enabled: !!job && modelReady && request.parts.length > 0,
         staleTime: Infinity,
         gcTime: 60_000,

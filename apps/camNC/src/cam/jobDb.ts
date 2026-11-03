@@ -20,6 +20,8 @@ export interface CamJobV1 {
   id: string;
   name: string;
   fileName: string;
+  /** Goes up with every replaced model file: a file of the same name can hold another model. */
+  modelRevision?: number;
   createdAt: number;
   updatedAt: number;
   /** Empty until the model has been imported once. */
@@ -131,7 +133,7 @@ export async function saveJob(job: CamJobV1): Promise<CamJobV1> {
 
 /** Swap the model file of a job; parts are re-derived on the next import, keeping `milled` by part id. */
 export async function replaceModel(job: CamJobV1, file: File): Promise<CamJobV1> {
-  const saved = { ...job, fileName: file.name, updatedAt: Date.now() };
+  const saved = { ...job, fileName: file.name, modelRevision: (job.modelRevision ?? 0) + 1, updatedAt: Date.now() };
   delete saved.readError;
   const bytes = await file.arrayBuffer();
   await tx([kJobs, kModels], 'readwrite', t => {
