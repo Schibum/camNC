@@ -232,7 +232,8 @@ export function BoardInspector({
         {tabs
           ? `Defaults with tabs: margin ${fmt(tabMargin)} mm, gap ${fmt(tabGap)} mm, so a strip of stock that holds the tabs stays between the cuts (bit ⌀ ${fmt(bit)}).`
           : `Defaults: margin bit + 2 mm, gap bit + 4 mm (bit ⌀ ${fmt(bit)}).`}
-        {nest.frame === 'kept' && ` With screws or clamps, the margin is at least ${fmt(nest.margin)} mm: a frame of stock for them.`}
+        {nest.frame === 'kept' &&
+          ` With screws or clamps, the margin is at least ${fmt(nest.margin)} mm: a frame of stock for them (the hold’s size, the bit and a little clearance). Untick “Keep a frame for them” below to use your own.`}
       </p>
       {tightForTabs && (
         <div className="flex flex-col gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs leading-relaxed">
