@@ -361,6 +361,43 @@ describe('names in comments', () => {
   });
 });
 
+describe('tab borders', () => {
+  const tabs = { ...DEFAULT_TABS, minCount: 3 };
+
+  it('steps down into uncut wood at the plunge feed, one feed per point, back to the cutting feed after', () => {
+    const op = camPart(board(), { tabs }).operations.at(-1)!;
+    const below = op.passes.filter(p => Math.min(...p.pts.map(q => q[2])) < tabs.height);
+    expect(below.length).toBeGreaterThan(1);
+    let steps = 0;
+    for (const p of below) {
+      expect(p.feeds).toHaveLength(p.pts.length);
+      for (let i = 1; i < p.pts.length; i++) {
+        const sideways = Math.hypot(p.pts[i][0] - p.pts[i - 1][0], p.pts[i][1] - p.pts[i - 1][1]);
+        if (sideways > 1e-9) {
+          expect(p.feeds[i]).toBeGreaterThan(480);
+        } else if (p.pts[i][2] < p.pts[i - 1][2]) {
+          expect(p.feeds[i]).toBe(480);
+          steps++;
+        }
+      }
+    }
+    expect(steps).toBeGreaterThanOrEqual(3 * below.length);
+  });
+
+  it('comes out in the G-code: F480 on the way down, the feed again on the way along, arcs still fitted', () => {
+    const gcode = toGcode(camPart(board(), { tabs }));
+    const moves = readGcode(gcode);
+    const down = moves.filter(
+      m => !m.rapid && m.to[2] < m.from[2] && m.from[2] <= tabs.height && m.from[0] === m.to[0] && m.from[1] === m.to[1]
+    );
+    expect(down.length).toBeGreaterThan(3);
+    for (const m of down) expect(m.feed).toBeLessThanOrEqual(480);
+    expect(Math.max(...moves.filter(m => !m.rapid).map(m => m.feed))).toBe(1800);
+    expect(gcode).toMatch(/^G[23] X/m);
+    expect(checkGcodeSafety(gcode, { stockTop: 8, size: [200, 100], minZ: -0.3, toolRadius: 3.175 / 2 })).toEqual([]);
+  });
+});
+
 describe('per-bit cutting data', () => {
   const main: Tool = { number: 1, diameter: 6, feed: 3000, plungeFeed: 900, rpm: 18000, stepover: 2.4, finalFeedFactor: 0.5 };
   const small: Tool = { number: 2, diameter: 2, feed: 500, plungeFeed: 150, rpm: 24000, stepover: 0.5, finalFeedFactor: 0.8 };

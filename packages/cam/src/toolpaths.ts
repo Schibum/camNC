@@ -738,8 +738,11 @@ function tabIntervals(loop: Vec3[], centers: { x: number; y: number }[], halfLen
   });
 }
 
-/** Raise the path to tabZ inside the given arc-length intervals (vertical steps at the borders). */
-function applyTabs(pass: Pass, intervals: (readonly [number, number])[], tabZ: number): Pass {
+/**
+ * Raise the path to tabZ inside the given arc-length intervals (vertical steps at the borders). A step down goes into
+ * uncut wood: at the plunge feed. `feeds` stays one per point; arc fitting only looks at runs of constant feed.
+ */
+function applyTabs(pass: Pass, intervals: (readonly [number, number])[], tabZ: number, plungeFeed: number): Pass {
   const inTab = (s: number) => intervals.some(([a, b]) => s > a && s < b);
   const pts: Vec3[] = [pass.pts[0]];
   const feeds: number[] = [pass.feeds[0]];
@@ -759,10 +762,11 @@ function applyTabs(pass: Pass, intervals: (readonly [number, number])[], tabZ: n
       const zBase = a[2] + t * (b[2] - a[2]);
       const before = inTab(c - 1e-6),
         after = inTab(c + 1e-6);
-      pts.push([x, y, before ? Math.max(zBase, tabZ) : zBase]);
+      const [zBefore, zAfter] = [before ? Math.max(zBase, tabZ) : zBase, after ? Math.max(zBase, tabZ) : zBase];
+      pts.push([x, y, zBefore]);
       feeds.push(pass.feeds[i]);
-      pts.push([x, y, after ? Math.max(zBase, tabZ) : zBase]);
-      feeds.push(pass.feeds[i]);
+      pts.push([x, y, zAfter]);
+      feeds.push(zAfter < zBefore ? Math.min(plungeFeed, pass.feeds[i]) : pass.feeds[i]);
     }
     s += len;
     pts.push([b[0], b[1], inTab(s) ? Math.max(b[2], tabZ) : b[2]]);
@@ -876,7 +880,7 @@ export function profileOperation(
     for (let i = 0; i < passes.length; i++) {
       const p = passes[i];
       if (p.pts[1][2] >= s.tabs.height) continue;
-      passes[i] = applyTabs(p, tabIntervals(p.pts, centers, half), s.tabs.height);
+      passes[i] = applyTabs(p, tabIntervals(p.pts, centers, half), s.tabs.height, s.plungeFeed);
     }
   }
   return { name, kind: 'profile', feature: inside ? 'hole' : 'outline', tool, passes };
