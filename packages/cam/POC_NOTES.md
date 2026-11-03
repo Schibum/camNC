@@ -163,6 +163,28 @@ PNGs (Fusion left, ours right; colour = depth, dashed = rapids): `poc-out/left.p
      Side B gets its own program from the bottom-face features (`flipPart`, `cutThrough: false`), mirrored to match the
      chosen registration. It becomes a guided step in the machine queue ("flip board A, align, zero Z").
 
+### Holding parts with tabs: options (decision pending, not built)
+
+The hold check (4913ed7) shows why today's tabs don't hold: a tab only holds if the stock beyond it is solid to the
+board's edge, and after both neighbouring cuts an 8 mm gap leaves ~1.7 mm (8 - 2 x 3.175), a 5.2 mm margin ~2 mm.
+Kinderregal board A as nested by default: 2 of 24 tabs hold. Options:
+
+1. **Wider gaps and margins, tabs as now.** Defaults sized for a >= 3 mm web after both cuts: gap 2 x bit + 3
+   (~10 mm with 1/8"), margin bit + 3 (~6.5 mm). Every tab holds, any layout. ~2-3 % more wood; tabs stay on the long
+   visible edges.
+2. **Smart tab placement.** Tabs only on edges facing solid stock (board edge, a big free area, a wide gap), not in
+   notches, curves or corners, spread out so long parts are held at both ends; where a part has no such edge, the nest
+   widens that one gap or margin. Least wood; tabs end up on short or hidden edges. More complex; tabs move with the
+   layout.
+3. **Frame and webs.** A solid frame plus webs >= 6 mm between parts, tabs only where they reach a web. Most rigid
+   (thin parts, flip setups), most wood, constrains nesting.
+4. **Onion skin.** Outlines stop 0.3-0.5 mm above the bottom; break out and sand, or a last light pass with the board
+   taped down. No tab marks; a ragged bottom edge to clean up.
+
+Recommendation: 1 as the default, 2 later as an optimisation, 4 as a per-board option; per board like the hold-down
+(Tabs (wide gaps) / Tabs (smart placement) / Onion skin / Fixture + tape / Clamps). Once chosen, the hold check becomes
+a blocker on the Plan step with fix actions.
+
 ### Flip setups: built (fc17894), known limits
 
 - The board always turns top to bottom (board y -> H - y). Turning left to right (x -> W - x) isn't offered yet; it would
