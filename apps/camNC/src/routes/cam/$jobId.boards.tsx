@@ -1,6 +1,6 @@
 import { cn } from '@wbcnc/ui/lib/utils';
 import { PageHeader } from '@/components/page-header';
-import { autoFillFromStock, dropPart, newBoard, type BoardV1, type PartDrop, type PartPosition } from '@/cam/boards';
+import { autoFillFromStock, dropPart, newBoard, relayoutBoard, type BoardV1, type PartDrop, type PartPosition } from '@/cam/boards';
 import { BoardDrawings } from '@/cam/boards/BoardDrawings';
 import { BoardInspector } from '@/cam/boards/BoardInspector';
 import { BoardList } from '@/cam/boards/BoardList';
@@ -12,9 +12,10 @@ import { useJobBoards } from '@/cam/useJobBoards';
 import { useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, useParams } from '@tanstack/react-router';
 import { Button } from '@wbcnc/ui/components/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@wbcnc/ui/components/dropdown-menu';
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
 import { toast } from '@wbcnc/ui/components/sonner';
-import { Plus } from 'lucide-react';
+import { ChevronDown, Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 export const Route = createFileRoute('/cam/$jobId/boards')({
@@ -146,11 +147,35 @@ function BoardsStep() {
     if (drop.exact) place(itemId, drop.board);
   };
 
-  const autoFill = () => {
+  // Auto-fill and re-layout replace the user's grouping: offer the way back. Undo restores the boards on the latest
+  // job (the stock list may have changed since).
+  const undoTo = (before: BoardV1[]) => ({
+    label: 'Undo',
+    onClick: () => {
+      const latest = queryClient.getQueryData<CamJobV1>(camKeys.job(job.id)) ?? job;
+      save.mutate({ ...latest, boards: before });
+    },
+  });
+  /** One board's parts nested afresh: they stay on it, unpinned. */
+  const relayout = (board: BoardV1) => {
+    const before = boards.map(b => b.board);
+    saveBoards(before.map(b => (b.id === board.id ? relayoutBoard(b) : b)));
+    toast.success(`Board ${board.name} laid out again`, { action: undoTo(before), duration: 10_000 });
+  };
+  /** Everything unpinned, then nested from scratch: from the stock list when there is one. */
+  const relayoutAll = () => {
+    const before = boards.map(b => b.board);
+    const free = before.map(relayoutBoard);
+    if (!(job.stock ?? []).length) {
+      saveBoards(free);
+      return toast.success('All boards laid out again', { action: undoTo(before), duration: 10_000 });
+    }
+    autoFill(free, before);
+  };
+  const autoFill = (start = boards.map(b => b.board), before = start) => {
     const stock = job.stock ?? [];
     if (!stock.length) return toast.error('Add the boards you have to the stock list first.');
-    const before = boards.map(b => b.board);
-    const res = autoFillFromStock(before, instances, stock, plan.bit.diameter, plan.material, job.nestObjective ?? 'boards');
+    const res = autoFillFromStock(start, instances, stock, plan.bit.diameter, plan.material, job.nestObjective ?? 'boards');
     saveBoards(res.boards);
     const names = (ids: string[]) => ids.map(id => byId.get(id)?.name ?? id).join(', ');
     const problems = [
@@ -158,15 +183,7 @@ function BoardsStep() {
       res.short.length && `${names(res.short)}: not enough stock left.`,
     ].filter(Boolean);
     const stockBoards = res.boards.filter(b => !b.size.fit && stock.some(s => +s.thickness.toFixed(1) === b.thickness)).length;
-    // Auto-fill replaces the user's grouping: offer the way back. Undo restores the boards on the latest job (the
-    // stock list may have changed since).
-    const action = {
-      label: 'Undo',
-      onClick: () => {
-        const latest = queryClient.getQueryData<CamJobV1>(camKeys.job(job.id)) ?? job;
-        save.mutate({ ...latest, boards: before });
-      },
-    };
+    const action = undoTo(before);
     if (problems.length) toast.warning(problems.join(' '), { action, duration: 10_000 });
     else toast.success(`Parts placed on ${stockBoards} ${stockBoards === 1 ? 'board' : 'boards'} from stock`, { action, duration: 10_000 });
   };
@@ -205,9 +222,21 @@ function BoardsStep() {
             <Button size="sm" variant="outline" onClick={addBoard}>
               <Plus /> New {selected.board.thickness} mm board
             </Button>
-            <Button size="sm" variant="outline" onClick={autoFill}>
-              Auto-fill from stock
-            </Button>
+            <div className="flex">
+              <Button size="sm" variant="outline" className="rounded-r-none" onClick={() => autoFill()}>
+                Auto-fill from stock
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="outline" className="rounded-l-none border-l-0 px-1.5" aria-label="More layout actions">
+                    <ChevronDown />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onSelect={relayoutAll}>Re-lay out everything (unpin all)</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
             <div role="group" aria-label="Auto-fill optimizes for" className="flex rounded-md border p-0.5 text-xs">
               {(
                 [
@@ -274,6 +303,7 @@ function BoardsStep() {
           stock={job.stock ?? []}
           bit={plan.bit.diameter}
           onChange={updateBoard}
+          onRelayout={() => relayout(selected.board)}
           onDelete={
             !selected.board.items.length && boards.some(b => b !== selected && b.board.thickness === selected.board.thickness)
               ? () => saveBoards(boards.filter(b => b !== selected).map(b => b.board))

@@ -61,6 +61,7 @@ export function BoardInspector({
   stock,
   bit,
   onChange,
+  onRelayout,
   onDelete,
 }: {
   board: BoardV1;
@@ -68,6 +69,8 @@ export function BoardInspector({
   stock: StockBoardV1[];
   bit: number;
   onChange: (b: BoardV1) => void;
+  /** Nest this board's parts afresh: unpins them and forgets where they were put by hand. */
+  onRelayout?: () => void;
   onDelete?: () => void;
 }) {
   const matching = stock.filter(s => +s.thickness.toFixed(1) === board.thickness);
@@ -77,7 +80,19 @@ export function BoardInspector({
   const tabs = board.holdDown === 'tabs' || board.holdDown === 'tabs-guided';
   return (
     <aside className="flex min-h-0 flex-col gap-3.5 overflow-y-auto border-l p-4">
-      <h2 className="text-[15px] font-semibold">Board {board.name}</h2>
+      <div className="flex items-center gap-2">
+        <h2 className="text-[15px] font-semibold">Board {board.name}</h2>
+        <span className="grow" />
+        {onRelayout && board.items.length > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            title={board.pinned?.length ? 'Nest its parts afresh: unpins them' : 'Nest its parts afresh'}
+            onClick={onRelayout}>
+            Re-lay out
+          </Button>
+        )}
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <NumberField
           id="board-w"

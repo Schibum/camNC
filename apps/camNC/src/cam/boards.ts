@@ -123,6 +123,14 @@ export function newBoard(boards: BoardV1[], thickness: number, material: Materia
  * ones on the first board of their thickness (making one if needed). Empty boards stay until deleted (the user may
  * be about to drag parts onto them).
  */
+/** A board laid out afresh: its bodies stay on it, but none is pinned or at a spot of its own any more. */
+export function relayoutBoard(board: BoardV1): BoardV1 {
+  const rest = { ...board };
+  delete rest.pinned;
+  delete rest.positions;
+  return rest;
+}
+
 /** The positions of these bodies only. */
 const onlyFor = (positions: Record<string, PartPosition>, ids: string[]) =>
   Object.fromEntries(Object.entries(positions).filter(([id]) => ids.includes(id)));

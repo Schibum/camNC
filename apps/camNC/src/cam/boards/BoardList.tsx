@@ -200,7 +200,7 @@ function PartChip({
       <GripVertical className="size-3 text-muted-foreground" aria-hidden />
       {name}
       {pinned && (
-        <span role="img" aria-label="Placed by hand" title="Placed by hand: auto-fill keeps it on this board">
+        <span role="img" aria-label="Placed by hand" title="Pinned: placed by hand, auto-fill keeps it here. ⋯ › Unpin to let it move">
           <Pin className="size-3 text-muted-foreground" aria-hidden />
         </span>
       )}
@@ -227,7 +227,7 @@ function PartChip({
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={onUnpin}>
-                <PinOff className="size-3" /> Let auto-fill move it
+                <PinOff className="size-3" /> Unpin (auto-fill may move it)
               </DropdownMenuItem>
             </>
           )}

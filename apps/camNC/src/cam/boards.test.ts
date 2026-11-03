@@ -6,6 +6,7 @@ import {
   nestBoard,
   newBoard,
   reconcileBoards,
+  relayoutBoard,
   spacingProblem,
   stockTopOf,
   type BoardV1,
@@ -338,6 +339,17 @@ describe('boards', () => {
 
   describe('placing parts by hand', () => {
     const bit = 3.175;
+
+    it('re-lay out: the parts stay on the board, unpinned, nested like a fresh board', () => {
+      const fresh = { ...newBoard([], 8, 'oak', ['left', 'right']), size: { fit: false as const, w: 1220, h: 610 } };
+      const placed: BoardV1 = { ...fresh, pinned: ['left'], positions: { left: { x: 600, y: 300, rotated: false } } };
+      const again = relayoutBoard(placed);
+      expect(again.items).toEqual(['left', 'right']);
+      expect(again.pinned).toBeUndefined();
+      expect(again.positions).toBeUndefined();
+      expect(nestBoard(again, parts, bit).placements).toEqual(nestBoard(fresh, parts, bit).placements);
+      expect(nestBoard(placed, parts, bit).placements).not.toEqual(nestBoard(fresh, parts, bit).placements);
+    });
     const sheet = (items: string[], w = 1220, h = 610): BoardV1 => ({
       ...newBoard([], 8, 'oak', items),
       size: { fit: false, w, h },

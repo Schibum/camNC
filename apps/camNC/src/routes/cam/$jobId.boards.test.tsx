@@ -237,4 +237,36 @@ describe('CAM boards step', () => {
     await waitFor(async () => expect((await getJob(job.id))!.nestObjective).toBe('wood'), { timeout: 10_000 });
     expect(group.getByRole('button', { name: 'Least wood' }).getAttribute('aria-pressed')).toBe('true');
   }, 90_000);
+
+  it('re-lays out one board or everything after moves by hand, with Undo', async () => {
+    const job = await openKinderregal();
+    // Part 2 by hand onto a board of its own: pinned.
+    fireEvent.pointerDown(within(screen.getByRole('region', { name: 'Board A' })).getByRole('button', { name: 'Move Part 2' }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.click(await screen.findByRole('menuitem', { name: /New board/ }));
+    await screen.findByRole('region', { name: 'Board C' });
+    const pinnedBoards = async () => ((await getJob(job.id))!.boards ?? []).filter(b => b.pinned?.length).map(b => b.name);
+    await waitFor(async () => expect(await pinnedBoards()).toEqual(['C']), { timeout: 10_000 });
+    const before = (await getJob(job.id))!.boards!;
+
+    // Everything: unpinned (no stock list, so the boards keep their parts and nest afresh).
+    toastSuccess.mockClear();
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'More layout actions' }), { button: 0, ctrlKey: false });
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Re-lay out everything (unpin all)' }));
+    await waitFor(async () => expect(await pinnedBoards()).toEqual([]), { timeout: 10_000 });
+    const [message, { action }] = toastSuccess.mock.calls.at(-1)! as [string, { action: { label: string; onClick: () => void } }];
+    expect(message).toBe('All boards laid out again');
+    action.onClick();
+    await waitFor(async () => expect((await getJob(job.id))!.boards).toStrictEqual(before), { timeout: 10_000 });
+
+    // One board: select C in the list, re-lay it out from its inspector.
+    fireEvent.click(within(await screen.findByRole('region', { name: 'Board C' })).getByText(/^C · /));
+    fireEvent.click(await screen.findByRole('button', { name: 'Re-lay out' }));
+    await waitFor(async () => expect(await pinnedBoards()).toEqual([]), { timeout: 10_000 });
+    expect(toastSuccess.mock.calls.at(-1)![0]).toBe('Board C laid out again');
+    // Part 2 is still on board C.
+    expect((await getJob(job.id))!.boards!.find(b => b.name === 'C')!.items).toHaveLength(1);
+  }, 90_000);
 });
