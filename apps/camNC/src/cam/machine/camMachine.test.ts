@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PlanResult } from '../camTypes';
 import type { JobBoard } from '../useJobBoards';
-import { currentTab, entryTitle, machineQueue, partsTakenOut } from './camMachine';
+import { currentTab, entryTitle, machineQueue, takeOutAt } from './camMachine';
 
 const plan = (bits: number[]): PlanResult =>
   ({
@@ -63,9 +63,11 @@ describe('machine queue', () => {
       'M0 (MSG Take out b, then continue)',
     ].join('\n');
     const at = (text: string) => (100 * (g.indexOf(text) + text.length + 1)) / g.length;
-    expect(partsTakenOut(g, 0)).toBe(0);
-    expect(partsTakenOut(g, at('Take out a, then continue)'))).toBe(1);
-    expect(partsTakenOut(g, at('Take out b, then continue)'))).toBe(2);
+    // Cutting a, paused to take out a, cutting b (after the spindle starts again), paused to take out b.
+    expect(takeOutAt(g, 0)).toEqual({ part: 0, paused: false });
+    expect(takeOutAt(g, at('Take out a, then continue)'))).toEqual({ part: 0, paused: true });
+    expect(takeOutAt(g, at('G1 X2'))).toEqual({ part: 1, paused: false });
+    expect(takeOutAt(g, at('Take out b, then continue)'))).toEqual({ part: 1, paused: true });
   });
 
   it('knows which tab the removal program is at from the SD progress', () => {

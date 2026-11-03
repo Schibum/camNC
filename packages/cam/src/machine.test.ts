@@ -111,4 +111,29 @@ describe('at the machine', () => {
     expect(Math.min(...moves.map(m => m.to[2]))).toBeCloseTo(-0.3, 3);
     expect(checkGcodeSafety(gcode, { stockTop: 8, size: [340, 140], minZ: -0.3, toolRadius: 3.175 / 2 })).toEqual([]);
   });
+
+  it('guided tab removal, one pause per part: its tabs in a row, the last slower, then bit up, spindle off, take it out', () => {
+    const cam = camBoard(board(), { tabs: DEFAULT_TABS });
+    const perTab = tabRemovalProgram(cam, { feed: 600, plungeFeed: 300 });
+    const { cam: removal, tabs } = tabRemovalProgram(cam, { feed: 600, fullFeed: 1800, plungeFeed: 300, perPart: true });
+    // The same tabs, cut the same way, only the pauses differ.
+    expect(tabs).toEqual(perTab.tabs);
+    const parts = new Set(tabs.map(t => t.part));
+    const gcode = toGcode(removal);
+    const lines = gcode.trim().split('\n');
+    expect(lines.filter(l => /^M0 \(MSG Tab /.test(l))).toEqual([]);
+    const pauses = lines.flatMap((l, i) => (l.startsWith('M0 (MSG Take out ') ? [i] : []));
+    expect(pauses).toHaveLength(parts.size);
+    expect(lines[pauses[0]]).toBe('M0 (MSG Take out side, then continue)');
+    for (const i of pauses) {
+      // Bit up (stock top 8 + 5), spindle off.
+      expect(lines[i - 1]).toBe('M5');
+      expect(lines[i - 2]).toMatch(/Z13$/);
+    }
+    // Per part: every tab at the full feed but the last one, which frees the part.
+    const feeds = removal.operations.map(o => o.passes.map(p => p.feeds[1]));
+    for (const f of feeds) expect(f).toEqual([...f.slice(0, -1).map(() => 1800), 600]);
+    expect(Math.min(...cuts(gcode).map(m => m.to[2]))).toBeCloseTo(-0.3, 3);
+    expect(checkGcodeSafety(gcode, { stockTop: 8, size: [340, 140], minZ: -0.3, toolRadius: 3.175 / 2 })).toEqual([]);
+  });
 });

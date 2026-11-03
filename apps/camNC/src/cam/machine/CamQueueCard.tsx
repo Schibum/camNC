@@ -1,4 +1,5 @@
 import { Button } from '@wbcnc/ui/components/button';
+import { Checkbox } from '@wbcnc/ui/components/checkbox';
 import { cn } from '@wbcnc/ui/lib/utils';
 import { Check, RotateCcw, RotateCw, X } from 'lucide-react';
 import { useEffect } from 'react';
@@ -15,7 +16,7 @@ const fmt = (v: number) => `${+v.toFixed(2)}`;
  * the collet, one program per bit, guided tab removal), and for the current one what to do before running it.
  */
 export function CamQueueCard() {
-  const { jobId, active, setActive, markDone, setRotation, rotation, leave, setOverlay } = useCamMachine();
+  const { jobId, active, setActive, markDone, setRotation, rotation, leave, setOverlay, pauseEachTab, setPauseEachTab } = useCamMachine();
   const { job, queue, current, done, tabRemoval, freeParts, loading } = useMachineQueue();
   const gcodeOf = (e: QueueEntry) =>
     e.kind === 'flip'
@@ -36,6 +37,7 @@ export function CamQueueCard() {
       h: e.plan.size[1],
       rotationDeg: rotation[e.board.board.id] ?? 0,
       tabs: e.kind === 'tabs' ? tabRemoval?.tabs : undefined,
+      tabsPerPart: e.kind === 'tabs' && !pauseEachTab,
       freeParts: e.kind === 'free' ? freeParts?.parts : undefined,
     });
   };
@@ -166,17 +168,39 @@ export function CamQueueCard() {
             </p>
           )}
           {current.kind === 'free' && (
-            <p>
-              <span className="font-medium">Free the parts:</span> the program cuts one part’s bottom skin at a time, then lifts the bit,
-              stops the spindle and pauses. Take out the part ringed green in the camera view, then press Resume: the spindle starts again
-              before the next one.
-            </p>
+            <>
+              <p>
+                <span className="font-medium">Free the parts:</span> the program cuts one part’s bottom skin at a time, then lifts the bit,
+                stops the spindle and pauses. Take out the part ringed green in the camera view, then press Resume: the spindle starts again
+                before the next one.
+              </p>
+              <p className="text-xs text-muted-foreground">Green ring: the part being freed, then taken out.</p>
+            </>
           )}
           {current.kind === 'tabs' && (
-            <p>
-              <span className="font-medium">Remove the tabs:</span> the program stops before each tab. Hold the part at the green mark in
-              the camera view, away from the bit, then press Resume.
-            </p>
+            <>
+              <p>
+                {pauseEachTab ? (
+                  <>
+                    <span className="font-medium">Remove the tabs:</span> the program stops before each tab. Hold the part at the green ring
+                    in the camera view, away from the bit, then press Resume.
+                  </>
+                ) : (
+                  <>
+                    <span className="font-medium">Remove the tabs:</span> the program cuts all of a part’s tabs in a row, the last one
+                    slower, then lifts the bit, stops the spindle and pauses. Take out the part, then press Resume: the spindle starts again
+                    before the next one.
+                  </>
+                )}
+              </p>
+              <label className="flex items-center gap-2 text-[13px]">
+                <Checkbox checked={pauseEachTab} onCheckedChange={v => setPauseEachTab(v === true)} aria-label="Pause after each tab" />
+                Pause after each tab
+              </label>
+              <p className="text-xs text-muted-foreground">
+                {pauseEachTab ? 'Orange: next tab · Green ring: hold the part here' : 'Orange: the part’s tabs being cut'}
+              </p>
+            </>
           )}
           {current.kind !== 'flip' && <p className="text-muted-foreground">Then load and run it below. When it’s done:</p>}
           <div className="flex gap-2">

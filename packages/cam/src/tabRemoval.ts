@@ -20,10 +20,14 @@ export interface TabStop {
  * The tabs left by a program (raised stretches of each outline's deepest pass), and a program that cuts them one by
  * one: before each tab it stops (M0) so you can hold the part, then cuts through the tab at the final depth and
  * slower feed. The last tab of a part frees it, so nothing flies off.
+ *
+ * `perPart`: no stop per tab. A part's tabs are cut in a row (at `fullFeed`, the last one, which frees it, at `feed`),
+ * then the bit goes up, the spindle stops and the program pauses: "Take out <part>". The spindle starts again before
+ * the next part; nothing moves while paused.
  */
 export function tabRemovalProgram(
   cam: PartCam,
-  opts: { feed: number; plungeFeed: number; turned?: TurnedOver }
+  opts: { feed: number; plungeFeed: number; turned?: TurnedOver; perPart?: boolean; fullFeed?: number }
 ): { cam: PartCam; tabs: TabStop[] } {
   const turned = opts.turned;
   const at = (p: { x: number; y: number }) => (turned ? { x: p.x, y: turned.h - p.y } : p);
@@ -37,7 +41,9 @@ export function tabRemovalProgram(
     const xs = final.pts.map(q => q[0]),
       ys = final.pts.map(q => q[1]);
     const box = { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) };
-    for (const run of raisedRuns(final.pts, deepest)) {
+    const runs = raisedRuns(final.pts, deepest);
+    const passes: Pass[] = [];
+    for (const run of runs) {
       const mid = run[Math.floor(run.length / 2)];
       const length = run.slice(1).reduce((s, q, i) => s + Math.hypot(q[0] - run[i][0], q[1] - run[i][1]), 0);
       const index = tabs.length + 1;
@@ -48,7 +54,11 @@ export function tabRemovalProgram(
       const pts: Vec3[] = turned
         ? [...run].reverse().map(q => [q[0], turned.h - q[1], cam.stockTop - top + deepest])
         : run.map(q => [q[0], q[1], deepest]);
-      const pass: Pass = { pts, feeds: pts.map((_, k) => (k === 0 ? opts.plungeFeed : opts.feed)), link: 'retract' };
+      const last = passes.length === runs.length - 1;
+      const feed = opts.perPart && !last ? (opts.fullFeed ?? opts.feed) : opts.feed;
+      const pass: Pass = { pts, feeds: pts.map((_, k) => (k === 0 ? opts.plungeFeed : feed)), link: 'retract' };
+      passes.push(pass);
+      if (opts.perPart) continue;
       operations.push({
         name: `${part}: Tab ${index}`,
         kind: 'profile',
@@ -58,7 +68,17 @@ export function tabRemovalProgram(
         pauseBefore: `Tab ${index}: hold ${part} at the marked spot, away from the bit, then resume`,
       });
     }
+    if (opts.perPart && passes.length)
+      operations.push({
+        name: `${part}: Tabs`,
+        kind: 'profile',
+        feature: 'outline',
+        tool: op.tool,
+        passes,
+        pauseAfter: `Take out ${part}, then continue`,
+      });
   }
+  if (opts.perPart) return { cam: { stockTop: cam.stockTop, operations, warnings: [] }, tabs };
   tabs.forEach(
     t =>
       (operations[t.index - 1].pauseBefore =

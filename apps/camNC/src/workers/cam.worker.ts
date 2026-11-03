@@ -121,10 +121,16 @@ const api = {
   },
 
   /**
-   * After cutting a board with tabs: a program that stops before each tab, then cuts through it. `turned`: after side B,
-   * with the board turned over.
+   * After cutting a board with tabs: a program that stops before each tab, then cuts through it (`perPart`: cuts a
+   * part's tabs in a row, then stops for it to be taken out). `turned`: after side B, with the board turned over.
    */
-  async generateTabRemoval(key: string, board: BoardRequest, settings: Partial<CamSettings>, turned = false): Promise<TabRemovalResult> {
+  async generateTabRemoval(
+    key: string,
+    board: BoardRequest,
+    settings: Partial<CamSettings>,
+    turned = false,
+    perPart = false
+  ): Promise<TabRemovalResult> {
     // Laid out as nested (turned over about the board's own middle), then turned to lie like the board on the bed.
     const cam = camBoard({ ...boardSpec(key, board), rotationDeg: 0 }, settings);
     const feed = (settings.feed ?? 1800) * (settings.finalFeedFactor ?? 0.5);
@@ -132,6 +138,7 @@ const api = {
       feed,
       plungeFeed: settings.plungeFeed ?? 480,
       ...(turned && { turned: { h: board.h } }),
+      ...(perPart && { perPart, fullFeed: settings.feed ?? 1800 }),
     });
     const turn = onBed(board);
     const removal = turnCam(program.cam, turn);

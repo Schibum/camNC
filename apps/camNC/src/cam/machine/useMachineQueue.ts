@@ -30,11 +30,13 @@ export function useMachineQueue() {
   const settings = toCamSettings(job?.plan ?? kDefaultPlan, current?.board.board.material, saved);
   // Tabs and skins are taken care of after side B, when there is one: the board lies turned over then.
   const turned = !!current?.plan?.sideB;
+  const pauseEachTab = useCamMachine(s => s.pauseEachTab);
   const tabs = useQuery({
-    queryKey: ['cam', 'tab-removal', job?.id, job?.fileName, current?.board.request, settings, turned],
+    queryKey: ['cam', 'tab-removal', job?.id, job?.fileName, current?.board.request, settings, turned, pauseEachTab],
     enabled: !!job && current?.kind === 'tabs',
     staleTime: Infinity,
-    queryFn: (): Promise<TabRemovalResult> => camWorker().generateTabRemoval(modelKey(job!), current!.board.request, settings, turned),
+    queryFn: (): Promise<TabRemovalResult> =>
+      camWorker().generateTabRemoval(modelKey(job!), current!.board.request, settings, turned, !pauseEachTab),
   });
   const free = useQuery({
     queryKey: ['cam', 'free-parts', job?.id, job?.fileName, current?.board.request, settings, turned],

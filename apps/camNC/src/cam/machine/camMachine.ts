@@ -11,6 +11,8 @@ export interface BoardOverlay {
   rotationDeg: number;
   /** Guided tab removal: the tabs and where to hold the part, in program coordinates. */
   tabs?: TabStop[];
+  /** Tab removal pauses once per part (all its tabs, then "Take out"), not before every tab. */
+  tabsPerPart?: boolean;
   /** Freeing bottom-skin parts: the parts in program order, a spot on each (program coordinates). */
   freeParts?: { name: string; at: { x: number; y: number } }[];
 }
@@ -29,6 +31,8 @@ export const useCamMachine = create(
         rotation: {} as Record<string, number>,
         /** What the top view draws for the loaded program: the board outline and, for tab removal, the tabs. */
         overlay: null as BoardOverlay | null,
+        /** Guided tab removal stops before every tab (hold the part), or once per part (take it out). */
+        pauseEachTab: true,
       },
       set => ({
         start: (jobId: string) => set(s => (s.jobId === jobId ? s : { jobId, done: [], active: null, rotation: {}, overlay: null })),
@@ -37,6 +41,7 @@ export const useCamMachine = create(
         markDone: (key: string) => set(s => ({ done: s.done.includes(key) ? s.done : [...s.done, key] })),
         setRotation: (boardId: string, deg: number) => set(s => ({ rotation: { ...s.rotation, [boardId]: deg } })),
         setOverlay: (overlay: BoardOverlay | null) => set({ overlay }),
+        setPauseEachTab: (pauseEachTab: boolean) => set({ pauseEachTab }),
       })
     ),
     { name: 'camnc-cam-machine' }
@@ -130,17 +135,25 @@ export function currentTab(gcode: string, percent: number): number {
   return tab;
 }
 
-/** How many parts the freeing program has paused for so far ("Take out …"), from FluidNC's SD percent. */
-export function partsTakenOut(gcode: string, percent: number): number {
+/**
+ * Where a program that pauses per part ("Take out …": freeing skin parts, tab removal per part) is, from FluidNC's SD
+ * percent: the part being cut (0-based), and whether it's paused for that part to be taken out (nothing read past the
+ * pause yet).
+ */
+export function takeOutAt(gcode: string, percent: number): { part: number; paused: boolean } {
   const read = (percent / 100) * new TextEncoder().encode(gcode).length;
   let n = 0,
+    paused = false,
     offset = 0;
   for (const line of gcode.split('\n')) {
     offset += new TextEncoder().encode(line).length + 1;
     if (offset > read + 2) break;
-    if (line.startsWith('M0 (MSG Take out ')) n++;
+    if (line.startsWith('M0 (MSG Take out ')) {
+      n++;
+      paused = true;
+    } else if (/^G[0-3]\b/.test(line)) paused = false;
   }
-  return n;
+  return paused ? { part: n - 1, paused } : { part: n, paused };
 }
 
 /** "Board A · T2 ⌀6", "Board B · ⌀3.175", "Board A · remove tabs". */
