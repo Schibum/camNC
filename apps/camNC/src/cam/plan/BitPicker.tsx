@@ -136,6 +136,7 @@ export function BitSettings({ value, onChange }: { value: PlanSettingsV1; onChan
   const bits = useBits([value.bit, ...(value.smallBit ? [value.smallBit] : [])]);
   const importLibrary = useToolLibrary(s => s.importLibrary);
   const [custom, setCustom] = useState(false);
+  const [howOpen, setHowOpen] = useState(false);
   const set = (patch: Partial<PlanSettingsV1>) => onChange({ ...value, ...patch });
   const smaller = bits.filter(b => b.diameter < value.bit.diameter);
   return (
@@ -192,8 +193,30 @@ export function BitSettings({ value, onChange }: { value: PlanSettingsV1; onChan
         <p className="text-xs text-muted-foreground">
           {value.smallBit
             ? 'Cuts what the main bit can’t reach. Boards that need it get a second program: swap the bit and zero Z in between.'
-            : 'For slots or corners narrower than the main bit.'}
+            : 'For slots or corners narrower than the main bit.'}{' '}
+          <button
+            type="button"
+            className="underline underline-offset-2 hover:text-foreground"
+            aria-expanded={howOpen}
+            aria-controls="small-bit-how"
+            onClick={() => setHowOpen(o => !o)}>
+            How it works
+          </button>
         </p>
+        {howOpen && (
+          <ul id="small-bit-how" className="flex list-disc flex-col gap-1 pl-4 text-xs leading-relaxed text-muted-foreground">
+            <li>One setting for the whole job, not per part or per operation.</li>
+            <li>Each pocket or hole gets the largest bit that fits it whole. Outlines always use the main bit.</li>
+            <li>
+              A board that needs both bits gets two programs, the smaller bit first. The machine queue stops in between to swap the bit and
+              zero Z; XY stays.
+            </li>
+            <li>For now you can’t pick the bit for one pocket or part.</li>
+            <li>
+              Corners the main bit can’t reach are only flagged, not cleaned up with the smaller bit afterwards (no rest machining yet).
+            </li>
+          </ul>
+        )}
       </section>
     </div>
   );

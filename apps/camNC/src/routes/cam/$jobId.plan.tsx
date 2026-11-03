@@ -603,7 +603,8 @@ function Checks({ plan, checked }: { plan: PlanResult; checked: boolean }) {
 /** The CAM core's notes, in words a user can act on. */
 function friendly(w: string) {
   const corners = w.match(/left in corners\/narrow spots with D=([\d.]+)/);
-  if (corners) return `Inside corners stay rounded to the bit radius (${+(+corners[1] / 2).toFixed(2)} mm).`;
+  if (corners)
+    return `Inside corners stay rounded to the bit radius (${+(+corners[1] / 2).toFixed(2)} mm). A second, smaller bit doesn’t clean them up yet.`;
   if (w.includes('no tool fits')) return `${w.split(':')[0]}: narrower than the bit, choose a smaller bit.`;
   if (w.includes('flipped')) return 'Features on the bottom face are not cut: they need a second, flipped setup.';
   if (w.includes('sloped')) return 'Small sloped faces (chamfers, fillets) come out square.';

@@ -70,6 +70,13 @@ describe('CAM plan step', () => {
     expect(screen.getByText(/Safety checks passed/)).toBeTruthy();
     // What the CAM core notes in the G-code shows here too, in plain words: the mortises' corners stay round.
     expect(screen.getByText(/Inside corners stay rounded to the bit radius \(1\.59 mm\)/)).toBeTruthy();
+    expect(screen.getByText(/smaller bit doesn’t clean them up yet/)).toBeTruthy();
+    // The second bit explains itself, and what it doesn't do yet.
+    const how = screen.getByRole('button', { name: 'How it works' });
+    expect(how.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(how);
+    expect(screen.getByText(/One setting for the whole job/)).toBeTruthy();
+    expect(screen.getByText(/no rest machining yet/)).toBeTruthy();
     // The default layout (tabs, 8 mm gaps, 5.2 mm edge): tabs only where they hold, every part held.
     expect(screen.queryByText(/tabs would hold it/)).toBeNull();
     expect(screen.queryByText(/bottom skin/)).toBeNull();
