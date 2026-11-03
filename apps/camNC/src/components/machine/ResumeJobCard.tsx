@@ -1,7 +1,7 @@
 import { getCncApi } from '@/lib/fluidnc/machine';
 import { dismissInterruptedJob, interruptedJob } from '@/lib/machine/jobRecovery';
 import { errorText, kResumeFileName, prepareResume, runResume } from '@/lib/machine/jobs';
-import { findRestartLine, parseProgram } from '@/lib/machine/resume';
+import { findRestartLine, parseProgram, passContaining, passStarts, type PassStart } from '@/lib/machine/resume';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,6 +25,8 @@ const kZeroTolerance = 0.01;
 function report(promise: Promise<unknown>, what: string) {
   return promise.catch(err => toast.error(`${what} failed`, { description: errorText(err) }));
 }
+
+const passLabel = (p: PassStart) => `${p.opName}, pass ${p.pass} of ${p.passCount} (Z${p.z})`;
 
 function Step({ ok, title, children }: { ok: boolean; title: string; children?: React.ReactNode }) {
   return (
@@ -68,7 +70,13 @@ export function ResumeJobCard() {
     () => (program && job && lastWorkPos ? findRestartLine(program, job.progress.percent, lastWorkPos) : null),
     [program, job, lastWorkPos]
   );
-  useEffect(() => setLine(found?.line ?? null), [found]);
+  // camNC CAM programs mark their operations and passes: offer restarting at the start of a pass.
+  const passes = useMemo(() => (program ? passStarts(program) : []), [program]);
+  const stoppedIn = found ? passContaining(passes, found.line) : -1;
+  const thisPass = stoppedIn >= 0 ? passes[stoppedIn]! : null;
+  const previousPass = stoppedIn > 0 ? passes[stoppedIn - 1]! : null;
+  const suggested = thisPass?.line ?? found?.line ?? null;
+  useEffect(() => setLine(suggested), [suggested]);
   // The resume moves are checked against the travel, and the retract height comes from it.
   useEffect(() => {
     if (job && idle) api.ensureTravel();
@@ -175,6 +183,30 @@ export function ResumeJobCard() {
         </Step>
 
         <Step ok={!!restartLine?.motion} title="Restart point">
+          {thisPass && found && (
+            <>
+              <span className="text-xs">Stopped in {passLabel(thisPass)}.</span>
+              <div className="flex flex-col gap-1 text-xs" role="radiogroup" aria-label="Restart at">
+                {[
+                  { label: `Start of this pass (line ${thisPass.line + 1})`, at: thisPass.line },
+                  ...(previousPass
+                    ? [
+                        {
+                          label: `Start of the previous pass: ${previousPass.opName === thisPass.opName ? `pass ${previousPass.pass}` : passLabel(previousPass)} (line ${previousPass.line + 1})`,
+                          at: previousPass.line,
+                        },
+                      ]
+                    : []),
+                  ...(found.line !== thisPass.line ? [{ label: `Where it stopped (line ${found.line + 1})`, at: found.line }] : []),
+                ].map(option => (
+                  <label key={option.at} className="flex flex-row items-center gap-2">
+                    <input type="radio" name="resume-at" checked={line === option.at} onChange={() => setLine(option.at)} />
+                    {option.label}
+                  </label>
+                ))}
+              </div>
+            </>
+          )}
           <div className="flex flex-row items-center gap-2">
             <span className="text-xs">Line</span>
             <Input
@@ -197,11 +229,15 @@ export function ResumeJobCard() {
             </code>
           )}
           <span className="text-xs text-muted-foreground">
-            {found && line === found.line
-              ? `The move the tool was on (${fmt(found.distance)} mm from the last position). Restarting at its start re-cuts a little air.`
-              : found
-                ? `camNC suggested line ${found.line + 1}.`
-                : 'camNC could not tell where the tool was. Pick the line to restart at.'}
+            {thisPass && line === thisPass.line
+              ? 'Runs this pass again from its start: the tool re-cuts what the pass already cut.'
+              : previousPass && line === previousPass.line
+                ? 'Runs the previous pass again, then this one.'
+                : found && line === found.line
+                  ? `The move the tool was on (${fmt(found.distance)} mm from the last position). Restarting at its start re-cuts a little air.`
+                  : found
+                    ? `camNC suggested line ${(suggested ?? found.line) + 1}.`
+                    : 'camNC could not tell where the tool was. Pick the line to restart at.'}
             {restartLine && !restartLine.motion && ' This line is not a move: pick a line with a move.'}
           </span>
         </Step>

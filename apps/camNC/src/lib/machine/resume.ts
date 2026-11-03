@@ -388,3 +388,72 @@ export function programBounds(program: ParsedProgram) {
   }
   return { min, max };
 }
+
+/** A pass of a camNC CAM program, from its `(OP n/N name - Tk D=d)` and `(PASS k/K Zz)` marker comments. */
+export interface PassStart {
+  /** 1-based operation number and the number of operations, as in the marker. */
+  op: number;
+  opCount: number;
+  opName: string;
+  /** 1-based pass number within the operation and the number of passes. */
+  pass: number;
+  passCount: number;
+  /** Deepest Z of the pass (work mm). */
+  z: number;
+  /** 0-based index of the PASS marker line. */
+  markerLine: number;
+  /**
+   * 0-based index of the line to restart the pass at: its first move after the marker, skipping the rapids that
+   * open a pass (retract, over, down to the approach height), since a resume program makes those moves itself.
+   */
+  line: number;
+}
+
+const kOpMarker = /^\(OP (\d+)\/(\d+) (.*) - T\d+ D=[-+\d.]+\)$/;
+const kPassMarker = /^\(PASS (\d+)\/(\d+) Z([-+]?[\d.]+)\)$/;
+
+/** The motion code a move line runs with: its own G0–G3, else the modal one. */
+function motionCode(line: GcodeLine) {
+  return gCodes(line.code).find(g => g === 'G0' || g === 'G1' || g === 'G2' || g === 'G3') ?? line.before.motion;
+}
+
+/** The passes of a program with camNC CAM markers, in program order. Empty for programs without markers. */
+export function passStarts(program: ParsedProgram): PassStart[] {
+  const out: PassStart[] = [];
+  const { lines } = program;
+  const isMarker = (l: GcodeLine) => kOpMarker.test(l.raw.trim()) || kPassMarker.test(l.raw.trim());
+  let op: Pick<PassStart, 'op' | 'opCount' | 'opName'> | null = null;
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i]!.raw.trim();
+    const opMatch = kOpMarker.exec(raw);
+    if (opMatch) {
+      op = { op: Number(opMatch[1]), opCount: Number(opMatch[2]), opName: opMatch[3]! };
+      continue;
+    }
+    const passMatch = kPassMarker.exec(raw);
+    if (!passMatch || !op) continue;
+    // The pass's moves run up to the next marker.
+    let firstMove = -1;
+    let firstFeed = -1;
+    for (let j = i + 1; j < lines.length && !isMarker(lines[j]!); j++) {
+      const l = lines[j]!;
+      if (!l.motion) continue;
+      if (firstMove < 0) firstMove = j;
+      if (motionCode(l) !== 'G0' && isKnown(l.start)) {
+        firstFeed = j;
+        break;
+      }
+    }
+    const line = firstFeed >= 0 ? firstFeed : firstMove;
+    if (line < 0) continue;
+    out.push({ ...op, pass: Number(passMatch[1]), passCount: Number(passMatch[2]), z: Number(passMatch[3]), markerLine: i, line });
+  }
+  return out;
+}
+
+/** Index into `passes` of the pass `line` belongs to (the last marker at or before it), or -1 before the first. */
+export function passContaining(passes: PassStart[], line: number): number {
+  let found = -1;
+  for (let i = 0; i < passes.length && passes[i]!.markerLine <= line; i++) found = i;
+  return found;
+}
