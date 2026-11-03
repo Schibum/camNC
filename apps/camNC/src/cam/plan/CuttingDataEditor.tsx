@@ -127,8 +127,10 @@ export function CuttingDataEditor({
       })}
       {changed && (
         <div className="flex flex-wrap gap-2 pt-1">
+          {/* Bit names can be long ("⌀6 VHM-Schaftfräser Z2 Ø 6 mm Holz 2 flute"): the button wraps on its own line. */}
           <Button
             size="sm"
+            className="h-auto min-h-8 w-full min-w-0 justify-start whitespace-normal py-1.5 text-left"
             onClick={() => {
               save(key, parsed);
               // A saved value replaces this job's override of it.
