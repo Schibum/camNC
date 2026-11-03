@@ -1,6 +1,7 @@
 import { Button } from '@wbcnc/ui/components/button';
 import { Checkbox } from '@wbcnc/ui/components/checkbox';
 import { Label } from '@wbcnc/ui/components/label';
+import { cn } from '@wbcnc/ui/lib/utils';
 import type { CamPartInfo } from '../camTypes';
 import { fmt } from './partFormat';
 
@@ -26,18 +27,16 @@ export function PartInspector({
   const { summary } = part;
   const corners = insideCorners(summary.smallestInsideRadius);
   const notes: string[] = [];
-  if (summary.notFlat)
-    notes.push(
-      `Not a flat board: only ${Math.round(summary.prismaticRatio * 100)}% of its faces are flat or vertical. 3D-printed or turned parts stay out of the boards.`
-    );
   if (summary.needsFlip)
     notes.push(
       `Features on the bottom face (${summary.bottomDepths.map(d => `${fmt(d)} mm`).join(', ')} from the bottom): this part needs a second setup, turned over.`
     );
   if (!summary.notFlat && summary.chips.some(c => c.kind === 'curved-edge'))
     notes.push('The curved edge has straight walls, so the normal outline cut makes it. No 3D toolpath needed.');
-  if (!summary.notFlat && summary.slopedArea > 1)
-    notes.push(`${Math.round(summary.slopedArea)} mm² of small sloped faces (chamfers, fillets) come out square.`);
+  if (summary.slopedArea > 1)
+    notes.push(
+      `${Math.round(summary.slopedArea)} mm² of sloped or rounded faces (chamfers, fillets, edge rounds) come out square with a flat bit.`
+    );
 
   return (
     <aside className="flex min-h-0 flex-col gap-3.5 overflow-y-auto border-l p-4">
@@ -45,6 +44,7 @@ export function PartInspector({
         {part.name}
         {part.names.length > 1 && <span className="font-normal text-muted-foreground"> × {part.names.length}</span>}
       </h2>
+      <MilledControl notFlat={summary.notFlat} slopedShare={summary.slopedShare} milled={milled} onChange={onMilledChange} />
       <dl className="grid grid-cols-[120px_1fr] gap-y-2 text-[13px]">
         <dt className="text-muted-foreground">Size</dt>
         <dd className="font-mono">
@@ -65,7 +65,7 @@ export function PartInspector({
           </>
         )}
       </dl>
-      {!summary.notFlat && (
+      {(!summary.notFlat || milled) && (
         <>
           <h3 className="mt-1 text-[13px] font-semibold">Detected features</h3>
           <ul className="flex flex-col gap-2 text-[13px]">
@@ -95,15 +95,48 @@ export function PartInspector({
         </p>
       ))}
       <span className="grow" />
-      <div className="flex items-center gap-2">
-        <Checkbox id="mill-part" checked={milled} onCheckedChange={v => onMilledChange(v === true)} />
-        <Label htmlFor="mill-part">Mill this part</Label>
-      </div>
-      {milled && !summary.notFlat && (
+      {milled && (
         <Button onClick={onPlan} className="w-full">
           Arrange on boards
         </Button>
       )}
     </aside>
+  );
+}
+
+/**
+ * Whether the part is cut at all, right under its name: 3D parts are off by default with the reason, and can be
+ * milled as flat anyway (sloped faces then come out square).
+ */
+function MilledControl({
+  notFlat,
+  slopedShare,
+  milled,
+  onChange,
+}: {
+  notFlat: boolean;
+  slopedShare: number;
+  milled: boolean;
+  onChange: (milled: boolean) => void;
+}) {
+  return (
+    <div
+      className={cn('flex flex-col gap-2 rounded-lg border p-3', milled ? 'border-primary/50 bg-primary/5' : 'border-border bg-muted/40')}>
+      <div className="flex items-center gap-2.5">
+        <Checkbox id="mill-part" checked={milled} onCheckedChange={v => onChange(v === true)} className="size-5" />
+        <Label htmlFor="mill-part" className="text-sm font-medium">
+          {notFlat ? 'Mill as a flat board anyway' : 'Mill this part'}
+        </Label>
+        <span className={cn('ml-auto text-xs', milled ? 'text-primary' : 'text-muted-foreground')}>
+          {milled ? 'on a board' : 'not milled'}
+        </span>
+      </div>
+      {notFlat && (
+        <p className="text-[13px] leading-relaxed text-amber-700 dark:text-amber-400">
+          3D part: {Math.round(slopedShare * 100)}% of its top is sloped or curved, which a flat bit can’t make. Left out of the boards
+          unless you mill it anyway.
+        </p>
+      )}
+    </div>
   );
 }

@@ -81,7 +81,7 @@ function ModelStep() {
   return (
     <Shell bar={bar}>
       <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[320px_1fr_300px]">
-        <PartList parts={parts} selectedId={part?.id ?? null} milled={milled} onSelect={setSelected} />
+        <PartList parts={parts} selectedId={part?.id ?? null} milled={milled} onSelect={setSelected} onMilledChange={setMilled} />
         <main className="relative flex min-h-[320px] flex-col bg-muted/30">
           <div className="flex items-center gap-2 px-4 py-3">
             <div role="group" aria-label="View" className="flex overflow-hidden rounded-md border">

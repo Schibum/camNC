@@ -5,6 +5,9 @@ import type { Mesh } from './geom';
 import { detectFlat, flatMatrix, groupIdentical, loadStep } from './import';
 import { loadStl } from './stl';
 import { summarizePart } from './summary';
+import { toGcode } from './gcode';
+import { checkGcodeSafety } from './safety';
+import { camPart } from './toolpaths';
 
 async function summaries(name: string) {
   const { bodies } = await loadStep(readStep(name));
@@ -53,6 +56,33 @@ describe('part summary for the Model screen', () => {
     expect(by.vert1.chips.find(c => c.kind === 'holes')?.count).toBe(3);
     expect(by['connector top'].notFlat).toBe(true);
     expect(by.vert2.needsFlip).toBe(false);
+  });
+
+  it('kinderregal 20 mm (older design): sides with curved outline walls are flat boards with pockets', async () => {
+    const res = await summaries('kinderregal 20mm');
+    const by = Object.fromEntries(res.map(r => [r.part.name, r]));
+    for (const name of ['seite2', 'seitenteil']) {
+      const { part, summary } = by[name];
+      // Curved outline arcs and pocket corner radii are vertical walls: no sloped surface at all.
+      expect(part.prismaticRatio).toBeGreaterThan(0.999);
+      expect(summary.slopedShare).toBe(0);
+      expect(summary.notFlat).toBe(false);
+      expect(summary.chips.some(c => c.kind === 'pockets' || c.kind === 'groove')).toBe(true);
+      // ...and they make safe G-code.
+      const cam = camPart(extractFeatures(part.mesh, part.thickness));
+      const gcode = toGcode(cam);
+      expect(cam.operations.some(o => o.feature === 'pocket')).toBe(true);
+      expect(
+        checkGcodeSafety(gcode, { stockTop: cam.stockTop, size: [part.size[0], part.size[1]], minZ: -0.3, toolRadius: 3.175 / 2 })
+      ).toEqual([]);
+    }
+    expect(res.every(r => !r.summary.notFlat)).toBe(true);
+  });
+
+  it('messerblock klein stays a 3D part', async () => {
+    const { bodies } = await loadStep(readStep('messerblock klein'));
+    const part = detectFlat(bodies[0]);
+    expect(part.slopedShare).toBeGreaterThan(0.05);
   });
 
   it('STL of the same model gives the same parts', async () => {

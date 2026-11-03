@@ -1,3 +1,4 @@
+import { Checkbox } from '@wbcnc/ui/components/checkbox';
 import { cn } from '@wbcnc/ui/lib/utils';
 import { FlipVertical2 } from 'lucide-react';
 import type { CamPartInfo } from '../camTypes';
@@ -10,11 +11,13 @@ export function PartList({
   selectedId,
   milled,
   onSelect,
+  onMilledChange,
 }: {
   parts: CamPartInfo[];
   selectedId: string | null;
   milled: (id: string) => boolean;
   onSelect: (id: string) => void;
+  onMilledChange: (id: string, milled: boolean) => void;
 }) {
   const { groups, notMilled } = groupParts(parts, milled);
   return (
@@ -31,18 +34,32 @@ export function PartList({
             {fmt(t)} mm · {count(ps)} {count(ps) === 1 ? 'part' : 'parts'}
           </GroupLabel>
           {ps.map(p => (
-            <PartCard key={p.id} part={p} selected={p.id === selectedId} onClick={() => onSelect(p.id)} />
+            <PartCard
+              key={p.id}
+              part={p}
+              selected={p.id === selectedId}
+              milled={milled(p.id)}
+              onClick={() => onSelect(p.id)}
+              onMilledChange={m => onMilledChange(p.id, m)}
+            />
           ))}
         </section>
       ))}
       <section className="flex flex-col gap-1.5" aria-label="Not milled">
         <GroupLabel>Not milled</GroupLabel>
         {notMilled.map(p => (
-          <PartCard key={p.id} part={p} selected={p.id === selectedId} onClick={() => onSelect(p.id)} />
+          <PartCard
+            key={p.id}
+            part={p}
+            selected={p.id === selectedId}
+            milled={milled(p.id)}
+            onClick={() => onSelect(p.id)}
+            onMilledChange={m => onMilledChange(p.id, m)}
+          />
         ))}
         {!notMilled.length && (
           <p className="rounded-lg border border-dashed p-3 text-[13px] leading-relaxed text-muted-foreground">
-            Mark 3D-printed or bought parts as not milled and they stay out of the boards.
+            Untick 3D-printed or bought parts and they stay out of the boards.
           </p>
         )}
       </section>
@@ -54,36 +71,58 @@ function GroupLabel({ children }: { children: React.ReactNode }) {
   return <div className="mt-1 text-xs uppercase tracking-wide text-muted-foreground">{children}</div>;
 }
 
-function PartCard({ part, selected, onClick }: { part: CamPartInfo; selected: boolean; onClick: () => void }) {
+function PartCard({
+  part,
+  selected,
+  milled,
+  onClick,
+  onMilledChange,
+}: {
+  part: CamPartInfo;
+  selected: boolean;
+  milled: boolean;
+  onClick: () => void;
+  onMilledChange: (milled: boolean) => void;
+}) {
   const { summary } = part;
   return (
-    <button
-      onClick={onClick}
-      aria-pressed={selected}
+    <div
       className={cn(
-        'flex flex-col gap-1.5 rounded-lg border border-transparent bg-muted/40 px-3 py-2.5 text-left hover:bg-muted',
-        selected && 'border-primary bg-muted'
+        'flex items-start gap-2.5 rounded-lg border border-transparent bg-muted/40 px-3 py-2.5 hover:bg-muted',
+        selected && 'border-primary bg-muted',
+        !milled && 'bg-transparent'
       )}>
-      <span className="flex justify-between gap-2">
-        <span className="truncate font-medium">
-          {part.name}
-          {part.names.length > 1 && <span className="text-muted-foreground"> × {part.names.length}</span>}
+      <Checkbox
+        checked={milled}
+        onCheckedChange={v => onMilledChange(v === true)}
+        aria-label={`Mill ${part.name}`}
+        className="mt-0.5 size-[18px]"
+      />
+      <button
+        onClick={onClick}
+        aria-pressed={selected}
+        className={cn('flex min-w-0 flex-1 flex-col gap-1.5 text-left', !milled && 'opacity-60')}>
+        <span className="flex justify-between gap-2">
+          <span className="truncate font-medium">
+            {part.name}
+            {part.names.length > 1 && <span className="text-muted-foreground"> × {part.names.length}</span>}
+          </span>
+          <span className="shrink-0 font-mono text-xs text-muted-foreground">
+            {fmt(part.size[0])} × {fmt(part.size[1])}
+          </span>
         </span>
-        <span className="shrink-0 font-mono text-xs text-muted-foreground">
-          {fmt(part.size[0])} × {fmt(part.size[1])}
+        <span className="flex flex-wrap gap-1.5">
+          {summary.notFlat && <Chip warn>3D part</Chip>}
+          {summary.needsFlip && (
+            <Chip warn>
+              <FlipVertical2 className="size-3" /> both sides
+            </Chip>
+          )}
+          {(!summary.notFlat || milled) && summary.chips.map(c => <Chip key={c.label}>{c.label}</Chip>)}
+          {part.names.length > 1 && <Chip>identical, grouped</Chip>}
         </span>
-      </span>
-      <span className="flex flex-wrap gap-1.5">
-        {summary.notFlat && <Chip warn>not a flat board</Chip>}
-        {summary.needsFlip && (
-          <Chip warn>
-            <FlipVertical2 className="size-3" /> both sides
-          </Chip>
-        )}
-        {!summary.notFlat && summary.chips.map(c => <Chip key={c.label}>{c.label}</Chip>)}
-        {part.names.length > 1 && <Chip>identical, grouped</Chip>}
-      </span>
-    </button>
+      </button>
+    </div>
   );
 }
 

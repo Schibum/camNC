@@ -52,5 +52,6 @@ describe('spike 2: 2.5D features', () => {
     const { bodies } = await loadStep(readStep('messerblock klein'));
     const part = detectFlat(bodies[0]);
     expect(part.prismaticRatio).toBeLessThan(0.9);
+    expect(part.slopedShare).toBeGreaterThan(0.05);
   });
 });

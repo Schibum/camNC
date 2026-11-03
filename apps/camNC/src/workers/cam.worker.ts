@@ -8,6 +8,7 @@ import {
   extractFeatures,
   flatMatrix,
   groupIdentical,
+  kMaxSlopedShare,
   loadStep,
   loadStl,
   metrics,
@@ -51,8 +52,8 @@ const api = {
     const parts: CamPartInfo[] = groups.map((g, i) => {
       const id = `part-${i}`;
       g.names.forEach(n => partOf.set(flat.find(f => f.name === n && !partOf.has(f))!, id));
-      const notFlat = g.part.prismaticRatio < 0.95;
-      // Freeform parts (350k triangles of knife slots) would take ~30s and give nothing machinable.
+      const notFlat = g.part.slopedShare > kMaxSlopedShare;
+      // 3D parts (350k triangles of knife slots take ~30s) are only analysed if milled anyway (see loaded()).
       const features = notFlat ? emptyFeatures(g.part) : extractFeatures(g.part.mesh, g.part.thickness);
       cache.set(id, { part: g.part, features });
       const summary = summarizePart(g.part, features);
@@ -111,6 +112,9 @@ const api = {
 function loaded(key: string, partId: string) {
   const entry = models.get(key)?.get(partId);
   if (!entry) throw new Error('Open the model again: this part is not loaded.');
+  // A 3D part milled as flat anyway: extract its features now.
+  if (!entry.features.levels.length && entry.part.slopedShare > kMaxSlopedShare)
+    entry.features = extractFeatures(entry.part.mesh, entry.part.thickness);
   return entry;
 }
 

@@ -49,9 +49,12 @@ const kClamp = { w: 60, h: 40 };
 const thicknessKey = (t: number) => +t.toFixed(1);
 
 export function instancesOf(parts: CamPartInfo[], milled: (partId: string) => boolean): PartInstance[] {
-  return parts
-    .filter(p => milled(p.id) && !p.summary.notFlat)
-    .flatMap(p => p.names.map((name, k) => ({ id: `${p.id}#${k}`, partId: p.id, name, size: p.size, thickness: p.thickness })));
+  return (
+    parts
+      // 3D parts default to not milled (camQueries); milling one anyway is the user's call.
+      .filter(p => milled(p.id))
+      .flatMap(p => p.names.map((name, k) => ({ id: `${p.id}#${k}`, partId: p.id, name, size: p.size, thickness: p.thickness })))
+  );
 }
 
 const letter = (i: number) => (i < 26 ? String.fromCharCode(65 + i) : `B${i + 1}`);

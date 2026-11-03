@@ -1,7 +1,7 @@
 import { areaD, type PathD, type PathsD } from 'clipper2-ts';
 import type { PartFeatures } from './features';
 import { difference, offset, polyArea, union } from './geom';
-import type { FlatPart } from './import';
+import { kMaxSlopedShare, type FlatPart } from './import';
 
 export interface FeatureChip {
   kind: 'pockets' | 'groove' | 'holes' | 'curved-edge' | 'outline-only';
@@ -17,9 +17,11 @@ export interface PartSummary {
   needsFlip: boolean;
   /** Depths (from the bottom face) of the bottom-side features. */
   bottomDepths: number[];
-  /** Less than 95% of the surface is flat or vertical: not a 2.5D board (3D-printed or turned parts). */
+  /** More than 5% of the top area is sloped or 3D-curved: not a 2.5D board (3D-printed or carved parts). */
   notFlat: boolean;
   prismaticRatio: number;
+  /** Sloped share of the top area (see FlatPart.slopedShare). */
+  slopedShare: number;
   slopedArea: number;
   /** Largest bit radius that still reaches every inside corner (~0: sharp corners, any bit rounds them); null if
    * there are no inside corners tighter than 10 mm. */
@@ -116,8 +118,9 @@ export function summarizePart(part: FlatPart, f: PartFeatures): PartSummary {
     chips,
     needsFlip: f.bottomFaces.length > 0,
     bottomDepths: f.bottomFaces.map(b => round(b.z)),
-    notFlat: part.prismaticRatio < 0.95,
+    notFlat: part.slopedShare > kMaxSlopedShare,
     prismaticRatio: part.prismaticRatio,
+    slopedShare: part.slopedShare,
     slopedArea: f.slopedArea,
     smallestInsideRadius: smallestInsideRadius(f),
   };

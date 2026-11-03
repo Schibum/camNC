@@ -120,9 +120,22 @@ export interface FlatPart {
   bottomFeatureArea: number;
   /** True if we put the original "-axis" side up because more features face that way. */
   flipped: boolean;
-  /** Fraction of the total surface that is planar and parallel/perpendicular to the thickness axis (1 = pure 2.5D prism). */
+  /**
+   * Fraction of the surface (by area) that is horizontal or vertical: planar floors and walls of any shape, curved
+   * outlines and pocket corner radii included (1 = pure 2.5D prism).
+   */
   prismaticRatio: number;
+  /**
+   * Sloped or 3D-curved surface (chamfers, fillets, edge rounds, carved shapes), as its area seen from above
+   * relative to the part's top area. A flat bit leaves these square; above a few percent it's not a flat board.
+   */
+  slopedShare: number;
+  /** The same sloped faces' surface area, mm². */
+  slopedArea: number;
 }
+
+/** Above this sloped share (of the top area) a part is a 3D part, not a flat board. */
+export const kMaxSlopedShare = 0.05;
 
 const DIR_TOL = 1e-4;
 
@@ -173,14 +186,29 @@ export function detectFlat(body: StepBody): FlatPart {
   // Horizontal floors strictly between bottom and top: facing +axis are reachable with axis up, facing -axis need -axis up.
   let posFloor = 0,
     negFloor = 0;
-  let prismatic = 0;
+  // By triangle area: vertical walls of any shape (arcs, splines) and horizontal faces are 2.5D, the rest is sloped.
+  let prismatic = 0,
+    slopedArea = 0,
+    slopedProjected = 0,
+    topProjected = 0;
+  const nTri = body.mesh.indices.length / 3;
+  for (let t = 0; t < nTri; t++) {
+    const n2a = triangleNormal2A(...triangle(body.mesh, t));
+    const area = length(n2a) / 2;
+    if (area < 1e-12) continue;
+    const c = dot(n2a, axis) / (2 * area);
+    if (c > 0) topProjected += area * c;
+    if (Math.abs(c) < 0.01 || Math.abs(c) > 0.9999) prismatic += area;
+    else {
+      slopedArea += area;
+      slopedProjected += area * Math.abs(c);
+    }
+  }
   const tol = 0.01;
   for (const f of faces) {
     if (!f.planar) continue;
     const c = dot(f.normal, axis);
-    if (Math.abs(c) < 1e-4) prismatic += f.area;
     if (Math.abs(Math.abs(c) - 1) > DIR_TOL) continue;
-    prismatic += f.area;
     const h = c > 0 ? f.d : -f.d; // height along +axis
     if (h <= ext.min + tol || h >= ext.max - tol) continue;
     if (c > 0) posFloor += f.area;
@@ -239,6 +267,8 @@ export function detectFlat(body: StepBody): FlatPart {
     bottomFeatureArea: flipped ? posFloor : negFloor,
     flipped,
     prismaticRatio: totalArea > 0 ? prismatic / totalArea : 0,
+    slopedShare: topProjected > 0 ? slopedProjected / topProjected : 1,
+    slopedArea,
   };
 }
 
