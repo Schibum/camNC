@@ -1,6 +1,7 @@
 import { createJob, getJob, saveJob } from '@/cam/jobDb';
 import { camWorker, modelKey } from '@/cam/camQueries';
 import { useCuttingData } from '@/cam/cuttingData';
+import { usePlanLayout } from '@/cam/plan/planLayoutStore';
 import { instancesOf, reconcileBoards } from '@/cam/boards';
 import * as Comlink from 'comlink';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -30,7 +31,26 @@ vi.mock('@/visualize/depthViewStore', () => ({ useDepthView: { getState: () => d
 
 const PlanStep = (Route as unknown as { options: { component: ComponentType } }).options.component;
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  usePlanLayout.setState(usePlanLayout.getInitialState(), true);
+  localStorage.removeItem('camnc-plan-layout');
+});
+
+/** A tab of the sidebar: "Operations" or "Settings". */
+const sidebarTab = (name: string) =>
+  within(screen.getByRole('tablist', { name: 'Operations and settings' })).getByRole('tab', { name: new RegExp(`^${name}`) });
+
+/** The ⋯ menu's "Show board A on machine", the menu opened. Close it with `closeMenu` to reach the rest of the page. */
+async function showOnMachineItem() {
+  fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions' }), { button: 0, ctrlKey: false, pointerType: 'mouse' });
+  return screen.findByRole('menuitem', { name: 'Show board A on machine' });
+}
+async function closeMenu() {
+  fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
+  await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+}
+const disabled = (item: HTMLElement) => item.getAttribute('aria-disabled') === 'true';
 
 /** The accessible description: the text of the elements `aria-describedby` points to. */
 const description = (el: Element) =>
@@ -52,7 +72,11 @@ describe('CAM plan step', () => {
       </QueryClientProvider>
     );
 
-    const table = await screen.findByRole('table', { name: 'Operations for board A' }, { timeout: 60_000 });
+    // The operations: a list, or every op's numbers side by side in a table.
+    await screen.findByRole('list', { name: 'Operations for board A' }, { timeout: 60_000 });
+    expect(sidebarTab('Operations').getAttribute('aria-selected')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'Table' }));
+    const table = screen.getByRole('table', { name: 'Operations for board A' });
     // One board per thickness: A has the five 8 mm bodies, B the 3 mm back.
     expect(
       within(screen.getByRole('tablist', { name: /Boards/ }))
@@ -71,7 +95,12 @@ describe('CAM plan step', () => {
     // What the CAM core notes in the G-code shows here too, in plain words: the mortises' corners stay round.
     expect(screen.getByText(/Inside corners stay rounded to the bit radius \(1\.59 mm\)/)).toBeTruthy();
     expect(screen.getByText(/smaller bit doesn’t clean them up yet/)).toBeTruthy();
-    // The second bit explains itself, and what it doesn't do yet.
+    // The bit chip in the header opens the Settings tab. The second bit explains itself, and what it doesn't do yet.
+    fireEvent.click(screen.getByRole('button', { name: /^Bit: / }));
+    expect(sidebarTab('Settings').getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(sidebarTab('Settings'));
+    expect(screen.queryByRole('table', { name: 'Operations for board A' })).toBeNull();
+    expect(JSON.parse(localStorage.getItem('camnc-plan-layout')!).state).toEqual({ tab: 'settings', opsView: 'table' });
     const how = screen.getByRole('button', { name: 'How it works' });
     expect(how.getAttribute('aria-expanded')).toBe('false');
     fireEvent.click(how);
@@ -93,7 +122,8 @@ describe('CAM plan step', () => {
       timeout: 60_000,
     });
     expect(screen.queryByRole('alert')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Show board A on machine' }));
+    // Board A alone on the machine: in the ⋯ menu.
+    fireEvent.click(await showOnMachineItem());
     const [gcode, name] = store.updateToolpath.mock.calls[0];
     expect(name).toBe('kinderregal-eiche board A.gcode');
     expect(gcode).toContain('(Board A)');
@@ -101,7 +131,7 @@ describe('CAM plan step', () => {
     expect(navigate).toHaveBeenCalledWith({ to: '/visualize/2DView' });
     // No bed yet (no machine connected, no size picked): pick one first, then the program shows on it.
     bed.bounds = null;
-    fireEvent.click(screen.getByRole('button', { name: 'Show board A on machine' }));
+    fireEvent.click(await showOnMachineItem());
     expect(navigate).toHaveBeenLastCalledWith({ to: '/start', search: { for: 'cam' } });
     bed.bounds = {};
     // The machine view gets the board's setup: stock top 8 + 0.3 allowance, Z0 at the bottom, the 1/8" flat bit.
@@ -116,8 +146,10 @@ describe('CAM plan step', () => {
     fireEvent.change(within(panel).getByRole('textbox', { name: /^Stepdown/ }), { target: { value: '3.5' } });
     fireEvent.click(within(panel).getByRole('button', { name: 'Only this job' }));
     // While it's planned again, the last program stays shown, but it can't go to the machine.
-    const show = () => (screen.getByRole('button', { name: 'Show board A on machine' }) as HTMLButtonElement).disabled;
-    await vi.waitFor(() => expect(show()).toBe(true));
+    const show = await showOnMachineItem();
+    await vi.waitFor(() => expect(disabled(show)).toBe(true));
+    await closeMenu();
+    fireEvent.click(sidebarTab('Operations'));
     expect(screen.getByRole('table', { name: 'Operations for board A' })).toBeTruthy();
     const deepest = () => Math.max(...stepdowns(screen.getByRole('table', { name: 'Operations for board A' })));
     await vi
@@ -125,13 +157,19 @@ describe('CAM plan step', () => {
       .catch(async (e: Error) => {
         // Which way it went wrong: the override never saved, or saved but not planned with.
         const saved = (await getJob(job.id))?.plan?.cutting;
-        const source = within(panel).queryByText(/mm · /)?.textContent;
-        throw new Error(`${e.message} (saved cutting ${JSON.stringify(saved)}, panel says "${source}", still planning: ${show()})`);
+        fireEvent.click(sidebarTab('Settings'));
+        const source = within(screen.getByRole('region', { name: 'Cutting data' })).queryByText(/mm · /)?.textContent;
+        const planning = disabled(await showOnMachineItem());
+        throw new Error(`${e.message} (saved cutting ${JSON.stringify(saved)}, panel says "${source}", still planning: ${planning})`);
       });
     expect(deepest()).toBeLessThanOrEqual(3.5);
-    await vi.waitFor(() => expect(show()).toBe(false), { timeout: 30_000 });
+    const shown = await showOnMachineItem();
+    await vi.waitFor(() => expect(disabled(shown)).toBe(false), { timeout: 30_000 });
+    await closeMenu();
     expect((await getJob(job.id))!.plan!.cutting).toEqual({ stepdown: 3.5 });
-    expect(within(panel).getByText(/mm · this job/)).toBeTruthy();
+    fireEvent.click(sidebarTab('Settings'));
+    expect(within(screen.getByRole('region', { name: 'Cutting data' })).getByText(/mm · this job/)).toBeTruthy();
+    fireEvent.click(sidebarTab('Operations'));
 
     // From the table: 1 mm, saved for the bit + oak (every job); it replaces this job's 3.5.
     const firstStepdown = within(screen.getByRole('table', { name: 'Operations for board A' })).getAllByRole('row')[1];
@@ -157,12 +195,12 @@ describe('CAM plan step', () => {
       </QueryClientProvider>
     );
     // The knife slots are not 2.5D (~30 s to analyse): the outline is cut, the slots are left.
-    const table = await screen.findByRole('table', { name: 'Operations for board A' }, { timeout: 150_000 });
-    const labels = within(table)
-      .getAllByRole('row')
-      .slice(1)
-      .map(r => within(r).getAllByRole('cell')[1].textContent!);
-    expect(labels.some(l => l.includes('Outline'))).toBe(true);
+    const list = await screen.findByRole('list', { name: 'Operations for board A' }, { timeout: 150_000 });
+    expect(
+      within(list)
+        .getAllByRole('listitem')
+        .some(l => l.textContent!.includes('Outline'))
+    ).toBe(true);
   }, 180_000);
 
   it('names parts that don\u2019t fit their board and blocks the job until they fit or are left out', async () => {
@@ -186,16 +224,19 @@ describe('CAM plan step', () => {
 
     const alert = await screen.findByRole('alert', {}, { timeout: 60_000 });
     expect(alert.textContent).toMatch(/3 parts don’t fit on their boards and would not be cut: .+ \(A\)/);
-    await screen.findByRole('table', { name: 'Operations for board A' }, { timeout: 60_000 });
+    await screen.findByRole('list', { name: 'Operations for board A' }, { timeout: 60_000 });
     expect(screen.getByRole('button', { name: /Take the job to the machine/ })).toHaveProperty('disabled', true);
-    expect(screen.getByRole('button', { name: 'Show board A on machine' })).toHaveProperty('disabled', true);
     expect(screen.queryByText(/Safety checks passed/)).toBeNull();
     // What each action does, also while it can't be used yet.
     expect(description(screen.getByRole('button', { name: /Take the job to the machine/ }))).toMatch(/every board in cutting order/);
-    expect(description(screen.getByRole('button', { name: 'Show board A on machine' }))).toMatch(/^Loads only board A/);
     expect(description(screen.getByRole('button', { name: 'More actions' }))).toMatch(/G-code/);
     expect(description(screen.getByRole('button', { name: /^Bit: / }))).toMatch(/whole job/);
     expect(description(within(alert).getByRole('button', { name: 'Leave them out' }))).toMatch(/without these parts/);
+    const show = await showOnMachineItem();
+    expect(disabled(show)).toBe(true);
+    expect(description(show)).toMatch(/^Loads only board A/);
+    await closeMenu();
+    fireEvent.click(screen.getByRole('button', { name: 'Table' }));
     const table = screen.getByRole('table', { name: 'Operations for board A' });
     for (const [header, hint] of [
       ['Passes', /depths/],
@@ -228,11 +269,19 @@ describe('CAM plan step', () => {
     ).map(b => ({ ...b, margin: 4, frame: false }));
     await saveJob({ ...job, parts, boards });
     params.jobId = job.id;
+    // Last time this viewer left the Plan step on its settings: it opens there again.
+    localStorage.setItem('camnc-plan-layout', JSON.stringify({ state: { tab: 'settings', opsView: 'list' }, version: 0 }));
+    await usePlanLayout.persist.rehydrate();
     render(
       <QueryClientProvider client={new QueryClient()}>
         <PlanStep />
       </QueryClientProvider>
     );
+    expect((await screen.findByRole('tab', { name: 'Settings' }, { timeout: 60_000 })).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('textbox', { name: 'Cut through to (mm below the board)' })).toBeTruthy();
+    // Arrow keys move between the tabs.
+    fireEvent.keyDown(sidebarTab('Settings'), { key: 'ArrowRight' });
+    expect(sidebarTab('Operations').getAttribute('aria-selected')).toBe('true');
     expect((await screen.findByText(/1 mm bottom skin/, {}, { timeout: 60_000 })).textContent).toMatch(/^back: .*Free parts/);
     // Held by the skin: nothing comes loose, nothing blocks.
     expect(screen.queryByText(/tabs would hold it/)).toBeNull();

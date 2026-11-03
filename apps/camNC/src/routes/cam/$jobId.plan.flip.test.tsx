@@ -1,6 +1,7 @@
 import { createJob, saveJob } from '@/cam/jobDb';
 import { camWorker, modelKey } from '@/cam/camQueries';
 import { instancesOf, reconcileBoards } from '@/cam/boards';
+import { usePlanLayout } from '@/cam/plan/planLayoutStore';
 import * as Comlink from 'comlink';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -28,7 +29,11 @@ vi.mock('@/visualize/depthViewStore', () => ({ useDepthView: { getState: () => d
 
 const PlanStep = (Route as unknown as { options: { component: ComponentType } }).options.component;
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  usePlanLayout.setState(usePlanLayout.getInitialState(), true);
+  localStorage.removeItem('camnc-plan-layout');
+});
 
 /** The besteckkasten job with its 8 mm board as a big sheet (room for dowel pins), the second side as given. */
 async function openBesteck(flip?: 'camera' | 'dowels') {
@@ -43,6 +48,8 @@ async function openBesteck(flip?: 'camera' | 'dowels') {
   ).map(b => (b.name === 'A' ? { ...b, size: { fit: false as const, w: 1220, h: 610 }, ...(flip && { flip }) } : b));
   await saveJob({ ...job, boards });
   params.jobId = job.id;
+  // The ops' numbers side by side.
+  usePlanLayout.getState().setOpsView('table');
   render(
     <QueryClientProvider client={new QueryClient()}>
       <PlanStep />

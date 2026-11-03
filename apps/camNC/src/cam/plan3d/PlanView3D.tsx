@@ -1,7 +1,7 @@
 import { Canvas } from '@react-three/fiber';
 import { cn } from '@wbcnc/ui/lib/utils';
 import { Focus } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Vector3 } from 'three';
 import { playheadAt, type Playhead } from '@/visualize/stockSim/jobTimeline';
 import type { ToolShape } from '@/visualize/stockSim/toolShapes';
@@ -9,9 +9,9 @@ import type { BoardRequest, CamPartInfo, PlanResult } from '../camTypes';
 import { Hint } from '../Hint';
 import { PartGhost, StockBox } from './BoardGhosts';
 import { CameraRig } from './CameraRig';
-import { OpList } from './OpList';
+import type { PlanPlayback } from './planPlayback';
 import { kViewBackground } from './palette';
-import { boardBox, buildPlanModel, cutBounds, groupOpsOf, type PlanModel } from './planModel';
+import { boardBox, cutBounds, groupOpsOf, type PlanModel } from './planModel';
 import { usePlan3dView } from './plan3dViewStore';
 import { kCompareTolerance } from './compareMap';
 import { PlanTimeline } from './PlanTimeline';
@@ -25,20 +25,24 @@ const kOpMinSpan = 16;
 
 /**
  * The board's program in 3D. Result: the simulated board up to the playhead, with the timeline. Toolpath: every op's
- * moves at their real depth. One op list for both; selecting an op frames it.
+ * moves at their real depth. The op list beside it shares the playback; selecting an op frames it. It fills the height
+ * it's given (from md up), at least 420 px on a phone.
  */
 export function PlanView3D({
   plan,
   board,
   parts,
+  playback,
   className,
 }: {
   plan: PlanResult;
   board: BoardRequest;
   parts: CamPartInfo[];
+  /** Playhead, selection and hidden ops, shared with the op list beside the view. */
+  playback: PlanPlayback;
   className?: string;
 }) {
-  const model = useMemo(() => buildPlanModel(plan), [plan]);
+  const { model, time, setTime, selected, select, playing, setPlaying, speed, setSpeed } = playback;
   const {
     mode,
     seeThrough,
@@ -53,33 +57,7 @@ export function PlanView3D({
     setShowRapids,
     setCompare,
   } = usePlan3dView();
-
-  // Per program: the playhead starts at the end (the finished board), nothing selected or hidden.
-  const [ui, setUi] = useState(() => ({ model, time: model.total, selected: null as number | null, hidden: new Set<number>() }));
-  const current = ui.model === model ? ui : { model, time: model.total, selected: null, hidden: new Set<number>() };
-  const { time, selected, hidden } = current;
-  const update = (patch: Partial<typeof current>) => setUi({ ...current, ...patch });
-  const setTime = (t: number) => update({ time: t });
-  const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(20);
   const [fitCount, setFitCount] = useState(0);
-
-  useEffect(() => {
-    if (!playing) return;
-    let last = performance.now();
-    let raf = requestAnimationFrame(function tick(now) {
-      const dt = (now - last) / 1000;
-      last = now;
-      setUi(s => {
-        if (s.model !== model) return s;
-        const next = Math.min(s.time + dt * speed, model.total);
-        if (next >= model.total) setPlaying(false);
-        return { ...s, time: next };
-      });
-      raf = requestAnimationFrame(tick);
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [playing, speed, model]);
 
   const selectedOps = useMemo(() => (selected === null ? [] : groupOpsOf(model, selected)), [model, selected]);
   const bitRadius = (selected !== null ? model.groups[selected].op.tool.diameter : (plan.bits[0] ?? 3)) / 2;
@@ -103,15 +81,12 @@ export function PlanView3D({
     <section
       aria-label={`3D view of board ${board.name}`}
       data-mode={mode}
-      className={cn(
-        'flex flex-col overflow-hidden rounded-lg border border-zinc-200 md:h-[540px] md:flex-row dark:border-zinc-800',
-        className
-      )}>
-      <div className="flex h-[420px] min-w-0 flex-col md:h-auto md:flex-1">
+      className={cn('flex flex-col overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800', className)}>
+      <div className="flex h-[420px] min-w-0 flex-col md:h-auto md:min-h-0 md:flex-1">
         <div className="relative min-h-0 flex-1" style={{ background: kViewBackground }}>
           <Canvas dpr={[1, 2]} className="absolute! inset-0">
             <color attach="background" args={[kViewBackground]} />
-            <Scene model={model} plan={plan} board={board} parts={parts} time={mode === 'result' ? time : model.total} ui={current} />
+            <Scene model={model} plan={plan} board={board} parts={parts} time={mode === 'result' ? time : model.total} ui={playback} />
             <CameraRig
               box={frameBox}
               frameKey={frameKey}
@@ -220,23 +195,10 @@ export function PlanView3D({
             speed={speed}
             onSpeed={setSpeed}
             selected={selected}
-            onSelect={g => update({ selected: g === selected ? null : g })}
+            onSelect={g => select(g === selected ? null : g)}
           />
         )}
       </div>
-      <OpList
-        model={model}
-        mode={mode}
-        time={mode === 'result' ? time : model.total}
-        selected={selected}
-        onSelect={g => update({ selected: g })}
-        hidden={hidden}
-        onToggleHidden={g => update({ hidden: new Set(hidden.has(g) ? [...hidden].filter(h => h !== g) : [...hidden, g]) })}
-        onTime={t => {
-          setPlaying(false);
-          setTime(t);
-        }}
-      />
     </section>
   );
 }

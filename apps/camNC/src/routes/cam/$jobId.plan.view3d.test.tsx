@@ -1,5 +1,6 @@
 import { createJob } from '@/cam/jobDb';
 import { usePlan3dView } from '@/cam/plan3d/plan3dViewStore';
+import { usePlanLayout } from '@/cam/plan/planLayoutStore';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import type { ComponentType } from 'react';
@@ -24,6 +25,8 @@ afterEach(() => {
   cleanup();
   usePlan3dView.setState(usePlan3dView.getInitialState(), true);
   localStorage.removeItem('camnc-plan-3d-view');
+  usePlanLayout.setState(usePlanLayout.getInitialState(), true);
+  localStorage.removeItem('camnc-plan-layout');
 });
 
 /** The accessible description: the text of the elements `aria-describedby` points to. */
@@ -42,7 +45,7 @@ const pressed = (group: HTMLElement) =>
     .map(b => b.textContent);
 
 describe('CAM plan step, 3D view', () => {
-  it('shows the board in 3D with its op list, and the toggles switch between result and toolpath', async () => {
+  it('shows the board in 3D with its op list beside it, and the toggles switch between result and toolpath', async () => {
     const bytes = await (await fetch(stepUrl)).arrayBuffer();
     const job = await createJob(new File([bytes], 'besteckkasten.step'));
     params.jobId = job.id;
@@ -55,22 +58,57 @@ describe('CAM plan step, 3D view', () => {
     const view = await screen.findByRole('region', { name: /^3D view of board/ }, { timeout: 90_000 });
     expect(view.querySelector('canvas')).toBeTruthy();
     expect(view.dataset.mode).toBe('result');
-    // Identical ops (the through holes of a part) are one row, with a count.
-    const list = within(view).getByRole('list', { name: 'Operations in the 3D view' });
+    // The op list is in the sidebar, beside the view. Identical ops (the through holes of a part) are one row, with a count.
+    const sidebar = screen.getByRole('complementary', { name: 'Operations and settings' });
+    const list = within(sidebar).getByRole('list', { name: /^Operations for board/ });
     const rows = within(list).getAllByRole('listitem');
-    const table = screen.getByRole('table', { name: /Operations for board/ });
-    expect(rows.length).toBe(within(table).getAllByRole('row').length - 1);
     expect(rows.some(r => /×\d/.test(r.textContent!))).toBe(true);
     expect(rows.some(r => r.textContent!.includes('Outline'))).toBe(true);
+    expect(within(sidebar).getByText(/smallest bit first, inner features before outlines/)).toBeTruthy();
 
     // Result: the timeline, with one band per op; selecting an op offers to jump to its start and end.
     const playhead = within(view).getByRole('slider', { name: 'Playhead' });
     expect(Number(playhead.getAttribute('aria-valuenow'))).toBe(Number(playhead.getAttribute('aria-valuemax')));
     const hole = rows.find(r => /×\d/.test(r.textContent!))!;
-    fireEvent.click(within(hole).getAllByRole('button')[0]);
-    fireEvent.click(within(view).getByRole('button', { name: 'Jump to start' }));
+    const holeName = hole.textContent!.split(' ×')[0];
+    const select = within(hole).getAllByRole('button')[0];
+    expect(select.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(select);
+    // Selected in the list, selected in the view; the row opens with the op's numbers.
+    expect(within(view).getByText(`${holeName}: solid where it has cut, a tint where it still cuts`)).toBeTruthy();
+    expect(select.getAttribute('aria-expanded')).toBe('true');
+    const numbers = hole.querySelector('dl')!;
+    const terms = [...numbers.querySelectorAll('dt')].map(t => (t.querySelector('[tabindex]') ?? t).textContent);
+    expect(terms).toEqual(['Z from bottom', 'Passes', 'Stepdown', 'Stepover', expect.stringMatching(/^Feed/), 'Time']);
+    const values = [...numbers.querySelectorAll('dd')].map(d => d.textContent!);
+    expect(values[0]).toMatch(/^[\d.]+ → -?[\d.]+$/);
+    expect(values[1]).toMatch(/^\d+$/);
+    expect(values[2]).toMatch(/^[\d.]+ mm$/);
+    expect(values[4]).toMatch(/mm\/min$/);
+    expect(values[5]).toMatch(/^\d+:\d\d min$/);
+    expect(description(within(hole).getByText('Stepdown'))).toMatch(/How deep each pass cuts/);
+    // A number there is changed where it is, like in the table.
+    fireEvent.click(within(hole).getAllByRole('button', { name: /^[\d.]+ mm$/ })[0]);
+    const popover = await screen.findByRole('dialog');
+    expect(within(popover).getByRole('textbox', { name: /^Stepdown/ })).toBeTruthy();
+    fireEvent.keyDown(popover, { key: 'Escape' });
+    await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    fireEvent.click(within(hole).getByRole('button', { name: 'Jump to start' }));
     expect(Number(playhead.getAttribute('aria-valuenow'))).toBeLessThan(Number(playhead.getAttribute('aria-valuemax')));
-    expect(within(view).queryByRole('button', { name: /^Hide / })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Hide / })).toBeNull();
+
+    // The table: the same ops, every op's numbers side by side; a row selects its op, in the list and the view too.
+    fireEvent.click(within(sidebar).getByRole('button', { name: 'Table' }));
+    const table = within(sidebar).getByRole('table', { name: /^Operations for board/ });
+    const tableRows = within(table).getAllByRole('row').slice(1);
+    expect(tableRows.length).toBe(rows.length);
+    const outline = tableRows.findIndex(r => r.textContent!.includes('Outline'));
+    fireEvent.click(within(tableRows[outline]).getAllByRole('cell')[1]);
+    expect(within(view).getByText(/Outline.*: solid where it has cut/)).toBeTruthy();
+    fireEvent.click(within(sidebar).getByRole('button', { name: 'List' }));
+    const opened = within(within(sidebar).getByRole('list', { name: /^Operations for board/ })).getAllByRole('listitem')[outline];
+    expect(within(opened).getAllByRole('button')[0].getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(within(sidebar).getByRole('button', { name: 'Show all' }));
 
     // Every toggle and icon-only button says what it does.
     for (const name of [
@@ -95,12 +133,12 @@ describe('CAM plan step, 3D view', () => {
     fireEvent.click(within(show).getByRole('button', { name: 'Toolpath' }));
     expect(view.dataset.mode).toBe('toolpath');
     expect(within(view).queryByRole('slider', { name: 'Playhead' })).toBeNull();
-    const eyes = within(view).getAllByRole('button', { name: /^Hide / });
+    const eyes = within(sidebar).getAllByRole('button', { name: /^Hide / });
     expect(eyes).toHaveLength(rows.length);
     expect(description(eyes[0])).toMatch(/still cut/);
     expect(description(within(view).getByRole('button', { name: 'Rapids' }))).toMatch(/fast moves/);
     fireEvent.click(eyes[0]);
-    expect(within(view).getAllByRole('button', { name: /^Show (?!all$)/ })).toHaveLength(1);
+    expect(within(sidebar).getAllByRole('button', { name: /^Show (?!all$)/ })).toHaveLength(1);
     fireEvent.click(within(view).getByRole('button', { name: 'Rapids' }));
     expect(usePlan3dView.getState().showRapids).toBe(false);
 

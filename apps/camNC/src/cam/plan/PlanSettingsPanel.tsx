@@ -7,7 +7,7 @@ import { NumberInput } from '../NumberInput';
 
 /**
  * Bits, their cutting data in the board's material, cut-through depth: everything the Plan step needs from the user,
- * with Fusion-like defaults.
+ * with Fusion-like defaults. The Plan step's Settings tab.
  */
 export function PlanSettingsPanel({
   value,
@@ -22,9 +22,7 @@ export function PlanSettingsPanel({
   const set = (patch: Partial<PlanSettingsV1>) => onChange({ ...value, ...patch });
 
   return (
-    <aside className="flex min-h-0 flex-col gap-4 overflow-y-auto border-l p-4">
-      <h2 className="text-[15px] font-semibold">Settings</h2>
-
+    <div className="flex flex-col gap-4">
       <BitSettings value={value} onChange={onChange} />
 
       <section className="flex flex-col gap-1.5" aria-label="Cutting data">
@@ -64,10 +62,9 @@ export function PlanSettingsPanel({
         </p>
       </section>
 
-      <span className="grow" />
       <p className="rounded-lg bg-muted/50 p-3 text-xs leading-relaxed text-muted-foreground">
         Defaults: Z0 at the bottom of the board, roughing to +1 mm leaving 0.1 mm, one final pass through, climb cut.
       </p>
-    </aside>
+    </div>
   );
 }

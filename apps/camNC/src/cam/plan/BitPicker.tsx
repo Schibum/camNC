@@ -222,18 +222,32 @@ export function BitSettings({ value, onChange }: { value: PlanSettingsV1; onChan
   );
 }
 
-/** "Bit: ⌀3.175 · 1/8″ flat ▾" at the top of a step: the job's bit, and the picker for it. */
-export function BitChip({ value, onChange }: { value: PlanSettingsV1; onChange: (v: PlanSettingsV1) => void }) {
+/**
+ * "Bit: ⌀3.175 · 1/8″ flat ▾" at the top of a step: the job's bit, and the picker for it. With `onOpen` it opens the
+ * step's own bit settings (the Plan step's Settings tab) instead of a popover.
+ */
+export function BitChip({
+  value,
+  onChange,
+  onOpen,
+}: {
+  value: PlanSettingsV1;
+  onChange: (v: PlanSettingsV1) => void;
+  onOpen?: () => void;
+}) {
+  const chip = (
+    <Button size="sm" variant="outline" aria-label={`Bit: ⌀${value.bit.diameter} ${value.bit.name}. Change the bit`} onClick={onOpen}>
+      <span className="text-muted-foreground">Bit:</span> ⌀{value.bit.diameter} · {value.bit.name}
+      {value.smallBit && <span className="text-muted-foreground">+ ⌀{value.smallBit.diameter}</span>}
+      <ChevronDown />
+    </Button>
+  );
+  const hint = 'The bit for the whole job. It sets the margin and gap between parts on the boards, and every toolpath.';
+  if (onOpen) return <Hint text={hint}>{chip}</Hint>;
   return (
     <Popover>
-      <Hint text="The bit for the whole job. It sets the margin and gap between parts on the boards, and every toolpath.">
-        <PopoverTrigger asChild>
-          <Button size="sm" variant="outline" aria-label={`Bit: ⌀${value.bit.diameter} ${value.bit.name}. Change the bit`}>
-            <span className="text-muted-foreground">Bit:</span> ⌀{value.bit.diameter} · {value.bit.name}
-            {value.smallBit && <span className="text-muted-foreground">+ ⌀{value.smallBit.diameter}</span>}
-            <ChevronDown />
-          </Button>
-        </PopoverTrigger>
+      <Hint text={hint}>
+        <PopoverTrigger asChild>{chip}</PopoverTrigger>
       </Hint>
       <PopoverContent className="w-96" align="end">
         <BitSettings value={value} onChange={onChange} />

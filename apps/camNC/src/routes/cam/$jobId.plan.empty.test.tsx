@@ -1,7 +1,7 @@
 import { createJob } from '@/cam/jobDb';
 import type { PlanResult } from '@/cam/camTypes';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { ComponentType } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import stepUrl from '../../../../../packages/cam/test/fixtures/kinderregal-eiche.step?url';
@@ -54,6 +54,7 @@ describe('CAM plan step, nothing to cut', () => {
     expect(screen.queryByText(/Safety checks passed/)).toBeNull();
     expect(screen.queryByRole('table')).toBeNull();
     expect(screen.getByRole('button', { name: /Take the job to the machine/ })).toHaveProperty('disabled', true);
-    expect(screen.getByRole('button', { name: 'Show board A on machine' })).toHaveProperty('disabled', true);
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'More actions' }), { button: 0, ctrlKey: false, pointerType: 'mouse' });
+    expect((await screen.findByRole('menuitem', { name: 'Show board A on machine' })).getAttribute('aria-disabled')).toBe('true');
   }, 90_000);
 });
