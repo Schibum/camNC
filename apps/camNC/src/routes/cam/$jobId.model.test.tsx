@@ -120,7 +120,8 @@ describe('CAM model step', () => {
     // ⋯ › Rename…
     fireEvent.pointerDown(within(thin).getByRole('button', { name: 'More for back' }), { button: 0, ctrlKey: false });
     fireEvent.click(await screen.findByRole('menuitem', { name: /Rename/ }));
-    const input = await within(thin).findByRole('textbox', { name: 'New name for back' });
+    // Right away, and not hidden by the closing menu (a modal one hides the rest of the page until it's gone).
+    const input = within(thin).getByRole('textbox', { name: 'New name for back' });
     fireEvent.change(input, { target: { value: 'Back panel' } });
     fireEvent.keyDown(input, { key: 'Enter' });
     fireEvent.blur(input);

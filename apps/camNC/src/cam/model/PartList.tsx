@@ -166,7 +166,9 @@ function PartCard({
           {chips}
         </button>
       )}
-      <DropdownMenu>
+      {/* Not modal: a modal menu hides the rest of the page (aria-hidden, no pointer events) until it has fully closed,
+          and "Rename…" opens the name field right away, under it. */}
+      <DropdownMenu modal={false}>
         <Hint text="Rename the part. The new name shows on every step and in the G-code." side="right">
           <DropdownMenuTrigger asChild>
             <button
