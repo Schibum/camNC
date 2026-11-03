@@ -16,6 +16,8 @@ export interface PocketFeature {
   region: PathsD;
   /** Same, strictly inside the part (for reporting / coverage). */
   strictRegion: PathsD;
+  /** Material above the floor (top view): an open pocket may be extended anywhere but into this. */
+  above: PathsD;
   area: number;
 }
 
@@ -47,6 +49,16 @@ function projectTriangle(mesh: Mesh, t: number): PathD {
     { x: c[0], y: c[1] },
   ];
   return areaD(path) < 0 ? path.reverse() : path;
+}
+
+/**
+ * The pocket extended `ext` past the outline where it is open to the edge (rabbets, edge grooves), so the bit runs out
+ * into the waste outside the part instead of stopping at the edge. Use ext > bit radius.
+ */
+export function openPocketRegion(outlines: PathsD, pocket: Pick<PocketFeature, 'strictRegion'>, ext: number): PathsD {
+  // Only past the outer outline: not into material above the floor, and not into through holes inside the part.
+  const waste = difference(offset(outlines, ext), outlines);
+  return cleanRegion(union(pocket.strictRegion, intersect(offset(pocket.strictRegion, ext), waste)), 0.01, 0.5);
 }
 
 /**
@@ -103,7 +115,6 @@ export function extractFeatures(mesh: Mesh, thickness: number, extendOpen = 2): 
   const top = levels[0]?.z ?? thickness;
   const pockets: PocketFeature[] = [];
   const slopedRegion = sloped.length ? union(sloped) : [];
-  const stockArea = offset(outlines, extendOpen);
   for (const level of levels) {
     if (level.z >= top - Z_TOL || level.z <= Z_TOL) continue;
     const higher = union(
@@ -112,9 +123,8 @@ export function extractFeatures(mesh: Mesh, thickness: number, extendOpen = 2): 
     );
     const strictRegion = cleanRegion(difference(footprint, higher), 0.01, 0.5);
     if (!strictRegion.length) continue;
-    // Let the pocket spill over the outline where it's open to the edge, never into higher material.
-    const region = cleanRegion(intersect(difference(stockArea, higher), offset(strictRegion, extendOpen)), 0.01, 0.5);
-    pockets.push({ floorZ: level.z, region, strictRegion, area: polyArea(strictRegion) });
+    const pocket = { floorZ: level.z, strictRegion, above: higher, area: polyArea(strictRegion) };
+    pockets.push({ ...pocket, region: openPocketRegion(outlines, pocket, extendOpen) });
   }
 
   return {

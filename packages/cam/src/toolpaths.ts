@@ -1,5 +1,5 @@
 import { areaD, pointInPolygonD, PointInPolygonResult, type PathD, type PathsD } from 'clipper2-ts';
-import type { PartFeatures } from './features';
+import { openPocketRegion, type PartFeatures } from './features';
 import { difference, offset, pathLength, polyArea, type Vec3 } from './geom';
 
 export interface Tool {
@@ -134,6 +134,60 @@ function rotateToNearest(loop: Loop, p: { x: number; y: number }): Loop {
   return [bq, ...rest];
 }
 
+const outsideAll = (p: { x: number; y: number }, solid: PathsD) =>
+  solid.every(o => pointInPolygonD(p, o) === PointInPolygonResult.IsOutside);
+
+/**
+ * For a pocket that is open to the part's edge: the loop rotated to start at the longest edge that lies in the waste
+ * outside the part (loop[0] -> loop[1]). Undefined for closed pockets.
+ */
+function rotateToWaste(loop: Loop, solid: PathsD): Loop | undefined {
+  let best = -1,
+    bl = 0;
+  for (let i = 0; i < loop.length; i++) {
+    const a = loop[i],
+      b = loop[(i + 1) % loop.length];
+    const l = dist2(a, b);
+    if (l > bl && outsideAll(a, solid) && outsideAll(b, solid)) {
+      bl = l;
+      best = i;
+    }
+  }
+  if (best < 0) return undefined;
+  return [...loop.slice(best), ...loop.slice(0, best)];
+}
+
+/**
+ * Entry for a loop that starts on a waste edge (see rotateToWaste): zigzag ramp along that edge until zTo, so the
+ * whole descent stays outside the part however long the ramp, then one full lap at zTo from there.
+ */
+function rampOnWasteEdge(loop: Loop, zFrom: number, zTo: number, s: CamSettings): Pass {
+  const [a, b] = loop;
+  const edge = Math.sqrt(dist2(a, b));
+  const slope = Math.tan((s.rampAngleDeg * Math.PI) / 180);
+  const pts: Vec3[] = [[a.x, a.y, zFrom]];
+  const feeds = [s.plungeFeed];
+  let z = zFrom,
+    forward = true;
+  for (let leg = 0; z > zTo && leg < 1000; leg++, forward = !forward) {
+    const drop = edge * slope;
+    const t = z - drop > zTo ? 1 : (z - zTo) / drop;
+    const [from, to] = forward ? [a, b] : [b, a];
+    z = Math.max(zTo, z - drop);
+    pts.push([from.x + t * (to.x - from.x), from.y + t * (to.y - from.y), z]);
+    feeds.push(s.feed);
+  }
+  // Lap at depth: on to b, around the loop back to a, then to where the ramp ended.
+  const end = pts[pts.length - 1];
+  for (const p of [...loop.slice(1), a]) {
+    pts.push([p.x, p.y, zTo]);
+    feeds.push(s.feed);
+  }
+  pts.push([end[0], end[1], zTo]);
+  feeds.push(s.feed);
+  return { pts, feeds, link: 'retract' };
+}
+
 /** Start in the middle of the longest edge so lead-in marks don't land on a corner. */
 function rotateToLongestEdge(loop: Loop): Loop {
   let best = 0,
@@ -221,7 +275,16 @@ function depthLevels(top: number, bottom: number, maxStep: number): number[] {
 // ---- operations ----
 
 /** Contour-parallel (offset) pocket, innermost ring first, ramped entries, climb by default. */
-export function pocketOperation(name: string, region: PathsD, topZ: number, floorZ: number, tool: Tool, s: CamSettings): Operation {
+/** `solid`: the part's outlines; ramp entries of pockets open to the edge then start in the waste outside them. */
+export function pocketOperation(
+  name: string,
+  region: PathsD,
+  topZ: number,
+  floorZ: number,
+  tool: Tool,
+  s: CamSettings,
+  solid?: PathsD
+): Operation {
   const r = tool.diameter / 2;
   const stepover = s.stepoverFactor * tool.diameter;
   const stepdown = s.material.stepdownFactor * tool.diameter;
@@ -241,20 +304,36 @@ export function pocketOperation(name: string, region: PathsD, topZ: number, floo
       }
     }
     remaining.delete(ci);
+    const entry = (oriented: Loop, nearest: Loop, zFrom: number, zTo: number): Pass => {
+      const waste = solid && rotateToWaste(oriented, solid);
+      return waste ? rampOnWasteEdge(waste, zFrom, zTo, s) : rampLoop(nearest, zFrom, zTo, s, tool);
+    };
     const rings: PathsD[] = [];
-    for (let cur = offset(comps[ci], -r); cur.length; cur = offset(cur, -stepover)) rings.push(cur);
+    for (let cur = offset(comps[ci], -r); cur.length; ) {
+      rings.push(cur);
+      // The bit running along this ring clears r inwards; stop once nothing is left inside that.
+      if (!offset(cur, -r).length) break;
+      const next = offset(cur, -stepover);
+      // A strip narrower than 2 stepovers but wider than D stays in the middle: one more ring closer in.
+      cur = next.length ? next : offset(cur, -stepover / 2);
+    }
     let prevZ = topZ;
     for (const z of depthLevels(topZ, floorZ, stepdown)) {
       let last: Vec3 | undefined;
-      for (let ri = rings.length - 1; ri >= 0; ri--) {
+      // Closed pockets clear from the center out. Open to the edge: the outer ring first, entering from the waste,
+      // then inwards linked without retracts -- the edge is cut while the waste still supports it (like Fusion).
+      const open = !!solid && !!rings[0]?.some(l => rotateToWaste(l, solid));
+      const order = rings.map((_, i) => i);
+      if (!open) order.reverse();
+      for (const ri of order) {
         for (const raw of rings[ri]) {
           // Clipper: outer loops CCW, holes CW -> material on the right = climb with an M3 spindle.
           const oriented = s.climb ? raw : [...raw].reverse();
-          const loop = rotateToNearest(oriented, last ? { x: last[0], y: last[1] } : pos);
-          const near = last && Math.sqrt(dist2({ x: last[0], y: last[1] }, loop[0])) <= stepover * 1.5;
+          const nearest = rotateToNearest(oriented, last ? { x: last[0], y: last[1] } : pos);
+          const near = last && Math.sqrt(dist2({ x: last[0], y: last[1] }, nearest[0])) <= stepover * 1.5;
           const pass: Pass = near
-            ? { pts: closeLoop(loop, z), feeds: closeLoop(loop, z).map(() => s.feed), link: 'direct' }
-            : rampLoop(loop, prevZ, z, s, tool);
+            ? { pts: closeLoop(nearest, z), feeds: closeLoop(nearest, z).map(() => s.feed), link: 'direct' }
+            : entry(oriented, nearest, prevZ, z);
           passes.push(pass);
           last = pass.pts[pass.pts.length - 1];
         }
@@ -430,13 +509,17 @@ export function camPart(features: PartFeatures, settings: Partial<CamSettings> =
   let pocketTop = top;
   let prevTool: Tool | undefined;
   features.pockets.forEach((p, i) => {
-    const tool = tools.find(fits(p.region, true));
+    // Open to the edge: run the bit 1mm past the edge into the waste, whatever its size. A bit only has to fit
+    // that extended region (a 6mm bit cuts a 3.5mm rabbet).
+    const openFor = (t: Tool) => openPocketRegion(features.outlines, p, t.diameter / 2 + 1);
+    const tool = tools.find(t => fits(openFor(t), true)(t));
     if (!tool) return warnings.push(`pocket z=${p.floorZ}: no tool fits`);
     if (prevTool && prevTool !== tool) pocketTop = top;
     prevTool = tool;
-    const uncut = uncutArea(p.region, tool.diameter / 2);
+    const region = openFor(tool);
+    const uncut = uncutArea(region, tool.diameter / 2);
     if (uncut > 1) warnings.push(`pocket z=${p.floorZ}: ${uncut.toFixed(1)}mm² left in corners/narrow spots with D=${tool.diameter}`);
-    ops.push(pocketOperation(`Pocket ${i + 1} z=${p.floorZ}`, p.region, pocketTop, p.floorZ, tool, s));
+    ops.push(pocketOperation(`Pocket ${i + 1} z=${p.floorZ}`, region, pocketTop, p.floorZ, tool, s, features.outlines));
     pocketTop = p.floorZ;
   });
   if (s.cutThrough)

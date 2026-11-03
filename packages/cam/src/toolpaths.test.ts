@@ -2,7 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { readGcode, metrics } from './analyze';
 import type { PartFeatures } from './features';
 import { fitArcs, toGcode } from './gcode';
-import { camPart, DEFAULT_TABS } from './toolpaths';
+import { difference } from './geom';
+import { camPart, DEFAULT_TABS, type Tool } from './toolpaths';
+
+function segDist(a: number[], b: number[], x: number, y: number) {
+  const dx = b[0] - a[0],
+    dy = b[1] - a[1];
+  const l2 = dx * dx + dy * dy;
+  const t = l2 ? Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / l2)) : 0;
+  return Math.hypot(a[0] + t * dx - x, a[1] + t * dy - y);
+}
 
 const rect = (x0: number, y0: number, x1: number, y1: number) => [
   { x: x0, y: y0 },
@@ -28,7 +37,7 @@ function board(): PartFeatures {
       { z: 8, region: [outline], area: 20000 },
       { z: 4, region: [pocket], area: 800 },
     ],
-    pockets: [{ floorZ: 4, region: [pocket], strictRegion: [pocket], area: 800 }],
+    pockets: [{ floorZ: 4, region: [pocket], strictRegion: [pocket], above: difference([outline], [pocket]), area: 800 }],
     bottomFaces: [],
     slopedArea: 0,
   };
@@ -65,7 +74,7 @@ describe('spike 3/4: toolpaths + gcode', () => {
     const f = board();
     const slot = rect(100, 20, 180, 23.1); // 3.1mm wide knife slot
     f.levels.push({ z: 2, region: [slot], area: 80 * 3.1 });
-    f.pockets.push({ floorZ: 2, region: [slot], strictRegion: [slot], area: 80 * 3.1 });
+    f.pockets.push({ floorZ: 2, region: [slot], strictRegion: [slot], above: difference([rect(0, 0, 200, 100)], [slot]), area: 80 * 3.1 });
     expect(camPart(f).warnings).toContain('pocket z=2: no tool fits');
     const cam = camPart(f, {
       tools: [
@@ -82,6 +91,68 @@ describe('spike 3/4: toolpaths + gcode', () => {
     const gcode = toGcode(cam);
     expect(gcode).toContain('M0 (MSG Insert T3 D=3, turn ON spindle 15000RPM)');
     expect(gcode).toMatch(/M0 \(MSG Spindle OFF. Change to T1 D=3.175/);
+  });
+
+  it('leaves no strip in the middle of a pocket with a stepover above half the bit', () => {
+    // Stepover 0.6D: after the first ring a 3.5mm strip remains, wider than the bit but narrower than two stepovers.
+    const f = board();
+    const mortise = rect(100, 40, 106.675, 61);
+    f.pockets = [
+      { floorZ: 4, region: [mortise], strictRegion: [mortise], above: difference([rect(0, 0, 200, 100)], [mortise]), area: 140 },
+    ];
+    const [pocket] = camPart(f, { cutThrough: false, stepoverFactor: 0.6 }).operations;
+    const xs = pocket.passes
+      .flatMap(p => p.pts)
+      .filter(q => q[2] === 4 && Math.abs(q[1] - 50) < 8)
+      .map(q => q[0]);
+    const r = 3.175 / 2;
+    const covered = (x: number) =>
+      xs.some(cx => Math.abs(cx - x) <= r) ||
+      pocket.passes.some(p => p.pts.some((q, i) => i > 0 && q[2] === 4 && segDist(p.pts[i - 1], q, x, 50) <= r));
+    for (let x = 100.05; x < 106.65; x += 0.05) expect(covered(x), `x=${x.toFixed(2)}`).toBe(true);
+  });
+
+  describe('pocket open to the edge (rabbet / edge groove)', () => {
+    /** 200x100x8 board, rabbet 3.5 wide along the bottom edge, x 40..160, 4.5 deep (like the kinderregal sides). */
+    function rabbetBoard(): PartFeatures {
+      const outline = rect(0, 0, 200, 100);
+      const strip = rect(40, 0, 160, 3.5);
+      return {
+        thickness: 8,
+        footprint: [outline],
+        outlines: [outline],
+        throughHoles: [],
+        levels: [
+          { z: 8, region: difference([outline], [strip]), area: 0 },
+          { z: 3.5, region: [strip], area: 420 },
+        ],
+        pockets: [{ floorZ: 3.5, region: [strip], strictRegion: [strip], above: difference([outline], [strip]), area: 420 }],
+        bottomFaces: [],
+        slopedArea: 0,
+      };
+    }
+    const bit = (diameter: number): Tool => ({ number: 1, diameter, name: 'flat end mill' });
+
+    it.each([3.175, 6])('ramps in from the waste outside the part, never on the finished wall (D=%s)', d => {
+      const [pocket] = camPart(rabbetBoard(), { tools: [bit(d)] }).operations;
+      const entries = pocket.passes.filter(p => p.link === 'retract');
+      expect(entries.length).toBeGreaterThan(0);
+      for (const pass of entries) {
+        const floor = Math.min(...pass.pts.map(q => q[2]));
+        // Every point until the ramp reaches its depth lies outside the board (y < 0).
+        const ramp = pass.pts.slice(0, pass.pts.findIndex(q => q[2] === floor) + 1);
+        for (const q of ramp) expect(q[1]).toBeLessThan(0);
+      }
+    });
+
+    it.each([3.175, 6])('runs the bit 1mm past the edge so no sliver is left at the edge (D=%s)', d => {
+      const [pocket, outline] = camPart(rabbetBoard(), { tools: [bit(d)] }).operations;
+      const ys = pocket.passes.flatMap(p => p.pts.map(q => q[1]));
+      expect(Math.min(...ys)).toBeCloseTo(-1, 2);
+      // ...and still reaches the inner wall (y = 3.5) exactly, before the outline is cut.
+      expect(Math.max(...ys)).toBeCloseTo(3.5 - d / 2, 2);
+      expect(outline.kind).toBe('profile');
+    });
   });
 
   it('fits arcs to tessellated circles', () => {
