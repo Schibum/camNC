@@ -22,7 +22,8 @@ export interface PlanSettingsV1 {
   leaveOut?: string[];
 }
 
-export const kDefaultBit: LibraryTool = { number: 1, diameter: 3.175, name: '1/8″ flat', feed: 1800, plungeFeed: 480 };
+/** The built-in bit: no library values, so its cutting data shows as the defaults. */
+export const kDefaultBit: LibraryTool = { number: 1, diameter: 3.175, name: '1/8″ flat' };
 
 export const kDefaultPlan: PlanSettingsV1 = {
   bit: kDefaultBit,

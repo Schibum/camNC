@@ -65,7 +65,12 @@ describe('CAM boards step', () => {
     fireEvent.change(stockList.getByLabelText('Stock width'), { target: { value: '1220' } });
     fireEvent.change(stockList.getByLabelText('Stock height'), { target: { value: '610' } });
     fireEvent.click(stockList.getByRole('button', { name: 'Add stock board' }));
-    await waitFor(async () => expect((await getJob(job.id))!.stock).toHaveLength(1));
+    // Both saves (the new board, the stock list) land before auto-fill reads the job.
+    await waitFor(async () => {
+      const saved = (await getJob(job.id))!;
+      expect(saved.stock).toHaveLength(1);
+      expect(saved.boards?.map(b => b.name)).toContain('C');
+    });
     const before = (await getJob(job.id))!.boards!;
     expect(before.find(b => b.name === 'C')!.pinned).toEqual([before.find(b => b.name === 'C')!.items[0]]);
 
