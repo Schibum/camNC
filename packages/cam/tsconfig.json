@@ -1,0 +1,14 @@
+{
+  "extends": "@wbcnc/typescript-config/base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"],
+    // POC: dense index math over typed arrays; revisit before productizing.
+    "noUncheckedIndexedAccess": false,
+    // compare.test.ts imports camNC's guess-tools.tsx
+    "jsx": "react-jsx"
+  },
+  // compare.test.ts runs camNC's own G-code parser on our output.
+  "include": ["src/**/*.ts", "../../apps/camNC/src/types/gcode-toolpath.d.ts"],
+  "exclude": ["node_modules"]
+}
