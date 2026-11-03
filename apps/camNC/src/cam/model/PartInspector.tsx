@@ -2,6 +2,8 @@ import { Button } from '@wbcnc/ui/components/button';
 import { Checkbox } from '@wbcnc/ui/components/checkbox';
 import { Label } from '@wbcnc/ui/components/label';
 import { cn } from '@wbcnc/ui/lib/utils';
+import { Pencil } from 'lucide-react';
+import { useState } from 'react';
 import type { CamPartInfo } from '../camTypes';
 import { Hint } from '../Hint';
 import { fmt } from './partFormat';
@@ -17,11 +19,14 @@ export function PartInspector({
   part,
   milled,
   onMilledChange,
+  onRename,
   onPlan,
 }: {
   part: CamPartInfo;
   milled: boolean;
   onMilledChange: (milled: boolean) => void;
+  /** A new name for the part; empty goes back to the model's name. */
+  onRename: (name: string) => void;
   /** Go on to the Boards step. */
   onPlan: () => void;
 }) {
@@ -41,10 +46,7 @@ export function PartInspector({
 
   return (
     <aside className="flex min-h-0 flex-col gap-3.5 overflow-y-auto border-l p-4">
-      <h2 className="text-[15px] font-semibold">
-        {part.name}
-        {part.names.length > 1 && <span className="font-normal text-muted-foreground"> × {part.names.length}</span>}
-      </h2>
+      <PartName key={part.id} part={part} onRename={onRename} />
       <MilledControl notFlat={summary.notFlat} slopedShare={summary.slopedShare} milled={milled} onChange={onMilledChange} />
       <dl className="grid grid-cols-[120px_1fr] gap-y-2 text-[13px]">
         <dt className="text-muted-foreground">Size</dt>
@@ -102,6 +104,49 @@ export function PartInspector({
         </Button>
       )}
     </aside>
+  );
+}
+
+/** The part's name, renamed in place: Enter or leaving the field keeps it, Escape doesn't. */
+function PartName({ part, onRename }: { part: CamPartInfo; onRename: (name: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const commit = (value: string) => {
+    setEditing(false);
+    if (value.trim() !== part.name) onRename(value.trim());
+  };
+  if (editing)
+    return (
+      <input
+        autoFocus
+        aria-label="Part name"
+        defaultValue={part.name}
+        placeholder={part.modelName}
+        onFocus={e => e.currentTarget.select()}
+        onBlur={e => commit(e.currentTarget.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') e.currentTarget.blur();
+          if (e.key === 'Escape') setEditing(false);
+        }}
+        className="h-8 rounded-md border bg-background px-2 text-[15px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      />
+    );
+  return (
+    <div className="flex items-start gap-1">
+      <h2 className="min-w-0 break-words text-[15px] font-semibold">
+        {part.name}
+        {part.names.length > 1 && <span className="font-normal text-muted-foreground"> × {part.names.length}</span>}
+      </h2>
+      <Hint text="Rename the part. The new name shows on every step and in the G-code." side="left">
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={`Rename ${part.name}`}
+          onClick={() => setEditing(true)}
+          className="-my-1 ml-auto size-7 shrink-0 text-muted-foreground">
+          <Pencil className="size-3.5" />
+        </Button>
+      </Hint>
+    </div>
   );
 }
 

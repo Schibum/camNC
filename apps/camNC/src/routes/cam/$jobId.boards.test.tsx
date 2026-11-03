@@ -125,7 +125,7 @@ describe('CAM boards step', () => {
     const job = await openKinderregal();
     const a = screen.getByRole('region', { name: 'Board A' });
     const b = screen.getByRole('region', { name: 'Board B' });
-    for (const name of ['left', 'right', 'Part 1', 'Part 3', 'Part 2']) expect(within(a).getByText(name)).toBeTruthy();
+    for (const name of ['left', 'right', 'Part 1a', 'Part 1b', 'Part 2']) expect(within(a).getByText(name)).toBeTruthy();
     expect(within(b).getByText('back')).toBeTruthy();
     expect(screen.getByRole('group', { name: /Board A, .* with 5 parts/ })).toBeTruthy();
     expect(screen.getByRole('group', { name: /Board B, .* with 1 parts/ })).toBeTruthy();
@@ -142,12 +142,12 @@ describe('CAM boards step', () => {
     expect(toastError).toHaveBeenCalledWith(expect.stringContaining('3 mm thick'));
 
     // Without dragging: ⋯ › Move to › New board.
-    fireEvent.pointerDown(within(screen.getByRole('region', { name: 'Board A' })).getByRole('button', { name: 'Move Part 3' }), {
+    fireEvent.pointerDown(within(screen.getByRole('region', { name: 'Board A' })).getByRole('button', { name: 'Move Part 1b' }), {
       button: 0,
       ctrlKey: false,
     });
     fireEvent.click(await screen.findByRole('menuitem', { name: /New board/ }));
-    await waitFor(() => expect(within(screen.getByRole('region', { name: 'Board D' })).getByText('Part 3')).toBeTruthy());
+    await waitFor(() => expect(within(screen.getByRole('region', { name: 'Board D' })).getByText('Part 1b')).toBeTruthy());
 
     // From the board drawing: drag the left side onto board C's card (pointer events, so touch works too).
     const left = partIn('A', 'left');

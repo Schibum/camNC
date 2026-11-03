@@ -75,7 +75,7 @@ function BoardsStep() {
       }
     />
   );
-  if (model.isError) return <Shell bar={bar} message={`Could not read ${job.fileName}: ${model.error.message}`} />;
+  if (model.isError) return <Shell bar={bar} message={model.error.message} />;
   if (!model.data) return <Shell bar={bar} loading={`Reading ${job.fileName}…`} />;
   // Every part unticked in the Model step: boards may be left over, but nothing goes on them.
   if (!boards.length || !instances.length) return <Shell bar={bar} message="No part to mill: mark parts as milled in the Model step." />;
@@ -220,7 +220,7 @@ function BoardsStep() {
 
   return (
     <Shell bar={bar}>
-      <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[320px_1fr_300px]">
+      <div className="grid flex-1 grid-cols-1 md:min-h-0 md:grid-cols-[320px_1fr_300px]">
         <BoardList
           boards={boards}
           instances={instances}
@@ -383,7 +383,7 @@ function Shell({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="flex h-dvh w-full min-w-0 flex-col">
+    <div className="flex min-h-dvh w-full min-w-0 flex-col md:h-dvh">
       <PageHeader title="CAM (beta)" />
       {bar}
       {message && <p className="m-8 text-muted-foreground">{message}</p>}

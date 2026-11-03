@@ -66,7 +66,7 @@ function PlanStep() {
   if (isPending) return <Shell />;
   if (!job) return <Shell message="This job doesn't exist (any more)." />;
   const bar = <CamJobBar jobId={job.id} fileName={job.fileName} step="Plan" />;
-  if (model.isError) return <Shell bar={bar} message={`Could not read ${job.fileName}: ${model.error.message}`} />;
+  if (model.isError) return <Shell bar={bar} message={model.error.message} />;
   if (!model.data) return <Shell bar={bar} loading={`Reading ${job.fileName}…`} />;
   if (!active.length) return <Shell bar={bar} message="No part to mill: mark parts as milled in the Model step." />;
 
@@ -141,8 +141,8 @@ function PlanStep() {
 
   return (
     <Shell bar={bar}>
-      <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[1fr_320px]">
-        <main className="flex min-h-0 min-w-0 flex-col gap-4 overflow-y-auto p-5">
+      <div className="grid flex-1 grid-cols-1 md:min-h-0 md:grid-cols-[1fr_320px]">
+        <main className="flex min-w-0 flex-col gap-4 p-4 md:min-h-0 md:overflow-y-auto md:p-5">
           <div className="flex flex-wrap items-center gap-2">
             <div role="tablist" aria-label="Boards in cutting order" className="flex flex-wrap gap-1">
               {queue.map((e, i) => (
@@ -343,51 +343,54 @@ function OperationsTable({ name, plan, editFor }: { name: string; plan: PlanResu
     </tr>
   );
   return (
-    <table className="w-full border-collapse text-[13px]" aria-label={`Operations for ${name}`}>
-      <thead>
-        <tr className="border-b text-left text-xs text-muted-foreground">
-          <th className="py-2 pr-3 font-medium">#</th>
-          <th className="py-2 pr-3 font-medium">Operation</th>
-          <th className="py-2 pr-3 font-medium">Bit</th>
-          <HeaderCell hint="Where the operation starts and ends cutting, in mm up from the bottom of the board (Z0).">
-            Depth (Z from bottom)
-          </HeaderCell>
-          <HeaderCell hint="How many depths the operation cuts at. More passes take longer but each one is lighter.">Passes</HeaderCell>
-          <HeaderCell hint="How deep each pass cuts. Less is gentler on the bit and slower. Click a value to change it.">
-            Stepdown
-          </HeaderCell>
-          <HeaderCell hint="How far each pocket pass moves sideways. Less leaves a smoother floor and is slower. Click a value to change it.">
-            Stepover
-          </HeaderCell>
-          <HeaderCell hint="How fast the bit moves through the wood, in mm/min; a second value is the slower final pass. Click a value to change it.">
-            Feed
-          </HeaderCell>
-          <th className="py-2 font-medium">Time</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.flatMap((g, i) => {
-          const label =
-            g.count > 1 ? (
-              <button
-                className="inline-flex items-center gap-1 hover:underline"
-                aria-expanded={open.has(g.key)}
-                onClick={() => toggle(g.key)}>
-                <ChevronRight className={cn('size-3.5 transition-transform', open.has(g.key) && 'rotate-90')} />
-                {g.label} <span className="text-muted-foreground">×{g.count}</span>
-              </button>
-            ) : (
-              g.label
-            );
-          return [
-            row(g.op, label, i + 1, g.timeMin, g.key),
-            ...(open.has(g.key)
-              ? g.members.map((m, k) => row(plan.ops[m], `${k + 1} of ${g.count}`, '', plan.ops[m].timeMin, `${g.key}#${m}`, true))
-              : []),
-          ];
-        })}
-      </tbody>
-    </table>
+    // Wide on a phone: it scrolls sideways in its own box.
+    <div className="shrink-0 overflow-x-auto">
+      <table className="w-full min-w-[640px] border-collapse text-[13px]" aria-label={`Operations for ${name}`}>
+        <thead>
+          <tr className="border-b text-left text-xs text-muted-foreground">
+            <th className="py-2 pr-3 font-medium">#</th>
+            <th className="py-2 pr-3 font-medium">Operation</th>
+            <th className="py-2 pr-3 font-medium">Bit</th>
+            <HeaderCell hint="Where the operation starts and ends cutting, in mm up from the bottom of the board (Z0).">
+              Depth (Z from bottom)
+            </HeaderCell>
+            <HeaderCell hint="How many depths the operation cuts at. More passes take longer but each one is lighter.">Passes</HeaderCell>
+            <HeaderCell hint="How deep each pass cuts. Less is gentler on the bit and slower. Click a value to change it.">
+              Stepdown
+            </HeaderCell>
+            <HeaderCell hint="How far each pocket pass moves sideways. Less leaves a smoother floor and is slower. Click a value to change it.">
+              Stepover
+            </HeaderCell>
+            <HeaderCell hint="How fast the bit moves through the wood, in mm/min; a second value is the slower final pass. Click a value to change it.">
+              Feed
+            </HeaderCell>
+            <th className="py-2 font-medium">Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.flatMap((g, i) => {
+            const label =
+              g.count > 1 ? (
+                <button
+                  className="inline-flex items-center gap-1 hover:underline"
+                  aria-expanded={open.has(g.key)}
+                  onClick={() => toggle(g.key)}>
+                  <ChevronRight className={cn('size-3.5 transition-transform', open.has(g.key) && 'rotate-90')} />
+                  {g.label} <span className="text-muted-foreground">×{g.count}</span>
+                </button>
+              ) : (
+                g.label
+              );
+            return [
+              row(g.op, label, i + 1, g.timeMin, g.key),
+              ...(open.has(g.key)
+                ? g.members.map((m, k) => row(plan.ops[m], `${k + 1} of ${g.count}`, '', plan.ops[m].timeMin, `${g.key}#${m}`, true))
+                : []),
+            ];
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -549,7 +552,7 @@ function Shell({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="flex h-dvh w-full min-w-0 flex-col">
+    <div className="flex min-h-dvh w-full min-w-0 flex-col md:h-dvh">
       <PageHeader title="CAM (beta)" />
       {bar}
       {message && <p className="m-8 text-muted-foreground">{message}</p>}

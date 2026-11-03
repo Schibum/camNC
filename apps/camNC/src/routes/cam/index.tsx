@@ -1,12 +1,13 @@
 import { PageHeader } from '@/components/page-header';
 import { camKeys, useCamJobs } from '@/cam/camQueries';
 import { deleteJob } from '@/cam/jobDb';
-import { createJobFromFile, pickModelFile } from '@/cam/openModelFile';
+import { kModelFile } from '@/cam/jobDb';
+import { createJobFromFile, pickModelFile, toastNotAModel } from '@/cam/openModelFile';
 import { useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { Button } from '@wbcnc/ui/components/button';
 import { toast } from '@wbcnc/ui/components/sonner';
-import { Box, FileUp, Trash2 } from 'lucide-react';
+import { Box, FileUp, Trash2, TriangleAlert } from 'lucide-react';
 
 export const Route = createFileRoute('/cam/')({
   component: CamIndex,
@@ -23,6 +24,7 @@ function CamIndex() {
   const open = async () => {
     const file = await pickModelFile();
     if (!file) return;
+    if (!kModelFile.test(file.name)) return toastNotAModel(file.name);
     try {
       const job = await createJobFromFile(file);
       void queryClient.invalidateQueries({ queryKey: camKeys.jobs });
@@ -73,15 +75,28 @@ function CamIndex() {
                 return (
                   <li key={job.id} className="flex items-center gap-3 px-4 py-3">
                     <Link to="/cam/$jobId/model" params={{ jobId: job.id }} className="flex min-w-0 grow flex-col hover:underline">
-                      <span className="truncate font-medium">{job.name}</span>
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="truncate font-medium">{job.name}</span>
+                        {job.readError && (
+                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-destructive/10 px-2 py-px text-xs text-destructive">
+                            <TriangleAlert className="size-3" /> Could not be read
+                          </span>
+                        )}
+                      </span>
                       <span className="truncate text-xs text-muted-foreground">
                         {job.fileName}
                         {job.parts.length > 0 && ` · ${parts} ${parts === 1 ? 'part' : 'parts'} to mill`} · {kWhen.format(job.updatedAt)}
                       </span>
                     </Link>
-                    <Button variant="ghost" size="icon" aria-label={`Delete ${job.name}`} onClick={() => void remove(job.id, job.name)}>
-                      <Trash2 />
-                    </Button>
+                    {job.readError ? (
+                      <Button variant="outline" size="sm" aria-label={`Delete ${job.name}`} onClick={() => void remove(job.id, job.name)}>
+                        <Trash2 /> Delete
+                      </Button>
+                    ) : (
+                      <Button variant="ghost" size="icon" aria-label={`Delete ${job.name}`} onClick={() => void remove(job.id, job.name)}>
+                        <Trash2 />
+                      </Button>
+                    )}
                   </li>
                 );
               })}

@@ -30,7 +30,7 @@ export function OpList({
   onTime: (t: number) => void;
 }) {
   return (
-    <aside className="flex min-h-0 w-64 shrink-0 flex-col border-l border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+    <aside className="flex max-h-72 min-h-0 shrink-0 flex-col border-t border-zinc-200 bg-white md:max-h-none md:w-64 md:border-t-0 md:border-l dark:border-zinc-800 dark:bg-zinc-950">
       <div className="flex items-center justify-between border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
         <span className="text-[13px] font-medium">Operations</span>
         {selected !== null && (

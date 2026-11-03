@@ -1,3 +1,4 @@
+import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
@@ -5,7 +6,8 @@ import tsconfigPaths from 'vite-tsconfig-paths';
 import { defineConfig, type ViteUserConfig } from 'vitest/config';
 export default defineConfig({
   // Vitest 3 still types plugins against Vite 7. Drop the cast with Vitest 4.
-  plugins: [react(), tsconfigPaths(), nodePolyfills()] as unknown as ViteUserConfig['plugins'],
+  // Tailwind: layout tests import the app's CSS (src/style.css).
+  plugins: [react(), tailwindcss(), tsconfigPaths(), nodePolyfills()] as unknown as ViteUserConfig['plugins'],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

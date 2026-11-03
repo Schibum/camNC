@@ -24,6 +24,8 @@ export interface CamJobV1 {
   updatedAt: number;
   /** Empty until the model has been imported once. */
   parts: CamJobPartV1[];
+  /** Why the model file could not be read, for people (see `modelReadError`); unset once it has been read. */
+  readError?: string;
   /** Plan step choices (bit, material, ...); defaults until changed. */
   plan?: PlanSettingsV1;
   /** Boards the parts are nested on; derived per thickness until the user changes them. */
@@ -75,12 +77,22 @@ async function tx(stores: string[], mode: IDBTransactionMode, fn: (t: IDBTransac
 
 export const kModelFile = /\.(step|stp|stl)$/i;
 
+/** `name`, or "name (2)", "name (3)", … if a job of that name exists: opening the same file twice. */
+export function uniqueJobName(name: string, taken: string[]): string {
+  const used = new Set(taken);
+  if (!used.has(name)) return name;
+  let k = 2;
+  while (used.has(`${name} (${k})`)) k++;
+  return `${name} (${k})`;
+}
+
 export async function createJob(file: File): Promise<CamJobV1> {
   const now = Date.now();
+  const taken = (await listJobs()).map(j => j.name);
   const job: CamJobV1 = {
     v: 1,
     id: crypto.randomUUID(),
-    name: file.name.replace(kModelFile, ''),
+    name: uniqueJobName(file.name.replace(kModelFile, ''), taken),
     fileName: file.name,
     createdAt: now,
     updatedAt: now,
@@ -120,6 +132,7 @@ export async function saveJob(job: CamJobV1): Promise<CamJobV1> {
 /** Swap the model file of a job; parts are re-derived on the next import, keeping `milled` by part id. */
 export async function replaceModel(job: CamJobV1, file: File): Promise<CamJobV1> {
   const saved = { ...job, fileName: file.name, updatedAt: Date.now() };
+  delete saved.readError;
   const bytes = await file.arrayBuffer();
   await tx([kJobs, kModels], 'readwrite', t => {
     t.objectStore(kJobs).put(saved);

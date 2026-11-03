@@ -89,8 +89,11 @@ export function PlanView3D({
     <section
       aria-label={`3D view of board ${board.name}`}
       data-mode={mode}
-      className={cn('flex h-[540px] overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800', className)}>
-      <div className="flex min-w-0 flex-1 flex-col">
+      className={cn(
+        'flex flex-col overflow-hidden rounded-lg border border-zinc-200 md:h-[540px] md:flex-row dark:border-zinc-800',
+        className
+      )}>
+      <div className="flex h-[420px] min-w-0 flex-col md:h-auto md:flex-1">
         <div className="relative min-h-0 flex-1" style={{ background: kViewBackground }}>
           <Canvas dpr={[1, 2]} className="absolute! inset-0">
             <color attach="background" args={[kViewBackground]} />

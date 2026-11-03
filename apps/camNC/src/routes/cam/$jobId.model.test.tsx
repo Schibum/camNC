@@ -2,6 +2,9 @@ import { getJob, createJob } from '@/cam/jobDb';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ComponentType, ReactNode } from 'react';
+// The app's styles: the phone layout test measures real boxes.
+import '@/style.css';
+import { page } from '@vitest/browser/context';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import stepUrl from '../../../../../packages/cam/test/fixtures/kinderregal-eiche.step?url';
 import { Route } from './$jobId.model';
@@ -50,4 +53,77 @@ describe('CAM model step', () => {
     await waitFor(() => expect(within(notMilled).getByText('back')).toBeTruthy());
     await waitFor(async () => expect((await getJob(job.id))?.parts.find(p => p.name === 'back')?.milled).toBe(false));
   });
+
+  it('names each identical body, and renames a part in place', async () => {
+    const bytes = await (await fetch(stepUrl)).arrayBuffer();
+    const job = await createJob(new File([bytes], 'kinderregal-eiche.step'));
+    params.jobId = job.id;
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ModelStep />
+      </QueryClientProvider>
+    );
+    const thick = await screen.findByRole('region', { name: '8 mm boards' }, { timeout: 60_000 });
+    fireEvent.click(within(thick).getByRole('button', { name: /^Part 1/ }));
+    // The two identical shelves are "Part 1" and "Part 3" in the STEP: one name per body, as on Boards and Plan.
+    expect(screen.getByText('Part 1a, Part 1b')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename Part 1' }));
+    const input = screen.getByRole('textbox', { name: 'Part name' });
+    fireEvent.change(input, { target: { value: 'Shelf' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    fireEvent.blur(input);
+    await waitFor(() => expect(screen.getByRole('heading', { name: /^Shelf/ })).toBeTruthy());
+    expect(screen.getByText('Shelf a, Shelf b')).toBeTruthy();
+    expect(within(thick).getByText('Shelf')).toBeTruthy();
+    await waitFor(async () => expect((await getJob(job.id))?.parts.map(p => p.name)).toContain('Shelf'));
+
+    // Escape keeps the name.
+    fireEvent.click(screen.getByRole('button', { name: 'Rename Shelf' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Part name' }), { target: { value: 'nope' } });
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Part name' }), { key: 'Escape' });
+    expect(screen.getByRole('heading', { name: /^Shelf/ })).toBeTruthy();
+  }, 90_000);
+
+  it('stacks the panels in normal flow at phone width', async () => {
+    await page.viewport(390, 844);
+    try {
+      const bytes = await (await fetch(stepUrl)).arrayBuffer();
+      const job = await createJob(new File([bytes], 'kinderregal-eiche.step'));
+      params.jobId = job.id;
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <ModelStep />
+        </QueryClientProvider>
+      );
+      await screen.findByRole('region', { name: '8 mm boards' }, { timeout: 60_000 });
+      expect(window.innerWidth).toBe(390);
+      const list = screen.getByRole('heading', { name: 'Parts' }).closest('aside')!;
+      const view = screen.getByRole('group', { name: 'View' });
+      // The whole list shows, and ends before the 3D view starts, instead of being cut off under it.
+      expect(list.scrollHeight).toBeLessThanOrEqual(list.clientHeight + 1);
+      expect(list.getBoundingClientRect().bottom).toBeLessThanOrEqual(view.getBoundingClientRect().top);
+      // "As modeled" / "Laid flat" stay on one line each.
+      for (const b of within(view).getAllByRole('button')) expect(b.getBoundingClientRect().height).toBeLessThanOrEqual(34);
+      expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(390);
+    } finally {
+      await page.viewport(1280, 800);
+    }
+  }, 90_000);
+
+  it('says in plain words that a broken STEP file could not be read, marks the job, and disables Next', async () => {
+    const job = await createJob(new File(["ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION((''),'2;1');\n"], 'broken.step'));
+    params.jobId = job.id;
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ModelStep />
+      </QueryClientProvider>
+    );
+    const alert = await screen.findByRole('alert', {}, { timeout: 60_000 });
+    expect(alert.textContent).toMatch(/broken\.step could not be read: the STEP file may be damaged.*File › Export › STEP/);
+    expect(alert.textContent).not.toMatch(/occt/);
+    expect(screen.getByRole('button', { name: 'Next: Boards' }).hasAttribute('disabled')).toBe(true);
+    expect(within(alert).getByRole('button', { name: 'Delete job' })).toBeTruthy();
+    await waitFor(async () => expect((await getJob(job.id))?.readError).toMatch(/could not be read/));
+  }, 90_000);
 });

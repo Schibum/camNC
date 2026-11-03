@@ -5,6 +5,9 @@ import type { BoardRequest, ModelImport, PlanResult } from './camTypes';
 import { kDefaultPlan, toCamSettings } from './planSettings';
 import { useCuttingData } from './cuttingData';
 import { getJob, getModelBytes, listJobs, saveJob, type CamJobV1 } from './jobDb';
+import { modelReadError } from './openModelFile';
+import { withPartNames } from './partNames';
+import { useCallback } from 'react';
 
 let worker: Comlink.Remote<CamWorkerAPI> | undefined;
 /** One long-lived worker, started on the first model: occt's wasm is 2.3 MB brotli. */
@@ -26,29 +29,52 @@ export const useCamJob = (id: string) => useQuery({ queryKey: camKeys.job(id), q
 
 /**
  * The imported model of a job (parts + display meshes). Recomputed from the stored file per session; on the first
- * import the job's part list is filled in, later imports keep `milled` by part id.
+ * import the job's part list is filled in, later imports keep `milled` and the user's names by part id. The parts
+ * come named as the job names them (renames, one name per body: see `withPartNames`).
  */
 export function useCamModel(job: CamJobV1 | null | undefined) {
   const queryClient = useQueryClient();
+  const jobParts = job?.parts;
+  const select = useCallback(
+    (model: ModelImport): ModelImport => ({ ...model, parts: withPartNames(model.parts, jobParts ?? []) }),
+    [jobParts]
+  );
   return useQuery({
+    select,
     queryKey: camKeys.model(job?.id ?? '', job?.fileName ?? ''),
     enabled: !!job,
     staleTime: Infinity,
     gcTime: 5 * 60_000,
+    // A file that can't be read fails the same way again: say so now, not after three slow retries.
+    retry: false,
     queryFn: async (): Promise<ModelImport> => {
-      const bytes = await getModelBytes(job!.id);
-      if (!bytes) throw new Error('The model file of this job is missing.');
-      const model = await camWorker().importModel(Comlink.transfer(bytes, [bytes.buffer as ArrayBuffer]), job!.fileName, modelKey(job!));
+      const write = async (next: CamJobV1) => {
+        const saved = await saveJob(next);
+        queryClient.setQueryData(camKeys.job(saved.id), saved);
+        void queryClient.invalidateQueries({ queryKey: camKeys.jobs });
+      };
+      let model: ModelImport;
+      try {
+        const bytes = await getModelBytes(job!.id);
+        if (!bytes) throw new Error('The model file of this job is missing.');
+        model = await camWorker().importModel(Comlink.transfer(bytes, [bytes.buffer as ArrayBuffer]), job!.fileName, modelKey(job!));
+      } catch (e) {
+        // Kept on the job, so the job list shows it failed.
+        const readError = modelReadError(job!.fileName, e);
+        if (job!.readError !== readError) await write({ ...job!, readError });
+        throw new Error(readError, { cause: e });
+      }
       const known = new Map(job!.parts.map(p => [p.id, p]));
       const parts = model.parts.map(p => ({
         id: p.id,
-        name: p.name,
+        name: known.get(p.id)?.name ?? p.name,
         quantity: p.names.length,
         milled: known.get(p.id)?.milled ?? !p.summary.notFlat,
       }));
-      if (JSON.stringify(parts) !== JSON.stringify(job!.parts)) {
-        const saved = await saveJob({ ...job!, parts });
-        queryClient.setQueryData(camKeys.job(saved.id), saved);
+      if (JSON.stringify(parts) !== JSON.stringify(job!.parts) || job!.readError) {
+        const next = { ...job!, parts };
+        delete next.readError;
+        await write(next);
       }
       return model;
     },

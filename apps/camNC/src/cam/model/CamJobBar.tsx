@@ -20,11 +20,15 @@ export function CamJobBar({ jobId, fileName, step, actions }: { jobId: string; f
       <span className="max-w-64 truncate text-sm text-muted-foreground" title={fileName}>
         {fileName}
       </span>
-      <nav aria-label="Steps" className="flex items-center gap-1">
+      <nav aria-label="Steps" className="flex flex-wrap items-center gap-1">
         {kSteps.map((s, i) => {
           const to = kRoutes[s];
           return to && s !== step ? (
-            <Link key={s} to={to} params={{ jobId }} className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted">
+            <Link
+              key={s}
+              to={to}
+              params={{ jobId }}
+              className="whitespace-nowrap rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted">
               {i + 1} {s}
             </Link>
           ) : (
@@ -50,7 +54,7 @@ function StepLink({ active, enabled, children }: { active: boolean; enabled: boo
       aria-current={active ? 'step' : undefined}
       aria-disabled={!enabled}
       className={cn(
-        'rounded-md px-3 py-1.5 text-sm',
+        'whitespace-nowrap rounded-md px-3 py-1.5 text-sm',
         active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground',
         !enabled && !active && 'opacity-60'
       )}>

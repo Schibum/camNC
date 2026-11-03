@@ -8,8 +8,11 @@ export type Outline2D = [number, number][][];
 export interface CamPartInfo {
   /** Stable for the same model file: `part-<n>` in import order. */
   id: string;
+  /** The job's name for the part: the model's, unless the user renamed it (see `withPartNames`). */
   name: string;
-  /** All identical bodies; the quantity is names.length. */
+  /** The name in the model file, before any rename. */
+  modelName?: string;
+  /** One name per identical body, as shown on every step and in the G-code; the quantity is names.length. */
   names: string[];
   size: [number, number, number];
   thickness: number;
