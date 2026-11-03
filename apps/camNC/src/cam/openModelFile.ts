@@ -35,5 +35,5 @@ export function modelReadError(fileName: string, error: unknown): string {
   if (/missing|no planar faces/.test(raw)) return raw;
   if (/\.stl$/i.test(fileName))
     return `${fileName} could not be read: the STL file may be damaged or incomplete. Export it again from your CAD program and open the new file.`;
-  return `${fileName} could not be read: the STEP file may be damaged or incomplete. Export it again (in Fusion: File › Export › STEP) and open the new file.`;
+  return `${fileName} could not be read: the STEP file may be damaged or incomplete. Export it again from your CAD program as STEP and open the new file.`;
 }

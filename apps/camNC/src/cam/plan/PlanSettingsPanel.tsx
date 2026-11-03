@@ -66,8 +66,7 @@ export function PlanSettingsPanel({
 
       <span className="grow" />
       <p className="rounded-lg bg-muted/50 p-3 text-xs leading-relaxed text-muted-foreground">
-        Defaults follow your Fusion jobs: Z0 at the bottom of the board, roughing to +1 mm leaving 0.1 mm, one final pass through, climb
-        cut.
+        Defaults: Z0 at the bottom of the board, roughing to +1 mm leaving 0.1 mm, one final pass through, climb cut.
       </p>
     </aside>
   );

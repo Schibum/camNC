@@ -208,7 +208,9 @@ describe('CAM model step', () => {
       </QueryClientProvider>
     );
     const alert = await screen.findByRole('alert', {}, { timeout: 60_000 });
-    expect(alert.textContent).toMatch(/broken\.step could not be read: the STEP file may be damaged.*File › Export › STEP/);
+    expect(alert.textContent).toMatch(
+      /broken\.step could not be read: the STEP file may be damaged.*Export it again from your CAD program as STEP/
+    );
     expect(alert.textContent).not.toMatch(/occt/);
     expect(screen.getByRole('button', { name: 'Next: Boards' }).hasAttribute('disabled')).toBe(true);
     expect(within(alert).getByRole('button', { name: 'Delete job' })).toBeTruthy();
