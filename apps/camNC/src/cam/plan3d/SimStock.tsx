@@ -1,5 +1,5 @@
 import { useFrame, useThree } from '@react-three/fiber';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import {
   Box2,
   BufferGeometry,
@@ -16,6 +16,7 @@ import {
 import type { ParsedToolpath } from '@/visualize/gcodeParsing';
 import { HeightmapStamper, heightmapSize, type HeightmapDomain } from '@/visualize/stockSim/HeightmapStamper';
 import type { Playhead } from '@/visualize/stockSim/jobTimeline';
+import { kGridVertex, useAdaptiveGrid, wallGeometry } from '@/visualize/stockSim/stockGrid';
 import type { ToolShape } from '@/visualize/stockSim/toolShapes';
 import type { BoardRequest, CamPartInfo } from '../camTypes';
 import { designTexture, kCompareTolerance } from './compareMap';
@@ -23,17 +24,19 @@ import { cutsOf, onlyOps, type PlanOp } from './planModel';
 import { kStockColor } from './palette';
 
 const kMaxHeightmap = 2048;
-const kMaxGrid = 768;
 
 const kSurfaceVertex = /* glsl */ `
   uniform sampler2D uCurrent;
   uniform vec2 uZRange;
+  uniform vec4 uFootprint; // min x, min y, size x, size y
   varying vec3 vPos;
   varying vec2 vUv;
+  ${kGridVertex}
   void main() {
+    vec2 uv = gridUv();
     vUv = uv;
     float z = mix(uZRange.x, uZRange.y, texture(uCurrent, uv).r);
-    vPos = vec3(position.xy, z);
+    vPos = vec3(uFootprint.xy + uv * uFootprint.zw, z);
     gl_Position = projectionMatrix * modelViewMatrix * vec4(vPos, 1.0);
   }
 `;
@@ -155,20 +158,6 @@ const kWalls: { from: [number, number]; to: [number, number]; shade: number }[] 
   { from: [0, 1], to: [0, 0], shade: 0.7 },
 ];
 
-function wallGeometry(segments: number) {
-  const geom = new BufferGeometry();
-  const edge: number[] = [];
-  const index: number[] = [];
-  for (let i = 0; i <= segments; i++) {
-    edge.push(i / segments, 0, i / segments, 1);
-    if (i < segments) index.push(i * 2, i * 2 + 2, i * 2 + 1, i * 2 + 1, i * 2 + 2, i * 2 + 3);
-  }
-  geom.setAttribute('edge', new Float32BufferAttribute(edge, 2));
-  geom.setAttribute('position', new Float32BufferAttribute(new Array((segments + 1) * 6).fill(0), 3));
-  geom.setIndex(index);
-  return geom;
-}
-
 /**
  * The board as the simulation has cut it up to `playhead`, from a GPU heightmap. With ops selected, what they remove
  * is colored. `opacity` < 1 makes the stock see-through.
@@ -217,6 +206,13 @@ export function SimStock({
     stamper.update(gl, playhead);
     mask?.update(gl, { index: toolpath.pathPoints.length - 1, fraction: 1 });
   });
+  // The cut changes while the playhead moves (playing, scrubbing): the coarser grid meanwhile.
+  const shown = useRef<Playhead | null>(null);
+  const moving = () => {
+    const was = shown.current;
+    shown.current = playhead;
+    return !was || was.index !== playhead.index || was.fraction !== playhead.fraction;
+  };
 
   return (
     <StockMesh
@@ -226,6 +222,7 @@ export function SimStock({
       design={design}
       highlight={highlight}
       opacity={opacity}
+      moving={moving}
     />
   );
 }
@@ -237,7 +234,10 @@ function StockMesh({
   design,
   highlight,
   opacity,
+  moving,
 }: {
+  /** The picture changes (besides the camera): draw the coarser grid. */
+  moving: () => boolean;
   domain: HeightmapDomain;
   current: Texture;
   mask: Texture | null;
@@ -249,10 +249,11 @@ function StockMesh({
   const { footprint } = domain;
   const sizeX = footprint.max.x - footprint.min.x;
   const sizeY = footprint.max.y - footprint.min.y;
-  const gridX = Math.min(domain.width, kMaxGrid);
-  const gridY = Math.min(domain.height, kMaxGrid);
-  const plane = useMemo(() => new PlaneGeometry(sizeX, sizeY, gridX, gridY), [sizeX, sizeY, gridX, gridY]);
-  const wall = useMemo(() => wallGeometry(Math.max(gridX, gridY)), [gridX, gridY]);
+  // About a vertex per heightmap texel, so cut walls are as sharp as the simulation. The bottom is flat: one quad,
+  // with holes where the cut goes through (per pixel, from the heightmap).
+  const grid = useAdaptiveGrid(domain, moving);
+  const plane = useMemo(() => new PlaneGeometry(sizeX, sizeY), [sizeX, sizeY]);
+  const wall = useMemo(() => wallGeometry(Math.max(domain.width, domain.height)), [domain.width, domain.height]);
   const materials = useMemo(() => {
     const stock = new Color(kStockColor);
     const common = () => ({
@@ -274,6 +275,8 @@ function StockMesh({
         uDesign: { value: null },
         uTexel: { value: new Vector2() },
         uTol: { value: kCompareTolerance },
+        uFootprint: { value: [0, 0, 0, 0] },
+        uCells: { value: new Vector2() },
       },
       side: DoubleSide,
       // Toolpath lines lie right on the cut floors: push the surface back a little so they win the depth test.
@@ -333,13 +336,13 @@ function StockMesh({
     surface.uniforms.uTexel.value.set(1 / domain.width, 1 / domain.height);
     surface.uniforms.uHasOp.value = mask !== null;
     surface.uniforms.uHighlight.value.set(highlight);
-    for (const m of walls) m.uniforms.uFootprint.value = [footprint.min.x, footprint.min.y, sizeX, sizeY];
+    for (const m of [surface, ...walls]) m.uniforms.uFootprint.value = [footprint.min.x, footprint.min.y, sizeX, sizeY];
   }, [materials, current, mask, highlight, opacity, domain, footprint, sizeX, sizeY, design]);
 
   const center: [number, number, number] = [(footprint.min.x + footprint.max.x) / 2, (footprint.min.y + footprint.max.y) / 2, 0];
   return (
     <>
-      <mesh geometry={plane} material={materials.surface} position={center} frustumCulled={false} renderOrder={1} />
+      <mesh ref={grid.ref} geometry={grid.geometry} material={materials.surface} frustumCulled={false} renderOrder={1} />
       <mesh geometry={plane} material={materials.bottomFace} position={center} frustumCulled={false} renderOrder={1} />
       {materials.walls.map((m, i) => (
         <mesh key={i} geometry={wall} material={m} frustumCulled={false} renderOrder={1} />

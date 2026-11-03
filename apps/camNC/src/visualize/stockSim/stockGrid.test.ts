@@ -1,0 +1,19 @@
+import { describe, expect, it } from 'vitest';
+import { gridCells, gridGeometry, kMaxGridSize } from './stockGrid';
+
+describe('stock surface grid', () => {
+  it('one cell per heightmap texel, up to the largest grid', () => {
+    expect(gridCells({ width: 1500, height: 800 })).toEqual({ x: 1500, y: 800 });
+    expect(gridCells({ width: 4096, height: 2100 })).toEqual({ x: kMaxGridSize, y: kMaxGridSize });
+  });
+
+  it('holds one row of indices and no vertex buffers: rows are instances, positions come from the vertex ids', () => {
+    const g = gridGeometry({ x: 2048, y: 2048 });
+    expect(g.instanceCount).toBe(2048);
+    expect(g.index!.count).toBe(2048 * 6);
+    expect(Object.keys(g.attributes)).toEqual([]);
+    // Two triangles per cell between column i's lower (2i) and upper (2i + 1) corners and column i + 1's.
+    expect([...g.index!.array.slice(0, 6)]).toEqual([0, 2, 1, 1, 2, 3]);
+    expect(Math.max(...g.index!.array)).toBe(2 * 2048 + 1);
+  });
+});

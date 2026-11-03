@@ -12,6 +12,7 @@ import {
   PlaneGeometry,
   ShaderMaterial,
   Texture,
+  Vector2,
   Vector3,
 } from 'three';
 import { useToolDiameter } from '@/store/store';
@@ -23,20 +24,23 @@ import { ToolPositionMarker } from '../DepthSceneParts';
 import { kJobDoneColor } from '../jobProgress';
 import { HeightmapStamper, heightmapSize } from './HeightmapStamper';
 import { currentPlayhead } from './jobTimeline';
+import { kGridVertex, useAdaptiveGrid, wallGeometry } from './stockGrid';
 import { resolveToolShape } from './toolShapes';
 
 const kStockColor = new Color('#c9a46e');
-// Largest heightmap side, and the largest display grid side (vertices).
+// Largest heightmap side.
 const kMaxHeightmapSize = 4096;
-const kMaxGridSize = 768;
 
 const kSurfaceVertex = /* glsl */ `
   uniform sampler2D uHeight;
   uniform vec2 uZRange; // low, top
+  uniform vec4 uFootprint; // min x, min y, size x, size y
   varying vec3 vPos;
+  ${kGridVertex}
   void main() {
+    vec2 uv = gridUv();
     float z = mix(uZRange.x, uZRange.y, texture(uHeight, uv).r);
-    vPos = vec3(position.xy, z);
+    vPos = vec3(uFootprint.xy + uv * uFootprint.zw, z);
     gl_Position = projectionMatrix * modelViewMatrix * vec4(vPos, 1.0);
   }
 `;
@@ -134,24 +138,6 @@ const kWalls: { from: [number, number]; to: [number, number]; shade: number }[] 
   { from: [0, 1], to: [0, 0], shade: 0.7 }, // -X
 ];
 
-function wallGeometry(segments: number) {
-  const geom = new BufferGeometry();
-  const edge: number[] = [];
-  const index: number[] = [];
-  for (let i = 0; i <= segments; i++) {
-    edge.push(i / segments, 0, i / segments, 1);
-    if (i < segments) {
-      const k = i * 2;
-      index.push(k, k + 2, k + 1, k + 1, k + 2, k + 3);
-    }
-  }
-  geom.setAttribute('edge', new Float32BufferAttribute(edge, 2));
-  // Bounds only, positions come from the heightmap.
-  geom.setAttribute('position', new Float32BufferAttribute(new Array((segments + 1) * 2 * 3).fill(0), 3));
-  geom.setIndex(index);
-  return geom;
-}
-
 /**
  * The stock with the material the job removes up to the timeline's playhead, in toolpath coordinates (Z with the
  * Z0 placement already applied by the parent: `zTop` is the stock top in toolpath Z).
@@ -179,6 +165,14 @@ export function SimulatedStock({ toolpath, zTop, stockHeight }: { toolpath: Pars
   useEffect(() => () => stamper.dispose(), [stamper]);
 
   useFrame(() => stamper.update(gl, currentPlayhead(toolpath)));
+  // The cut changes while the playhead moves: the coarser grid meanwhile.
+  const shown = useRef<{ index: number; fraction: number } | null>(null);
+  const moving = () => {
+    const now = currentPlayhead(toolpath);
+    const was = shown.current;
+    shown.current = { index: now.index, fraction: now.fraction };
+    return !was || was.index !== now.index || was.fraction !== now.fraction;
+  };
 
   return (
     <>
@@ -191,6 +185,7 @@ export function SimulatedStock({ toolpath, zTop, stockHeight }: { toolpath: Pars
         bottom={bottom}
         zScale={zScale}
         showVideo={showVideo}
+        moving={moving}
       />
       <ToolpathLines toolpath={toolpath} />
     </>
@@ -206,7 +201,10 @@ function StockSurface({
   bottom,
   zScale,
   showVideo,
+  moving,
 }: {
+  /** The cut changes (besides the camera): draw the coarser grid. */
+  moving: () => boolean;
   texture: Texture;
   footprint: Box2;
   size: { width: number; height: number };
@@ -218,11 +216,11 @@ function StockSurface({
 }) {
   const sizeX = footprint.max.x - footprint.min.x;
   const sizeY = footprint.max.y - footprint.min.y;
-  const gridX = Math.min(size.width, kMaxGridSize);
-  const gridY = Math.min(size.height, kMaxGridSize);
-  const surfaceGeometry = useMemo(() => new PlaneGeometry(sizeX, sizeY, gridX, gridY), [sizeX, sizeY, gridX, gridY]);
-  const wall = useMemo(() => wallGeometry(Math.max(gridX, gridY)), [gridX, gridY]);
-  useEffect(() => () => surfaceGeometry.dispose(), [surfaceGeometry]);
+  // About a vertex per heightmap texel; the bottom is one quad, with holes where the cut goes through (per pixel).
+  const grid = useAdaptiveGrid(size, moving);
+  const bottomGeometry = useMemo(() => new PlaneGeometry(sizeX, sizeY), [sizeX, sizeY]);
+  const wall = useMemo(() => wallGeometry(Math.max(size.width, size.height)), [size]);
+  useEffect(() => () => bottomGeometry.dispose(), [bottomGeometry]);
   useEffect(() => () => wall.dispose(), [wall]);
 
   const surface = useMemo(
@@ -238,6 +236,8 @@ function StockSurface({
           uColor: { value: kStockColor.clone() },
           uHideTop: { value: false },
           uBackground: { value: new Color('#161b24') },
+          uFootprint: { value: [0, 0, 0, 0] },
+          uCells: { value: new Vector2() },
         },
         side: DoubleSide,
       }),
@@ -289,14 +289,14 @@ function StockSurface({
     }
     surface.uniforms.uZScale.value = zScale;
     surface.uniforms.uHideTop.value = showVideo;
-    for (const material of walls) material.uniforms.uFootprint.value = [footprint.min.x, footprint.min.y, sizeX, sizeY];
+    for (const material of [surface, ...walls]) material.uniforms.uFootprint.value = [footprint.min.x, footprint.min.y, sizeX, sizeY];
   }, [surface, bottomFace, walls, texture, zLow, zTop, bottom, size, sizeX, sizeY, zScale, footprint, showVideo]);
 
   const center: [number, number, number] = [(footprint.min.x + footprint.max.x) / 2, (footprint.min.y + footprint.max.y) / 2, 0];
   return (
     <>
-      <mesh geometry={surfaceGeometry} material={surface} position={center} raycast={() => null} frustumCulled={false} />
-      <mesh geometry={surfaceGeometry} material={bottomFace} position={center} raycast={() => null} frustumCulled={false} />
+      <mesh ref={grid.ref} geometry={grid.geometry} material={surface} raycast={() => null} frustumCulled={false} />
+      <mesh geometry={bottomGeometry} material={bottomFace} position={center} raycast={() => null} frustumCulled={false} />
       {walls.map((material, i) => (
         <mesh key={i} geometry={wall} material={material} raycast={() => null} frustumCulled={false} />
       ))}
