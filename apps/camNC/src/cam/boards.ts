@@ -1,7 +1,16 @@
 import type { FlipRegistration, TabFallback } from '@wbcnc/cam';
 import type { HoldDown } from '@wbcnc/cam';
 import { usesTabs } from '@wbcnc/cam/board';
-import { clampKeepOuts, nestRects, placedSize, type NestResult, type Placement, type Rect } from '@wbcnc/cam/nest';
+import {
+  frameMargin,
+  kHoldClearance,
+  kHoldDefaults,
+  kHoldSpacing,
+  suggestHoldPoints,
+  type HoldKind,
+  type HoldPoint,
+} from '@wbcnc/cam/holdPoints';
+import { nestRects, placedSize, type NestResult, type Placement, type Rect } from '@wbcnc/cam/nest';
 import { autoNest, type NestObjective, type SheetPacker } from './autoNest';
 import type { BoardRequest, CamPartInfo } from './camTypes';
 import type { MaterialKey } from './planSettings';
@@ -23,7 +32,21 @@ export interface BoardV1 {
   material: MaterialKey;
   /** Fit the board to its parts, or a fixed size (e.g. from the stock list). */
   size: { fit: true } | { fit: false; w: number; h: number };
+  /** How the parts are held (tabs, skin, tape layer, nothing). */
   holdDown: HoldDown;
+  /**
+   * What holds the board: screws or clamps at hold points (default), or tape / a fixture under all of it (then the
+   * parts keep a thin layer until the end: `fixture-tape`).
+   */
+  boardHold?: BoardHold;
+  /** The hold points: screw or clamp, footprint ⌀ and greatest spacing along an edge (mm). Default a ⌀10 screw every 250. */
+  holds?: { kind: HoldKind; d: number; spacing?: number };
+  /** Hold points the user moved (board frame, mm): used as they are instead of the suggested ones. */
+  holdPoints?: { x: number; y: number }[];
+  /** The board's size when the user moved them: on a board of another size (laid out again) they're suggested afresh. */
+  holdPointsOn?: { w: number; h: number };
+  /** Keep a frame of stock around the parts for the holds; default on (left out when the parts don't fit with it). */
+  frame?: boolean;
   tabs: { width: number; height: number; minCount: number };
   /** Free border inside the board edge, mm; default bit + 2, with tabs bit + 3.5 (`defaultMargin`). */
   margin?: number;
@@ -70,12 +93,52 @@ export interface PartInstance {
   thickness: number;
 }
 
+export type BoardHold = 'points' | 'tape';
+
+/** What holds the board: hold points, unless it's taped (the old "Fixture + tape" hold-down too). */
+export const boardHoldOf = (board: Pick<BoardV1, 'boardHold' | 'holdDown'>): BoardHold =>
+  board.boardHold ?? (board.holdDown === 'fixture-tape' ? 'tape' : 'points');
+
+/** How the parts are held, with the old "Clamps only" read as nothing (the board's hold points hold the stock). */
+export const partsHoldOf = (board: Pick<BoardV1, 'boardHold' | 'holdDown'>): HoldDown =>
+  boardHoldOf(board) === 'tape'
+    ? 'fixture-tape'
+    : board.holdDown === 'clamps' || board.holdDown === 'fixture-tape'
+      ? 'none'
+      : board.holdDown;
+
+export const holdsOf = (board: Pick<BoardV1, 'holds'>) => ({
+  kind: board.holds?.kind ?? ('screw' as HoldKind),
+  d: board.holds?.d ?? kHoldDefaults[board.holds?.kind ?? 'screw'],
+  spacing: board.holds?.spacing ?? kHoldSpacing,
+});
+
+/** The board's hold-down settings, to copy to another board. */
+export const holdSettingsOf = (b: BoardV1): Partial<BoardV1> => ({
+  holdDown: b.holdDown,
+  tabs: b.tabs,
+  ...(b.boardHold && { boardHold: b.boardHold }),
+  ...(b.holds && { holds: b.holds }),
+  ...(b.frame !== undefined && { frame: b.frame }),
+});
+
+/** "Tabs · screws", "Tape or fixture": the board list's short line. */
+export const holdLabel = (b: BoardV1) =>
+  boardHoldOf(b) === 'tape'
+    ? kBoardHoldLabels.tape
+    : `${kHoldDownLabels[partsHoldOf(b) as keyof typeof kHoldDownLabels]} · ${holdsOf(b).kind}s`;
+
+export const kBoardHoldLabels: Record<BoardHold, string> = {
+  points: 'Screws or clamps',
+  tape: 'Tape or fixture',
+};
+
+/** How the parts are held, when the board is held by screws or clamps. */
 export const kHoldDownLabels = {
-  'fixture-tape': 'Fixture + tape',
   tabs: 'Tabs',
   'tabs-guided': 'Tabs + guided removal',
   skin: 'Bottom skin + guided freeing',
-  clamps: 'Clamps only',
+  none: 'Nothing (I watch them)',
 } as const;
 
 /** Narrowest strip of stock, mm, that holds a tab after the cuts on both sides of it (the hold check's). */
@@ -121,7 +184,6 @@ export function edgeNote(board: BoardV1, nest: { gap: number; margin: number }, 
 export const kStockAllowance = 0.3;
 export const stockTopOf = (board: BoardV1) => board.measuredThickness ?? +(board.thickness + kStockAllowance).toFixed(2);
 export const kDefaultTabs = { width: 5, height: 2, minCount: 3 };
-const kClamp = { w: 60, h: 40 };
 
 const thicknessKey = (t: number) => +t.toFixed(1);
 
@@ -211,7 +273,14 @@ export function reconcileBoards(boards: BoardV1[] | undefined, instances: PartIn
 export interface BoardNest extends NestResult {
   gap: number;
   margin: number;
+  /** Areas parts stay out of: around the hold points placed by hand. */
   keepOuts: Rect[];
+  /** Where the board is screwed or clamped: suggested, or as the user moved them. Empty when taped. */
+  holds: HoldPoint[];
+  /** A frame of stock for the holds around the parts: kept, off, or left out because the parts don't fit with it. */
+  frame: 'kept' | 'off' | 'no-room';
+  /** The holds are the ones the user moved, not suggested. */
+  holdsMoved: boolean;
 }
 
 const kMaxElongation = 2.5;
@@ -270,59 +339,98 @@ const insideMargin = (r: Rect, margin: number, board?: { w: number; h: number })
 
 /**
  * Lay out a board's bodies: the ones placed by hand (`positions`) first, at their spot, then rectangle nesting of the
- * rest around them; clamp keep-outs for "clamps only".
+ * rest around them. A board held by screws or clamps keeps a frame of stock around the parts for them (when the parts
+ * still fit), and gets hold points: suggested clear of the parts, or where the user moved them.
  */
-export function nestBoard(board: BoardV1, instances: PartInstance[], bit: number): BoardNest {
+export function nestBoard(
+  board: BoardV1,
+  instances: PartInstance[],
+  bit: number,
+  /**
+   * `holds: false`: only where the parts go, no hold points. `packing`: also without the frame (packing picks the
+   * sheets; the frame is then kept where the parts still fit with it).
+   */
+  opts: { holds?: boolean; packing?: boolean } = {}
+): BoardNest {
   const byId = new Map(instances.map(i => [i.id, i]));
   const ids = board.items.filter(id => byId.has(id));
-  const gap = board.gap ?? boardGap(bit, board.holdDown);
-  const margin = board.margin ?? defaultMargin(bit, board.holdDown);
-  const clamps = board.holdDown === 'clamps';
+  const gap = board.gap ?? boardGap(bit, partsHoldOf(board));
+  const baseMargin = board.margin ?? defaultMargin(bit, partsHoldOf(board));
+  const points = boardHoldOf(board) === 'points';
+  const hold = holdsOf(board);
   const size = board.size.fit ? undefined : { w: board.size.w, h: board.size.h };
-  const clampsOn = (b: { w: number; h: number }) => (clamps ? clampKeepOuts(b, kClamp) : []);
+  // Holds the user moved: parts keep clear of them, while the board keeps the size they were moved on.
+  const sameSize = (b: { w: number; h: number }) =>
+    !board.holdPointsOn || (Math.abs(board.holdPointsOn.w - b.w) < 0.5 && Math.abs(board.holdPointsOn.h - b.h) < 0.5);
+  let moved = points && board.holdPoints?.length && (!size || sameSize(size)) ? board.holdPoints : undefined;
+  const side = hold.d + 2 * kHoldClearance;
+  let keepOuts: Rect[] = (moved ?? []).map(p => ({ x: p.x - side / 2, y: p.y - side / 2, w: side, h: side }));
+  // Packing picks the sheets without the frame: it's only kept where it costs no part (and so no extra board).
+  const wantFrame = points && board.frame !== false && !opts.packing;
+  const framed = wantFrame ? Math.max(baseMargin, frameMargin(hold.d, bit)) : baseMargin;
 
-  // Placed by hand: kept at their spot while it is inside the margin and clear of the others and the clamps (on a
-  // fitted board only the lower left clamp: the other one moves with the board's size).
-  const fixed: Placement[] = [];
-  const fixedRects: Rect[] = [];
-  const blocked = size ? clampsOn(size) : clampsOn({ w: 0, h: 0 }).slice(0, 1);
-  for (const id of ids) {
-    const pos = board.positions?.[id];
-    if (!pos) continue;
-    const r = placedRect(pos, byId.get(id)!);
-    if (!insideMargin(r, margin, size) || ![...fixedRects, ...blocked].every(o => apart(r, o, gap))) continue;
-    fixed.push({ id, x: pos.x, y: pos.y, rotated: pos.rotated });
-    fixedRects.push(r);
-  }
-  const items = ids.filter(id => !fixed.some(p => p.id === id)).map(id => ({ id, w: byId.get(id)!.size[0], h: byId.get(id)!.size[1] }));
-  const order = new Map(ids.map((id, i) => [id, i]));
-  const finish = (n: NestResult, keepOuts: Rect[]): BoardNest => {
-    const placements = [...fixed, ...n.placements].sort((a, b) => order.get(a.id)! - order.get(b.id)!);
-    const area = placements.reduce((a, p) => a + byId.get(p.id)!.size[0] * byId.get(p.id)!.size[1], 0);
-    // A fitted board is cut from a sheet: whole mm, rounded up (570.4 × 738.9 -> 571 × 739).
-    const board = size ? n.board : { w: ceilMm(n.board.w), h: ceilMm(n.board.h) };
-    const { w, h } = board;
-    // The clamp corners move out with the rounded-up edge: away from the parts.
-    const clampAreas = size || !keepOuts.length ? keepOuts : clampsOn(board);
-    return { ...n, board, placements, yield: w * h > 0 ? area / (w * h) : 0, gap, margin, keepOuts: clampAreas };
+  const layout = (margin: number) => {
+    // Placed by hand: kept at their spot while it is inside the margin and clear of the others and the holds.
+    const fixed: Placement[] = [];
+    const fixedRects: Rect[] = [];
+    for (const id of ids) {
+      const pos = board.positions?.[id];
+      if (!pos) continue;
+      const r = placedRect(pos, byId.get(id)!);
+      if (!insideMargin(r, margin, size) || ![...fixedRects, ...keepOuts].every(o => apart(r, o, gap))) continue;
+      fixed.push({ id, x: pos.x, y: pos.y, rotated: pos.rotated });
+      fixedRects.push(r);
+    }
+    const items = ids.filter(id => !fixed.some(p => p.id === id)).map(id => ({ id, w: byId.get(id)!.size[0], h: byId.get(id)!.size[1] }));
+    const n = size
+      ? nestRects(items, { gap, margin, keepOuts: [...keepOuts, ...fixedRects], board: size })
+      : fitCompact(items, gap, margin, [...keepOuts, ...fixedRects]);
+    return { n, fixed };
   };
 
-  if (size) {
-    const keepOuts = clampsOn(size);
-    return finish(nestRects(items, { gap, margin, keepOuts: [...keepOuts, ...fixedRects], board: size }), keepOuts);
+  let margin = framed;
+  let { n, fixed } = layout(framed);
+  // A fitted board that came out another size (parts added, frame changed): the moved holds no longer fit it.
+  if (moved && !size && !sameSize({ w: ceilMm(n.board.w), h: ceilMm(n.board.h) })) {
+    moved = undefined;
+    keepOuts = [];
+    ({ n, fixed } = layout(framed));
   }
-  let nest = fitCompact(items, gap, margin, fixedRects);
-  if (!clamps) return finish(nest, []);
-  // Clamps need free corners: grow the fitted board until the parts fit around them.
-  for (let extra = kClamp.h; extra <= 4 * kClamp.h; extra += kClamp.h / 2) {
-    const grown = { w: nest.board.w, h: nest.board.h + extra };
-    const keepOuts = clampsOn(grown);
-    if (!fixedRects.every(r => keepOuts.every(k => apart(r, k, gap)))) continue;
-    const n = nestRects(items, { gap, margin, keepOuts: [...keepOuts, ...fixedRects], board: grown });
-    if (!n.unplaced.length) return finish(n, keepOuts);
-    nest = nest.unplaced.length ? n : nest;
+  let frame: BoardNest['frame'] = wantFrame ? 'kept' : 'off';
+  // On a fixed board, the frame only where it costs no part.
+  if (wantFrame && size && framed > baseMargin && n.unplaced.length) {
+    const plain = layout(baseMargin);
+    if (plain.n.unplaced.length < n.unplaced.length) {
+      ({ n, fixed } = plain);
+      margin = baseMargin;
+      frame = 'no-room';
+    }
   }
-  return finish(nest, clampsOn(nest.board));
+  const order = new Map(ids.map((id, i) => [id, i]));
+  const placements = [...fixed, ...n.placements].sort((a, b) => order.get(a.id)! - order.get(b.id)!);
+  const area = placements.reduce((a, p) => a + byId.get(p.id)!.size[0] * byId.get(p.id)!.size[1], 0);
+  // A fitted board is cut from a sheet: whole mm, rounded up (570.4 × 738.9 -> 571 × 739).
+  const out = size ? n.board : { w: ceilMm(n.board.w), h: ceilMm(n.board.h) };
+  const { w, h } = out;
+  const rects = placements.map(p => placedRect(p, byId.get(p.id)!));
+  const holds: HoldPoint[] =
+    !points || opts.holds === false
+      ? []
+      : moved
+        ? moved.map(p => ({ x: p.x, y: p.y, kind: hold.kind, d: hold.d }))
+        : suggestHoldPoints(out, rects, { kind: hold.kind, d: hold.d, bit, spacing: hold.spacing });
+  return {
+    ...n,
+    board: out,
+    placements,
+    yield: w * h > 0 ? area / (w * h) : 0,
+    gap,
+    margin,
+    keepOuts,
+    holds,
+    frame,
+    holdsMoved: !!moved,
+  };
 }
 
 /** Where a dragged body would land on a board, and the board after dropping it there. */
@@ -359,7 +467,7 @@ export function dropPart(board: BoardV1, instances: PartInstance[], bit: number,
     ...(positions && { positions }),
     pinned: same && !board.pinned?.includes(item) ? pinned : [...pinned, item],
   };
-  const nestAt = nestBoard(nested, instances, bit).placements.find(p => p.id === item);
+  const nestAt = nestBoard(nested, instances, bit, { holds: false }).placements.find(p => p.id === item);
   const snapped = (): PartDrop =>
     nestAt ? { at: { x: nestAt.x, y: nestAt.y, rotated: nestAt.rotated }, exact: false, board: nested } : { at: null, exact: false, board };
   if (nestAt && Math.hypot(nestAt.x - at.x, nestAt.y - at.y) <= snap && nestAt.rotated === at.rotated) return snapped();
@@ -371,7 +479,7 @@ export function dropPart(board: BoardV1, instances: PartInstance[], bit: number,
   const free = insideMargin(r, now.margin, now.board) && [...others, ...now.keepOuts].every(o => apart(r, o, now.gap));
   if (free) {
     const placed: BoardV1 = { ...nested, positions: { ...positions, [item]: at }, pinned: [...pinned, item] };
-    const after = nestBoard(placed, instances, bit);
+    const after = nestBoard(placed, instances, bit, { holds: false });
     const lands = after.placements.find(p => p.id === item);
     const lost = after.unplaced.filter(id => !now.unplaced.includes(id));
     if (lands && lands.x === at.x && lands.y === at.y && !lost.length) return { at, exact: true, board: placed };
@@ -399,7 +507,8 @@ export function boardRequest(
     h: nest.board.h,
     thickness: board.thickness,
     stockTop: stockTopOf(board),
-    holdDown: board.holdDown,
+    holdDown: partsHoldOf(board),
+    ...(nest.holds.length && { holdPoints: nest.holds }),
     tabs: board.tabs,
     ...(flipOf(board, instances) !== 'off' && {
       flip: { registration: flipOf(board, instances) as FlipRegistration, dowelDiameter: board.dowelDiameter },
@@ -446,7 +555,7 @@ export function autoFillFromStock(
       continue;
     }
     const template = { ...newBoard([], t, old[0]?.material ?? defaultMaterial(t, material)) };
-    if (old[0]) Object.assign(template, { holdDown: old[0].holdDown, tabs: old[0].tabs });
+    if (old[0]) Object.assign(template, holdSettingsOf(old[0]));
     const fresh = (items: string[], size: BoardV1['size']): BoardV1 => ({ ...template, id: crypto.randomUUID(), items, size });
 
     const kept = old.flatMap(b => {
@@ -462,15 +571,15 @@ export function autoFillFromStock(
       const sheet = sheets.find(s => s.w === w && s.h === h && left.get(s.id)! > 0);
       if (sheet) left.set(sheet.id, left.get(sheet.id)! - 1);
       if (!free.length) continue;
-      const placed = new Set(nestBoard({ ...b, items: [...b.items, ...free] }, instances, bit).placements.map(p => p.id));
+      const placed = new Set(nestBoard({ ...b, items: [...b.items, ...free] }, instances, bit, { holds: false }).placements.map(p => p.id));
       const items = [...b.items, ...free.filter(id => placed.has(id))];
-      if (!b.items.every(id => placed.has(id)) || nestBoard({ ...b, items }, instances, bit).unplaced.length) continue;
+      if (!b.items.every(id => placed.has(id)) || nestBoard({ ...b, items }, instances, bit, { holds: false }).unplaced.length) continue;
       b.items = items;
       free = free.filter(id => !placed.has(id));
     }
 
     const pack: SheetPacker = (ids, sheet) => {
-      const nest = nestBoard(fresh(ids, { fit: false, w: sheet.w, h: sheet.h }), instances, bit);
+      const nest = nestBoard(fresh(ids, { fit: false, w: sheet.w, h: sheet.h }), instances, bit, { holds: false, packing: true });
       return {
         placed: nest.placements.map(p => p.id),
         used: nest.placements.map(p => {

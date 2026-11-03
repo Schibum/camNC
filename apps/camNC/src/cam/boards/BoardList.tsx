@@ -14,7 +14,7 @@ import {
 import { cn } from '@wbcnc/ui/lib/utils';
 import { Check, GripVertical, MoreHorizontal, Pin, PinOff, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { boardSizeLabel, kHoldDownLabels, type BoardV1, type PartInstance, type StockBoardV1 } from '../boards';
+import { boardSizeLabel, holdLabel, type BoardV1, type PartInstance, type StockBoardV1 } from '../boards';
 import type { PlanResult } from '../camTypes';
 import { Hint } from '../Hint';
 import { numberProblem, parseDecimal } from '../numberFormat';
@@ -136,7 +136,7 @@ export function BoardList({
               {!board.items.length && <span className="text-xs text-muted-foreground">Empty: drag parts here</span>}
             </div>
             <span className="text-xs text-muted-foreground">
-              {kHoldDownLabels[board.holdDown]} · {bits.length || 1} {bits.length > 1 ? 'bits' : 'bit'}
+              {holdLabel(board)} · {bits.length || 1} {bits.length > 1 ? 'bits' : 'bit'}
               {nest.unplaced.length > 0 && <span className="text-destructive"> · {nest.unplaced.length} don’t fit</span>}
             </span>
             {usesTabs(board.holdDown) && <HoldingNotes holding={plans[i]?.holding} board={board} />}

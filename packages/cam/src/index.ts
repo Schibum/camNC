@@ -26,13 +26,26 @@ export { checkGcodeSafety } from './safety';
 export type { SafetyIssue, SafetyLimits } from './safety';
 export { nestRects, clampKeepOuts, placedSize } from './nest';
 export type { Rect, NestItem, NestOptions, NestResult, Placement } from './nest';
-export { holdCheck } from './hold';
+export { holdCheck, holdTimeline } from './hold';
+export { suggestHoldPoints, heldByPoints, holdClashes, frameMargin, kHoldDefaults, kHoldSpacing } from './holdPoints';
+export type { HoldPoint, HoldKind } from './holdPoints';
 export { planTabs, freePartsProgram, kDefaultSkin } from './tabPlan';
 export type { TabFallback, PartHolding } from './tabPlan';
 export { sideBSpec, dowelSpots, dowelOperations } from './flip';
 export type { FlipRegistration, DowelSpec, TurnedOver } from './flip';
-export type { HoldOptions, PartHold, TabHold } from './hold';
-export { camBoard, boardBits, orderBoardQueue, partToBoard, rotateAboutOrigin, splitByBit, usesTabs } from './board';
+export type { HoldOptions, PartHold, TabHold, HoldEvent } from './hold';
+export {
+  camBoard,
+  boardBits,
+  holdOptionsOf,
+  kTapeLayer,
+  orderBoardQueue,
+  partToBoard,
+  releasesAtEnd,
+  rotateAboutOrigin,
+  splitByBit,
+  usesTabs,
+} from './board';
 export type { BoardPart, BoardSpec, HoldDown } from './board';
 export { tabRemovalProgram } from './tabRemoval';
 export type { TabStop } from './tabRemoval';

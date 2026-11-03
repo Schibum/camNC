@@ -148,7 +148,7 @@ export function entryTitle(e: QueueEntry) {
   const board = `Board ${e.board.board.name}`;
   if (e.kind === 'tabs') return `${board} · remove tabs`;
   if (e.kind === 'flip') return `${board} · turn over`;
-  if (e.kind === 'free') return `${board} · free parts`;
+  if (e.kind === 'free') return `${board} · ${e.board.request.holdDown === 'fixture-tape' ? 'cut free' : 'free parts'}`;
   const p = e.plan.programs[e.program];
   const side = e.sideB ? ' side B' : '';
   return e.plan.programs.length > 1 ? `${board}${side} · T${p.tool} ⌀${p.diameter}` : `${board}${side} · ⌀${p.diameter}`;

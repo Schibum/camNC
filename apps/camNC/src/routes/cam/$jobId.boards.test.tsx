@@ -171,10 +171,12 @@ describe('CAM boards step', () => {
       ]);
     });
 
-    // Clamps keep two corners free.
+    // Screwed or clamped down by default: the holds are drawn on the board; taped down there are none.
     fireEvent.click(screen.getByRole('region', { name: 'Board A' }));
-    fireEvent.click(screen.getByLabelText('Clamps only'));
-    expect(await screen.findByText('clamp keep-out')).toBeTruthy();
+    const holdsOnA = () => screen.getByRole('region', { name: 'Board A drawing' }).querySelectorAll('[data-hold]').length;
+    expect(holdsOnA()).toBeGreaterThanOrEqual(3);
+    fireEvent.click(screen.getByLabelText('Tape or fixture'));
+    await waitFor(() => expect(holdsOnA()).toBe(0));
   }, 90_000);
 
   it('drags a part’s outline from one board drawing onto another, where it lands exactly at the drop point', async () => {
@@ -305,14 +307,15 @@ describe('CAM boards step', () => {
     await waitFor(async () => expect((await getJob(job.id))!.plan?.bit).toMatchObject({ diameter: 6, name: '6 mm upcut' }), {
       timeout: 10_000,
     });
-    // The margin and gap follow the bit, with room for a strip that holds the tabs: 6 + 3.5 and 2 × 6 + 3.5.
-    await waitFor(() => expect(screen.getByText(/edge margin 9.5 mm · gap 16 mm/)).toBeTruthy(), { timeout: 10_000 });
+    // The margin leaves a frame for the screws (10 + 2, clearance 1.5, the cut 6, 1 more); the gap follows the bit,
+    // with room for a strip that holds the tabs: 2 × 6 + 3.5.
+    await waitFor(() => expect(screen.getByText(/edge margin 21 mm · gap 16 mm/)).toBeTruthy(), { timeout: 10_000 });
   }, 90_000);
 
   it('labels the stock fields, takes comma decimals, says what is wrong, and shows no size for an empty board', async () => {
     const job = await openKinderregal();
     // Fitted boards are whole mm.
-    expect(within(screen.getByRole('region', { name: 'Board A' })).getByText('574 × 750')).toBeTruthy();
+    expect(within(screen.getByRole('region', { name: 'Board A' })).getByText('596 × 773')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /New 8 mm board/ }));
     const c = await screen.findByRole('region', { name: 'Board C' });
     expect(within(c).getByText('–')).toBeTruthy();

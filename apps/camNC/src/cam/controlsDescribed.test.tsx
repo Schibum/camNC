@@ -47,6 +47,9 @@ const nest: BoardNest = {
   gap: 8,
   margin: 6,
   keepOuts: [],
+  holds: [],
+  frame: 'kept',
+  holdsMoved: false,
 };
 
 describe('CAM controls explain themselves', () => {
@@ -56,10 +59,12 @@ describe('CAM controls explain themselves', () => {
         <BoardInspector board={board} nest={nest} stock={[]} bit={3.175} onChange={() => {}} onRelayout={() => {}} />
       </TooltipProvider>
     );
-    expect(description(screen.getByRole('radio', { name: 'Fixture + tape' }))).toMatch(/no tabs/);
+    expect(description(screen.getByRole('radio', { name: 'Tape or fixture' }))).toMatch(/thin layer/);
+    expect(description(screen.getByRole('radio', { name: 'Screws or clamps' }))).toMatch(/needs 3 around it/);
+    expect(description(screen.getByRole('radio', { name: 'Nothing (I watch them)' }))).toMatch(/free once its outline/);
+    expect(description(screen.getByLabelText('Size ⌀'))).toMatch(/screw head/);
     expect(description(screen.getByRole('radio', { name: 'Tabs' }))).toMatch(/bridges hold each part/);
     expect(description(screen.getByRole('radio', { name: 'Tabs + guided removal' }))).toMatch(/stops at each tab/);
-    expect(description(screen.getByRole('radio', { name: 'Clamps only' }))).toMatch(/Clamps on two corners/);
     expect(description(screen.getByRole('radio', { name: 'Bottom skin + guided freeing' }))).toMatch(/cuts them free one at a time/);
     expect(description(screen.getByLabelText('Edge margin'))).toMatch(/border inside the board edge/);
     expect(description(screen.getByLabelText('Gap between parts'))).toMatch(/outline cuts never meet/);

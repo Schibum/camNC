@@ -1,3 +1,4 @@
+import { frameMargin } from '@wbcnc/cam/holdPoints';
 import { describe, expect, it } from 'vitest';
 import {
   autoFillFromStock,
@@ -44,7 +45,7 @@ function greedyFillFromStock(boards: BoardV1[], instances: PartInstance[], stock
       continue;
     }
     while (left.length) {
-      const board = { ...newBoard(out, t, 'oak', left), size: { fit: false as const, w: sheets[0].w, h: sheets[0].h } };
+      const board = { ...newBoard(out, t, 'oak', left), frame: false, size: { fit: false as const, w: sheets[0].w, h: sheets[0].h } };
       const placed = nestBoard(board, instances, bit).placements.map(p => p.id);
       if (!placed.length) {
         tooBig.push(...left);
@@ -281,9 +282,11 @@ describe('boards', () => {
 
   it('fitted boards keep a small edge margin (bit + 2) and gap (bit + 4), with tabs room for a strip that holds them; both editable', () => {
     const [tabs] = reconcileBoards(undefined, parts, 'oak');
-    const withTabs = nestBoard(tabs, parts, 3.175);
+    const withTabs = nestBoard({ ...tabs, frame: false }, parts, 3.175);
     // 3.5 mm of stock left beside the cut at the edge, and between the cuts of two neighbours.
     expect([withTabs.margin, withTabs.gap]).toEqual([6.7, 10]);
+    // Held by screws, by default with a frame of stock for them: a wider margin.
+    expect(nestBoard(tabs, parts, 3.175).margin).toBe(frameMargin(10, 3.175));
     const a = { ...tabs, holdDown: 'fixture-tape' as const };
     const nest = nestBoard(a, parts, 3.175);
     expect(nest.margin).toBe(5.2);
@@ -307,8 +310,8 @@ describe('boards', () => {
       const nest = nestBoard(board, parts, 3.175);
       expect(Number.isInteger(nest.board.w) && Number.isInteger(nest.board.h)).toBe(true);
       expect(boardSizeLabel(board, nest)).toBe(`${nest.board.w} × ${nest.board.h}`);
-      // The clamp corners sit at the rounded edges.
-      for (const k of nest.keepOuts) expect(k.x === 0 || Math.abs(k.x + k.w - nest.board.w) < 1e-6).toBe(true);
+      // The holds are on the board as rounded.
+      for (const h of nest.holds) expect(h.x > 0 && h.y > 0 && h.x < nest.board.w && h.y < nest.board.h).toBe(true);
     }
     // 570.4 × 738.9 before: 571 × 739.
     expect(nestBoard(a, parts, 3.175).board).toEqual({ w: 571, h: 739 });
@@ -332,21 +335,36 @@ describe('boards', () => {
     expect(stockTopOf({ ...a, measuredThickness: 8.12 })).toBe(8.12);
   });
 
-  it('clamps only: parts stay clear of the clamp corners', () => {
+  it('screws or clamps: suggested in the frame around the parts, clear of them, none on the XY zero; moved ones keep parts away', () => {
     const [a] = reconcileBoards(undefined, parts, 'oak');
-    const nest = nestBoard({ ...a, holdDown: 'clamps' }, parts, 3.175);
-    expect(nest.unplaced).toEqual([]);
-    expect(nest.keepOuts).toHaveLength(2);
-    // The lower left corner is the XY zero, where the probe goes: no clamp there.
-    for (const k of nest.keepOuts) expect(k.x > 0 || k.y > 0).toBe(true);
-    expect(nest.keepOuts.some(k => k.x === 0 && k.y === 0)).toBe(false);
-    const size = new Map(parts.map(p => [p.id, p.size]));
-    for (const p of nest.placements)
-      for (const k of nest.keepOuts) {
-        const [w, h] = size.get(p.id)!;
-        const apart = p.x + w <= k.x || k.x + k.w <= p.x || p.y + h <= k.y || k.y + k.h <= p.y;
-        expect(apart).toBe(true);
-      }
+    for (const board of [a, { ...a, holdDown: 'clamps' as const }, { ...a, holds: { kind: 'clamp' as const, d: 20 } }]) {
+      const nest = nestBoard(board, parts, 3.175);
+      expect(nest.unplaced).toEqual([]);
+      expect(nest.frame).toBe('kept');
+      expect(nest.holds.length).toBeGreaterThanOrEqual(8);
+      // The lower left corner is the XY zero, where the probe goes: no hold there.
+      expect(nest.holds.every(h => Math.hypot(h.x, h.y) >= 40)).toBe(true);
+      const size = new Map(parts.map(p => [p.id, p.size]));
+      for (const p of nest.placements)
+        for (const h of nest.holds) {
+          const [w, hh] = size.get(p.id)!;
+          const pw = p.rotated ? hh : w,
+            ph = p.rotated ? w : hh;
+          const dx = Math.max(p.x - h.x, 0, h.x - p.x - pw),
+            dy = Math.max(p.y - h.y, 0, h.y - p.y - ph);
+          expect(Math.hypot(dx, dy)).toBeGreaterThanOrEqual(h.d / 2 + 3.175);
+        }
+    }
+    // Taped: no holds, no frame.
+    const taped = nestBoard({ ...a, boardHold: 'tape', holdDown: 'fixture-tape' }, parts, 3.175);
+    expect([taped.holds, taped.frame]).toEqual([[], 'off']);
+    // A hold moved into the middle of the board: used as is, and the parts nest around it.
+    const middle = { x: 280, y: 370 };
+    const moved = nestBoard({ ...a, holdPoints: [middle] }, parts, 3.175);
+    expect(moved.holdsMoved).toBe(true);
+    expect(moved.holds.map(h => ({ x: h.x, y: h.y }))).toEqual([middle]);
+    expect(moved.keepOuts).toHaveLength(1);
+    expect(moved.unplaced).toEqual([]);
   });
 
   it('second side: on by default (camera) when a part has features underneath, as chosen otherwise', () => {

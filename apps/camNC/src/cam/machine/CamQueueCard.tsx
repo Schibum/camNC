@@ -165,7 +165,13 @@ export function CamQueueCard() {
               Don’t move the board: XY stays.
             </p>
           )}
-          {current.kind === 'free' && (
+          {current.kind === 'free' && current.board.request.holdDown === 'fixture-tape' && (
+            <p>
+              <span className="font-medium">Cut the parts free:</span> the last layer on the tape, for all parts in one go, smallest first.
+              No pauses: take the parts off the tape when it’s done.
+            </p>
+          )}
+          {current.kind === 'free' && current.board.request.holdDown !== 'fixture-tape' && (
             <p>
               <span className="font-medium">Free the parts:</span> the program cuts one part’s bottom skin at a time, then lifts the bit,
               stops the spindle and pauses. Take out the part ringed green in the camera view, then press Resume: the spindle starts again

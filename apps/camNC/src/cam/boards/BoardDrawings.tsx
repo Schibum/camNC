@@ -1,9 +1,10 @@
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
 import { cn } from '@wbcnc/ui/lib/utils';
 import { MATERIALS } from '@wbcnc/cam/settings';
-import { Plus } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
-import { boardSizeLabel, dropPart, placedRect, type PartDrop, type PartInstance, type PartPosition } from '../boards';
+import { Maximize, Minus, Plus } from 'lucide-react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { usesTabs } from '@wbcnc/cam/board';
+import { boardSizeLabel, dropPart, partsHoldOf, placedRect, type PartDrop, type PartInstance, type PartPosition } from '../boards';
 import type { CamPartInfo, PlanResult } from '../camTypes';
 import type { JobBoard } from '../useJobBoards';
 import { useBoardDrag } from './boardDrag';
@@ -16,6 +17,9 @@ const sameThickness = (a: number, b: number) => +a.toFixed(1) === +b.toFixed(1);
 const round = (v: number) => Math.round(v * 10) / 10;
 /** Pointer travel (px) before a press on a part becomes a drag. */
 const kDragStart = 4;
+/** Zoom range over the fitted scale. */
+const kMinZoom = 0.5;
+const kMaxZoom = 8;
 /** Within this many px of the nest's spot, a dropped part snaps to it. */
 const kSnapPx = 14;
 
@@ -61,6 +65,7 @@ export function BoardDrawings({
   onMove,
   onNewBoard,
   onNudge,
+  onHoldsMove,
 }: {
   boards: JobBoard[];
   instances: PartInstance[];
@@ -77,6 +82,8 @@ export function BoardDrawings({
   onNewBoard: (item: string) => void;
   /** Arrow keys: move a part on its board to this spot. */
   onNudge: (item: string, board: string, at: PartPosition) => void;
+  /** A hold point dragged: the board's hold points as they are now. */
+  onHoldsMove?: (board: string, points: { x: number; y: number }[]) => void;
 }) {
   const byId = new Map(instances.map(i => [i.id, i]));
   const byPart = new Map(parts.map(p => [p.id, p]));
@@ -97,7 +104,96 @@ export function BoardDrawings({
   const pad = 2 * unit * 0.05;
   const maxW = Math.max(...boards.map(b => b.nest.board.w)) + pad;
   const maxH = Math.max(...boards.map(b => b.nest.board.h)) + pad;
-  const pxPerMm = Math.min(1.5, Math.max(0.15, Math.min(((view.w || 600) - 34) / maxW, ((view.h || 800) * 0.5 - 40) / maxH)));
+  const fitPxPerMm = Math.min(1.5, Math.max(0.15, Math.min(((view.w || 600) - 34) / maxW, ((view.h || 800) * 0.5 - 40) / maxH)));
+  // Zoom on top of the fitted scale (Ctrl/⌘ + wheel, a trackpad or touch pinch, the buttons); scrolling or dragging
+  // the background pans.
+  const [zoom, setZoom] = useState(1);
+  const pxPerMm = fitPxPerMm * zoom;
+  // The content point that stays under the pointer while zooming, applied once the new scale is laid out.
+  const anchor = useRef<{ cx: number; cy: number; vx: number; vy: number; ratio: number } | null>(null);
+  const zoomTo = (next: number, at?: { x: number; y: number }) => {
+    const el = scroller.current;
+    const z = Math.min(kMaxZoom, Math.max(kMinZoom, next));
+    if (!el || z === zoom) return;
+    const box = el.getBoundingClientRect();
+    const vx = at ? at.x - box.left : el.clientWidth / 2,
+      vy = at ? at.y - box.top : el.clientHeight / 2;
+    anchor.current = { cx: el.scrollLeft + vx, cy: el.scrollTop + vy, vx, vy, ratio: z / zoom };
+    setZoom(z);
+  };
+  useLayoutEffect(() => {
+    const a = anchor.current,
+      el = scroller.current;
+    if (!a || !el) return;
+    anchor.current = null;
+    el.scrollLeft = a.cx * a.ratio - a.vx;
+    el.scrollTop = a.cy * a.ratio - a.vy;
+  }, [zoom]);
+  const zoomRef = useRef({ zoom, zoomTo });
+  zoomRef.current = { zoom, zoomTo };
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    // Not passive: Ctrl + wheel (and a trackpad pinch, which the browser sends as one) zooms the drawing, not the page.
+    const wheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const { zoom, zoomTo } = zoomRef.current;
+      zoomTo(zoom * Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.002)), { x: e.clientX, y: e.clientY });
+    };
+    el.addEventListener('wheel', wheel, { passive: false });
+    return () => el.removeEventListener('wheel', wheel);
+  }, []);
+  // Panning: one pointer dragged on the background; pinching: two touches.
+  const pan = useRef<{ id: number; x: number; y: number; left: number; top: number; moved: boolean } | null>(null);
+  const touches = useRef(new Map<number, { x: number; y: number }>());
+  const pinch = useRef<{ dist: number; zoom: number } | null>(null);
+  const panned = useRef(false);
+  const onBackgroundDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const t = e.target as Element;
+    if (t.closest('[data-item],[data-hold],button,input,[role="button"]')) return;
+    if (e.pointerType === 'touch') {
+      touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touches.current.size === 2) {
+        const [a, b] = [...touches.current.values()];
+        pinch.current = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom };
+        pan.current = null;
+        return;
+      }
+    }
+    if (e.button !== 0 && e.button !== 1) return;
+    const el = scroller.current!;
+    pan.current = { id: e.pointerId, x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop, moved: false };
+    panned.current = false;
+  };
+  const onBackgroundMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'touch' && touches.current.has(e.pointerId)) {
+      touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pinch.current && touches.current.size === 2) {
+        const [a, b] = [...touches.current.values()];
+        zoomTo(pinch.current.zoom * (Math.hypot(a.x - b.x, a.y - b.y) / Math.max(1, pinch.current.dist)), {
+          x: (a.x + b.x) / 2,
+          y: (a.y + b.y) / 2,
+        });
+        return;
+      }
+    }
+    const p = pan.current;
+    if (!p || p.id !== e.pointerId) return;
+    const dx = e.clientX - p.x,
+      dy = e.clientY - p.y;
+    if (!p.moved && Math.hypot(dx, dy) < kDragStart) return;
+    if (!p.moved) (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    p.moved = true;
+    panned.current = true;
+    scroller.current!.scrollLeft = p.left - dx;
+    scroller.current!.scrollTop = p.top - dy;
+  };
+  const onBackgroundUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    touches.current.delete(e.pointerId);
+    if (touches.current.size < 2) pinch.current = null;
+    if (pan.current?.id === e.pointerId) pan.current = null;
+  };
 
   const [drag, setDrag] = useState<ShapeDrag | null>(null);
   const latest = useRef({ boards, instances, bit, pxPerMm, onDrop, onMove, onNewBoard, onSelect });
@@ -209,88 +305,139 @@ export function BoardDrawings({
   const dragging = drag?.moved ? drag : null;
   const dragInst = dragging && byId.get(dragging.item);
   return (
-    <div ref={scroller} className="relative min-h-0 flex-1 overflow-y-auto px-4 pb-4">
-      <div className="flex flex-wrap items-start gap-4">
-        {boards.map((b, i) => {
-          const { board, nest } = b;
-          const target = dragging?.target?.kind === 'drawing' && dragging.target.board === board.id ? dragging.target : null;
-          const fits = dragInst && sameThickness(dragInst.thickness, board.thickness);
-          const tabHeight = board.holdDown === 'tabs' || board.holdDown === 'tabs-guided' ? board.tabs.height : undefined;
-          return (
-            <section
-              key={board.id}
-              aria-label={`Board ${board.name} drawing`}
-              data-board-drop={board.id}
-              data-board-drawing
-              onClick={() => onSelect(board.id)}
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <div className="absolute top-1 right-5 z-10 flex items-center gap-0.5 rounded-md border bg-background/90 p-0.5 shadow-sm">
+        <button
+          type="button"
+          aria-label="Zoom out"
+          title="Zoom out (Ctrl/⌘ + wheel)"
+          onClick={() => zoomTo(zoom / 1.25)}
+          disabled={zoom <= kMinZoom}
+          className="rounded p-1 hover:bg-muted disabled:opacity-40">
+          <Minus className="size-3.5" />
+        </button>
+        <span className="w-10 text-center font-mono text-[11px] text-muted-foreground" aria-live="polite">
+          {Math.round(zoom * 100)} %
+        </span>
+        <button
+          type="button"
+          aria-label="Zoom in"
+          title="Zoom in (Ctrl/⌘ + wheel)"
+          onClick={() => zoomTo(zoom * 1.25)}
+          disabled={zoom >= kMaxZoom}
+          className="rounded p-1 hover:bg-muted disabled:opacity-40">
+          <Plus className="size-3.5" />
+        </button>
+        <button
+          type="button"
+          aria-label="Fit boards to view"
+          title="Fit to view"
+          onClick={() => {
+            setZoom(1);
+            scroller.current?.scrollTo({ left: 0, top: 0 });
+          }}
+          className="rounded p-1 hover:bg-muted">
+          <Maximize className="size-3.5" />
+        </button>
+      </div>
+      <div
+        ref={scroller}
+        data-board-scroller
+        className="relative min-h-0 flex-1 overflow-auto px-4 pt-1 pb-4"
+        onPointerDown={onBackgroundDown}
+        onPointerMove={onBackgroundMove}
+        onPointerUp={onBackgroundUp}
+        onPointerCancel={onBackgroundUp}
+        onClickCapture={e => {
+          // The end of a pan is not a click on the board under the pointer.
+          if (panned.current) {
+            panned.current = false;
+            e.stopPropagation();
+          }
+        }}>
+        <div className="flex flex-wrap items-start gap-4">
+          {boards.map((b, i) => {
+            const { board, nest } = b;
+            const target = dragging?.target?.kind === 'drawing' && dragging.target.board === board.id ? dragging.target : null;
+            const fits = dragInst && sameThickness(dragInst.thickness, board.thickness);
+            const tabHeight = usesTabs(partsHoldOf(board)) ? board.tabs.height : undefined;
+            return (
+              <section
+                key={board.id}
+                aria-label={`Board ${board.name} drawing`}
+                data-board-drop={board.id}
+                data-board-drawing
+                onClick={() => onSelect(board.id)}
+                className={cn(
+                  'flex w-fit min-w-[220px] shrink-0 flex-col gap-1 rounded-lg border border-transparent bg-background/60 p-2 transition-colors',
+                  board.id === selectedId && 'border-primary/60',
+                  dragging && fits && 'border-dashed border-primary/60',
+                  dragging && !fits && 'opacity-50',
+                  target && fits && 'border-solid border-primary bg-primary/5 ring-2 ring-primary',
+                  target && !target.drop?.at && 'border-red-500 ring-red-500'
+                )}>
+                <div className="flex w-0 min-w-full flex-wrap items-center gap-x-2 px-1 text-sm">
+                  <span className="font-medium">Board {board.name}</span>
+                  <span className="whitespace-nowrap text-muted-foreground">
+                    {MATERIALS[board.material].name[0].toUpperCase() + MATERIALS[board.material].name.slice(1)} {fmt(board.thickness)} mm ·{' '}
+                    <span className="font-mono text-xs">{boardSizeLabel(board, nest)}</span>
+                  </span>
+                  <span className="grow" />
+                  {fetching[i] && <LoadingSpinner className="size-3" />}
+                  <DropStatus dragging={!!dragging} fits={!!fits} target={target} from={dragging?.from === board.id} />
+                </div>
+                <NestView
+                  nest={nest}
+                  instances={instances}
+                  parts={parts}
+                  plan={plans[i]}
+                  tabHeight={tabHeight}
+                  unit={unit}
+                  pxPerMm={pxPerMm}
+                  label={
+                    boardSizeLabel(board, nest) === '–'
+                      ? `Board ${board.name}, empty`
+                      : `Board ${board.name}, ${fmt(nest.board.w)} by ${fmt(nest.board.h)} mm, with ${nest.placements.length} parts`
+                  }
+                  className={cn('shrink-0 touch-none transition-opacity', fetching[i] && plans[i] && 'opacity-70')}
+                  dragging={dragging?.from === board.id ? dragging.item : null}
+                  preview={
+                    target && dragging
+                      ? target.drop?.at
+                        ? { item: dragging.item, at: target.drop.at, fits: true }
+                        : { item: dragging.item, at: target.at, fits: false }
+                      : null
+                  }
+                  onPartPointerDown={(item, e) => startDrag(b, item, e)}
+                  onPartKeyDown={(item, e) => nudge(b, item, e)}
+                  onPartFocus={() => onSelect(board.id)}
+                  onHoldsChange={onHoldsMove && (pts => onHoldsMove(board.id, pts))}
+                />
+              </section>
+            );
+          })}
+          {dragging && (
+            <div
+              data-new-board-drop
+              aria-label="New board"
               className={cn(
-                'flex w-fit min-w-[220px] max-w-full flex-col gap-1 overflow-x-auto rounded-lg border border-transparent bg-background/60 p-2 transition-colors',
-                board.id === selectedId && 'border-primary/60',
-                dragging && fits && 'border-dashed border-primary/60',
-                dragging && !fits && 'opacity-50',
-                target && fits && 'border-solid border-primary bg-primary/5 ring-2 ring-primary',
-                target && !target.drop?.at && 'border-red-500 ring-red-500'
+                'flex h-32 w-56 items-center justify-center gap-2 rounded-lg border-2 border-dashed bg-background/60 text-sm text-muted-foreground',
+                dragging.target?.kind === 'new' && 'border-primary bg-primary/5 text-foreground'
               )}>
-              <div className="flex w-0 min-w-full flex-wrap items-center gap-x-2 px-1 text-sm">
-                <span className="font-medium">Board {board.name}</span>
-                <span className="whitespace-nowrap text-muted-foreground">
-                  {MATERIALS[board.material].name[0].toUpperCase() + MATERIALS[board.material].name.slice(1)} {fmt(board.thickness)} mm ·{' '}
-                  <span className="font-mono text-xs">{boardSizeLabel(board, nest)}</span>
-                </span>
-                <span className="grow" />
-                {fetching[i] && <LoadingSpinner className="size-3" />}
-                <DropStatus dragging={!!dragging} fits={!!fits} target={target} from={dragging?.from === board.id} />
-              </div>
-              <NestView
-                nest={nest}
-                instances={instances}
-                parts={parts}
-                plan={plans[i]}
-                tabHeight={tabHeight}
-                unit={unit}
-                pxPerMm={pxPerMm}
-                label={
-                  boardSizeLabel(board, nest) === '–'
-                    ? `Board ${board.name}, empty`
-                    : `Board ${board.name}, ${fmt(nest.board.w)} by ${fmt(nest.board.h)} mm, with ${nest.placements.length} parts`
-                }
-                className={cn('shrink-0 touch-none transition-opacity', fetching[i] && plans[i] && 'opacity-70')}
-                dragging={dragging?.from === board.id ? dragging.item : null}
-                preview={
-                  target && dragging
-                    ? target.drop?.at
-                      ? { item: dragging.item, at: target.drop.at, fits: true }
-                      : { item: dragging.item, at: target.at, fits: false }
-                    : null
-                }
-                onPartPointerDown={(item, e) => startDrag(b, item, e)}
-                onPartKeyDown={(item, e) => nudge(b, item, e)}
-                onPartFocus={() => onSelect(board.id)}
-              />
-            </section>
-          );
-        })}
-        {dragging && (
-          <div
-            data-new-board-drop
-            aria-label="New board"
-            className={cn(
-              'flex h-32 w-56 items-center justify-center gap-2 rounded-lg border-2 border-dashed bg-background/60 text-sm text-muted-foreground',
-              dragging.target?.kind === 'new' && 'border-primary bg-primary/5 text-foreground'
-            )}>
-            <Plus className="size-4" /> New board: drop here
-          </div>
+              <Plus className="size-4" /> New board: drop here
+            </div>
+          )}
+        </div>
+        {dragging && dragInst && (
+          <Ghost
+            inst={dragInst}
+            part={byPart.get(dragInst.partId)}
+            drag={dragging}
+            pxPerMm={pxPerMm}
+            bad={dragging.target?.kind === 'drawing' && !dragging.target.drop?.at}
+          />
         )}
       </div>
-      {dragging && dragInst && (
-        <Ghost
-          inst={dragInst}
-          part={byPart.get(dragInst.partId)}
-          drag={dragging}
-          pxPerMm={pxPerMm}
-          bad={dragging.target?.kind === 'drawing' && !dragging.target.drop?.at}
-        />
-      )}
     </div>
   );
 }

@@ -218,7 +218,7 @@ describe('CAM plan step', () => {
       undefined,
       instancesOf(model.parts, id => parts.find(p => p.id === id)!.milled),
       'oak'
-    ).map(b => ({ ...b, margin: 4 }));
+    ).map(b => ({ ...b, margin: 4, frame: false }));
     await saveJob({ ...job, parts, boards });
     params.jobId = job.id;
     render(

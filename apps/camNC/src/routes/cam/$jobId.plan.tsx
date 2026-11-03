@@ -105,12 +105,18 @@ function PlanStep() {
   const onSideB = result !== sideA;
   const empty = !!result && result.ops.length === 0;
   // A part neither held by its tabs nor given a fallback would come loose: that blocks, like a safety rule.
-  const safe = !!result && !current.stale && result.safety.length === 0 && !empty && !blocked && loose(sideA).length === 0;
+  const safe =
+    !!result && !current.stale && result.safety.length === 0 && !empty && !blocked && loose(sideA).length === 0 && !unstable(sideA);
   const allReady =
     ready &&
     !blocked &&
     queue.every(
-      e => e.plan!.ops.length > 0 && e.plan!.safety.length === 0 && (e.plan!.sideB?.safety.length ?? 0) === 0 && !loose(e.plan).length
+      e =>
+        e.plan!.ops.length > 0 &&
+        e.plan!.safety.length === 0 &&
+        (e.plan!.sideB?.safety.length ?? 0) === 0 &&
+        !loose(e.plan).length &&
+        !unstable(e.plan)
     );
   const totalMin = queue.reduce((t, e) => t + (e.plan?.timeMin ?? 0), 0);
   const swaps = queue.reduce(
@@ -470,6 +476,11 @@ function SideSwitch({ plan, side, onSide }: { plan: PlanResult; side: 'a' | 'b';
   );
 }
 
+/** Stock that would turn or lift during the job, a part that comes loose, or a screw or clamp in the bit's way. */
+function unstable(plan: PlanResult | undefined) {
+  return !!plan && ((plan.timeline ?? []).some(e => e.block) || (plan.holdClash ?? []).length > 0);
+}
+
 /** Parts that would come loose: their tabs don't hold, and they have no fallback (tabs anyway, or held by hand). */
 function loose(plan: PlanResult | undefined) {
   if (!plan?.hold) return [];
@@ -561,6 +572,24 @@ function Checks({ plan, checked }: { plan: PlanResult; checked: boolean }) {
           the Boards step, give it a bottom skin (its ⋯ menu), or more room around it.
         </p>
       ))}
+      {(plan.holdClash ?? []).length > 0 && (
+        <p className="flex gap-2 text-destructive">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+          {plan.holdClash!.length === 1 ? 'A screw or clamp is' : `${plan.holdClash!.length} screws or clamps are`} in the bit’s way (red on
+          the board). On the Boards step, drag {plan.holdClash!.length === 1 ? 'it' : 'them'} into the waste.
+        </p>
+      )}
+      {(plan.timeline ?? [])
+        // A part whose tabs don't hold is already listed above.
+        .filter(e => !(e.kind === 'loose' && loose(plan).some(h => h.part === e.what)))
+        .map(e => (
+          <p
+            key={`${e.kind}-${e.what}-${e.step}`}
+            className={cn('flex gap-2', e.block ? 'text-destructive' : 'text-amber-700 dark:text-amber-400')}>
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+            {e.message}
+          </p>
+        ))}
       {(plan.hold ?? [])
         .filter(h => !h.ok && how(h.part) === 'tabs')
         .map(h => (
@@ -576,7 +605,13 @@ function Checks({ plan, checked }: { plan: PlanResult; checked: boolean }) {
             {h.name}: no tabs, cut free: hold it down yourself (tape, clamps), as you chose.
           </p>
         ))}
-      {skins.length > 0 && (
+      {skins.length > 0 && plan.taped && (
+        <p className="text-muted-foreground">
+          Every outline stops {plan.skin ?? 0.5} mm above the bottom, so the parts stay on the tape while the board is cut. The last
+          program, “Cut free”, cuts that layer for all parts together, smallest first.
+        </p>
+      )}
+      {skins.length > 0 && !plan.taped && (
         <p className="text-muted-foreground">
           {/* Without a hold check, the board is held by skins (its hold-down), not tabs. */}
           {plan.hold

@@ -1,5 +1,6 @@
 import { EndType, inflatePathsD, JoinType, pointInPolygonD, PointInPolygonResult, type PathsD } from 'clipper2-ts';
 import { difference, offset, polyArea, PRECISION, union } from './geom';
+import { heldByPoints } from './holdPoints';
 import type { PartCam } from './toolpaths';
 
 type P2 = { x: number; y: number };
@@ -24,8 +25,13 @@ export interface HoldOptions {
   minWeb?: number;
   /** Anchored tabs a part needs. Default 2. */
   minTabs?: number;
-  /** Extra places that hold the board besides its edge (e.g. clamp zones). */
-  anchors?: PathsD;
+  /**
+   * Where the board is screwed or clamped down (board coordinates): a piece of stock holds when enough of them are on
+   * it (see `heldByPoints`), not because it reaches the board's edge.
+   */
+  points?: P2[];
+  /** The board is taped or in a fixture: every piece of stock stays put. */
+  taped?: boolean;
 }
 
 const through = (z: number) => z <= 1e-3;
@@ -145,11 +151,17 @@ export function holdState(cam: PartCam, board: { w: number; h: number }, opts: H
   // Strips narrower than minWeb hold nothing: drop them, keep the rest's shape.
   const sturdy = offset(offset(waste, -minWeb / 2), minWeb / 2);
   const edge = difference(rect, offset(rect, -0.5));
-  const anchored = pieces(sturdy).filter(
-    piece =>
-      polyArea(union(difference(piece, difference(piece, edge)), [])) > 1e-6 ||
-      (opts.anchors && polyArea(difference(piece, difference(piece, opts.anchors))) > 1e-6)
-  );
+  const stock = pieces(sturdy).map(piece => {
+    const area = polyArea(piece);
+    const on = (opts.points ?? []).filter(p => inside(p, piece));
+    const held = opts.taped
+      ? true
+      : opts.points
+        ? heldByPoints(on, centroid(piece), area)
+        : polyArea(union(difference(piece, difference(piece, edge)), [])) > 1e-6;
+    return { piece, area, centre: centroid(piece), holds: on.length, held };
+  });
+  const anchored = stock.filter(s => s.held).map(s => s.piece);
   // Many spots are asked about (every tab candidate): a bounding box per piece rules most of them out cheaply.
   const boxes = anchored.map(piece => {
     const pts = piece.flat();
@@ -162,5 +174,84 @@ export function holdState(cam: PartCam, board: { w: number; h: number }, opts: H
     };
   });
   const held = (p: P2) => boxes.some(b => p.x >= b.x0 && p.x <= b.x1 && p.y >= b.y0 && p.y <= b.y1 && inside(p, b.piece));
-  return { parts, held };
+  return { parts, held, stock };
+}
+
+/** Area-weighted centre of a region (outer loops and holes). */
+function centroid(region: PathsD): P2 {
+  let a = 0,
+    cx = 0,
+    cy = 0;
+  for (const loop of region)
+    for (let i = 0; i < loop.length; i++) {
+      const p = loop[i],
+        q = loop[(i + 1) % loop.length];
+      const c = p.x * q.y - q.x * p.y;
+      a += c;
+      cx += (p.x + q.x) * c;
+      cy += (p.y + q.y) * c;
+    }
+  return Math.abs(a) < 1e-9 ? (region[0]?.[0] ?? { x: 0, y: 0 }) : { x: cx / (3 * a), y: cy / (3 * a) };
+}
+
+/** Something that comes loose during the job, at the step where it happens. */
+export interface HoldEvent {
+  /** Index of the operation after which it happens. */
+  step: number;
+  /** That operation's name ("right: Outline 1"). */
+  after: string;
+  /**
+   * `pivot`: a piece of stock with too few holds (it can turn or lift). `loose`: a part cut through with nothing
+   * holding it (no tabs into held stock).
+   */
+  kind: 'pivot' | 'loose';
+  /** The part's name, or "stock". */
+  what: string;
+  /** Where to point at, board coordinates. */
+  at: P2;
+  /** Hold points on that piece of stock. */
+  holds?: number;
+}
+
+/**
+ * Does it stay put all through the job? After each outline cut through, in program order: the stock left is split
+ * into pieces, each held by enough hold points (or the edge / tape), and each part cut through so far needs tabs into
+ * held stock. Each problem is reported once, at the step it first happens. Pieces smaller than `minArea` mm² (offcuts
+ * that may fall free) are left out.
+ */
+export function holdTimeline(cam: PartCam, board: { w: number; h: number }, opts: HoldOptions & { minArea?: number } = {}): HoldEvent[] {
+  const minTabs = opts.minTabs ?? 2;
+  const minArea = opts.minArea ?? 2500;
+  const events: HoldEvent[] = [];
+  const seenStock: { x: number; y: number }[] = [];
+  const seenPieces: PathsD[] = [];
+  const seenParts = new Set<string>();
+  cam.operations.forEach((op, i) => {
+    if (op.kind !== 'profile' || op.feature !== 'outline' || !op.passes.some(p => p.pts.some(q => through(q[2])))) return;
+    const { parts, held, stock } = holdState({ ...cam, operations: cam.operations.slice(0, i + 1) }, board, opts);
+    for (const s of stock) {
+      if (s.held || s.area < minArea) continue;
+      // The same piece at a later step (cut down a little more) is not news.
+      // A piece of stock that is already reported, or a piece of it (later cuts only split it), is not news.
+      if (seenStock.some(c => Math.hypot(c.x - s.centre.x, c.y - s.centre.y) < 20) || seenPieces.some(r => inside(s.centre, r))) continue;
+      seenStock.push(s.centre);
+      seenPieces.push(s.piece);
+      events.push({ step: i, after: op.name, kind: 'pivot', what: 'stock', at: s.centre, holds: s.holds });
+    }
+    for (const p of parts) {
+      if (seenParts.has(p.part)) continue;
+      const anchored = p.tabs.filter(({ at, dir }) => held(beyond(at, dir, p.r, p.interior))).length;
+      if (p.tabs.length && anchored >= Math.min(minTabs, p.tabs.length)) continue;
+      seenParts.add(p.part);
+      const pts = p.interior.flat();
+      const at = pts.length
+        ? {
+            x: (Math.min(...pts.map(q => q.x)) + Math.max(...pts.map(q => q.x))) / 2,
+            y: (Math.min(...pts.map(q => q.y)) + Math.max(...pts.map(q => q.y))) / 2,
+          }
+        : { x: 0, y: 0 };
+      events.push({ step: i, after: op.name, kind: 'loose', what: p.part, at });
+    }
+  });
+  return events;
 }

@@ -10,7 +10,8 @@
     "./nest": "./src/nest.ts",
     "./board": "./src/board.ts",
     "./settings": "./src/settings.ts",
-    "./tools": "./src/tools.ts"
+    "./tools": "./src/tools.ts",
+    "./holdPoints": "./src/holdPoints.ts"
   },
   "scripts": {
     "test": "vitest",
