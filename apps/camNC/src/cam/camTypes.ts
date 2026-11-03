@@ -66,6 +66,11 @@ export interface PlanResult {
   programs: { tool: number; diameter: number; gcode: string; timeMin: number }[];
   size: [number, number, number];
   path: [number, number, number][][];
+  /**
+   * With tabs: per part, which tabs hold it once its outline is cut through (the stock beyond a tab must be wide
+   * enough and reach the board's edge). A part with too few is not held: the job is blocked.
+   */
+  hold?: { part: string; tabs: { at: { x: number; y: number }; anchored: boolean }[]; anchored: number; ok: boolean }[];
 }
 
 /** A board to generate: which bodies sit where. */

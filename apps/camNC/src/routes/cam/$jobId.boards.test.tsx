@@ -231,6 +231,9 @@ describe('CAM boards step', () => {
 
   it('auto-fill optimizes for fewest boards unless the job says least wood', async () => {
     const job = await openKinderregal();
+    // The default layout's tabs into the 8 mm gaps hold nothing: marked red on the drawings.
+    const floating = () => [...document.querySelectorAll('circle > title')].filter(t => /this tab holds nothing/.test(t.textContent ?? ''));
+    await waitFor(() => expect(floating().length).toBeGreaterThan(0), { timeout: 60_000 });
     const group = within(screen.getByRole('group', { name: 'Auto-fill optimizes for' }));
     expect(group.getByRole('button', { name: 'Fewest boards' }).getAttribute('aria-pressed')).toBe('true');
     fireEvent.click(group.getByRole('button', { name: 'Least wood' }));

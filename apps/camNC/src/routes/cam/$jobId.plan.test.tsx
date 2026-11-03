@@ -58,6 +58,8 @@ describe('CAM plan step', () => {
     expect(labels.slice(firstOutline).every(l => l.includes('Outline'))).toBe(true);
     expect(labels.filter(l => l.includes('Outline'))).toHaveLength(5);
     expect(screen.getByText(/Safety checks passed/)).toBeTruthy();
+    // The default layout (tabs, 8 mm gaps, 5.2 mm edge): most tabs end in strips too narrow to hold.
+    expect(screen.getAllByText(/tabs would hold it/).length).toBeGreaterThan(0);
     // Oak with the 1/8" bit: no pass deeper than half the diameter, shown per operation.
     const stepdowns = (t: HTMLElement) =>
       within(t)

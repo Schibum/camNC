@@ -80,6 +80,8 @@ function PlanStep() {
   const current = queue.find(e => e.board.id === boardParam) ?? queue[0];
   const result = current.plan;
   const empty = !!result && result.ops.length === 0;
+  // Parts whose tabs don't hold are shown as errors in Checks but don't block yet: today's default layout (tight gaps
+  // with tabs) has them, until a hold-down strategy that avoids them is chosen.
   const safe = !!result && result.safety.length === 0 && !empty && !blocked;
   const allReady = ready && !blocked && queue.every(e => e.plan!.ops.length > 0 && e.plan!.safety.length === 0);
   const totalMin = queue.reduce((t, e) => t + (e.plan?.timeMin ?? 0), 0);
@@ -408,8 +410,17 @@ function MissingBanner({
 
 /** `checked`: false while the job is blocked (missing parts, nothing to cut): no "passed" for an incomplete job. */
 function Checks({ plan, checked }: { plan: PlanResult; checked: boolean }) {
+  const loose = (plan.hold ?? []).filter(h => !h.ok);
   return (
     <div className="flex flex-col gap-1.5 text-[13px]">
+      {loose.map(h => (
+        <p key={h.part} className="flex gap-2 text-destructive">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+          {h.part}: {h.anchored === 0 ? 'none' : `only ${h.anchored}`} of its {h.tabs.length} tabs would hold it. A tab into a strip of
+          stock too narrow to hold (between two cuts, or at the board’s edge) holds nothing, so the part comes loose. Leave more room around
+          it on the Boards step (gap or edge margin).
+        </p>
+      ))}
       {!checked ? null : plan.safety.length === 0 ? (
         <p className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
           <ShieldCheck className="size-4" /> Safety checks passed: no rapid moves in the stock, stays on the board, never deeper than the

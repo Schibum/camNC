@@ -8,6 +8,7 @@ import {
   extractFeatures,
   flatMatrix,
   groupIdentical,
+  holdCheck,
   kMaxSlopedShare,
   loadStep,
   loadStl,
@@ -15,6 +16,7 @@ import {
   readGcode,
   splitByBit,
   tabRemovalProgram,
+  usesTabs,
   summarizePart,
   toGcode,
   type BoardSpec,
@@ -115,7 +117,10 @@ const api = {
     const spec = boardSpec(key, board);
     const cam = camBoard(spec, settings);
     const size: [number, number, number] = [board.w, board.h, board.stockTop];
-    return summarize(cam, `Board ${board.name}`, size, settings, board.thickness, board.name);
+    const plan = summarize(cam, `Board ${board.name}`, size, settings, board.thickness, board.name);
+    // The hold check runs on the board as laid out, before it's turned to lie like the stock on the bed.
+    const flat = board.rotationDeg ? camBoard({ ...spec, rotationDeg: 0 }, settings) : cam;
+    return usesTabs(board.holdDown) ? { ...plan, hold: holdCheck(flat, board) } : plan;
   },
 };
 

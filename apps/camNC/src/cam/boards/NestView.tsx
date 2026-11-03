@@ -131,6 +131,22 @@ export function NestView({
             strokeLinecap="square"
           />
         ))}
+        {/* Tabs that hold nothing (the stock beyond them is too narrow): a red ring on each. */}
+        {plan?.hold?.flatMap(h =>
+          h.tabs
+            .filter(t => !t.anchored)
+            .map((t, i) => (
+              <circle
+                key={`${h.part}-${i}`}
+                cx={t.at.x}
+                cy={t.at.y}
+                r={stroke * 9}
+                className="fill-none stroke-red-600"
+                strokeWidth={stroke * 2.5}>
+                <title>{`${h.part}: this tab holds nothing`}</title>
+              </circle>
+            ))
+        )}
         {preview && previewInst && previewPart && (
           <path
             data-preview={preview.fits ? 'fits' : 'no-room'}

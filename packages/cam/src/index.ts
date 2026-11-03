@@ -26,6 +26,8 @@ export { checkGcodeSafety } from './safety';
 export type { SafetyIssue, SafetyLimits } from './safety';
 export { nestRects, clampKeepOuts, placedSize } from './nest';
 export type { Rect, NestItem, NestOptions, NestResult, Placement } from './nest';
+export { holdCheck } from './hold';
+export type { HoldOptions, PartHold, TabHold } from './hold';
 export { camBoard, boardBits, orderBoardQueue, partToBoard, rotateAboutOrigin, splitByBit, usesTabs } from './board';
 export type { BoardPart, BoardSpec, HoldDown } from './board';
 export { tabRemovalProgram } from './tabRemoval';
