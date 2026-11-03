@@ -2,7 +2,8 @@ import { PageHeader } from '@/components/page-header';
 import { useBoardPlans, useCamJob, useCamModel, useSaveCamJob } from '@/cam/camQueries';
 import type { OpSummary, PlanResult } from '@/cam/camTypes';
 import { groupOps } from '@/cam/plan/groupOps';
-import { useJobBoards } from '@/cam/useJobBoards';
+import { missingParts, useJobBoards, type MissingPart } from '@/cam/useJobBoards';
+import { freezeSpacing, spacingProblem } from '@/cam/boards';
 import { orderBoardQueue } from '@wbcnc/cam/board';
 import { CamJobBar } from '@/cam/model/CamJobBar';
 import { PlanSettingsPanel } from '@/cam/plan/PlanSettingsPanel';
@@ -11,12 +12,19 @@ import { kDefaultPlan } from '@/cam/planSettings';
 import { loadIntoMachineView } from '@/cam/showOnMachine';
 import { useCamMachine } from '@/cam/machine/camMachine';
 import { useStore } from '@/store/store';
-import { createFileRoute, useNavigate, useParams, useSearch } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { zodValidator } from '@tanstack/zod-adapter';
 import { Button } from '@wbcnc/ui/components/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@wbcnc/ui/components/dropdown-menu';
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
 import { cn } from '@wbcnc/ui/lib/utils';
-import { AlertTriangle, ChevronRight, Download, Factory, Play, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, ChevronRight, Download, Factory, MoreHorizontal, Play, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { z } from 'zod';
 
@@ -39,7 +47,7 @@ function PlanStep() {
   const { data: job, isPending } = useCamJob(jobId);
   const model = useCamModel(job);
   const save = useSaveCamJob();
-  const { boards } = useJobBoards(job, model.data);
+  const { boards, instances } = useJobBoards(job, model.data);
   const active = boards.filter(b => b.request.parts.length);
   const plans = useBoardPlans(
     job,
@@ -55,13 +63,20 @@ function PlanStep() {
   if (!active.length) return <Shell bar={bar} message="No part to mill: mark parts as milled in the Model step." />;
 
   const settings = job.plan ?? kDefaultPlan;
+  // Parts that don't fit their board are not cut: the job is blocked until they fit or are left out on purpose.
+  const missing = missingParts(boards, instances);
+  const unresolved = missing.filter(m => !settings.leaveOut?.includes(m.id));
+  const tight = boards.flatMap(b => spacingProblem(b.board, b.nest, settings.bit.diameter) ?? []);
+  const blocked = unresolved.length > 0 || tight.length > 0;
   const ready = plans.every(p => p.data);
   // Queue: start with the main bit, then boards that start with the bit the last one ended with.
   const entries = active.map((b, i) => ({ ...b, plan: plans[i].data, fetching: plans[i].isFetching, bits: plans[i].data?.bits ?? [] }));
   const queue = ready ? orderBoardQueue(entries, Math.min(...entries.flatMap(e => e.bits.slice(0, 1)))) : entries;
   const current = queue.find(e => e.board.id === boardParam) ?? queue[0];
   const result = current.plan;
-  const safe = !!result && result.safety.length === 0;
+  const empty = !!result && result.ops.length === 0;
+  const safe = !!result && result.safety.length === 0 && !empty && !blocked;
+  const allReady = ready && !blocked && queue.every(e => e.plan!.ops.length > 0 && e.plan!.safety.length === 0);
   const totalMin = queue.reduce((t, e) => t + (e.plan?.timeMin ?? 0), 0);
   const swaps = queue.reduce(
     (n, e, i) => n + Math.max(0, e.bits.length - 1) + (i > 0 && queue[i - 1].bits.at(-1) !== e.bits[0] ? 1 : 0),
@@ -79,6 +94,7 @@ function PlanStep() {
   };
   // All boards, in queue order, in the machine panel: place, align, zero, cut, swap bits, remove tabs.
   const takeToMachine = () => {
+    if (!allReady) return;
     useCamMachine.getState().start(job.id);
     useStore.getState().setMachinePanelOpen(true);
     void navigate({ to: '/visualize/2DView' });
@@ -117,7 +133,34 @@ function PlanStep() {
               Job: {queue.length} {queue.length === 1 ? 'board' : 'boards'} · {swaps} bit {swaps === 1 ? 'swap' : 'swaps'} · ≈{' '}
               {fmtMin(totalMin)} min cutting
             </span>
+            <Button disabled={!allReady} onClick={takeToMachine}>
+              <Factory /> Take the job to the machine
+            </Button>
+            <Button variant="outline" disabled={!safe} onClick={showOnMachine}>
+              <Play /> Show board {current.board.name} on machine
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="icon" variant="ghost" aria-label="More actions">
+                  <MoreHorizontal />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Board {current.board.name}</DropdownMenuLabel>
+                {result?.programs.map(p => (
+                  <DropdownMenuItem key={p.tool} disabled={!safe} onSelect={() => download(p)}>
+                    <Download /> Download G-code{result.programs.length > 1 ? ` · T${p.tool} ⌀${p.diameter}` : ''}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
+          <MissingBanner
+            jobId={job.id}
+            missing={unresolved}
+            tight={tight}
+            onLeaveOut={() => save.mutate({ ...job, plan: { ...settings, leaveOut: missing.map(m => m.id) } })}
+          />
 
           {!result ? (
             <div className="flex flex-1 items-center justify-center gap-2 text-muted-foreground">
@@ -125,39 +168,50 @@ function PlanStep() {
             </div>
           ) : (
             <>
-              <BitsLine plan={result} />
-              <div className={cn('relative rounded-lg bg-muted/30 p-3 transition-opacity', current.fetching && 'opacity-60')}>
-                <ToolpathPreview plan={result} className="mx-auto block max-h-[320px] w-full" />
-              </div>
-              <OperationsTable name={`board ${current.board.name}`} plan={result} />
-              <OrderBar plan={result} />
-              <Checks plan={result} />
-              <div className="flex flex-wrap items-center gap-2">
-                <Button disabled={!safe} onClick={showOnMachine}>
-                  <Play /> Show on machine
-                </Button>
-                <Button variant="secondary" onClick={takeToMachine}>
-                  <Factory /> Take the job to the machine
-                </Button>
-                {result.programs.map(p => (
-                  <Button key={p.tool} variant="outline" disabled={!safe} onClick={() => download(p)}>
-                    <Download />{' '}
-                    {result.programs.length > 1
-                      ? `Board ${current.board.name} · T${p.tool} ⌀${p.diameter}`
-                      : `Download board ${current.board.name}`}
-                  </Button>
-                ))}
-                <span className="text-xs text-muted-foreground">
-                  {result.programs.length > 1
-                    ? 'One program per bit: run them in order, swap the bit and zero Z in between; the board stays put.'
-                    : 'One program per board.'}{' '}
-                  Z0 at the bottom of the board, XY zero at its lower left corner.
-                </span>
-              </div>
+              {empty ? (
+                <div role="status" className="flex flex-col gap-1 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4 text-[13px]">
+                  <p className="font-medium">Nothing to cut on board {current.board.name}</p>
+                  <p className="text-muted-foreground">
+                    Its parts have no outline, hole or pocket this bit can cut (a 3D part milled anyway may have no flat features). Check
+                    the parts in the Model step.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <BitsLine plan={result} />
+                  <div className={cn('relative rounded-lg bg-muted/30 p-3 transition-opacity', current.fetching && 'opacity-60')}>
+                    <ToolpathPreview plan={result} className="mx-auto block max-h-[320px] w-full" />
+                  </div>
+                  <OperationsTable name={`board ${current.board.name}`} plan={result} />
+                  <OrderBar plan={result} />
+                </>
+              )}
+              <Checks plan={result} checked={!empty && !blocked} />
+              <p className="text-xs text-muted-foreground">
+                {result.programs.length > 1
+                  ? 'One program per bit: run them in order, swap the bit and zero Z in between; the board stays put.'
+                  : 'One program per board.'}{' '}
+                Z0 at the bottom of the board, XY zero at its lower left corner.
+              </p>
             </>
           )}
         </main>
-        <PlanSettingsPanel value={settings} onChange={plan => save.mutate({ ...job, plan })} />
+        <PlanSettingsPanel
+          value={settings}
+          onChange={plan =>
+            save.mutate({
+              ...job,
+              plan,
+              // A different bit keeps the nest: margins and gaps stay what they were (warned about if too tight).
+              ...(plan.bit.diameter !== settings.bit.diameter && {
+                boards: freezeSpacing(
+                  boards.map(b => b.board),
+                  settings.bit.diameter
+                ),
+              }),
+            })
+          }
+        />
       </div>
     </Shell>
   );
@@ -268,10 +322,59 @@ function OrderBar({ plan }: { plan: PlanResult }) {
   );
 }
 
-function Checks({ plan }: { plan: PlanResult }) {
+/** Parts the job would silently not cut, and spacing too tight for the bit: fix on Boards or leave them out. */
+function MissingBanner({
+  jobId,
+  missing,
+  tight,
+  onLeaveOut,
+}: {
+  jobId: string;
+  missing: MissingPart[];
+  tight: string[];
+  onLeaveOut: () => void;
+}) {
+  if (!missing.length && !tight.length) return null;
+  return (
+    <div role="alert" className="flex flex-col gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3.5 text-[13px]">
+      {missing.length > 0 && (
+        <p className="flex gap-2">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
+          <span>
+            <span className="font-medium">
+              {missing.length === 1 ? '1 part doesn’t' : `${missing.length} parts don’t`} fit on{' '}
+              {missing.length === 1 ? 'its board' : 'their boards'} and would not be cut:
+            </span>{' '}
+            {missing.map(m => `${m.name} (${m.board})`).join(', ')}.
+          </span>
+        </p>
+      )}
+      {tight.map(t => (
+        <p key={t} className="flex gap-2">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" /> {t}
+        </p>
+      ))}
+      <div className="flex flex-wrap items-center gap-2 pl-6">
+        <Button size="sm" variant="outline" asChild>
+          <Link to="/cam/$jobId/boards" params={{ jobId }}>
+            Fix on Boards
+          </Link>
+        </Button>
+        {missing.length > 0 && !tight.length && (
+          <Button size="sm" variant="ghost" onClick={onLeaveOut}>
+            Leave {missing.length === 1 ? 'it' : 'them'} out
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** `checked`: false while the job is blocked (missing parts, nothing to cut): no "passed" for an incomplete job. */
+function Checks({ plan, checked }: { plan: PlanResult; checked: boolean }) {
   return (
     <div className="flex flex-col gap-1.5 text-[13px]">
-      {plan.safety.length === 0 ? (
+      {!checked ? null : plan.safety.length === 0 ? (
         <p className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
           <ShieldCheck className="size-4" /> Safety checks passed: no rapid moves in the stock, stays on the board, never deeper than the
           cut-through depth.

@@ -10,6 +10,18 @@ export interface JobBoard {
   request: BoardRequest;
 }
 
+export interface MissingPart {
+  id: string;
+  name: string;
+  board: string;
+}
+
+/** Parts on a board that don't fit on it: they would silently not be cut. */
+export function missingParts(boards: JobBoard[], instances: PartInstance[]): MissingPart[] {
+  const byId = new Map(instances.map(i => [i.id, i]));
+  return boards.flatMap(b => b.nest.unplaced.map(id => ({ id, name: byId.get(id)?.name ?? id, board: b.board.name })));
+}
+
 /** The job's boards, kept in sync with the parts to mill, each nested and ready to generate. */
 export function useJobBoards(job: CamJobV1 | null | undefined, model: ModelImport | undefined) {
   return useMemo(() => {

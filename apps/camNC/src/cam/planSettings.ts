@@ -17,6 +17,8 @@ export interface PlanSettingsV1 {
   tabs: boolean;
   /** Max depth per pass, mm, for pockets and outline roughing. Unset: the material's share of the bit diameter. */
   maxStepdown?: number;
+  /** Parts that don't fit on their board, left out of the job on purpose (instance ids). */
+  leaveOut?: string[];
 }
 
 export const kDefaultBit: LibraryTool = { number: 1, diameter: 3.175, name: '1/8″ flat', feed: 1800, plungeFeed: 480 };

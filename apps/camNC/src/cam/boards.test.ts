@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { autoFillFromStock, nestBoard, reconcileBoards, stockTopOf, type PartInstance } from './boards';
+import {
+  autoFillFromStock,
+  freezeSpacing,
+  nestBoard,
+  reconcileBoards,
+  spacingProblem,
+  stockTopOf,
+  type BoardV1,
+  type PartInstance,
+} from './boards';
+import { missingParts } from './useJobBoards';
 
 const inst = (id: string, w: number, h: number, t: number): PartInstance => ({ id, partId: id, name: id, size: [w, h, t], thickness: t });
 // The kinderregal bodies.
@@ -71,5 +81,30 @@ describe('boards', () => {
         const apart = p.x + w <= k.x || k.x + k.w <= p.x || p.y + h <= k.y || k.y + k.h <= p.y;
         expect(apart).toBe(true);
       }
+  });
+
+  describe('changing the bit', () => {
+    // Two 560 x 140 sides on a 600 x 300 stock board: they fit with the 1/8" bit's spacing, not with the 6 mm one's.
+    const sides = parts.slice(0, 2);
+    const stock: BoardV1 = { ...reconcileBoards(undefined, sides, 'oak')[0], size: { fit: false, w: 600, h: 300 } };
+    const job = (board: BoardV1, bit: number) => {
+      const nest = nestBoard(board, sides, bit);
+      return [{ board, nest, request: {} as never }];
+    };
+
+    it('names the parts that no longer fit', () => {
+      expect(missingParts(job(stock, 3.175), sides)).toEqual([]);
+      expect(missingParts(job(stock, 6), sides)).toEqual([{ id: 'right', name: 'right', board: 'A' }]);
+    });
+
+    it('keeps the nest when the spacing is frozen at the old bit, and says when it gets too tight', () => {
+      const [frozen] = freezeSpacing([stock], 3.175);
+      expect([frozen.margin, frozen.gap]).toEqual([5.2, 8]);
+      expect(missingParts(job(frozen, 6), sides)).toEqual([]);
+      expect(spacingProblem(frozen, nestBoard(frozen, sides, 6), 6)).toBeNull();
+      expect(spacingProblem(frozen, nestBoard(frozen, sides, 8), 8)).toMatch(/8 mm gap between parts is too narrow for the ⌀8 bit/);
+      // Values the user set stay.
+      expect(freezeSpacing([{ ...stock, gap: 12 }], 3.175)[0].gap).toBe(12);
+    });
   });
 });

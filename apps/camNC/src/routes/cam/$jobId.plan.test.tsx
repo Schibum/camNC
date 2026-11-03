@@ -1,9 +1,13 @@
-import { createJob } from '@/cam/jobDb';
+import { createJob, getJob, saveJob } from '@/cam/jobDb';
+import { camWorker, modelKey } from '@/cam/camQueries';
+import { instancesOf, reconcileBoards } from '@/cam/boards';
+import * as Comlink from 'comlink';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ComponentType } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import stepUrl from '../../../../../packages/cam/test/fixtures/kinderregal-eiche.step?url';
+import messerUrl from '../../../../../packages/cam/test/fixtures/messerblock-klein.step?url';
 import { Route } from './$jobId.plan';
 
 const params = vi.hoisted(() => ({ jobId: '' }));
@@ -61,7 +65,9 @@ describe('CAM plan step', () => {
         .map(r => parseFloat(within(r).getAllByRole('cell')[5].textContent!));
     expect(Math.max(...stepdowns(table))).toBeLessThanOrEqual(1.59);
 
-    fireEvent.click(screen.getByRole('button', { name: /Show on machine/ }));
+    expect(screen.getByRole('button', { name: /Take the job to the machine/ })).toHaveProperty('disabled', false);
+    expect(screen.queryByRole('alert')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Show board A on machine' }));
     const [gcode, name] = store.updateToolpath.mock.calls[0];
     expect(name).toBe('kinderregal-eiche board A.gcode');
     expect(gcode).toContain('(Board A)');
@@ -84,5 +90,57 @@ describe('CAM plan step', () => {
       },
       { timeout: 30_000 }
     );
+  }, 120_000);
+
+  it('mills a 3D part as a flat board when asked: its outline at least', async () => {
+    const bytes = await (await fetch(messerUrl)).arrayBuffer();
+    const job = await createJob(new File([bytes], 'messerblock-klein.step'));
+    await saveJob({ ...job, parts: [{ id: 'part-0', name: 'messerblock', quantity: 1, milled: true }] });
+    params.jobId = job.id;
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <PlanStep />
+      </QueryClientProvider>
+    );
+    // The knife slots are not 2.5D (~30 s to analyse): the outline is cut, the slots are left.
+    const table = await screen.findByRole('table', { name: 'Operations for board A' }, { timeout: 150_000 });
+    const labels = within(table)
+      .getAllByRole('row')
+      .slice(1)
+      .map(r => within(r).getAllByRole('cell')[1].textContent!);
+    expect(labels.some(l => l.includes('Outline'))).toBe(true);
+  }, 180_000);
+
+  it('names parts that don\u2019t fit their board and blocks the job until they fit or are left out', async () => {
+    const bytes = await (await fetch(stepUrl)).arrayBuffer();
+    const job = await createJob(new File([bytes], 'kinderregal-eiche.step'));
+    // Board A as a 600 x 300 stock board: room for two of its five 8 mm bodies.
+    const copy = new Uint8Array(bytes.slice(0));
+    const model = await camWorker().importModel(Comlink.transfer(copy, [copy.buffer]), job.fileName, modelKey(job));
+    const boards = reconcileBoards(
+      undefined,
+      instancesOf(model.parts, () => true),
+      'oak'
+    ).map(b => (b.name === 'A' ? { ...b, size: { fit: false as const, w: 600, h: 300 } } : b));
+    await saveJob({ ...job, boards });
+    params.jobId = job.id;
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <PlanStep />
+      </QueryClientProvider>
+    );
+
+    const alert = await screen.findByRole('alert', {}, { timeout: 60_000 });
+    expect(alert.textContent).toMatch(/3 parts don’t fit on their boards and would not be cut: .+ \(A\)/);
+    await screen.findByRole('table', { name: 'Operations for board A' }, { timeout: 60_000 });
+    expect(screen.getByRole('button', { name: /Take the job to the machine/ })).toHaveProperty('disabled', true);
+    expect(screen.getByRole('button', { name: 'Show board A on machine' })).toHaveProperty('disabled', true);
+    expect(screen.queryByText(/Safety checks passed/)).toBeNull();
+
+    fireEvent.click(within(alert).getByRole('button', { name: 'Leave them out' }));
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull(), { timeout: 10_000 });
+    expect((await getJob(job.id))!.plan!.leaveOut).toHaveLength(3);
+    expect(screen.getByRole('button', { name: /Take the job to the machine/ })).toHaveProperty('disabled', false);
+    expect(screen.getByText(/Safety checks passed/)).toBeTruthy();
   }, 120_000);
 });
