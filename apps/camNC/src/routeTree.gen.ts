@@ -25,7 +25,6 @@ import { Route as SetupImportSetupRouteImport } from './routes/setup/import-setu
 import { Route as SetupFluidncRouteImport } from './routes/setup/fluidnc'
 import { Route as SetupEditSettingsRouteImport } from './routes/setup/edit-settings'
 import { Route as SetupCameraCalibrationRouteImport } from './routes/setup/camera-calibration'
-import { Route as SettingsLabsRouteImport } from './routes/settings/labs'
 import { Route as SettingsHideMachineRouteImport } from './routes/settings/hide-machine'
 import { Route as SettingsBackupRouteImport } from './routes/settings/backup'
 import { Route as DebugUnprojectRouteImport } from './routes/debug/unproject'
@@ -118,11 +117,6 @@ const SetupCameraCalibrationRoute = SetupCameraCalibrationRouteImport.update({
   path: '/setup/camera-calibration',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SettingsLabsRoute = SettingsLabsRouteImport.update({
-  id: '/settings/labs',
-  path: '/settings/labs',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const SettingsHideMachineRoute = SettingsHideMachineRouteImport.update({
   id: '/settings/hide-machine',
   path: '/settings/hide-machine',
@@ -183,7 +177,6 @@ export interface FileRoutesByFullPath {
   '/debug/unproject': typeof DebugUnprojectRoute
   '/settings/backup': typeof SettingsBackupRoute
   '/settings/hide-machine': typeof SettingsHideMachineRoute
-  '/settings/labs': typeof SettingsLabsRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
   '/setup/fluidnc': typeof SetupFluidncRoute
@@ -212,7 +205,6 @@ export interface FileRoutesByTo {
   '/debug/unproject': typeof DebugUnprojectRoute
   '/settings/backup': typeof SettingsBackupRoute
   '/settings/hide-machine': typeof SettingsHideMachineRoute
-  '/settings/labs': typeof SettingsLabsRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
   '/setup/fluidnc': typeof SetupFluidncRoute
@@ -242,7 +234,6 @@ export interface FileRoutesById {
   '/debug/unproject': typeof DebugUnprojectRoute
   '/settings/backup': typeof SettingsBackupRoute
   '/settings/hide-machine': typeof SettingsHideMachineRoute
-  '/settings/labs': typeof SettingsLabsRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
   '/setup/fluidnc': typeof SetupFluidncRoute
@@ -273,7 +264,6 @@ export interface FileRouteTypes {
     | '/debug/unproject'
     | '/settings/backup'
     | '/settings/hide-machine'
-    | '/settings/labs'
     | '/setup/camera-calibration'
     | '/setup/edit-settings'
     | '/setup/fluidnc'
@@ -302,7 +292,6 @@ export interface FileRouteTypes {
     | '/debug/unproject'
     | '/settings/backup'
     | '/settings/hide-machine'
-    | '/settings/labs'
     | '/setup/camera-calibration'
     | '/setup/edit-settings'
     | '/setup/fluidnc'
@@ -331,7 +320,6 @@ export interface FileRouteTypes {
     | '/debug/unproject'
     | '/settings/backup'
     | '/settings/hide-machine'
-    | '/settings/labs'
     | '/setup/camera-calibration'
     | '/setup/edit-settings'
     | '/setup/fluidnc'
@@ -361,7 +349,6 @@ export interface RootRouteChildren {
   DebugUnprojectRoute: typeof DebugUnprojectRoute
   SettingsBackupRoute: typeof SettingsBackupRoute
   SettingsHideMachineRoute: typeof SettingsHideMachineRoute
-  SettingsLabsRoute: typeof SettingsLabsRoute
   SetupCameraCalibrationRoute: typeof SetupCameraCalibrationRoute
   SetupEditSettingsRoute: typeof SetupEditSettingsRoute
   SetupFluidncRoute: typeof SetupFluidncRoute
@@ -496,13 +483,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SetupCameraCalibrationRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/settings/labs': {
-      id: '/settings/labs'
-      path: '/settings/labs'
-      fullPath: '/settings/labs'
-      preLoaderRoute: typeof SettingsLabsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/settings/hide-machine': {
       id: '/settings/hide-machine'
       path: '/settings/hide-machine'
@@ -585,7 +565,6 @@ const rootRouteChildren: RootRouteChildren = {
   DebugUnprojectRoute: DebugUnprojectRoute,
   SettingsBackupRoute: SettingsBackupRoute,
   SettingsHideMachineRoute: SettingsHideMachineRoute,
-  SettingsLabsRoute: SettingsLabsRoute,
   SetupCameraCalibrationRoute: SetupCameraCalibrationRoute,
   SetupEditSettingsRoute: SetupEditSettingsRoute,
   SetupFluidncRoute: SetupFluidncRoute,

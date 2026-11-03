@@ -1,6 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { Box, Bug, Cctv, FlaskConical, Grid2x2, HardDriveDownload, Layers, Puzzle, Rocket, Scale3d } from 'lucide-react';
-import { useLabs } from '@/cam/labs';
+import { Box, Bug, Cctv, Grid2x2, HardDriveDownload, Layers, Puzzle, Rocket, Scale3d } from 'lucide-react';
 import * as React from 'react';
 
 import { useLocation } from '@tanstack/react-router';
@@ -28,6 +27,8 @@ type NavRoute = {
   to: string;
   icon: React.ComponentType<{ className?: string }>;
   exact?: boolean;
+  /** Small label after the title, e.g. "Beta". */
+  badge?: string;
 };
 
 const routes: NavRoute[] = [
@@ -37,14 +38,17 @@ const routes: NavRoute[] = [
     icon: Grid2x2,
   },
   {
+    title: 'CAM',
+    to: '/cam',
+    icon: Box,
+    badge: 'Beta',
+  },
+  {
     title: 'Get Started',
     to: '/start',
     icon: Rocket,
   },
 ];
-
-// Behind Settings › Labs until the whole flow (model → boards → plan → cut) is there.
-const kCamRoute: NavRoute = { title: 'CAM (beta)', to: '/cam', icon: Box };
 
 const machineRoutes: NavRoute[] = [
   {
@@ -79,11 +83,6 @@ const settingsRoutes: NavRoute[] = [
     icon: Layers,
   },
   {
-    title: 'Labs',
-    to: '/settings/labs',
-    icon: FlaskConical,
-  },
-  {
     title: 'Debug',
     to: '/setup/edit-settings',
     icon: Bug,
@@ -106,6 +105,11 @@ function NavRoutes({ routes, label }: { routes: NavRoute[]; label: string }) {
                 activeOptions={{ exact: route.exact }}>
                 <route.icon className="size-4" />
                 <span>{route.title}</span>
+                {route.badge && (
+                  <span className="ml-auto rounded-full bg-violet-500/15 px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-violet-700 dark:text-violet-300">
+                    {route.badge}
+                  </span>
+                )}
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -120,7 +124,6 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {};
 export function AppSidebar({ ...props }: AppSidebarProps) {
   const location = useLocation({ select: l => l.pathname });
   const { setOpenMobile: setOpen } = useSidebar();
-  const camBeta = useLabs(s => s.camBeta);
   // Auto-close the sidebar when the location changes
   useEffect(() => {
     setOpen(false);
@@ -140,7 +143,7 @@ export function AppSidebar({ ...props }: AppSidebarProps) {
         <CamSourceSelector />
       </SidebarHeader>
       <SidebarContent>
-        <NavRoutes routes={camBeta ? [...routes.slice(0, 1), kCamRoute, ...routes.slice(1)] : routes} label="Views" />
+        <NavRoutes routes={routes} label="Views" />
         <NavRoutes routes={machineRoutes} label="Machine" />
         <NavRoutes routes={cameraRoutes} label="Camera (optional)" />
         <NavRoutes routes={settingsRoutes} label="Settings" />

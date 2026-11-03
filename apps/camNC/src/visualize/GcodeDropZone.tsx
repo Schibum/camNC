@@ -4,7 +4,6 @@ import { useEffect } from 'react';
 import { isDemoMode } from '@/lib/demo/demo-mode';
 import { camKeys } from '@/cam/camQueries';
 import { kModelFile } from '@/cam/jobDb';
-import { useLabs } from '@/cam/labs';
 import { createJobFromFile } from '@/cam/openModelFile';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
@@ -12,8 +11,8 @@ import { useNavigate } from '@tanstack/react-router';
 const kGcodeFile = /\.(gcode|nc|ngc|tap|txt)$/i;
 
 /**
- * Load a G-code file dropped anywhere on the page as the toolpath, entirely in the browser. With CAM (beta) on, a
- * STEP/STL file starts a new CAM job.
+ * Load a G-code file dropped anywhere on the page as the toolpath, entirely in the browser. A STEP/STL file starts a
+ * new CAM job.
  */
 export function GcodeDropZone() {
   const navigate = useNavigate();
@@ -29,10 +28,6 @@ export function GcodeDropZone() {
       const file = e.dataTransfer?.files[0];
       if (!file) return;
       if (kModelFile.test(file.name)) {
-        if (!useLabs.getState().camBeta) {
-          toast.error('Making G-code from STEP/STL is in beta: turn it on in Settings › Labs.');
-          return;
-        }
         const job = await createJobFromFile(file);
         void queryClient.invalidateQueries({ queryKey: camKeys.jobs });
         void navigate({ to: '/cam/$jobId/model', params: { jobId: job.id } });

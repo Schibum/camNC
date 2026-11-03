@@ -56,6 +56,14 @@ function CamIndex() {
           </span>
         </button>
 
+        <p className="rounded-lg bg-violet-500/10 px-4 py-3 text-sm leading-relaxed">
+          <span className="mr-2 rounded-full bg-violet-500/15 px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-violet-700 dark:text-violet-300">
+            Beta
+          </span>
+          Making G-code here is new: check every program in the top view and the simulation before you cut, and keep a hand near the stop
+          button on the first run.
+        </p>
+
         {!!jobs?.length && (
           <section className="flex flex-col gap-2">
             <h2 className="text-sm font-medium text-muted-foreground">Recent jobs</h2>
