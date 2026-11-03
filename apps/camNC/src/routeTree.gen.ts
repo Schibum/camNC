@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as StartRouteImport } from './routes/start'
 import { Route as DemoRouteImport } from './routes/demo'
+import { Route as CamRouteImport } from './routes/cam'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SetupIndexRouteImport } from './routes/setup/index'
 import { Route as VisualizeVisualizeCommandsRouteImport } from './routes/visualize/VisualizeCommands'
@@ -40,6 +41,11 @@ const StartRoute = StartRouteImport.update({
 const DemoRoute = DemoRouteImport.update({
   id: '/demo',
   path: '/demo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CamRoute = CamRouteImport.update({
+  id: '/cam',
+  path: '/cam',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -146,6 +152,7 @@ const SetupCamerasCamIdRoute = SetupCamerasCamIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/cam': typeof CamRoute
   '/demo': typeof DemoRoute
   '/start': typeof StartRoute
   '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
@@ -170,6 +177,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/cam': typeof CamRoute
   '/demo': typeof DemoRoute
   '/start': typeof StartRoute
   '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
@@ -195,6 +203,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/cam': typeof CamRoute
   '/demo': typeof DemoRoute
   '/start': typeof StartRoute
   '/debug/raw-webgpu': typeof DebugRawWebgpuRoute
@@ -221,6 +230,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/cam'
     | '/demo'
     | '/start'
     | '/debug/raw-webgpu'
@@ -245,6 +255,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/cam'
     | '/demo'
     | '/start'
     | '/debug/raw-webgpu'
@@ -269,6 +280,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/cam'
     | '/demo'
     | '/start'
     | '/debug/raw-webgpu'
@@ -294,6 +306,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CamRoute: typeof CamRoute
   DemoRoute: typeof DemoRoute
   StartRoute: typeof StartRoute
   DebugRawWebgpuRoute: typeof DebugRawWebgpuRoute
@@ -331,6 +344,13 @@ declare module '@tanstack/react-router' {
       path: '/demo'
       fullPath: '/demo'
       preLoaderRoute: typeof DemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cam': {
+      id: '/cam'
+      path: '/cam'
+      fullPath: '/cam'
+      preLoaderRoute: typeof CamRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -478,6 +498,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CamRoute: CamRoute,
   DemoRoute: DemoRoute,
   StartRoute: StartRoute,
   DebugRawWebgpuRoute: DebugRawWebgpuRoute,

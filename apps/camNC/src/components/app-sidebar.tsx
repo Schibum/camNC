@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { Bug, Cctv, Grid2x2, HardDriveDownload, Layers, Puzzle, Rocket, Scale3d } from 'lucide-react';
+import { Box, Bug, Cctv, Grid2x2, HardDriveDownload, Layers, Puzzle, Rocket, Scale3d } from 'lucide-react';
 import * as React from 'react';
 
 import { useLocation } from '@tanstack/react-router';
@@ -34,6 +34,11 @@ const routes: NavRoute[] = [
     title: 'Top View',
     to: '/visualize/2DView',
     icon: Grid2x2,
+  },
+  {
+    title: 'Make G-code',
+    to: '/cam',
+    icon: Box,
   },
   {
     title: 'Get Started',

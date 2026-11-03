@@ -49,6 +49,8 @@
     "@testing-library/jest-dom": "catalog:",
     "@use-gesture/react": "catalog:",
     "@vitest/browser": "catalog:",
+    "@wbcnc/cam": "workspace:*",
+    "occt-import-js": "0.0.23",
     "@wbcnc/camera-calibration": "workspace:*",
     "@wbcnc/fluidnc": "workspace:*",
     "@wbcnc/go2webrtc": "workspace:*",
