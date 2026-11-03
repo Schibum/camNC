@@ -32,6 +32,17 @@ function drag(chip: HTMLElement, target: HTMLElement) {
   fireEvent.drop(target, { dataTransfer });
 }
 
+/** A part's outline in a board drawing. */
+const partIn = (board: string, name: string) =>
+  within(screen.getByRole('region', { name: `Board ${board} drawing` })).getByRole('button', { name: new RegExp(`^${name}:`) });
+
+/** Client point of a board point (mm, lower left zero) in a board's drawing. */
+function clientOf(board: string, x: number, y: number) {
+  const frame = screen.getByRole('region', { name: `Board ${board} drawing` }).querySelector<SVGGraphicsElement>('[data-board-frame]')!;
+  const p = new DOMPoint(x, y).matrixTransform(frame.getScreenCTM()!);
+  return { clientX: p.x, clientY: p.y };
+}
+
 async function openKinderregal() {
   const bytes = await (await fetch(stepUrl)).arrayBuffer();
   const job = await createJob(new File([bytes], 'kinderregal-eiche.step'));
@@ -107,7 +118,8 @@ describe('CAM boards step', () => {
     const b = screen.getByRole('region', { name: 'Board B' });
     for (const name of ['left', 'right', 'Part 1', 'Part 3', 'Part 2']) expect(within(a).getByText(name)).toBeTruthy();
     expect(within(b).getByText('back')).toBeTruthy();
-    expect(screen.getByRole('img', { name: /Board .* with 5 parts/ })).toBeTruthy();
+    expect(screen.getByRole('group', { name: /Board A, .* with 5 parts/ })).toBeTruthy();
+    expect(screen.getByRole('group', { name: /Board B, .* with 1 parts/ })).toBeTruthy();
 
     // A new 8 mm board, and the middle shelf dragged onto it.
     fireEvent.click(screen.getByRole('button', { name: /New 8 mm board/ }));
@@ -128,11 +140,12 @@ describe('CAM boards step', () => {
     fireEvent.click(await screen.findByRole('menuitem', { name: /New board/ }));
     await waitFor(() => expect(within(screen.getByRole('region', { name: 'Board D' })).getByText('Part 3')).toBeTruthy());
 
-    // From the board view: drag the left side onto board C (pointer events, so touch works too).
-    fireEvent.click(screen.getByRole('region', { name: 'Board A' }));
-    const left = await waitFor(() => document.querySelector<SVGGElement>('[data-part="left"]')!);
+    // From the board drawing: drag the left side onto board C's card (pointer events, so touch works too).
+    const left = partIn('A', 'left');
+    const start = left.getBoundingClientRect();
     const target = screen.getByRole('region', { name: 'Board C' }).getBoundingClientRect();
-    fireEvent.pointerDown(left, { clientX: 10, clientY: 10, button: 0 });
+    fireEvent.pointerDown(left, { clientX: start.x + 5, clientY: start.y + 5, button: 0 });
+    fireEvent.pointerMove(window, { clientX: target.x + target.width / 2, clientY: target.y + target.height / 2 });
     // While dragging, compatible boards say so; the 3 mm board doesn't take it.
     expect(within(screen.getByRole('region', { name: 'Board C' })).getByText('Drop here')).toBeTruthy();
     expect(within(screen.getByRole('region', { name: 'Board B' })).getByText('different thickness')).toBeTruthy();
@@ -153,6 +166,67 @@ describe('CAM boards step', () => {
     fireEvent.click(screen.getByRole('region', { name: 'Board A' }));
     fireEvent.click(screen.getByLabelText('Clamps only'));
     expect(await screen.findByText('clamp keep-out')).toBeTruthy();
+  }, 90_000);
+
+  it('drags a part’s outline from one board drawing onto another, where it lands exactly at the drop point', async () => {
+    const job = await openKinderregal();
+    // Board C: a 1220 × 610 sheet, empty.
+    fireEvent.click(screen.getByRole('button', { name: /New 8 mm board/ }));
+    await screen.findByRole('region', { name: 'Board C drawing' });
+    for (const [label, value] of [
+      ['Width', '1220'],
+      ['Height', '610'],
+    ]) {
+      const input = screen.getByLabelText(label);
+      fireEvent.change(input, { target: { value } });
+      fireEvent.blur(input);
+      await waitFor(() => expect((screen.getByLabelText(label) as HTMLInputElement).value).toBe(value));
+    }
+    await waitFor(async () =>
+      expect((await getJob(job.id))!.boards!.find(b => b.name === 'C')!.size).toEqual({ fit: false, w: 1220, h: 610 })
+    );
+
+    // Grab the left side (560 × 140) at its lower left corner + (20, 10) mm.
+    const left = partIn('A', 'left');
+    const box = (left as unknown as SVGGElement).getBBox();
+    // getBBox is in the drawing's frame (Y up): lower left corner of the outline.
+    fireEvent.pointerDown(left, { ...clientOf('A', box.x + 20, box.y + 10), button: 0 });
+
+    // Over board C at (300, 300) + the grab offset: the outline follows the pointer, C is highlighted and shows
+    // where it lands.
+    const c = screen.getByRole('region', { name: 'Board C drawing' });
+    c.scrollIntoView({ block: 'center' });
+    const drop = clientOf('C', 320, 310);
+    fireEvent.pointerMove(window, drop);
+    expect(document.elementFromPoint(drop.clientX, drop.clientY)?.closest('[data-board-drop]')).toBe(c);
+    expect(document.querySelector('[data-drag-ghost]')).toBeTruthy();
+    expect(c.querySelector('[data-preview="fits"]')).toBeTruthy();
+    expect(within(c).getByText('Lands where you drop it')).toBeTruthy();
+    fireEvent.pointerUp(window, drop);
+
+    await waitFor(async () => {
+      const boards = (await getJob(job.id))!.boards!;
+      const onC = boards.find(b => b.name === 'C')!;
+      expect(onC.items).toHaveLength(1);
+      expect(onC.pinned).toEqual(onC.items);
+      const at = onC.positions![onC.items[0]];
+      expect(Math.abs(at.x - 300)).toBeLessThan(5);
+      expect(Math.abs(at.y - 300)).toBeLessThan(5);
+      expect(at.rotated).toBe(false);
+      expect(boards.find(b => b.name === 'A')!.items).not.toContain(onC.items[0]);
+    });
+    expect(within(screen.getByRole('region', { name: 'Board C' })).getByText('left')).toBeTruthy();
+    expect(document.querySelector('[data-drag-ghost]')).toBeNull();
+
+    // Arrow keys move it on its board, 10 mm with Shift.
+    const before = (await getJob(job.id))!.boards!.find(b => b.name === 'C')!;
+    const id = before.items[0];
+    fireEvent.keyDown(partIn('C', 'left'), { key: 'ArrowRight', shiftKey: true });
+    await waitFor(async () => {
+      const at = (await getJob(job.id))!.boards!.find(b => b.name === 'C')!.positions![id];
+      expect(at.x).toBeCloseTo(before.positions![id].x + 10, 5);
+      expect(at.y).toBeCloseTo(before.positions![id].y, 5);
+    });
   }, 90_000);
 
   it('auto-fill optimizes for fewest boards unless the job says least wood', async () => {

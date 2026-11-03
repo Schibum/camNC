@@ -1,10 +1,9 @@
 import { cn } from '@wbcnc/ui/lib/utils';
 import { PageHeader } from '@/components/page-header';
-import { autoFillFromStock, newBoard, type BoardV1 } from '@/cam/boards';
+import { autoFillFromStock, dropPart, newBoard, type BoardV1, type PartDrop, type PartPosition } from '@/cam/boards';
+import { BoardDrawings } from '@/cam/boards/BoardDrawings';
 import { BoardInspector } from '@/cam/boards/BoardInspector';
 import { BoardList } from '@/cam/boards/BoardList';
-import { NestView } from '@/cam/boards/NestView';
-import { dropTargetAt, useBoardDrag } from '@/cam/boards/boardDrag';
 import { camKeys, useBoardPlans, useCamJob, useCamModel, useSaveCamJob } from '@/cam/camQueries';
 import type { CamJobV1 } from '@/cam/jobDb';
 import { CamJobBar } from '@/cam/model/CamJobBar';
@@ -65,7 +64,6 @@ function BoardsStep() {
 
   const plan = job.plan ?? kDefaultPlan;
   const selected = boards.find(b => b.board.id === selectedId) ?? boards[0];
-  const selectedIndex = boards.indexOf(selected);
   const saveBoards = (next: BoardV1[]) => save.mutate({ ...job, boards: next });
   const updateBoard = (b: BoardV1) => saveBoards(boards.map(x => (x.board.id === b.id ? b : x.board)));
   const byId = new Map(instances.map(i => [i.id, i]));
@@ -113,7 +111,40 @@ function BoardsStep() {
   };
 
   const unpin = (itemId: string) =>
-    saveBoards(boards.map(({ board }) => (board.pinned?.includes(itemId) ? { ...board, pinned: unpinned(board, itemId) } : board)));
+    saveBoards(
+      boards.map(({ board }) =>
+        board.pinned?.includes(itemId) ? { ...board, pinned: unpinned(board, itemId), ...unpositioned(board, itemId) } : board
+      )
+    );
+
+  // The body on the target board as `dropPart` laid it out (positioned there, or in the nest), off every other board.
+  const place = (itemId: string, target: BoardV1) =>
+    saveBoards(boards.map(({ board }) => (board.id === target.id ? target : without(board, itemId))));
+
+  // Dragged onto a board drawing.
+  const dropOn = (itemId: string, boardId: string, drop: PartDrop | null) => {
+    const target = boards.find(b => b.board.id === boardId)?.board;
+    const inst = byId.get(itemId);
+    if (!target || !inst) return;
+    if (+inst.thickness.toFixed(1) !== target.thickness) {
+      toast.error(`${inst.name} is ${+inst.thickness.toFixed(1)} mm thick, board ${target.name} is ${target.thickness} mm.`);
+      return;
+    }
+    if (!drop) {
+      toast.error(`${inst.name} doesn’t fit on board ${target.name}.`);
+      return;
+    }
+    place(itemId, drop.board);
+    setSelectedId(boardId);
+  };
+
+  // Arrow keys: only to a free spot.
+  const nudge = (itemId: string, boardId: string, at: PartPosition) => {
+    const target = boards.find(b => b.board.id === boardId)?.board;
+    if (!target) return;
+    const drop = dropPart(target, instances, plan.bit.diameter, itemId, at);
+    if (drop.exact) place(itemId, drop.board);
+  };
 
   const autoFill = () => {
     const stock = job.stock ?? [];
@@ -150,14 +181,11 @@ function BoardsStep() {
     setSelectedId(b.id);
   };
 
-  const selectedPlan = plans[selectedIndex]?.data;
-  const tabHeight =
-    selected.board.holdDown === 'tabs' || selected.board.holdDown === 'tabs-guided' ? selected.board.tabs.height : undefined;
+  const tabs = boards.some(b => b.board.holdDown === 'tabs' || b.board.holdDown === 'tabs-guided');
   const partArea = selected.nest.placements.length ? `Yield ${Math.round(selected.nest.yield * 100)} %` : '';
 
   return (
     <Shell bar={bar}>
-      <DragLabel names={new Map(instances.map(i => [i.id, i.name]))} />
       <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[320px_1fr_300px]">
         <BoardList
           boards={boards}
@@ -173,7 +201,7 @@ function BoardsStep() {
         />
         <main className="flex min-h-[320px] min-w-0 flex-col bg-muted/30">
           <div className="flex flex-wrap items-center gap-2 px-4 py-3">
-            <span className="font-medium">Board {selected.board.name} · nest</span>
+            <span className="font-medium">Nest</span>
             <Button size="sm" variant="outline" onClick={addBoard}>
               <Plus /> New {selected.board.thickness} mm board
             </Button>
@@ -202,25 +230,20 @@ function BoardsStep() {
             <span className="grow" />
             <span className="text-xs text-muted-foreground">Rectangle nesting for now. True-shape nesting is planned.</span>
           </div>
-          <div className="relative min-h-0 flex-1 p-4">
-            <NestView
-              nest={selected.nest}
-              instances={instances}
-              parts={model.data.parts}
-              plan={selectedPlan}
-              tabHeight={tabHeight}
-              className="size-full touch-none"
-              onPartPointerDown={(item, e) => {
-                const inst = byId.get(item);
-                if (inst) startPointerDrag(item, inst.thickness, e, { onMove: move, onNewBoard: toNewBoard });
-              }}
-            />
-            {plans[selectedIndex]?.isFetching && (
-              <span className="absolute right-4 top-4 flex items-center gap-2 text-xs text-muted-foreground">
-                <LoadingSpinner className="size-3" /> Computing toolpaths
-              </span>
-            )}
-          </div>
+          <BoardDrawings
+            boards={boards}
+            instances={instances}
+            parts={model.data.parts}
+            plans={plans.map(p => p.data)}
+            fetching={plans.map(p => p.isFetching)}
+            bit={plan.bit.diameter}
+            selectedId={selected.board.id}
+            onSelect={setSelectedId}
+            onDrop={dropOn}
+            onMove={move}
+            onNewBoard={toNewBoard}
+            onNudge={nudge}
+          />
           <div className="flex flex-wrap gap-5 border-t px-4 py-2.5 text-xs text-muted-foreground">
             <span>
               <span className="text-violet-400">■</span> part outline
@@ -228,19 +251,19 @@ function BoardsStep() {
             <span>
               <span className="text-violet-600">■</span> pocket
             </span>
-            {tabHeight !== undefined && (
+            {tabs && (
               <span>
                 <span className="text-amber-500">■</span> tab
               </span>
             )}
-            {selected.nest.keepOuts.length > 0 && (
+            {boards.some(b => b.nest.keepOuts.length > 0) && (
               <span>
                 <span className="text-red-500">■</span> clamp keep-out
               </span>
             )}
             <span className="grow" />
             <span>
-              edge margin {selected.nest.margin} mm · gap {selected.nest.gap} mm
+              Board {selected.board.name}: edge margin {selected.nest.margin} mm · gap {selected.nest.gap} mm
             </span>
             <span>{partArea}</span>
           </div>
@@ -263,50 +286,16 @@ function BoardsStep() {
 }
 
 const unpinned = (board: BoardV1, itemId: string) => (board.pinned ?? []).filter(i => i !== itemId);
-/** The board without this body (nor its pin). */
+/** The board's positions without this body's (when it has positions). */
+const unpositioned = (board: BoardV1, itemId: string) =>
+  board.positions && { positions: Object.fromEntries(Object.entries(board.positions).filter(([id]) => id !== itemId)) };
+/** The board without this body (nor its pin and position). */
 const without = (board: BoardV1, itemId: string): BoardV1 => ({
   ...board,
   items: board.items.filter(i => i !== itemId),
   ...(board.pinned && { pinned: unpinned(board, itemId) }),
+  ...unpositioned(board, itemId),
 });
-
-/**
- * Drag a part from the nest view (pointer events: mouse, pen and touch) onto a board card or the "new board" zone.
- */
-function startPointerDrag(
-  item: string,
-  thickness: number,
-  e: React.PointerEvent,
-  on: { onMove: (item: string, board: string) => boolean; onNewBoard: (item: string) => void }
-) {
-  e.preventDefault();
-  const drag = useBoardDrag.getState();
-  drag.start(item, thickness, { x: e.clientX, y: e.clientY });
-  const move = (ev: PointerEvent) => useBoardDrag.getState().move({ x: ev.clientX, y: ev.clientY });
-  const up = (ev: PointerEvent) => {
-    window.removeEventListener('pointermove', move);
-    window.removeEventListener('pointerup', up);
-    useBoardDrag.getState().end();
-    const target = dropTargetAt(ev.clientX, ev.clientY);
-    if (target && 'board' in target) on.onMove(item, target.board);
-    else if (target) on.onNewBoard(item);
-  };
-  window.addEventListener('pointermove', move);
-  window.addEventListener('pointerup', up);
-}
-
-/** The part's name following the pointer during a drag from the nest view. */
-function DragLabel({ names }: { names: Map<string, string> }) {
-  const { item, pos } = useBoardDrag();
-  if (!item || !pos) return null;
-  return (
-    <div
-      className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-full rounded-full bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground shadow"
-      style={{ left: pos.x, top: pos.y - 8 }}>
-      {names.get(item) ?? item}
-    </div>
-  );
-}
 
 function Shell({
   bar,

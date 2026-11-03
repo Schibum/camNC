@@ -1,27 +1,19 @@
-import type { BoardNest, PartInstance } from '../boards';
-import type { CamPartInfo, Outline2D, PlanResult } from '../camTypes';
+import { cn } from '@wbcnc/ui/lib/utils';
+import type { BoardNest, PartInstance, PartPosition } from '../boards';
+import type { CamPartInfo, PlanResult } from '../camTypes';
+import { place, toD } from './outline';
 
-/** Part frame -> board frame, as in @wbcnc/cam partToBoard. */
-const place = (p: { x: number; y: number; rotated: boolean }, size: number[]) => (q: [number, number]) =>
-  p.rotated ? [p.x + size[1] - q[1], p.y + q[0]] : [p.x + q[0], p.y + q[1]];
-
-const toD = (paths: Outline2D, f: (q: [number, number]) => number[]) =>
-  paths
-    .map(
-      path =>
-        `M${path
-          .map(q =>
-            f(q)
-              .map(v => v.toFixed(1))
-              .join(',')
-          )
-          .join('L')}Z`
-    )
-    .join('');
+/** Where a dragged part would land on this board; `fits` false: it fits nowhere, drawn in red at the pointer. */
+export interface NestPreview {
+  item: string;
+  at: PartPosition;
+  fits: boolean;
+}
 
 /**
  * Top view of a board: its parts at their nested positions (outline, pockets, holes), clamp keep-outs, tabs from the
- * generated program, XY zero at the lower left. Y up, like the machine.
+ * generated program, XY zero at the lower left. Y up, like the machine. With `pxPerMm`, drawn at that scale (so
+ * several boards can share one); `unit` then sets the padding, line and text size for all of them.
  */
 export function NestView({
   nest,
@@ -31,7 +23,14 @@ export function NestView({
   tabHeight,
   selectedPart,
   className,
+  unit,
+  pxPerMm,
+  dragging,
+  preview,
+  label,
   onPartPointerDown,
+  onPartKeyDown,
+  onPartFocus,
 }: {
   nest: BoardNest;
   instances: PartInstance[];
@@ -40,25 +39,41 @@ export function NestView({
   tabHeight?: number;
   selectedPart?: string | null;
   className?: string;
-  /** Start dragging a body (instance id) to another board. */
+  /** Reference size in mm for padding, lines and text; default the board's longer side. */
+  unit?: number;
+  pxPerMm?: number;
+  /** The body being dragged out of this board: drawn faint. */
+  dragging?: string | null;
+  preview?: NestPreview | null;
+  label?: string;
+  /** Start dragging a body (instance id). */
   onPartPointerDown?: (item: string, e: React.PointerEvent) => void;
+  /** Arrow keys on a focused body. */
+  onPartKeyDown?: (item: string, e: React.KeyboardEvent) => void;
+  onPartFocus?: (item: string) => void;
 }) {
   const { w, h } = nest.board;
-  const pad = Math.max(w, h) * 0.05;
-  const stroke = Math.max(w, h) / 600;
+  const u = unit ?? Math.max(w, h);
+  const pad = u * 0.05;
+  const stroke = u / 600;
   const byInst = new Map(instances.map(i => [i.id, i]));
   const byPart = new Map(parts.map(p => [p.id, p]));
   const tabSegments =
     tabHeight !== undefined && plan
       ? plan.path.filter(([a, b]) => Math.abs(a[2] - tabHeight) < 1e-3 && Math.abs(b[2] - tabHeight) < 1e-3)
       : [];
+  const interactive = !!onPartPointerDown;
+  const previewInst = preview && byInst.get(preview.item);
+  const previewPart = previewInst && byPart.get(previewInst.partId);
   return (
     <svg
       viewBox={`${-pad} ${-h - pad} ${w + 2 * pad} ${h + 2 * pad}`}
+      width={pxPerMm && (w + 2 * pad) * pxPerMm}
+      height={pxPerMm && (h + 2 * pad) * pxPerMm}
       className={className}
-      role="img"
-      aria-label={`Board ${w} by ${h} mm with ${nest.placements.length} parts`}>
-      <g transform="scale(1,-1)">
+      role={interactive ? 'group' : 'img'}
+      aria-label={label ?? `Board ${w} by ${h} mm with ${nest.placements.length} parts`}>
+      <g transform="scale(1,-1)" data-board-frame>
         <rect
           x={0}
           y={0}
@@ -81,8 +96,17 @@ export function NestView({
             <g
               key={p.id}
               data-part={inst.name}
+              data-item={p.id}
+              role={interactive ? 'button' : undefined}
+              tabIndex={interactive ? 0 : undefined}
+              aria-label={interactive ? `${inst.name}: drag, or move with the arrow keys` : undefined}
               onPointerDown={onPartPointerDown && (e => onPartPointerDown(p.id, e))}
-              className={onPartPointerDown ? 'cursor-grab active:cursor-grabbing' : undefined}>
+              onKeyDown={onPartKeyDown && (e => onPartKeyDown(p.id, e))}
+              onFocus={onPartFocus && (() => onPartFocus(p.id))}
+              className={cn(
+                interactive && 'cursor-grab outline-none active:cursor-grabbing [&:focus-visible>path:first-child]:stroke-primary',
+                dragging === p.id && 'opacity-30'
+              )}>
               <path
                 d={toD(part.shape.outlines, f)}
                 className={selected ? 'fill-violet-500/25 stroke-violet-500' : 'fill-amber-600/30 stroke-violet-400'}
@@ -107,6 +131,15 @@ export function NestView({
             strokeLinecap="square"
           />
         ))}
+        {preview && previewInst && previewPart && (
+          <path
+            data-preview={preview.fits ? 'fits' : 'no-room'}
+            d={toD(previewPart.shape.outlines, place(preview.at, previewInst.size))}
+            className={cn('pointer-events-none', preview.fits ? 'fill-primary/20 stroke-primary' : 'fill-red-500/15 stroke-red-500')}
+            strokeWidth={stroke * 2.5}
+            strokeDasharray={preview.fits ? `${stroke * 8} ${stroke * 5}` : undefined}
+          />
+        )}
         <circle cx={0} cy={0} r={stroke * 6} className="fill-emerald-500" />
       </g>
       {nest.placements.map(p => {
@@ -121,13 +154,13 @@ export function NestView({
             y={-(p.y + ph / 2)}
             textAnchor="middle"
             dominantBaseline="middle"
-            fontSize={Math.max(w, h) / 45}
-            className="fill-foreground">
+            fontSize={u / 45}
+            className={cn('pointer-events-none fill-foreground', dragging === p.id && 'opacity-30')}>
             {inst.name}
           </text>
         );
       })}
-      <text x={0} y={pad * 0.8} fontSize={Math.max(w, h) / 50} className="fill-emerald-600">
+      <text x={0} y={pad * 0.8} fontSize={u / 50} className="pointer-events-none fill-emerald-600">
         XY zero · lower left
       </text>
     </svg>

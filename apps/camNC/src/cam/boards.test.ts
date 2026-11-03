@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   autoFillFromStock,
+  dropPart,
   freezeSpacing,
   nestBoard,
   newBoard,
@@ -332,6 +333,159 @@ describe('boards', () => {
       expect(spacingProblem(frozen, nestBoard(frozen, sides, 8), 8)).toMatch(/8 mm gap between parts is too narrow for the ⌀8 bit/);
       // Values the user set stay.
       expect(freezeSpacing([{ ...stock, gap: 12 }], 3.175)[0].gap).toBe(12);
+    });
+  });
+
+  describe('placing parts by hand', () => {
+    const bit = 3.175;
+    const sheet = (items: string[], w = 1220, h = 610): BoardV1 => ({
+      ...newBoard([], 8, 'oak', items),
+      size: { fit: false, w, h },
+    });
+    const rectOf = (n: ReturnType<typeof nestBoard>, id: string) => {
+      const p = n.placements.find(x => x.id === id)!;
+      const [w, h] = parts.find(i => i.id === id)!.size;
+      return { x: p.x, y: p.y, w: p.rotated ? h : w, h: p.rotated ? w : h };
+    };
+    /** No two parts closer than the gap, all inside the margin. */
+    const expectClear = (n: ReturnType<typeof nestBoard>) => {
+      const rects = n.placements.map(p => rectOf(n, p.id));
+      for (const r of rects) {
+        expect(r.x).toBeGreaterThanOrEqual(n.margin - 1e-6);
+        expect(r.y).toBeGreaterThanOrEqual(n.margin - 1e-6);
+        expect(r.x + r.w).toBeLessThanOrEqual(n.board.w - n.margin + 1e-6);
+        expect(r.y + r.h).toBeLessThanOrEqual(n.board.h - n.margin + 1e-6);
+        for (const o of rects)
+          if (o !== r)
+            expect(
+              r.x + r.w + n.gap <= o.x + 1e-6 ||
+                o.x + o.w + n.gap <= r.x + 1e-6 ||
+                r.y + r.h + n.gap <= o.y + 1e-6 ||
+                o.y + o.h + n.gap <= r.y + 1e-6
+            ).toBe(true);
+      }
+    };
+
+    it('nests positioned parts first, at their spot, and the rest around them', () => {
+      const board = { ...sheet(['left', 'right', 'top', 'bottom']), positions: { top: { x: 300, y: 200, rotated: false } } };
+      const nest = nestBoard(board, parts, bit);
+      expect(nest.unplaced).toEqual([]);
+      expect(nest.placements.map(p => p.id)).toEqual(['left', 'right', 'top', 'bottom']);
+      expect(nest.placements.find(p => p.id === 'top')).toEqual({ id: 'top', x: 300, y: 200, rotated: false });
+      expectClear(nest);
+      // A spot off the board (it got smaller) is ignored: the part is nested like the others.
+      const off = nestBoard({ ...board, positions: { top: { x: 1000, y: 200, rotated: false } } }, parts, bit);
+      expect(off.placements.find(p => p.id === 'top')!.x).not.toBe(1000);
+      expectClear(off);
+      // Two positioned parts on top of each other: the second one is nested.
+      const clash = nestBoard(
+        { ...board, positions: { left: { x: 100, y: 100, rotated: false }, right: { x: 120, y: 110, rotated: false } } },
+        parts,
+        bit
+      );
+      expect(clash.placements.find(p => p.id === 'left')).toMatchObject({ x: 100, y: 100 });
+      expectClear(clash);
+    });
+
+    it('a fitted board grows to take in a positioned part', () => {
+      const [a] = reconcileBoards(undefined, parts, 'oak');
+      const nest = nestBoard({ ...a, positions: { left: { x: 700, y: 400, rotated: false } } }, parts, bit);
+      expect(nest.placements.find(p => p.id === 'left')).toMatchObject({ x: 700, y: 400 });
+      expect(nest.board.w).toBeGreaterThanOrEqual(700 + 560 + nest.margin);
+      expect(nest.board.h).toBeGreaterThanOrEqual(400 + 140 + nest.margin);
+      expect(nest.unplaced).toEqual([]);
+      expectClear(nest);
+    });
+
+    it('snaps a dropped part to where the nest puts it', () => {
+      const board = sheet(['left', 'right']);
+      const spot = nestBoard({ ...board, items: ['left', 'right', 'top'] }, parts, bit).placements.find(p => p.id === 'top')!;
+      const drop = dropPart(board, parts, bit, 'top', { x: spot.x + 3, y: spot.y - 2, rotated: false }, 10);
+      expect(drop.exact).toBe(false);
+      expect(drop.at).toEqual({ x: spot.x, y: spot.y, rotated: false });
+      expect(drop.board.items).toEqual(['left', 'right', 'top']);
+      expect(drop.board.pinned).toEqual(['top']);
+      expect(drop.board.positions?.top).toBeUndefined();
+    });
+
+    it('drops a part exactly where there is room, positioned and pinned', () => {
+      const board = sheet(['left', 'right']);
+      const drop = dropPart(board, parts, bit, 'top', { x: 700, y: 400, rotated: false }, 10);
+      expect(drop).toMatchObject({ exact: true, at: { x: 700, y: 400, rotated: false } });
+      expect(drop.board.positions).toEqual({ top: { x: 700, y: 400, rotated: false } });
+      expect(drop.board.pinned).toEqual(['top']);
+      const nest = nestBoard(drop.board, parts, bit);
+      expect(nest.placements.find(p => p.id === 'top')).toMatchObject({ x: 700, y: 400 });
+      expectClear(nest);
+
+      // On another part, or past the margin: not there, it goes where the nest puts it.
+      const left = nestBoard(board, parts, bit).placements.find(p => p.id === 'left')!;
+      for (const at of [
+        { x: left.x + 50, y: left.y + 20, rotated: false },
+        { x: 1220 - 400 - 2, y: 300, rotated: false },
+      ]) {
+        const d = dropPart(board, parts, bit, 'top', at, 10);
+        expect(d.exact).toBe(false);
+        expect(d.at).not.toBeNull();
+        expect(d.board.positions?.top).toBeUndefined();
+      }
+    });
+
+    it('moves a part on its own board to a free spot, and back into the nest', () => {
+      const board = sheet(['left', 'right', 'top']);
+      const drop = dropPart(board, parts, bit, 'top', { x: 650, y: 420, rotated: false }, 10);
+      expect(drop.exact).toBe(true);
+      expect(drop.board.items).toEqual(['left', 'right', 'top']);
+      expect(drop.board.pinned).toEqual(['top']);
+      // Dropped close to the nest's spot again: the position goes.
+      const spot = nestBoard(board, parts, bit).placements.find(p => p.id === 'top')!;
+      const back = dropPart(drop.board, parts, bit, 'top', { x: spot.x + 1, y: spot.y + 1, rotated: false }, 10);
+      expect(back.exact).toBe(false);
+      expect(back.board.positions).toEqual({});
+    });
+
+    it('rejects a part that fits nowhere on the board', () => {
+      // Two sides fill a 600 × 400 board: no room for the top shelf anywhere.
+      const board = sheet(['left', 'right'], 600, 400);
+      expect(nestBoard(board, parts, bit).unplaced).toEqual([]);
+      for (const at of [
+        { x: 100, y: 100, rotated: false },
+        { x: 5.2, y: 250, rotated: false },
+      ]) {
+        const drop = dropPart(board, parts, bit, 'top', at, 10);
+        expect(drop.at).toBeNull();
+        expect(drop.board).toBe(board);
+      }
+    });
+
+    it('auto-fill keeps the parts placed by hand at their spot and fills the room around them', () => {
+      const [a, b] = reconcileBoards(undefined, parts, 'oak');
+      const placed: BoardV1 = {
+        ...sheet(['top']),
+        name: 'C',
+        pinned: ['top'],
+        positions: { top: { x: 600, y: 300, rotated: false } },
+      };
+      const boards = [{ ...a, items: a.items.filter(id => id !== 'top') }, b, placed];
+      const stock = [{ id: 's', thickness: 8, w: 1220, h: 610 }];
+      const res = autoFillFromStock(boards, parts, stock, bit, 'oak');
+      expectAllPlaced(res, parts, bit);
+      const kept = res.boards.find(x => x.id === placed.id)!;
+      expect(kept.positions).toEqual(placed.positions);
+      expect(kept.items[0]).toBe('top');
+      expect(kept.items.length).toBeGreaterThan(1);
+      const nest = nestBoard(kept, parts, bit);
+      expect(nest.placements.find(p => p.id === 'top')).toEqual({ id: 'top', x: 600, y: 300, rotated: false });
+      expect(nest.unplaced).toEqual([]);
+      expectClear(nest);
+      // A position goes with its part when the part isn't milled any more.
+      expect(
+        reconcileBoards(
+          boards,
+          parts.filter(p => p.id !== 'top'),
+          'oak'
+        ).find(x => x.id === placed.id)!.positions
+      ).toEqual({});
     });
   });
 });
