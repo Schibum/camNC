@@ -1,4 +1,4 @@
-import type { HoldDown, PartSummary } from '@wbcnc/cam';
+import type { HoldDown, PartSummary, TabStop } from '@wbcnc/cam';
 
 /** Closed polygons as [x, y] point lists, in the part's flat frame (mm). */
 export type Outline2D = [number, number][][];
@@ -59,7 +59,7 @@ export interface PlanResult {
   bits: number[];
   /**
    * What to run: one program per bit (FluidNC can't zero Z during an M0 pause, so bit swaps happen between programs).
-   * A single-bit board has one program, the same as `gcode`.
+   * `gcode` is all of them in order, for previews.
    */
   programs: { tool: number; diameter: number; gcode: string; timeMin: number }[];
   size: [number, number, number];
@@ -75,7 +75,16 @@ export interface BoardRequest {
   thickness: number;
   /** Stock top Z (thickness + allowance, or measured). */
   stockTop: number;
+  /** Board lying askew on the bed: the program is turned about the XY zero (degrees, counterclockwise). */
+  rotationDeg?: number;
   holdDown: HoldDown;
   tabs: { width: number; height: number; minCount: number };
   parts: { id: string; partId: string; name: string; x: number; y: number; rotated: boolean }[];
+}
+
+/** A guided tab removal program for a board: one pause per tab, then a cut through it. */
+export interface TabRemovalResult {
+  gcode: string;
+  tabs: TabStop[];
+  timeMin: number;
 }

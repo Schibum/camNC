@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { readGcode, type Move } from './analyze';
-import { boardBits, camBoard, orderBoardQueue, partToBoard, type BoardPart, type BoardSpec, type HoldDown } from './board';
+import { boardBits, camBoard, orderBoardQueue, partToBoard, splitByBit, type BoardPart, type BoardSpec, type HoldDown } from './board';
 import { extractFeatures, type PartFeatures } from './features';
 import { difference } from './geom';
 import { readStep } from './fixtures';
@@ -141,7 +141,7 @@ describe('board programs (kinderregal eiche, 8 mm parts)', () => {
     expectMovesInsideParts(board, cam, gcode);
   });
 
-  it('two bits: one M0 swap per bit change, smallest bit first, inner features before outlines per bit', () => {
+  it('two bits: one program per bit, smallest bit first, inner features before outlines per bit', () => {
     // The kinderregal pockets all take the 6 mm bit: give the middle shelf a 4 mm wide slot only the 1/8" bit fits.
     const withSlot = parts.map(p => {
       if (p.name !== 'Part 2') return p;
@@ -166,13 +166,14 @@ describe('board programs (kinderregal eiche, 8 mm parts)', () => {
     expect(cam.operations.filter(o => o.tool === T3).map(o => o.name)).toEqual(['Part 2: Pocket 1 z=4']);
     expectOpOrder(cam);
     expect(cam.operations.filter(o => o.tool === T3).every(o => o.feature !== 'outline')).toBe(true);
-    const gcode = toGcode(cam, { partName: board.name });
-    const swaps = bitSwaps(gcode);
-    expect(swaps).toHaveLength(bits.length - 1);
-    expect(swaps[0]).toMatch(/Change to T1 D=6, re-zero Z/);
-    expect(gcode).toContain('M0 (MSG Insert T2 D=3.175, turn ON spindle');
-    expect(safety(board, gcode, 3)).toEqual([]);
-    expectMovesInsideParts(board, cam, gcode);
+    const programs = splitByBit(cam);
+    expect(programs.map(p => boardBits(p))).toEqual([[3.175], [6]]);
+    for (const p of programs) {
+      const gcode = toGcode(p, { partName: board.name });
+      expect(bitSwaps(gcode)).toEqual([]);
+      expect(safety(board, gcode, 3)).toEqual([]);
+      expectMovesInsideParts(board, p, gcode);
+    }
   });
 
   it('turned parts: outline inside the placement rectangle, cuts stay on the part', () => {

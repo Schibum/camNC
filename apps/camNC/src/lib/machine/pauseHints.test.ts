@@ -48,3 +48,32 @@ describe('pauseHint', () => {
     );
   });
 });
+
+describe('pauses close together (guided tab removal)', () => {
+  const tabs = [
+    '( Tools Table:)',
+    '(  T1 D=3.175 CR=0 - ZMIN=-0.3 - flat end mill )',
+    'G0 Z13',
+    'M0 (MSG Turn ON spindle 15000RPM)',
+    'G0 Z13',
+    'M0 (MSG Tab 1 of 2: hold left at the marked spot, away from the bit, then resume)',
+    'G0 X10 Y0',
+    'G1 Z-0.3 F300',
+    'G1 X18 F900',
+    'G0 Z13',
+    'M0 (MSG Tab 2 of 2: hold left at the marked spot, away from the bit, then resume)',
+    'G0 X50 Y0',
+  ].join('\n');
+
+  it('explains the pause the job is at, not an earlier one a few bytes before', () => {
+    for (const [k, text] of [
+      [4, 'Turn ON spindle'],
+      [6, 'Tab 1 of 2'],
+      [11, 'Tab 2 of 2'],
+    ] as const) {
+      const hint = pauseHint(tabs, percentAfter(tabs, text));
+      expect(hint?.line).toBe(k);
+      expect(hint?.reason).toContain(text);
+    }
+  });
+});

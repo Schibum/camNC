@@ -87,8 +87,13 @@ const fmt = (v: number) => {
 const toolLine = (t: Tool, zMin: number) =>
   `(  T${t.number} D=${fmt(t.diameter)} CR=0 - ZMIN=${fmt(zMin)} - ${t.name ?? 'flat end mill'} )`;
 
-/** FluidNC/grbl dialect G-code. Z0 = stock bottom, XY0 = lower left of the part. */
+/**
+ * FluidNC/grbl dialect G-code for one bit. Z0 = stock bottom, XY0 = lower left of the part. Several bits make
+ * several programs (`splitByBit`): FluidNC can't zero Z while a program is paused, so a swap can't happen inside one.
+ */
 export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
+  const diameters = new Set(cam.operations.map(o => o.tool.diameter));
+  if (diameters.size > 1) throw new Error(`One program per bit: split the ${diameters.size} bits with splitByBit first`);
   const rpm = opts.spindleRpm ?? 15000;
   const safeZ = opts.safeZ ?? cam.stockTop + 5;
   const retractZ = opts.retractZ ?? cam.stockTop + 2;
@@ -139,17 +144,9 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
   };
 
   move('G0', { z: safeZ });
-  let currentTool: Tool | undefined = cam.operations[0]?.tool;
-  // With several bits, say which one goes in first.
-  const first = tools.length > 1 && currentTool ? `Insert T${currentTool.number} D=${fmt(currentTool.diameter)}, t` : 'T';
-  out.push(`M0 (MSG ${first}urn ON spindle ${rpm}RPM)`);
+  out.push(`M0 (MSG Turn ON spindle ${rpm}RPM)`);
 
   cam.operations.forEach((op, oi) => {
-    if (currentTool && op.tool.number !== currentTool.number) {
-      move('G0', { z: safeZ });
-      out.push(`M0 (MSG Spindle OFF. Change to T${op.tool.number} D=${fmt(op.tool.diameter)}, re-zero Z, spindle ON ${rpm}RPM)`);
-      currentTool = op.tool;
-    }
     if (op.pauseBefore) {
       move('G0', { z: safeZ });
       out.push(`M0 (MSG ${op.pauseBefore.replace(/[()]/g, '')})`);

@@ -14,6 +14,7 @@ import {
   metrics,
   readGcode,
   splitByBit,
+  tabRemovalProgram,
   summarizePart,
   toGcode,
   type BoardSpec,
@@ -26,7 +27,7 @@ import {
 import * as Comlink from 'comlink';
 // Lazy: this worker only starts when a model is opened, and occt only loads the wasm on the first STEP file.
 import occtWasmUrl from 'occt-import-js/dist/occt-import-js.wasm?url';
-import type { BoardRequest, BodyMesh, CamPartInfo, ModelImport, OpSummary, Outline2D, PlanResult } from '../cam/camTypes';
+import type { BoardRequest, BodyMesh, CamPartInfo, ModelImport, OpSummary, Outline2D, PlanResult, TabRemovalResult } from '../cam/camTypes';
 
 /** Parts of the models imported in this worker, by model key, so generating G-code needs no re-import. */
 const models = new Map<string, Map<string, { part: FlatPart; features: PartFeatures }>>();
@@ -91,32 +92,37 @@ const api = {
   async generate(key: string, partId: string, settings: Partial<CamSettings>): Promise<PlanResult> {
     const { part, features } = loaded(key, partId);
     const cam = camPart(features, settings);
-    return summarize(cam, toGcode(cam, { partName: part.name, stockSize: part.size }), part.size, settings);
+    return summarize(cam, part.name, part.size, settings);
+  },
+
+  /** After cutting a board with tabs: a program that stops before each tab, then cuts through it. */
+  async generateTabRemoval(key: string, board: BoardRequest, settings: Partial<CamSettings>): Promise<TabRemovalResult> {
+    const cam = camBoard(boardSpec(key, board), settings);
+    const feed = (settings.feed ?? 1800) * (settings.finalFeedFactor ?? 0.5);
+    const { cam: removal, tabs } = tabRemovalProgram(cam, { feed, plungeFeed: settings.plungeFeed ?? 480 });
+    const gcode = toGcode(removal, { partName: `Board ${board.name}: tab removal`, stockSize: [board.w, board.h, board.stockTop] });
+    return { gcode, tabs, timeMin: metrics(readGcode(gcode), cam.stockTop).timeMin };
   },
 
   /** One program for a whole board: its parts at their nested positions, operations grouped by bit. */
   async generateBoard(key: string, board: BoardRequest, settings: Partial<CamSettings>): Promise<PlanResult> {
-    const spec: BoardSpec = {
-      ...board,
-      tabs: { ...DEFAULT_TABS, ...board.tabs },
-      parts: board.parts.map(p => {
-        const { part, features } = loaded(key, p.partId);
-        return { id: p.id, name: p.name, features, size: part.size, x: p.x, y: p.y, rotated: p.rotated };
-      }),
-    };
+    const spec = boardSpec(key, board);
     const cam = camBoard(spec, settings);
     const size: [number, number, number] = [board.w, board.h, board.stockTop];
-    const result = summarize(cam, toGcode(cam, { partName: `Board ${board.name}`, stockSize: size }), size, settings, board.thickness);
-    const programs = splitByBit(cam);
-    if (programs.length > 1)
-      result.programs = programs.map(p => {
-        const tool = p.operations[0].tool;
-        const gcode = toGcode(p, { partName: `Board ${board.name}, bit T${tool.number} D=${tool.diameter}`, stockSize: size });
-        return { tool: tool.number, diameter: tool.diameter, gcode, timeMin: metrics(readGcode(gcode), cam.stockTop).timeMin };
-      });
-    return result;
+    return summarize(cam, `Board ${board.name}`, size, settings, board.thickness);
   },
 };
+
+function boardSpec(key: string, board: BoardRequest): BoardSpec {
+  return {
+    ...board,
+    tabs: { ...DEFAULT_TABS, ...board.tabs },
+    parts: board.parts.map(p => {
+      const { part, features } = loaded(key, p.partId);
+      return { id: p.id, name: p.name, features, size: part.size, x: p.x, y: p.y, rotated: p.rotated };
+    }),
+  };
+}
 
 function loaded(key: string, partId: string) {
   const entry = models.get(key)?.get(partId);
@@ -143,13 +149,24 @@ const label = (name: string, top: number) => {
 
 /** Per-operation numbers, safety rules and a preview of a generated program. */
 /** `partTop`: the parts' top face, which pocket depths are measured from (the stock may be thicker). */
+/**
+ * Per-operation numbers, safety rules and a preview of a generated job, as one program per bit (FluidNC can't zero
+ * Z during a pause, so bits are swapped between programs). `partTop`: the parts' top face, which pocket depths are
+ * measured from (the stock may be thicker).
+ */
 function summarize(
   cam: PartCam,
-  gcode: string,
+  name: string,
   size: [number, number, number],
   settings: Partial<CamSettings>,
   partTop = cam.stockTop
 ): PlanResult {
+  const split = splitByBit(cam);
+  const programs = split.map(p => {
+    const tool = p.operations[0].tool;
+    const gcode = toGcode(p, { partName: split.length > 1 ? `${name}, bit T${tool.number} D=${tool.diameter}` : name, stockSize: size });
+    return { tool: tool.number, diameter: tool.diameter, gcode, timeMin: metrics(readGcode(gcode), cam.stockTop).timeMin };
+  });
   const one = (ops: typeof cam.operations) => metrics(readGcode(toGcode({ ...cam, operations: ops })), cam.stockTop);
   const ops: OpSummary[] = cam.operations.map(op => {
     const zs = op.passes.flatMap(p => p.pts.map(q => q[2]));
@@ -167,30 +184,25 @@ function summarize(
       timeMin: one([op]).timeMin,
     };
   });
-  const moves = readGcode(gcode);
-  const safety = checkGcodeSafety(gcode, {
-    stockTop: cam.stockTop,
-    size: [size[0], size[1]],
-    minZ: settings.finalZ ?? -0.3,
-    toolRadius: Math.max(0, ...cam.operations.map(o => o.tool.diameter / 2)),
-  }).map(i => i.message);
+  const safety = programs.flatMap(p =>
+    checkGcodeSafety(p.gcode, {
+      stockTop: cam.stockTop,
+      size: [size[0], size[1]],
+      minZ: settings.finalZ ?? -0.3,
+      toolRadius: p.diameter / 2,
+    }).map(i => i.message)
+  );
+  // The whole job, for the preview and the totals.
+  const moves = programs.flatMap(p => readGcode(p.gcode));
   return {
-    gcode,
-    timeMin: metrics(moves, cam.stockTop).timeMin,
+    gcode: programs.map(p => p.gcode).join('\n'),
+    timeMin: programs.reduce((t, p) => t + p.timeMin, 0),
     warnings: cam.warnings,
     safety,
     ops,
     bits: boardBits(cam),
-    programs: [
-      {
-        tool: cam.operations[0]?.tool.number ?? 1,
-        diameter: cam.operations[0]?.tool.diameter ?? 0,
-        gcode,
-        timeMin: metrics(moves, cam.stockTop).timeMin,
-      },
-    ],
+    programs,
     size,
-    // Cutting moves inside the stock, for the preview.
     path: moves.filter(m => !m.rapid && Math.min(m.from[2], m.to[2]) < cam.stockTop - 1e-3).map(m => [m.from, m.to]),
   };
 }

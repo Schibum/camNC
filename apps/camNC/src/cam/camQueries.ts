@@ -54,7 +54,7 @@ export function useCamModel(job: CamJobV1 | null | undefined) {
   });
 }
 
-const modelKey = (job: CamJobV1) => `${job.id}:${job.fileName}`;
+export const modelKey = (job: CamJobV1) => `${job.id}:${job.fileName}`;
 
 /** Toolpaths + G-code of one part with the job's plan settings; recomputed (~0.3s) when they change. */
 export function useCamPlan(job: CamJobV1 | null | undefined, partId: string | undefined, modelReady: boolean) {

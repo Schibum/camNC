@@ -4,6 +4,7 @@ import type { PartFeatures } from './features';
 import { fitArcs, toGcode } from './gcode';
 import { difference } from './geom';
 import { checkGcodeSafety } from './safety';
+import { splitByBit } from './board';
 import { camPart, DEFAULT_TABS, type Tool } from './toolpaths';
 
 function segDist(a: number[], b: number[], x: number, y: number) {
@@ -71,7 +72,7 @@ describe('spike 3/4: toolpaths + gcode', () => {
     expect(raised).toBeGreaterThanOrEqual(3 * 2);
   });
 
-  it('uses a smaller bit for a slot the big one cannot enter, smallest first with an M0 bit swap', () => {
+  it('uses a smaller bit for a slot the big one cannot enter, smallest first, one program per bit', () => {
     const f = board();
     const slot = rect(100, 20, 180, 23.1); // 3.1mm wide knife slot
     f.levels.push({ z: 2, region: [slot], area: 80 * 3.1 });
@@ -89,9 +90,13 @@ describe('spike 3/4: toolpaths + gcode', () => {
       'Hole 1 T1',
       'Outline 1 T1',
     ]);
-    const gcode = toGcode(cam);
-    expect(gcode).toContain('M0 (MSG Insert T3 D=3, turn ON spindle 15000RPM)');
-    expect(gcode).toMatch(/M0 \(MSG Spindle OFF. Change to T1 D=3.175/);
+    // FluidNC can't zero Z during a pause: no bit swap inside a program.
+    expect(() => toGcode(cam)).toThrow(/One program per bit/);
+    const programs = splitByBit(cam).map(p => toGcode(p));
+    expect(programs).toHaveLength(2);
+    expect(programs[0]).toMatch(/^\(  T3 D=3 /m);
+    expect(programs[1]).toMatch(/^\(  T1 D=3.175 /m);
+    for (const g of programs) expect(g.match(/^M0 /gm)).toEqual(['M0 ']);
   });
 
   it('leaves no strip in the middle of a pocket with a stepover above half the bit', () => {
