@@ -150,6 +150,17 @@ export function holdState(cam: PartCam, board: { w: number; h: number }, opts: H
       polyArea(union(difference(piece, difference(piece, edge)), [])) > 1e-6 ||
       (opts.anchors && polyArea(difference(piece, difference(piece, opts.anchors))) > 1e-6)
   );
-  const held = (p: P2) => anchored.some(piece => inside(p, piece));
+  // Many spots are asked about (every tab candidate): a bounding box per piece rules most of them out cheaply.
+  const boxes = anchored.map(piece => {
+    const pts = piece.flat();
+    return {
+      piece,
+      x0: Math.min(...pts.map(q => q.x)),
+      y0: Math.min(...pts.map(q => q.y)),
+      x1: Math.max(...pts.map(q => q.x)),
+      y1: Math.max(...pts.map(q => q.y)),
+    };
+  });
+  const held = (p: P2) => boxes.some(b => p.x >= b.x0 && p.x <= b.x1 && p.y >= b.y0 && p.y <= b.y1 && inside(p, b.piece));
   return { parts, held };
 }

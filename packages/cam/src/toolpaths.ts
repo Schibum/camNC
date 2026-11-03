@@ -794,6 +794,9 @@ export function placeTabs(loop: Loop, tabs: TabSettings, tool: Tool): { x: numbe
  * Outline profile: roughing passes down to `profileRoughBottom` leaving `leaveStock`, then one final pass at full
  * size down to `finalZ` at reduced feed. `inside` = through hole (tool inside the loop).
  */
+/** profileOperation's bit loops per shape (and bit radius, allowance, direction). */
+const loopCache = new WeakMap<PathD, Map<string, { rough: Loop; final: Loop } | null>>();
+
 export function profileOperation(name: string, loopShape: PathD, topZ: number, tool: Tool, s: CamSettings, inside = false): Operation {
   const r = tool.diameter / 2;
   const sign = inside ? -1 : 1;
@@ -806,12 +809,21 @@ export function profileOperation(name: string, loopShape: PathD, topZ: number, t
     const wantCcw = inside === s.climb;
     return ccw === wantCcw ? p : [...p].reverse();
   };
-  const finalRaw = one(offset(shape, sign * r));
-  const roughRaw = one(offset(shape, sign * (r + s.leaveStock)));
+  // The bit's loops around the shape: the costly part (Clipper offsets), the same for the board's tab plan and its
+  // program, so kept per shape.
+  const key = `${sign}:${r}:${s.leaveStock}:${s.climb}`;
+  let loops = loopCache.get(loopShape)?.get(key);
+  if (!loops) {
+    const finalRaw = one(offset(shape, sign * r));
+    const roughRaw = one(offset(shape, sign * (r + s.leaveStock)));
+    const rough = roughRaw && rotateToLongestEdge(orient(roughRaw));
+    loops = rough && finalRaw ? { rough, final: rotateToNearest(orient(finalRaw), rough[0]) } : null;
+    if (!loopCache.has(loopShape)) loopCache.set(loopShape, new Map());
+    loopCache.get(loopShape)!.set(key, loops);
+  }
   const passes: Pass[] = [];
-  if (!finalRaw || !roughRaw) return { name, kind: 'profile', feature: inside ? 'hole' : 'outline', tool, passes };
-  const rough = rotateToLongestEdge(orient(roughRaw));
-  const final = rotateToNearest(orient(finalRaw), rough[0]);
+  if (!loops) return { name, kind: 'profile', feature: inside ? 'hole' : 'outline', tool, passes };
+  const { rough, final } = loops;
 
   // A bottom skin (outlines only): the final pass stops there, and roughing never goes below it.
   const floorZ = inside ? s.finalZ : (s.outlineFloor ?? s.finalZ);
@@ -846,6 +858,24 @@ function uncutArea(region: PathsD, r: number) {
  * All operations for one flat board. Each feature uses the largest tool that fits; operations are ordered smallest
  * tool first, inner features (pockets high to low, then holes) before the outline.
  */
+/**
+ * Only what cuts through: a part's through holes and outlines, no tabs (for the board's tab plan, which needs to know
+ * what stock is left, not the pockets).
+ */
+export function throughCuts(features: PartFeatures, settings: Partial<CamSettings> = {}): Operation[] {
+  const s: CamSettings = { ...DEFAULT_SETTINGS, ...settings, tabs: false, outlineFloor: undefined };
+  const top = Math.max(s.stockTop ?? 0, features.levels[0]?.z ?? features.thickness);
+  const tools = [...s.tools].sort((a, b) => b.diameter - a.diameter);
+  const fits = (region: PathsD) => (t: Tool) => offset(region, -t.diameter / 2).length > 0;
+  return [
+    ...features.throughHoles.flatMap((h, i) => {
+      const tool = tools.find(fits([h]));
+      return tool ? [profileOperation(`Hole ${i + 1}`, h, top, tool, s, true)] : [];
+    }),
+    ...features.outlines.map((o, i) => profileOperation(`Outline ${i + 1}`, o, top, tools[0], s)),
+  ];
+}
+
 export function camPart(features: PartFeatures, settings: Partial<CamSettings> = {}): PartCam {
   const s: CamSettings = { ...DEFAULT_SETTINGS, ...settings };
   const top = Math.max(s.stockTop ?? 0, features.levels[0]?.z ?? features.thickness);

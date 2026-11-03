@@ -1,7 +1,7 @@
 import { pointInPolygonD, PointInPolygonResult } from 'clipper2-ts';
-import { camBoard, partToBoard, type BoardPart, type BoardSpec } from './board';
+import { partToBoard, type BoardPart, type BoardSpec } from './board';
 import { holdState } from './hold';
-import { camPart, DEFAULT_TABS, type CamSettings, type Operation, type PartCam, type TabSettings } from './toolpaths';
+import { DEFAULT_TABS, throughCuts, type CamSettings, type Operation, type PartCam, type TabSettings } from './toolpaths';
 
 type P2 = { x: number; y: number };
 
@@ -38,13 +38,22 @@ export function planTabs(
   const tabs: TabSettings = { ...DEFAULT_TABS, ...board.tabs };
   const minTabs = opts.minTabs ?? 2;
   const stockTop = board.stockTop ?? board.thickness;
-  // Every outline cut through, no tabs: what stock is left to hold on to.
-  const open = camBoard({ ...board, holdDown: 'fixture-tape', rotationDeg: 0, dowels: undefined }, settings);
-  const { held } = holdState(open, board, opts);
+  // Every outline and hole cut through, no tabs: what stock is left to hold on to. Only the through cuts matter, so
+  // this is far cheaper than the board's program.
+  const cuts = new Map(
+    board.parts.map(part => [
+      part.id,
+      throughCuts(part.features, { ...settings, stockTop }).map(op => ({
+        ...op,
+        name: `${part.name}: ${op.name}`,
+        passes: op.passes.map(p => ({ ...p, pts: p.pts.map(q => partToBoard(part, q)) })),
+      })),
+    ])
+  );
+  const { held } = holdState({ stockTop, operations: [...cuts.values()].flat(), warnings: [] }, board, opts);
   const out = new Map<string, PartHolding>();
   for (const part of board.parts) {
-    const cam = camPart(part.features, { ...settings, tabs: false, stockTop });
-    const outline = cam.operations.find(o => o.feature === 'outline');
+    const outline = cuts.get(part.id)!.find(o => o.feature === 'outline');
     const final = outline?.passes.at(-1);
     const fallback = part.tabFallback ?? board.tabFallback ?? 'skin';
     if (!outline || !final) {
@@ -52,7 +61,7 @@ export function planTabs(
       continue;
     }
     const r = outline.tool.diameter / 2;
-    const loop = final.pts.map(q => partToBoard(part, q)).map(q => ({ x: q[0], y: q[1] }));
+    const loop = final.pts.map(q => ({ x: q[0], y: q[1] }));
     const shape = part.features.outlines.map(l => l.map(q => partToBoard(part, [q.x, q.y, 0])).map(q => ({ x: q[0], y: q[1] })));
     const insidePart = (p: P2) => shape.some(l => pointInPolygonD(p, l) === PointInPolygonResult.IsInside);
     // Not where the pass starts and ends: a tab across that seam would be cut in two.
