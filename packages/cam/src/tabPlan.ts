@@ -1,7 +1,16 @@
 import { holdOptionsOf, partToBoard, type BoardPart, type BoardSpec } from './board';
 import type { TurnedOver } from './flip';
 import { holdState, layerAcross, tabWhole } from './hold';
-import { DEFAULT_TABS, throughCuts, type CamSettings, type Operation, type PartCam, type TabSettings } from './toolpaths';
+import {
+  DEFAULT_TABS,
+  throughCuts,
+  type CamSettings,
+  type Operation,
+  type PartCam,
+  type Pass,
+  type TabSettings,
+  type Tool,
+} from './toolpaths';
 
 type P2 = { x: number; y: number };
 
@@ -342,12 +351,12 @@ export function boardToPart(p: Pick<BoardPart, 'x' | 'y' | 'rotated' | 'size'>, 
 /**
  * After cutting a board with bottom-skin parts: frees them one at a time (`pause` false, for a taped board: all of
  * them in one go, smallest first, no pauses). For each, the bit cuts the skin along the
- * outline at the final depth (and once more, light), goes up, stops the spindle and pauses: "Take out <part>". The
- * spindle starts again before the next part; nothing moves while paused.
+ * outline at the final depth, goes up, stops the spindle and pauses: "Take out <part>". The spindle starts again before
+ * the next part; nothing moves while paused. A skin deeper than the bit's `stepdown` is cut in several laps.
  */
 export function freePartsProgram(
   cam: PartCam,
-  opts: { feed: number; plungeFeed: number; finalZ: number; turned?: TurnedOver; pause?: boolean }
+  opts: { feed: number; plungeFeed: number; finalZ: number; turned?: TurnedOver; pause?: boolean; stepdown?: (tool: Tool) => number }
 ): { cam: PartCam; parts: { name: string; at: P2 }[] } {
   const turned = opts.turned;
   const pause = opts.pause ?? true;
@@ -370,17 +379,24 @@ export function freePartsProgram(
     // Turned over after side B, the skin is on top now: from the new top through it, as far past it as finalZ goes below
     // the bottom. Mirrored, the path runs the other way round: reversed, the bit cuts the same way as before.
     const skin = Math.min(...final.pts.map(q => q[2]));
-    const pts = turned
-      ? [...final.pts].reverse().map(q => [q[0], turned.h - q[1], cam.stockTop - skin + opts.finalZ] as [number, number, number])
-      : final.pts.map(q => [q[0], q[1], opts.finalZ] as [number, number, number]);
-    const feeds = pts.map((_, k) => (k === 0 ? opts.plungeFeed : opts.feed));
+    const bottom = turned ? cam.stockTop - skin + opts.finalZ : opts.finalZ;
+    const depth = skin - opts.finalZ;
+    const laps = Math.max(1, Math.ceil(depth / (opts.stepdown?.(op.tool) ?? depth) - 1e-6));
+    const passes: Pass[] = Array.from({ length: laps }, (_, lap) => {
+      const z = bottom + (depth * (laps - 1 - lap)) / laps;
+      const pts = turned
+        ? [...final.pts].reverse().map(q => [q[0], turned.h - q[1], z] as [number, number, number])
+        : final.pts.map(q => [q[0], q[1], z] as [number, number, number]);
+      return { pts, feeds: pts.map((_, k) => (k === 0 ? opts.plungeFeed : opts.feed)), link: lap ? 'direct' : 'retract' };
+    });
+    const pts = passes[0].pts;
     ops.push({
       name: pause ? `${name}: Free from the skin` : `${name}: Cut free`,
       kind: 'profile',
       feature: 'outline',
       tool: op.tool,
-      // One lap through the skin: finalZ already goes past the bottom, a second lap at the same depth cuts nothing.
-      passes: [{ pts, feeds, link: 'retract' }],
+      // Through the skin once: finalZ already goes past the bottom, a second lap at the same depth cuts nothing.
+      passes,
       ...(pause && { pauseAfter: `Take out ${name}, then continue` }),
     });
     const xs = pts.map(q => q[0]),

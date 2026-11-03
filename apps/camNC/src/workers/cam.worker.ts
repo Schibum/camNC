@@ -2,6 +2,7 @@ import {
   boardBits,
   camBoard,
   camPart,
+  DEFAULT_SETTINGS,
   DEFAULT_TABS,
   checkGcodeSafety,
   checkProgramSafety,
@@ -27,6 +28,7 @@ import {
   metrics,
   readGcode,
   splitByBit,
+  stepdownFor,
   tabRemovalProgram,
   usesTabs,
   summarizePart,
@@ -253,7 +255,14 @@ function releasePrograms(flat: PartCam, board: BoardRequest, settings: Partial<C
   const rotationDeg = sideRotation(board, turned);
   const turn = rotateAboutOrigin(rotationDeg);
   if (flat.holding?.some(h => h.how === 'skin')) {
-    const program = freePartsProgram(flat, { feed, plungeFeed, finalZ, ...flipped, pause: !taped }); // Taped down: nothing to take out in between.
+    const program = freePartsProgram(flat, {
+      feed,
+      plungeFeed,
+      finalZ,
+      ...flipped,
+      pause: !taped, // Taped down: nothing to take out in between.
+      stepdown: t => stepdownFor(t, { ...DEFAULT_SETTINGS, ...settings }),
+    });
     add(
       'free',
       taped ? 'Cut free' : 'Free the parts',

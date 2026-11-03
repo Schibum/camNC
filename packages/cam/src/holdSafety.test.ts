@@ -400,3 +400,39 @@ describe('held by points', () => {
     expect(heldByPoints([pair[0], pair[0]], c, rect(0, 0, 500, 10))).toBe(false);
   });
 });
+
+describe('freeing a skin', () => {
+  const board = (skin: number): BoardSpec => ({
+    id: 'b',
+    name: 'B',
+    w: 300,
+    h: 200,
+    thickness: 18,
+    holdDown: 'skin',
+    skin,
+    parts: [{ id: 'p', name: 'p', features: plain(200, 100), size: [200, 100, 18], x: 40, y: 40, rotated: false }],
+  });
+  const stepdown = () => 1.6;
+
+  it('a skin deeper than the bit may cut goes in laps, not one', () => {
+    const cam = camBoard(board(5), {});
+    const free = freePartsProgram(cam, { feed: 900, plungeFeed: 300, finalZ: -0.3, stepdown });
+    const zs = free.cam.operations[0].passes.map(p => p.pts[0][2]);
+    expect(zs).toHaveLength(4);
+    expect(zs.at(-1)).toBeCloseTo(-0.3, 6);
+    const steps = [5, ...zs].slice(1).map((z, i) => [5, ...zs][i] - z);
+    for (const s of steps) expect(s).toBeLessThanOrEqual(1.6 + 1e-6);
+    expect(free.cam.operations[0].passes.slice(1).every(p => p.link === 'direct')).toBe(true);
+    // The usual skin: one lap.
+    expect(freePartsProgram(camBoard(board(1), {}), { feed: 900, plungeFeed: 300, finalZ: -0.3, stepdown }).cam.operations[0].passes).toHaveLength(1); // prettier-ignore
+  });
+
+  it('turned over, the laps go down from the new top to just past the skin', () => {
+    const cam = camBoard(board(5), {});
+    const free = freePartsProgram(cam, { feed: 900, plungeFeed: 300, finalZ: -0.3, stepdown, turned: { h: 200 } });
+    const zs = free.cam.operations[0].passes.map(p => p.pts[0][2]);
+    expect(zs).toHaveLength(4);
+    expect(zs.at(-1)).toBeCloseTo(18 - 5 - 0.3, 6);
+    expect(18 - zs[0]).toBeLessThanOrEqual(1.6 + 1e-6);
+  });
+});

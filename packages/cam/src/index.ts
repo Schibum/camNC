@@ -10,6 +10,7 @@ export {
   DEFAULT_SETTINGS,
   DEFAULT_TABS,
   DEFAULT_TOOL,
+  stepdownFor,
   MATERIALS,
 } from './toolpaths';
 export type { CamSettings, Tool, Material, TabSettings, Operation, Pass, PartCam } from './toolpaths';
