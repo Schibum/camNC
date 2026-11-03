@@ -13,6 +13,8 @@ export default defineConfig({
       instances: [{ browser: 'chromium', launch: { args: ['--use-mock-keychain', '--password-store=basic'] } }],
     },
   },
+  // Pre-bundled up front: optimizing these on the fly reloads the test page mid-run (flaky CI timeouts).
+  optimizeDeps: { include: ['@wbcnc/video-worker-utils > three', 'react-device-detect'] },
   server: {
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
