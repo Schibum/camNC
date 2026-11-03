@@ -178,7 +178,11 @@ export function spacingProblem(board: BoardV1, nest: { gap: number; margin: numb
  */
 export function edgeNote(board: BoardV1, nest: { gap: number; margin: number }, bit: number): string | null {
   if (nest.margin >= bit) return null;
-  return `Board ${board.name}: the outline cuts run past the board edge (${nest.margin} mm margin, ⌀${bit} bit). Fine if nothing is clamped or screwed there.`;
+  const past = `Board ${board.name}: the outline cuts run past the board edge (${nest.margin} mm margin, ⌀${bit} bit).`;
+  // Held by screws or clamps: the hold check blocks the job if the bit would hit one of them.
+  return boardHoldOf(board) === 'points'
+    ? `${past} Keep screws and clamps clear of it: the job is blocked if the bit would hit one.`
+    : `${past} Fine if nothing is clamped or screwed there.`;
 }
 /** Boards are bought a little thicker than the parts: cutting starts at thickness + this unless measured. */
 export const kStockAllowance = 0.3;

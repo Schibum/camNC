@@ -405,13 +405,20 @@ describe('boards', () => {
     });
 
     it('an edge margin narrower than the bit is a note, not a problem: the cut runs past the edge, into air', () => {
-      const edge = { ...stock, margin: 2, gap: 8 };
+      const edge: BoardV1 = { ...stock, margin: 2, gap: 8, frame: false, boardHold: 'points', holdDown: 'tabs' };
       const nest = nestBoard(edge, sides, 6);
+      expect(nest.margin).toBe(2);
       expect(spacingProblem(edge, nest, 6)).toBeNull();
+      // Screwed or clamped down: they must stay clear (the hold check blocks the job if the bit would hit one).
       expect(edgeNote(edge, nest, 6)).toBe(
+        'Board A: the outline cuts run past the board edge (2 mm margin, ⌀6 bit). Keep screws and clamps clear of it: the job is blocked if the bit would hit one.'
+      );
+      expect(edgeNote({ ...edge, boardHold: 'tape' }, nest, 6)).toBe(
         'Board A: the outline cuts run past the board edge (2 mm margin, ⌀6 bit). Fine if nothing is clamped or screwed there.'
       );
       expect(edgeNote(edge, nest, 2)).toBeNull();
+      // The frame (the default) would leave no room for both sides on this 600 x 300 board: it's left off, and said so.
+      expect(nestBoard({ ...edge, frame: undefined }, sides, 6)).toMatchObject({ frame: 'no-room', margin: 2 });
     });
   });
 
