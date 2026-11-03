@@ -104,6 +104,8 @@ export interface Pass {
 export interface Operation {
   name: string;
   kind: 'pocket' | 'profile';
+  /** What it cuts: board programs put inner features (pockets, holes) before outlines. */
+  feature: 'pocket' | 'hole' | 'outline';
   tool: Tool;
   passes: Pass[];
 }
@@ -446,7 +448,7 @@ export function pocketOperation(
       }
     }
   }
-  return { name, kind: 'pocket', tool, passes };
+  return { name, kind: 'pocket', feature: 'pocket', tool, passes };
 }
 
 /** Tab intervals (arc length along `loop`) centered on the given points. */
@@ -566,7 +568,7 @@ export function profileOperation(name: string, loopShape: PathD, topZ: number, t
   const finalRaw = one(offset(shape, sign * r));
   const roughRaw = one(offset(shape, sign * (r + s.leaveStock)));
   const passes: Pass[] = [];
-  if (!finalRaw || !roughRaw) return { name, kind: 'profile', tool, passes };
+  if (!finalRaw || !roughRaw) return { name, kind: 'profile', feature: inside ? 'hole' : 'outline', tool, passes };
   const rough = rotateToLongestEdge(orient(roughRaw));
   const final = rotateToNearest(orient(finalRaw), rough[0]);
 
@@ -588,7 +590,7 @@ export function profileOperation(name: string, loopShape: PathD, topZ: number, t
       passes[i] = applyTabs(p, tabIntervals(p.pts, centers, half), s.tabs.height);
     }
   }
-  return { name, kind: 'profile', tool, passes };
+  return { name, kind: 'profile', feature: inside ? 'hole' : 'outline', tool, passes };
 }
 
 /** Uncut area left in inside corners / narrow spots of a region for a tool of radius r. */

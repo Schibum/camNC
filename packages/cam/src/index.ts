@@ -24,3 +24,7 @@ export { parseFusionToolLibrary } from './tools';
 export type { LibraryTool } from './tools';
 export { checkGcodeSafety } from './safety';
 export type { SafetyIssue, SafetyLimits } from './safety';
+export { nestRects, clampKeepOuts, placedSize } from './nest';
+export type { Rect, NestItem, NestOptions, NestResult, Placement } from './nest';
+export { camBoard, boardBits, orderBoardQueue, partToBoard, usesTabs } from './board';
+export type { BoardPart, BoardSpec, HoldDown } from './board';
