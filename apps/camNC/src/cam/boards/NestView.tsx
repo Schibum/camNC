@@ -31,6 +31,7 @@ export function NestView({
   tabHeight,
   selectedPart,
   className,
+  onPartPointerDown,
 }: {
   nest: BoardNest;
   instances: PartInstance[];
@@ -39,6 +40,8 @@ export function NestView({
   tabHeight?: number;
   selectedPart?: string | null;
   className?: string;
+  /** Start dragging a body (instance id) to another board. */
+  onPartPointerDown?: (item: string, e: React.PointerEvent) => void;
 }) {
   const { w, h } = nest.board;
   const pad = Math.max(w, h) * 0.05;
@@ -75,7 +78,11 @@ export function NestView({
           const f = place(p, inst.size);
           const selected = inst.partId === selectedPart;
           return (
-            <g key={p.id}>
+            <g
+              key={p.id}
+              data-part={inst.name}
+              onPointerDown={onPartPointerDown && (e => onPartPointerDown(p.id, e))}
+              className={onPartPointerDown ? 'cursor-grab active:cursor-grabbing' : undefined}>
               <path
                 d={toD(part.shape.outlines, f)}
                 className={selected ? 'fill-violet-500/25 stroke-violet-500' : 'fill-amber-600/30 stroke-violet-400'}

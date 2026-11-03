@@ -1,18 +1,30 @@
 import { MATERIALS } from '@wbcnc/cam/settings';
 import { Button } from '@wbcnc/ui/components/button';
 import { Input } from '@wbcnc/ui/components/input';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@wbcnc/ui/components/dropdown-menu';
 import { cn } from '@wbcnc/ui/lib/utils';
-import { Plus, Trash2 } from 'lucide-react';
-import { useRef, useState } from 'react';
-import { kHoldDownLabels, type PartInstance, type StockBoardV1 } from '../boards';
+import { GripVertical, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { kHoldDownLabels, type BoardV1, type PartInstance, type StockBoardV1 } from '../boards';
 import type { PlanResult } from '../camTypes';
 import type { JobBoard } from '../useJobBoards';
-
-const kDragType = 'application/x-camnc-board-item';
+import { kDragType, useBoardDrag } from './boardDrag';
 
 const fmt = (v: number) => `${+v.toFixed(1)}`;
+const sameThickness = (a: number, b: number) => +a.toFixed(1) === +b.toFixed(1);
 
-/** Boards (drop targets) with their bodies (draggable chips), and the stock list. */
+/**
+ * Boards with their bodies, and the stock list. A body moves to another board of the same thickness by dragging its
+ * chip (or the part in the nest view) onto that board, or with its "Move to…" menu; dropping on "New board" splits it
+ * onto a board of its own.
+ */
 export function BoardList({
   boards,
   instances,
@@ -20,6 +32,7 @@ export function BoardList({
   selectedId,
   onSelect,
   onMove,
+  onNewBoard,
   stock,
   onStockChange,
 }: {
@@ -30,25 +43,37 @@ export function BoardList({
   onSelect: (id: string) => void;
   /** Move a body to another board; false if it can't go there (other thickness). */
   onMove: (itemId: string, boardId: string) => boolean;
+  /** Put a body on a new board of its thickness. */
+  onNewBoard: (itemId: string) => void;
   stock: StockBoardV1[];
   onStockChange: (stock: StockBoardV1[]) => void;
 }) {
   const byId = new Map(instances.map(i => [i.id, i]));
+  const drag = useBoardDrag();
   const [over, setOver] = useState<string | null>(null);
-  // The dragged body, in case the browser hides custom drag data (only text/plain is reliable everywhere).
-  const dragged = useRef<string | null>(null);
+  const dropped = (id: string | null, target: string | 'new') => {
+    drag.end();
+    setOver(null);
+    if (!id) return;
+    if (target === 'new') onNewBoard(id);
+    else onMove(id, target);
+  };
+  const lonely = boards.some(b => boards.filter(x => sameThickness(x.board.thickness, b.board.thickness)).length === 1);
   return (
     <aside className="flex min-h-0 flex-col gap-2.5 overflow-y-auto border-r p-4">
       <h2 className="text-[15px] font-semibold">Boards</h2>
       {boards.map(({ board, nest }, i) => {
         const bits = plans[i]?.bits ?? [];
+        const dragging = drag.item !== null && !board.items.includes(drag.item);
+        const fits = dragging && sameThickness(drag.thickness!, board.thickness);
         return (
           <section
             key={board.id}
             aria-label={`Board ${board.name}`}
+            data-board-drop={board.id}
             onClick={() => onSelect(board.id)}
             onDragOver={e => {
-              if (dragged.current || e.dataTransfer.types.includes(kDragType)) {
+              if (drag.item || e.dataTransfer.types.includes(kDragType)) {
                 e.preventDefault();
                 setOver(board.id);
               }
@@ -56,15 +81,14 @@ export function BoardList({
             onDragLeave={() => setOver(o => (o === board.id ? null : o))}
             onDrop={e => {
               e.preventDefault();
-              setOver(null);
-              const id = e.dataTransfer.getData(kDragType) || dragged.current;
-              dragged.current = null;
-              if (id) onMove(id, board.id);
+              dropped(e.dataTransfer.getData(kDragType) || drag.item, board.id);
             }}
             className={cn(
               'flex cursor-pointer flex-col gap-1.5 rounded-lg border border-transparent bg-muted/40 p-3 hover:bg-muted',
               board.id === selectedId && 'border-primary bg-muted',
-              over === board.id && 'ring-2 ring-primary'
+              fits && 'border-dashed border-primary',
+              dragging && !fits && 'opacity-50',
+              over === board.id && fits && 'ring-2 ring-primary'
             )}>
             <div className="flex justify-between gap-2">
               <span className="font-medium">
@@ -72,27 +96,26 @@ export function BoardList({
                 {fmt(board.thickness)} mm
               </span>
               <span className="font-mono text-xs text-muted-foreground">
-                {fmt(nest.board.w)} × {fmt(nest.board.h)}
+                {fits ? 'Drop here' : dragging ? 'different thickness' : `${fmt(nest.board.w)} × ${fmt(nest.board.h)}`}
               </span>
             </div>
             <div className="flex flex-wrap gap-1">
               {board.items.map(id => (
-                <span
+                <PartChip
                   key={id}
-                  draggable
-                  onDragStart={e => {
-                    dragged.current = id;
-                    e.dataTransfer.setData(kDragType, id);
-                    e.dataTransfer.effectAllowed = 'move';
+                  name={byId.get(id)?.name ?? id}
+                  unplaced={nest.unplaced.includes(id)}
+                  onDragStart={() => drag.start(id, byId.get(id)?.thickness ?? board.thickness)}
+                  onDragEnd={() => {
+                    drag.end();
+                    setOver(null);
                   }}
-                  onDragEnd={() => (dragged.current = null)}
-                  title="Drag onto another board of the same thickness"
-                  className={cn(
-                    'cursor-grab rounded-full bg-background px-2 py-0.5 text-xs ring-1 ring-border active:cursor-grabbing',
-                    nest.unplaced.includes(id) && 'text-destructive ring-destructive'
-                  )}>
-                  {byId.get(id)?.name ?? id}
-                </span>
+                  dragId={id}
+                  targets={boards
+                    .filter(b => b.board.id !== board.id && sameThickness(b.board.thickness, board.thickness))
+                    .map(b => b.board)}
+                  onMoveTo={target => (target === 'new' ? onNewBoard(id) : onMove(id, target))}
+                />
               ))}
               {!board.items.length && <span className="text-xs text-muted-foreground">Empty: drag parts here</span>}
             </div>
@@ -103,11 +126,92 @@ export function BoardList({
           </section>
         );
       })}
+      {drag.item && (
+        <div
+          data-new-board-drop
+          aria-label="New board"
+          onDragOver={e => {
+            e.preventDefault();
+            setOver('new');
+          }}
+          onDragLeave={() => setOver(o => (o === 'new' ? null : o))}
+          onDrop={e => {
+            e.preventDefault();
+            dropped(e.dataTransfer.getData(kDragType) || drag.item, 'new');
+          }}
+          className={cn(
+            'flex h-14 items-center justify-center gap-2 rounded-lg border-2 border-dashed text-sm text-muted-foreground',
+            over === 'new' && 'border-primary text-foreground'
+          )}>
+          <Plus className="size-4" /> Drop here for a new board
+        </div>
+      )}
       <p className="text-xs leading-relaxed text-muted-foreground">
-        Drag a part between boards to regroup. Parts only go on boards of the same thickness.
+        Drag a part (here or in the board view) onto another board of the same thickness, or use its ⋯ menu.
+        {lonely && ' To split parts onto another board: ⋯ › Move to › New board.'}
       </p>
       <StockList stock={stock} onChange={onStockChange} />
     </aside>
+  );
+}
+
+/** A body on a board: drag handle, name, and a "Move to…" menu as the non-drag way. */
+function PartChip({
+  name,
+  dragId,
+  unplaced,
+  targets,
+  onDragStart,
+  onDragEnd,
+  onMoveTo,
+}: {
+  name: string;
+  dragId: string;
+  unplaced: boolean;
+  targets: BoardV1[];
+  onDragStart: () => void;
+  onDragEnd: () => void;
+  onMoveTo: (board: string | 'new') => void;
+}) {
+  return (
+    <span
+      draggable
+      onDragStart={e => {
+        e.dataTransfer.setData(kDragType, dragId);
+        e.dataTransfer.effectAllowed = 'move';
+        onDragStart();
+      }}
+      onDragEnd={onDragEnd}
+      onClick={e => e.stopPropagation()}
+      title="Drag onto another board of the same thickness"
+      className={cn(
+        'inline-flex cursor-grab items-center gap-0.5 rounded-full bg-background py-0.5 pl-1 pr-0.5 text-xs ring-1 ring-border active:cursor-grabbing',
+        unplaced && 'text-destructive ring-destructive'
+      )}>
+      <GripVertical className="size-3 text-muted-foreground" aria-hidden />
+      {name}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            aria-label={`Move ${name}`}
+            className="ml-0.5 rounded-full px-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+            <MoreHorizontal className="size-3" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          <DropdownMenuLabel className="text-xs">Move {name} to</DropdownMenuLabel>
+          {targets.map(b => (
+            <DropdownMenuItem key={b.id} onSelect={() => onMoveTo(b.id)}>
+              Board {b.name}
+            </DropdownMenuItem>
+          ))}
+          {targets.length > 0 && <DropdownMenuSeparator />}
+          <DropdownMenuItem onSelect={() => onMoveTo('new')}>
+            <Plus className="size-3" /> New board
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </span>
   );
 }
 

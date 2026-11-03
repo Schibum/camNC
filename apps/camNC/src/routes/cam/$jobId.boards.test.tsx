@@ -59,12 +59,32 @@ describe('CAM boards step', () => {
     drag(within(screen.getByRole('region', { name: 'Board B' })).getByText('back'), screen.getByRole('region', { name: 'Board A' }));
     expect(toastError).toHaveBeenCalledWith(expect.stringContaining('3 mm thick'));
 
+    // Without dragging: ⋯ › Move to › New board.
+    fireEvent.pointerDown(within(screen.getByRole('region', { name: 'Board A' })).getByRole('button', { name: 'Move Part 3' }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    fireEvent.click(await screen.findByRole('menuitem', { name: /New board/ }));
+    await waitFor(() => expect(within(screen.getByRole('region', { name: 'Board D' })).getByText('Part 3')).toBeTruthy());
+
+    // From the board view: drag the left side onto board C (pointer events, so touch works too).
+    fireEvent.click(screen.getByRole('region', { name: 'Board A' }));
+    const left = await waitFor(() => document.querySelector<SVGGElement>('[data-part="left"]')!);
+    const target = screen.getByRole('region', { name: 'Board C' }).getBoundingClientRect();
+    fireEvent.pointerDown(left, { clientX: 10, clientY: 10, button: 0 });
+    // While dragging, compatible boards say so; the 3 mm board doesn't take it.
+    expect(within(screen.getByRole('region', { name: 'Board C' })).getByText('Drop here')).toBeTruthy();
+    expect(within(screen.getByRole('region', { name: 'Board B' })).getByText('different thickness')).toBeTruthy();
+    fireEvent.pointerUp(window, { clientX: target.x + target.width / 2, clientY: target.y + target.height / 2 });
+    await waitFor(() => expect(within(screen.getByRole('region', { name: 'Board C' })).getByText('left')).toBeTruthy());
+
     await waitFor(async () => {
       const saved = (await getJob(job.id))!.boards!;
       expect(saved.map(x => [x.name, x.items.length])).toEqual([
-        ['A', 4],
+        ['A', 2],
         ['B', 1],
-        ['C', 1],
+        ['C', 2],
+        ['D', 1],
       ]);
     });
 

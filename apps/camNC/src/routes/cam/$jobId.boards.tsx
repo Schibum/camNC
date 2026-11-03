@@ -3,6 +3,7 @@ import { autoFillFromStock, newBoard, type BoardV1 } from '@/cam/boards';
 import { BoardInspector } from '@/cam/boards/BoardInspector';
 import { BoardList } from '@/cam/boards/BoardList';
 import { NestView } from '@/cam/boards/NestView';
+import { dropTargetAt, useBoardDrag } from '@/cam/boards/boardDrag';
 import { useBoardPlans, useCamJob, useCamModel, useSaveCamJob } from '@/cam/camQueries';
 import { CamJobBar } from '@/cam/model/CamJobBar';
 import { kDefaultPlan } from '@/cam/planSettings';
@@ -84,6 +85,24 @@ function BoardsStep() {
     return true;
   };
 
+  // One board per thickness to start with: a new board, with the body on it.
+  const toNewBoard = (itemId: string) => {
+    const inst = byId.get(itemId);
+    const from = boards.find(b => b.board.items.includes(itemId))?.board;
+    if (!inst || !from) return;
+    const b = newBoard(
+      boards.map(x => x.board),
+      inst.thickness,
+      from.material,
+      [itemId]
+    );
+    saveBoards([
+      ...boards.map(({ board }) => ({ ...board, items: board.items.filter(i => i !== itemId) })),
+      { ...b, holdDown: from.holdDown, tabs: from.tabs },
+    ]);
+    setSelectedId(b.id);
+  };
+
   const autoFill = () => {
     const stock = job.stock ?? [];
     if (!stock.length) return toast.error('Add the boards you have to the stock list first.');
@@ -116,6 +135,7 @@ function BoardsStep() {
 
   return (
     <Shell bar={bar}>
+      <DragLabel names={new Map(instances.map(i => [i.id, i.name]))} />
       <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[320px_1fr_300px]">
         <BoardList
           boards={boards}
@@ -124,6 +144,7 @@ function BoardsStep() {
           selectedId={selected.board.id}
           onSelect={setSelectedId}
           onMove={move}
+          onNewBoard={toNewBoard}
           stock={job.stock ?? []}
           onStockChange={stock => save.mutate({ ...job, stock })}
         />
@@ -146,7 +167,11 @@ function BoardsStep() {
               parts={model.data.parts}
               plan={selectedPlan}
               tabHeight={tabHeight}
-              className="size-full"
+              className="size-full touch-none"
+              onPartPointerDown={(item, e) => {
+                const inst = byId.get(item);
+                if (inst) startPointerDrag(item, inst.thickness, e, { onMove: move, onNewBoard: toNewBoard });
+              }}
             />
             {plans[selectedIndex]?.isFetching && (
               <span className="absolute right-4 top-4 flex items-center gap-2 text-xs text-muted-foreground">
@@ -192,6 +217,44 @@ function BoardsStep() {
         />
       </div>
     </Shell>
+  );
+}
+
+/**
+ * Drag a part from the nest view (pointer events: mouse, pen and touch) onto a board card or the "new board" zone.
+ */
+function startPointerDrag(
+  item: string,
+  thickness: number,
+  e: React.PointerEvent,
+  on: { onMove: (item: string, board: string) => boolean; onNewBoard: (item: string) => void }
+) {
+  e.preventDefault();
+  const drag = useBoardDrag.getState();
+  drag.start(item, thickness, { x: e.clientX, y: e.clientY });
+  const move = (ev: PointerEvent) => useBoardDrag.getState().move({ x: ev.clientX, y: ev.clientY });
+  const up = (ev: PointerEvent) => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    useBoardDrag.getState().end();
+    const target = dropTargetAt(ev.clientX, ev.clientY);
+    if (target && 'board' in target) on.onMove(item, target.board);
+    else if (target) on.onNewBoard(item);
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+}
+
+/** The part's name following the pointer during a drag from the nest view. */
+function DragLabel({ names }: { names: Map<string, string> }) {
+  const { item, pos } = useBoardDrag();
+  if (!item || !pos) return null;
+  return (
+    <div
+      className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-full rounded-full bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground shadow"
+      style={{ left: pos.x, top: pos.y - 8 }}>
+      {names.get(item) ?? item}
+    </div>
   );
 }
 
