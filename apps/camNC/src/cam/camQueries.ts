@@ -131,7 +131,8 @@ export function useBoardPlans(
       last.current.set(id, r.data);
       return { ...r, isPlaceholderData: false };
     }
-    const shown = last.current.get(id);
+    // A failed one shows its error, not the program before it.
+    const shown = r.isError ? undefined : last.current.get(id);
     return shown ? { ...r, data: shown, isPlaceholderData: true } : r;
   });
 }

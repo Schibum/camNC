@@ -92,6 +92,7 @@ function PlanStep() {
     ...b,
     plan: plans[i].data,
     fetching: plans[i].isFetching,
+    error: plans[i].error,
     stale: plans[i].isPlaceholderData,
     bits: plans[i].data?.bits ?? [],
   }));
@@ -228,7 +229,12 @@ function PlanStep() {
             onLeaveOut={() => save.mutate({ ...job, plan: { ...settings, leaveOut: missing.map(m => m.id) } })}
           />
 
-          {!result ? (
+          {current.error && !result ? (
+            <p role="alert" className="flex gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3.5 text-[13px]">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
+              Board {current.board.name} couldn’t be planned: {current.error.message}
+            </p>
+          ) : !result ? (
             <div className="flex flex-1 items-center justify-center gap-2 text-muted-foreground">
               <LoadingSpinner className="size-4" /> Computing toolpaths…
             </div>

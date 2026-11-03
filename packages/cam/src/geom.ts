@@ -67,9 +67,68 @@ export function meshBounds(mesh: Mesh): { min: Vec3; max: Vec3 } {
 export const union = (a: PathsD, b: PathsD = []) => unionD(a, b, FillRule.NonZero, PRECISION);
 export const difference = (a: PathsD, b: PathsD) => differenceD(a, b, FillRule.NonZero, PRECISION);
 export const intersect = (a: PathsD, b: PathsD) => intersectD(a, b, FillRule.NonZero, PRECISION);
-/** Offset closed polygons; positive grows. Round joins, arc tolerance in mm. */
-export const offset = (paths: PathsD, delta: number, arcTol = 0.005) =>
-  inflatePathsD(paths, delta, JoinType.Round, EndType.Polygon, 2, PRECISION, arcTol);
+/**
+ * Offset closed polygons; positive grows. Round joins, arc tolerance in mm. Remembered by what it was asked
+ * (`offsetCache`): a board planned again with other feeds or stepdowns asks the same offsets of the same parts.
+ */
+export function offset(paths: PathsD, delta: number, arcTol = 0.005): PathsD {
+  const flat = new Float64Array(paths.reduce((n, p) => n + p.length * 2 + 1, 3));
+  let k = 0;
+  flat[k++] = delta;
+  flat[k++] = arcTol;
+  flat[k++] = paths.length;
+  for (const path of paths) {
+    flat[k++] = path.length;
+    for (const q of path) {
+      flat[k++] = q.x;
+      flat[k++] = q.y;
+    }
+  }
+  const key = hashFloats(flat);
+  const hit = offsetCache.get(key);
+  if (hit && sameFloats(hit.input, flat)) {
+    // (Its points stay counted.)
+    // Most recently used last.
+    offsetCache.delete(key);
+    offsetCache.set(key, hit);
+    return copyPaths(hit.output);
+  }
+  const output = inflatePathsD(paths, delta, JoinType.Round, EndType.Polygon, 2, PRECISION, arcTol);
+  const points = flat.length / 2 + output.reduce((n, p) => n + p.length, 0);
+  offsetCache.set(key, { input: flat, output: copyPaths(output), points });
+  cachedPoints += points;
+  // Oldest first, until it fits again.
+  while (cachedPoints > kOffsetCachePoints) {
+    const [oldest, entry] = offsetCache.entries().next().value!;
+    offsetCache.delete(oldest);
+    cachedPoints -= entry.points;
+  }
+  return output;
+}
+
+/** Points the remembered offsets may hold (inputs and outputs), ~100 MB: a few boards' worth. */
+const kOffsetCachePoints = 1_500_000;
+const offsetCache = new Map<string, { input: Float64Array; output: PathsD; points: number }>();
+let cachedPoints = 0;
+
+const copyPaths = (paths: PathsD): PathsD => paths.map(p => p.map(q => ({ x: q.x, y: q.y })));
+
+function hashFloats(a: Float64Array): string {
+  const words = new Uint32Array(a.buffer, a.byteOffset, a.length * 2);
+  let h1 = 0x811c9dc5,
+    h2 = 0x01000193;
+  for (let i = 0; i < words.length; i++) {
+    h1 = Math.imul(h1 ^ words[i], 0x01000193);
+    h2 = Math.imul(h2 ^ words[i], 0x5bd1e995) ^ (h2 >>> 15);
+  }
+  return `${a.length}:${(h1 >>> 0).toString(36)}:${(h2 >>> 0).toString(36)}`;
+}
+
+function sameFloats(a: Float64Array, b: Float64Array) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
 /** The parts of open polylines that lie inside `region` (closed polygons, holes included). */
 export function clipLines(lines: PathsD, region: PathsD): PathsD {
   const c = new ClipperD(PRECISION);
