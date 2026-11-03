@@ -70,15 +70,23 @@ export function planTabs(
     // Not where the pass starts and ends: a tab across that seam would be cut in two.
     const room = tabs.width + outline.tool.diameter;
     const seam = loop[0];
-    // Only on the part's outer edges (its convex hull), where a saw or flush trim bit gets at the tab afterwards: not in
-    // notches, slots or the inside of an L.
+    // Only where a saw, chisel or flush trim bit gets at the tab afterwards (`reachable`): not in notches, slots or the
+    // inside of a hook, but a long free edge set back from the part's hull is fine.
     const hull = convexHull(loop);
     const spots = candidates(loop, room, kCornerClear)
-      .filter(c => Math.hypot(c.at.x - seam.x, c.at.y - seam.y) > room && onHull(c.at, hull))
-      .map(c => ({ ...c, out: outward(c, r, ccw) }));
+      .filter(c => Math.hypot(c.at.x - seam.x, c.at.y - seam.y) > room)
+      .map(c => ({ ...c, out: outward(c, r, ccw) }))
+      .filter(c => reachable(c, loop, hull));
+    // Not on a thin finger (a hook, a tongue) when the part has sturdier spots: it flexes, and the part pivots about it.
+    const thick = new Map(spots.map(c => [c, widthBehind(c, loop, r)]));
+    const thickest = Math.max(0, ...thick.values());
+    const sturdy = spots.filter(c => thick.get(c)! >= Math.min(kThinFinger, thickest / 2));
     // Asked only of the spots tried (a part has a thousand), once each.
     const holds = new Map<Spot, boolean>();
-    const { tabs: picked, wanted } = pickTabs(spots, s => holds.get(s) ?? holds.set(s, held(s.out.far)).get(s)!, loop, tabs.minCount, room);
+    const hf = (s: Spot) => holds.get(s) ?? holds.set(s, held(s.out.far)).get(s)!;
+    const centre = centroid(loop);
+    let { tabs: picked, wanted } = pickTabs(sturdy, hf, loop, tabs.minCount, room, centre);
+    if (picked.length < minTabs) ({ tabs: picked, wanted } = pickTabs(spots, hf, loop, tabs.minCount, room, centre));
     out.set(
       part.id,
       picked.length >= minTabs
@@ -93,6 +101,10 @@ export function planTabs(
 const kCornerClear = 10;
 /** An edge this long gets two tabs, a shorter one one. */
 const kTwoTabEdge = 400;
+/** Less part than this behind a tab (mm, across it) is a thin finger, if the part is at least twice as wide elsewhere. */
+const kThinFinger = 40;
+/** A tool gets at a tab from this far either side of square to the edge, degrees. */
+const kReachFan = [0, -20, 20, -40, 40].map(d => (d * Math.PI) / 180);
 
 type Side = 'left' | 'right' | 'bottom' | 'top';
 type Spot = { at: P2; dir: P2; out: { far: P2; side: Side } };
@@ -109,27 +121,44 @@ function outward(c: { at: P2; dir: P2 }, r: number, ccw: boolean): { far: P2; si
 /**
  * A small, balanced set of tabs: on two opposite sides of the part (its long sides if both have spots that hold, else
  * its ends), one per side, two on sides of `kTwoTabEdge` mm or more, at least `minCount` in all; spread evenly along
- * each side, each the spot that holds nearest its place. A part held on one side only pivots about it on the last
- * pass: no opposite pair, no tabs (its fallback).
+ * each side, each the spot that holds nearest its place. The ends instead when the part's centre of mass would be
+ * outside the tabs on the long sides. A part held on one side only pivots about it on the last pass: no opposite pair,
+ * no tabs (its fallback).
  */
 function pickTabs(
   spots: Spot[],
   holds: (s: Spot) => boolean,
   loop: P2[],
   minCount: number,
-  minApart: number
+  minApart: number,
+  centre: P2
 ): { tabs: P2[]; wanted: number } {
   const xs = loop.map(p => p.x),
     ys = loop.map(p => p.y);
   const w = Math.max(...xs) - Math.min(...xs),
     h = Math.max(...ys) - Math.min(...ys);
-  const pairs: { sides: [Side, Side]; len: number; along: 'x' | 'y' }[] = [
+  const pairs: Pair[] = [
     { sides: ['bottom', 'top'], len: w, along: 'x' },
     { sides: ['left', 'right'], len: h, along: 'y' },
   ];
   pairs.sort((a, b) => b.len - a.len);
-  const pair = pairs.find(p => p.sides.every(s => spots.some(c => c.out.side === s && holds(c))));
-  if (!pair) return { tabs: [], wanted: minCount };
+  const usable = pairs.filter(p => p.sides.every(s => spots.some(c => c.out.side === s && holds(c))));
+  if (!usable.length) return { tabs: [], wanted: minCount };
+  // The long sides, unless the part's centre of mass ends up outside its tabs there (it tips about them) and the ends
+  // hold it better.
+  const tries = usable.map(pair => tabsOnPair(pair, spots, holds, minCount, minApart));
+  return tries.find(t => surrounds(t.tabs, centre)) ?? tries[0];
+}
+
+type Pair = { sides: [Side, Side]; len: number; along: 'x' | 'y' };
+
+function tabsOnPair(
+  pair: Pair,
+  spots: Spot[],
+  holds: (s: Spot) => boolean,
+  minCount: number,
+  minApart: number
+): { tabs: P2[]; wanted: number } {
   const per = pair.len >= kTwoTabEdge ? 2 : 1;
   const total = Math.max(minCount, 2 * per);
   const key = (p: P2) => p[pair.along];
@@ -164,6 +193,96 @@ function pickTabs(
   return { tabs: out, wanted: total };
 }
 
+/** The centre is inside the tabs' polygon (two tabs: a line, can't tell, so yes). */
+function surrounds(tabs: P2[], centre: P2): boolean {
+  if (tabs.length < 3) return true;
+  const hull = convexHull(tabs);
+  return hull.length >= 3 && inside(centre, hull);
+}
+
+/** Area centroid of a closed loop. */
+function centroid(loop: P2[]): P2 {
+  let a = 0,
+    x = 0,
+    y = 0;
+  for (let i = 0; i < loop.length; i++) {
+    const p = loop[i],
+      q = loop[(i + 1) % loop.length];
+    const c = p.x * q.y - q.x * p.y;
+    a += c;
+    x += (p.x + q.x) * c;
+    y += (p.y + q.y) * c;
+  }
+  return Math.abs(a) < 1e-9 ? loop[0] : { x: x / (3 * a), y: y / (3 * a) };
+}
+
+/** Point in polygon, by crossing parity. */
+function inside(p: P2, poly: P2[]): boolean {
+  let c = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i],
+      b = poly[j];
+    if (a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) c = !c;
+  }
+  return c;
+}
+
+/** How far along p + t·d (t > 0.5 mm, below max) the ray first crosses the loop; Infinity if it doesn't. */
+function rayHit(p: P2, d: P2, loop: P2[], max: number): number {
+  let best = Infinity;
+  for (let i = 1; i < loop.length; i++) {
+    const a = loop[i - 1],
+      b = loop[i];
+    const ex = b.x - a.x,
+      ey = b.y - a.y;
+    const den = d.x * ey - d.y * ex;
+    if (Math.abs(den) < 1e-12) continue;
+    const t = ((a.x - p.x) * ey - (a.y - p.y) * ex) / den;
+    const u = ((a.x - p.x) * d.y - (a.y - p.y) * d.x) / den;
+    if (t > 0.5 && t < Math.min(max, best) && u >= 0 && u <= 1) best = t;
+  }
+  return best;
+}
+
+/** Unit normal away from the part, from the spot's far point. */
+const awayFrom = (c: Spot): P2 => {
+  const n = { x: c.out.far.x - c.at.x, y: c.out.far.y - c.at.y };
+  const l = Math.hypot(n.x, n.y) || 1;
+  return { x: n.x / l, y: n.y / l };
+};
+
+/**
+ * A tool gets at the tab: lines from it, square to the edge and up to 40° either way, leave the part's hull without
+ * crossing the part again. A notch's floor or a slot between a hook and the body fails; a free edge that is set back
+ * passes.
+ */
+function reachable(c: Spot, loop: P2[], hull: P2[]): boolean {
+  const n = awayFrom(c);
+  return kReachFan.every(a => {
+    const d = { x: n.x * Math.cos(a) - n.y * Math.sin(a), y: n.x * Math.sin(a) + n.y * Math.cos(a) };
+    // How far until the line is out of the hull.
+    let far = 2;
+    while (far < 1000 && inside({ x: c.at.x + d.x * far, y: c.at.y + d.y * far }, hull)) far += 2;
+    return rayHit(c.at, d, loop, far) === Infinity;
+  });
+}
+
+/**
+ * The part's width behind the tab, mm: straight across to its other side, path to path less the bit both sides; the
+ * least of the tab's middle and `kWidthBand` mm either side along the edge, so a tab by the root of a finger counts
+ * as on it.
+ */
+function widthBehind(c: Spot, loop: P2[], r: number): number {
+  const n = awayFrom(c);
+  const l = Math.hypot(c.dir.x, c.dir.y) || 1;
+  return Math.min(
+    ...[-kWidthBand, 0, kWidthBand].map(
+      o => rayHit({ x: c.at.x + (c.dir.x / l) * o, y: c.at.y + (c.dir.y / l) * o }, { x: -n.x, y: -n.y }, loop, 1e5) - 2 * r
+    )
+  );
+}
+const kWidthBand = 15;
+
 /** Convex hull, counterclockwise (monotone chain). */
 function convexHull(points: P2[]): P2[] {
   const pts = [...points].sort((a, b) => a.x - b.x || a.y - b.y);
@@ -178,19 +297,6 @@ function convexHull(points: P2[]): P2[] {
     return h.slice(0, -1);
   };
   return [...half(pts), ...half([...pts].reverse())];
-}
-
-/** On the hull's boundary (within 0.5 mm). */
-function onHull(p: P2, hull: P2[]): boolean {
-  for (let i = 0; i < hull.length; i++) {
-    const a = hull[i],
-      b = hull[(i + 1) % hull.length];
-    const dx = b.x - a.x,
-      dy = b.y - a.y;
-    const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy || 1)));
-    if (Math.hypot(a.x + t * dx - p.x, a.y + t * dy - p.y) <= 0.5) return true;
-  }
-  return false;
 }
 
 /**

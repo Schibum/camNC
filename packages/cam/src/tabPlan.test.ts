@@ -105,6 +105,38 @@ describe('tab placement', () => {
     for (const x of xs) expect(x > 200 && x < 1000).toBe(true);
   });
 
+  it('a hooked part: tabs on its long free edge, not the hook, and its centre of mass inside them', () => {
+    // A side panel with a hook (the kinderregal 20 mm sides): body 500 x 100 on top, a 30 mm finger along the bottom
+    // right, a 50 mm slot between them. The long free edge (y 80, x 0..280) is set back from the hull: the finger sticks
+    // out past it.
+    const hook = [
+      { x: 0, y: 80 },
+      { x: 280, y: 80 },
+      { x: 280, y: 80 },
+      { x: 440, y: 80 },
+      { x: 440, y: 30 },
+      { x: 280, y: 30 },
+      { x: 280, y: 0 },
+      { x: 500, y: 0 },
+      { x: 500, y: 180 },
+      { x: 0, y: 180 },
+    ].filter((p, i, a) => !i || p.x !== a[i - 1].x || p.y !== a[i - 1].y);
+    const f = { ...plain(), footprint: [hook], outlines: [hook] };
+    const part = { id: 'h', name: 'h', features: f, size: [500, 180, 8] as [number, number, number], x: 40, y: 40, rotated: false };
+    const held = planTabs(roomy([part], 580, 260), {}).get('h')!;
+    expect(held.how).toBe('placed');
+    const tabs = held.tabs.map(t => ({ x: t.x - 40, y: t.y - 40 }));
+    expect(tabs).toHaveLength(4);
+    // Two on top, two below: none on the thin finger (x 280..440 along its bottom, or by its root) or in the slot.
+    expect(tabs.filter(t => t.y > 170)).toHaveLength(2);
+    for (const t of tabs.filter(t => t.y < 170)) {
+      expect(t.x < 280 || t.x > 450).toBe(true);
+      expect(t.y < 30 || t.y > 75).toBe(true);
+    }
+    // The part's centre of mass (about x 230, y 110) lies inside the tabs, with at least one on the free edge.
+    expect(tabs.some(t => Math.abs(t.y - 80) < 5 && t.x < 280)).toBe(true);
+  });
+
   it('Min # is a target: short edges take what fits, the other sides the rest; fewer than asked is said, not dropped', () => {
     const small = rect(0, 0, 30, 20);
     const f = { ...plain(), footprint: [small], outlines: [small] };
