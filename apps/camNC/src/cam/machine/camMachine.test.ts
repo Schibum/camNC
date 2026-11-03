@@ -37,6 +37,17 @@ describe('machine queue', () => {
     expect(q.map(e => e.firstOfBoard)).toEqual([true, true, false, false, true]);
   });
 
+  it('a board with a second side: its programs, turn over, side B per bit, then tab removal', () => {
+    const a = { ...plan([3.175]), sideB: plan([3.175]), flip: { registration: 'dowels' as const, dowelDiameter: 6 } };
+    const q = machineQueue([board('A', 'tabs-guided')], [a]);
+    expect(q.map(entryTitle)).toEqual(['Board A · ⌀3.175', 'Board A · turn over', 'Board A side B · ⌀3.175', 'Board A · remove tabs']);
+    expect(q.map(e => e.kind)).toEqual(['bit', 'flip', 'bit', 'tabs']);
+    expect(q[1].flip?.registration).toBe('dowels');
+    // Side B runs its own program.
+    expect(q[2].plan).toBe(a.sideB);
+    expect(q[2].sideB).toBe(true);
+  });
+
   it('knows which tab the removal program is at from the SD progress', () => {
     const g = [
       'G0 Z13',

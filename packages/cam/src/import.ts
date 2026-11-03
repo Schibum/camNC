@@ -279,22 +279,29 @@ export function flatMatrix(part: Pick<FlatPart, 'axes' | 'origin'>): number[] {
   return [x[0], y[0], z[0], 0, x[1], y[1], z[1], 0, x[2], y[2], z[2], 0, -o[0], -o[1], -o[2], 1];
 }
 
-/** Second setup: turn the board over around the X axis (x, y, z) -> (x, Ymax - y, T - z). */
-export function flipPart(part: FlatPart): FlatPart {
+/**
+ * Second setup: turn the part over. Around its X axis (x, y, z) -> (x, Ymax - y, T - z) by default; around its Y axis
+ * (x, y, z) -> (Xmax - x, y, T - z) for a part lying turned on a board that is flipped top to bottom.
+ */
+export function flipPart(part: FlatPart, axis: 'x' | 'y' = 'x'): FlatPart {
   const src = part.mesh.positions;
   const positions = new Float64Array(src.length);
   for (let i = 0; i < src.length; i += 3) {
-    positions[i] = src[i];
-    positions[i + 1] = part.size[1] - src[i + 1];
+    positions[i] = axis === 'y' ? part.size[0] - src[i] : src[i];
+    positions[i + 1] = axis === 'x' ? part.size[1] - src[i + 1] : src[i + 1];
     positions[i + 2] = part.size[2] - src[i + 2];
   }
   const [x, y, z] = part.axes;
   return {
     ...part,
     name: `${part.name} (flipped)`,
+    // Turning over is a rotation (two axes flip): faces keep their winding.
     mesh: { ...part.mesh, positions },
-    axes: [x, scale(y, -1), scale(z, -1)],
-    origin: [part.origin[0], -part.origin[1] - part.size[1], -part.origin[2] - part.size[2]],
+    axes: axis === 'x' ? [x, scale(y, -1), scale(z, -1)] : [scale(x, -1), y, scale(z, -1)],
+    origin:
+      axis === 'x'
+        ? [part.origin[0], -part.origin[1] - part.size[1], -part.origin[2] - part.size[2]]
+        : [-part.origin[0] - part.size[0], part.origin[1], -part.origin[2] - part.size[2]],
     topFeatureArea: part.bottomFeatureArea,
     bottomFeatureArea: part.topFeatureArea,
     flipped: !part.flipped,

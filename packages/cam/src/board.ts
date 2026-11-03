@@ -1,4 +1,5 @@
 import type { PartFeatures } from './features';
+import { dowelOperations, type DowelSpec } from './flip';
 import type { Vec3 } from './geom';
 import { camPart, DEFAULT_TABS, type CamSettings, type Operation, type PartCam, type TabSettings } from './toolpaths';
 
@@ -34,6 +35,8 @@ export interface BoardSpec {
   /** Z of the stock top if thicker than the parts (allowance or measured); default the board thickness. */
   stockTop?: number;
   parts: BoardPart[];
+  /** A flip on dowel pins: side A drills the pin holes (board and spoilboard) before anything else. */
+  dowels?: DowelSpec;
 }
 
 /** Tabs for hold-downs that use them. */
@@ -83,6 +86,14 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
   }
   const diameters = [...new Set(ops.map(o => o.op.tool.diameter))].sort((a, b) => a - b);
   const operations: Operation[] = [];
+  // Pin holes first, with the first bit: the board is still whole.
+  if (board.dowels)
+    operations.push(
+      ...dowelOperations(board, board.dowels, settings).map(op => ({
+        ...op,
+        passes: op.passes.map(p => ({ ...p, pts: p.pts.map(q => turn(q)) })),
+      }))
+    );
   let pos = { x: 0, y: 0 };
   for (const d of diameters) {
     for (const stage of ['inner', 'outline'] as const) {

@@ -1,6 +1,7 @@
 import { PageHeader } from '@/components/page-header';
 import { useBoardPlans, useCamJob, useCamModel, useSaveCamJob } from '@/cam/camQueries';
 import type { OpSummary, PlanResult } from '@/cam/camTypes';
+import type { FlipRegistration } from '@wbcnc/cam';
 import { groupOps } from '@/cam/plan/groupOps';
 import { missingParts, useJobBoards, type MissingPart } from '@/cam/useJobBoards';
 import { freezeSpacing, spacingProblem } from '@/cam/boards';
@@ -52,6 +53,7 @@ function PlanStep() {
   const navigate = useNavigate();
   const { data: job, isPending } = useCamJob(jobId);
   const model = useCamModel(job);
+  const [side, setSide] = useState<'a' | 'b'>('a');
   const save = useSaveCamJob();
   const { boards, instances } = useJobBoards(job, model.data);
   const active = boards.filter(b => b.request.parts.length);
@@ -79,12 +81,18 @@ function PlanStep() {
   const entries = active.map((b, i) => ({ ...b, plan: plans[i].data, fetching: plans[i].isFetching, bits: plans[i].data?.bits ?? [] }));
   const queue = ready ? orderBoardQueue(entries, Math.min(...entries.flatMap(e => e.bits.slice(0, 1)))) : entries;
   const current = queue.find(e => e.board.id === boardParam) ?? queue[0];
-  const result = current.plan;
+  const sideA = current.plan;
+  // The board's second side (turned over), when its parts have features underneath.
+  const result = side === 'b' && sideA?.sideB ? sideA.sideB : sideA;
+  const onSideB = result !== sideA;
   const empty = !!result && result.ops.length === 0;
   // Parts whose tabs don't hold are shown as errors in Checks but don't block yet: today's default layout (tight gaps
   // with tabs) has them, until a hold-down strategy that avoids them is chosen.
   const safe = !!result && result.safety.length === 0 && !empty && !blocked;
-  const allReady = ready && !blocked && queue.every(e => e.plan!.ops.length > 0 && e.plan!.safety.length === 0);
+  const allReady =
+    ready &&
+    !blocked &&
+    queue.every(e => e.plan!.ops.length > 0 && e.plan!.safety.length === 0 && (e.plan!.sideB?.safety.length ?? 0) === 0);
   const totalMin = queue.reduce((t, e) => t + (e.plan?.timeMin ?? 0), 0);
   const swaps = queue.reduce(
     (n, e, i) => n + Math.max(0, e.bits.length - 1) + (i > 0 && queue[i - 1].bits.at(-1) !== e.bits[0] ? 1 : 0),
@@ -92,7 +100,7 @@ function PlanStep() {
   );
   // One program per bit: "<job> board A.gcode", or "<job> board A T1.gcode", "… T2.gcode" with several bits.
   const programName = (p: PlanResult['programs'][number]) =>
-    `${job.name} board ${current.board.name}${result && result.programs.length > 1 ? ` T${p.tool}` : ''}.gcode`;
+    `${job.name} board ${current.board.name}${onSideB ? ' side B' : ''}${result && result.programs.length > 1 ? ` T${p.tool}` : ''}.gcode`;
 
   const savePlan = (plan: PlanSettingsV1) =>
     save.mutate({
@@ -190,6 +198,7 @@ function PlanStep() {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+          {sideA?.flip && <SideSwitch plan={sideA} side={onSideB ? 'b' : 'a'} onSide={setSide} />}
           <MissingBanner
             jobId={job.id}
             missing={unresolved}
@@ -389,6 +398,44 @@ function HeaderCell({ hint, children }: { hint: string; children: React.ReactNod
         </span>
       </Hint>
     </th>
+  );
+}
+
+const kFlipSteps: Record<FlipRegistration, string> = {
+  camera: 'Turn the board over top to bottom, then drag its outline onto it in the camera view again.',
+  dowels: 'Turn the board over top to bottom onto the dowel pins in the holes side A drilled.',
+  fence: 'Turn the board over top to bottom and push it against the fence and the stop again.',
+};
+
+/** Side A (as placed) or side B (the parts' undersides, the board turned over), and how side B lines up. */
+function SideSwitch({ plan, side, onSide }: { plan: PlanResult; side: 'a' | 'b'; onSide: (s: 'a' | 'b') => void }) {
+  const flip = plan.flip!;
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-lg bg-muted/40 px-3.5 py-2.5 text-[13px]">
+      <div role="group" aria-label="Board side" className="flex rounded-md border bg-background p-0.5 text-xs">
+        {(['a', 'b'] as const).map(s => (
+          <button
+            key={s}
+            aria-pressed={side === s}
+            disabled={s === 'b' && !plan.sideB}
+            onClick={() => onSide(s)}
+            className={cn(
+              'rounded px-2.5 py-1',
+              side === s ? 'bg-muted font-medium' : 'text-muted-foreground hover:bg-muted/60 disabled:opacity-50'
+            )}>
+            {s === 'a' ? 'Side A' : 'Side B (turned over)'}
+          </button>
+        ))}
+      </div>
+      <span className="text-muted-foreground">
+        {plan.sideB
+          ? `After side A: ${kFlipSteps[flip.registration]} Don’t re-zero XY; zero Z on the spoilboard.`
+          : 'No part on this board has features underneath.'}
+        {flip.dowels &&
+          ` Pins ⌀${flip.dowelDiameter} at ${flip.dowels.map(p => `X${Math.round(p.x)} Y${Math.round(p.y)}`).join(' and ')} (and their mirrors).`}
+      </span>
+      {flip.problem && <span className="text-destructive">{flip.problem}</span>}
+    </div>
   );
 }
 

@@ -1,3 +1,4 @@
+import type { FlipRegistration } from '@wbcnc/cam';
 import type { HoldDown } from '@wbcnc/cam';
 import { MATERIALS } from '@wbcnc/cam/settings';
 import { Button } from '@wbcnc/ui/components/button';
@@ -63,6 +64,23 @@ const kHoldDownHints: Record<HoldDown, string> = {
   clamps: 'Clamps on two corners: parts are kept out of those areas. No tabs, so parts can move on the last pass.',
 };
 
+const kFlipLabels: Record<FlipRegistration | 'off', string> = {
+  off: 'No second side',
+  camera: 'Turn over, re-align with the camera',
+  dowels: 'Turn over onto dowel pins',
+  fence: 'Turn over against a fence and stop',
+};
+
+const kFlipHints: Record<FlipRegistration | 'off', string> = {
+  off: 'Features on the parts’ undersides are not cut.',
+  camera:
+    'After side A, turn the board over top to bottom and drag its outline onto it in the camera view again, as for side A. Good for most jobs.',
+  dowels:
+    'Side A drills pin holes through the board into the spoilboard. Turn the board over onto the pins: side B lines up exactly. Best for precise two-sided parts.',
+  fence:
+    'Push the board against a fence on the left and a stop at the front, for both sides. Side B is mirrored about the board’s height: measure it, and enter it as the board’s size.',
+};
+
 /** Size, material and hold-down of the selected board. */
 export function BoardInspector({
   board,
@@ -72,7 +90,10 @@ export function BoardInspector({
   onChange,
   onRelayout,
   onDelete,
+  flip,
 }: {
+  /** The board's second side as in effect (see `flipOf`); undefined when no part needs one and none was chosen. */
+  flip?: FlipRegistration | 'off';
   board: BoardV1;
   nest: BoardNest;
   stock: StockBoardV1[];
@@ -255,6 +276,42 @@ export function BoardInspector({
         </div>
       )}
       {tabs && <p className="text-xs text-muted-foreground">Tabs sit on the long straight edges; moving them by hand comes later.</p>}
+
+      {flip && (
+        <section className="flex flex-col gap-1.5" aria-label="Second side">
+          <Label htmlFor="board-flip" className="text-[13px] font-semibold">
+            Second side (parts’ undersides)
+          </Label>
+          <Select value={flip} onValueChange={v => onChange({ ...board, flip: v as FlipRegistration | 'off' })}>
+            <SelectTrigger id="board-flip" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(kFlipLabels) as (FlipRegistration | 'off')[]).map(f => (
+                <SelectItem key={f} value={f}>
+                  {kFlipLabels[f]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs leading-relaxed text-muted-foreground">{kFlipHints[flip]}</p>
+          {flip === 'dowels' && (
+            <NumberField
+              id="dowel-d"
+              label="Dowel pin ⌀ (mm)"
+              hint="The pins you have. The holes are cut to this size with the job’s bit."
+              value={board.dowelDiameter ?? 6}
+              onCommit={dowelDiameter => onChange({ ...board, dowelDiameter })}
+              min={3}
+            />
+          )}
+          {flip !== 'off' && !tabs && (
+            <p className="text-xs text-amber-700 dark:text-amber-400">
+              Turning the board over needs its parts still in it: choose Tabs as hold-down, or the cut-out parts fall out.
+            </p>
+          )}
+        </section>
+      )}
 
       <span className="grow" />
       {onDelete && (

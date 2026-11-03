@@ -8,7 +8,10 @@ import {
   extractFeatures,
   flatMatrix,
   groupIdentical,
+  dowelSpots,
+  flipPart,
   holdCheck,
+  sideBSpec,
   kMaxSlopedShare,
   loadStep,
   loadStl,
@@ -32,7 +35,13 @@ import occtWasmUrl from 'occt-import-js/dist/occt-import-js.wasm?url';
 import type { BoardRequest, BodyMesh, CamPartInfo, ModelImport, OpSummary, Outline2D, PlanResult, TabRemovalResult } from '../cam/camTypes';
 
 /** Parts of the models imported in this worker, by model key, so generating G-code needs no re-import. */
-const models = new Map<string, Map<string, { part: FlatPart; features: PartFeatures }>>();
+/** A loaded part: its features, and those of its underside once turned over (side B), by turn axis. */
+interface ModelEntry {
+  part: FlatPart;
+  features: PartFeatures;
+  flipped?: Partial<Record<'x' | 'y', PartFeatures>>;
+}
+const models = new Map<string, Map<string, ModelEntry>>();
 
 async function readBodies(bytes: Uint8Array, fileName: string): Promise<{ bodies: StepBody[]; readMs: number }> {
   if (/\.stl$/i.test(fileName)) {
@@ -51,7 +60,7 @@ const api = {
     const flat = bodies.map(b => detectFlat(b));
     const groups = groupIdentical(flat);
     const partOf = new Map<FlatPart, string>();
-    const cache = new Map<string, { part: FlatPart; features: PartFeatures }>();
+    const cache = new Map<string, ModelEntry>();
     models.set(key, cache);
     const parts: CamPartInfo[] = groups.map((g, i) => {
       const id = `part-${i}`;
@@ -115,9 +124,32 @@ const api = {
   /** One program for a whole board: its parts at their nested positions, operations grouped by bit. */
   async generateBoard(key: string, board: BoardRequest, settings: Partial<CamSettings>): Promise<PlanResult> {
     const spec = boardSpec(key, board);
+    const flip = board.flip;
+    // On dowels: side A drills the pins (and their mirrors) where there's room on the board.
+    let problem: string | undefined;
+    if (flip?.registration === 'dowels') {
+      const diameter = flip.dowelDiameter ?? 6;
+      const at = dowelSpots(spec, diameter, 3);
+      if (at) spec.dowels = { at, diameter, depth: 6 };
+      else
+        problem = `No room for two ⌀${diameter} dowel pins clear of the parts: make the board bigger, or re-align with the camera instead.`;
+    }
     const cam = camBoard(spec, settings);
+    // The second side cuts the undersides: the warning that they need one is answered.
+    if (flip) cam.warnings = cam.warnings.filter(w => !w.includes('flipped'));
     const size: [number, number, number] = [board.w, board.h, board.stockTop];
-    const plan = summarize(cam, `Board ${board.name}`, size, settings, board.thickness, board.name);
+    let plan = summarize(cam, `Board ${board.name}`, size, settings, board.thickness, board.name);
+    if (flip) {
+      const b = camBoard(
+        sideBSpec(spec, p => flippedFeatures(key, p.id, board, p.rotated)),
+        { ...settings, cutThrough: false }
+      );
+      plan = {
+        ...plan,
+        flip: { registration: flip.registration, dowels: spec.dowels?.at, dowelDiameter: spec.dowels?.diameter, problem },
+        ...(b.operations.length && { sideB: summarize(b, `Board ${board.name} side B`, size, settings, board.stockTop, board.name) }),
+      };
+    }
     // The hold check runs on the board as laid out, before it's turned to lie like the stock on the bed.
     const flat = board.rotationDeg ? camBoard({ ...spec, rotationDeg: 0 }, settings) : cam;
     return usesTabs(board.holdDown) ? { ...plan, hold: holdCheck(flat, board) } : plan;
@@ -133,6 +165,27 @@ function boardSpec(key: string, board: BoardRequest): BoardSpec {
       return { id: p.id, name: p.name, features, size: part.size, x: p.x, y: p.y, rotated: p.rotated };
     }),
   };
+}
+
+/**
+ * A part's underside, as side B sees it: the part turned over (about its Y axis when it lies turned on the board, so the
+ * board turns top to bottom), depths measured from the stock's new top (its old bottom).
+ */
+function flippedFeatures(key: string, instanceId: string, board: BoardRequest, rotated: boolean): PartFeatures {
+  const partId = board.parts.find(p => p.id === instanceId)!.partId;
+  const entry = loaded(key, partId);
+  const cache = (entry.flipped ??= {});
+  const axis = rotated ? 'y' : 'x';
+  const f = (cache[axis] ??= extractFeatures(flipPart(entry.part, axis).mesh, entry.part.thickness));
+  const dz = board.stockTop - entry.part.thickness;
+  return dz
+    ? {
+        ...f,
+        thickness: f.thickness + dz,
+        levels: f.levels.map(l => ({ ...l, z: l.z + dz })),
+        pockets: f.pockets.map(p => ({ ...p, floorZ: p.floorZ + dz })),
+      }
+    : f;
 }
 
 function loaded(key: string, partId: string) {
@@ -208,7 +261,11 @@ function summarize(
     checkGcodeSafety(p.gcode, {
       stockTop: cam.stockTop,
       size: [size[0], size[1]],
-      minZ: settings.finalZ ?? -0.3,
+      // Dowel pin holes go into the spoilboard on purpose.
+      minZ: Math.min(
+        settings.finalZ ?? -0.3,
+        ...cam.operations.filter(o => o.name.startsWith('Dowel pin hole')).flatMap(o => o.passes.flatMap(q => q.pts.map(v => v[2])))
+      ),
       toolRadius: p.diameter / 2,
     }).map(i => i.message)
   );

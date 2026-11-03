@@ -1,3 +1,4 @@
+import type { FlipRegistration } from '@wbcnc/cam';
 import type { HoldDown, PartSummary, TabStop } from '@wbcnc/cam';
 
 /** Closed polygons as [x, y] point lists, in the part's flat frame (mm). */
@@ -71,6 +72,10 @@ export interface PlanResult {
    * enough and reach the board's edge). A part with too few is not held: the job is blocked.
    */
   hold?: { part: string; tabs: { at: { x: number; y: number }; anchored: boolean }[]; anchored: number; ok: boolean }[];
+  /** The board's second side, after turning it over top to bottom: the programs for the parts' undersides. */
+  sideB?: PlanResult;
+  /** How side B lines up; for dowels, where the pins go (and why there's no room for them). */
+  flip?: { registration: FlipRegistration; dowels?: { x: number; y: number }[]; dowelDiameter?: number; problem?: string };
 }
 
 /** A board to generate: which bodies sit where. */
@@ -87,6 +92,8 @@ export interface BoardRequest {
   holdDown: HoldDown;
   tabs: { width: number; height: number; minCount: number };
   parts: { id: string; partId: string; name: string; x: number; y: number; rotated: boolean }[];
+  /** A second side for the parts' undersides, and how it lines up after turning the board over. */
+  flip?: { registration: FlipRegistration; dowelDiameter?: number };
 }
 
 /** A guided tab removal program for a board: one pause per tab, then a cut through it. */

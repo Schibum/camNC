@@ -42,10 +42,15 @@ export const useCamMachine = create(
 );
 
 export interface QueueEntry {
-  /** `${boardId}:bit:${index}` or `${boardId}:tabs`. */
+  /** `${boardId}:bit:${index}`, `${boardId}:flip`, `${boardId}:b:bit:${index}` or `${boardId}:tabs`. */
   key: string;
   board: JobBoard;
-  kind: 'bit' | 'tabs';
+  /** A program for one bit, turning the board over for side B, or the guided tab removal. */
+  kind: 'bit' | 'flip' | 'tabs';
+  /** The board's second side (turned over): `plan` is side B's. */
+  sideB?: boolean;
+  /** How side B lines up (flip and side B entries). */
+  flip?: PlanResult['flip'];
   /** For bits: which of the board's programs. */
   program: number;
   /** The first entry of its board: place and align the board first. */
@@ -71,6 +76,30 @@ export function machineQueue(boards: JobBoard[], plans: (PlanResult | undefined)
       firstOfBoard: program === 0,
       plan: plan!,
     })),
+    // Side B: turn the board over, then its own programs, one per bit.
+    ...(plan!.sideB
+      ? [
+          {
+            key: `${board.board.id}:flip`,
+            board,
+            kind: 'flip' as const,
+            program: 0,
+            firstOfBoard: false,
+            plan: plan!.sideB,
+            flip: plan!.flip,
+          },
+          ...plan!.sideB.programs.map((_, program) => ({
+            key: `${board.board.id}:b:bit:${program}`,
+            board,
+            kind: 'bit' as const,
+            sideB: true,
+            flip: plan!.flip,
+            program,
+            firstOfBoard: false,
+            plan: plan!.sideB!,
+          })),
+        ]
+      : []),
     ...(board.board.holdDown === 'tabs-guided'
       ? [{ key: `${board.board.id}:tabs`, board, kind: 'tabs' as const, program: 0, firstOfBoard: false, plan: plan! }]
       : []),
@@ -99,6 +128,8 @@ export function currentTab(gcode: string, percent: number): number {
 export function entryTitle(e: QueueEntry) {
   const board = `Board ${e.board.board.name}`;
   if (e.kind === 'tabs') return `${board} · remove tabs`;
+  if (e.kind === 'flip') return `${board} · turn over`;
   const p = e.plan.programs[e.program];
-  return e.plan.programs.length > 1 ? `${board} · T${p.tool} ⌀${p.diameter}` : `${board} · ⌀${p.diameter}`;
+  const side = e.sideB ? ' side B' : '';
+  return e.plan.programs.length > 1 ? `${board}${side} · T${p.tool} ⌀${p.diameter}` : `${board}${side} · ⌀${p.diameter}`;
 }

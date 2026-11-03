@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   autoFillFromStock,
   dropPart,
+  flipOf,
   freezeSpacing,
   nestBoard,
   newBoard,
@@ -310,6 +311,15 @@ describe('boards', () => {
         const apart = p.x + w <= k.x || k.x + k.w <= p.x || p.y + h <= k.y || k.y + k.h <= p.y;
         expect(apart).toBe(true);
       }
+  });
+
+  it('second side: on by default (camera) when a part has features underneath, as chosen otherwise', () => {
+    const [a] = reconcileBoards(undefined, parts, 'oak');
+    expect(flipOf(a, parts)).toBe('off');
+    const under = parts.map(p => (p.id === 'left' ? { ...p, needsFlip: true } : p));
+    expect(flipOf(a, under)).toBe('camera');
+    expect(flipOf({ ...a, flip: 'off' }, under)).toBe('off');
+    expect(flipOf({ ...a, flip: 'dowels' }, under)).toBe('dowels');
   });
 
   describe('changing the bit', () => {

@@ -1,3 +1,4 @@
+import type { FlipRegistration } from '@wbcnc/cam';
 import type { HoldDown } from '@wbcnc/cam';
 import { clampKeepOuts, nestRects, placedSize, type NestResult, type Placement, type Rect } from '@wbcnc/cam/nest';
 import { autoNest, type NestObjective, type SheetPacker } from './autoNest';
@@ -31,6 +32,13 @@ export interface BoardV1 {
   measuredThickness?: number;
   /** Bodies on this board, as instance ids (see `instancesOf`). */
   items: string[];
+  /**
+   * The parts' undersides, after turning the board over: how it lines up then. Default: re-align with the camera
+   * when a part has features underneath.
+   */
+  flip?: FlipRegistration | 'off';
+  /** Pin diameter for a flip on dowel pins, mm (default 6). */
+  dowelDiameter?: number;
   /** Bodies the user put on this board by hand: auto-fill leaves them here. */
   pinned?: string[];
   /**
@@ -50,6 +58,8 @@ export interface PartPosition {
 
 /** One body to cut: the k-th of a group of identical bodies. */
 export interface PartInstance {
+  /** Has features on its underside: needs the board turned over for a second side. */
+  needsFlip?: boolean;
   id: string;
   partId: string;
   name: string;
@@ -96,7 +106,16 @@ export function instancesOf(parts: CamPartInfo[], milled: (partId: string) => bo
     parts
       // 3D parts default to not milled (camQueries); milling one anyway is the user's call.
       .filter(p => milled(p.id))
-      .flatMap(p => p.names.map((name, k) => ({ id: `${p.id}#${k}`, partId: p.id, name, size: p.size, thickness: p.thickness })))
+      .flatMap(p =>
+        p.names.map((name, k) => ({
+          id: `${p.id}#${k}`,
+          partId: p.id,
+          name,
+          size: p.size,
+          thickness: p.thickness,
+          needsFlip: p.summary.needsFlip,
+        }))
+      )
   );
 }
 
@@ -309,6 +328,12 @@ export function dropPart(board: BoardV1, instances: PartInstance[], bit: number,
   return snapped();
 }
 
+/** The board's second side: as chosen, else re-align with the camera when a part on it has features underneath. */
+export function flipOf(board: BoardV1, instances: PartInstance[]): FlipRegistration | 'off' {
+  if (board.flip) return board.flip;
+  return instances.some(i => board.items.includes(i.id) && i.needsFlip) ? 'camera' : 'off';
+}
+
 export function boardRequest(board: BoardV1, nest: BoardNest, instances: PartInstance[]): BoardRequest {
   const byId = new Map(instances.map(i => [i.id, i]));
   return {
@@ -320,6 +345,9 @@ export function boardRequest(board: BoardV1, nest: BoardNest, instances: PartIns
     stockTop: stockTopOf(board),
     holdDown: board.holdDown,
     tabs: board.tabs,
+    ...(flipOf(board, instances) !== 'off' && {
+      flip: { registration: flipOf(board, instances) as FlipRegistration, dowelDiameter: board.dowelDiameter },
+    }),
     parts: nest.placements.map(p => ({
       id: p.id,
       partId: byId.get(p.id)!.partId,

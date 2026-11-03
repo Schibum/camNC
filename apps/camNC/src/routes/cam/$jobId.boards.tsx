@@ -3,6 +3,7 @@ import { PageHeader } from '@/components/page-header';
 import {
   autoFillFromStock,
   dropPart,
+  flipOf,
   layoutSummary,
   newBoard,
   relayoutBoard,
@@ -335,6 +336,11 @@ function BoardsStep() {
           bit={plan.bit.diameter}
           onChange={updateBoard}
           onRelayout={() => relayout(selected.board)}
+          flip={
+            selected.board.flip || instances.some(i => selected.board.items.includes(i.id) && i.needsFlip)
+              ? flipOf(selected.board, instances)
+              : undefined
+          }
           onDelete={
             !selected.board.items.length && boards.some(b => b !== selected && b.board.thickness === selected.board.thickness)
               ? () => saveBoards(boards.filter(b => b !== selected).map(b => b.board))

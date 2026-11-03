@@ -17,7 +17,8 @@ const fmt = (v: number) => `${+v.toFixed(2)}`;
 export function CamQueueCard() {
   const { jobId, active, setActive, markDone, setRotation, rotation, leave, setOverlay } = useCamMachine();
   const { job, queue, current, done, tabRemoval, loading } = useMachineQueue();
-  const gcodeOf = (e: QueueEntry) => (e.kind === 'tabs' ? tabRemoval?.gcode : e.plan.programs[e.program].gcode);
+  const gcodeOf = (e: QueueEntry) =>
+    e.kind === 'flip' ? undefined : e.kind === 'tabs' ? tabRemoval?.gcode : e.plan.programs[e.program].gcode;
   const load = (e: QueueEntry) => {
     setActive(e.key);
     const gcode = gcodeOf(e);
@@ -77,9 +78,11 @@ export function CamQueueCard() {
                 <span className="w-4">{isDone ? <Check className="size-3.5 text-emerald-600" /> : isNow ? '●' : ''}</span>
                 <span className="grow">{entryTitle(e)}</span>
                 <span className="font-mono text-xs text-muted-foreground">
-                  {e.kind === 'tabs'
-                    ? `${tabRemoval && isNow ? tabRemoval.tabs.length : '…'} tabs`
-                    : `${Math.ceil(e.plan.programs[e.program].timeMin)} min`}
+                  {e.kind === 'flip'
+                    ? ''
+                    : e.kind === 'tabs'
+                      ? `${tabRemoval && isNow ? tabRemoval.tabs.length : '…'} tabs`
+                      : `${Math.ceil(e.plan.programs[e.program].timeMin)} min`}
                 </span>
               </button>
             </li>
@@ -122,7 +125,30 @@ export function CamQueueCard() {
               </p>
             </>
           )}
-          {current.kind === 'bit' && !current.firstOfBoard && (
+          {current.kind === 'flip' && (
+            <div className="flex flex-col gap-1.5">
+              <p>
+                <span className="font-medium">Turn board {board.name} over</span>, top to bottom (the front edge goes to the back):{' '}
+                {current.flip?.registration === 'dowels'
+                  ? `put the ⌀${current.flip.dowelDiameter} dowel pins into the holes side A drilled, and drop the board onto them.`
+                  : current.flip?.registration === 'fence'
+                    ? 'push it against the fence and the stop again, as for side A.'
+                    : 'then drag the dashed outline onto it in the camera view again.'}
+              </p>
+              <p className="text-muted-foreground">
+                {current.flip?.registration === 'camera'
+                  ? 'Z stays: it’s measured from the spoilboard.'
+                  : 'Don’t touch the XY zero: side B is mirrored to it. Z stays: it’s measured from the spoilboard.'}
+              </p>
+            </div>
+          )}
+          {current.kind === 'bit' && current.sideB && current.program === 0 && (
+            <p>
+              <span className="font-medium">Side B</span> with the ⌀{current.plan.programs[0].diameter} mm bit: the parts’ undersides, not
+              cut through. If you changed the bit, zero Z again.
+            </p>
+          )}
+          {current.kind === 'bit' && !current.firstOfBoard && !(current.sideB && current.program === 0) && (
             <p>
               <span className="font-medium">Swap the bit</span> to ⌀{current.plan.programs[current.program].diameter} mm, then zero Z again.
               Don’t move the board: XY stays.
@@ -134,16 +160,18 @@ export function CamQueueCard() {
               the camera view, away from the bit, then press Resume.
             </p>
           )}
-          <p className="text-muted-foreground">Then load and run it below. When it’s done:</p>
+          {current.kind !== 'flip' && <p className="text-muted-foreground">Then load and run it below. When it’s done:</p>}
           <div className="flex gap-2">
-            <Hint text="Puts this program in the machine view, ready to run.">
-              <Button size="sm" variant="outline" onClick={() => load(current)}>
-                Load {current.kind === 'tabs' ? 'tab removal' : 'program'}
-              </Button>
-            </Hint>
+            {current.kind !== 'flip' && (
+              <Hint text="Puts this program in the machine view, ready to run.">
+                <Button size="sm" variant="outline" onClick={() => load(current)}>
+                  Load {current.kind === 'tabs' ? 'tab removal' : 'program'}
+                </Button>
+              </Hint>
+            )}
             <Hint text="Marks this one as cut and loads the next program in the queue.">
               <Button size="sm" onClick={next}>
-                Done, next
+                {current.kind === 'flip' ? 'Turned over, next' : 'Done, next'}
               </Button>
             </Hint>
           </div>
