@@ -174,8 +174,9 @@ function OpNumbers({ op, timeMin, edit, stepover }: { op: OpSummary; timeMin: nu
 function CuttingValue({ edit, field, children }: { edit: EditProps; field: CuttingField; children: React.ReactNode }) {
   const saved = useCuttingData(s => s.saved[cuttingKey(edit.bit, edit.material)]);
   const { source } = resolveCutting(edit.bit, edit.material, saved, edit.job);
+  const [open, setOpen] = useState(false);
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           className="-mx-1 rounded px-1 underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:bg-muted"
@@ -183,7 +184,8 @@ function CuttingValue({ edit, field, children }: { edit: EditProps; field: Cutti
           {children}
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 font-sans" align="start">
+      {/* Its field gets the focus, and with it the field's tooltip, the top layer: Escape would only close that. */}
+      <PopoverContent className="w-80 font-sans" align="start" onKeyDownCapture={e => e.key === 'Escape' && setOpen(false)}>
         <CuttingDataEditor {...edit} fields={[field]} />
       </PopoverContent>
     </Popover>

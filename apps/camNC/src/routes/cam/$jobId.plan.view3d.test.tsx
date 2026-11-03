@@ -91,6 +91,9 @@ describe('CAM plan step, 3D view', () => {
     fireEvent.click(within(hole).getAllByRole('button', { name: /^[\d.]+ mm$/ })[0]);
     const popover = await screen.findByRole('dialog');
     expect(within(popover).getByRole('textbox', { name: /^Stepdown/ })).toBeTruthy();
+    // Focused in a real window, the field's tooltip opens too; Escape still closes the popover, not only that.
+    fireEvent.focus(document.activeElement!);
+    fireEvent.focusIn(document.activeElement!);
     fireEvent.keyDown(popover, { key: 'Escape' });
     await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     fireEvent.click(within(hole).getByRole('button', { name: 'Jump to start' }));
