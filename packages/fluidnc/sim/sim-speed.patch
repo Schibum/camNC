@@ -1,0 +1,50 @@
+diff --git a/FluidNC/capture/StepTimer.cpp b/FluidNC/capture/StepTimer.cpp
+index d05623c..ad8c568 100644
+--- a/FluidNC/capture/StepTimer.cpp
++++ b/FluidNC/capture/StepTimer.cpp
+@@ -9,6 +9,7 @@
+ #include <chrono>
+ #include <mutex>
+ #include <condition_variable>
++#include <cstdlib>
+ 
+ static std::atomic<bool>                                  _running(true);
+ static std::atomic<bool>                                  _pulsing(false);
+@@ -17,7 +18,20 @@ static uint32_t                                           _target_us  = 0;
+ static std::mutex                                         mtx;
+ static std::condition_variable                            cv;
+ static std::chrono::time_point<std::chrono::steady_clock> _target_time;
+-static std::chrono::duration<int64_t, std::micro>         _tick_interval;
++static std::chrono::nanoseconds                           _tick_interval;
++
++// camNC: FLUIDNC_SIM_SPEED=N runs the step timer N times faster than real time, so jobs finish sooner.
++static double sim_speed() {
++    static const double speed = [] {
++        const char* env   = std::getenv("FLUIDNC_SIM_SPEED");
++        double      value = env ? std::atof(env) : 1.0;
++        return value > 0 ? value : 1.0;
++    }();
++    return speed;
++}
++static std::chrono::nanoseconds scaled_us(uint32_t us) {
++    return std::chrono::nanoseconds(static_cast<int64_t>(us * 1000.0 / sim_speed()));
++}
+ 
+ static bool (*timer_isr_callback)(void);
+ 
+@@ -51,7 +65,7 @@ uint32_t stepTimerInit(bool (*callback)(void)) {
+     return STEPPING_FREQUENCY;
+ }
+ void stepTimerStart() {
+-    _tick_interval = std::chrono::microseconds(1);
++    _tick_interval = scaled_us(1);
+     _target_time   = std::chrono::steady_clock::now();
+     _pulsing       = true;
+     cv.notify_one();
+@@ -61,5 +75,5 @@ void stepTimerStop() {
+ }
+ 
+ void stepTimerSetTicks(uint32_t ticks) {
+-    _tick_interval = std::chrono::microseconds(ticks);
++    _tick_interval = scaled_us(ticks);
+ };

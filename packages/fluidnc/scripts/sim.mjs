@@ -5,6 +5,7 @@
 //   pnpm sim --v3            # plus the 3.9.9 personality on 127.0.0.1:8850 (socket on :8851)
 //   pnpm sim --build         # (re)build the simulator first (needs git + PlatformIO, ~3 min)
 //   pnpm sim --docker        # build and run the linux_x86_64 sim in Docker instead
+//   pnpm sim --speed 4       # run motion 4x faster than real time (FluidNC caps feed override at 200%)
 //
 // The binary is cached in ~/.cache/camnc/fluidnc-<version>/. Set FLUIDNC_SIM_BIN to use another build.
 import { execFileSync, spawn } from 'node:child_process';
@@ -26,16 +27,34 @@ const option = (name, fallback) => {
 };
 const port = option('--port', 8848);
 const v3Port = option('--v3-port', 8850);
+const speed = option('--speed', 1);
+if (!(speed > 0)) throw new Error('--speed needs a positive number, e.g. --speed 4');
+// sim/sim-speed.patch makes the step timer read FLUIDNC_SIM_SPEED, so motion runs that many times faster.
+const speedPatch = path.join(pkgDir, 'sim', 'sim-speed.patch');
+const childEnv = { ...process.env, FLUIDNC_SIM_SPEED: String(speed) };
 
 const cacheDir = path.join(os.homedir(), '.cache', 'camnc', `fluidnc-${VERSION}`);
 const env = process.platform === 'darwin' ? 'macos' : 'linux_x86_64';
 
+const srcDir = path.join(cacheDir, 'src');
+
+/** Whether the cached source already carries the speed patch (a reverse apply would succeed). */
+function speedPatchApplied() {
+  try {
+    execFileSync('git', ['apply', '--check', '--reverse', speedPatch], { cwd: srcDir, stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function build() {
-  const src = path.join(cacheDir, 'src');
+  const src = srcDir;
   if (!existsSync(src)) {
     mkdirSync(cacheDir, { recursive: true });
     execFileSync('git', ['clone', '--depth', '1', '--branch', VERSION, 'https://github.com/bdring/FluidNC.git', src], { stdio: 'inherit' });
   }
+  if (!speedPatchApplied()) execFileSync('git', ['apply', speedPatch], { cwd: src, stdio: 'inherit' });
   execFileSync('pio', ['run', '-e', env], { cwd: src, stdio: 'inherit' });
   cpSync(path.join(src, '.pio', 'build', env, 'program'), path.join(cacheDir, 'fluidnc-sim'));
 }
@@ -43,14 +62,17 @@ function build() {
 function runDocker() {
   const image = `camnc-fluidnc-sim:${VERSION}`;
   execFileSync('docker', ['build', '-t', image, path.join(pkgDir, 'sim')], { stdio: 'inherit' });
-  return spawn('docker', ['run', '--rm', '-i', '-p', `127.0.0.1:${port}:${port}`, '-e', `HTTP_PORT=${port}`, image], {
+  const dockerArgs = ['run', '--rm', '-i', '-p', `127.0.0.1:${port}:${port}`, '-e', `HTTP_PORT=${port}`];
+  return spawn('docker', [...dockerArgs, '-e', `FLUIDNC_SIM_SPEED=${speed}`, image], {
     stdio: ['pipe', 'inherit', 'inherit'],
   });
 }
 
 function runNative() {
   const bin = process.env.FLUIDNC_SIM_BIN ?? path.join(cacheDir, 'fluidnc-sim');
-  if (flag('--build') || !existsSync(bin)) {
+  // A binary built before the speed patch existed is rebuilt once (incrementally) with it.
+  const stale = !process.env.FLUIDNC_SIM_BIN && existsSync(srcDir) && !speedPatchApplied();
+  if (flag('--build') || !existsSync(bin) || stale) {
     console.log(`Building the simulator into ${cacheDir}`);
     build();
   }
@@ -71,11 +93,12 @@ function runNative() {
   writeFileSync(path.join(nvsDir, 'HTTP.Port'), int32(port));
   writeFileSync(path.join(nvsDir, 'Telnet.Port'), int32(port + 20));
   console.log('Starting the simulator');
-  return spawn(bin, [], { cwd: workDir, stdio: ['pipe', 'inherit', 'inherit'] });
+  return spawn(bin, [], { cwd: workDir, env: childEnv, stdio: ['pipe', 'inherit', 'inherit'] });
 }
 
 const child = flag('--docker') ? runDocker() : runNative();
 console.log(`FluidNC ${VERSION} simulator: http://127.0.0.1:${port}  (camNC machine host: 127.0.0.1:${port})`);
+if (speed !== 1) console.log(`Motion runs ${speed}x faster than real time`);
 let proxy;
 if (flag('--v3')) {
   proxy = startV3Proxy({ simHost: `127.0.0.1:${port}`, port: v3Port });

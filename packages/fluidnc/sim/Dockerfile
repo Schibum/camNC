@@ -4,6 +4,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends git build-essen
 RUN pip install --no-cache-dir platformio
 RUN git clone --depth 1 --branch v4.1.1 https://github.com/bdring/FluidNC.git /src
 WORKDIR /src
+COPY sim-speed.patch /tmp/
+RUN git apply /tmp/sim-speed.patch
 RUN pio run -e linux_x86_64
 
 # Same Debian release as python:3.12-slim (trixie): the binary needs its glibc and libstdc++.
