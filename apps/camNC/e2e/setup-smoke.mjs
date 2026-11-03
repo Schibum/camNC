@@ -370,7 +370,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const browser = await chromium.launch({
     headless: process.env.CAMNC_SMOKE_HEADED !== '1',
     // Allow Chromium's software WebGL fallback on CI machines without a GPU.
-    args: ['--enable-unsafe-swiftshader'],
+    args: ['--enable-unsafe-swiftshader', '--use-mock-keychain', '--password-store=basic'],
   });
   try {
     const report = await runSetupSmoke(browser, {
