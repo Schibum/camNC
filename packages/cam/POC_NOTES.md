@@ -194,3 +194,31 @@ a blocker on the Plan step with fix actions.
 - Dowel pins need room clear of the parts (and of their mirrors): fitted boards often have none; the Plan step says so.
 - Fence / corner relies on the board's entered height being exact; nothing measures it.
 - Not yet tried on the machine.
+
+## First real cut: checklist
+
+Before trusting camNC's programs with good wood. Use the machine queue ("Take the job to the machine") throughout.
+
+**1. Air cut** (kinderregal board A, nothing on the bed):
+
+- [ ] Zero Z 10 mm above the spoilboard (Z0 raised), so every pass runs in the air.
+- [ ] Alignment: the dashed board outline lands where the board would be; turning it 0.5° turns the program.
+- [ ] The confirm pause before the spindle starts, M3 at the cutting data's rpm, the dwell; M5 and M30 at the end.
+- [ ] Moves look sane: rapids only above the stock top, ramps (no plunges) into pockets, outlines last.
+- [ ] Bit swap between programs (with a second bit): the queue stops, swap, zero Z again, next program; XY untouched.
+- [ ] Resume from a pass: stop mid-program, resume from a later pass in the Resume card: spindle on, plunge where
+      the pass starts, continues the same path.
+
+**2. One kinderregal shelf on scrap** (oak or similar, 8 mm, alone on a board):
+
+- [ ] Z0 on the spoilboard (the bottom of the board); stock thickness measured and entered on the Boards step.
+- [ ] Pocket and rabbet depths and widths against the model (calipers): 4.2 / 4.5 deep, walls where they should be.
+- [ ] Tab hold: tabs only where the stock beyond holds; the part stays put through the final pass; tabs break off or
+      cut cleanly (guided tab removal if chosen).
+- [ ] Freeing skin parts (a part with "skin", e.g. a board with a small margin): "Free parts" cuts one part at a time,
+      bit up and spindle off at each pause, M3 + dwell before the next; nothing moves while paused.
+- [ ] Flip with camera re-align (a part with features underneath, e.g. besteckkasten vert1): turn top to bottom,
+      drag the outline onto it again, side B pockets land on the underside where the model has them.
+- [ ] Edge quality: no tear-out at the rabbet and outline edges; inside corners rounded to the bit radius as shown.
+
+Note anything off with the board, program name and line (the machine view shows the current line).
