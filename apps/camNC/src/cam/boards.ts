@@ -180,7 +180,8 @@ export function autoFillFromStock(
       left = left.filter(id => !placed.includes(id));
     }
   }
-  return { boards: out, tooBig };
+  // A fresh layout: name the boards A, B, C… in order (kept boards of other thicknesses too, so names stay unique).
+  return { boards: out.map((b, i) => ({ ...b, name: letter(i) })), tooBig };
 }
 
 /** Bounding rectangle of a placed body (for hit testing / labels). */
