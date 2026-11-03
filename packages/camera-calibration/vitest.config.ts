@@ -9,7 +9,8 @@ export default defineConfig({
       enabled: true,
       headless: true,
       provider: 'playwright',
-      instances: [{ browser: 'chromium' }],
+      // Mock keychain: otherwise macOS asks for "Chromium Safe Storage" access on every run.
+      instances: [{ browser: 'chromium', launch: { args: ['--use-mock-keychain', '--password-store=basic'] } }],
     },
   },
   server: {

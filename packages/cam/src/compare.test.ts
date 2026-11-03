@@ -37,7 +37,8 @@ const PARTS: Record<string, string> = {
 const rows: string[] = [];
 
 async function renderPng(svg: string, file: string) {
-  const browser = await chromium.launch();
+  // Mock keychain: otherwise macOS asks for "Chromium Safe Storage" access.
+  const browser = await chromium.launch({ args: ['--use-mock-keychain', '--password-store=basic'] });
   try {
     const page = await browser.newPage();
     await page.setContent(`<html><body style="margin:0">${svg}</body></html>`);
