@@ -14,14 +14,14 @@ const kMaxDistance = 2048;
 /** Lines after the pause that are looked at for what comes next. */
 const kLookAhead = 12;
 
-interface Line {
+export interface Line {
   code: string;
   comment: string;
   /** Byte offset just after the line (UTF-8, newline included). */
   end: number;
 }
 
-function splitLines(gcode: string): Line[] {
+export function splitLines(gcode: string): Line[] {
   const encoder = new TextEncoder();
   const out: Line[] = [];
   let offset = 0;
@@ -34,7 +34,7 @@ function splitLines(gcode: string): Line[] {
 }
 
 /** `(MSG Turn ON 30000RPM)` and `(MSG,Turn …)` are messages to the operator. */
-function operatorMessage(comment: string) {
+export function operatorMessage(comment: string) {
   const match = comment.match(/^MSG[,\s]+(.*)$/i);
   return match ? match[1]!.trim() : null;
 }
@@ -77,11 +77,13 @@ export function pauseHint(gcode: string, percent: number): PauseHint | null {
   const byte = (percent / 100) * total;
   // The percent is rounded to two decimals; allow for that on large files.
   const tolerance = Math.max(kMaxDistance, total * 0.0001);
+  // FluidNC reports the position just after the pausing line; take the pause closest to it, so that a second pause
+  // shortly after (e.g. a bit change after a short first operation) is not mistaken for the first one.
   let best = -1;
   for (let i = 0; i < lines.length && lines[i]!.end <= byte + tolerance; i++) {
-    if (kPause.test(lines[i]!.code)) best = i;
+    if (kPause.test(lines[i]!.code) && (best < 0 || Math.abs(lines[i]!.end - byte) <= Math.abs(lines[best]!.end - byte))) best = i;
   }
-  if (best < 0 || byte - lines[best]!.end > tolerance) return null;
+  if (best < 0 || Math.abs(byte - lines[best]!.end) > tolerance) return null;
   const line = lines[best]!;
   const command = line.code
     .match(kPause)![1]!

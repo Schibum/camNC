@@ -1,12 +1,14 @@
 import { getCncApi } from '@/lib/fluidnc/machine';
 import { errorText, isCamncJobFile, stopJob } from '@/lib/machine/jobs';
+import { bitSwapAt, zZeroIsStockBottom } from '@/lib/machine/bitSwap';
 import { pauseHint } from '@/lib/machine/pauseHints';
 import { useStore } from '@/store/store';
 import { Button } from '@wbcnc/ui/components/button';
 import { toast } from '@wbcnc/ui/components/sonner';
-import { Pause, Play, Square } from 'lucide-react';
+import { Pause, Play, Square, Wrench } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { AlarmCard } from './AlarmCard';
+import { BitSwapDialog } from './BitSwapDialog';
 import { OverridesPanel, PositionLine } from './controls';
 import { Section } from './SetupView';
 
@@ -29,18 +31,53 @@ function useTimeLeft(percent: number | undefined, startedAt: number | null) {
   return { elapsed, left: (elapsed * (100 - percent)) / percent };
 }
 
+/** The pause the job stopped at, from the loaded G-code, when the running file is the one camNC uploaded for it. */
+function usePauseHint() {
+  'use no memo';
+  const job = getCncApi().jobProgress.value;
+  const gcode = useStore(s => s.toolpath?.gcode);
+  // Only the file camNC uploaded corresponds to the loaded toolpath.
+  const ours = !!gcode && !!job && isCamncJobFile(job.file);
+  const percent = job?.percent;
+  const hint = useMemo(() => (ours && percent !== undefined ? pauseHint(gcode!, percent) : null), [ours, gcode, percent]);
+  return { ours, hint, gcode };
+}
+
+/** At a bit change the program paused for: the bit swap steps, as a dialog that can be closed and opened again. */
+function BitSwapPrompt() {
+  'use no memo';
+  const status = getCncApi().status.value;
+  const { hint, gcode } = usePauseHint();
+  const swap = useMemo(() => (hint && gcode ? bitSwapAt(gcode, hint.line) : null), [hint, gcode]);
+  const [closedAt, setClosedAt] = useState<number | null>(null);
+  if (!swap || !hint || status?.state !== 'Hold' || status.subState !== 0) return null;
+  const open = closedAt !== hint.line;
+  return (
+    <>
+      {!open && (
+        <Button variant="outline" onClick={() => setClosedAt(null)}>
+          <Wrench /> Bit swap steps
+        </Button>
+      )}
+      <BitSwapDialog
+        key={hint.line}
+        swap={swap}
+        line={hint.line}
+        zOnSpoilboard={zZeroIsStockBottom(gcode!)}
+        open={open}
+        onOpenChange={next => setClosedAt(next ? null : hint.line)}
+      />
+    </>
+  );
+}
+
 /** Why the job is on hold and what Resume does next, as far as the uploaded G-code tells. */
 function HoldExplanation() {
   'use no memo';
   const api = getCncApi();
   const status = api.status.value;
-  const job = api.jobProgress.value;
-  const gcode = useStore(s => s.toolpath?.gcode);
   const lastMessage = api.lastMessage.value;
-  // Only the file camNC uploaded corresponds to the loaded toolpath.
-  const ours = !!gcode && !!job && isCamncJobFile(job.file);
-  const percent = job?.percent;
-  const hint = useMemo(() => (ours && percent !== undefined ? pauseHint(gcode!, percent) : null), [ours, gcode, percent]);
+  const { ours, hint } = usePauseHint();
   if (status?.state === 'Door')
     return <p className="text-sm rounded-md bg-amber-100 text-amber-900 p-2">Safety door open. Close it, then Resume.</p>;
   if (status?.state === 'Hold' && status.subState === 1) {
@@ -92,6 +129,7 @@ export function RunningView({ onShowConsole }: { onShowConsole?: () => void } = 
       </div>
 
       {holding && <HoldExplanation />}
+      {holding && <BitSwapPrompt />}
 
       <div className="grid grid-cols-2 gap-2">
         {holding ? (
