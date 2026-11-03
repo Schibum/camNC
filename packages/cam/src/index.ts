@@ -20,3 +20,7 @@ export type { Move, Metrics } from './analyze';
 export { loadStl } from './stl';
 export { summarizePart } from './summary';
 export type { FeatureChip, PartSummary } from './summary';
+export { parseFusionToolLibrary } from './tools';
+export type { LibraryTool } from './tools';
+export { checkGcodeSafety } from './safety';
+export type { SafetyIssue, SafetyLimits } from './safety';

@@ -19,6 +19,7 @@ import {
 } from './analyze';
 import { extractFeatures } from './features';
 import { fusionGcodePath, OUT_DIR, readStep } from './fixtures';
+import { checkGcodeSafety } from './safety';
 import { toGcode } from './gcode';
 import { detectFlat, flipPart, loadStep, type FlatPart } from './import';
 import { camPart, DEFAULT_SETTINGS, DEFAULT_TABS, type CamSettings } from './toolpaths';
@@ -116,8 +117,16 @@ async function compareWithFusion({ label, part, settings = {}, fusionFile }: Com
   const ours = toGcode(cam, { partName: part.name, stockSize: part.size });
   const t3 = performance.now();
   writeFileSync(`${OUT_DIR}/${label}.camnc.gcode`, ours);
+  const limits = {
+    stockTop: cam.stockTop,
+    size: [part.size[0], part.size[1]] as [number, number],
+    minZ: settings.cutThrough === false ? 0 : (settings.finalZ ?? DEFAULT_SETTINGS.finalZ),
+    toolRadius: Math.max(...cam.operations.map(o => o.tool.diameter / 2)),
+  };
+  const safety = checkGcodeSafety(ours, limits);
   if (settings.cutThrough !== false) {
     const tabs = toGcode(camPart(features, { ...settings, tabs: DEFAULT_TABS }), { partName: part.name, stockSize: part.size });
+    safety.push(...checkGcodeSafety(tabs, limits));
     writeFileSync(`${OUT_DIR}/${label}.camnc-tabs.gcode`, tabs);
     await renderPng(
       toSvg([{ title: `camNC POC with tabs: ${part.name}`, moves: readGcode(tabs) }], [-0.3, part.thickness]),
@@ -137,7 +146,8 @@ async function compareWithFusion({ label, part, settings = {}, fusionFile }: Com
   let oursMoves = oursRaw;
   let dev = '-',
     devBack = '-',
-    p95 = 0;
+    p95 = 0,
+    maxDev = 0;
   if (fusion) {
     let candidates: { xf: Xf; mean: number }[];
     if (settings.cutThrough !== false) {
@@ -164,6 +174,7 @@ async function compareWithFusion({ label, part, settings = {}, fusionFile }: Com
       const ourFinal = finalPassPoints(oursMoves);
       const d = stats(pointsToPathDistances(ourFinal, ref));
       p95 = d.p95;
+      maxDev = d.max;
       dev = `${d.mean.toFixed(3)} / ${d.p95.toFixed(3)} / ${d.max.toFixed(3)}`;
       devBack = stats(pointsToPathDistances(ref, ourFinal)).p95.toFixed(3);
     }
@@ -204,7 +215,7 @@ async function compareWithFusion({ label, part, settings = {}, fusionFile }: Com
       `${mf ? mf.timeMin.toFixed(1) : '-'}/${mo.timeMin.toFixed(1)}/${ml.timeMin.toFixed(1)} | ` +
       `${fusionSrc ? (fusionSrc.length / 1024).toFixed(1) : '-'}/${(ours.length / 1024).toFixed(1)} |`
   );
-  return { toolsGuess, bounds, p95, cov, cam };
+  return { toolsGuess, bounds, p95, maxDev, cov, cam, safety, timeFusion: mf?.timeMin, timeFusionLike: ml.timeMin };
 }
 
 describe('spike 5: compare with Fusion', async () => {
@@ -232,7 +243,11 @@ describe('spike 5: compare with Fusion', async () => {
     });
     expect(r.toolsGuess).toEqual([{ tool: 1, diameter: 3.175, name: 'flat end mill', isFlat: true }]);
     expect(r.bounds.min.z).toBeCloseTo(-0.3);
-    expect(r.p95).toBeLessThan(0.1);
+    // Golden: the finished outline lies within 0.05mm of Fusion's everywhere.
+    expect(r.maxDev).toBeLessThan(0.05);
+    // Golden: with Fusion's settings (full-depth pockets, full-feed final pass) as fast as Fusion within 15%.
+    expect(Math.abs(r.timeFusionLike / r.timeFusion! - 1)).toBeLessThan(0.15);
+    expect(r.safety).toEqual([]);
     if (r.cov && r.cov.fusionArea > 0) expect(r.cov.coverage).toBeGreaterThan(0.99);
   });
 
@@ -254,10 +269,13 @@ describe('spike 5: compare with Fusion', async () => {
     });
     expect(flipped.cam.operations.map(o => o.kind)).toEqual(['pocket']);
     expect(flipped.cov!.coverage).toBeGreaterThan(0.95);
+    expect([...top.safety, ...flipped.safety]).toEqual([]);
   });
 
   it('besteckkasten other boards (ours only)', async () => {
-    for (const part of besteck.filter(p => p.name !== 'vert1' && p.name !== 'connector top'))
-      await compareWithFusion({ label: `besteck ${part.name}`, part });
+    for (const part of besteck.filter(p => p.name !== 'vert1' && p.name !== 'connector top')) {
+      const r = await compareWithFusion({ label: `besteck ${part.name}`, part });
+      expect(r.safety).toEqual([]);
+    }
   });
 });

@@ -3,6 +3,7 @@ import { readGcode, metrics } from './analyze';
 import type { PartFeatures } from './features';
 import { fitArcs, toGcode } from './gcode';
 import { difference } from './geom';
+import { checkGcodeSafety } from './safety';
 import { camPart, DEFAULT_TABS, type Tool } from './toolpaths';
 
 function segDist(a: number[], b: number[], x: number, y: number) {
@@ -175,5 +176,18 @@ describe('spike 3/4: toolpaths + gcode', () => {
     const m = metrics(readGcode(gcode), 8);
     expect(m.zMin).toBeCloseTo(-0.3);
     expect(m.zLevels).toContain(4);
+  });
+});
+
+describe('safety rules', () => {
+  const limits = { stockTop: 8, size: [200, 100] as [number, number], minZ: -0.3, toolRadius: 3.175 / 2 };
+
+  it('generated programs keep them, with and without tabs', () => {
+    for (const tabs of [false, DEFAULT_TABS] as const) expect(checkGcodeSafety(toGcode(camPart(board(), { tabs })), limits)).toEqual([]);
+  });
+
+  it('flags rapids in the stock, moves off the board and cuts below the through depth', () => {
+    const bad = ['G21 G90', 'G0 Z13', 'G0 X10 Y10', 'G0 Z5', 'G1 X300 F1000', 'G1 X50 Z-1', 'G0 Z13'].join('\n');
+    expect(checkGcodeSafety(bad, limits).map(i => i.rule)).toEqual(['rapid-in-stock', 'outside-board', 'too-deep']);
   });
 });

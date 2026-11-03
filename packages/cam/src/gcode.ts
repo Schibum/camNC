@@ -141,15 +141,17 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
   const first = tools.length > 1 && currentTool ? `Insert T${currentTool.number} D=${fmt(currentTool.diameter)}, t` : 'T';
   out.push(`M0 (MSG ${first}urn ON spindle ${rpm}RPM)`);
 
-  for (const op of cam.operations) {
+  cam.operations.forEach((op, oi) => {
     if (currentTool && op.tool.number !== currentTool.number) {
       move('G0', { z: safeZ });
       out.push(`M0 (MSG Spindle OFF. Change to T${op.tool.number} D=${fmt(op.tool.diameter)}, re-zero Z, spindle ON ${rpm}RPM)`);
       currentTool = op.tool;
     }
-    out.push(`(${op.name} - T${op.tool.number} D=${fmt(op.tool.diameter)})`);
+    // Markers for the job view: which operation and pass the machine is in.
+    out.push(`(OP ${oi + 1}/${cam.operations.length} ${op.name} - T${op.tool.number} D=${fmt(op.tool.diameter)})`);
     op.passes.forEach((pass, pi) => {
       const [p0] = pass.pts;
+      out.push(`(PASS ${pi + 1}/${op.passes.length} Z${fmt(Math.min(...pass.pts.map(p => p[2])))})`);
       // Safety net: a direct link is only allowed for short hops (e.g. stepping between adjacent rings).
       const longLink = Math.hypot(p0[0] - x, p0[1] - y) > op.tool.diameter;
       if (pi === 0 || pass.link === 'retract' || longLink) {
@@ -180,7 +182,7 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
         }
       }
     });
-  }
+  });
   move('G0', { z: safeZ });
   move('G0', { x: 0, y: 0 });
   return out.join('\n') + '\n';
