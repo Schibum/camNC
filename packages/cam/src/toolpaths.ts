@@ -1,6 +1,6 @@
 import { areaD, pointInPolygonD, PointInPolygonResult, simplifyPathsD, type PathD, type PathsD } from 'clipper2-ts';
 import { openPocketRegion, type PartFeatures } from './features';
-import { clipLines, difference, offset, pathLength, polyArea, type Vec3 } from './geom';
+import { clipLines, difference, intersect, offset, pathLength, polyArea, type Vec3 } from './geom';
 
 export interface Tool {
   number: number;
@@ -363,6 +363,22 @@ function wallsOnRight(line: PathD, walls: PathsD): PathD {
   return insideRegion(probe, walls) ? line : [...line].reverse();
 }
 
+/** Distance from p to the nearest edge of `paths` (closed loops). */
+function distToEdges(p: { x: number; y: number }, paths: PathsD): number {
+  let best = Infinity;
+  for (const loop of paths)
+    for (let i = 0; i < loop.length; i++) {
+      const a = loop[i],
+        b = loop[(i + 1) % loop.length];
+      const dx = b.x - a.x,
+        dy = b.y - a.y;
+      const l2 = dx * dx + dy * dy;
+      const t = l2 > 0 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2)) : 0;
+      best = Math.min(best, (a.x + t * dx - p.x) ** 2 + (a.y + t * dy - p.y) ** 2);
+    }
+  return Math.sqrt(best);
+}
+
 /** Points of `line` up to arc length `len` (the last one interpolated). */
 function prefix(line: PathD, len: number): PathD {
   const out = [line[0]];
@@ -435,28 +451,59 @@ function openPocketPasses(comp: PathsD, walls: PathsD, topZ: number, floorZ: num
   // A path right at the free area's edge (the row next to the walls) would come out of the clip in slivers: clip to
   // a hair more. Paths are at least `d` >= r from the walls anyway.
   const clipArea = offset(free, 0.01);
+  // How far a pass can be from the walls: the farthest point of the free area's edge (in the waste for a rabbet),
+  // measured directly; then further out while there are still passes (a wider pocket's middle).
+  let far = 0;
+  for (const loop of free)
+    for (let i = 0; i < loop.length; i++) {
+      const a = loop[i],
+        b = loop[(i + 1) % loop.length];
+      const steps = Math.max(1, Math.ceil(Math.sqrt(dist2(a, b))));
+      for (let k = 0; k < steps; k++)
+        far = Math.max(far, distToEdges({ x: a.x + ((b.x - a.x) * k) / steps, y: a.y + ((b.y - a.y) * k) / steps }, walls));
+    }
+  // Only the walls within reach matter: offsetting the whole part for every pass is what's slow.
+  const xs = comp.flat().map(q => q.x),
+    ys = comp.flat().map(q => q.y);
+  const reach = (m: number) => {
+    const [x0, y0, x1, y1] = [Math.min(...xs) - m, Math.min(...ys) - m, Math.max(...xs) + m, Math.max(...ys) + m];
+    return intersect(walls, [
+      [
+        { x: x0, y: y0 },
+        { x: x1, y: y0 },
+        { x: x1, y: y1 },
+        { x: x0, y: y1 },
+      ],
+    ]);
+  };
+  let localWalls = reach(far + r + 2);
   // The bit-center paths `d` away from the walls, inside the free area, walls on the right.
+  const cache = new Map<number, PathD[]>();
   const along = (d: number) => {
-    const around = offset(walls, d);
-    return clipLines(
+    const hit = cache.get(d);
+    if (hit) return hit;
+    const around = offset(localWalls, d);
+    const out = clipLines(
       around.map(l => [...l, l[0]]),
       clipArea
     )
       .filter(l => l.length > 1 && pathLength(l, false) > 0.5)
       .map(l => wallsOnRight(l, around));
+    cache.set(d, out);
+    return out;
   };
   const near = r + allowance;
   if (!along(near).length) return [];
-  // The farthest a pass can be from the walls (the free area's far side, in the waste).
-  const xs = comp.flat().map(q => q.x),
-    ys = comp.flat().map(q => q.y);
-  let lo = near,
-    hi = near + Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
-  for (let i = 0; i < 30 && hi - lo > 0.005; i++) {
-    const mid = (lo + hi) / 2;
-    if (along(mid).length) lo = mid;
-    else hi = mid;
+  let lo = Math.max(near, far - 0.01);
+  for (let i = 0; i < 200 && along(lo + 0.5 * stepover).length; i++) {
+    lo += 0.5 * stepover;
+    if (lo + r + 2 > far + r + 2) {
+      far = lo;
+      localWalls = reach(far + r + 2);
+      cache.clear();
+    }
   }
+  while (lo > near && !along(lo).length) lo = Math.max(near, lo - 0.05);
   // Rows evenly spaced, at most a quarter wider than the stepover (a whole extra row for a few tenths isn't worth it).
   const span = lo - near;
   let n = Math.max(span > 1e-6 ? 1 : 0, Math.round(span / stepover));
