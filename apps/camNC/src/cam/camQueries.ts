@@ -3,6 +3,7 @@ import * as Comlink from 'comlink';
 import type { CamWorkerAPI } from '../workers/cam.worker';
 import type { BoardRequest, ModelImport, PlanResult } from './camTypes';
 import { kDefaultPlan, toCamSettings } from './planSettings';
+import { useCuttingData } from './cuttingData';
 import { getJob, getModelBytes, listJobs, saveJob, type CamJobV1 } from './jobDb';
 
 let worker: Comlink.Remote<CamWorkerAPI> | undefined;
@@ -58,7 +59,8 @@ export const modelKey = (job: CamJobV1) => `${job.id}:${job.fileName}`;
 
 /** Toolpaths + G-code of one part with the job's plan settings; recomputed (~0.3s) when they change. */
 export function useCamPlan(job: CamJobV1 | null | undefined, partId: string | undefined, modelReady: boolean) {
-  const settings = toCamSettings(job?.plan ?? kDefaultPlan);
+  const saved = useCuttingData(s => s.saved);
+  const settings = toCamSettings(job?.plan ?? kDefaultPlan, undefined, saved);
   return useQuery({
     queryKey: camKeys.plan(job?.id ?? '', job?.fileName ?? '', partId ?? '', settings),
     enabled: !!job && !!partId && modelReady,
@@ -76,9 +78,10 @@ export function useBoardPlans(
   modelReady: boolean
 ) {
   const plan = job?.plan ?? kDefaultPlan;
+  const saved = useCuttingData(s => s.saved);
   return useQueries({
     queries: boards.map(({ request, material }) => {
-      const settings = toCamSettings(plan, material as typeof plan.material);
+      const settings = toCamSettings(plan, material as typeof plan.material, saved);
       return {
         queryKey: ['cam', 'board-plan', job?.id ?? '', job?.fileName ?? '', request, settings] as const,
         enabled: !!job && modelReady && request.parts.length > 0,

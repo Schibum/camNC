@@ -7,8 +7,12 @@ import { freezeSpacing, spacingProblem } from '@/cam/boards';
 import { orderBoardQueue } from '@wbcnc/cam/board';
 import { CamJobBar } from '@/cam/model/CamJobBar';
 import { PlanSettingsPanel } from '@/cam/plan/PlanSettingsPanel';
+import { CuttingDataEditor } from '@/cam/plan/CuttingDataEditor';
+import { cuttingKey, kCuttingLabels, kSourceLabels, resolveCutting, useCuttingData, type CuttingField } from '@/cam/cuttingData';
+import { Popover, PopoverContent, PopoverTrigger } from '@wbcnc/ui/components/popover';
+import type { ComponentProps } from 'react';
 import { ToolpathPreview } from '@/cam/plan/ToolpathPreview';
-import { kDefaultPlan } from '@/cam/planSettings';
+import { jobCutting, kDefaultPlan } from '@/cam/planSettings';
 import { loadIntoMachineView } from '@/cam/showOnMachine';
 import { useCamMachine } from '@/cam/machine/camMachine';
 import { useStore } from '@/store/store';
@@ -182,7 +186,22 @@ function PlanStep() {
                   <div className={cn('relative rounded-lg bg-muted/30 p-3 transition-opacity', current.fetching && 'opacity-60')}>
                     <ToolpathPreview plan={result} className="mx-auto block max-h-[320px] w-full" />
                   </div>
-                  <OperationsTable name={`board ${current.board.name}`} plan={result} />
+                  <OperationsTable
+                    name={`board ${current.board.name}`}
+                    plan={result}
+                    editFor={op => {
+                      const main = op.tool.diameter === settings.bit.diameter || !settings.smallBit;
+                      const bit = main ? settings.bit : settings.smallBit!;
+                      return main
+                        ? {
+                            bit,
+                            material: current.board.material,
+                            job: jobCutting(settings),
+                            onJobChange: cutting => save.mutate({ ...job, plan: { ...settings, cutting, finalFeedFactor: undefined } }),
+                          }
+                        : { bit, material: current.board.material };
+                    }}
+                  />
                   <OrderBar plan={result} />
                 </>
               )}
@@ -198,6 +217,7 @@ function PlanStep() {
         </main>
         <PlanSettingsPanel
           value={settings}
+          material={current.board.material}
           onChange={plan =>
             save.mutate({
               ...job,
@@ -235,9 +255,38 @@ function BitsLine({ plan }: { plan: PlanResult }) {
   );
 }
 
-function OperationsTable({ name, plan }: { name: string; plan: PlanResult }) {
+type EditProps = Omit<ComponentProps<typeof CuttingDataEditor>, 'fields'>;
+
+/** A cutting value in the operations table: click to edit it, for the bit + material or for this job. */
+function CuttingCell({ edit, field, children }: { edit: EditProps; field: CuttingField; children: React.ReactNode }) {
+  const saved = useCuttingData(s => s.saved[cuttingKey(edit.bit, edit.material)]);
+  const { source } = resolveCutting(edit.bit, edit.material, saved, edit.job);
+  return (
+    <td className="py-2 pr-3 font-mono">
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            className="-mx-1 rounded px-1 underline decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:bg-muted"
+            title={`${kCuttingLabels[field].label}: ${kSourceLabels[source[field]]}. Click to change.`}>
+            {children}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80 font-sans" align="start">
+          <CuttingDataEditor {...edit} fields={[field]} />
+        </PopoverContent>
+      </Popover>
+    </td>
+  );
+}
+
+function OperationsTable({ name, plan, editFor }: { name: string; plan: PlanResult; editFor: (op: OpSummary) => EditProps }) {
+  const saved = useCuttingData(s => s.saved);
   const rows = groupOps(plan.ops);
   const [open, setOpen] = useState<Set<string>>(new Set());
+  const stepover = (op: OpSummary) => {
+    const e = editFor(op);
+    return resolveCutting(e.bit, e.material, saved[cuttingKey(e.bit, e.material)], e.job).values.stepover;
+  };
   const toggle = (key: string) => setOpen(s => (s.has(key) ? new Set([...s].filter(k => k !== key)) : new Set([...s, key])));
   const row = (op: OpSummary, label: React.ReactNode, n: React.ReactNode, timeMin: number, key: string, sub = false) => (
     <tr key={key} className={cn('border-b', sub && 'text-muted-foreground')}>
@@ -248,8 +297,19 @@ function OperationsTable({ name, plan }: { name: string; plan: PlanResult }) {
         {fmtZ(op.zTop)} → {fmtZ(op.zBottom)}
       </td>
       <td className="py-2 pr-3 font-mono">{op.depthSteps}</td>
-      <td className="py-2 pr-3 font-mono">{+op.stepdown.toFixed(2)} mm</td>
-      <td className="py-2 pr-3 font-mono">{op.feeds.join(' / ')}</td>
+      <CuttingCell edit={editFor(op)} field="stepdown">
+        {+op.stepdown.toFixed(2)} mm
+      </CuttingCell>
+      {op.kind === 'pocket' ? (
+        <CuttingCell edit={editFor(op)} field="stepover">
+          {+stepover(op).toFixed(2)} mm
+        </CuttingCell>
+      ) : (
+        <td className="py-2 pr-3 font-mono text-muted-foreground">–</td>
+      )}
+      <CuttingCell edit={editFor(op)} field="feed">
+        {op.feeds.join(' / ')}
+      </CuttingCell>
       <td className="py-2 font-mono">{fmtMin(timeMin)}</td>
     </tr>
   );
@@ -264,6 +324,9 @@ function OperationsTable({ name, plan }: { name: string; plan: PlanResult }) {
           <th className="py-2 pr-3 font-medium">Passes</th>
           <th className="py-2 pr-3 font-medium" title="The deepest single pass">
             Stepdown
+          </th>
+          <th className="py-2 pr-3 font-medium" title="Sideways step between pocket rings">
+            Stepover
           </th>
           <th className="py-2 pr-3 font-medium">Feed</th>
           <th className="py-2 font-medium">Time</th>

@@ -1,5 +1,6 @@
 import { createJob, getJob, saveJob } from '@/cam/jobDb';
 import { camWorker, modelKey } from '@/cam/camQueries';
+import { useCuttingData } from '@/cam/cuttingData';
 import { instancesOf, reconcileBoards } from '@/cam/boards';
 import * as Comlink from 'comlink';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -79,17 +80,27 @@ describe('CAM plan step', () => {
     expect(depth.setZeroAt).toHaveBeenCalledWith('bottom');
     expect(depth.setToolShape).toHaveBeenCalledWith('flat');
 
-    // A max stepdown of 3.5 mm (what the Fusion setups use for the outline) makes fewer, deeper passes: the 7.3 mm of
-    // outline roughing in 3 even steps of 2.43 instead of 5 of 1.46.
-    fireEvent.change(screen.getByLabelText('Max stepdown (mm)'), { target: { value: '3.5' } });
-    await vi.waitFor(
-      () => {
-        const deeper = stepdowns(screen.getByRole('table', { name: 'Operations for board A' }));
-        expect(Math.max(...deeper)).toBeGreaterThan(2.4);
-        expect(Math.max(...deeper)).toBeLessThanOrEqual(3.5);
-      },
-      { timeout: 30_000 }
-    );
+    // This job only: 3.5 mm per pass (what the Fusion setups use for the outline) makes fewer, deeper passes: the
+    // 7.3 mm of outline roughing in 3 even steps of 2.43 instead of 5 of 1.46.
+    const panel = screen.getByRole('region', { name: 'Cutting data' });
+    fireEvent.change(within(panel).getByRole('spinbutton', { name: /^Stepdown/ }), { target: { value: '3.5' } });
+    fireEvent.click(within(panel).getByRole('button', { name: 'Only this job' }));
+    const deepest = () => Math.max(...stepdowns(screen.getByRole('table', { name: 'Operations for board A' })));
+    await vi.waitFor(() => expect(deepest()).toBeGreaterThan(2.4), { timeout: 30_000 });
+    expect(deepest()).toBeLessThanOrEqual(3.5);
+    expect((await getJob(job.id))!.plan!.cutting).toEqual({ stepdown: 3.5 });
+    expect(within(panel).getByText(/mm · this job/)).toBeTruthy();
+
+    // From the table: 1 mm, saved for the bit + oak (every job); it replaces this job's 3.5.
+    const firstStepdown = within(screen.getByRole('table', { name: 'Operations for board A' })).getAllByRole('row')[1];
+    fireEvent.click(within(firstStepdown).getAllByRole('cell')[5].querySelector('button')!);
+    const popover = await screen.findByRole('dialog');
+    fireEvent.change(within(popover).getByRole('spinbutton', { name: /^Stepdown/ }), { target: { value: '1' } });
+    fireEvent.click(within(popover).getByRole('button', { name: /^Save for ⌀3.175 .* \+ oak$/ }));
+    // Every pass at most 1 mm, except the outline's final pass: from 1 mm above the bottom through to -0.3.
+    await vi.waitFor(() => expect(deepest()).toBeLessThanOrEqual(1.3), { timeout: 30_000 });
+    expect(Object.values(useCuttingData.getState().saved)).toEqual([{ stepdown: 1 }]);
+    await vi.waitFor(async () => expect((await getJob(job.id))!.plan!.cutting).toEqual({}));
   }, 120_000);
 
   it('mills a 3D part as a flat board when asked: its outline at least', async () => {

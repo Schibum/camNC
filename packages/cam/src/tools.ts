@@ -7,6 +7,20 @@ export interface LibraryTool extends Tool {
   feed?: number;
   plungeFeed?: number;
   rpm?: number;
+  /** Depth per pass, mm, when the library sets one. */
+  stepdown?: number;
+  /** Sideways step between pocket rings, mm, when the library sets one. */
+  stepover?: number;
+}
+
+interface FusionPreset {
+  v_f?: number;
+  v_f_plunge?: number;
+  n?: number;
+  stepdown?: number;
+  stepover?: number;
+  'use-stepdown'?: boolean;
+  'use-stepover'?: boolean;
 }
 
 interface FusionTool {
@@ -15,7 +29,7 @@ interface FusionTool {
   description?: string;
   geometry?: { DC?: number; NOF?: number };
   'post-process'?: { number?: number };
-  'start-values'?: { presets?: { v_f?: number; v_f_plunge?: number; n?: number }[] };
+  'start-values'?: { presets?: FusionPreset[] };
 }
 
 /**
@@ -48,6 +62,9 @@ export function readFusionToolLibrary(json: string | unknown): { tools: LibraryT
       feed: preset?.v_f ? preset.v_f * mm : undefined,
       plungeFeed: preset?.v_f_plunge ? +(preset.v_f_plunge * mm).toFixed(1) : undefined,
       rpm: preset?.n,
+      // Fusion keeps a stepdown/stepover in a preset but only applies it when its "use" flag is on.
+      stepdown: preset?.['use-stepdown'] && preset.stepdown ? +(preset.stepdown * mm).toFixed(3) : undefined,
+      stepover: preset?.['use-stepover'] && preset.stepover ? +(preset.stepover * mm).toFixed(3) : undefined,
     });
   }
   return { tools, skipped };

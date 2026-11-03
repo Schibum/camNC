@@ -11,7 +11,9 @@ const library = {
       description: '1/8 mill v1',
       geometry: { DC: 3.175, NOF: 1 },
       'post-process': { number: 1 },
-      'start-values': { presets: [{ v_f: 1800, v_f_plunge: 480, n: 15000 }] },
+      'start-values': {
+        presets: [{ v_f: 1800, v_f_plunge: 480, n: 15000, stepover: 1.27, 'use-stepover': true, stepdown: 9, 'use-stepdown': false }],
+      },
     },
     { type: 'chamfer mill', unit: 'millimeters', description: 'engraver', geometry: { DC: 3.175 }, 'post-process': { number: 2 } },
     { type: 'holder', description: 'makita' },
@@ -29,7 +31,8 @@ const library = {
 describe('Fusion tool library', () => {
   it('reads flat end mills with their feeds, in mm', () => {
     expect(parseFusionToolLibrary(JSON.stringify(library))).toEqual([
-      { number: 1, diameter: 3.175, name: '1/8 mill v1', flutes: 1, feed: 1800, plungeFeed: 480, rpm: 15000 },
+      // Stepover applies ("use-stepover"), the preset's stepdown doesn't.
+      { number: 1, diameter: 3.175, name: '1/8 mill v1', flutes: 1, feed: 1800, plungeFeed: 480, rpm: 15000, stepover: 1.27 },
       { number: 7, diameter: 6.35, name: '1/4 inch', flutes: 2, feed: 2540, plungeFeed: 508, rpm: 18000 },
     ]);
   });

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { camWorker, modelKey, useBoardPlans, useCamJob, useCamModel } from '../camQueries';
 import type { TabRemovalResult } from '../camTypes';
+import { useCuttingData } from '../cuttingData';
 import { kDefaultPlan, toCamSettings } from '../planSettings';
 import { useJobBoards } from '../useJobBoards';
 import { machineQueue, useCamMachine } from './camMachine';
@@ -25,7 +26,8 @@ export function useMachineQueue() {
     plans.map(p => p.data)
   );
   const current = queue.find(e => e.key === active) ?? queue.find(e => !done.includes(e.key)) ?? null;
-  const settings = toCamSettings(job?.plan ?? kDefaultPlan, current?.board.board.material);
+  const saved = useCuttingData(s => s.saved);
+  const settings = toCamSettings(job?.plan ?? kDefaultPlan, current?.board.board.material, saved);
   const tabs = useQuery({
     queryKey: ['cam', 'tab-removal', job?.id, job?.fileName, current?.board.request, settings],
     enabled: !!job && current?.kind === 'tabs',

@@ -7,6 +7,8 @@ export interface Tool {
   /** Flat end mill diameter in mm. */
   diameter: number;
   name?: string;
+  /** Depth per pass with this bit (its cutting data); default: the material's share of the diameter. */
+  stepdown?: number;
 }
 
 export { MATERIALS, DEFAULT_TABS, type Material, type TabSettings } from './settings';
@@ -18,6 +20,8 @@ export interface CamSettings {
   feed: number;
   plungeFeed: number;
   stepoverFactor: number;
+  /** Spindle speed the program starts the spindle at (M3 S). */
+  spindleRpm?: number;
   /** Max stepdown in mm for pockets and outline roughing; default: the material's factor × the bit diameter. */
   maxStepdown?: number;
   /** Max stepdown for the outline roughing passes only (overrides the above, e.g. to match a Fusion setup). */
@@ -327,9 +331,9 @@ function components(paths: PathsD): PathsD[] {
   return comps;
 }
 
-/** How deep one pass cuts with this bit: the user's max stepdown, else the material's share of the diameter. */
+/** How deep one pass cuts with this bit: a max stepdown for all bits, else the bit's own, else the material's share. */
 export function stepdownFor(tool: Tool, s: Pick<CamSettings, 'maxStepdown' | 'material'>): number {
-  return s.maxStepdown ?? s.material.stepdownFactor * tool.diameter;
+  return s.maxStepdown ?? tool.stepdown ?? s.material.stepdownFactor * tool.diameter;
 }
 
 function depthLevels(top: number, bottom: number, maxStep: number): number[] {

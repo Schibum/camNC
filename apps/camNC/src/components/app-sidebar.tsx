@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { Box, Bug, Cctv, Grid2x2, HardDriveDownload, Layers, Puzzle, Rocket, Scale3d } from 'lucide-react';
+import { Box, Bug, Cctv, Grid2x2, Gauge, HardDriveDownload, Layers, Puzzle, Rocket, Scale3d } from 'lucide-react';
 import * as React from 'react';
 
 import { useLocation } from '@tanstack/react-router';
@@ -81,6 +81,11 @@ const settingsRoutes: NavRoute[] = [
     title: 'Hide Machine',
     to: '/settings/hide-machine',
     icon: Layers,
+  },
+  {
+    title: 'Cutting Data',
+    to: '/settings/cutting-data',
+    icon: Gauge,
   },
   {
     title: 'Debug',

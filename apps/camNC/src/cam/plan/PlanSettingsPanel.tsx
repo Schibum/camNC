@@ -2,55 +2,32 @@ import type { LibraryTool } from '@wbcnc/cam';
 import { Input } from '@wbcnc/ui/components/input';
 import { Label } from '@wbcnc/ui/components/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wbcnc/ui/components/select';
-import { MATERIALS } from '@wbcnc/cam/settings';
-import { kDefaultBit, type PlanSettingsV1 } from '../planSettings';
+import { bitKey } from '../cuttingData';
+import { jobCutting, kDefaultBit, type MaterialKey, type PlanSettingsV1 } from '../planSettings';
+import { CuttingDataEditor } from './CuttingDataEditor';
 import { useToolLibrary } from '../toolLibrary';
 import { ImportToolLibrary } from './ImportToolLibrary';
 
-const fmt = (v: number) => `${+v.toFixed(2)}`;
-
-/** Depth per pass for pockets and outline roughing: empty means by material, e.g. oak half the bit diameter. */
-function MaxStepdown({ value, set }: { value: PlanSettingsV1; set: (patch: Partial<PlanSettingsV1>) => void }) {
-  const d = value.bit.diameter;
-  const byMaterial = Object.values(MATERIALS)
-    .map(m => `${m.name} ${fmt(m.stepdownFactor * d)}`)
-    .join(', ');
-  return (
-    <section className="flex flex-col gap-1.5">
-      <Label htmlFor="plan-max-stepdown">Max stepdown (mm)</Label>
-      <Input
-        id="plan-max-stepdown"
-        type="number"
-        min={0.1}
-        step={0.1}
-        className="font-mono"
-        placeholder="By material"
-        value={value.maxStepdown ?? ''}
-        onChange={e => {
-          if (e.target.value === '') return set({ maxStepdown: undefined });
-          const v = parseFloat(e.target.value);
-          if (Number.isFinite(v) && v >= 0.1) set({ maxStepdown: v });
-        }}
-      />
-      <p className="text-xs text-muted-foreground">
-        {value.maxStepdown
-          ? `Pockets and outline roughing cut at most ${fmt(value.maxStepdown)} mm per pass (${fmt(value.maxStepdown / d)} × the bit).`
-          : `Empty: by material, with this bit ${byMaterial} mm per pass.`}
-      </p>
-    </section>
-  );
-}
-
-const bitKey = (b: LibraryTool) => `${b.number}|${b.diameter}|${b.name}`;
 const bitLabel = (b: LibraryTool) => `⌀ ${b.diameter} · ${b.name}`;
 
-/** Bit, material, final pass and tabs: everything the Plan step needs from the user, with Fusion-like defaults. */
-export function PlanSettingsPanel({ value, onChange }: { value: PlanSettingsV1; onChange: (v: PlanSettingsV1) => void }) {
+/**
+ * Bits, their cutting data in the board's material, cut-through depth: everything the Plan step needs from the user,
+ * with Fusion-like defaults.
+ */
+export function PlanSettingsPanel({
+  value,
+  material,
+  onChange,
+}: {
+  value: PlanSettingsV1;
+  /** The shown board's material: cutting data is per bit + material. */
+  material: MaterialKey;
+  onChange: (v: PlanSettingsV1) => void;
+}) {
   const { tools, source, setTools } = useToolLibrary();
   const bits = [kDefaultBit, ...tools.filter(t => bitKey(t) !== bitKey(kDefaultBit))];
   if (!bits.some(b => bitKey(b) === bitKey(value.bit))) bits.push(value.bit);
   const set = (patch: Partial<PlanSettingsV1>) => onChange({ ...value, ...patch });
-  const feed = value.bit.feed ?? 1800;
   const smaller = [...bits, ...(value.smallBit ? [value.smallBit] : [])].filter(
     (b, i, all) => b.diameter < value.bit.diameter && all.findIndex(x => bitKey(x) === bitKey(b)) === i
   );
@@ -74,7 +51,7 @@ export function PlanSettingsPanel({ value, onChange }: { value: PlanSettingsV1; 
           </SelectContent>
         </Select>
         <p className="text-xs text-muted-foreground">
-          Flat end mill, F{feed}, plunge F{value.bit.plungeFeed ?? 480}
+          Flat end mill{value.bit.flutes ? `, ${value.bit.flutes} flutes` : ''}
           {source ? ` · library: ${source}` : ''}
         </p>
         <ImportToolLibrary onImport={setTools} />
@@ -104,19 +81,24 @@ export function PlanSettingsPanel({ value, onChange }: { value: PlanSettingsV1; 
         </p>
       </section>
 
-      <MaxStepdown value={value} set={set} />
-
-      <section className="flex flex-col gap-1.5">
-        <Label htmlFor="plan-final-feed">Final pass feed</Label>
-        <Select value={String(value.finalFeedFactor)} onValueChange={f => set({ finalFeedFactor: +f })}>
-          <SelectTrigger id="plan-final-feed" className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="0.5">½ ({feed / 2}) · cleaner edge</SelectItem>
-            <SelectItem value="1">Full ({feed})</SelectItem>
-          </SelectContent>
-        </Select>
+      <section className="flex flex-col gap-1.5" aria-label="Cutting data">
+        <h3 className="text-sm font-medium">
+          Cutting data · ⌀{value.bit.diameter} in {material}
+        </h3>
+        <CuttingDataEditor
+          bit={value.bit}
+          material={material}
+          job={jobCutting(value)}
+          onJobChange={cutting => set({ cutting, finalFeedFactor: undefined })}
+        />
+        {value.smallBit && value.smallBit.diameter < value.bit.diameter && (
+          <>
+            <h3 className="pt-2 text-sm font-medium">
+              Second bit · ⌀{value.smallBit.diameter} in {material}
+            </h3>
+            <CuttingDataEditor bit={value.smallBit} material={material} fields={['stepdown']} />
+          </>
+        )}
       </section>
 
       <section className="flex flex-col gap-1.5">

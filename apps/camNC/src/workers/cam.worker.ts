@@ -105,6 +105,7 @@ const api = {
       partName: `Board ${board.name}: tab removal`,
       board: board.name,
       stockSize: [board.w, board.h, board.stockTop],
+      spindleRpm: settings.spindleRpm,
     });
     return { gcode, tabs, timeMin: metrics(readGcode(gcode), cam.stockTop).timeMin };
   },
@@ -174,6 +175,7 @@ function summarize(
       partName: split.length > 1 ? `${name}, bit T${tool.number} D=${tool.diameter}` : name,
       board,
       stockSize: size,
+      spindleRpm: settings.spindleRpm,
     });
     return { tool: tool.number, diameter: tool.diameter, gcode, timeMin: metrics(readGcode(gcode), cam.stockTop).timeMin };
   });

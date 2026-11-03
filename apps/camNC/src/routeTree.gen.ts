@@ -26,6 +26,7 @@ import { Route as SetupFluidncRouteImport } from './routes/setup/fluidnc'
 import { Route as SetupEditSettingsRouteImport } from './routes/setup/edit-settings'
 import { Route as SetupCameraCalibrationRouteImport } from './routes/setup/camera-calibration'
 import { Route as SettingsHideMachineRouteImport } from './routes/settings/hide-machine'
+import { Route as SettingsCuttingDataRouteImport } from './routes/settings/cutting-data'
 import { Route as SettingsBackupRouteImport } from './routes/settings/backup'
 import { Route as DebugUnprojectRouteImport } from './routes/debug/unproject'
 import { Route as DebugUndistort2RouteImport } from './routes/debug/undistort2'
@@ -123,6 +124,11 @@ const SettingsHideMachineRoute = SettingsHideMachineRouteImport.update({
   path: '/settings/hide-machine',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsCuttingDataRoute = SettingsCuttingDataRouteImport.update({
+  id: '/settings/cutting-data',
+  path: '/settings/cutting-data',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsBackupRoute = SettingsBackupRouteImport.update({
   id: '/settings/backup',
   path: '/settings/backup',
@@ -183,6 +189,7 @@ export interface FileRoutesByFullPath {
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
   '/settings/backup': typeof SettingsBackupRoute
+  '/settings/cutting-data': typeof SettingsCuttingDataRoute
   '/settings/hide-machine': typeof SettingsHideMachineRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
@@ -212,6 +219,7 @@ export interface FileRoutesByTo {
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
   '/settings/backup': typeof SettingsBackupRoute
+  '/settings/cutting-data': typeof SettingsCuttingDataRoute
   '/settings/hide-machine': typeof SettingsHideMachineRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
@@ -242,6 +250,7 @@ export interface FileRoutesById {
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
   '/settings/backup': typeof SettingsBackupRoute
+  '/settings/cutting-data': typeof SettingsCuttingDataRoute
   '/settings/hide-machine': typeof SettingsHideMachineRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
@@ -273,6 +282,7 @@ export interface FileRouteTypes {
     | '/debug/undistort2'
     | '/debug/unproject'
     | '/settings/backup'
+    | '/settings/cutting-data'
     | '/settings/hide-machine'
     | '/setup/camera-calibration'
     | '/setup/edit-settings'
@@ -302,6 +312,7 @@ export interface FileRouteTypes {
     | '/debug/undistort2'
     | '/debug/unproject'
     | '/settings/backup'
+    | '/settings/cutting-data'
     | '/settings/hide-machine'
     | '/setup/camera-calibration'
     | '/setup/edit-settings'
@@ -331,6 +342,7 @@ export interface FileRouteTypes {
     | '/debug/undistort2'
     | '/debug/unproject'
     | '/settings/backup'
+    | '/settings/cutting-data'
     | '/settings/hide-machine'
     | '/setup/camera-calibration'
     | '/setup/edit-settings'
@@ -361,6 +373,7 @@ export interface RootRouteChildren {
   DebugUndistort2Route: typeof DebugUndistort2Route
   DebugUnprojectRoute: typeof DebugUnprojectRoute
   SettingsBackupRoute: typeof SettingsBackupRoute
+  SettingsCuttingDataRoute: typeof SettingsCuttingDataRoute
   SettingsHideMachineRoute: typeof SettingsHideMachineRoute
   SetupCameraCalibrationRoute: typeof SetupCameraCalibrationRoute
   SetupEditSettingsRoute: typeof SetupEditSettingsRoute
@@ -503,6 +516,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsHideMachineRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/cutting-data': {
+      id: '/settings/cutting-data'
+      path: '/settings/cutting-data'
+      fullPath: '/settings/cutting-data'
+      preLoaderRoute: typeof SettingsCuttingDataRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings/backup': {
       id: '/settings/backup'
       path: '/settings/backup'
@@ -585,6 +605,7 @@ const rootRouteChildren: RootRouteChildren = {
   DebugUndistort2Route: DebugUndistort2Route,
   DebugUnprojectRoute: DebugUnprojectRoute,
   SettingsBackupRoute: SettingsBackupRoute,
+  SettingsCuttingDataRoute: SettingsCuttingDataRoute,
   SettingsHideMachineRoute: SettingsHideMachineRoute,
   SetupCameraCalibrationRoute: SetupCameraCalibrationRoute,
   SetupEditSettingsRoute: SetupEditSettingsRoute,
