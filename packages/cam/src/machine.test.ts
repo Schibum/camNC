@@ -97,7 +97,20 @@ describe('at the machine', () => {
     const gcode = toGcode(removal);
     const pauses = gcode.split('\n').filter(l => /^M0 \(MSG Tab \d+ of \d+/.test(l));
     expect(pauses).toHaveLength(tabs.length);
-    expect(pauses[0]).toContain(`Tab 1 of ${tabs.length}: hold side at the marked spot`);
+    expect(pauses[0]).toBe(
+      `M0 (MSG Tab 1 of ${tabs.length}: spindle off until Resume. Hold away from bit: side. Manual spindle: off now, on before Resume)`
+    );
+    // Bit up, spindle off before each; started again and up to speed before any cut. A program that begins with a pause
+    // has no spindle start before it.
+    const lines = gcode.trim().split('\n');
+    expect(lines.filter(l => l.startsWith('M0 '))).toHaveLength(tabs.length);
+    expect(lines.indexOf('M3 S15000')).toBeGreaterThan(lines.indexOf(pauses[0]));
+    for (const pause of pauses) {
+      const i = lines.indexOf(pause);
+      expect(lines[i - 2]).toMatch(/Z13$/);
+      expect(lines[i - 1]).toBe('M5');
+      expect(lines.slice(i + 1, i + 3)).toEqual(['M3 S15000', 'G4 P3']);
+    }
     for (const t of tabs) {
       // Tab length along the path = tab width + bit.
       expect(t.length).toBeCloseTo(DEFAULT_TABS.width + 3.175, 1);
@@ -124,7 +137,8 @@ describe('at the machine', () => {
     expect(lines.filter(l => /^M0 \(MSG Tab /.test(l))).toEqual([]);
     const pauses = lines.flatMap((l, i) => (l.startsWith('M0 (MSG Take out ') ? [i] : []));
     expect(pauses).toHaveLength(parts.size);
-    expect(lines[pauses[0]]).toBe('M0 (MSG Take out side, then continue)');
+    // The last pause only leaves the parking move: a hand-switched spindle stays off.
+    expect(lines[pauses[0]]).toBe('M0 (MSG Take out side, then continue. Manual spindle: off now)');
     for (const i of pauses) {
       // Bit up (stock top 8 + 5), spindle off.
       expect(lines[i - 1]).toBe('M5');

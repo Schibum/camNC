@@ -170,7 +170,7 @@ export function CamQueueCard() {
               <p>
                 <span className="font-medium">Free the parts:</span> the program cuts one part’s bottom skin at a time, then lifts the bit,
                 stops the spindle and pauses. Take out the part ringed green in the camera view, then press Resume: the spindle starts again
-                before the next one.
+                before the next one. A router you switch by hand: switch it off at each pause, back on before Resume.
               </p>
               <p className="text-xs text-muted-foreground">Green ring: the part being freed, then taken out.</p>
             </>
@@ -180,14 +180,15 @@ export function CamQueueCard() {
               <p>
                 {pauseEachTab ? (
                   <>
-                    <span className="font-medium">Remove the tabs:</span> the program stops before each tab. Hold the part at the green ring
-                    in the camera view, away from the bit, then press Resume.
+                    <span className="font-medium">Remove the tabs:</span> the program lifts the bit, stops the spindle and pauses before
+                    each tab. Hold the part at the green ring in the camera view, away from the bit, then press Resume: the spindle starts
+                    again. A router you switch by hand: switch it off at each pause, back on before Resume.
                   </>
                 ) : (
                   <>
                     <span className="font-medium">Remove the tabs:</span> the program cuts all of a part’s tabs in a row, the last one
                     slower, then lifts the bit, stops the spindle and pauses. Take out the part, then press Resume: the spindle starts again
-                    before the next one.
+                    before the next one. A router you switch by hand: switch it off at each pause, back on before Resume.
                   </>
                 )}
               </p>

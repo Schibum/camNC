@@ -88,8 +88,31 @@ const fmt = (v: number) => {
   return s === '-0' ? '0' : s;
 };
 
+/**
+ * FluidNC rejects a line longer than this, comments included ("error:14" in `gc_execute_line`), which stops the job with
+ * an alarm: names and messages are clipped to fit.
+ */
+export const kMaxGcodeLine = 127;
+const encoder = new TextEncoder();
+
+/**
+ * Text for inside a `( )` comment, at most `room` bytes. FluidNC can't nest comments: the rest of the line after an
+ * inner `)` is read as G-code ("error:1", which stops the job too), and a `;` ends the line, message included.
+ */
+function commentText(text: string, room: number): string {
+  const clean = text.replace(/[();]/g, '').replace(/[\r\n]+/g, ' ');
+  if (encoder.encode(clean).length <= room) return clean;
+  const chars = [...clean];
+  while (encoder.encode(chars.join('')).length > room) chars.pop();
+  return chars.join('');
+}
+
+/** What a pause that stops the spindle tells whoever switches it by hand: M3/M5 do nothing on a router. Short: see above. */
+const kManualOffOn = 'Manual spindle: off now, on before Resume';
+const kManualOff = 'Manual spindle: off now';
+
 const toolLine = (t: Tool, zMin: number) =>
-  `(  T${t.number} D=${fmt(t.diameter)} CR=0 - ZMIN=${fmt(zMin)} - ${t.name ?? 'flat end mill'} )`;
+  `(  T${t.number} D=${fmt(t.diameter)} CR=0 - ZMIN=${fmt(zMin)} - ${commentText(t.name ?? 'flat end mill', 60)} )`;
 
 /**
  * FluidNC/grbl dialect G-code for one bit. Z0 = stock bottom, XY0 = lower left of the stock (the board). Several bits make
@@ -114,13 +137,13 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
   }
 
   const out: string[] = ['(camNC CAM)'];
-  if (opts.partName) out.push(`(${opts.partName.replace(/[()]/g, '')})`);
+  if (opts.partName) out.push(`(${commentText(opts.partName, kMaxGcodeLine - 2)})`);
   if (opts.stockSize) out.push(`(Stock: ${opts.stockSize.map(fmt).join(' x ')} mm)`);
-  const corner = opts.board ? `board ${opts.board}` : 'the stock';
+  const corner = opts.board ? `board ${commentText(opts.board, 40)}` : 'the stock';
   const size = opts.stockSize ? `, ${fmt(opts.stockSize[0])} x ${fmt(opts.stockSize[1])} mm` : '';
   out.push(`(X0 Y0 = lower left corner of ${corner}${size}. Z0 = stock bottom)`);
   out.push('( Tools Table:)', ...tools.map(t => toolLine(t.tool, t.zMin)), '( )');
-  for (const w of cam.warnings) out.push(`(WARNING: ${w.replace(/[()]/g, '')})`);
+  for (const w of cam.warnings) out.push(`(WARNING: ${commentText(w, kMaxGcodeLine - '(WARNING: )'.length)})`);
   out.push('G21 G90 G94 G17');
 
   let x = NaN,
@@ -149,26 +172,35 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
     y = a.to.y;
   };
 
-  move('G0', { z: safeZ });
-  // Confirm before the spindle starts; a spindle the machine doesn't control (a router) is switched on here.
-  out.push(`M0 (MSG Spindle starts at ${rpm} RPM next. Manual spindle: turn it on now)`);
-  out.push(`M3 S${rpm}`, `G4 P${fmt(opts.spindleDwell ?? 3)}`);
-
   // After a pause with the spindle off: start it again and let it come up to speed before cutting on.
-  let spindleOff = false;
+  let spindleOff = true;
   const spindleOn = () => {
     if (!spindleOff) return;
     out.push(`M3 S${rpm}`, `G4 P${fmt(opts.spindleDwell ?? 3)}`);
     spindleOff = false;
   };
-  cam.operations.forEach((op, oi) => {
+  /** Bit up and spindle off before anyone reaches in; nothing moves until Resume. */
+  const pause = (message: string, manual: string) => {
+    move('G0', { z: safeZ });
+    const room = kMaxGcodeLine - 'M0 (MSG . )'.length - manual.length;
+    out.push('M5', `M0 (MSG ${commentText(message, room)}. ${manual})`);
+    spindleOff = true;
+  };
+
+  move('G0', { z: safeZ });
+  // Confirm before the spindle starts; a spindle the machine doesn't control (a router) is switched on here. A program
+  // that begins with a pause confirms there: no spinning up just to stop again.
+  if (!cam.operations[0]?.pauseBefore) {
+    out.push(`M0 (MSG Spindle starts at ${rpm} RPM next. Manual spindle: turn it on now)`);
     spindleOn();
-    if (op.pauseBefore) {
-      move('G0', { z: safeZ });
-      out.push(`M0 (MSG ${op.pauseBefore.replace(/[()]/g, '')})`);
-    }
+  }
+
+  cam.operations.forEach((op, oi) => {
+    if (op.pauseBefore) pause(op.pauseBefore, kManualOffOn);
+    spindleOn();
     // Markers for the job view: which operation and pass the machine is in.
-    out.push(`(OP ${oi + 1}/${cam.operations.length} ${op.name} - T${op.tool.number} D=${fmt(op.tool.diameter)})`);
+    const [opHead, opTail] = [`(OP ${oi + 1}/${cam.operations.length} `, ` - T${op.tool.number} D=${fmt(op.tool.diameter)})`];
+    out.push(opHead + commentText(op.name, kMaxGcodeLine - opHead.length - opTail.length) + opTail);
     op.passes.forEach((pass, pi) => {
       const [p0] = pass.pts;
       out.push(`(PASS ${pi + 1}/${op.passes.length} Z${fmt(Math.min(...pass.pts.map(p => p[2])))})`);
@@ -225,12 +257,8 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
         }
       }
     });
-    if (op.pauseAfter) {
-      // Bit up and spindle off before anyone reaches in; nothing moves until Resume.
-      move('G0', { z: safeZ });
-      out.push('M5', `M0 (MSG ${op.pauseAfter.replace(/[()]/g, '')})`);
-      spindleOff = true;
-    }
+    // After the last operation the program only parks: nothing to switch back on for.
+    if (op.pauseAfter) pause(op.pauseAfter, oi < cam.operations.length - 1 ? kManualOffOn : kManualOff);
   });
   move('G0', { z: safeZ });
   out.push('M5');

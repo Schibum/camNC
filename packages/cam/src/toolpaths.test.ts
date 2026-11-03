@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { readGcode, metrics } from './analyze';
 import type { PartFeatures } from './features';
-import { fitArcs, toGcode } from './gcode';
+import { fitArcs, kMaxGcodeLine, toGcode } from './gcode';
 import { difference } from './geom';
 import { checkGcodeSafety } from './safety';
 import { splitByBit } from './board';
-import { camPart, DEFAULT_TABS, type Tool } from './toolpaths';
+import { camPart, DEFAULT_TABS, type Pass, type Tool } from './toolpaths';
 
 function segDist(a: number[], b: number[], x: number, y: number) {
   const dx = b[0] - a[0],
@@ -271,6 +271,64 @@ describe('safety rules', () => {
   it('flags rapids in the stock, moves off the board and cuts below the through depth', () => {
     const bad = ['G21 G90', 'G0 Z13', 'G0 X10 Y10', 'G0 Z5', 'G1 X300 F1000', 'G1 X50 Z-1', 'G0 Z13'].join('\n');
     expect(checkGcodeSafety(bad, limits).map(i => i.rule)).toEqual(['rapid-in-stock', 'outside-board', 'too-deep']);
+  });
+});
+
+describe('names in comments', () => {
+  const op = { kind: 'profile', feature: 'outline', tool: { number: 1, diameter: 3.175, name: 'bit (flat); 2F' } } as const;
+  const pass = {
+    pts: [
+      [0, 0, 7],
+      [50, 0, 7],
+    ],
+    feeds: [480, 1800],
+    link: 'retract',
+  } as Pass;
+  const named = (name: string) =>
+    toGcode(
+      {
+        stockTop: 8,
+        warnings: [`${name}: note`],
+        operations: [
+          {
+            ...op,
+            name: `${name}: Outline 1`,
+            passes: [pass],
+            pauseBefore: `Tab 1 of 2: spindle off until Resume. Hold away from bit: ${name}`,
+          },
+          { ...op, name: `${name}: Outline 2`, passes: [pass], pauseAfter: `Take out ${name}, then continue` },
+          { ...op, name: `${name}: Outline 3`, passes: [pass] },
+        ],
+      },
+      { partName: name, board: name }
+    ).split('\n');
+  /** What FluidNC does with a line: a comment ends at the first ")", what follows is G-code. */
+  const afterComments = (l: string) => l.replace(/\([^()]*\)/g, '').trim();
+
+  it('leaves no parenthesis or semicolon of a name in any comment, and the job view can still read the markers', () => {
+    const lines = named('Seite (links);2');
+    for (const l of lines) {
+      expect(afterComments(l)).not.toMatch(/[()]/);
+      if (l.includes('Seite')) {
+        expect(l).toContain('Seite links2');
+        expect(afterComments(l)).toMatch(/^(M0)?$/);
+      }
+    }
+    expect(lines).toContain('(  T1 D=3.175 CR=0 - ZMIN=7 - bit flat 2F )');
+    expect(lines).toContain('(OP 1/3 Seite links2: Outline 1 - T1 D=3.175)');
+    expect(lines.filter(l => /^\(OP \d+\/\d+ .+ - T\d+ D=[\d.]+\)$/.test(l))).toHaveLength(3);
+    expect(lines).toContain('M0 (MSG Take out Seite links2, then continue. Manual spindle: off now, on before Resume)');
+  });
+
+  it('keeps every line short enough for FluidNC, however long the name, and the prefixes the app looks for', () => {
+    const lines = named('Länge'.repeat(60));
+    for (const l of lines) expect(new TextEncoder().encode(l).length).toBeLessThanOrEqual(kMaxGcodeLine);
+    expect(lines.filter(l => /^\(OP \d+\/\d+ .+ - T\d+ D=[\d.]+\)$/.test(l))).toHaveLength(3);
+    expect(lines.some(l => l.startsWith('M0 (MSG Tab 1 of 2'))).toBe(true);
+    expect(lines.some(l => l.startsWith('M0 (MSG Take out '))).toBe(true);
+    for (const l of lines.filter(l => l.startsWith('M0 (MSG Take out ') || l.startsWith('M0 (MSG Tab ')))
+      expect(l).toMatch(/\. Manual spindle: off now, on before Resume\)$/);
+    expect(checkGcodeSafety(lines.join('\n'), { stockTop: 8, size: [200, 100], minZ: -0.3, toolRadius: 1.6 })).toEqual([]);
   });
 });
 

@@ -18,8 +18,9 @@ export interface TabStop {
 
 /**
  * The tabs left by a program (raised stretches of each outline's deepest pass), and a program that cuts them one by
- * one: before each tab it stops (M0) so you can hold the part, then cuts through the tab at the final depth and
- * slower feed. The last tab of a part frees it, so nothing flies off.
+ * one: before each tab the bit goes up, the spindle stops and it pauses (M0) so you can hold the part; on Resume the
+ * spindle starts again and it cuts through the tab at the final depth and slower feed. The last tab of a part frees it,
+ * so nothing flies off.
  *
  * `perPart`: no stop per tab. A part's tabs are cut in a row (at `fullFeed`, the last one, which frees it, at `feed`),
  * then the bit goes up, the spindle stops and the program pauses: "Take out <part>". The spindle starts again before
@@ -65,7 +66,6 @@ export function tabRemovalProgram(
         feature: 'outline',
         tool: op.tool,
         passes: [pass],
-        pauseBefore: `Tab ${index}: hold ${part} at the marked spot, away from the bit, then resume`,
       });
     }
     if (opts.perPart && passes.length)
@@ -80,9 +80,7 @@ export function tabRemovalProgram(
   }
   if (opts.perPart) return { cam: { stockTop: cam.stockTop, operations, warnings: [] }, tabs };
   tabs.forEach(
-    t =>
-      (operations[t.index - 1].pauseBefore =
-        `Tab ${t.index} of ${tabs.length}: hold ${t.part} at the marked spot, away from the bit, then resume`)
+    t => (operations[t.index - 1].pauseBefore = `Tab ${t.index} of ${tabs.length}: spindle off until Resume. Hold away from bit: ${t.part}`)
   );
   return { cam: { stockTop: cam.stockTop, operations, warnings: [] }, tabs };
 }
