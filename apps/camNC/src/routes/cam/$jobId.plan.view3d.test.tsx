@@ -81,6 +81,7 @@ describe('CAM plan step, 3D view', () => {
       'Perspective',
       'Orthographic',
       'See through',
+      'Compare to model',
       'Show the whole board',
       'Play',
       'Pause',
@@ -105,6 +106,15 @@ describe('CAM plan step, 3D view', () => {
 
     // Top view: orthographic unless changed; the projection toggle is per view.
     const camera = within(view).getByRole('group', { name: 'View' });
+    // Result mode: colour the cut against the model, with a legend.
+    fireEvent.click(within(view).getByRole('button', { name: 'Result' }));
+    const compare = within(view).getByRole('button', { name: 'Compare to model' });
+    fireEvent.click(compare);
+    expect(within(view).getByRole('note', { name: 'Compared to the model' }).textContent).toMatch(
+      /As designed.*Material left.*Cut too deep/
+    );
+    fireEvent.click(compare);
+    fireEvent.click(within(view).getByRole('button', { name: 'Toolpath' }));
     const projection = within(view).getByRole('group', { name: 'Projection' });
     expect(pressed(projection)).toEqual(['Perspective']);
     fireEvent.click(within(camera).getByRole('button', { name: 'Top' }));

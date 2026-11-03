@@ -13,6 +13,7 @@ import { OpList } from './OpList';
 import { kViewBackground } from './palette';
 import { boardBox, buildPlanModel, cutBounds, groupOpsOf, type PlanModel } from './planModel';
 import { usePlan3dView } from './plan3dViewStore';
+import { kCompareTolerance } from './compareMap';
 import { PlanTimeline } from './PlanTimeline';
 import { SimLines, SimStock } from './SimStock';
 import { ToolpathLayers } from './ToolpathLayers';
@@ -38,7 +39,20 @@ export function PlanView3D({
   className?: string;
 }) {
   const model = useMemo(() => buildPlanModel(plan), [plan]);
-  const { mode, seeThrough, view, projection, showRapids, setMode, setSeeThrough, setView, setProjection, setShowRapids } = usePlan3dView();
+  const {
+    mode,
+    seeThrough,
+    view,
+    projection,
+    showRapids,
+    compare,
+    setMode,
+    setSeeThrough,
+    setView,
+    setProjection,
+    setShowRapids,
+    setCompare,
+  } = usePlan3dView();
 
   // Per program: the playhead starts at the end (the finished board), nothing selected or hidden.
   const [ui, setUi] = useState(() => ({ model, time: model.total, selected: null as number | null, hidden: new Set<number>() }));
@@ -141,6 +155,14 @@ export function PlanView3D({
               hint="A see-through board: the toolpaths and the finished parts show through it.">
               See through
             </Toggle>
+            {mode === 'result' && (
+              <Toggle
+                pressed={compare}
+                onChange={setCompare}
+                hint="Colour the cut board against your model: green as designed, orange where material is left, red where it's cut too deep.">
+                Compare to model
+              </Toggle>
+            )}
             {mode === 'toolpath' && (
               <Toggle
                 pressed={showRapids}
@@ -158,9 +180,29 @@ export function PlanView3D({
               </button>
             </Hint>
           </div>
-          <div className="pointer-events-none absolute right-2.5 bottom-2.5 max-w-[60%] rounded-md bg-black/50 px-2.5 py-1 text-xs text-zinc-200">
-            {hint}
-          </div>
+          {mode === 'result' && compare ? (
+            <div
+              role="note"
+              aria-label="Compared to the model"
+              className="pointer-events-none absolute right-2.5 bottom-2.5 flex flex-wrap gap-x-3 gap-y-1 rounded-md bg-black/60 px-2.5 py-1.5 text-xs text-zinc-100">
+              {(
+                [
+                  ['#22b259', `As designed (±${kCompareTolerance} mm)`],
+                  ['#f58c1a', 'Material left'],
+                  ['#db2626', 'Cut too deep'],
+                ] as const
+              ).map(([c, t]) => (
+                <span key={t} className="flex items-center gap-1.5">
+                  <span className="size-2.5 rounded-sm" style={{ background: c }} />
+                  {t}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div className="pointer-events-none absolute right-2.5 bottom-2.5 max-w-[60%] rounded-md bg-black/50 px-2.5 py-1 text-xs text-zinc-200">
+              {hint}
+            </div>
+          )}
         </div>
         {mode === 'result' && (
           <PlanTimeline
@@ -214,8 +256,9 @@ function Scene({
   time: number;
   ui: { selected: number | null; hidden: ReadonlySet<number> };
 }) {
-  const { mode, seeThrough, showRapids } = usePlan3dView();
+  const { mode, seeThrough, showRapids, compare } = usePlan3dView();
   const { selected, hidden } = ui;
+  const comparing = useMemo(() => (compare ? { board, parts } : undefined), [compare, board, parts]);
   const playhead = playheadAt(model.times, time);
   const selectedOps = useMemo(() => (selected === null ? [] : groupOpsOf(model, selected)), [model, selected]);
   const highlight = selected !== null ? model.groups[selected].color : '#ffffff';
@@ -244,6 +287,7 @@ function Scene({
           selected={selectedOps}
           highlight={highlight}
           opacity={seeThrough ? kSeeThroughOpacity : 1}
+          compare={comparing}
         />
       )}
       {seeThrough && <PartGhost board={board} parts={parts} />}

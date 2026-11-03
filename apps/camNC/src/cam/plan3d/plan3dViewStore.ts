@@ -17,6 +17,8 @@ export const usePlan3dView = create(
         /** Per view, so the top view can stay orthographic while the 3D view is in perspective. */
         projection: { top: 'orthographic', '3d': 'perspective' } as Record<ViewKind, Projection>,
         showRapids: true,
+        /** Result mode: colour the cut board against the model (as designed / material left / cut too deep). */
+        compare: false,
       },
       set => ({
         setMode: (mode: Plan3dMode) => set({ mode }),
@@ -25,6 +27,7 @@ export const usePlan3dView = create(
         /** For the current view. */
         setProjection: (projection: Projection) => set(s => ({ projection: { ...s.projection, [s.view]: projection } })),
         setShowRapids: (showRapids: boolean) => set({ showRapids }),
+        setCompare: (compare: boolean) => set({ compare }),
       })
     ),
     { name: 'camnc-plan-3d-view' }

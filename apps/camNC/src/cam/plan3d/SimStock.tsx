@@ -17,6 +17,8 @@ import type { ParsedToolpath } from '@/visualize/gcodeParsing';
 import { HeightmapStamper, heightmapSize, type HeightmapDomain } from '@/visualize/stockSim/HeightmapStamper';
 import type { Playhead } from '@/visualize/stockSim/jobTimeline';
 import type { ToolShape } from '@/visualize/stockSim/toolShapes';
+import type { BoardRequest, CamPartInfo } from '../camTypes';
+import { designTexture, kCompareTolerance } from './compareMap';
 import { cutsOf, onlyOps, type PlanOp } from './planModel';
 import { kStockColor } from './palette';
 
@@ -44,8 +46,15 @@ const kSurfaceFragment = /* glsl */ `
   uniform vec3 uHighlight;
   uniform bool uHasOp;
   uniform float uOpacity;
+  // Compare with the model (see compareMap.ts): R height, G judged, B cut through.
+  uniform bool uCompare;
+  uniform sampler2D uDesign;
+  uniform vec2 uTexel;
+  uniform float uTol;
   varying vec3 vPos;
   varying vec2 vUv;
+
+  float designZ(vec2 uv) { return mix(uZRange.x, uZRange.y, texture(uDesign, uv).r); }
 
   void main() {
     if (vPos.z <= uBottom + 1e-3) discard;
@@ -60,6 +69,25 @@ const kSurfaceFragment = /* glsl */ `
       // uMask: the stock after only the selected op. Where it cuts: solid once cut that deep, a tint until then.
       float op = mix(uZRange.x, uZRange.y, texture(uMask, vUv).r);
       if (op < top - 0.02) color = mix(color, uHighlight, vPos.z <= op + 0.02 ? 0.9 : 0.35);
+    }
+    if (uCompare) {
+      vec4 d = texture(uDesign, vUv);
+      if (d.g > 0.5) {
+        // The model's lowest and highest height a cell around: a wall's edge isn't wrong for being a cell off.
+        float lo = 1e9, hi = -1e9;
+        for (int i = -1; i <= 1; i++)
+          for (int j = -1; j <= 1; j++) {
+            vec2 q = vUv + vec2(float(i), float(j)) * uTexel * 1.5;
+            float z = designZ(q);
+            lo = min(lo, z);
+            hi = max(hi, z);
+          }
+        vec3 ok = vec3(0.13, 0.7, 0.35), left = vec3(0.96, 0.55, 0.1), over = vec3(0.86, 0.15, 0.15);
+        vec3 c = d.b > 0.5 ? (vPos.z <= uTol ? ok : left) : vPos.z < lo - uTol ? over : vPos.z > hi + uTol ? left : ok;
+        color = mix(color, c, 0.75);
+      } else {
+        color *= 0.6;
+      }
     }
     gl_FragColor = vec4(color * diffuse, uOpacity);
     #include <colorspace_fragment>
@@ -153,7 +181,10 @@ export function SimStock({
   selected,
   highlight,
   opacity,
+  compare,
 }: {
+  /** Colour the cut against the model: these parts on this board. */
+  compare?: { board: BoardRequest; parts: CamPartInfo[] };
   toolpath: ParsedToolpath;
   size: [number, number, number];
   toolShape: (tool: number | undefined) => ToolShape;
@@ -178,6 +209,8 @@ export function SimStock({
     () => (selected.length ? new HeightmapStamper(onlyOps(toolpath, selected), domain, toolShape) : null),
     [toolpath, domain, toolShape, selected]
   );
+  const design = useMemo(() => (compare ? designTexture(compare.board, compare.parts, domain) : null), [compare, domain]);
+  useEffect(() => () => design?.dispose(), [design]);
   useEffect(() => () => stamper.dispose(), [stamper]);
   useEffect(() => () => mask?.dispose(), [mask]);
   useFrame(() => {
@@ -186,7 +219,14 @@ export function SimStock({
   });
 
   return (
-    <StockMesh domain={domain} current={stamper.depthTexture} mask={mask?.depthTexture ?? null} highlight={highlight} opacity={opacity} />
+    <StockMesh
+      domain={domain}
+      current={stamper.depthTexture}
+      mask={mask?.depthTexture ?? null}
+      design={design}
+      highlight={highlight}
+      opacity={opacity}
+    />
   );
 }
 
@@ -194,12 +234,15 @@ function StockMesh({
   domain,
   current,
   mask,
+  design,
   highlight,
   opacity,
 }: {
   domain: HeightmapDomain;
   current: Texture;
   mask: Texture | null;
+  /** The model's heights (compareMap.ts): colour the cut against them; null for the plain stock colour. */
+  design: Texture | null;
   highlight: string;
   opacity: number;
 }) {
@@ -227,6 +270,10 @@ function StockMesh({
         uColor: { value: stock.clone() },
         uHighlight: { value: new Color() },
         uHasOp: { value: false },
+        uCompare: { value: false },
+        uDesign: { value: null },
+        uTexel: { value: new Vector2() },
+        uTol: { value: kCompareTolerance },
       },
       side: DoubleSide,
       // Toolpath lines lie right on the cut floors: push the surface back a little so they win the depth test.
@@ -281,10 +328,13 @@ function StockMesh({
       }
     }
     surface.uniforms.uMask.value = mask;
+    surface.uniforms.uCompare.value = design !== null;
+    surface.uniforms.uDesign.value = design;
+    surface.uniforms.uTexel.value.set(1 / domain.width, 1 / domain.height);
     surface.uniforms.uHasOp.value = mask !== null;
     surface.uniforms.uHighlight.value.set(highlight);
     for (const m of walls) m.uniforms.uFootprint.value = [footprint.min.x, footprint.min.y, sizeX, sizeY];
-  }, [materials, current, mask, highlight, opacity, domain, footprint, sizeX, sizeY]);
+  }, [materials, current, mask, highlight, opacity, domain, footprint, sizeX, sizeY, design]);
 
   const center: [number, number, number] = [(footprint.min.x + footprint.max.x) / 2, (footprint.min.y + footprint.max.y) / 2, 0];
   return (
