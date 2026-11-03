@@ -126,9 +126,12 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
     if (g === 'G1' && feed !== undefined && feed !== f) words.push(`F${fmt((f = feed))}`);
     out.push((g !== motion ? `${(motion = g)} ` : '') + words.join(' '));
   };
-  const arc = (a: Extract<Prim, { type: 'arc' }>, feed: number) => {
+  /** G2/G3 in XY; with `toZ` a helical arc (Z moves linearly along it). */
+  const arc = (a: Extract<Prim, { type: 'arc' }>, feed: number, toZ?: number) => {
     const g = a.cw ? 'G2' : 'G3';
-    const words = [`X${fmt(a.to.x)}`, `Y${fmt(a.to.y)}`, `I${fmt(a.c.x - x)}`, `J${fmt(a.c.y - y)}`];
+    const words = [`X${fmt(a.to.x)}`, `Y${fmt(a.to.y)}`];
+    if (toZ !== undefined && fmt(toZ) !== fmt(z)) words.push(`Z${fmt((z = toZ))}`);
+    words.push(`I${fmt(a.c.x - x)}`, `J${fmt(a.c.y - y)}`);
     if (feed !== f) words.push(`F${fmt((f = feed))}`);
     out.push((g !== motion ? `${(motion = g)} ` : '') + words.join(' '));
     x = a.to.x;
@@ -153,7 +156,8 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
       const [p0] = pass.pts;
       out.push(`(PASS ${pi + 1}/${op.passes.length} Z${fmt(Math.min(...pass.pts.map(p => p[2])))})`);
       // Safety net: a direct link is only allowed for short hops (e.g. stepping between adjacent rings).
-      const longLink = Math.hypot(p0[0] - x, p0[1] - y) > op.tool.diameter;
+      // A link the generator knows runs through cleared material may be longer.
+      const longLink = !pass.clearLink && Math.hypot(p0[0] - x, p0[1] - y) > op.tool.diameter;
       if (pi === 0 || pass.link === 'retract' || longLink) {
         move('G0', { z: pi === 0 ? safeZ : Math.max(retractZ, z) });
         move('G0', { x: p0[0], y: p0[1] });
@@ -162,18 +166,40 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
       } else {
         move('G1', { x: p0[0], y: p0[1], z: p0[2] }, pass.feeds[0]);
       }
-      // Arc-fit runs of constant Z and feed; everything else is G1.
+      // Arc-fit runs of constant feed where Z is constant or changes linearly along the path (ramps: helical arcs);
+      // everything else is G1.
+      const xy = (k: number) => Math.hypot(pass.pts[k][0] - pass.pts[k - 1][0], pass.pts[k][1] - pass.pts[k - 1][1]);
+      const slope = (k: number) => (pass.pts[k][2] - pass.pts[k - 1][2]) / (xy(k) || NaN);
       let i = 1;
       while (i < pass.pts.length) {
         let j = i;
-        const zr = pass.pts[i - 1][2];
-        while (useArcs && j < pass.pts.length && Math.abs(pass.pts[j][2] - zr) < 1e-6 && pass.feeds[j] === pass.feeds[i]) j++;
+        const s0 = slope(i);
+        while (useArcs && j < pass.pts.length && pass.feeds[j] === pass.feeds[i] && xy(j) > 1e-9 && Math.abs(slope(j) - s0) < 1e-4) j++;
         if (j - i >= 3) {
           const run = pass.pts.slice(i - 1, j).map(p => ({ x: p[0], y: p[1] }));
+          const flat = Math.abs(s0) < 1e-9;
+          let along = 0;
+          const z0 = pass.pts[i - 1][2];
+          let px = run[0].x,
+            py = run[0].y;
           for (const prim of fitArcs(run, tol)) {
-            if (prim.type === 'line') move('G1', { x: prim.to.x, y: prim.to.y }, pass.feeds[i]);
-            else arc(prim, pass.feeds[i]);
+            // XY length of this primitive, for its end Z on a ramp.
+            if (prim.type === 'line') along += Math.hypot(prim.to.x - px, prim.to.y - py);
+            else {
+              const rad = Math.hypot(px - prim.c.x, py - prim.c.y);
+              let sweep = Math.atan2(prim.to.y - prim.c.y, prim.to.x - prim.c.x) - Math.atan2(py - prim.c.y, px - prim.c.x);
+              if (prim.cw && sweep > 0) sweep -= 2 * Math.PI;
+              if (!prim.cw && sweep < 0) sweep += 2 * Math.PI;
+              along += Math.abs(sweep) * rad;
+            }
+            px = prim.to.x;
+            py = prim.to.y;
+            const toZ = flat ? undefined : z0 + s0 * along;
+            if (prim.type === 'line') move('G1', { x: prim.to.x, y: prim.to.y, z: toZ }, pass.feeds[i]);
+            else arc(prim, pass.feeds[i], toZ);
           }
+          // Land exactly on the run's last point (arc lengths vs. chords differ slightly).
+          if (!flat) move('G1', { z: pass.pts[j - 1][2] }, pass.feeds[i]);
           i = j;
         } else {
           const p = pass.pts[i];

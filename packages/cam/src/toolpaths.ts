@@ -1,4 +1,4 @@
-import { areaD, pointInPolygonD, PointInPolygonResult, type PathD, type PathsD } from 'clipper2-ts';
+import { areaD, pointInPolygonD, PointInPolygonResult, simplifyPathsD, type PathD, type PathsD } from 'clipper2-ts';
 import { openPocketRegion, type PartFeatures } from './features';
 import { difference, offset, pathLength, polyArea, type Vec3 } from './geom';
 
@@ -42,8 +42,16 @@ export interface CamSettings {
   profileStepdown: number;
   /** Roughing passes stop this high above the stock bottom... */
   profileRoughBottom: number;
-  /** ...leaving this much radial stock for the final pass. */
+  /** ...leaving this much radial stock for the final pass: the outline's wall allowance. */
   leaveStock: number;
+  /**
+   * Pocket wall allowance: roughing stays this far off the pocket walls, then one full-depth pass at the floor cuts
+   * them to size (at feed × pocketFinishFeedFactor). 0 = off: the wall ring is cut at every depth.
+   */
+  pocketWallAllowance: number;
+  pocketFinishFeedFactor: number;
+  /** Rounds the corners of inner pocket rings (not the wall ring) so the bit doesn't stop and turn; 0 = sharp. */
+  innerCornerRadius: number;
   /** Final outline pass goes down to here (below the stock bottom). */
   finalZ: number;
   finalFeedFactor: number;
@@ -68,6 +76,9 @@ export const DEFAULT_SETTINGS: CamSettings = {
   profileStepdown: 4,
   profileRoughBottom: 1,
   leaveStock: 0.1,
+  pocketWallAllowance: 0,
+  pocketFinishFeedFactor: 1,
+  innerCornerRadius: 0.3,
   finalZ: -0.3,
   finalFeedFactor: 0.5,
   climb: true,
@@ -86,6 +97,8 @@ export interface Pass {
   /** Feed of the move ending at pts[i]; feeds[0] is used for the approach. */
   feeds: number[];
   link: 'retract' | 'direct';
+  /** The straight link to pts[0] runs through material already cleared at this depth (may be longer than D). */
+  clearLink?: boolean;
 }
 
 export interface Operation {
@@ -186,6 +199,65 @@ function rampOnWasteEdge(loop: Loop, zFrom: number, zTo: number, s: CamSettings)
   pts.push([end[0], end[1], zTo]);
   feeds.push(s.feed);
   return { pts, feeds, link: 'retract' };
+}
+
+/** Inside a region given as Clipper paths (outer loops + holes), by crossing parity. */
+function insideRegion(p: { x: number; y: number }, region: PathsD) {
+  let n = 0;
+  for (const path of region) if (pointInPolygonD(p, path) === PointInPolygonResult.IsInside) n++;
+  return n % 2 === 1;
+}
+
+function segmentInside(a: { x: number; y: number }, b: { x: number; y: number }, region: PathsD) {
+  const n = Math.max(2, Math.ceil(Math.sqrt(dist2(a, b)) / 0.5));
+  for (let k = 0; k <= n; k++) {
+    const t = k / n;
+    if (!insideRegion({ x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) }, region)) return false;
+  }
+  return true;
+}
+
+/**
+ * A wall pass with tangent quarter-arc lead-in and lead-out from the pocket interior, like Fusion's: the bit never
+ * moves into the wall, it joins and leaves it along its direction. Entry in the middle of the straight wall segment
+ * nearest to `from`; the arc radius starts at r and shrinks until the arcs fit into `free` (where the bit center can
+ * go). Undefined if no arc fits (then the caller cuts the loop plainly).
+ */
+function wallPassWithLeads(loop: Loop, from: { x: number; y: number }, z: number, feed: number, r: number, free: PathsD): Pass | undefined {
+  const n = loop.length;
+  const segs = loop
+    .map((a, i) => ({ i, a, b: loop[(i + 1) % n], len: Math.sqrt(dist2(a, loop[(i + 1) % n])) }))
+    .filter(sg => sg.len > 0.2)
+    .sort((p, q) => q.len - p.len);
+  if (!segs.length) return undefined;
+  // Long straight segments (at least half as long as the longest) qualify; the nearest one wins.
+  const long = segs.filter(sg => sg.len >= segs[0].len / 2);
+  const mid = (sg: (typeof segs)[number]) => ({ x: (sg.a.x + sg.b.x) / 2, y: (sg.a.y + sg.b.y) / 2 });
+  const seg = long.reduce((best, sg) => (dist2(mid(sg), from) < dist2(mid(best), from) ? sg : best));
+  const P = mid(seg);
+  const t = { x: (seg.b.x - seg.a.x) / seg.len, y: (seg.b.y - seg.a.y) / seg.len };
+  let nrm = { x: -t.y, y: t.x };
+  if (!insideRegion({ x: P.x + nrm.x * 0.05, y: P.y + nrm.y * 0.05 }, free)) nrm = { x: t.y, y: -t.x };
+  // +1: the normal is t turned left, so both arcs turn left (CCW); -1 right.
+  const sense = nrm.x === -t.y && nrm.y === t.x ? 1 : -1;
+  for (const rho of [r, 0.75 * r, 0.5 * r, 0.25 * r]) {
+    if (rho > seg.len / 2) continue;
+    const C = { x: P.x + nrm.x * rho, y: P.y + nrm.y * rho };
+    // Points on the circle: C + rho * rotate(-t, angle).
+    const at = (deg: number) => {
+      const a = (sense * deg * Math.PI) / 180;
+      const vx = -t.x,
+        vy = -t.y;
+      return { x: C.x + rho * (vx * Math.cos(a) - vy * Math.sin(a)), y: C.y + rho * (vx * Math.sin(a) + vy * Math.cos(a)) };
+    };
+    const leadIn = [0, 15, 30, 45, 60, 75].map(at);
+    const leadOut = [105, 120, 135, 150, 165, 180].map(at);
+    if (![...leadIn, ...leadOut].every(q => insideRegion(q, free))) continue;
+    const lap = [P, ...loop.slice(seg.i + 1), ...loop.slice(0, seg.i + 1), P];
+    const pts: Vec3[] = [...leadIn, ...lap, ...leadOut].map(q => [q.x, q.y, z]);
+    return { pts, feeds: pts.map(() => feed), link: 'direct' };
+  }
+  return undefined;
 }
 
 /** Start in the middle of the longest edge so lead-in marks don't land on a corner. */
@@ -308,9 +380,16 @@ export function pocketOperation(
       const waste = solid && rotateToWaste(oriented, solid);
       return waste ? rampOnWasteEdge(waste, zFrom, zTo, s) : rampLoop(nearest, zFrom, zTo, s, tool);
     };
+    // Where the bit center may go (the wall ring is its boundary), and where roughing stops.
+    const free = offset(comps[ci], -r);
+    const allowance = s.pocketWallAllowance;
     const rings: PathsD[] = [];
-    for (let cur = offset(comps[ci], -r); cur.length; ) {
-      rings.push(cur);
+    const c = s.innerCornerRadius;
+    for (let cur = allowance > 0 ? offset(comps[ci], -r - allowance) : free; cur.length; ) {
+      // Inner rings get rounded corners (an opening keeps them inside the ring); the wall ring keeps its shape.
+      // (Simplified: the double offset leaves near-collinear micro-segments that arc fitting can't merge.)
+      const rounded = rings.length && c > 0 ? simplifyPathsD(offset(offset(cur, -c), c), 0.002, true) : cur;
+      rings.push(rounded.length ? rounded : cur);
       // The bit running along this ring clears r inwards; stop once nothing is left inside that.
       if (!offset(cur, -r).length) break;
       const next = offset(cur, -stepover);
@@ -329,6 +408,15 @@ export function pocketOperation(
         for (const raw of rings[ri]) {
           // Clipper: outer loops CCW, holes CW -> material on the right = climb with an M3 spindle.
           const oriented = s.climb ? raw : [...raw].reverse();
+          // The wall ring of a closed pocket, reached from an inner ring: join and leave it on tangent arcs.
+          if (!open && ri === 0 && allowance === 0 && last) {
+            const lead = wallPassWithLeads(oriented, { x: last[0], y: last[1] }, z, s.feed, r, free);
+            if (lead && segmentInside({ x: last[0], y: last[1] }, { x: lead.pts[0][0], y: lead.pts[0][1] }, free)) {
+              passes.push({ ...lead, clearLink: true });
+              last = lead.pts[lead.pts.length - 1];
+              continue;
+            }
+          }
           const nearest = rotateToNearest(oriented, last ? { x: last[0], y: last[1] } : pos);
           const near = last && Math.sqrt(dist2({ x: last[0], y: last[1] }, nearest[0])) <= stepover * 1.5;
           const pass: Pass = near
@@ -340,6 +428,22 @@ export function pocketOperation(
       }
       if (last) pos = { x: last[0], y: last[1] };
       prevZ = z;
+    }
+    // With a wall allowance: one full-depth pass at the floor cuts the walls to size.
+    if (allowance > 0 && rings.length) {
+      let last: Vec3 = passes[passes.length - 1].pts.at(-1)!;
+      for (const raw of free) {
+        const oriented = s.climb ? raw : [...raw].reverse();
+        const feed = s.feed * s.pocketFinishFeedFactor;
+        const lead = wallPassWithLeads(oriented, { x: last[0], y: last[1] }, floorZ, feed, r, free);
+        const pass: Pass =
+          lead && segmentInside({ x: last[0], y: last[1] }, { x: lead.pts[0][0], y: lead.pts[0][1] }, free)
+            ? { ...lead, clearLink: true }
+            : { ...rampLoop(rotateToNearest(oriented, { x: last[0], y: last[1] }), floorZ, floorZ, s, tool), feeds: [] };
+        if (!pass.feeds.length) pass.feeds = pass.pts.map((_, k) => (k === 0 ? s.plungeFeed : feed));
+        passes.push(pass);
+        last = pass.pts[pass.pts.length - 1];
+      }
     }
   }
   return { name, kind: 'pocket', tool, passes };

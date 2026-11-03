@@ -191,3 +191,60 @@ describe('safety rules', () => {
     expect(checkGcodeSafety(bad, limits).map(i => i.rule)).toEqual(['rapid-in-stock', 'outside-board', 'too-deep']);
   });
 });
+
+describe('pocket wall pass', () => {
+  /** Closed pocket 9 x 21 like the kinderregal mortises, 4.2 deep in an 8 mm board. */
+  function mortiseBoard(): PartFeatures {
+    const f = board();
+    const mortise = rect(100, 40, 121, 49);
+    f.throughHoles = [];
+    f.pockets = [
+      { floorZ: 3.8, region: [mortise], strictRegion: [mortise], above: difference([rect(0, 0, 200, 100)], [mortise]), area: 189 },
+    ];
+    return f;
+  }
+  const r = 3.175 / 2;
+  // Bit center limits: the wall ring is the rectangle x 101.59..119.41, y 41.59..47.41.
+  const wall = { x0: 100 + r, x1: 121 - r, y0: 40 + r, y1: 49 - r };
+  const distToWall = (q: number[]) => Math.min(q[0] - wall.x0, wall.x1 - q[0], q[1] - wall.y0, wall.y1 - q[1]);
+  const angle = (a: number[], b: number[], c: number[]) => {
+    const u = [b[0] - a[0], b[1] - a[1]],
+      v = [c[0] - b[0], c[1] - b[1]];
+    return (Math.acos((u[0] * v[0] + u[1] * v[1]) / (Math.hypot(...u) * Math.hypot(...v))) * 180) / Math.PI;
+  };
+
+  it('joins and leaves the wall on tangent arcs inside the pocket, never pushing into it', () => {
+    const [pocket] = camPart(mortiseBoard(), { cutThrough: false }).operations;
+    const walls = pocket.passes.filter(p => p.clearLink);
+    // One wall pass per depth step (2 for 4.2mm at 0.75D).
+    expect(walls).toHaveLength(2);
+    for (const pass of walls) {
+      const pts = pass.pts;
+      const lead = 6; // quarter arc samples before the wall, and after it
+      const inP = pts[lead],
+        outP = pts[pts.length - 1 - lead];
+      expect(distToWall(inP)).toBeCloseTo(0, 3);
+      expect(distToWall(outP)).toBeCloseTo(0, 3);
+      // Tangent: the arc arrives along the wall direction and leaves along it (chord vs. wall < 15°).
+      expect(angle(pts[lead - 1], inP, pts[lead + 1])).toBeLessThan(15);
+      expect(angle(pts[pts.length - 2 - lead], outP, pts[pts.length - lead])).toBeLessThan(15);
+      // Lead arcs stay inside the pocket, off the wall (radius r: up to 2r from the wall).
+      for (const q of [...pts.slice(0, lead), ...pts.slice(pts.length - lead)]) {
+        expect(distToWall(q)).toBeGreaterThan(0.01);
+        expect(distToWall(q)).toBeLessThanOrEqual(2 * r + 1e-6);
+      }
+      // Entry in the middle of a long wall, away from the corners.
+      expect(Math.abs(inP[0] - 110.5)).toBeLessThan(0.01);
+    }
+  });
+
+  it('with a wall allowance: roughing stays off the walls, one full-depth pass cuts them to size', () => {
+    const [pocket] = camPart(mortiseBoard(), { cutThrough: false, pocketWallAllowance: 0.2, pocketFinishFeedFactor: 0.5 }).operations;
+    const finish = pocket.passes.at(-1)!;
+    const rough = pocket.passes.slice(0, -1).flatMap(p => p.pts);
+    expect(Math.min(...rough.map(distToWall))).toBeCloseTo(0.2, 3);
+    expect(new Set(finish.pts.map(q => q[2]))).toEqual(new Set([3.8]));
+    expect(Math.min(...finish.pts.map(distToWall))).toBeCloseTo(0, 3);
+    expect(finish.feeds.slice(1).every(f => f === 900)).toBe(true);
+  });
+});
