@@ -23,11 +23,21 @@ interface FusionTool {
  * bull nose) and holders are skipped: the 2.5D generator only drives flat end mills. Inch libraries are converted.
  */
 export function parseFusionToolLibrary(json: string | unknown): LibraryTool[] {
+  return readFusionToolLibrary(json).tools;
+}
+
+/** Like parseFusionToolLibrary, plus how many entries of each other type were skipped (e.g. "ball end mill": 2). */
+export function readFusionToolLibrary(json: string | unknown): { tools: LibraryTool[]; skipped: Record<string, number> } {
   const lib = (typeof json === 'string' ? JSON.parse(json) : json) as { data?: FusionTool[] };
   if (!Array.isArray(lib?.data)) throw new Error('Not a Fusion tool library (expected { "data": [...] })');
   const tools: LibraryTool[] = [];
+  const skipped: Record<string, number> = {};
   for (const t of lib.data) {
-    if (t.type !== 'flat end mill' || !t.geometry?.DC) continue;
+    if (t.type !== 'flat end mill' || !t.geometry?.DC) {
+      // Holders and the like have no type worth listing.
+      if (t.type && t.type !== 'holder') skipped[t.type] = (skipped[t.type] ?? 0) + 1;
+      continue;
+    }
     const mm = t.unit === 'inches' ? 25.4 : 1;
     const preset = t['start-values']?.presets?.[0];
     tools.push({
@@ -40,5 +50,5 @@ export function parseFusionToolLibrary(json: string | unknown): LibraryTool[] {
       rpm: preset?.n,
     });
   }
-  return tools;
+  return { tools, skipped };
 }

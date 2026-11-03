@@ -1,34 +1,13 @@
 import type { LibraryTool } from '@wbcnc/cam';
-import { parseFusionToolLibrary } from '@wbcnc/cam/tools';
-import { Button } from '@wbcnc/ui/components/button';
 import { Input } from '@wbcnc/ui/components/input';
 import { Label } from '@wbcnc/ui/components/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wbcnc/ui/components/select';
-import { toast } from '@wbcnc/ui/components/sonner';
 import { kDefaultBit, type PlanSettingsV1 } from '../planSettings';
 import { useToolLibrary } from '../toolLibrary';
+import { ImportToolLibrary } from './ImportToolLibrary';
 
 const bitKey = (b: LibraryTool) => `${b.number}|${b.diameter}|${b.name}`;
 const bitLabel = (b: LibraryTool) => `⌀ ${b.diameter} · ${b.name}`;
-
-function importFusionLibrary(setTools: (t: LibraryTool[], source: string) => void) {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.json,.tools';
-  input.onchange = async () => {
-    const file = input.files?.[0];
-    if (!file) return;
-    try {
-      const tools = parseFusionToolLibrary(await file.text());
-      if (!tools.length) return toast.error('No flat end mills in that library.');
-      setTools(tools, file.name);
-      toast.success(`Imported ${tools.length} flat end mills from ${file.name}`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
-    }
-  };
-  input.click();
-}
 
 /** Bit, material, final pass and tabs: everything the Plan step needs from the user, with Fusion-like defaults. */
 export function PlanSettingsPanel({ value, onChange }: { value: PlanSettingsV1; onChange: (v: PlanSettingsV1) => void }) {
@@ -63,9 +42,7 @@ export function PlanSettingsPanel({ value, onChange }: { value: PlanSettingsV1; 
           Flat end mill, F{feed}, plunge F{value.bit.plungeFeed ?? 480}
           {source ? ` · library: ${source}` : ''}
         </p>
-        <Button variant="outline" size="sm" className="self-start" onClick={() => importFusionLibrary(setTools)}>
-          Import Fusion tool library…
-        </Button>
+        <ImportToolLibrary onImport={setTools} />
       </section>
 
       <section className="flex flex-col gap-1.5">

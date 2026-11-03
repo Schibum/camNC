@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseFusionToolLibrary } from './tools';
+import { parseFusionToolLibrary, readFusionToolLibrary } from './tools';
 
 // Same shape as Fusion's Local/Library.json, trimmed to the fields that matter.
 const library = {
@@ -32,6 +32,10 @@ describe('Fusion tool library', () => {
       { number: 1, diameter: 3.175, name: '1/8 mill v1', flutes: 1, feed: 1800, plungeFeed: 480, rpm: 15000 },
       { number: 7, diameter: 6.35, name: '1/4 inch', flutes: 2, feed: 2540, plungeFeed: 508, rpm: 18000 },
     ]);
+  });
+
+  it('says what it skipped', () => {
+    expect(readFusionToolLibrary(library).skipped).toEqual({ 'chamfer mill': 1 });
   });
 
   it('rejects other JSON', () => {
