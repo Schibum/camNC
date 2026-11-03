@@ -77,7 +77,8 @@ function BoardsStep() {
   );
   if (model.isError) return <Shell bar={bar} message={`Could not read ${job.fileName}: ${model.error.message}`} />;
   if (!model.data) return <Shell bar={bar} loading={`Reading ${job.fileName}…`} />;
-  if (!boards.length) return <Shell bar={bar} message="No part to mill: mark parts as milled in the Model step." />;
+  // Every part unticked in the Model step: boards may be left over, but nothing goes on them.
+  if (!boards.length || !instances.length) return <Shell bar={bar} message="No part to mill: mark parts as milled in the Model step." />;
 
   const plan = job.plan ?? kDefaultPlan;
   const selected = boards.find(b => b.board.id === selectedId) ?? boards[0];

@@ -18,7 +18,7 @@ import { jobCutting, kDefaultPlan, type PlanSettingsV1 } from '@/cam/planSetting
 import { BitChip } from '@/cam/plan/BitPicker';
 import { loadIntoMachineView } from '@/cam/showOnMachine';
 import { useCamMachine } from '@/cam/machine/camMachine';
-import { useStore } from '@/store/store';
+import { selectMachineBounds, useStore } from '@/store/store';
 import { createFileRoute, Link, useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { zodValidator } from '@tanstack/zod-adapter';
 import { Button } from '@wbcnc/ui/components/button';
@@ -118,14 +118,17 @@ function PlanStep() {
     if (!result || !safe) return;
     const first = result.programs[0];
     loadIntoMachineView({ ...result, gcode: first.gcode, bits: [first.diameter] }, programName(first));
-    void navigate({ to: '/visualize/2DView' });
+    toMachineView();
   };
+  // Without a bed (no machine connected, no size picked) the machine view can't show the program: pick one first.
+  const toMachineView = () =>
+    void navigate(selectMachineBounds(useStore.getState()) ? { to: '/visualize/2DView' } : { to: '/start', search: { for: 'cam' } });
   // All boards, in queue order, in the machine panel: place, align, zero, cut, swap bits, remove tabs.
   const takeToMachine = () => {
     if (!allReady) return;
     useCamMachine.getState().start(job.id);
     useStore.getState().setMachinePanelOpen(true);
-    void navigate({ to: '/visualize/2DView' });
+    toMachineView();
   };
   const download = (p: PlanResult['programs'][number]) => {
     if (!safe) return;

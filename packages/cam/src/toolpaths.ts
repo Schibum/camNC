@@ -103,6 +103,8 @@ export interface Operation {
   passes: Pass[];
   /** Pause (M0) before this operation with this message, e.g. guided tab removal. */
   pauseBefore?: string;
+  /** For people, in the words of the Model step's feature list: "9 pockets 4.2 deep + edge groove to 4.2". */
+  title?: string;
 }
 
 export interface PartCam {
@@ -325,6 +327,35 @@ function rampLoop(loop: Loop, zFrom: number, zTo: number, s: CamSettings, tool: 
 }
 
 /** Split polygons-with-holes into components (outer + the holes inside it). */
+const round2 = (v: number) => +v.toFixed(2);
+const plural = (n: number, word: string) => (n === 1 ? `1 ${word}` : `${n} ${word}s`);
+
+/**
+ * What a pocket operation cuts, as the Model step names features: closed pockets and edge grooves (open to the
+ * outline) that end at this floor, and the ones it only cuts the first part of (they go deeper later).
+ */
+function pocketTitle(f: PartFeatures, i: number, region: PathsD, top: number): string {
+  const p = f.pockets[i];
+  const depth = round2(f.thickness - p.floorZ);
+  const deeper = f.pockets.slice(i + 1).flatMap(q => q.strictRegion);
+  const n = { pockets: 0, grooves: 0, pocketsOn: 0, groovesOn: 0 };
+  for (const c of components(region)) {
+    if (polyArea(c) < 1) continue;
+    // Its floor is here only where it doesn't go on to a deeper level.
+    const own = intersect(c, p.strictRegion);
+    const endsHere = polyArea(deeper.length ? difference(own, deeper) : own) > 1;
+    const open = polyArea(difference(c, f.outlines)) > 0.01;
+    const goesOn = !endsHere && deeper.length > 0 && polyArea(intersect(c, deeper)) > 1;
+    n[open ? (goesOn ? 'groovesOn' : 'grooves') : goesOn ? 'pocketsOn' : 'pockets']++;
+  }
+  const grooveWord = (k: number) => (k > 1 ? `${k} edge grooves` : 'edge groove');
+  const done = [n.pockets && `${plural(n.pockets, 'pocket')} ${depth} deep`, n.grooves && `${grooveWord(n.grooves)} ${depth} deep`];
+  const onward = [n.pocketsOn && plural(n.pocketsOn, 'pocket'), n.groovesOn && grooveWord(n.groovesOn)].filter(Boolean);
+  const what = [...done, onward.length && `${onward.join(' and ')} to ${depth}`].filter(Boolean);
+  const from = top < f.thickness - 1e-6 ? `, from ${round2(f.thickness - top)}` : '';
+  return what.length ? `${what.join(' + ')}${from}` : `Pocket ${depth} deep`;
+}
+
 function components(paths: PathsD): PathsD[] {
   const outers = paths.filter(p => areaD(p) > 0);
   const holes = paths.filter(p => areaD(p) < 0);
@@ -826,7 +857,10 @@ export function camPart(features: PartFeatures, settings: Partial<CamSettings> =
     const region = openFor(tool);
     const uncut = uncutArea(region, tool.diameter / 2);
     if (uncut > 1) warnings.push(`pocket z=${p.floorZ}: ${uncut.toFixed(1)}mm² left in corners/narrow spots with D=${tool.diameter}`);
-    ops.push(pocketOperation(`Pocket ${i + 1} z=${p.floorZ}`, region, pocketTop, p.floorZ, tool, s, features.outlines));
+    ops.push({
+      ...pocketOperation(`Pocket ${i + 1} z=${p.floorZ}`, region, pocketTop, p.floorZ, tool, s, features.outlines),
+      title: pocketTitle(features, i, region, pocketTop),
+    });
     pocketTop = p.floorZ;
   });
   if (s.cutThrough)

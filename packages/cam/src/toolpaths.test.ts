@@ -182,6 +182,11 @@ describe('spike 3/4: toolpaths + gcode', () => {
       expect(outline.kind).toBe('profile');
     });
 
+    it('names the operation like the Model step names the feature', () => {
+      expect(camPart(rabbetBoard(), {}).operations[0].title).toBe('edge groove 4.5 deep');
+      expect(camPart(board(), {}).operations[0].title).toBe('1 pocket 4 deep');
+    });
+
     it('cuts toward the wall in rows no wider than the stepover allows, then finishes the wall at full depth, climb', () => {
       const d = 3.175;
       const [pocket] = camPart(rabbetBoard(), { tools: [bit(d)] }).operations;

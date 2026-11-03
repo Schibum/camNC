@@ -12,6 +12,7 @@ import messerUrl from '../../../../../packages/cam/test/fixtures/messerblock-kle
 import { Route } from './$jobId.plan';
 
 const params = vi.hoisted(() => ({ jobId: '' }));
+const bed = vi.hoisted(() => ({ bounds: {} as object | null }));
 const store = vi.hoisted(() => ({ updateToolpath: vi.fn(), setStockHeight: vi.fn(), setToolDiameter: vi.fn() }));
 const depth = vi.hoisted(() => ({ setZeroAt: vi.fn(), setToolShape: vi.fn() }));
 const navigate = vi.hoisted(() => vi.fn());
@@ -24,7 +25,7 @@ vi.mock('@tanstack/react-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
 }));
 vi.mock('@/components/page-header', () => ({ PageHeader: () => null }));
-vi.mock('@/store/store', () => ({ useStore: { getState: () => store } }));
+vi.mock('@/store/store', () => ({ useStore: { getState: () => store }, selectMachineBounds: () => bed.bounds }));
 vi.mock('@/visualize/depthViewStore', () => ({ useDepthView: { getState: () => depth } }));
 
 const PlanStep = (Route as unknown as { options: { component: ComponentType } }).options.component;
@@ -67,6 +68,8 @@ describe('CAM plan step', () => {
     expect(labels.slice(firstOutline).every(l => l.includes('Outline'))).toBe(true);
     expect(labels.filter(l => l.includes('Outline'))).toHaveLength(5);
     expect(screen.getByText(/Safety checks passed/)).toBeTruthy();
+    // What the CAM core notes in the G-code shows here too, in plain words: the mortises' corners stay round.
+    expect(screen.getByText(/Inside corners stay rounded to the bit radius \(1\.59 mm\)/)).toBeTruthy();
     // The default layout (tabs, 8 mm gaps, 5.2 mm edge): most tabs end in strips too narrow to hold.
     expect(screen.getAllByText(/tabs would hold it/).length).toBeGreaterThan(0);
     // Oak with the 1/8" bit: no pass deeper than half the diameter, shown per operation.
@@ -88,6 +91,11 @@ describe('CAM plan step', () => {
     expect(gcode).toContain('(Board A)');
     expect(gcode).toMatch(/\(X0 Y0 = lower left corner of board A, [\d.]+ x [\d.]+ mm\. Z0 = stock bottom\)/);
     expect(navigate).toHaveBeenCalledWith({ to: '/visualize/2DView' });
+    // No bed yet (no machine connected, no size picked): pick one first, then the program shows on it.
+    bed.bounds = null;
+    fireEvent.click(screen.getByRole('button', { name: 'Show board A on machine' }));
+    expect(navigate).toHaveBeenLastCalledWith({ to: '/start', search: { for: 'cam' } });
+    bed.bounds = {};
     // The machine view gets the board's setup: stock top 8 + 0.3 allowance, Z0 at the bottom, the 1/8" flat bit.
     expect(store.setStockHeight).toHaveBeenCalledWith(8.3);
     expect(store.setToolDiameter).toHaveBeenCalledWith(3.175);

@@ -154,6 +154,10 @@ export function relayoutBoard(board: BoardV1): BoardV1 {
 const onlyFor = (positions: Record<string, PartPosition>, ids: string[]) =>
   Object.fromEntries(Object.entries(positions).filter(([id]) => ids.includes(id)));
 
+/** A new board's material: thin boards (back panels, drawer bottoms: 6 mm or less) are usually plywood or HDF. */
+export const defaultMaterial = (thickness: number, material: MaterialKey): MaterialKey =>
+  thickness <= 6 && material !== 'mdf' ? 'plywood' : material;
+
 export function reconcileBoards(boards: BoardV1[] | undefined, instances: PartInstance[], material: MaterialKey): BoardV1[] {
   const byId = new Map(instances.map(i => [i.id, i]));
   let out = (boards ?? []).map(b => {
@@ -167,7 +171,7 @@ export function reconcileBoards(boards: BoardV1[] | undefined, instances: PartIn
     const t = thicknessKey(inst.thickness);
     const board = out.find(b => b.thickness === t);
     if (board) board.items.push(inst.id);
-    else out = [...out, newBoard(out, t, material, [inst.id])];
+    else out = [...out, newBoard(out, t, defaultMaterial(t, material), [inst.id])];
   }
   return out;
 }
@@ -386,7 +390,7 @@ export function autoFillFromStock(
       out.push(...(old.length ? old : [newBoard(out, t, material, mine)]));
       continue;
     }
-    const template = { ...newBoard([], t, old[0]?.material ?? material) };
+    const template = { ...newBoard([], t, old[0]?.material ?? defaultMaterial(t, material)) };
     if (old[0]) Object.assign(template, { holdDown: old[0].holdDown, tabs: old[0].tabs });
     const fresh = (items: string[], size: BoardV1['size']): BoardV1 => ({ ...template, id: crypto.randomUUID(), items, size });
 

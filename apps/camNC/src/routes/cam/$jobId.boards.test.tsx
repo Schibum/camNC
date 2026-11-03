@@ -1,4 +1,4 @@
-import { createJob, getJob } from '@/cam/jobDb';
+import { createJob, getJob, saveJob } from '@/cam/jobDb';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ComponentType } from 'react';
@@ -303,5 +303,20 @@ describe('CAM boards step', () => {
     });
     // The margin and gap follow the bit: 6 + 2 and 6 + 4.
     await waitFor(() => expect(screen.getByText(/edge margin 8 mm · gap 10 mm/)).toBeTruthy(), { timeout: 10_000 });
+  }, 90_000);
+
+  it('after every part is unticked in the Model step, no board keeps parts', async () => {
+    const job = await openKinderregal();
+    await waitFor(async () => expect((await getJob(job.id))!.boards?.length).toBeGreaterThan(0), { timeout: 10_000 });
+    cleanup();
+    const saved = (await getJob(job.id))!;
+    await saveJob({ ...saved, parts: saved.parts.map(p => ({ ...p, milled: false })) });
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <BoardsStep />
+      </QueryClientProvider>
+    );
+    expect(await screen.findByText(/No part to mill/, {}, { timeout: 60_000 })).toBeTruthy();
+    expect(screen.queryByRole('region', { name: 'Board A' })).toBeNull();
   }, 90_000);
 });

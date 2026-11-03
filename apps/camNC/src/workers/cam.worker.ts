@@ -198,16 +198,18 @@ function loaded(key: string, partId: string) {
 }
 
 /** "left: Pocket 2 z=3.5" -> "left · Pocket 4.5 deep" (board programs prefix the part). */
-const label = (name: string, top: number) => {
+const label = (name: string, top: number, title?: string) => {
   const [, prefix, op] = name.match(/^(?:(.+): )?(.+)$/)!;
   const z = op.match(/z=([\d.]+)/);
-  const text = z
-    ? `Pocket ${+(top - +z[1]).toFixed(2)} deep`
-    : op.startsWith('Hole')
-      ? 'Through hole'
-      : op.startsWith('Outline')
-        ? 'Outline: rough + final pass'
-        : op;
+  const text = title
+    ? title[0].toUpperCase() + title.slice(1)
+    : z
+      ? `Pocket ${+(top - +z[1]).toFixed(2)} deep`
+      : op.startsWith('Hole')
+        ? 'Through hole'
+        : op.startsWith('Outline')
+          ? 'Outline: rough + final pass'
+          : op;
   return prefix ? `${prefix} · ${text}` : text;
 };
 
@@ -246,7 +248,8 @@ function summarize(
     const depths = [zTop, ...[...levels].map(Number).sort((a, b) => b - a)];
     return {
       name: op.name,
-      label: label(op.name, partTop),
+      // The title's depths are from the part's top; a thicker stock (allowance) doesn't change them.
+      label: label(op.name, partTop, op.title),
       kind: op.kind,
       tool: { number: op.tool.number, diameter: op.tool.diameter },
       zTop,

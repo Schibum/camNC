@@ -10,6 +10,7 @@ import stepUrl from '../../../../../packages/cam/test/fixtures/besteckkasten.ste
 import { Route } from './$jobId.plan';
 
 const params = vi.hoisted(() => ({ jobId: '' }));
+const bed = vi.hoisted(() => ({ bounds: {} as object | null }));
 const store = vi.hoisted(() => ({ updateToolpath: vi.fn(), setStockHeight: vi.fn(), setToolDiameter: vi.fn() }));
 const depth = vi.hoisted(() => ({ setZeroAt: vi.fn(), setToolShape: vi.fn() }));
 const navigate = vi.hoisted(() => vi.fn());
@@ -22,7 +23,7 @@ vi.mock('@tanstack/react-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
 }));
 vi.mock('@/components/page-header', () => ({ PageHeader: () => null }));
-vi.mock('@/store/store', () => ({ useStore: { getState: () => store } }));
+vi.mock('@/store/store', () => ({ useStore: { getState: () => store }, selectMachineBounds: () => bed.bounds }));
 vi.mock('@/visualize/depthViewStore', () => ({ useDepthView: { getState: () => depth } }));
 
 const PlanStep = (Route as unknown as { options: { component: ComponentType } }).options.component;
@@ -72,7 +73,7 @@ describe('CAM plan step, second side', () => {
 
     fireEvent.click(within(sides).getByRole('button', { name: 'Side B (turned over)' }));
     await waitFor(() => expect(rows().every(r => !r[1].includes('Outline'))).toBe(true));
-    const vert1 = rows().find(r => r[1].includes('vert1') && r[1].includes('Pocket'))!;
+    const vert1 = rows().find(r => r[1].includes('vert1') && /pocket/i.test(r[1]))!;
     // Fusion's flipped setup: 4.2 deep from the top. Stock 8 + 0.3: down to 4.1.
     expect(vert1[3]).toBe('8.3 → 4.1');
   }, 150_000);

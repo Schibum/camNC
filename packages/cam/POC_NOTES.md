@@ -162,3 +162,13 @@ PNGs (Fusion left, ours right; colour = depth, dashed = rapids): `poc-out/left.p
    - **Fence / corner**: the board is pushed against a fixed fence and stop, and mirrored about the fence line.
      Side B gets its own program from the bottom-face features (`flipPart`, `cutThrough: false`), mirrored to match the
      chosen registration. It becomes a guided step in the machine queue ("flip board A, align, zero Z").
+
+### Flip setups: built (fc17894), known limits
+
+- The board always turns top to bottom (board y -> H - y). Turning left to right (x -> W - x) isn't offered yet; it would
+  need the parts flipped about the other axis and the dowel mirrors at (W - x, y).
+- Side B's camera alignment uses the same board outline as side A; there's no separate side B outline (e.g. to align on
+  the cut part edges instead of the board edge).
+- Dowel pins need room clear of the parts (and of their mirrors): fitted boards often have none; the Plan step says so.
+- Fence / corner relies on the board's entered height being exact; nothing measures it.
+- Not yet tried on the machine.

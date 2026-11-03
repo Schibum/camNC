@@ -202,7 +202,7 @@ const elongation = (b: { w: number; h: number }) => Math.max(b.w, b.h) / Math.mi
  * Fixed board: places as much part area as fits, the rest is `unplaced`. Fitted board (no `board`): packs into strips
  * of candidate widths (widest part .. all parts side by side) with unbounded height and keeps the smallest board
  * (area, then the less elongated one). Keep-outs are board coordinates from the lower left corner, which a fitted
- * board shares; keep-outs that depend on the board size (like the upper right clamp of {@link clampKeepOuts}) need a
+ * board shares; keep-outs that depend on the board size (like the clamps of {@link clampKeepOuts}) need a
  * second nest on the fixed board once its size is known.
  *
  * Deterministic; about 20 ms for 50 parts fitted, a few ms on a fixed board.
@@ -255,10 +255,11 @@ export function nestRects(items: NestItem[], opts: NestOptions): NestResult {
   return finish(best.board, best.p);
 }
 
-/** Clamp keep-out zones at two opposite corners (lower left, upper right), like holding a board with two clamps. */
+/** Clamp keep-out zones at two opposite corners (upper left, lower right), like holding a board with two clamps. */
 export function clampKeepOuts(board: { w: number; h: number }, clamp = { w: 60, h: 40 }): Rect[] {
+  // The diagonal away from the lower left corner: that's the XY zero, where the probe goes.
   return [
-    { x: 0, y: 0, w: clamp.w, h: clamp.h },
-    { x: board.w - clamp.w, y: board.h - clamp.h, w: clamp.w, h: clamp.h },
+    { x: 0, y: board.h - clamp.h, w: clamp.w, h: clamp.h },
+    { x: board.w - clamp.w, y: 0, w: clamp.w, h: clamp.h },
   ];
 }

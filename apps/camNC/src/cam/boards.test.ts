@@ -95,6 +95,8 @@ describe('boards', () => {
       ['A', 8, 5],
       ['B', 3, 1],
     ]);
+    // The 3 mm back defaults to plywood, the 8 mm boards to the job's material.
+    expect(boards.map(b => b.material)).toEqual(['oak', 'plywood']);
   });
 
   it('auto-fills stock boards, overflowing onto more boards, with unique names', () => {
@@ -304,6 +306,9 @@ describe('boards', () => {
     const nest = nestBoard({ ...a, holdDown: 'clamps' }, parts, 3.175);
     expect(nest.unplaced).toEqual([]);
     expect(nest.keepOuts).toHaveLength(2);
+    // The lower left corner is the XY zero, where the probe goes: no clamp there.
+    for (const k of nest.keepOuts) expect(k.x > 0 || k.y > 0).toBe(true);
+    expect(nest.keepOuts.some(k => k.x === 0 && k.y === 0)).toBe(false);
     const size = new Map(parts.map(p => [p.id, p.size]));
     for (const p of nest.placements)
       for (const k of nest.keepOuts) {
