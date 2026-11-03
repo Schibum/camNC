@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { PlanResult } from '../camTypes';
+import type { PlanResult, ReleaseProgram } from '../camTypes';
 import type { JobBoard } from '../useJobBoards';
 import { currentTab, entryTitle, machineQueue, takeOutAt } from './camMachine';
 
@@ -16,6 +16,8 @@ const plan = (bits: number[]): PlanResult =>
     path: [],
   }) as PlanResult;
 
+const release = (kind: ReleaseProgram['kind']) => ({ kind, gcode: `(${kind})`, timeMin: 1, diameter: 3.175 }) as ReleaseProgram;
+
 const board = (name: string, holdDown: 'tabs' | 'tabs-guided' = 'tabs'): JobBoard =>
   ({
     board: { id: name, name, holdDown },
@@ -25,7 +27,10 @@ const board = (name: string, holdDown: 'tabs' | 'tabs-guided' = 'tabs'): JobBoar
 
 describe('machine queue', () => {
   it('orders boards to reuse the bit in the collet, one entry per bit, tab removal last for guided boards', () => {
-    const q = machineQueue([board('A'), board('B', 'tabs-guided'), board('C')], [plan([6]), plan([3.175, 6]), plan([3.175])]);
+    const q = machineQueue(
+      [board('A'), board('B', 'tabs-guided'), board('C')],
+      [plan([6]), { ...plan([3.175, 6]), release: [release('tabs')] }, plan([3.175])]
+    );
     // 3.175 only, then 3.175 -> 6, then 6 only: no bit swap between boards.
     expect(q.map(entryTitle)).toEqual([
       'Board C · ⌀3.175',
@@ -38,7 +43,12 @@ describe('machine queue', () => {
   });
 
   it('a board with a second side: its programs, turn over, side B per bit, then tab removal', () => {
-    const a = { ...plan([3.175]), sideB: plan([3.175]), flip: { registration: 'dowels' as const, dowelDiameter: 6 } };
+    const a = {
+      ...plan([3.175]),
+      sideB: plan([3.175]),
+      flip: { registration: 'dowels' as const, dowelDiameter: 6 },
+      release: [release('tabs')],
+    };
     const q = machineQueue([board('A', 'tabs-guided')], [a]);
     expect(q.map(entryTitle)).toEqual(['Board A · ⌀3.175', 'Board A · turn over', 'Board A side B · ⌀3.175', 'Board A · remove tabs']);
     expect(q.map(e => e.kind)).toEqual(['bit', 'flip', 'bit', 'tabs']);
@@ -49,9 +59,14 @@ describe('machine queue', () => {
   });
 
   it('bottom-skin parts: a "free parts" step after the board, before the tab removal; which part is next', () => {
-    const a = { ...plan([3.175]), holding: [{ name: 'p', how: 'skin' as const, tabs: 0 }] };
+    const a = { ...plan([3.175]), release: [release('free'), release('tabs')] };
     const q = machineQueue([board('A', 'tabs-guided')], [a]);
     expect(q.map(entryTitle)).toEqual(['Board A · ⌀3.175', 'Board A · free parts', 'Board A · remove tabs']);
+    // The very programs the plan made, not new ones.
+    expect(q[1].release).toBe(a.release[0]);
+    expect(q[2].release).toBe(a.release[1]);
+    // A guided board without any tabs left to remove: nothing to run.
+    expect(machineQueue([board('A', 'tabs-guided')], [plan([3.175])]).map(e => e.kind)).toEqual(['bit']);
     const g = [
       'G1 X1',
       'G0 Z13',

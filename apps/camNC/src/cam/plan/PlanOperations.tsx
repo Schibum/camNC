@@ -1,19 +1,22 @@
 import { Popover, PopoverContent, PopoverTrigger } from '@wbcnc/ui/components/popover';
 import { cn } from '@wbcnc/ui/lib/utils';
 import { ChevronRight } from 'lucide-react';
+import { Checkbox } from '@wbcnc/ui/components/checkbox';
 import { useState, type ComponentProps } from 'react';
+import { formatDuration } from '@/visualize/stockSim/jobTimeline';
 import type { OpSummary, PlanResult } from '../camTypes';
 import { cuttingKey, kCuttingLabels, kSourceLabels, resolveCutting, useCuttingData, type CuttingField } from '../cuttingData';
 import { Hint } from '../Hint';
 import { OpList } from '../plan3d/OpList';
 import { usePlan3dView } from '../plan3d/plan3dViewStore';
 import type { PlanPlayback } from '../plan3d/planPlayback';
+import { useCamMachine } from '../machine/camMachine';
+import { groupOpsOf, type PlanOpGroup } from '../plan3d/planModel';
 import { CuttingDataEditor } from './CuttingDataEditor';
 import { usePlanLayout } from './planLayoutStore';
 
 export type EditProps = Omit<ComponentProps<typeof CuttingDataEditor>, 'fields'>;
 
-const fmtMin = (m: number) => `${Math.floor(m)}:${String(Math.round((m % 1) * 60)).padStart(2, '0')}`;
 const fmtZ = (z: number) => `${+z.toFixed(2)}`;
 
 const kHints = {
@@ -84,10 +87,18 @@ export function PlanOperations({
           name={label}
           playback={playback}
           mode={mode}
-          details={g => <OpNumbers op={g.op} timeMin={g.timeMin} edit={editFor(g.op)} stepover={stepover(g.op)} />}
+          details={g => {
+            // In the 3D view's own clock, like the row above it.
+            const sim = groupOpsOf(playback.model, playback.model.groups.indexOf(g)).reduce((t, o) => t + o.end - o.start, 0);
+            return g.note ? (
+              <ProgramNumbers group={g} seconds={sim} />
+            ) : (
+              <OpNumbers op={g.op} seconds={sim / g.count} count={g.count} edit={editFor(g.op)} stepover={stepover(g.op)} />
+            );
+          }}
         />
       ) : (
-        <OperationsTable label={label} plan={plan} playback={playback} editFor={editFor} stepover={stepover} />
+        <OperationsTable label={label} playback={playback} editFor={editFor} stepover={stepover} />
       )}
       {children}
     </div>
@@ -113,7 +124,21 @@ function BitsLine({ plan }: { plan: PlanResult }) {
 }
 
 /** The selected op's numbers in the list: the table's columns, one per line. */
-function OpNumbers({ op, timeMin, edit, stepover }: { op: OpSummary; timeMin: number; edit: EditProps; stepover: number }) {
+function OpNumbers({
+  op,
+  seconds,
+  count,
+  edit,
+  stepover,
+}: {
+  op: OpSummary;
+  /** Simulated, for one op of the group. */
+  seconds: number;
+  /** Identical ops in the group: the numbers are each one's. */
+  count: number;
+  edit: EditProps;
+  stepover: number;
+}) {
   const line = (term: string, hint: string | null, value: React.ReactNode) => (
     <div className="contents">
       <dt className="text-muted-foreground">
@@ -131,42 +156,73 @@ function OpNumbers({ op, timeMin, edit, stepover }: { op: OpSummary; timeMin: nu
     </div>
   );
   return (
-    <dl aria-label={`${op.label}: numbers`} className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-      {line(
-        'Z from bottom',
-        kHints.depth,
-        <>
-          {fmtZ(op.zTop)} → {fmtZ(op.zBottom)}
-        </>
-      )}
-      {line('Passes', kHints.passes, op.depthSteps)}
-      {line(
-        'Stepdown',
-        kHints.stepdown,
-        <CuttingValue edit={edit} field="stepdown">
-          {+op.stepdown.toFixed(2)} mm
-        </CuttingValue>
-      )}
-      {line(
-        'Stepover',
-        kHints.stepover,
-        op.kind === 'pocket' ? (
-          <CuttingValue edit={edit} field="stepover">
-            {+stepover.toFixed(2)} mm
+    <>
+      {count > 1 && <p className="text-xs text-muted-foreground">Per op, for each of the {count} identical ops:</p>}
+      <dl aria-label={`${op.label}: numbers`} className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+        {line(
+          'Z from bottom',
+          kHints.depth,
+          <>
+            {fmtZ(op.zTop)} → {fmtZ(op.zBottom)}
+          </>
+        )}
+        {line('Passes', kHints.passes, op.depthSteps)}
+        {line(
+          'Stepdown',
+          kHints.stepdown,
+          <CuttingValue edit={edit} field="stepdown">
+            {+op.stepdown.toFixed(2)} mm
           </CuttingValue>
-        ) : (
-          <span className="text-muted-foreground">–</span>
-        )
+        )}
+        {line(
+          'Stepover',
+          kHints.stepover,
+          op.kind === 'pocket' ? (
+            <CuttingValue edit={edit} field="stepover">
+              {+stepover.toFixed(2)} mm
+            </CuttingValue>
+          ) : (
+            <span className="text-muted-foreground">–</span>
+          )
+        )}
+        {line(
+          op.feeds.length > 1 ? 'Feed / final feed' : 'Feed',
+          kHints.feed,
+          <CuttingValue edit={edit} field="feed">
+            {op.feeds.join(' / ')} mm/min
+          </CuttingValue>
+        )}
+        {line('Time (sim)', null, formatDuration(seconds))}
+      </dl>
+    </>
+  );
+}
+
+/** A guided program's row, opened: where it cuts, how fast, how long, and its pauses. */
+function ProgramNumbers({ group, seconds }: { group: PlanOpGroup; seconds: number }) {
+  const { op, note } = group;
+  const { pauseEachTab, setPauseEachTab } = useCamMachine();
+  return (
+    <>
+      <dl aria-label={`${group.label}: numbers`} className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+        <dt className="text-muted-foreground">Z from bottom</dt>
+        <dd className="font-mono">
+          {fmtZ(op.zTop)} → {fmtZ(op.zBottom)}
+        </dd>
+        <dt className="text-muted-foreground">{op.feeds.length > 1 ? 'Feed / final feed' : 'Feed'}</dt>
+        <dd className="font-mono">{op.feeds.join(' / ')} mm/min</dd>
+        <dt className="text-muted-foreground">Time (sim)</dt>
+        <dd className="font-mono">{formatDuration(seconds)}, without the pauses</dd>
+        <dt className="text-muted-foreground">Pauses</dt>
+        <dd>{note}</dd>
+      </dl>
+      {op.program?.kind === 'tabs' && (
+        <label className="flex items-center gap-2 text-xs">
+          <Checkbox checked={pauseEachTab} onCheckedChange={v => setPauseEachTab(v === true)} aria-label="Pause after each tab" />
+          Pause after each tab
+        </label>
       )}
-      {line(
-        op.feeds.length > 1 ? 'Feed / final feed' : 'Feed',
-        kHints.feed,
-        <CuttingValue edit={edit} field="feed">
-          {op.feeds.join(' / ')} mm/min
-        </CuttingValue>
-      )}
-      {line('Time', null, `${fmtMin(timeMin)} min`)}
-    </dl>
+    </>
   );
 }
 
@@ -195,13 +251,11 @@ function CuttingValue({ edit, field, children }: { edit: EditProps; field: Cutti
 /** Every op's numbers side by side; a row selects its op, in the 3D view too. Wide: it scrolls sideways in its box. */
 function OperationsTable({
   label,
-  plan,
   playback,
   editFor,
   stepover,
 }: {
   label: string;
-  plan: PlanResult;
   playback: PlanPlayback;
   editFor: (op: OpSummary) => EditProps;
   stepover: (op: OpSummary) => number;
@@ -210,7 +264,7 @@ function OperationsTable({
   const [open, setOpen] = useState<Set<string>>(new Set());
   const toggle = (key: string) => setOpen(s => (s.has(key) ? new Set([...s].filter(k => k !== key)) : new Set([...s, key])));
   const cell = 'py-2 pr-3 font-mono whitespace-nowrap';
-  const row = (n: number, op: OpSummary, label: React.ReactNode, num: React.ReactNode, timeMin: number, key: string, sub = false) => (
+  const row = (n: number, op: OpSummary, label: React.ReactNode, num: React.ReactNode, seconds: number, key: string, sub = false) => (
     <tr
       key={key}
       onClick={() => select(n)}
@@ -223,9 +277,13 @@ function OperationsTable({
       </td>
       <td className={cell}>{op.depthSteps}</td>
       <td className={cell}>
-        <CuttingValue edit={editFor(op)} field="stepdown">
-          {+op.stepdown.toFixed(2)} mm
-        </CuttingValue>
+        {op.program ? (
+          `${+op.stepdown.toFixed(2)} mm`
+        ) : (
+          <CuttingValue edit={editFor(op)} field="stepdown">
+            {+op.stepdown.toFixed(2)} mm
+          </CuttingValue>
+        )}
       </td>
       <td className={cn(cell, op.kind !== 'pocket' && 'text-muted-foreground')}>
         {op.kind === 'pocket' ? (
@@ -237,11 +295,15 @@ function OperationsTable({
         )}
       </td>
       <td className={cell}>
-        <CuttingValue edit={editFor(op)} field="feed">
-          {op.feeds.join(' / ')}
-        </CuttingValue>
+        {op.program ? (
+          op.feeds.join(' / ')
+        ) : (
+          <CuttingValue edit={editFor(op)} field="feed">
+            {op.feeds.join(' / ')}
+          </CuttingValue>
+        )}
       </td>
-      <td className="py-2 pr-1.5 font-mono whitespace-nowrap">{fmtMin(timeMin)}</td>
+      <td className="py-2 pr-1.5 font-mono whitespace-nowrap">{formatDuration(seconds)}</td>
     </tr>
   );
   return (
@@ -257,7 +319,7 @@ function OperationsTable({
             <HeaderCell hint={kHints.stepdown}>Stepdown</HeaderCell>
             <HeaderCell hint={kHints.stepover}>Stepover</HeaderCell>
             <HeaderCell hint={kHints.feed}>Feed</HeaderCell>
-            <th className="py-2 pr-1.5 font-medium">Time</th>
+            <th className="py-2 pr-1.5 font-medium whitespace-nowrap">Time (sim)</th>
           </tr>
         </thead>
         <tbody>
@@ -269,11 +331,22 @@ function OperationsTable({
                   aria-expanded={open.has(g.key)}
                   onClick={() => toggle(g.key)}>
                   <ChevronRight className={cn('size-3.5 shrink-0 transition-transform', open.has(g.key) && 'rotate-90')} />
-                  {g.label} <span className="text-muted-foreground">×{g.count}</span>
+                  {g.label}{' '}
+                  {g.note ? (
+                    <span className="text-muted-foreground">· {g.note}</span>
+                  ) : (
+                    <span className="text-muted-foreground">×{g.count}, per op</span>
+                  )}
                 </button>
+              ) : g.note ? (
+                <>
+                  {g.label} <span className="text-muted-foreground">· {g.note}</span>
+                </>
               ) : (
                 g.label
               );
+            const opsOf = groupOpsOf(model, n);
+            const seconds = opsOf.reduce((t, o) => t + o.end - o.start, 0);
             const num = (
               <span className="inline-flex items-center gap-1.5">
                 <span aria-hidden className="size-2.5 rounded-sm" style={{ background: g.color }} />
@@ -281,9 +354,20 @@ function OperationsTable({
               </span>
             );
             return [
-              row(n, g.op, label, num, g.timeMin, g.key),
+              // A grouped row's numbers are per op; a guided program's time is the whole program.
+              row(n, g.op, label, num, g.note ? seconds : seconds / g.count, g.key),
               ...(open.has(g.key)
-                ? g.members.map((m, k) => row(n, plan.ops[m], `${k + 1} of ${g.count}`, '', plan.ops[m].timeMin, `${g.key}#${m}`, true))
+                ? g.members.map((m, k) =>
+                    row(
+                      n,
+                      model.summaries[m],
+                      g.note ? model.summaries[m].label : `${k + 1} of ${g.count}`,
+                      '',
+                      model.ops[m] ? model.ops[m].end - model.ops[m].start : 0,
+                      `${g.key}#${m}`,
+                      true
+                    )
+                  )
                 : []),
             ];
           })}

@@ -52,6 +52,37 @@ export interface OpSummary {
   /** Cutting feeds used, fastest first (the final pass may be slower). */
   feeds: number[];
   timeMin: number;
+  /** One step of a guided program after the cutting (see `ReleaseProgram`): shown together as that program's row. */
+  program?: { kind: ReleaseProgram['kind']; title: string; note: string };
+}
+
+/**
+ * Planned with the board, run after its cutting (after side B, when there is one) in this order: freeing bottom-skin
+ * parts or the layer on the tape, then the guided tab removal. The Plan step shows it, the machine queue runs it.
+ */
+export interface ReleaseProgram {
+  kind: 'free' | 'tabs';
+  /** "Free the parts", "Cut free", "Remove the tabs". */
+  title: string;
+  gcode: string;
+  timeMin: number;
+  tool: number;
+  diameter: number;
+  /** Stops for a person: holding a part, taking one out. The spindle confirmation every program starts with doesn't count. */
+  pauses: number;
+  /** "8 pauses: take out each part". */
+  note: string;
+  ops: OpSummary[];
+  /** Broken safety rules: block the job like any other program's. */
+  safety: string[];
+  /** Cut with the board turned over (the skins or tabs on top), after side B. */
+  turned: boolean;
+  /** Freeing: the parts in program order, with a spot to point at (program coordinates). */
+  parts?: { name: string; at: { x: number; y: number } }[];
+  /** Tab removal: the tabs, and where to hold the part (program coordinates). */
+  tabs?: TabStop[];
+  /** Tab removal: one pause per part (all its tabs, then take it out), not one before every tab. */
+  perPart?: boolean;
 }
 
 export interface PlanResult {
@@ -102,6 +133,8 @@ export interface PlanResult {
   sideB?: PlanResult;
   /** How side B lines up; for dowels, where the pins go (and why there's no room for them). */
   flip?: { registration: FlipRegistration; dowels?: { x: number; y: number }[]; dowelDiameter?: number; problem?: string };
+  /** What's left for after the cutting, in machine queue order. */
+  release?: ReleaseProgram[];
 }
 
 /** A board to generate: which bodies sit where. */
@@ -125,19 +158,4 @@ export interface BoardRequest {
   /** With tabs: what parts without a spot for tabs that hold get (each part may choose its own), and the skin. */
   tabFallback?: TabFallback;
   skin?: number;
-}
-
-/** After cutting a board with bottom-skin parts: frees them one at a time, each paused for taking it out. */
-export interface FreePartsResult {
-  gcode: string;
-  /** In program order, with a spot to point at (board coordinates). */
-  parts: { name: string; at: { x: number; y: number } }[];
-  timeMin: number;
-}
-
-/** A guided tab removal program for a board: one pause per tab, then a cut through it. */
-export interface TabRemovalResult {
-  gcode: string;
-  tabs: TabStop[];
-  timeMin: number;
 }

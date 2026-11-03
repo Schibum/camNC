@@ -89,6 +89,17 @@ export function PlanTimeline({
             style={{ left: `${bands[i].left * 100}%`, width: `${bands[i].width * 100}%`, background: model.groups[op.group].color }}
           />
         ))}
+        {model.pauses.map((p, i) => (
+          <div
+            key={i}
+            role="img"
+            aria-label={`Pause: ${p.label}`}
+            title={`Pause: ${p.label}`}
+            data-pause
+            className="pointer-events-none absolute top-0.5 h-6 w-0.5 -translate-x-1/2 rounded-full bg-amber-500"
+            style={{ left: `${timeToX(knots, p.time) * 100}%` }}
+          />
+        ))}
         <div
           role="slider"
           tabIndex={0}

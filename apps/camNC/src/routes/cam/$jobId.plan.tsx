@@ -2,7 +2,7 @@ import { PageHeader } from '@/components/page-header';
 import { CamPage } from '@/cam/CamPage';
 import { NoPartsToMill } from '@/cam/NoPartsToMill';
 import { useBoardPlans, useCamJob, useCamModel, useSaveCamJob } from '@/cam/camQueries';
-import type { BoardRequest, CamPartInfo, OpSummary, PlanResult } from '@/cam/camTypes';
+import type { BoardRequest, CamPartInfo, OpSummary, PlanResult, ReleaseProgram } from '@/cam/camTypes';
 import type { FlipRegistration } from '@wbcnc/cam';
 import { missingParts, useJobBoards, type MissingPart } from '@/cam/useJobBoards';
 import { edgeNote, freezeSpacing, spacingProblem } from '@/cam/boards';
@@ -102,8 +102,19 @@ function PlanStep() {
   const onSideB = result !== sideA;
   const empty = !!result && result.ops.length === 0;
   // A part neither held by its tabs nor given a fallback would come loose: that blocks, like a safety rule.
+  // What the guided programs after the cutting broke counts for the whole board.
+  const releaseSafety = releaseProblems(sideA);
   const safe =
-    !!result && !current.stale && result.safety.length === 0 && !empty && !blocked && loose(sideA).length === 0 && !unstable(sideA);
+    !!result &&
+    !current.stale &&
+    result.safety.length === 0 &&
+    releaseSafety.length === 0 &&
+    !empty &&
+    !blocked &&
+    loose(sideA).length === 0 &&
+    !unstable(sideA);
+  // They come last: on side B, with the board turned over, when there is one.
+  const shownRelease = onSideB || !sideA?.sideB ? sideA?.release : undefined;
   const allReady =
     ready &&
     !blocked &&
@@ -112,10 +123,11 @@ function PlanStep() {
         e.plan!.ops.length > 0 &&
         e.plan!.safety.length === 0 &&
         (e.plan!.sideB?.safety.length ?? 0) === 0 &&
+        releaseProblems(e.plan).length === 0 &&
         !loose(e.plan).length &&
         !unstable(e.plan)
     );
-  const totalMin = queue.reduce((t, e) => t + (e.plan?.timeMin ?? 0), 0);
+  const totalMin = queue.reduce((t, e) => t + jobMinutes(e.plan), 0);
   const swaps = queue.reduce(
     (n, e, i) => n + Math.max(0, e.bits.length - 1) + (i > 0 && queue[i - 1].bits.at(-1) !== e.bits[0] ? 1 : 0),
     0
@@ -250,12 +262,21 @@ function PlanStep() {
       </div>
       <PlanWorkspace
         plan={result && !empty ? result : undefined}
+        release={shownRelease}
         board={current.request}
         parts={model.data.parts}
         fetching={current.fetching}
         name={name}
         editFor={editFor}
-        problems={!!result && (result.safety.length > 0 || loose(sideA).length > 0 || unstable(sideA))}
+        mark={
+          !result
+            ? null
+            : result.safety.length > 0 || releaseSafety.length > 0 || loose(sideA).length > 0 || unstable(sideA)
+              ? 'problem'
+              : hasWarnings(result)
+                ? 'warning'
+                : null
+        }
         above={
           <>
             {sideA?.flip && <SideSwitch plan={sideA} side={onSideB ? 'b' : 'a'} onSide={setSide} />}
@@ -291,7 +312,7 @@ function PlanStep() {
         checks={
           result && (
             <>
-              <Checks plan={result} checked={!empty && !blocked} />
+              <Checks plan={result} checked={!empty && !blocked} releaseSafety={releaseSafety} />
               <p className="text-xs text-muted-foreground">
                 {result.programs.length > 1
                   ? 'One program per bit: run them in order, swap the bit and zero Z in between; the board stays put.'
@@ -321,12 +342,13 @@ const kTabs: [PlanTab, string][] = [
  */
 function PlanWorkspace({
   plan,
+  release,
   board,
   parts,
   fetching,
   name,
   editFor,
-  problems,
+  mark,
   above,
   status,
   checks,
@@ -334,14 +356,16 @@ function PlanWorkspace({
 }: {
   /** The program shown, if it has operations. */
   plan: PlanResult | undefined;
+  /** The guided programs that follow it. */
+  release: ReleaseProgram[] | undefined;
   board: BoardRequest;
   parts: CamPartInfo[];
   fetching: boolean;
   /** e.g. "board A". */
   name: string;
   editFor: (op: OpSummary) => EditProps;
-  /** A check failed: flagged on the Operations tab, so it shows from the Settings tab too. */
-  problems: boolean;
+  /** A check failed, or a warning: flagged on the Operations tab, so it shows from the Settings tab too. */
+  mark: 'problem' | 'warning' | null;
   /** Banners above the view. */
   above: React.ReactNode;
   /** Instead of the view while there is no program with operations. */
@@ -350,7 +374,7 @@ function PlanWorkspace({
   checks: React.ReactNode;
   settings: React.ReactNode;
 }) {
-  const playback = usePlanPlayback(plan);
+  const playback = usePlanPlayback(plan, release);
   const { tab, opsView, setTab } = usePlanLayout();
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
@@ -395,10 +419,14 @@ function PlanWorkspace({
                 tab === t ? 'border-primary font-medium' : 'border-transparent text-muted-foreground hover:text-foreground'
               )}>
               {text}
-              {t === 'operations' && problems && (
+              {t === 'operations' && mark && (
                 <>
-                  <AlertTriangle aria-hidden className="size-3.5 text-destructive" />
-                  <span className="sr-only">(a check failed)</span>
+                  <AlertTriangle
+                    aria-hidden
+                    data-mark={mark}
+                    className={cn('size-3.5', mark === 'problem' ? 'text-destructive' : 'text-amber-600 dark:text-amber-400')}
+                  />
+                  <span className="sr-only">{mark === 'problem' ? '(a check failed)' : '(warnings)'}</span>
                 </>
               )}
             </button>
@@ -461,6 +489,19 @@ function SideSwitch({ plan, side, onSide }: { plan: PlanResult; side: 'a' | 'b';
     </div>
   );
 }
+
+/** Broken safety rules of the guided programs after the board's cutting. */
+const releaseProblems = (plan: PlanResult | undefined) => plan?.release?.flatMap(r => r.safety) ?? [];
+
+/** All of a board's programs: side A, side B, and the guided ones after them. */
+const jobMinutes = (plan: PlanResult | undefined) =>
+  (plan?.timeMin ?? 0) + (plan?.sideB?.timeMin ?? 0) + (plan?.release ?? []).reduce((t, r) => t + r.timeMin, 0);
+
+/** What `Checks` shows in amber. */
+const hasWarnings = (plan: PlanResult) =>
+  plan.warnings.length > 0 ||
+  (plan.timeline ?? []).some(e => !e.block) ||
+  (plan.hold ?? []).some(h => !h.ok && plan.holding?.find(x => x.name === h.part)?.how === 'tabs');
 
 /** Stock that would turn or lift during the job, a part that comes loose, or a screw or clamp in the bit's way. */
 function unstable(plan: PlanResult | undefined) {
@@ -546,7 +587,8 @@ function MissingBanner({
 }
 
 /** `checked`: false while the job is blocked (missing parts, nothing to cut): no "passed" for an incomplete job. */
-function Checks({ plan, checked }: { plan: PlanResult; checked: boolean }) {
+function Checks({ plan, checked, releaseSafety }: { plan: PlanResult; checked: boolean; releaseSafety: string[] }) {
+  const failed = [...plan.safety, ...releaseSafety];
   const how = (part: string) => plan.holding?.find(h => h.name === part)?.how;
   const skins = (plan.holding ?? []).filter(h => h.how === 'skin');
   return (
@@ -606,13 +648,13 @@ function Checks({ plan, checked }: { plan: PlanResult; checked: boolean }) {
           At the machine, “Free parts” cuts {skins.length === 1 ? 'it' : 'them'} free one at a time.
         </p>
       )}
-      {!checked ? null : plan.safety.length === 0 ? (
+      {!checked ? null : failed.length === 0 ? (
         <p className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
           <ShieldCheck className="size-4" /> Safety checks passed: no rapid moves in the stock, stays on the board, never deeper than the
           cut-through depth.
         </p>
       ) : (
-        plan.safety.map(s => (
+        failed.map(s => (
           <p key={s} className="flex gap-2 text-destructive">
             <AlertTriangle className="mt-0.5 size-4 shrink-0" /> {s}
           </p>

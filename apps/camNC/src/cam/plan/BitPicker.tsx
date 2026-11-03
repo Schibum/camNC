@@ -239,7 +239,7 @@ export function BitChip({
     <Button size="sm" variant="outline" aria-label={`Bit: ⌀${value.bit.diameter} ${value.bit.name}. Change the bit`} onClick={onOpen}>
       <span className="text-muted-foreground">Bit:</span> ⌀{value.bit.diameter} · {value.bit.name}
       {value.smallBit && <span className="text-muted-foreground">+ ⌀{value.smallBit.diameter}</span>}
-      <ChevronDown />
+      {!onOpen && <ChevronDown />}
     </Button>
   );
   const hint = 'The bit for the whole job. It sets the margin and gap between parts on the boards, and every toolpath.';

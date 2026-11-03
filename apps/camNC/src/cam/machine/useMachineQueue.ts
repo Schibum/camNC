@@ -1,14 +1,11 @@
-import { useQuery } from '@tanstack/react-query';
-import { camWorker, modelKey, useBoardPlans, useCamJob, useCamModel } from '../camQueries';
-import type { FreePartsResult, TabRemovalResult } from '../camTypes';
-import { useCuttingData } from '../cuttingData';
-import { kDefaultPlan, toCamSettings } from '../planSettings';
+import { useBoardPlans, useCamJob, useCamModel } from '../camQueries';
 import { useJobBoards } from '../useJobBoards';
 import { machineQueue, useCamMachine } from './camMachine';
 
 /**
- * The CAM job at the machine: its queue (programs with each board's rotation baked in) and the active entry,
- * plus the guided tab removal program when that's the active entry.
+ * The CAM job at the machine: its queue (programs with each board's rotation baked in) and the active entry. All
+ * programs come from the board's plan. While a board is planned again (turned, or "Pause after each tab" changed) its
+ * entries stay in the queue, but its programs can't be loaded: see `stale`.
  */
 export function useMachineQueue() {
   const { jobId, rotation, active, done } = useCamMachine();
@@ -19,38 +16,21 @@ export function useMachineQueue() {
   const plans = useBoardPlans(
     job,
     boards.map(b => ({ request: b.request, material: b.board.material })),
-    !!model.data
+    !!model.data,
+    { keepShown: true }
   );
   const queue = machineQueue(
     boards,
     plans.map(p => p.data)
   );
   const current = queue.find(e => e.key === active) ?? queue.find(e => !done.includes(e.key)) ?? null;
-  const saved = useCuttingData(s => s.saved);
-  const settings = toCamSettings(job?.plan ?? kDefaultPlan, current?.board.board.material, saved);
-  // Tabs and skins are taken care of after side B, when there is one: the board lies turned over then.
-  const turned = !!current?.plan?.sideB;
-  const pauseEachTab = useCamMachine(s => s.pauseEachTab);
-  const tabs = useQuery({
-    queryKey: ['cam', 'tab-removal', job?.id, job?.fileName, current?.board.request, settings, turned, pauseEachTab],
-    enabled: !!job && current?.kind === 'tabs',
-    staleTime: Infinity,
-    queryFn: (): Promise<TabRemovalResult> =>
-      camWorker().generateTabRemoval(modelKey(job!), current!.board.request, settings, turned, !pauseEachTab),
-  });
-  const free = useQuery({
-    queryKey: ['cam', 'free-parts', job?.id, job?.fileName, current?.board.request, settings, turned],
-    enabled: !!job && current?.kind === 'free',
-    staleTime: Infinity,
-    queryFn: (): Promise<FreePartsResult> => camWorker().generateFreeParts(modelKey(job!), current!.board.request, settings, turned),
-  });
   return {
     job,
     loading: !!jobId && (!model.data || plans.some(p => p.isPending && p.fetchStatus !== 'idle')),
     queue,
     current,
     done,
-    tabRemoval: tabs.data,
-    freeParts: free.data,
+    /** Boards (ids) whose shown programs are being replaced: never load those. */
+    stale: new Set(boards.filter((_, i) => plans[i].isPlaceholderData).map(b => b.board.id)),
   };
 }

@@ -2,7 +2,7 @@ import { orderBoardQueue } from '@wbcnc/cam/board';
 import { create } from 'zustand';
 import { combine, persist } from 'zustand/middleware';
 import type { TabStop } from '@wbcnc/cam';
-import type { PlanResult } from '../camTypes';
+import type { PlanResult, ReleaseProgram } from '../camTypes';
 import type { JobBoard } from '../useJobBoards';
 
 export interface BoardOverlay {
@@ -63,11 +63,13 @@ export interface QueueEntry {
   /** The first entry of its board: place and align the board first. */
   firstOfBoard: boolean;
   plan: PlanResult;
+  /** Freeing parts or the tab removal: the program planned with the board. */
+  release?: ReleaseProgram;
 }
 
 /**
- * What to cut, in order: boards in the order that keeps the bit in the collet, per board one entry per bit, then
- * the guided tab removal for "tabs + guided removal" boards.
+ * What to cut, in order: boards in the order that keeps the bit in the collet, per board one entry per bit, then what
+ * the plan has for after the cutting (freeing bottom-skin parts, the guided tab removal).
  */
 export function machineQueue(boards: JobBoard[], plans: (PlanResult | undefined)[]): QueueEntry[] {
   const ready = boards
@@ -107,13 +109,15 @@ export function machineQueue(boards: JobBoard[], plans: (PlanResult | undefined)
           })),
         ]
       : []),
-    // Bottom-skin parts: cut free one at a time, after everything else on the board.
-    ...(plan!.holding?.some(h => h.how === 'skin')
-      ? [{ key: `${board.board.id}:free`, board, kind: 'free' as const, program: 0, firstOfBoard: false, plan: plan! }]
-      : []),
-    ...(board.board.holdDown === 'tabs-guided'
-      ? [{ key: `${board.board.id}:tabs`, board, kind: 'tabs' as const, program: 0, firstOfBoard: false, plan: plan! }]
-      : []),
+    ...(plan!.release ?? []).map(release => ({
+      key: `${board.board.id}:${release.kind}`,
+      board,
+      kind: release.kind,
+      program: 0,
+      firstOfBoard: false,
+      plan: plan!,
+      release,
+    })),
   ]);
 }
 

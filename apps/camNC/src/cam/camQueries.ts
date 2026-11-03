@@ -2,6 +2,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/rea
 import * as Comlink from 'comlink';
 import type { CamWorkerAPI } from '../workers/cam.worker';
 import type { BoardRequest, ModelImport, PlanResult } from './camTypes';
+import { useCamMachine } from './machine/camMachine';
 import { kDefaultPlan, toCamSettings } from './planSettings';
 import { useCuttingData } from './cuttingData';
 import { getJob, getModelBytes, listJobs, saveJob, type CamJobV1 } from './jobDb';
@@ -117,17 +118,20 @@ export function useBoardPlans(
 ) {
   const plan = job?.plan ?? kDefaultPlan;
   const saved = useCuttingData(s => s.saved);
+  const pauseEachTab = useCamMachine(s => s.pauseEachTab);
   // Per board id, its last program (a changed setting is a new query: useQueries keeps no placeholder across keys).
   const last = useRef(new Map<string, PlanResult>());
   const results = useQueries({
     queries: boards.map(({ request, material }) => {
       const settings = toCamSettings(plan, material as typeof plan.material, saved);
+      // The guided tab removal is planned with the board: only boards that have one plan again when this changes.
+      const perPart = request.holdDown === 'tabs-guided' && !pauseEachTab;
       return {
-        queryKey: ['cam', 'board-plan', job?.id ?? '', job?.fileName ?? '', request, settings] as const,
+        queryKey: ['cam', 'board-plan', job?.id ?? '', job?.fileName ?? '', request, settings, perPart] as const,
         enabled: !!job && modelReady && request.parts.length > 0,
         staleTime: Infinity,
         gcTime: 60_000,
-        queryFn: (): Promise<PlanResult> => camWorker().generateBoard(modelKey(job!), request, settings),
+        queryFn: (): Promise<PlanResult> => camWorker().generateBoard(modelKey(job!), request, settings, { perPart }),
       };
     }),
   });

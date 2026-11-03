@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { OpSummary, PlanResult } from '../camTypes';
+import type { OpSummary, PlanResult, ReleaseProgram } from '../camTypes';
 import { isRapidSegment } from '@/visualize/depthInspection';
 import { buildPlanModel, onlyOps, timelineLayout, timeToX, xToTime } from './planModel';
 import { kOpPalette } from './palette';
@@ -47,6 +47,68 @@ function plan(): PlanResult {
     path: [],
   };
 }
+
+describe('guided programs after the cutting', () => {
+  it('follow the program on the timeline, with their pauses and bands, not the spindle confirmation', () => {
+    const base = plan();
+    const gcode = [
+      'G21 G90',
+      'G0 Z15',
+      'M0 (MSG Spindle starts at 15000 RPM next. Manual spindle: turn it on now)',
+      '(OP 1/2 a: Free - T1 D=3.175)',
+      'G0 X5 Y5',
+      'G1 Z-0.3 F300',
+      'G1 X25 F800',
+      'G0 Z15',
+      'M5',
+      'M0 (MSG Take out a, then continue)',
+      '(OP 2/2 b: Free - T1 D=3.175)',
+      'G0 X50',
+      'G1 Z-0.3 F300',
+      'G1 X70 F800',
+      'G0 Z15',
+      'M5',
+      'M0 (MSG Take out b, then continue)',
+      'M30',
+    ].join('\n');
+    const program = { kind: 'free' as const, title: 'Free the parts', note: '2 pauses: take out each part' };
+    const release = [
+      {
+        kind: 'free',
+        title: 'Free the parts',
+        gcode,
+        timeMin: 1,
+        tool: 7,
+        diameter: 6,
+        pauses: 2,
+        note: program.note,
+        safety: [],
+        turned: false,
+        ops: [
+          { ...op('a'), program },
+          { ...op('b'), program },
+        ],
+      },
+    ] as ReleaseProgram[];
+    const without = buildPlanModel(base);
+    const m = buildPlanModel(base, release);
+    expect(m.total).toBeGreaterThan(without.total);
+    expect(m.ops).toHaveLength(without.ops.length + 2);
+    expect(m.summaries).toHaveLength(m.ops.length);
+    // One row for both laps, last.
+    expect(m.groups.at(-1)!.label).toBe('Free the parts');
+    expect(m.ops.at(-1)!.group).toBe(m.groups.length - 1);
+    expect(m.ops.at(-2)!.group).toBe(m.groups.length - 1);
+    expect(m.ops.at(-2)!.start).toBeGreaterThanOrEqual(without.total);
+    expect(m.pauses.map(p => p.label)).toEqual(['Take out a, then continue', 'Take out b, then continue']);
+    // After each lap, in order.
+    expect(m.pauses[0].time).toBeGreaterThanOrEqual(m.ops.at(-2)!.end - 1e-6);
+    expect(m.pauses[0].time).toBeLessThanOrEqual(m.ops.at(-1)!.start + 1e-6);
+    expect(m.pauses[1].time).toBeGreaterThanOrEqual(m.ops.at(-1)!.end - 1e-6);
+    expect(m.bits.get(7)).toBe(6);
+    expect(without.pauses).toEqual([]);
+  });
+});
 
 describe('plan model', () => {
   it('splits the program into its ops, groups identical ones and gives each group one color', () => {

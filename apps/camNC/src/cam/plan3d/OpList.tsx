@@ -39,8 +39,12 @@ export function OpList({
         const isSelected = selected === n;
         const isHidden = mode === 'toolpath' && hidden.has(n);
         const status = time >= end ? 'done' : time > start ? 'cutting' : null;
+        const firstProgram = !!g.note && !model.groups[n - 1]?.note;
         return (
           <li key={g.key} className={cn('rounded-md', isSelected && 'bg-muted')}>
+            {firstProgram && (
+              <p className="mt-1 border-t px-2 pt-2 pb-1 text-xs font-medium text-muted-foreground">After the cutting, at the machine</p>
+            )}
             <div className="flex items-center">
               <button
                 aria-expanded={isSelected}
@@ -54,12 +58,13 @@ export function OpList({
                 <span className="min-w-0 flex-1">
                   <span className="block truncate">
                     {g.label}
-                    {g.count > 1 && <span className="text-muted-foreground"> ×{g.count}</span>}
+                    {g.count > 1 && !g.note && <span className="text-muted-foreground"> ×{g.count}</span>}
                   </span>
                   <span className="block text-xs text-muted-foreground">
-                    ⌀{g.op.tool.diameter} · {formatDuration(ops.reduce((t, o) => t + o.end - o.start, 0))}
+                    ⌀{g.op.tool.diameter} · {formatDuration(ops.reduce((t, o) => t + o.end - o.start, 0))} sim
                     {mode === 'result' && status && ` · ${status}`}
                   </span>
+                  {g.note && <span className="block text-xs text-muted-foreground">{g.note}</span>}
                 </span>
                 <ChevronRight
                   aria-hidden

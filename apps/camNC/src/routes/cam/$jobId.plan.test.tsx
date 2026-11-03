@@ -99,6 +99,8 @@ describe('CAM plan step', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Bit: / }));
     expect(sidebarTab('Settings').getAttribute('aria-selected')).toBe('true');
     expect(document.activeElement).toBe(sidebarTab('Settings'));
+    // It opens a tab here, not a dropdown: no arrow.
+    expect(screen.getByRole('button', { name: /^Bit: / }).querySelector('svg')).toBeNull();
     expect(screen.queryByRole('table', { name: 'Operations for board A' })).toBeNull();
     expect(JSON.parse(localStorage.getItem('camnc-plan-layout')!).state).toEqual({ tab: 'settings', opsView: 'table' });
     const how = screen.getByRole('button', { name: 'How it works' });

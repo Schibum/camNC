@@ -39,17 +39,7 @@ import {
 import * as Comlink from 'comlink';
 // Lazy: this worker only starts when a model is opened, and occt only loads the wasm on the first STEP file.
 import occtWasmUrl from 'occt-import-js/dist/occt-import-js.wasm?url';
-import type {
-  BoardRequest,
-  BodyMesh,
-  FreePartsResult,
-  CamPartInfo,
-  ModelImport,
-  OpSummary,
-  Outline2D,
-  PlanResult,
-  TabRemovalResult,
-} from '../cam/camTypes';
+import type { BoardRequest, BodyMesh, CamPartInfo, ModelImport, OpSummary, Outline2D, PlanResult, ReleaseProgram } from '../cam/camTypes';
 
 /** Parts of the models imported in this worker, by model key, so generating G-code needs no re-import. */
 /** A loaded part: its features, and those of its underside once turned over (side B), by turn axis. */
@@ -124,66 +114,8 @@ const api = {
     return summarize(cam, part.name, part.size, settings);
   },
 
-  /**
-   * After cutting a board with tabs: a program that stops before each tab, then cuts through it (`perPart`: cuts a
-   * part's tabs in a row, then stops for it to be taken out). `turned`: after side B, with the board turned over.
-   */
-  async generateTabRemoval(
-    key: string,
-    board: BoardRequest,
-    settings: Partial<CamSettings>,
-    turned = false,
-    perPart = false
-  ): Promise<TabRemovalResult> {
-    // Laid out as nested (turned over about the board's own middle), then turned to lie like the board on the bed.
-    const cam = camBoard({ ...boardSpec(key, board), rotationDeg: 0 }, settings);
-    const feed = (settings.feed ?? 1800) * (settings.finalFeedFactor ?? 0.5);
-    const program = tabRemovalProgram(cam, {
-      feed,
-      plungeFeed: settings.plungeFeed ?? 480,
-      ...(turned && { turned: { h: board.h } }),
-      ...(perPart && { perPart, fullFeed: settings.feed ?? 1800 }),
-    });
-    const turn = onBed(board);
-    const removal = turnCam(program.cam, turn);
-    const tabs = program.tabs.map(t => ({ ...t, at: turn2(turn, t.at), hold: turn2(turn, t.hold) }));
-    const gcode = toGcode(removal, {
-      partName: `Board ${board.name}: tab removal`,
-      board: board.name,
-      stockSize: [board.w, board.h, board.stockTop],
-      spindleRpm: settings.spindleRpm,
-    });
-    return { gcode, tabs, timeMin: metrics(readGcode(gcode), cam.stockTop).timeMin };
-  },
-
-  /**
-   * After cutting a board with bottom-skin parts: frees them one at a time (cut the skin, bit up, spindle off, pause).
-   * `turned`: after side B, with the board turned over (the skins on top).
-   */
-  async generateFreeParts(key: string, board: BoardRequest, settings: Partial<CamSettings>, turned = false): Promise<FreePartsResult> {
-    const cam = camBoard({ ...boardSpec(key, board), rotationDeg: 0 }, settings);
-    const feed = (settings.feed ?? 1800) * (settings.finalFeedFactor ?? 0.5);
-    const program = freePartsProgram(cam, {
-      feed,
-      plungeFeed: settings.plungeFeed ?? 480,
-      finalZ: settings.finalZ ?? -0.3,
-      ...(turned && { turned: { h: board.h } }),
-      // Taped down: the last layer of every part in one go, nothing to take out in between.
-      pause: board.holdDown !== 'fixture-tape',
-    });
-    const turn = onBed(board);
-    const free = { cam: turnCam(program.cam, turn), parts: program.parts.map(p => ({ ...p, at: turn2(turn, p.at) })) };
-    const gcode = toGcode(free.cam, {
-      partName: `Board ${board.name}: free the parts`,
-      board: board.name,
-      stockSize: [board.w, board.h, board.stockTop],
-      spindleRpm: settings.spindleRpm,
-    });
-    return { gcode, parts: free.parts, timeMin: metrics(readGcode(gcode), cam.stockTop).timeMin };
-  },
-
   /** One program for a whole board: its parts at their nested positions, operations grouped by bit. */
-  async generateBoard(key: string, board: BoardRequest, settings: Partial<CamSettings>): Promise<PlanResult> {
+  async generateBoard(key: string, board: BoardRequest, settings: Partial<CamSettings>, { perPart = false } = {}): Promise<PlanResult> {
     const spec = boardSpec(key, board);
     const flip = board.flip;
     // On dowels: side A drills the pins (and their mirrors) where there's room on the board.
@@ -219,7 +151,9 @@ const api = {
       tabs: h.tabs.length,
       ...(h.wanted && { wanted: h.wanted }),
     }));
-    plan = { ...plan, ...stability(flat, spec) };
+    // Skins and tabs are taken care of last: after side B, when there is one, with the board turned over.
+    const release = releasePrograms(flat, board, settings, !!plan.sideB, perPart);
+    plan = { ...plan, ...stability(flat, spec), ...(release.length && { release }) };
     // A skin (or the layer on the tape) holds every part until the end.
     if (board.holdDown === 'skin' || board.holdDown === 'fixture-tape')
       return {
@@ -261,6 +195,102 @@ function stability(flat: PartCam, spec: BoardSpec): Pick<PlanResult, 'timeline' 
   const cuts = flat.operations.flatMap(op => op.passes.map(p => ({ r: op.tool.diameter / 2, pts: p.pts })));
   const holdClash = holdClashes(spec.holdPoints ?? [], cuts, flat.stockTop).map(h => ({ x: h.x, y: h.y }));
   return { timeline, holdClash };
+}
+
+/**
+ * The guided programs after the cutting, from the board as laid out (not turned on the bed): `freePartsProgram` for
+ * parts that keep a skin or the layer on the tape, `tabRemovalProgram` for "tabs + guided removal". No new toolpaths:
+ * they follow the outlines' last passes.
+ */
+function releasePrograms(flat: PartCam, board: BoardRequest, settings: Partial<CamSettings>, turned: boolean, perPart: boolean) {
+  const feed = (settings.feed ?? 1800) * (settings.finalFeedFactor ?? 0.5);
+  const plungeFeed = settings.plungeFeed ?? 480;
+  const finalZ = settings.finalZ ?? -0.3;
+  const flipped = turned ? { turned: { h: board.h } } : {};
+  const taped = board.holdDown === 'fixture-tape';
+  const out: ReleaseProgram[] = [];
+  const pauses = (n: number, what: string) => `${n} ${n === 1 ? 'pause' : 'pauses'}: ${what}`;
+  const add = (
+    kind: ReleaseProgram['kind'],
+    title: string,
+    note: (n: number) => string,
+    cam: PartCam,
+    layer: number,
+    more: Partial<ReleaseProgram>
+  ) => {
+    if (!cam.operations.length) return;
+    const count = cam.operations.filter(o => o.pauseAfter || o.pauseBefore).length;
+    const made = releaseProgram(kind, title, note(count), count, cam, board, settings, turned ? flat.stockTop - layer + finalZ : finalZ);
+    out.push({ ...made, turned, ...more });
+  };
+  const turn = onBed(board);
+  if (flat.holding?.some(h => h.how === 'skin')) {
+    const program = freePartsProgram(flat, { feed, plungeFeed, finalZ, ...flipped, pause: !taped }); // Taped down: nothing to take out in between.
+    add(
+      'free',
+      taped ? 'Cut free' : 'Free the parts',
+      n => (taped ? 'No pauses: take the parts off the tape at the end' : pauses(n, n === 1 ? 'take out the part' : 'take out each part')),
+      turnCam(program.cam, turn),
+      board.skin ?? (taped ? kTapeLayer : kDefaultSkin),
+      { parts: program.parts.map(p => ({ ...p, at: turn2(turn, p.at) })) }
+    );
+  }
+  if (board.holdDown === 'tabs-guided') {
+    const program = tabRemovalProgram(flat, {
+      feed,
+      plungeFeed,
+      ...flipped,
+      ...(perPart && { perPart, fullFeed: settings.feed ?? 1800 }),
+    });
+    add(
+      'tabs',
+      'Remove the tabs',
+      n => pauses(n, perPart ? (n === 1 ? 'take out the part' : 'take out each part') : 'hold the part at each tab'),
+      turnCam(program.cam, turn),
+      board.tabs.height,
+      { perPart, tabs: program.tabs.map(t => ({ ...t, at: turn2(turn, t.at), hold: turn2(turn, t.hold) })) }
+    );
+  }
+  return out;
+}
+
+/**
+ * G-code, numbers and safety checks of one guided program. `minZ`: turned over, the program cuts from the new top, so
+ * the limit is what it has to cut through plus the usual depth past it, not the depth below the spoilboard's surface.
+ */
+function releaseProgram(
+  kind: ReleaseProgram['kind'],
+  title: string,
+  note: string,
+  pauses: number,
+  cam: PartCam,
+  board: BoardRequest,
+  settings: Partial<CamSettings>,
+  minZ: number
+): ReleaseProgram {
+  const { tool } = cam.operations[0];
+  const size: [number, number, number] = [board.w, board.h, board.stockTop];
+  const gcode = toGcode(cam, {
+    partName: `Board ${board.name}: ${title}`,
+    board: board.name,
+    stockSize: size,
+    spindleRpm: settings.spindleRpm,
+  });
+  return {
+    kind,
+    title,
+    gcode,
+    timeMin: metrics(readGcode(gcode), cam.stockTop).timeMin,
+    tool: tool.number,
+    diameter: tool.diameter,
+    pauses,
+    note,
+    ops: opSummaries(cam, cam.stockTop).map(op => ({ ...op, program: { kind, title, note } })),
+    safety: checkGcodeSafety(gcode, { stockTop: cam.stockTop, size: [size[0], size[1]], minZ, toolRadius: tool.diameter / 2 }).map(
+      i => `${title}: ${i.message}`
+    ),
+    turned: false,
+  };
 }
 
 /** Board coordinates -> the program's: turned like the board lies on the bed. */
@@ -357,27 +387,7 @@ function summarize(
     });
     return { tool: tool.number, diameter: tool.diameter, gcode, timeMin: metrics(readGcode(gcode), cam.stockTop).timeMin };
   });
-  const one = (ops: typeof cam.operations) => metrics(readGcode(toGcode({ ...cam, operations: ops })), cam.stockTop);
-  const ops: OpSummary[] = cam.operations.map(op => {
-    const zs = op.passes.flatMap(p => p.pts.map(q => q[2]));
-    const levels = new Set(op.passes.map(p => Math.min(...p.pts.map(q => q[2])).toFixed(2)));
-    // Where it starts cutting: a deeper pocket starts at the floor of the one before.
-    const zTop = op.kind === 'pocket' ? Math.min(cam.stockTop, Math.max(...zs)) : cam.stockTop;
-    const depths = [zTop, ...[...levels].map(Number).sort((a, b) => b - a)];
-    return {
-      name: op.name,
-      // The title's depths are from the part's top; a thicker stock (allowance) doesn't change them.
-      label: label(op.name, partTop, op.title),
-      kind: op.kind,
-      tool: { number: op.tool.number, diameter: op.tool.diameter },
-      zTop,
-      zBottom: Math.min(...zs),
-      depthSteps: levels.size,
-      stepdown: Math.max(...depths.slice(1).map((z, i) => depths[i] - z)),
-      feeds: [...new Set(op.passes.flatMap(p => p.feeds.slice(1)))].sort((a, b) => b - a),
-      timeMin: one([op]).timeMin,
-    };
-  });
+  const ops = opSummaries(cam, partTop);
   const safety = programs.flatMap(p =>
     checkGcodeSafety(p.gcode, {
       stockTop: cam.stockTop,
@@ -403,6 +413,31 @@ function summarize(
     size,
     path: moves.filter(m => !m.rapid && Math.min(m.from[2], m.to[2]) < cam.stockTop - 1e-3).map(m => [m.from, m.to]),
   };
+}
+
+/** The numbers of each operation. `partTop`: the parts' top face, which pocket depths are measured from. */
+function opSummaries(cam: PartCam, partTop: number): OpSummary[] {
+  const one = (ops: typeof cam.operations) => metrics(readGcode(toGcode({ ...cam, operations: ops })), cam.stockTop);
+  return cam.operations.map(op => {
+    const zs = op.passes.flatMap(p => p.pts.map(q => q[2]));
+    const levels = new Set(op.passes.map(p => Math.min(...p.pts.map(q => q[2])).toFixed(2)));
+    // Where it starts cutting: a deeper pocket starts at the floor of the one before.
+    const zTop = op.kind === 'pocket' ? Math.min(cam.stockTop, Math.max(...zs)) : cam.stockTop;
+    const depths = [zTop, ...[...levels].map(Number).sort((a, b) => b - a)];
+    return {
+      name: op.name,
+      // The title's depths are from the part's top; a thicker stock (allowance) doesn't change them.
+      label: label(op.name, partTop, op.title),
+      kind: op.kind,
+      tool: { number: op.tool.number, diameter: op.tool.diameter },
+      zTop,
+      zBottom: Math.min(...zs),
+      depthSteps: levels.size,
+      stepdown: Math.max(...depths.slice(1).map((z, i) => depths[i] - z)),
+      feeds: [...new Set(op.passes.flatMap(p => p.feeds.slice(1)))].sort((a, b) => b - a),
+      timeMin: one([op]).timeMin,
+    };
+  });
 }
 
 function emptyFeatures(part: FlatPart): PartFeatures {

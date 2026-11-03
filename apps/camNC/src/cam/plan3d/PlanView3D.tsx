@@ -226,10 +226,10 @@ function Scene({
   const highlight = selected !== null ? model.groups[selected].color : '#ffffff';
   const toolShape = useCallback(
     (tool: number | undefined): ToolShape => {
-      const d = plan.programs.find(p => p.tool === tool)?.diameter ?? plan.bits[0] ?? 3;
+      const d = (tool !== undefined && model.bits.get(tool)) || (plan.bits[0] ?? 3);
       return { kind: 'flat', radius: d / 2 };
     },
-    [plan]
+    [plan, model]
   );
   const [w, h, top] = plan.size;
   const groupOps = useMemo(() => model.groups.map((_, n) => groupOpsOf(model, n)), [model]);

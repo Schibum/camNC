@@ -17,31 +17,25 @@ const fmt = (v: number) => `${+v.toFixed(2)}`;
  */
 export function CamQueueCard() {
   const { jobId, active, setActive, markDone, setRotation, rotation, leave, setOverlay, pauseEachTab, setPauseEachTab } = useCamMachine();
-  const { job, queue, current, done, tabRemoval, freeParts, loading } = useMachineQueue();
+  const { job, queue, current, done, stale, loading } = useMachineQueue();
   const gcodeOf = (e: QueueEntry) =>
-    e.kind === 'flip'
-      ? undefined
-      : e.kind === 'tabs'
-        ? tabRemoval?.gcode
-        : e.kind === 'free'
-          ? freeParts?.gcode
-          : e.plan.programs[e.program].gcode;
+    e.kind === 'flip' || stale?.has(e.board.board.id) ? undefined : (e.release?.gcode ?? e.plan.programs[e.program].gcode);
   const load = (e: QueueEntry) => {
     setActive(e.key);
     const gcode = gcodeOf(e);
     if (!gcode) return;
-    const bit = e.kind === 'tabs' ? e.plan.bits.at(-1)! : e.plan.programs[e.program].diameter;
+    const bit = e.release?.diameter ?? e.plan.programs[e.program].diameter;
     loadIntoMachineView({ gcode, size: e.plan.size, bits: [bit] }, `${job?.name} ${entryTitle(e)}.gcode`);
     setOverlay({
       w: e.plan.size[0],
       h: e.plan.size[1],
       rotationDeg: rotation[e.board.board.id] ?? 0,
-      tabs: e.kind === 'tabs' ? tabRemoval?.tabs : undefined,
-      tabsPerPart: e.kind === 'tabs' && !pauseEachTab,
-      freeParts: e.kind === 'free' ? freeParts?.parts : undefined,
+      tabs: e.release?.tabs,
+      tabsPerPart: !!e.release?.perPart,
+      freeParts: e.release?.parts,
     });
   };
-  // Turning the board (or the tab program arriving) makes a new program: reload the one that's loaded.
+  // Turning the board (or changing the pauses) makes a new program: reload the one that's loaded.
   const loadedGcode = current && current.key === active ? gcodeOf(current) : undefined;
   useEffect(() => {
     if (current && loadedGcode) load(current);
@@ -91,11 +85,9 @@ export function CamQueueCard() {
                 <span className="font-mono text-xs text-muted-foreground">
                   {e.kind === 'flip'
                     ? ''
-                    : e.kind === 'free'
-                      ? `${freeParts && isNow ? freeParts.parts.length : '…'} parts`
-                      : e.kind === 'tabs'
-                        ? `${tabRemoval && isNow ? tabRemoval.tabs.length : '…'} tabs`
-                        : `${Math.ceil(e.plan.programs[e.program].timeMin)} min`}
+                    : e.release
+                      ? `${e.release.parts ? `${e.release.parts.length} parts` : `${e.release.tabs?.length ?? 0} tabs`} · ${Math.ceil(e.release.timeMin)} min`
+                      : `${Math.ceil(e.plan.programs[e.program].timeMin)} min`}
                 </span>
               </button>
             </li>
@@ -212,7 +204,7 @@ export function CamQueueCard() {
           <div className="flex gap-2">
             {current.kind !== 'flip' && (
               <Hint text="Puts this program in the machine view, ready to run.">
-                <Button size="sm" variant="outline" onClick={() => load(current)}>
+                <Button size="sm" variant="outline" disabled={!gcodeOf(current)} onClick={() => load(current)}>
                   Load {current.kind === 'tabs' ? 'tab removal' : current.kind === 'free' ? 'parts freeing' : 'program'}
                 </Button>
               </Hint>

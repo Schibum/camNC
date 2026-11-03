@@ -79,13 +79,16 @@ describe('CAM plan step, 3D view', () => {
     expect(select.getAttribute('aria-expanded')).toBe('true');
     const numbers = hole.querySelector('dl')!;
     const terms = [...numbers.querySelectorAll('dt')].map(t => (t.querySelector('[tabindex]') ?? t).textContent);
-    expect(terms).toEqual(['Z from bottom', 'Passes', 'Stepdown', 'Stepover', expect.stringMatching(/^Feed/), 'Time']);
+    expect(terms).toEqual(['Z from bottom', 'Passes', 'Stepdown', 'Stepover', expect.stringMatching(/^Feed/), 'Time (sim)']);
     const values = [...numbers.querySelectorAll('dd')].map(d => d.textContent!);
     expect(values[0]).toMatch(/^[\d.]+ → -?[\d.]+$/);
     expect(values[1]).toMatch(/^\d+$/);
     expect(values[2]).toMatch(/^[\d.]+ mm$/);
     expect(values[4]).toMatch(/mm\/min$/);
-    expect(values[5]).toMatch(/^\d+:\d\d min$/);
+    expect(values[5]).toMatch(/^\d+:\d\d$/);
+    // A grouped row says its numbers are each op's; the row itself says its time is the simulated one.
+    expect(within(hole).getByText(/^Per op, for each of the \d+ identical ops/)).toBeTruthy();
+    expect(hole.textContent).toMatch(/\d+:\d\d sim/);
     expect(description(within(hole).getByText('Stepdown'))).toMatch(/How deep each pass cuts/);
     // A number there is changed where it is, like in the table.
     fireEvent.click(within(hole).getAllByRole('button', { name: /^[\d.]+ mm$/ })[0]);

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { PlanResult } from '../camTypes';
+import type { PlanResult, ReleaseProgram } from '../camTypes';
 import { buildPlanModel, type PlanModel } from './planModel';
 
 /**
@@ -22,9 +22,9 @@ export interface PlanPlayback {
   setSpeed: (s: number) => void;
 }
 
-/** The shared view state of `plan`'s program, or null while there is none. */
-export function usePlanPlayback(plan: PlanResult | undefined): PlanPlayback | null {
-  const model = useMemo(() => (plan ? buildPlanModel(plan) : null), [plan]);
+/** The shared view state of `plan`'s program and the guided programs after it, or null while there is none. */
+export function usePlanPlayback(plan: PlanResult | undefined, release?: ReleaseProgram[]): PlanPlayback | null {
+  const model = useMemo(() => (plan ? buildPlanModel(plan, release) : null), [plan, release]);
   const fresh = (m: PlanModel | null) => ({ model: m, time: m?.total ?? 0, selected: null as number | null, hidden: new Set<number>() });
   const [ui, setUi] = useState(() => fresh(model));
   const current = ui.model === model ? ui : fresh(model);

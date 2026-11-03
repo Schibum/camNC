@@ -9,6 +9,7 @@ import { CamQueueCard } from './machine/CamQueueCard';
 import { BitChip } from './plan/BitPicker';
 import { CuttingDataEditor } from './plan/CuttingDataEditor';
 import { kDefaultBit, kDefaultPlan } from './planSettings';
+import { loadIntoMachineView } from './showOnMachine';
 
 const queue = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
 vi.mock('./machine/useMachineQueue', () => ({ useMachineQueue: () => queue.value }));
@@ -192,6 +193,37 @@ describe('CAM controls explain themselves', () => {
     fireEvent.click(box);
     expect(useCamMachine.getState().pauseEachTab).toBe(false);
     expect(card.getByText(/cuts all of a part’s tabs in a row/)).toBeTruthy();
+  });
+
+  it('the machine queue runs the guided program from the plan, and not while the board is planned again', () => {
+    const plan = { size: [400, 300, 8.3], bits: [3.175], programs: [{ tool: 1, diameter: 3.175, gcode: 'G0', timeMin: 3 }] };
+    const release = { kind: 'free', gcode: '(planned)', diameter: 3.175, timeMin: 2, parts: [{ name: 'p', at: { x: 1, y: 2 } }] };
+    const entry = {
+      key: 'b1:free',
+      board: { board, request: { holdDown: 'skin' } },
+      kind: 'free',
+      program: 0,
+      firstOfBoard: false,
+      plan,
+      release,
+    };
+    queue.value = { job: { name: 'job' }, queue: [entry], current: entry, done: [], stale: new Set(['b1']), loading: false };
+    useCamMachine.setState({ jobId: 'j1' });
+    const view = () => (
+      <TooltipProvider>
+        <CamQueueCard />
+      </TooltipProvider>
+    );
+    const { rerender } = render(view());
+    const card = within(screen.getByRole('region', { name: 'CAM job' }));
+    expect(card.getByRole('button', { name: 'Load parts freeing' })).toHaveProperty('disabled', true);
+    expect(card.getByText(/1 parts · 2 min/)).toBeTruthy();
+
+    queue.value = { ...queue.value, stale: new Set() };
+    rerender(view());
+    fireEvent.click(card.getByRole('button', { name: 'Load parts freeing' }));
+    expect(vi.mocked(loadIntoMachineView).mock.lastCall?.[0]).toMatchObject({ gcode: '(planned)', bits: [3.175] });
+    expect(useCamMachine.getState().overlay?.freeParts).toEqual(release.parts);
   });
 
   it('sums up the layout: boards with parts, and part area over board area', () => {

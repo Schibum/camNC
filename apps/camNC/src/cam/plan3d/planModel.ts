@@ -2,7 +2,7 @@ import { Box3, Vector3 } from 'three';
 import { isRapidSegment } from '@/visualize/depthInspection';
 import { ParsedToolpath, parseGCode } from '@/visualize/gcodeParsing';
 import { getJobTimeline } from '@/visualize/stockSim/jobTimeline';
-import type { PlanResult } from '../camTypes';
+import type { OpSummary, PlanResult, ReleaseProgram } from '../camTypes';
 import { groupOps, type OpGroup } from '../plan/groupOps';
 import { opColor } from './palette';
 
@@ -33,6 +33,12 @@ export interface PlanModel {
   times: Float64Array;
   ops: PlanOp[];
   groups: PlanOpGroup[];
+  /** The numbers of each op: the program's, then the guided programs'. Same order as `ops`. */
+  summaries: OpSummary[];
+  /** Stops for a person (not the spindle confirmation at each program's start): when, and what for. */
+  pauses: { time: number; label: string }[];
+  /** Tool number -> bit diameter. */
+  bits: Map<number, number>;
 }
 
 /** Toolpath point ranges per operation, from the `(OP i/n <name> - T<n> D=<d>)` markers the program carries. */
@@ -55,14 +61,31 @@ export function opRanges(gcode: string, toolpath: ParsedToolpath): { from: numbe
   });
 }
 
-/** The board program's toolpath, its operations with their times, and the op list groups with their colors. */
-export function buildPlanModel(plan: PlanResult): PlanModel {
-  const toolpath = parseGCode(plan.gcode);
+/** The `M0` stops of guided programs, at the time the machine stands there. */
+function pauseMarks(gcode: string, toolpath: ParsedToolpath, times: Float64Array) {
+  const pauses: PlanModel['pauses'] = [];
+  gcode.split('\n').forEach((l, i) => {
+    const m = l.match(/^M0 \(MSG ((?:Take out|Tab) .*)\)$/);
+    if (!m) return;
+    const next = toolpath.lines.findIndex(line => line > i + 1);
+    pauses.push({ time: next > 0 ? times[next - 1] : (times[times.length - 1] ?? 0), label: m[1] });
+  });
+  return pauses;
+}
+
+/**
+ * The board program's toolpath (`release`: followed by the guided programs that come after it), its operations with
+ * their times, and the op list groups with their colors.
+ */
+export function buildPlanModel(plan: PlanResult, release: ReleaseProgram[] = []): PlanModel {
+  const gcode = [plan.gcode, ...release.map(r => r.gcode)].join('\n');
+  const summaries = [...plan.ops, ...release.flatMap(r => r.ops)];
+  const toolpath = parseGCode(gcode);
   const { times, total } = getJobTimeline(toolpath);
-  const groups = groupOps(plan.ops).map((g, n) => ({ ...g, color: opColor(n) }));
+  const groups = groupOps(summaries).map((g, n) => ({ ...g, color: opColor(n) }));
   const groupOf = new Map(groups.flatMap((g, n) => g.members.map(m => [m, n] as const)));
-  const ops = opRanges(plan.gcode, toolpath)
-    .slice(0, plan.ops.length)
+  const ops = opRanges(gcode, toolpath)
+    .slice(0, summaries.length)
     .map((r, index) => ({
       index,
       ...r,
@@ -70,7 +93,8 @@ export function buildPlanModel(plan: PlanResult): PlanModel {
       end: times[r.to] ?? total,
       group: groupOf.get(index) ?? 0,
     }));
-  return { toolpath, total, times, ops, groups };
+  const bits = new Map([...plan.programs, ...release].map(p => [p.tool, p.diameter]));
+  return { toolpath, total, times, ops, groups, summaries, pauses: pauseMarks(gcode, toolpath, times), bits };
 }
 
 /** The ops of a group. */
