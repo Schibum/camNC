@@ -14,6 +14,7 @@ import { MachinePositionMarker } from '@/visualize/MachinePositionMarker';
 import { MachineZeroAxes } from '@/visualize/MachineZeroAxes';
 import { SnapPositionMarker } from '@/visualize/SnapPositionMarker';
 import { GCodeVisualizer } from '@/visualize/Toolpaths';
+import { CamBoardOverlay } from '@/cam/machine/CamBoardOverlay';
 import { MachineBedMesh } from '@/visualize/MachineBed';
 import { nearestPointOnToolpath } from '@/visualize/nearestPoint';
 import { VisualizeToolbar } from '@/visualize/toolbar/VisualizeToolbar';
@@ -243,6 +244,7 @@ function VisualizeComponent() {
               <>
                 <TopCameraMemory memory={topCamera} />
                 <GCodeVisualizer />
+                <CamBoardOverlay />
                 <MachinePositionMarker />
                 <SnapPositionMarker />
                 <MachineZeroAxes />

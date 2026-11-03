@@ -9,12 +9,14 @@ import { PlanSettingsPanel } from '@/cam/plan/PlanSettingsPanel';
 import { ToolpathPreview } from '@/cam/plan/ToolpathPreview';
 import { kDefaultPlan } from '@/cam/planSettings';
 import { loadIntoMachineView } from '@/cam/showOnMachine';
+import { useCamMachine } from '@/cam/machine/camMachine';
+import { useStore } from '@/store/store';
 import { createFileRoute, useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { zodValidator } from '@tanstack/zod-adapter';
 import { Button } from '@wbcnc/ui/components/button';
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
 import { cn } from '@wbcnc/ui/lib/utils';
-import { AlertTriangle, ChevronRight, Download, Play, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, ChevronRight, Download, Factory, Play, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { z } from 'zod';
 
@@ -75,6 +77,12 @@ function PlanStep() {
     loadIntoMachineView({ ...result, gcode: first.gcode, bits: [first.diameter] }, programName(first));
     void navigate({ to: '/visualize/2DView' });
   };
+  // All boards, in queue order, in the machine panel: place, align, zero, cut, swap bits, remove tabs.
+  const takeToMachine = () => {
+    useCamMachine.getState().start(job.id);
+    useStore.getState().setMachinePanelOpen(true);
+    void navigate({ to: '/visualize/2DView' });
+  };
   const download = (p: PlanResult['programs'][number]) => {
     if (!safe) return;
     const a = document.createElement('a');
@@ -127,6 +135,9 @@ function PlanStep() {
               <div className="flex flex-wrap items-center gap-2">
                 <Button disabled={!safe} onClick={showOnMachine}>
                   <Play /> Show on machine
+                </Button>
+                <Button variant="secondary" onClick={takeToMachine}>
+                  <Factory /> Take the job to the machine
                 </Button>
                 {result.programs.map(p => (
                   <Button key={p.tool} variant="outline" disabled={!safe} onClick={() => download(p)}>

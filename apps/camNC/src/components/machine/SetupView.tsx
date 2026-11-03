@@ -23,6 +23,7 @@ import { AlarmCard } from './AlarmCard';
 import { JogPanel, ProbePanel } from './controls';
 import { MacroButtons } from './macros';
 import { ResumeJobCard } from './ResumeJobCard';
+import { CamQueueCard } from '@/cam/machine/CamQueueCard';
 
 function report(promise: Promise<unknown>, what: string) {
   return promise.catch(err => toast.error(`${what} failed`, { description: errorText(err) }));
@@ -223,6 +224,7 @@ export function SetupView({ onEditMacros, onShowConsole }: { onEditMacros: () =>
     <div className="flex flex-col gap-5">
       <AlarmCard onShowConsole={onShowConsole} />
       <ResumeJobCard />
+      <CamQueueCard />
       <MachineSection />
       <JobSection />
       {connected && (
