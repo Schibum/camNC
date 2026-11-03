@@ -135,3 +135,30 @@ PNGs (Fusion left, ours right; colour = depth, dashed = rapids): `poc-out/left.p
    about X with a fence).
 5. Multiple tools: per-tool files instead of M0 swaps, plus rest machining with the smaller bit.
 6. Keep `compare.test.ts` as a regression harness (it already caught a dangerous move).
+
+## Planned work (queued, in this order)
+
+1. **Cutting data per bit × material.** An app-wide table keyed by (tool id, material): feed, plunge feed, stepdown,
+   stepover, rpm, final-pass feed factor. Seeded from the Fusion library where it has values, else from the material
+   defaults (hardwood with bits ≤ 4 mm: stepdown 0.5×D). Lookup order: job override → saved bit × material → library →
+   default, and the Plan table shows where each value comes from. Inline edit on Plan asks "save for this bit +
+   material" (default) or "only this job". An editor on the tools/settings page. The per-job max stepdown is the first
+   job-override field.
+2. **Global nesting per thickness.** Use all stock sheets of a thickness (sizes, quantities, offcuts), search over
+   orderings and sheet choices (greedy with lookahead, a smallest-sheet-that-fits pass for the rest, a few seeded random
+   restarts), and minimize total sheet area, then board count, then prefer one big offcut. Parts pinned by hand keep
+   their board and position. Auto-fill gets undo. Tests on the fixtures and random cases: never worse than today's
+   greedy fill.
+3. **3D Plan view (concept A + B).** The material-removal simulation with a timeline (one band per op, neutral
+   playhead across the bands, no violet in the op palette) by default, and a Result / Toolpath toggle to B's per-op
+   layers at real Z (eye per op, isolate and frame, rapids hideable). One shared op list with identical ops grouped,
+   the same colour per op in both modes. A See-through toggle (semi-transparent stock with the finished-part ghost).
+   Top uses an orthographic camera by default, with a Perspective / Orthographic toggle that keeps the framing. View
+   toggles are remembered. Zoom-to-op keeps small features readable. It replaces the 2D preview; `/cam/poc-3d` goes.
+4. **Flip setups** for parts with features on both faces. Per board, choose how side B is registered:
+   - **Camera re-align** (default): flip the board, drag the outline onto it in the camera view, as for side A.
+   - **Dowel pins**: side A drills two pin holes through the board into the spoilboard. Side B is placed on the pins,
+     mirrored about the pin axis.
+   - **Fence / corner**: the board is pushed against a fixed fence and stop, and mirrored about the fence line.
+     Side B gets its own program from the bottom-face features (`flipPart`, `cutThrough: false`), mirrored to match the
+     chosen registration. It becomes a guided step in the machine queue ("flip board A, align, zero Z").
