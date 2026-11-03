@@ -154,4 +154,13 @@ describe('CAM boards step', () => {
     fireEvent.click(screen.getByLabelText('Clamps only'));
     expect(await screen.findByText('clamp keep-out')).toBeTruthy();
   }, 90_000);
+
+  it('auto-fill optimizes for fewest boards unless the job says least wood', async () => {
+    const job = await openKinderregal();
+    const group = within(screen.getByRole('group', { name: 'Auto-fill optimizes for' }));
+    expect(group.getByRole('button', { name: 'Fewest boards' }).getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(group.getByRole('button', { name: 'Least wood' }));
+    await waitFor(async () => expect((await getJob(job.id))!.nestObjective).toBe('wood'), { timeout: 10_000 });
+    expect(group.getByRole('button', { name: 'Least wood' }).getAttribute('aria-pressed')).toBe('true');
+  }, 90_000);
 });

@@ -1,4 +1,5 @@
 import type { BoardV1, StockBoardV1 } from './boards';
+import type { NestObjective } from './autoNest';
 import type { PlanSettingsV1 } from './planSettings';
 
 /**
@@ -29,6 +30,8 @@ export interface CamJobV1 {
   boards?: BoardV1[];
   /** Board sizes the user has in the workshop, for "Auto-fill from stock". */
   stock?: StockBoardV1[];
+  /** What "Auto-fill from stock" optimizes first: fewest boards (default) or least wood. */
+  nestObjective?: NestObjective;
 }
 
 const kDbName = 'camnc-cam';

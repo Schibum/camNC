@@ -1,3 +1,4 @@
+import { cn } from '@wbcnc/ui/lib/utils';
 import { PageHeader } from '@/components/page-header';
 import { autoFillFromStock, newBoard, type BoardV1 } from '@/cam/boards';
 import { BoardInspector } from '@/cam/boards/BoardInspector';
@@ -118,7 +119,7 @@ function BoardsStep() {
     const stock = job.stock ?? [];
     if (!stock.length) return toast.error('Add the boards you have to the stock list first.');
     const before = boards.map(b => b.board);
-    const res = autoFillFromStock(before, instances, stock, plan.bit.diameter, plan.material);
+    const res = autoFillFromStock(before, instances, stock, plan.bit.diameter, plan.material, job.nestObjective ?? 'boards');
     saveBoards(res.boards);
     const names = (ids: string[]) => ids.map(id => byId.get(id)?.name ?? id).join(', ');
     const problems = [
@@ -179,6 +180,25 @@ function BoardsStep() {
             <Button size="sm" variant="outline" onClick={autoFill}>
               Auto-fill from stock
             </Button>
+            <div role="group" aria-label="Auto-fill optimizes for" className="flex rounded-md border p-0.5 text-xs">
+              {(
+                [
+                  ['boards', 'Fewest boards'],
+                  ['wood', 'Least wood'],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  aria-pressed={(job.nestObjective ?? 'boards') === value}
+                  onClick={() => save.mutate({ ...job, nestObjective: value })}
+                  className={cn(
+                    'rounded px-2 py-1',
+                    (job.nestObjective ?? 'boards') === value ? 'bg-muted font-medium' : 'text-muted-foreground hover:bg-muted/60'
+                  )}>
+                  {label}
+                </button>
+              ))}
+            </div>
             <span className="grow" />
             <span className="text-xs text-muted-foreground">Rectangle nesting for now. True-shape nesting is planned.</span>
           </div>

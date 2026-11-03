@@ -1,6 +1,6 @@
 import type { HoldDown } from '@wbcnc/cam';
 import { clampKeepOuts, nestRects, placedSize, type NestResult, type Rect } from '@wbcnc/cam/nest';
-import { autoNest, type SheetPacker } from './autoNest';
+import { autoNest, type NestObjective, type SheetPacker } from './autoNest';
 import type { BoardRequest, CamPartInfo } from './camTypes';
 import type { MaterialKey } from './planSettings';
 
@@ -220,7 +220,8 @@ export function autoFillFromStock(
   instances: PartInstance[],
   stock: StockBoardV1[],
   bit: number,
-  material: MaterialKey
+  material: MaterialKey,
+  objective: NestObjective = 'boards'
 ): { boards: BoardV1[]; tooBig: string[]; short: string[] } {
   const out: BoardV1[] = [];
   const tooBig: string[] = [];
@@ -271,7 +272,8 @@ export function autoFillFromStock(
     const res = autoNest(
       free.map(id => ({ id, w: byId.get(id)!.size[0], h: byId.get(id)!.size[1] })),
       sheets.map(s => ({ id: s.id, w: s.w, h: s.h, quantity: Number.isFinite(left.get(s.id)) ? left.get(s.id) : undefined })),
-      pack
+      pack,
+      { objective }
     );
     out.push(...kept, ...res.boards.map(b => fresh(b.items, { fit: false, w: b.sheet.w, h: b.sheet.h })));
     if (res.tooBig.length || res.short.length) out.push(fresh([...res.tooBig, ...res.short], { fit: true }));

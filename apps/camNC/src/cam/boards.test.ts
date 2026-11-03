@@ -12,6 +12,7 @@ import {
   type StockBoardV1,
 } from './boards';
 import { missingParts } from './useJobBoards';
+import type { NestObjective } from './autoNest';
 
 const inst = (id: string, w: number, h: number, t: number): PartInstance => ({ id, partId: id, name: id, size: [w, h, t], thickness: t });
 // The kinderregal bodies.
@@ -58,8 +59,11 @@ const usage = (boards: BoardV1[]) => {
 };
 
 /** Not worse: no more stock area, and with the same area no more boards. */
-const notWorse = (a: ReturnType<typeof usage>, b: ReturnType<typeof usage>) =>
-  a.area < b.area - 1e-6 || (a.area <= b.area + 1e-6 && a.boards <= b.boards);
+/** Not worse in the objective's order: fewest boards then area, or area then boards ("wood"). */
+const notWorse = (a: ReturnType<typeof usage>, b: ReturnType<typeof usage>, objective: NestObjective) =>
+  objective === 'wood'
+    ? a.area < b.area - 1e-6 || (a.area <= b.area + 1e-6 && a.boards <= b.boards)
+    : a.boards < b.boards || (a.boards === b.boards && a.area <= b.area + 1e-6);
 
 /** Seeded random numbers (mulberry32). */
 function random(seed: number) {
@@ -127,68 +131,81 @@ describe('boards', () => {
       ],
     ];
 
-    it.each(fixtures)('kinderregal on %s: never worse than filling the biggest board', (name, stock) => {
+    const cases = (['boards', 'wood'] as const).flatMap(o => fixtures.map(([name, stock]) => [o, name, stock] as const));
+    it.each(cases)('%s first, kinderregal on %s: never worse than filling the biggest board', (objective, name, stock) => {
       const boards = reconcileBoards(undefined, parts, 'oak');
-      const res = autoFillFromStock(boards, parts, stock, bit, 'oak');
+      const res = autoFillFromStock(boards, parts, stock, bit, 'oak', objective);
       const old = greedyFillFromStock(boards, parts, stock, bit);
       expectAllPlaced(res, parts, bit);
       expect(res.tooBig).toEqual(old.tooBig);
-      console.info(`kinderregal, ${name}: greedy ${JSON.stringify(usage(old.boards))}, global ${JSON.stringify(usage(res.boards))}`);
-      expect(notWorse(usage(res.boards), usage(old.boards))).toBe(true);
+      console.info(
+        `${objective} first, kinderregal, ${name}: greedy ${JSON.stringify(usage(old.boards))}, global ${JSON.stringify(usage(res.boards))}`
+      );
+      expect(notWorse(usage(res.boards), usage(old.boards), objective)).toBe(true);
     });
 
-    it('takes a smaller sheet for what is left', () => {
+    it('fewest boards takes the full sheet where least wood takes offcuts', () => {
       const stock = fixtures[2][1];
       const boards = reconcileBoards(undefined, parts, 'oak');
       // Greedy takes a whole 2440 x 1220 sheet for five small parts.
       expect(usage(greedyFillFromStock(boards, parts, stock, bit).boards).area).toBe(2440 * 1220);
-      expect(usage(autoFillFromStock(boards, parts, stock, bit, 'oak').boards).area).toBeLessThan(2440 * 1220);
+      const fewest = usage(autoFillFromStock(boards, parts, stock, bit, 'oak', 'boards').boards);
+      const least = usage(autoFillFromStock(boards, parts, stock, bit, 'oak', 'wood').boards);
+      expect(fewest.boards).toBe(1);
+      expect(least.area).toBeLessThan(fewest.area);
+      expect(least.boards).toBeGreaterThan(1);
+      // The default is fewest boards.
+      expect(usage(autoFillFromStock(boards, parts, stock, bit, 'oak').boards)).toEqual(fewest);
     });
 
-    it('on 200 random jobs: never worse than filling the biggest board', { timeout: 120_000 }, () => {
-      const rnd = random(42);
-      const sizes = [
-        [2440, 1220],
-        [1220, 610],
-        [1000, 500],
-        [800, 600],
-        [600, 400],
-        [600, 300],
-      ];
-      const total = { greedy: { area: 0, boards: 0 }, global: { area: 0, boards: 0 } };
-      let better = 0;
-      let slowest = 0;
-      for (let c = 0; c < 200; c++) {
-        const thicknesses = rnd() < 0.3 ? [8, 18] : [18];
-        const n = 2 + Math.floor(rnd() * 28);
-        const instances = Array.from({ length: n }, (_, i) =>
-          inst(`p${i}`, Math.round(40 + rnd() * 700), Math.round(30 + rnd() * 420), thicknesses[i % thicknesses.length])
-        );
-        const stock = thicknesses.flatMap(t =>
-          Array.from({ length: 1 + Math.floor(rnd() * 3) }, (_, k) => {
-            const [w, h] = sizes[Math.floor(rnd() * sizes.length)];
-            return { id: `${t}-${k}`, thickness: t, w, h };
-          })
-        );
-        const boards = reconcileBoards(undefined, instances, 'oak');
-        const old = greedyFillFromStock(boards, instances, stock, bit);
-        const t0 = performance.now();
-        const res = autoFillFromStock(boards, instances, stock, bit, 'oak');
-        slowest = Math.max(slowest, performance.now() - t0);
-        expectAllPlaced(res, instances, bit);
-        // Greedy only tries the biggest sheet; a part may still fit a smaller one of another shape.
-        for (const id of res.tooBig) expect(old.tooBig).toContain(id);
-        if (res.tooBig.length < old.tooBig.length) continue;
-        const [a, b] = [usage(res.boards), usage(old.boards)];
-        expect(notWorse(a, b), `case ${c}`).toBe(true);
-        if (a.area < b.area - 1e-6 || a.boards < b.boards) better++;
-        total.global.area += a.area;
-        total.global.boards += a.boards;
-        total.greedy.area += b.area;
-        total.greedy.boards += b.boards;
+    it.each(['boards', 'wood'] as const)(
+      '%s first, on 200 random jobs: never worse than filling the biggest board',
+      { timeout: 120_000 },
+      objective => {
+        const rnd = random(42);
+        const sizes = [
+          [2440, 1220],
+          [1220, 610],
+          [1000, 500],
+          [800, 600],
+          [600, 400],
+          [600, 300],
+        ];
+        const total = { greedy: { area: 0, boards: 0 }, global: { area: 0, boards: 0 } };
+        let better = 0;
+        let slowest = 0;
+        for (let c = 0; c < 200; c++) {
+          const thicknesses = rnd() < 0.3 ? [8, 18] : [18];
+          const n = 2 + Math.floor(rnd() * 28);
+          const instances = Array.from({ length: n }, (_, i) =>
+            inst(`p${i}`, Math.round(40 + rnd() * 700), Math.round(30 + rnd() * 420), thicknesses[i % thicknesses.length])
+          );
+          const stock = thicknesses.flatMap(t =>
+            Array.from({ length: 1 + Math.floor(rnd() * 3) }, (_, k) => {
+              const [w, h] = sizes[Math.floor(rnd() * sizes.length)];
+              return { id: `${t}-${k}`, thickness: t, w, h };
+            })
+          );
+          const boards = reconcileBoards(undefined, instances, 'oak');
+          const old = greedyFillFromStock(boards, instances, stock, bit);
+          const t0 = performance.now();
+          const res = autoFillFromStock(boards, instances, stock, bit, 'oak', objective);
+          slowest = Math.max(slowest, performance.now() - t0);
+          expectAllPlaced(res, instances, bit);
+          // Greedy only tries the biggest sheet; a part may still fit a smaller one of another shape.
+          for (const id of res.tooBig) expect(old.tooBig).toContain(id);
+          if (res.tooBig.length < old.tooBig.length) continue;
+          const [a, b] = [usage(res.boards), usage(old.boards)];
+          expect(notWorse(a, b, objective), `case ${c}`).toBe(true);
+          if (a.area < b.area - 1e-6 || a.boards < b.boards) better++;
+          total.global.area += a.area;
+          total.global.boards += a.boards;
+          total.greedy.area += b.area;
+          total.greedy.boards += b.boards;
+        }
+        console.info(`${objective} first, random jobs: ${JSON.stringify(total)}, better in ${better}, slowest ${slowest.toFixed(0)} ms`);
       }
-      console.info(`random jobs: ${JSON.stringify(total)}, better in ${better}, slowest ${slowest.toFixed(0)} ms`);
-    });
+    );
 
     it('takes well under 200 ms for 30 parts', () => {
       const rnd = random(7);

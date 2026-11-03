@@ -87,17 +87,22 @@ interface Plan {
 
 type Policy = 'largest' | 'fill' | 'random';
 
-/** Fewer parts left over, then less sheet area, then fewer boards, then the bigger offcut. */
-function better(a: Plan, b: Plan | undefined): boolean {
+/** What auto-fill optimizes first: the number of boards ("boards", the default) or the sheet area ("wood"). */
+export type NestObjective = 'boards' | 'wood';
+
+/** Fewer parts left over, then fewer boards and less sheet area (in the objective's order), then the bigger offcut. */
+function better(a: Plan, b: Plan | undefined, objective: NestObjective): boolean {
   if (!b) return true;
   if (a.short.length !== b.short.length) return a.short.length < b.short.length;
-  if (Math.abs(a.area - b.area) > EPS) return a.area < b.area;
-  if (a.boards.length !== b.boards.length) return a.boards.length < b.boards.length;
-  return a.offcut > b.offcut + EPS;
+  const byArea = Math.abs(a.area - b.area) > EPS ? a.area < b.area : undefined;
+  const byCount = a.boards.length !== b.boards.length ? a.boards.length < b.boards.length : undefined;
+  const [first, second] = objective === 'boards' ? [byCount, byArea] : [byArea, byCount];
+  return first ?? second ?? a.offcut > b.offcut + EPS;
 }
 
 /**
- * Put the parts on as little stock as possible: least total sheet area, then fewest boards, then one big offcut.
+ * Put the parts on as little stock as possible: fewest boards, then least sheet area (or the other way round with
+ * `objective: 'wood'`), then one big offcut.
  *
  * The search: greedy rollouts (biggest sheet first; best-filled sheet first), a greedy with one step of lookahead
  * (each sheet choice is rated by finishing the plan with those rollouts), and a few randomized restarts (seeded,
@@ -110,8 +115,9 @@ export function autoNest(
   items: { id: string; w: number; h: number }[],
   sheets: NestSheet[],
   pack: SheetPacker,
-  opts: { seed?: number; restarts?: number } = {}
+  opts: { seed?: number; restarts?: number; objective?: NestObjective } = {}
 ): AutoNestResult {
+  const objective = opts.objective ?? 'boards';
   const sheetArea = sheets.map(s => s.w * s.h);
   const partArea = items.map(i => i.w * i.h);
   const memo = new Map<string, Fill>();
@@ -195,7 +201,7 @@ export function autoNest(
 
   let best: Plan | undefined;
   const consider = (plan: Plan) => {
-    if (better(plan, best)) best = plan;
+    if (better(plan, best, objective)) best = plan;
     return plan;
   };
 
@@ -219,7 +225,7 @@ export function autoNest(
         const nq = q.map((n, k) => (k === s ? n - 1 : n));
         for (const policy of ['largest', 'fill'] as const) {
           const plan = consider(rollout([...boards, fill], rest, nq, policy));
-          if (!step || better(plan, step.plan)) step = { fill, plan };
+          if (!step || better(plan, step.plan, objective)) step = { fill, plan };
         }
       }
       if (!step) break;
