@@ -16,11 +16,12 @@ export function readGcode(src: string): Move[] {
     plane = 17,
     feed = 0;
   for (const raw of src.split(/\r?\n/)) {
+    // Linear-time patterns: comments can't nest, numbers have one unambiguous form (no backtracking on long input).
     const line = raw
-      .replace(/\(.*?\)/g, '')
+      .replace(/\([^()\n]*\)/g, '')
       .replace(/;.*/, '')
       .toUpperCase();
-    const words = [...line.matchAll(/([A-Z])\s*(-?\d*\.?\d+)/g)].map(m => [m[1], parseFloat(m[2])] as const);
+    const words = [...line.matchAll(/([A-Z])[ \t]*(-?(?:\d+(?:\.\d*)?|\.\d+))/g)].map(m => [m[1], parseFloat(m[2])] as const);
     if (!words.length) continue;
     const w: Record<string, number> = {};
     let hasAxis = false;
