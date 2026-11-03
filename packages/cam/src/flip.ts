@@ -16,6 +16,16 @@ export interface DowelSpec {
   depth: number;
 }
 
+/**
+ * After side B (the board turned over top to bottom, see `sideBSpec`), what side A left is somewhere else: a point at
+ * (x, y) lies at (x, H - y), and a height z above the bottom is `stockTop` - z below the new top. Every registration
+ * turns the board this way (they differ in how it's lined up, not where things go).
+ */
+export interface TurnedOver {
+  /** The board's height (Y). */
+  h: number;
+}
+
 const partRect = (p: BoardPart) => {
   const [w, h] = p.rotated ? [p.size[1], p.size[0]] : [p.size[0], p.size[1]];
   return { x: p.x, y: p.y, w, h };

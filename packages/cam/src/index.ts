@@ -30,7 +30,7 @@ export { holdCheck } from './hold';
 export { planTabs, freePartsProgram, kDefaultSkin } from './tabPlan';
 export type { TabFallback, PartHolding } from './tabPlan';
 export { sideBSpec, dowelSpots, dowelOperations } from './flip';
-export type { FlipRegistration, DowelSpec } from './flip';
+export type { FlipRegistration, DowelSpec, TurnedOver } from './flip';
 export type { HoldOptions, PartHold, TabHold } from './hold';
 export { camBoard, boardBits, orderBoardQueue, partToBoard, rotateAboutOrigin, splitByBit, usesTabs } from './board';
 export type { BoardPart, BoardSpec, HoldDown } from './board';

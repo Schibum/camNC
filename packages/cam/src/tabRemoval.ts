@@ -1,3 +1,4 @@
+import type { TurnedOver } from './flip';
 import type { Vec3 } from './geom';
 import type { Operation, Pass, PartCam } from './toolpaths';
 
@@ -20,7 +21,12 @@ export interface TabStop {
  * one: before each tab it stops (M0) so you can hold the part, then cuts through the tab at the final depth and
  * slower feed. The last tab of a part frees it, so nothing flies off.
  */
-export function tabRemovalProgram(cam: PartCam, opts: { feed: number; plungeFeed: number }): { cam: PartCam; tabs: TabStop[] } {
+export function tabRemovalProgram(
+  cam: PartCam,
+  opts: { feed: number; plungeFeed: number; turned?: TurnedOver }
+): { cam: PartCam; tabs: TabStop[] } {
+  const turned = opts.turned;
+  const at = (p: { x: number; y: number }) => (turned ? { x: p.x, y: turned.h - p.y } : p);
   const tabs: TabStop[] = [];
   const operations: Operation[] = [];
   for (const op of cam.operations.filter(o => o.feature === 'outline')) {
@@ -35,8 +41,13 @@ export function tabRemovalProgram(cam: PartCam, opts: { feed: number; plungeFeed
       const mid = run[Math.floor(run.length / 2)];
       const length = run.slice(1).reduce((s, q, i) => s + Math.hypot(q[0] - run[i][0], q[1] - run[i][1]), 0);
       const index = tabs.length + 1;
-      tabs.push({ index, part, at: { x: mid[0], y: mid[1] }, hold: holdPoint(box, mid), length });
-      const pts: Vec3[] = run.map(q => [q[0], q[1], deepest]);
+      tabs.push({ index, part, at: at({ x: mid[0], y: mid[1] }), hold: at(holdPoint(box, mid)), length });
+      // Turned over after side B, the tab hangs from the new top: cut from there through it, as far past it as the
+      // deepest pass went below the bottom; mirrored and reversed, so the bit cuts the same way as before.
+      const top = Math.max(...run.map(q => q[2]));
+      const pts: Vec3[] = turned
+        ? [...run].reverse().map(q => [q[0], turned.h - q[1], cam.stockTop - top + deepest])
+        : run.map(q => [q[0], q[1], deepest]);
       const pass: Pass = { pts, feeds: pts.map((_, k) => (k === 0 ? opts.plungeFeed : opts.feed)), link: 'retract' };
       operations.push({
         name: `${part}: Tab ${index}`,

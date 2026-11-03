@@ -28,17 +28,19 @@ export function useMachineQueue() {
   const current = queue.find(e => e.key === active) ?? queue.find(e => !done.includes(e.key)) ?? null;
   const saved = useCuttingData(s => s.saved);
   const settings = toCamSettings(job?.plan ?? kDefaultPlan, current?.board.board.material, saved);
+  // Tabs and skins are taken care of after side B, when there is one: the board lies turned over then.
+  const turned = !!current?.plan?.sideB;
   const tabs = useQuery({
-    queryKey: ['cam', 'tab-removal', job?.id, job?.fileName, current?.board.request, settings],
+    queryKey: ['cam', 'tab-removal', job?.id, job?.fileName, current?.board.request, settings, turned],
     enabled: !!job && current?.kind === 'tabs',
     staleTime: Infinity,
-    queryFn: (): Promise<TabRemovalResult> => camWorker().generateTabRemoval(modelKey(job!), current!.board.request, settings),
+    queryFn: (): Promise<TabRemovalResult> => camWorker().generateTabRemoval(modelKey(job!), current!.board.request, settings, turned),
   });
   const free = useQuery({
-    queryKey: ['cam', 'free-parts', job?.id, job?.fileName, current?.board.request, settings],
+    queryKey: ['cam', 'free-parts', job?.id, job?.fileName, current?.board.request, settings, turned],
     enabled: !!job && current?.kind === 'free',
     staleTime: Infinity,
-    queryFn: (): Promise<FreePartsResult> => camWorker().generateFreeParts(modelKey(job!), current!.board.request, settings),
+    queryFn: (): Promise<FreePartsResult> => camWorker().generateFreeParts(modelKey(job!), current!.board.request, settings, turned),
   });
   return {
     job,

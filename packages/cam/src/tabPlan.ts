@@ -1,5 +1,6 @@
 import { pointInPolygonD, PointInPolygonResult } from 'clipper2-ts';
 import { partToBoard, type BoardPart, type BoardSpec } from './board';
+import type { TurnedOver } from './flip';
 import { holdState } from './hold';
 import { DEFAULT_TABS, throughCuts, type CamSettings, type Operation, type PartCam, type TabSettings } from './toolpaths';
 
@@ -215,8 +216,9 @@ export function boardToPart(p: Pick<BoardPart, 'x' | 'y' | 'rotated' | 'size'>, 
  */
 export function freePartsProgram(
   cam: PartCam,
-  opts: { feed: number; plungeFeed: number; finalZ: number }
+  opts: { feed: number; plungeFeed: number; finalZ: number; turned?: TurnedOver }
 ): { cam: PartCam; parts: { name: string; at: P2 }[] } {
+  const turned = opts.turned;
   const ops: Operation[] = [];
   const parts: { name: string; at: P2 }[] = [];
   for (const op of cam.operations) {
@@ -224,7 +226,12 @@ export function freePartsProgram(
     const final = op.passes.at(-1);
     if (!final || Math.min(...final.pts.map(q => q[2])) <= opts.finalZ + 1e-6) continue;
     const name = op.name.replace(/: [^:]*$/, '');
-    const pts = final.pts.map(q => [q[0], q[1], opts.finalZ] as [number, number, number]);
+    // Turned over after side B, the skin is on top now: from the new top through it, as far past it as finalZ goes below
+    // the bottom. Mirrored, the path runs the other way round: reversed, the bit cuts the same way as before.
+    const skin = Math.min(...final.pts.map(q => q[2]));
+    const pts = turned
+      ? [...final.pts].reverse().map(q => [q[0], turned.h - q[1], cam.stockTop - skin + opts.finalZ] as [number, number, number])
+      : final.pts.map(q => [q[0], q[1], opts.finalZ] as [number, number, number]);
     const feeds = pts.map((_, k) => (k === 0 ? opts.plungeFeed : opts.feed));
     ops.push({
       name: `${name}: Free from the skin`,

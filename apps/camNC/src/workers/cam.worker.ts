@@ -26,6 +26,7 @@ import {
   toGcode,
   type BoardSpec,
   type CamSettings,
+  rotateAboutOrigin,
   type PartCam,
   type FlatPart,
   type PartFeatures,
@@ -119,11 +120,22 @@ const api = {
     return summarize(cam, part.name, part.size, settings);
   },
 
-  /** After cutting a board with tabs: a program that stops before each tab, then cuts through it. */
-  async generateTabRemoval(key: string, board: BoardRequest, settings: Partial<CamSettings>): Promise<TabRemovalResult> {
-    const cam = camBoard(boardSpec(key, board), settings);
+  /**
+   * After cutting a board with tabs: a program that stops before each tab, then cuts through it. `turned`: after side B,
+   * with the board turned over.
+   */
+  async generateTabRemoval(key: string, board: BoardRequest, settings: Partial<CamSettings>, turned = false): Promise<TabRemovalResult> {
+    // Laid out as nested (turned over about the board's own middle), then turned to lie like the board on the bed.
+    const cam = camBoard({ ...boardSpec(key, board), rotationDeg: 0 }, settings);
     const feed = (settings.feed ?? 1800) * (settings.finalFeedFactor ?? 0.5);
-    const { cam: removal, tabs } = tabRemovalProgram(cam, { feed, plungeFeed: settings.plungeFeed ?? 480 });
+    const program = tabRemovalProgram(cam, {
+      feed,
+      plungeFeed: settings.plungeFeed ?? 480,
+      ...(turned && { turned: { h: board.h } }),
+    });
+    const turn = onBed(board);
+    const removal = turnCam(program.cam, turn);
+    const tabs = program.tabs.map(t => ({ ...t, at: turn2(turn, t.at), hold: turn2(turn, t.hold) }));
     const gcode = toGcode(removal, {
       partName: `Board ${board.name}: tab removal`,
       board: board.name,
@@ -133,11 +145,21 @@ const api = {
     return { gcode, tabs, timeMin: metrics(readGcode(gcode), cam.stockTop).timeMin };
   },
 
-  /** After cutting a board with bottom-skin parts: frees them one at a time (cut the skin, bit up, spindle off, pause). */
-  async generateFreeParts(key: string, board: BoardRequest, settings: Partial<CamSettings>): Promise<FreePartsResult> {
-    const cam = camBoard(boardSpec(key, board), settings);
+  /**
+   * After cutting a board with bottom-skin parts: frees them one at a time (cut the skin, bit up, spindle off, pause).
+   * `turned`: after side B, with the board turned over (the skins on top).
+   */
+  async generateFreeParts(key: string, board: BoardRequest, settings: Partial<CamSettings>, turned = false): Promise<FreePartsResult> {
+    const cam = camBoard({ ...boardSpec(key, board), rotationDeg: 0 }, settings);
     const feed = (settings.feed ?? 1800) * (settings.finalFeedFactor ?? 0.5);
-    const free = freePartsProgram(cam, { feed, plungeFeed: settings.plungeFeed ?? 480, finalZ: settings.finalZ ?? -0.3 });
+    const program = freePartsProgram(cam, {
+      feed,
+      plungeFeed: settings.plungeFeed ?? 480,
+      finalZ: settings.finalZ ?? -0.3,
+      ...(turned && { turned: { h: board.h } }),
+    });
+    const turn = onBed(board);
+    const free = { cam: turnCam(program.cam, turn), parts: program.parts.map(p => ({ ...p, at: turn2(turn, p.at) })) };
     const gcode = toGcode(free.cam, {
       partName: `Board ${board.name}: free the parts`,
       board: board.name,
@@ -185,6 +207,17 @@ const api = {
     return { ...plan, hold: holdCheck(flat, board), holding, skin: board.skin ?? kDefaultSkin };
   },
 };
+
+/** Board coordinates -> the program's: turned like the board lies on the bed. */
+const onBed = (board: BoardRequest) => rotateAboutOrigin(board.rotationDeg ?? 0);
+const turn2 = (turn: ReturnType<typeof onBed>, p: { x: number; y: number }) => {
+  const [x, y] = turn([p.x, p.y, 0]);
+  return { x, y };
+};
+const turnCam = (cam: PartCam, turn: ReturnType<typeof onBed>): PartCam => ({
+  ...cam,
+  operations: cam.operations.map(op => ({ ...op, passes: op.passes.map(p => ({ ...p, pts: p.pts.map(turn) })) })),
+});
 
 function boardSpec(key: string, board: BoardRequest): BoardSpec {
   return {
