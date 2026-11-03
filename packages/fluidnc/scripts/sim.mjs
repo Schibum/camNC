@@ -10,7 +10,7 @@
 // The binary is cached in ~/.cache/camnc/fluidnc-<version>/. Set FLUIDNC_SIM_BIN to use another build.
 import { execFileSync, spawn } from 'node:child_process';
 import { Buffer } from 'node:buffer';
-import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -37,6 +37,10 @@ const cacheDir = path.join(os.homedir(), '.cache', 'camnc', `fluidnc-${VERSION}`
 const env = process.platform === 'darwin' ? 'macos' : 'linux_x86_64';
 
 const srcDir = path.join(cacheDir, 'src');
+// Written next to the binary after a build with the speed patch, holding the patch it was built with. A binary
+// without it (built before the patch existed, or from a cache whose src dir is gone) is rebuilt.
+const speedMarker = path.join(cacheDir, 'fluidnc-sim.speed-patch');
+const builtWithSpeedPatch = () => existsSync(speedMarker) && readFileSync(speedMarker, 'utf8') === readFileSync(speedPatch, 'utf8');
 
 /** Whether the cached source already carries the speed patch (a reverse apply would succeed). */
 function speedPatchApplied() {
@@ -57,6 +61,7 @@ function build() {
   if (!speedPatchApplied()) execFileSync('git', ['apply', speedPatch], { cwd: src, stdio: 'inherit' });
   execFileSync('pio', ['run', '-e', env], { cwd: src, stdio: 'inherit' });
   cpSync(path.join(src, '.pio', 'build', env, 'program'), path.join(cacheDir, 'fluidnc-sim'));
+  writeFileSync(speedMarker, readFileSync(speedPatch, 'utf8'));
 }
 
 function runDocker() {
@@ -70,8 +75,11 @@ function runDocker() {
 
 function runNative() {
   const bin = process.env.FLUIDNC_SIM_BIN ?? path.join(cacheDir, 'fluidnc-sim');
-  // A binary built before the speed patch existed is rebuilt once (incrementally) with it.
-  const stale = !process.env.FLUIDNC_SIM_BIN && existsSync(srcDir) && !speedPatchApplied();
+  // A binary built without the current speed patch is rebuilt once (incrementally when the src dir is still there).
+  const stale = !process.env.FLUIDNC_SIM_BIN && !builtWithSpeedPatch();
+  if (process.env.FLUIDNC_SIM_BIN && speed !== 1) {
+    console.warn('FLUIDNC_SIM_BIN is set: --speed only works if that binary was built with sim/sim-speed.patch');
+  }
   if (flag('--build') || !existsSync(bin) || stale) {
     console.log(`Building the simulator into ${cacheDir}`);
     build();
