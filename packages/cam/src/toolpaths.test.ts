@@ -499,6 +499,61 @@ describe('per-bit cutting data', () => {
   });
 });
 
+describe('warnings', () => {
+  const thick = (over: Partial<PartFeatures> = {}): PartFeatures => ({
+    ...board(),
+    thickness: 20.5,
+    levels: [],
+    pockets: [],
+    throughHoles: [],
+    ...over,
+  });
+
+  it('warns when a cut goes deeper than the flutes are long, and only then', () => {
+    const lcf = (fluteLength?: number) => camPart(thick(), { tools: [{ number: 1, diameter: 6, fluteLength }] }).warnings;
+    expect(lcf(12)).toEqual(['bit D=6 cuts 20.8 mm deep from the stock top, its flutes are 12 mm long']);
+    expect(lcf(20.8)).toEqual([]);
+    expect(lcf(25)).toEqual([]);
+    expect(lcf(undefined)).toEqual([]);
+    // From the stock top when the stock is thicker than the part.
+    expect(camPart(thick(), { tools: [{ number: 1, diameter: 6, fluteLength: 21 }], stockTop: 21 }).warnings).toHaveLength(1);
+    // Still cut: a warning, not a stop.
+    expect(camPart(thick(), { tools: [{ number: 1, diameter: 6, fluteLength: 12 }] }).operations).toHaveLength(1);
+  });
+
+  const window = (w: number, h: number) => rect(50, 20, 50 + w, 20 + h).reverse();
+
+  it('warns about the loose piece of a big through hole, not of a small one or a narrow slot', () => {
+    const warn = (w: number, h: number, diameter = 3.175) =>
+      camPart(thick({ throughHoles: [window(w, h)] }), { tools: [{ number: 1, diameter }] }).warnings;
+    expect(warn(120, 60)[0]).toMatch(/^through hole 1: the 120 x 60 mm piece inside it comes loose on the last pass/);
+    expect(warn(120, 60)[0]).toMatch(/Tape it down, or stop/);
+    expect(warn(50, 50)).toEqual([]);
+    expect(warn(30, 30)).toEqual([]);
+    // Nothing left in the middle for the bit to catch: no piece.
+    expect(warn(120, 22, 12)).toEqual([]);
+    // Doesn't stop anything, and no through cuts on a second side: no piece.
+    expect(camPart(thick({ throughHoles: [window(120, 60)] }), {}).operations.length).toBeGreaterThan(0);
+    expect(camPart(thick({ throughHoles: [window(120, 60)] }), { cutThrough: false }).warnings).toEqual([]);
+  });
+});
+
+describe('every generated program passes the rules', () => {
+  it('with tabs, two bits, deep holes, warnings in the header', () => {
+    const limits = { stockTop: 8, size: [200, 100] as [number, number], minZ: -0.3, toolRadius: 3 };
+    const f = board();
+    for (const tools of [
+      [{ number: 1, diameter: 3.175 }],
+      [
+        { number: 1, diameter: 6, feed: 3000, rpm: 18000 },
+        { number: 2, diameter: 2, feed: 500, rpm: 24000 },
+      ],
+    ])
+      for (const tabs of [false, DEFAULT_TABS] as const)
+        for (const p of splitByBit(camPart(f, { tools, tabs }))) expect(checkGcodeSafety(toGcode(p), limits)).toEqual([]);
+  });
+});
+
 describe('pocket wall pass', () => {
   /** Closed pocket 9 x 21 like the kinderregal mortises, 4.2 deep in an 8 mm board. */
   function mortiseBoard(): PartFeatures {

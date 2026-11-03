@@ -679,6 +679,9 @@ function friendly(w: string) {
   if (w.includes('no tool fits')) return `${w.split(':')[0]}: narrower than the bit, choose a smaller bit.`;
   if (w.includes('flipped')) return 'Features on the bottom face are not cut: they need a second, flipped setup.';
   if (w.includes('sloped')) return 'Small sloped faces (chamfers, fillets) come out square.';
+  const flutes = w.match(/bit D=([\d.]+) cuts ([\d.]+) mm deep from the stock top, its flutes are ([\d.]+) mm long/);
+  if (flutes)
+    return `The ⌀${flutes[1]} bit cuts ${flutes[2]} mm deep but its flutes are only ${flutes[3]} mm long: the shank would rub. Use a longer bit or thinner stock.`;
   return w;
 }
 

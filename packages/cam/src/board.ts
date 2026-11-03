@@ -4,7 +4,7 @@ import { boardToPart, kDefaultSkin, planTabs, type PartHolding, type TabFallback
 import type { Vec3 } from './geom';
 import type { HoldOptions } from './hold';
 import type { HoldPoint } from './holdPoints';
-import { camPart, DEFAULT_TABS, type CamSettings, type Operation, type PartCam, type TabSettings } from './toolpaths';
+import { camPart, DEFAULT_TABS, fluteWarnings, type CamSettings, type Operation, type PartCam, type TabSettings } from './toolpaths';
 
 /**
  * How the parts are held while cutting. `tabs` / `tabs-guided`: tabs into held stock (removed by hand, or by a guided
@@ -136,13 +136,11 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
   const diameters = [...new Set(ops.map(o => o.op.tool.diameter))].sort((a, b) => a - b);
   const operations: Operation[] = [];
   // Pin holes first, with the first bit: the board is still whole.
-  if (board.dowels)
-    operations.push(
-      ...dowelOperations(board, board.dowels, settings).map(op => ({
-        ...op,
-        passes: op.passes.map(p => ({ ...p, pts: p.pts.map(q => turn(q)) })),
-      }))
-    );
+  if (board.dowels) {
+    const pins = dowelOperations(board, board.dowels, settings);
+    warnings.push(...fluteWarnings(pins, stockTop));
+    operations.push(...pins.map(op => ({ ...op, passes: op.passes.map(p => ({ ...p, pts: p.pts.map(q => turn(q)) })) })));
+  }
   let pos = { x: 0, y: 0 };
   // Per bit, inner features before outlines. When every part keeps a layer until the end, the inner features of every
   // bit come before any outline: no pocket is cut into a part whose outline is already down to its skin.

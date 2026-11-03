@@ -147,6 +147,14 @@ describe('flip setups', () => {
     expect(Math.min(...dowelSpots(board({ parts: [] }), 6, clearance)!.map(p => p.x))).toBe(6);
   });
 
+  it('warns when the pin holes go deeper than the bit’s flutes', () => {
+    const cam = camBoard(
+      { ...board({ parts: [] }), dowels: { at: [{ x: 10, y: 100 }], diameter: 6, depth: 6 } },
+      { tools: [{ number: 1, diameter: 3.175, fluteLength: 12 }] }
+    );
+    expect(cam.warnings).toEqual(['bit D=3.175 cuts 14 mm deep from the stock top, its flutes are 12 mm long']);
+  });
+
   describe('after side B, with the board turned over: freeing skin parts and tab removal', () => {
     // An L, not symmetric about anything, low on the board: a missing mirror can't go unnoticed.
     const L = [

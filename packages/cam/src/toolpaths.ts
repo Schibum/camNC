@@ -921,6 +921,25 @@ export function throughCuts(features: PartFeatures, settings: Partial<CamSetting
   ];
 }
 
+/**
+ * Bits that go deeper than their flutes are long (from the stock top, the deepest cut of all their operations): the
+ * shank would rub. A warning, not a stop: a library's flute length may be conservative.
+ */
+export function fluteWarnings(ops: Operation[], stockTop: number): string[] {
+  const out: string[] = [];
+  for (const tool of new Set(ops.map(o => o.tool))) {
+    if (!tool.fluteLength) continue;
+    const zs = ops.filter(o => o.tool === tool).flatMap(o => o.passes.flatMap(p => p.pts.map(q => q[2])));
+    const depth = stockTop - Math.min(...zs);
+    if (depth > tool.fluteLength + 1e-6)
+      out.push(`bit D=${tool.diameter} cuts ${round2(depth)} mm deep from the stock top, its flutes are ${tool.fluteLength} mm long`);
+  }
+  return out;
+}
+
+/** The piece inside a through hole is worth a warning above this, mm² (50 x 50 mm). */
+const kLooseSlugArea = 2500;
+
 export function camPart(features: PartFeatures, settings: Partial<CamSettings> = {}): PartCam {
   const s: CamSettings = { ...DEFAULT_SETTINGS, ...settings };
   const top = Math.max(s.stockTop ?? 0, features.levels[0]?.z ?? features.thickness);
@@ -955,11 +974,21 @@ export function camPart(features: PartFeatures, settings: Partial<CamSettings> =
       const tool = tools.find(fits([h], true));
       if (!tool) return warnings.push(`through hole ${i + 1}: no tool fits`);
       ops.push(profileOperation(`Hole ${i + 1}`, h, top, tool, s, true));
+      // Nothing holds the piece in the middle (if the bit leaves one): free on the last lap, it can catch the bit.
+      if (Math.abs(polyArea([h])) > kLooseSlugArea && offset([h], -tool.diameter).length) {
+        const [xs, ys] = [h.map(q => q.x), h.map(q => q.y)];
+        const size = `${round2(Math.max(...xs) - Math.min(...xs))} x ${round2(Math.max(...ys) - Math.min(...ys))} mm`;
+        warnings.push(
+          `through hole ${i + 1}: the ${size} piece inside it comes loose on the last pass and can catch the bit. Tape it down, or stop before the last pass and take it out.`
+        );
+      }
     });
   if (s.cutThrough) features.outlines.forEach((o, i) => ops.push(profileOperation(`Outline ${i + 1}`, o, top, tools[0], s)));
   if (features.bottomFaces.length && s.cutThrough)
     warnings.push(`bottom-side features at z=${features.bottomFaces.map(b => b.z).join(', ')}: need a second (flipped) setup`);
   if (features.slopedArea > 1) warnings.push(`${features.slopedArea.toFixed(0)}mm² of sloped faces ignored (not 2.5D)`);
+
+  warnings.push(...fluteWarnings(ops, top));
 
   // Stable sort: smallest tool first, keeps pockets -> holes -> outline within a tool.
   const operations = ops
