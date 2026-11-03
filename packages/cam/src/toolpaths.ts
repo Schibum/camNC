@@ -41,6 +41,11 @@ export interface CamSettings {
   safeHeight: number;
   retractHeight: number;
   tabs: TabSettings | false;
+  /**
+   * Z of the stock top when the board is thicker than the part (allowance, or measured at the machine). Cuts start
+   * there; the part's top face is not faced. Default: the part's top.
+   */
+  stockTop?: number;
   /** Cut through holes and outlines (off for a flipped second setup that only does the bottom pockets). */
   cutThrough: boolean;
 }
@@ -86,6 +91,8 @@ export interface Operation {
   feature: 'pocket' | 'hole' | 'outline';
   tool: Tool;
   passes: Pass[];
+  /** Pause (M0) before this operation with this message, e.g. guided tab removal. */
+  pauseBefore?: string;
 }
 
 export interface PartCam {
@@ -582,7 +589,7 @@ function uncutArea(region: PathsD, r: number) {
  */
 export function camPart(features: PartFeatures, settings: Partial<CamSettings> = {}): PartCam {
   const s: CamSettings = { ...DEFAULT_SETTINGS, ...settings };
-  const top = features.levels[0]?.z ?? features.thickness;
+  const top = Math.max(s.stockTop ?? 0, features.levels[0]?.z ?? features.thickness);
   const tools = [...s.tools].sort((a, b) => b.diameter - a.diameter);
   const warnings: string[] = [];
   const ops: Operation[] = [];

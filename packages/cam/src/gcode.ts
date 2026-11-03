@@ -150,6 +150,10 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
       out.push(`M0 (MSG Spindle OFF. Change to T${op.tool.number} D=${fmt(op.tool.diameter)}, re-zero Z, spindle ON ${rpm}RPM)`);
       currentTool = op.tool;
     }
+    if (op.pauseBefore) {
+      move('G0', { z: safeZ });
+      out.push(`M0 (MSG ${op.pauseBefore.replace(/[()]/g, '')})`);
+    }
     // Markers for the job view: which operation and pass the machine is in.
     out.push(`(OP ${oi + 1}/${cam.operations.length} ${op.name} - T${op.tool.number} D=${fmt(op.tool.diameter)})`);
     op.passes.forEach((pass, pi) => {

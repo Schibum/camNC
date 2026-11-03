@@ -26,6 +26,13 @@ export interface BoardSpec {
   thickness: number;
   holdDown: HoldDown;
   tabs?: TabSettings;
+  /**
+   * Turn the whole board (counterclockwise, degrees) about its lower left corner, the XY zero: aligning to a board that
+   * lies slightly askew on the bed is built into the program.
+   */
+  rotationDeg?: number;
+  /** Z of the stock top if thicker than the parts (allowance or measured); default the board thickness. */
+  stockTop?: number;
   parts: BoardPart[];
 }
 
@@ -37,6 +44,15 @@ export function partToBoard(p: Pick<BoardPart, 'x' | 'y' | 'rotated' | 'size'>, 
   return p.rotated ? [p.x + p.size[1] - q[1], p.y + q[0], q[2]] : [p.x + q[0], p.y + q[1], q[2]];
 }
 
+/** Rotation about X0 Y0, counterclockwise. */
+export function rotateAboutOrigin(deg: number): (q: Vec3) => Vec3 {
+  if (!deg) return q => q;
+  const a = (deg * Math.PI) / 180,
+    c = Math.cos(a),
+    s = Math.sin(a);
+  return q => [q[0] * c - q[1] * s, q[0] * s + q[1] * c, q[2]];
+}
+
 const kFeatureOrder = { pocket: 0, hole: 1, outline: 2 } as const;
 
 /**
@@ -46,17 +62,19 @@ const kFeatureOrder = { pocket: 0, hole: 1, outline: 2 } as const;
  */
 export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): PartCam {
   const tabs = usesTabs(board.holdDown) ? (board.tabs ?? DEFAULT_TABS) : false;
+  const stockTop = board.stockTop ?? board.thickness;
+  const turn = rotateAboutOrigin(board.rotationDeg ?? 0);
   const warnings: string[] = [];
   const ops: { op: Operation; part: BoardPart; index: number }[] = [];
   for (const part of board.parts) {
-    const cam = camPart(part.features, { ...settings, tabs });
+    const cam = camPart(part.features, { ...settings, tabs, stockTop });
     warnings.push(...cam.warnings.map(w => `${part.name}: ${w}`));
     cam.operations.forEach((op, index) =>
       ops.push({
         op: {
           ...op,
           name: `${part.name}: ${op.name}`,
-          passes: op.passes.map(p => ({ ...p, pts: p.pts.map(q => partToBoard(part, q)) })),
+          passes: op.passes.map(p => ({ ...p, pts: p.pts.map(q => turn(partToBoard(part, q))) })),
         },
         part,
         index,
@@ -75,7 +93,7 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
         let bi = 0,
           bd = Infinity;
         left.forEach((p, i) => {
-          const c = partToBoard(p, [p.size[0] / 2, p.size[1] / 2, 0]);
+          const c = turn(partToBoard(p, [p.size[0] / 2, p.size[1] / 2, 0]));
           const dd = (c[0] - pos.x) ** 2 + (c[1] - pos.y) ** 2;
           if (dd < bd) {
             bd = dd;
@@ -92,7 +110,7 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
       }
     }
   }
-  return { stockTop: board.thickness, operations, warnings };
+  return { stockTop, operations, warnings };
 }
 
 /** Bits in the order a board program uses them. */
