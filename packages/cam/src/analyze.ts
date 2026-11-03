@@ -6,6 +6,8 @@ export interface Move {
   to: Vec3;
   rapid: boolean;
   feed: number;
+  /** Whether the program has the spindle running during this move (M3/M4 on, M5/M2/M30 off). */
+  spindle: boolean;
 }
 
 /** Reads G0-G3 (all planes), discretizing arcs into <= 0.5mm / 5° chords. */
@@ -14,7 +16,9 @@ export function readGcode(src: string): Move[] {
   let pos: Vec3 = [0, 0, 0];
   let motion = 0,
     plane = 17,
-    feed = 0;
+    feed = 0,
+    speed: number | undefined,
+    spindle = false;
   for (const raw of src.split(/\r?\n/)) {
     // Linear-time patterns: comments can't nest, numbers have one unambiguous form (no backtracking on long input).
     const line = raw
@@ -29,19 +33,25 @@ export function readGcode(src: string): Move[] {
       if (k === 'G') {
         if (v <= 3) motion = v;
         else if (v === 17 || v === 18 || v === 19) plane = v;
+      } else if (k === 'M') {
+        if (v === 3 || v === 4) spindle = true;
+        else if (v === 5 || v === 2 || v === 30) spindle = false;
       } else {
+        if (k === 'S') speed = v;
         w[k] = v;
         if ('XYZ'.includes(k)) hasAxis = true;
       }
     }
     if (w.F !== undefined) feed = w.F;
+    // M3 S0 doesn't turn anything.
+    if (speed === 0) spindle = false;
     if (!hasAxis || words.some(([k, v]) => k === 'G' && v === 53)) {
       if (hasAxis && w.Z !== undefined) pos = [pos[0], pos[1], Math.max(pos[2], 20)];
       continue;
     }
     const to: Vec3 = [w.X ?? pos[0], w.Y ?? pos[1], w.Z ?? pos[2]];
     if (motion <= 1) {
-      moves.push({ from: pos, to, rapid: motion === 0, feed });
+      moves.push({ from: pos, to, rapid: motion === 0, feed, spindle });
     } else {
       // Map plane to (u, v, axial) indices.
       const [u, v, a] = plane === 17 ? [0, 1, 2] : plane === 18 ? [2, 0, 1] : [1, 2, 0];
@@ -65,7 +75,7 @@ export function readGcode(src: string): Move[] {
         p[a] = pos[a] + (to[a] - pos[a]) * t;
         if (k === n) p[u] = to[u];
         if (k === n) p[v] = to[v];
-        moves.push({ from: prev, to: p, rapid: false, feed });
+        moves.push({ from: prev, to: p, rapid: false, feed, spindle });
         prev = p;
       }
     }

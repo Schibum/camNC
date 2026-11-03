@@ -1,4 +1,5 @@
 import { readGcode } from './analyze';
+import { kMaxGcodeLine } from './gcode';
 
 export interface SafetyLimits {
   /** Z of the stock top (Z0 = stock bottom). */
@@ -13,11 +14,16 @@ export interface SafetyLimits {
   margin?: number;
   /** Rapids must stay this far above the stock top. Default 0.5 mm. */
   rapidClearance?: number;
+  /** Fastest sane cutting feed, mm/min: a typo in the cutting data must not reach the wood. Default `kMaxFeed`. */
+  maxFeed?: number;
 }
 
+/** No router this CAM drives cuts wood faster than this. */
+export const kMaxFeed = 15000;
+
 export interface SafetyIssue {
-  rule: 'rapid-in-stock' | 'outside-board' | 'too-deep';
-  /** Index of the offending move (arcs count once per chord). */
+  rule: 'rapid-in-stock' | 'outside-board' | 'too-deep' | 'spindle-off' | 'bad-feed' | 'line-too-long';
+  /** Index of the offending move (arcs count once per chord); -1 for a line that isn't one. */
   move: number;
   message: string;
 }
@@ -25,14 +31,24 @@ export interface SafetyIssue {
 /**
  * Rules every generated program must keep, whatever the settings: no rapid move into or through the stock (below its
  * top + clearance; straight-up retracts are fine), no move outside the board (+ tool radius and margin), never deeper
- * than the through-cut depth.
+ * than the through-cut depth, no cut with the spindle stopped, no cutting feed that is missing or absurd. These two are
+ * reported once per stretch and once per feed: a stopped spindle would otherwise count every move after it. And no
+ * line FluidNC refuses for its length, which would stop the job mid-cut.
  */
 export function checkGcodeSafety(gcode: string, limits: SafetyLimits): SafetyIssue[] {
   const margin = limits.margin ?? 1.5;
   const clearance = limits.rapidClearance ?? 0.5;
   const reach = limits.toolRadius + margin;
+  const maxFeed = limits.maxFeed ?? kMaxFeed;
   const issues: SafetyIssue[] = [];
+  const badFeeds = new Set<number>();
+  let spindleFlagged = false;
   const fmt = (p: number[]) => p.map(v => +v.toFixed(3)).join(', ');
+  const encoder = new TextEncoder();
+  gcode.split(/\r?\n/).forEach((line, i) => {
+    if (encoder.encode(line).length > kMaxGcodeLine)
+      issues.push({ rule: 'line-too-long', move: -1, message: `line ${i + 1} is longer than FluidNC accepts: ${line.slice(0, 40)}…` });
+  });
   readGcode(gcode).forEach((m, i) => {
     // The machine starts wherever it is: the first move only says where it goes.
     if (i === 0 && m.rapid) return;
@@ -51,6 +67,20 @@ export function checkGcodeSafety(gcode: string, limits: SafetyLimits): SafetyIss
       issues.push({ rule: 'outside-board', move: i, message: `move to (${fmt(m.to)}) leaves the board` });
     if (m.to[2] < limits.minZ - 1e-3)
       issues.push({ rule: 'too-deep', move: i, message: `move to Z${+m.to[2].toFixed(3)} is below ${limits.minZ}` });
+    if (m.spindle) spindleFlagged = false;
+    if (m.rapid) return;
+    if (!m.spindle && lowest < limits.stockTop && !spindleFlagged) {
+      spindleFlagged = true;
+      issues.push({ rule: 'spindle-off', move: i, message: `cutting move to (${fmt(m.to)}) with the spindle off` });
+    }
+    if ((m.feed <= 0 || m.feed > maxFeed) && !badFeeds.has(m.feed)) {
+      badFeeds.add(m.feed);
+      issues.push({
+        rule: 'bad-feed',
+        move: i,
+        message: m.feed > 0 ? `feed F${m.feed} is above the limit of ${maxFeed} mm/min` : `move to (${fmt(m.to)}) has no feed`,
+      });
+    }
   });
   return issues;
 }

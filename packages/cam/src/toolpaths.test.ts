@@ -3,7 +3,7 @@ import { readGcode, metrics } from './analyze';
 import type { PartFeatures } from './features';
 import { fitArcs, kMaxGcodeLine, toGcode } from './gcode';
 import { difference } from './geom';
-import { checkGcodeSafety } from './safety';
+import { checkGcodeSafety, kMaxFeed } from './safety';
 import { splitByBit } from './board';
 import { camPart, DEFAULT_TABS, type Pass, type Tool } from './toolpaths';
 
@@ -269,8 +269,37 @@ describe('safety rules', () => {
   });
 
   it('flags rapids in the stock, moves off the board and cuts below the through depth', () => {
-    const bad = ['G21 G90', 'G0 Z13', 'G0 X10 Y10', 'G0 Z5', 'G1 X300 F1000', 'G1 X50 Z-1', 'G0 Z13'].join('\n');
+    const bad = ['G21 G90', 'M3 S15000', 'G0 Z13', 'G0 X10 Y10', 'G0 Z5', 'G1 X300 F1000', 'G1 X50 Z-1', 'G0 Z13'].join('\n');
     expect(checkGcodeSafety(bad, limits).map(i => i.rule)).toEqual(['rapid-in-stock', 'outside-board', 'too-deep']);
+  });
+
+  const stock = { ...limits, stockTop: 18, size: [300, 300] as [number, number] };
+
+  it('flags cutting without a spindle and an absurd feed', () => {
+    const bad = 'G0 Z23\nG0 X10 Y10\nG0 Z19\nG1 Z5 F480\nG1 X200 Y200 F99999\nG0 Z23\nM30\n';
+    expect(checkGcodeSafety(bad, stock).map(i => i.rule)).toEqual(['spindle-off', 'bad-feed']);
+  });
+
+  it('flags cutting on after M5 until M3, once per stretch', () => {
+    const start = 'G0 Z23\nM3 S15000\nG0 X10 Y10\nG1 Z5 F480\nG1 X20\n';
+    expect(checkGcodeSafety(start, stock)).toEqual([]);
+    const stopped = `${start}M5\nM0 (MSG hold it)\nG1 X30\nG1 X40\nM3 S15000\nG1 X50\nM5\nG1 X60\n`;
+    expect(checkGcodeSafety(stopped, stock).map(i => i.rule)).toEqual(['spindle-off', 'spindle-off']);
+    // M3 S0 turns nothing, and above the stock nothing is cut.
+    expect(checkGcodeSafety('M3 S0\nG0 Z23\nG1 Z5 F480\n', stock).map(i => i.rule)).toEqual(['spindle-off']);
+    expect(checkGcodeSafety('G0 Z30\nG1 Z23 F480\n', stock)).toEqual([]);
+  });
+
+  it('flags a cutting move with no feed, and lets a fast but sane one through', () => {
+    expect(checkGcodeSafety('M3 S15000\nG0 Z23\nG1 Z5\n', stock).map(i => i.rule)).toEqual(['bad-feed']);
+    expect(checkGcodeSafety(`M3 S15000\nG0 Z23\nG1 Z5 F${kMaxFeed}\n`, stock)).toEqual([]);
+    expect(checkGcodeSafety(`M3 S15000\nG0 Z23\nG1 Z5 F${kMaxFeed + 1}\n`, stock).map(i => i.rule)).toEqual(['bad-feed']);
+    expect(checkGcodeSafety('M3 S15000\nG0 Z23\nG1 Z5 F20000\n', { ...stock, maxFeed: 30000 })).toEqual([]);
+  });
+
+  it('flags a line FluidNC would refuse', () => {
+    expect(checkGcodeSafety(`(${'x'.repeat(126)})\n`, stock).map(i => i.rule)).toEqual(['line-too-long']);
+    expect(checkGcodeSafety(`(${'x'.repeat(125)})\n`, stock)).toEqual([]);
   });
 });
 
