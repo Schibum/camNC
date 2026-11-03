@@ -10,6 +10,13 @@ import { useNavigate } from '@tanstack/react-router';
 
 const kGcodeFile = /\.(gcode|nc|ngc|tap|txt)$/i;
 
+/** What to drop instead of a file we can't open: CAM pages take models, the rest G-code (or a model to start CAM). */
+export function wrongFileMessage(pathname: string) {
+  return pathname.startsWith('/cam')
+    ? 'Drop a STEP or STL model (.step, .stp, .stl) to start a CAM job.'
+    : 'Drop a G-code file (.gcode or .nc), or a STEP/STL model to start a CAM job.';
+}
+
 /**
  * Load a G-code file dropped anywhere on the page as the toolpath, entirely in the browser. A STEP/STL file starts a
  * new CAM job.
@@ -34,7 +41,7 @@ export function GcodeDropZone() {
         return;
       }
       if (!kGcodeFile.test(file.name)) {
-        toast.error('Drop a G-code file (.gcode or .nc).');
+        toast.error(wrongFileMessage(window.location.pathname));
         return;
       }
       useStore.getState().updateToolpath(await file.text(), file.name);
