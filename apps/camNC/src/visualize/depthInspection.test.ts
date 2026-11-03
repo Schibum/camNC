@@ -5,6 +5,7 @@ import {
   closestPointOnSegment,
   guessStockHeight,
   contrastRatio,
+  fadeDoneSegments,
   fadeOutsideLevel,
   getCutDepthLevels,
   getCutZRange,
@@ -163,6 +164,15 @@ describe('level highlighting', () => {
     // Grayed: equal components, darker than the original red.
     expect(faded[0]).toBeCloseTo(faded[1]);
     expect(faded[0]).toBeLessThan(1);
+  });
+
+  it('fades the segments a job has done and keeps the rest', () => {
+    const segmentIndex = new Uint32Array([1, 2, 3]);
+    expect(fadeDoneSegments(colors, segmentIndex, 0, new Color(0, 0, 0))).toBe(colors);
+    const faded = fadeDoneSegments(colors, segmentIndex, 3, new Color(0, 0, 0));
+    expect(faded[0]).toBeCloseTo(faded[1]);
+    expect(faded[6]).toBeCloseTo(faded[7]);
+    expect([...faded.subarray(12)]).toEqual([0, 0, 1, 0, 0, 1]);
   });
 });
 

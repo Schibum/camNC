@@ -1,5 +1,4 @@
 import { getCncApi } from '@/lib/fluidnc/machine';
-import { isCamncJobFile } from '@/lib/machine/jobs';
 import { useComputed } from '@preact/signals-react';
 import { useShowMachinePosMarker, useStore, useToolDiameter, useIsCameraReady } from '@/store/store';
 import { Switch } from '@heroui/react';
@@ -15,7 +14,9 @@ import { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import {
   buildDepthGeometryData,
   closestPointOnSegment,
+  DepthGeometryData,
   DepthLevel,
+  fadeDoneSegments,
   fadeOutsideLevel,
   getCutDepthLevels,
   getCutZRange,
@@ -29,7 +30,8 @@ import {
 import { HoverInfo, useDepthView, useHoverInfo, useSelectedLevel, useShowStockVideo, useZeroPlacement } from './depthViewStore';
 import { AxisLabel, BedGrid, DepthRuler, HoverMarker, LevelPlane, StockBlock, ToolPositionMarker } from './DepthSceneParts';
 import { ParsedToolpath } from './gcodeParsing';
-import { kJobDoneColor, motionLineEnds, progressPointIndex } from './jobProgress';
+import { ProgressSplit, trailBehind } from './jobProgress';
+import { useJobProgressSplit } from './useJobProgressSplit';
 import { useSmoothedMachinePos } from './smoothedMachinePos';
 import { getPlasmaColor } from './toolpathColors';
 import { SimToolMarker, SimulatedStock } from './stockSim/SimulatedStock';
@@ -143,25 +145,44 @@ const kOutlineColor = '#000000';
 const kOutlineOpacity = 0.85;
 // Selected cut level, as in the level list and the depth ruler.
 const kSelectedLevelColor = '#38bdf8';
+// Short trail behind the tool while a job runs, so the direction of travel shows.
+const kTrailColor = '#ffffff';
 
 function ToolpathSegments({
   toolpath,
   showRapids,
   dashSize,
   selectedLevel,
+  trailLength,
   onHover,
 }: {
   toolpath: ParsedToolpath;
   showRapids: boolean;
   dashSize: number;
+  // Length (mm) of the trail drawn behind the tool while a job runs.
+  trailLength: number;
   // Cut level to make stand out, other segments are faded.
   selectedLevel: number | null;
   onHover: (info: HoverInfo | null) => void;
 }) {
+  'use no memo';
   const data = useMemo(() => buildDepthGeometryData(toolpath, kBackground), [toolpath]);
-  const cutColors = useMemo(
+  const levelColors = useMemo(
     () => (selectedLevel === null ? data.cutColors : fadeOutsideLevel(data.cutPositions, data.cutColors, selectedLevel, kBackground)),
     [data, selectedLevel]
+  );
+  // While a job runs, what it has done fades, so the part still to cut stands out. The segment under the tool fades
+  // as a whole and its part still ahead is drawn again on top.
+  const progress = useJobProgressSplit(toolpath);
+  const doneBefore = progress ? progress.index + 1 : 0;
+  const cutColors = useMemo(
+    () => fadeDoneSegments(levelColors, data.cutSegmentIndex, doneBefore, kBackground),
+    [levelColors, data, doneBefore]
+  );
+  const ahead = progress ? segmentRemainder(toolpath, data, levelColors, progress) : null;
+  const trail = useMemo(
+    () => (progress ? trailBehind(toolpath.pathPoints, progress, trailLength) : null),
+    [toolpath, progress, trailLength]
   );
   const levelPositions = useMemo(
     () => (selectedLevel === null ? null : getLevelSegmentPositions(data.cutPositions, selectedLevel)),
@@ -190,6 +211,10 @@ function ToolpathSegments({
         onPointerMove={hoverHandler(data.cutSegmentIndex)}
         onPointerOut={() => onHover(null)}
       />
+      {ahead && <Line points={ahead.points} color={ahead.color} lineWidth={2.5} depthTest={false} transparent renderOrder={3} />}
+      {trail && trail.length > 1 && (
+        <Line points={trail} color={kTrailColor} lineWidth={3} depthTest={false} transparent opacity={0.85} renderOrder={4} />
+      )}
       {levelPositions && levelPositions.length > 0 && (
         <FatSegments positions={levelPositions} color={kSelectedLevelColor} lineWidth={3.5} renderOrder={3} />
       )}
@@ -217,6 +242,27 @@ function ToolpathSegments({
       )}
     </>
   );
+}
+
+/** The part of the cut segment under the tool still ahead of it, in that segment's color, or null for a rapid. */
+function segmentRemainder(toolpath: ParsedToolpath, data: DepthGeometryData, colors: Float32Array, progress: ProgressSplit) {
+  const k = sortedIndexOf(data.cutSegmentIndex, progress.index);
+  if (k < 0) return null;
+  const end = toolpath.pathPoints[progress.index];
+  const color = new Color(colors[k * 6 + 3], colors[k * 6 + 4], colors[k * 6 + 5]);
+  return { points: [progress.point, end], color };
+}
+
+function sortedIndexOf(values: Uint32Array, value: number) {
+  let lo = 0;
+  let hi = values.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (values[mid] === value) return mid;
+    if (values[mid] < value) lo = mid + 1;
+    else hi = mid - 1;
+  }
+  return -1;
 }
 
 interface CameraPose {
@@ -391,9 +437,9 @@ export function DepthScene({ toolpath, view, fitKey }: { toolpath: ParsedToolpat
                   showRapids={showRapids}
                   dashSize={xySize / 150}
                   selectedLevel={selectedLevel}
+                  trailLength={xySize / 30}
                   onHover={info => setHover(toolpath, info)}
                 />
-                <DepthJobProgress toolpath={toolpath} />
               </>
             )}
           </group>
@@ -441,18 +487,6 @@ function MachineToolMarker({ toolpathOffset, sceneZ, length }: { toolpathOffset:
       <ToolPositionMarker radius={toolDiameter / 2} length={length} />
     </group>
   );
-}
-
-/** The part of the toolpath the running camNC job has already done, in the top view's "done" colour. */
-function DepthJobProgress({ toolpath }: { toolpath: ParsedToolpath }) {
-  'use no memo';
-  const job = getCncApi().jobProgress.value;
-  const lineEnds = useMemo(() => motionLineEnds(toolpath.gcode), [toolpath]);
-  // Only the file camNC uploaded corresponds to the loaded toolpath.
-  const end = job && isCamncJobFile(job.file) ? progressPointIndex(toolpath, lineEnds, job.percent) : 0;
-  const points = useMemo(() => toolpath.pathPoints.slice(0, end).map(p => [p.x, p.y, p.z] as [number, number, number]), [toolpath, end]);
-  if (points.length < 2) return null;
-  return <Line points={points} color={kJobDoneColor} lineWidth={4} depthTest={false} transparent opacity={0.9} renderOrder={3} />;
 }
 
 /** CSS color of the toolpath lines at depth `z`, as drawn in the 3D views. */
