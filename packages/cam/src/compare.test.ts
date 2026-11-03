@@ -143,6 +143,8 @@ async function compareWithFusion({ label, part, settings = {}, fusionFile }: Com
       material: { name: 'fusion-like', stepdownFactor: 100 },
       maxStepdown: undefined,
       profileStepdown: 4,
+      // Fusion's setups don't finish rabbet walls separately; ours do by default (see the camNC time column).
+      openWallAllowance: 0,
     })
   );
 

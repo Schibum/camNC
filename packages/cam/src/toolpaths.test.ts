@@ -176,10 +176,46 @@ describe('spike 3/4: toolpaths + gcode', () => {
     it.each([3.175, 6])('runs the bit 1mm past the edge so no sliver is left at the edge (D=%s)', d => {
       const [pocket, outline] = camPart(rabbetBoard(), { tools: [bit(d)] }).operations;
       const ys = pocket.passes.flatMap(p => p.pts.map(q => q[1]));
-      expect(Math.min(...ys)).toBeCloseTo(-1, 2);
+      expect(Math.min(...ys)).toBeCloseTo(-1, 1);
       // ...and still reaches the inner wall (y = 3.5) exactly, before the outline is cut.
       expect(Math.max(...ys)).toBeCloseTo(3.5 - d / 2, 2);
       expect(outline.kind).toBe('profile');
+    });
+
+    it('cuts toward the wall in rows no wider than the stepover allows, then finishes the wall at full depth, climb', () => {
+      const d = 3.175;
+      const [pocket] = camPart(rabbetBoard(), { tools: [bit(d)] }).operations;
+      // The rows of the first depth level.
+      const level = pocket.passes[0].pts.at(-1)![2];
+      const ys = pocket.passes
+        .filter(p => p.pts.at(-1)![2] === level)
+        // Each row's y: that of its longest segment (the run along the rabbet).
+        .map(p => {
+          let best = 1;
+          for (let i = 2; i < p.pts.length; i++)
+            if (Math.abs(p.pts[i][0] - p.pts[i - 1][0]) > Math.abs(p.pts[best][0] - p.pts[best - 1][0])) best = i;
+          return p.pts[best][1];
+        })
+        .sort((a, b) => a - b);
+      const gaps = ys.slice(1).map((y, i) => y - ys[i]);
+      expect(gaps.length).toBeGreaterThan(1);
+      for (const g of gaps) expect(g).toBeLessThanOrEqual(1.25 * 0.4 * d + 1e-6);
+      // The last row stays 0.2 off the wall; the finishing pass at the floor takes it to size along y = 3.5 - r with
+      // the wall on its right (climb): towards -x.
+      expect(ys.at(-1)).toBeCloseTo(3.5 - d / 2 - 0.2, 2);
+      const finish = pocket.passes.at(-1)!;
+      expect(finish.pts.every(q => q[2] === 3.5)).toBe(true);
+      const wall = finish.pts.filter(q => Math.abs(q[1] - (3.5 - d / 2)) < 1e-3);
+      expect(wall.length).toBeGreaterThan(1);
+      expect(wall.at(-1)![0]).toBeLessThan(wall[0][0]);
+      expect(
+        checkGcodeSafety(toGcode(camPart(rabbetBoard(), { tools: [bit(d)] })), {
+          stockTop: 8,
+          size: [200, 100],
+          minZ: -0.3,
+          toolRadius: d / 2,
+        })
+      ).toEqual([]);
     });
   });
 

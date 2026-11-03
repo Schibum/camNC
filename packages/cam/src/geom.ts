@@ -8,6 +8,8 @@ import {
   intersectD,
   areaD,
   simplifyPathsD,
+  ClipperD,
+  ClipType,
   type PathD,
   type PathsD,
 } from 'clipper2-ts';
@@ -68,6 +70,16 @@ export const intersect = (a: PathsD, b: PathsD) => intersectD(a, b, FillRule.Non
 /** Offset closed polygons; positive grows. Round joins, arc tolerance in mm. */
 export const offset = (paths: PathsD, delta: number, arcTol = 0.005) =>
   inflatePathsD(paths, delta, JoinType.Round, EndType.Polygon, 2, PRECISION, arcTol);
+/** The parts of open polylines that lie inside `region` (closed polygons, holes included). */
+export function clipLines(lines: PathsD, region: PathsD): PathsD {
+  const c = new ClipperD(PRECISION);
+  c.addOpenSubjectPaths(lines);
+  c.addClipPaths(region);
+  const closed: PathsD = [],
+    open: PathsD = [];
+  c.execute(ClipType.Intersection, FillRule.NonZero, closed, open);
+  return open;
+}
 export const polyArea = (paths: PathsD) => paths.reduce((s, p) => s + areaD(p), 0);
 
 const miter = (paths: PathsD, delta: number) => inflatePathsD(paths, delta, JoinType.Miter, EndType.Polygon, 4, PRECISION);

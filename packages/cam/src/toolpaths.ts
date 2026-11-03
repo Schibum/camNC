@@ -1,6 +1,6 @@
 import { areaD, pointInPolygonD, PointInPolygonResult, simplifyPathsD, type PathD, type PathsD } from 'clipper2-ts';
 import { openPocketRegion, type PartFeatures } from './features';
-import { difference, offset, pathLength, polyArea, type Vec3 } from './geom';
+import { clipLines, difference, offset, pathLength, polyArea, type Vec3 } from './geom';
 
 export interface Tool {
   number: number;
@@ -35,6 +35,11 @@ export interface CamSettings {
    * them to size (at feed × pocketFinishFeedFactor). 0 = off: the wall ring is cut at every depth.
    */
   pocketWallAllowance: number;
+  /**
+   * The same for pockets open to the edge (rabbets), where it's on by default: rows cut toward the walls stop this
+   * far off them, then one full-depth climb pass finishes the walls. 0 = the last row cuts the walls.
+   */
+  openWallAllowance?: number;
   pocketFinishFeedFactor: number;
   /** Rounds the corners of inner pocket rings (not the wall ring) so the bit doesn't stop and turn; 0 = sharp. */
   innerCornerRadius: number;
@@ -343,6 +348,148 @@ function depthLevels(top: number, bottom: number, maxStep: number): number[] {
 
 // ---- operations ----
 
+/** Wall allowance of pockets open to the edge when none is set: a light full-depth pass finishes their walls. */
+const kOpenWallAllowance = 0.2;
+
+/** `line` turned so that `walls` (a region it runs along the boundary of) is on its right: climb with an M3 spindle. */
+function wallsOnRight(line: PathD, walls: PathsD): PathD {
+  let best = 1;
+  for (let i = 2; i < line.length; i++) if (dist2(line[i - 1], line[i]) > dist2(line[best - 1], line[best])) best = i;
+  const a = line[best - 1],
+    b = line[best];
+  const len = Math.sqrt(dist2(a, b)) || 1;
+  // A point just to the right of the longest segment.
+  const probe = { x: (a.x + b.x) / 2 + ((b.y - a.y) / len) * 0.01, y: (a.y + b.y) / 2 - ((b.x - a.x) / len) * 0.01 };
+  return insideRegion(probe, walls) ? line : [...line].reverse();
+}
+
+/** Points of `line` up to arc length `len` (the last one interpolated). */
+function prefix(line: PathD, len: number): PathD {
+  const out = [line[0]];
+  let acc = 0;
+  for (let i = 1; i < line.length; i++) {
+    const d = Math.sqrt(dist2(line[i - 1], line[i]));
+    if (acc + d >= len) {
+      const t = (len - acc) / (d || 1);
+      out.push({ x: line[i - 1].x + t * (line[i].x - line[i - 1].x), y: line[i - 1].y + t * (line[i].y - line[i - 1].y) });
+      return out;
+    }
+    acc += d;
+    out.push(line[i]);
+  }
+  return out;
+}
+
+/** Ramp down from zFrom to zTo going back and forth along the start of `line`, then run all of it at zTo. */
+function rampAlong(line: PathD, zFrom: number, zTo: number, s: CamSettings): Pass {
+  const slope = Math.tan((s.rampAngleDeg * Math.PI) / 180);
+  const leg = prefix(line, Math.min(pathLength(line, false), 30));
+  const legLen = pathLength(leg, false);
+  const pts: Vec3[] = [[leg[0].x, leg[0].y, zFrom]];
+  const feeds = [s.plungeFeed];
+  let z = zFrom,
+    forward = true;
+  for (let n = 0; z > zTo + 1e-9 && n < 1000 && legLen > 0; n++, forward = !forward) {
+    const way = forward ? leg : [...leg].reverse();
+    for (let i = 1; i < way.length && z > zTo + 1e-9; i++) {
+      const d = Math.sqrt(dist2(way[i - 1], way[i]));
+      const t = Math.min(1, (z - zTo) / (d * slope || 1e-9));
+      z = Math.max(zTo, z - d * t * slope);
+      pts.push([way[i - 1].x + t * (way[i].x - way[i - 1].x), way[i - 1].y + t * (way[i].y - way[i - 1].y), z]);
+      feeds.push(s.feed);
+    }
+  }
+  // Down: back to the start of the line along it, then the whole line at depth.
+  const at = pts[pts.length - 1];
+  const back = leg.filter((_, i) => i > 0 && !(forward === false && i === leg.length - 1));
+  const k = back.findIndex(q => Math.abs(q.x - at[0]) < 1e-9 && Math.abs(q.y - at[1]) < 1e-9);
+  for (const q of [...(k >= 0 ? back.slice(0, k) : back)].reverse()) {
+    pts.push([q.x, q.y, zTo]);
+    feeds.push(s.feed);
+  }
+  for (const q of line) {
+    pts.push([q.x, q.y, zTo]);
+    feeds.push(s.feed);
+  }
+  return { pts, feeds, link: 'retract' };
+}
+
+/**
+ * A pocket open to the part's edge (rabbet, edge groove): passes parallel to its walls, from the far (waste) side in
+ * towards them, each at most a stepover closer, so the bit is never buried in a full-width cut next to a wall. Per
+ * depth the farthest pass ramps in, the nearest runs `allowance` off the walls, climb; then one full-depth climb pass
+ * finishes the walls. Every pass starts and ends where the region meets the waste and runs along the end walls and
+ * around their corners: no move straight into a wall, no sharp turn onto it.
+ */
+function openPocketPasses(comp: PathsD, walls: PathsD, topZ: number, floorZ: number, tool: Tool, s: CamSettings): Pass[] {
+  const r = tool.diameter / 2;
+  const stepdown = stepdownFor(tool, s);
+  const levels = depthLevels(topZ, floorZ, stepdown);
+  // The load on the bit is width x depth: shallow levels (e.g. the last 0.3 mm of a rabbet) may take wider rows,
+  // up to 0.9 D so that neighbouring rows still overlap.
+  const depth = topZ - floorZ > 0 ? (topZ - floorZ) / levels.length : stepdown;
+  const stepover = Math.min(0.9 * tool.diameter, s.stepoverFactor * tool.diameter * Math.max(1, stepdown / depth));
+  // A shallow pocket (the last few tenths of a rabbet) cuts its walls lightly anyway: no separate finishing pass.
+  const allowance = s.pocketWallAllowance || (topZ - floorZ > 1 ? (s.openWallAllowance ?? kOpenWallAllowance) : 0);
+  const free = offset(comp, -r);
+  // A path right at the free area's edge (the row next to the walls) would come out of the clip in slivers: clip to
+  // a hair more. Paths are at least `d` >= r from the walls anyway.
+  const clipArea = offset(free, 0.01);
+  // The bit-center paths `d` away from the walls, inside the free area, walls on the right.
+  const along = (d: number) => {
+    const around = offset(walls, d);
+    return clipLines(
+      around.map(l => [...l, l[0]]),
+      clipArea
+    )
+      .filter(l => l.length > 1 && pathLength(l, false) > 0.5)
+      .map(l => wallsOnRight(l, around));
+  };
+  const near = r + allowance;
+  if (!along(near).length) return [];
+  // The farthest a pass can be from the walls (the free area's far side, in the waste).
+  const xs = comp.flat().map(q => q.x),
+    ys = comp.flat().map(q => q.y);
+  let lo = near,
+    hi = near + Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+  for (let i = 0; i < 30 && hi - lo > 0.005; i++) {
+    const mid = (lo + hi) / 2;
+    if (along(mid).length) lo = mid;
+    else hi = mid;
+  }
+  // Rows evenly spaced, at most a quarter wider than the stepover (a whole extra row for a few tenths isn't worth it).
+  const span = lo - near;
+  let n = Math.max(span > 1e-6 ? 1 : 0, Math.round(span / stepover));
+  if (n && span / n > 1.25 * stepover) n = Math.ceil(span / stepover - 1e-9);
+  const rows = Array.from({ length: n + 1 }, (_, k) => along(n ? lo - (k * (lo - near)) / n : near));
+  // The row next to the walls is climb; each row before it runs the way that ends where the next one starts.
+  for (let k = n - 1; k >= 0; k--) {
+    const next = rows[k + 1][0]?.[0];
+    if (next) rows[k] = rows[k].map(l => (dist2(l[0], next) < dist2(l[l.length - 1], next) ? [...l].reverse() : l));
+  }
+  const passes: Pass[] = [];
+  let last: Vec3 | undefined;
+  const run = (line: PathD, z: number, feed: number, rampFrom?: number) => {
+    const hop = last ? Math.sqrt(dist2({ x: last[0], y: last[1] }, line[0])) : Infinity;
+    const pass: Pass =
+      rampFrom !== undefined
+        ? rampAlong(line, rampFrom, z, s)
+        : hop <= tool.diameter
+          ? { pts: line.map(q => [q.x, q.y, z]), feeds: line.map(() => feed), link: 'direct' }
+          : { pts: line.map(q => [q.x, q.y, z]), feeds: line.map((_, k) => (k === 0 ? s.plungeFeed : feed)), link: 'retract' };
+    passes.push(pass);
+    last = pass.pts[pass.pts.length - 1];
+  };
+  let prevZ = topZ;
+  for (const z of levels) {
+    rows.forEach((row, k) => row.forEach((line, i) => run(line, z, s.feed, k === 0 && i === 0 ? prevZ : undefined)));
+    prevZ = z;
+  }
+  // The walls to size, full depth, climb.
+  if (allowance > 0) for (const line of along(r)) run(line, floorZ, s.feed * s.pocketFinishFeedFactor);
+  return passes;
+}
+
 /** Contour-parallel (offset) pocket, innermost ring first, ramped entries, climb by default. */
 /** `solid`: the part's outlines; ramp entries of pockets open to the edge then start in the waste outside them. */
 export function pocketOperation(
@@ -360,6 +507,8 @@ export function pocketOperation(
   const passes: Pass[] = [];
   let pos = { x: 0, y: 0 };
   const comps = components(region);
+  // The material the pocket's walls belong to, for pockets open to the edge.
+  const walls = solid && difference(solid, region);
   const remaining = new Set(comps.map((_, i) => i));
   while (remaining.size) {
     // Nearest pocket next.
@@ -373,6 +522,15 @@ export function pocketOperation(
       }
     }
     remaining.delete(ci);
+    if (solid && walls && offset(comps[ci], -r).some(l => rotateToWaste(l, solid))) {
+      const open = openPocketPasses(comps[ci], walls, topZ, floorZ, tool, s);
+      if (open.length) {
+        passes.push(...open);
+        const end = open[open.length - 1].pts.at(-1)!;
+        pos = { x: end[0], y: end[1] };
+        continue;
+      }
+    }
     const entry = (oriented: Loop, nearest: Loop, zFrom: number, zTo: number): Pass => {
       const waste = solid && rotateToWaste(oriented, solid);
       return waste ? rampOnWasteEdge(waste, zFrom, zTo, s) : rampLoop(nearest, zFrom, zTo, s, tool);
