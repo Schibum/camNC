@@ -100,7 +100,11 @@ const api = {
     const cam = camBoard(boardSpec(key, board), settings);
     const feed = (settings.feed ?? 1800) * (settings.finalFeedFactor ?? 0.5);
     const { cam: removal, tabs } = tabRemovalProgram(cam, { feed, plungeFeed: settings.plungeFeed ?? 480 });
-    const gcode = toGcode(removal, { partName: `Board ${board.name}: tab removal`, stockSize: [board.w, board.h, board.stockTop] });
+    const gcode = toGcode(removal, {
+      partName: `Board ${board.name}: tab removal`,
+      board: board.name,
+      stockSize: [board.w, board.h, board.stockTop],
+    });
     return { gcode, tabs, timeMin: metrics(readGcode(gcode), cam.stockTop).timeMin };
   },
 
@@ -109,7 +113,7 @@ const api = {
     const spec = boardSpec(key, board);
     const cam = camBoard(spec, settings);
     const size: [number, number, number] = [board.w, board.h, board.stockTop];
-    return summarize(cam, `Board ${board.name}`, size, settings, board.thickness);
+    return summarize(cam, `Board ${board.name}`, size, settings, board.thickness, board.name);
   },
 };
 
@@ -159,12 +163,17 @@ function summarize(
   name: string,
   size: [number, number, number],
   settings: Partial<CamSettings>,
-  partTop = cam.stockTop
+  partTop = cam.stockTop,
+  board?: string
 ): PlanResult {
   const split = splitByBit(cam);
   const programs = split.map(p => {
     const tool = p.operations[0].tool;
-    const gcode = toGcode(p, { partName: split.length > 1 ? `${name}, bit T${tool.number} D=${tool.diameter}` : name, stockSize: size });
+    const gcode = toGcode(p, {
+      partName: split.length > 1 ? `${name}, bit T${tool.number} D=${tool.diameter}` : name,
+      board,
+      stockSize: size,
+    });
     return { tool: tool.number, diameter: tool.diameter, gcode, timeMin: metrics(readGcode(gcode), cam.stockTop).timeMin };
   });
   const one = (ops: typeof cam.operations) => metrics(readGcode(toGcode({ ...cam, operations: ops })), cam.stockTop);

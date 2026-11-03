@@ -84,7 +84,7 @@ describe('at the machine', () => {
     for (const p of programs) {
       const gcode = toGcode(p);
       expect(gcode).not.toContain('Change to');
-      expect(gcode).toContain('M0 (MSG Turn ON spindle 15000RPM)');
+      expect(gcode).toContain('M3 S15000');
       expect(checkGcodeSafety(gcode, { stockTop: 8, size: [340, 140], minZ: -0.3, toolRadius: 3 })).toEqual([]);
     }
   });

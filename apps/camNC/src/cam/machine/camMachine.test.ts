@@ -40,7 +40,8 @@ describe('machine queue', () => {
   it('knows which tab the removal program is at from the SD progress', () => {
     const g = [
       'G0 Z13',
-      'M0 (MSG Turn ON spindle 15000RPM)',
+      'M0 (MSG Spindle starts at 15000 RPM next. Manual spindle: turn it on now)',
+      'M3 S15000',
       'M0 (MSG Tab 1 of 2: hold left)',
       'G1 X1',
       'M0 (MSG Tab 2 of 2: hold left)',

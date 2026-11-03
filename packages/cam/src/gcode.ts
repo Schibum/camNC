@@ -68,8 +68,12 @@ export function fitArcs(p: P2[], tol = 0.01, maxSagitta = 0.05, maxRadius = 1000
 
 export interface GcodeOptions {
   partName?: string;
+  /** The board's name ("A"): the header then says XY0 is that board's lower left corner. */
+  board?: string;
   stockSize?: Vec3;
   spindleRpm?: number;
+  /** Seconds to wait after M3 for the spindle to reach speed. */
+  spindleDwell?: number;
   /** Absolute Z for moves between operations / at start and end. Default stock top + 5. */
   safeZ?: number;
   /** Absolute Z between passes of one operation. Default stock top + 2. */
@@ -88,7 +92,7 @@ const toolLine = (t: Tool, zMin: number) =>
   `(  T${t.number} D=${fmt(t.diameter)} CR=0 - ZMIN=${fmt(zMin)} - ${t.name ?? 'flat end mill'} )`;
 
 /**
- * FluidNC/grbl dialect G-code for one bit. Z0 = stock bottom, XY0 = lower left of the part. Several bits make
+ * FluidNC/grbl dialect G-code for one bit. Z0 = stock bottom, XY0 = lower left of the stock (the board). Several bits make
  * several programs (`splitByBit`): FluidNC can't zero Z while a program is paused, so a swap can't happen inside one.
  */
 export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
@@ -109,10 +113,12 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
     else tools.push({ tool: op.tool, zMin });
   }
 
-  const out: string[] = ['(camNC CAM POC)'];
-  if (opts.partName) out.push(`(Part: ${opts.partName})`);
+  const out: string[] = ['(camNC CAM)'];
+  if (opts.partName) out.push(`(${opts.partName.replace(/[()]/g, '')})`);
   if (opts.stockSize) out.push(`(Stock: ${opts.stockSize.map(fmt).join(' x ')} mm)`);
-  out.push('(Z0 = stock bottom, X0 Y0 = lower left corner of the part)');
+  const corner = opts.board ? `board ${opts.board}` : 'the stock';
+  const size = opts.stockSize ? `, ${fmt(opts.stockSize[0])} x ${fmt(opts.stockSize[1])} mm` : '';
+  out.push(`(X0 Y0 = lower left corner of ${corner}${size}. Z0 = stock bottom)`);
   out.push('( Tools Table:)', ...tools.map(t => toolLine(t.tool, t.zMin)), '( )');
   for (const w of cam.warnings) out.push(`(WARNING: ${w.replace(/[()]/g, '')})`);
   out.push('G21 G90 G94 G17');
@@ -144,7 +150,9 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
   };
 
   move('G0', { z: safeZ });
-  out.push(`M0 (MSG Turn ON spindle ${rpm}RPM)`);
+  // Confirm before the spindle starts; a spindle the machine doesn't control (a router) is switched on here.
+  out.push(`M0 (MSG Spindle starts at ${rpm} RPM next. Manual spindle: turn it on now)`);
+  out.push(`M3 S${rpm}`, `G4 P${fmt(opts.spindleDwell ?? 3)}`);
 
   cam.operations.forEach((op, oi) => {
     if (op.pauseBefore) {
@@ -211,6 +219,8 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
     });
   });
   move('G0', { z: safeZ });
+  out.push('M5');
   move('G0', { x: 0, y: 0 });
+  out.push('M30');
   return out.join('\n') + '\n';
 }

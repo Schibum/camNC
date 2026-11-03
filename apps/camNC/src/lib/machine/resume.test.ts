@@ -239,3 +239,42 @@ describe('passStarts', () => {
     expect(buildResumeProgram(program, { line: passes[1]!.line, safeZMachine: -1 }).start).toEqual({ x: 20, y: 10, z: -1 });
   });
 });
+
+describe('resuming a camNC CAM program', () => {
+  // What the CAM emits now: a confirm pause, M3 with a dwell, passes, then M5 and M30.
+  const gcode = [
+    '(camNC CAM)',
+    '(X0 Y0 = lower left corner of board A, 600 x 300 mm. Z0 = stock bottom)',
+    'G21 G90 G94 G17',
+    'G0 Z13',
+    'M0 (MSG Spindle starts at 15000 RPM next. Manual spindle: turn it on now)',
+    'M3 S15000',
+    'G4 P3',
+    '(OP 1/1 Outline - T1 D=3.175)',
+    '(PASS 1/2 Z4)',
+    'G0 X0 Y0',
+    'Z9',
+    'G1 Z4 F480',
+    'X20 F1800',
+    '(PASS 2/2 Z0)',
+    'G1 Z0 F480',
+    'X0 F1800',
+    'G0 Z13',
+    'M5',
+    'X0 Y0',
+    'M30',
+    '',
+  ].join('\n');
+
+  it('starts the spindle again before plunging and keeps the program end', () => {
+    const program = parseProgram(gcode);
+    const [, second] = passStarts(program);
+    const resume = buildResumeProgram(program, { line: second!.line, safeZMachine: -1 });
+    const lines = resume.gcode.split('\n');
+    const m3 = lines.indexOf('M3 S15000');
+    expect(m3).toBeGreaterThan(0);
+    expect(m3).toBeLessThan(resume.preambleLines);
+    expect(lines.slice(-4)).toEqual(['M5', 'X0 Y0', 'M30', '']);
+    expect(resume.warnings).toEqual([]);
+  });
+});

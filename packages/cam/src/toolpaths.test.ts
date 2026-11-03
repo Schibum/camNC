@@ -176,11 +176,25 @@ describe('spike 3/4: toolpaths + gcode', () => {
     const cam = camPart(board(), { tabs: DEFAULT_TABS });
     const gcode = toGcode(cam, { partName: 'test board', stockSize: [200, 100, 8] });
     expect(gcode).toMatch(/^\(  T1 D=3\.175 CR=0 - ZMIN=-0\.3 - flat end mill \)$/m);
-    expect(gcode).toContain('M0 (MSG Turn ON spindle 15000RPM)');
+    expect(gcode).toContain('(X0 Y0 = lower left corner of the stock, 200 x 100 mm. Z0 = stock bottom)');
+    // Confirm, then the spindle starts and comes up to speed before the first move; off and end of program at the end.
+    const lines = gcode.trim().split('\n');
+    const m3 = lines.indexOf('M3 S15000');
+    expect(lines[m3 - 1]).toMatch(/^M0 \(MSG Spindle starts at 15000 RPM next/);
+    expect(lines[m3 + 1]).toBe('G4 P3');
+    expect(lines.findIndex(l => /^G1 /.test(l))).toBeGreaterThan(m3);
+    expect(lines.slice(-3)).toEqual(['M5', 'X0 Y0', 'M30']);
     expect(gcode).toMatch(/G[23] X/);
     const m = metrics(readGcode(gcode), 8);
     expect(m.zMin).toBeCloseTo(-0.3);
     expect(m.zLevels).toContain(4);
+  });
+
+  it('says in the header which board corner XY0 is', () => {
+    const gcode = toGcode(camPart(board(), {}), { partName: 'Board B', board: 'B', stockSize: [600, 300, 8.3] });
+    expect(gcode).toContain('(Board B)');
+    expect(gcode).toContain('(X0 Y0 = lower left corner of board B, 600 x 300 mm. Z0 = stock bottom)');
+    expect(gcode).not.toContain('of the part');
   });
 });
 
