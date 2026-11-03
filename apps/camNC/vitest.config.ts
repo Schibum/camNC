@@ -20,7 +20,9 @@ export default defineConfig({
       'react-hotkeys-hook',
       '@wbcnc/ui > @radix-ui/react-popover',
       'occt-import-js',
-      'clipper2-ts',
+      // Only a dependency of @wbcnc/cam, so not resolvable from here by its bare name: unresolved, Vite discovers it
+      // mid-run and reloads the page, failing whichever test file is running.
+      '@wbcnc/cam > clipper2-ts',
     ],
   },
   test: {

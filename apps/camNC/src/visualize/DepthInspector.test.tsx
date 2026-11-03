@@ -133,13 +133,15 @@ describe('DepthPanel', () => {
     // Stays visible with the panel collapsed.
     fireEvent.click(screen.getByRole('button', { expanded: true }));
     const input = screen.getByRole('spinbutton', { name: 'Stock height' });
-    act(() => input.focus());
+    // The test page is not focused (document.hasFocus() is false headless), so input.focus() fires no focus events:
+    // dispatch them, as a user clicking into the field would.
+    fireEvent.focus(input);
     fireEvent.change(input, { target: { value: '12.5' } });
     expect(store.stockHeight).toBe(12.5);
     // Not hidden mid-typing.
     rerender(<DepthPanel toolpath={parseGCode(gcode)} />);
     expect(screen.getByRole('spinbutton', { name: 'Stock height' })).toBe(input);
-    act(() => input.blur());
+    fireEvent.blur(input);
     // Done, so it moves out of the way with the rest of the panel.
     expect(screen.queryByRole('spinbutton', { name: 'Stock height' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { expanded: false }));
