@@ -56,7 +56,8 @@ function StepLink({ active, enabled, children }: { active: boolean; enabled: boo
       className={cn(
         'whitespace-nowrap rounded-md px-3 py-1.5 text-sm',
         active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground',
-        !enabled && !active && 'opacity-60'
+        // Not there yet: lighter than the step links, but still 3:1 (opacity on the text alone, not the whole chip).
+        !enabled && !active && 'cursor-default text-muted-foreground/75'
       )}>
       {children}
     </span>

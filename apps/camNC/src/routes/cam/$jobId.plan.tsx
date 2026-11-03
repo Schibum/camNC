@@ -1,4 +1,6 @@
 import { PageHeader } from '@/components/page-header';
+import { CamPage } from '@/cam/CamPage';
+import { NoPartsToMill } from '@/cam/NoPartsToMill';
 import { useBoardPlans, useCamJob, useCamModel, useSaveCamJob } from '@/cam/camQueries';
 import type { OpSummary, PlanResult } from '@/cam/camTypes';
 import type { FlipRegistration } from '@wbcnc/cam';
@@ -68,7 +70,12 @@ function PlanStep() {
   const bar = <CamJobBar jobId={job.id} fileName={job.fileName} step="Plan" />;
   if (model.isError) return <Shell bar={bar} message={model.error.message} />;
   if (!model.data) return <Shell bar={bar} loading={`Reading ${job.fileName}…`} />;
-  if (!active.length) return <Shell bar={bar} message="No part to mill: mark parts as milled in the Model step." />;
+  if (!active.length)
+    return (
+      <Shell bar={bar}>
+        <NoPartsToMill jobId={job.id} />
+      </Shell>
+    );
 
   const settings = job.plan ?? kDefaultPlan;
   // Parts that don't fit their board are not cut: the job is blocked until they fit or are left out on purpose.
@@ -580,7 +587,7 @@ function Shell({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-dvh w-full min-w-0 flex-col md:h-dvh">
+    <CamPage className="min-h-dvh md:h-dvh">
       <PageHeader title="CAM (beta)" />
       {bar}
       {message && <p className="m-8 text-muted-foreground">{message}</p>}
@@ -590,6 +597,6 @@ function Shell({
         </div>
       )}
       {children}
-    </div>
+    </CamPage>
   );
 }

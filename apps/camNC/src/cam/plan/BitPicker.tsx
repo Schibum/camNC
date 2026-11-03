@@ -9,6 +9,7 @@ import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 import { bitKey } from '../cuttingData';
 import { Hint } from '../Hint';
+import { numberProblem, parseDecimal } from '../numberFormat';
 import { type PlanSettingsV1 } from '../planSettings';
 import { useBits, useToolLibrary, type StoredBit } from '../toolLibrary';
 import { ImportToolLibrary } from './ImportToolLibrary';
@@ -18,16 +19,53 @@ const sourceOf = (b: LibraryTool) => {
   const s = b as Partial<StoredBit>;
   return s.source === 'custom' ? 'added by hand' : s.library ? `library: ${s.library}` : 'built in';
 };
+/** Flutes and flute length, as far as known: "2 flutes · 22 mm flute length", or "". */
+const bitSpecs = (b: LibraryTool) =>
+  [b.flutes && `${b.flutes} ${b.flutes === 1 ? 'flute' : 'flutes'}`, b.fluteLength && `${+b.fluteLength.toFixed(1)} mm flute length`]
+    .filter(Boolean)
+    .join(' · ');
+
+/**
+ * A bit in a select: its name on as many lines as it takes (long library names like "VHM-Schaftfräser Z2 Ø 6 mm HB"
+ * would be cut off), flutes and flute length below. The select itself shows only the first line.
+ */
+function BitOption({ bit }: { bit: LibraryTool }) {
+  return (
+    <SelectItem value={bitKey(bit)} className="py-2">
+      <span className="flex min-w-0 flex-col items-start gap-0.5">
+        <span className="whitespace-normal break-words">{bitLabel(bit)}</span>
+        <span className="text-xs text-muted-foreground">{bitSpecs(bit) || 'Flat end mill'}</span>
+      </span>
+    </SelectItem>
+  );
+}
+
+/** The select's own line for the chosen bit: one line, cut off with "…" (the full name is in the list and the title). */
+function BitValue({ bit }: { bit: LibraryTool | undefined }) {
+  return (
+    <SelectValue>
+      {bit && (
+        <span className="truncate" title={bitLabel(bit)}>
+          {bitLabel(bit)}
+        </span>
+      )}
+    </SelectValue>
+  );
+}
 
 /** A bit that's in no library: diameter, flutes and a name. */
 function CustomBitForm({ onAdd }: { onAdd: (bit: StoredBit) => void }) {
   const [d, setD] = useState('');
   const [flutes, setFlutes] = useState('2');
   const [name, setName] = useState('');
-  const diameter = parseFloat(d);
-  const ok = Number.isFinite(diameter) && diameter > 0 && diameter <= 25;
+  const diameter = parseDecimal(d);
+  const dProblem = d.trim() ? numberProblem(d, { min: 0, minExclusive: true, max: 25, unit: 'mm' }) : null;
+  const flutesProblem = flutes.trim() ? numberProblem(flutes, { min: 1, max: 12, integer: true }) : null;
+  const ok = !!d.trim() && !dProblem && !flutesProblem;
   const add = () => {
-    useToolLibrary.getState().addCustom({ diameter, flutes: parseInt(flutes) || undefined, name: name.trim() || `${diameter} mm flat` });
+    useToolLibrary
+      .getState()
+      .addCustom({ diameter, flutes: parseDecimal(flutes) || undefined, name: name.trim() || `${diameter} mm flat` });
     onAdd(useToolLibrary.getState().bits.at(-1)!);
   };
   return (
@@ -39,13 +77,19 @@ function CustomBitForm({ onAdd }: { onAdd: (bit: StoredBit) => void }) {
           </Label>
           <Input
             id="custom-bit-d"
-            type="number"
-            min={0.1}
-            step={0.1}
+            inputMode="decimal"
+            autoComplete="off"
             className="h-8 font-mono"
             value={d}
+            aria-invalid={dProblem ? true : undefined}
+            aria-describedby={dProblem ? 'custom-bit-d-error' : undefined}
             onChange={e => setD(e.target.value)}
           />
+          {dProblem && (
+            <p id="custom-bit-d-error" className="text-xs text-destructive">
+              {dProblem}
+            </p>
+          )}
         </div>
         <div className="flex flex-col gap-1">
           <Label htmlFor="custom-bit-flutes" className="text-xs font-normal text-muted-foreground">
@@ -53,13 +97,19 @@ function CustomBitForm({ onAdd }: { onAdd: (bit: StoredBit) => void }) {
           </Label>
           <Input
             id="custom-bit-flutes"
-            type="number"
-            min={1}
-            step={1}
+            inputMode="numeric"
+            autoComplete="off"
             className="h-8 font-mono"
             value={flutes}
+            aria-invalid={flutesProblem ? true : undefined}
+            aria-describedby={flutesProblem ? 'custom-bit-flutes-error' : undefined}
             onChange={e => setFlutes(e.target.value)}
           />
+          {flutesProblem && (
+            <p id="custom-bit-flutes-error" className="text-xs text-destructive">
+              {flutesProblem}
+            </p>
+          )}
         </div>
       </div>
       <div className="flex flex-col gap-1">
@@ -94,18 +144,16 @@ export function BitSettings({ value, onChange }: { value: PlanSettingsV1; onChan
         <Label htmlFor="plan-bit">Bit</Label>
         <Select value={bitKey(value.bit)} onValueChange={k => set({ bit: bits.find(b => bitKey(b) === k)! })}>
           <SelectTrigger id="plan-bit" className="w-full">
-            <SelectValue />
+            <BitValue bit={value.bit} />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-w-[min(26rem,calc(100vw-2rem))]">
             {bits.map(b => (
-              <SelectItem key={bitKey(b)} value={bitKey(b)}>
-                {bitLabel(b)}
-              </SelectItem>
+              <BitOption key={bitKey(b)} bit={b} />
             ))}
           </SelectContent>
         </Select>
         <p className="text-xs text-muted-foreground">
-          Flat end mill{value.bit.flutes ? `, ${value.bit.flutes} flutes` : ''} · {sourceOf(value.bit)}
+          Flat end mill{bitSpecs(value.bit) && ` · ${bitSpecs(value.bit)}`} · {sourceOf(value.bit)}
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <ImportToolLibrary onImport={importLibrary} />
@@ -132,14 +180,12 @@ export function BitSettings({ value, onChange }: { value: PlanSettingsV1; onChan
           value={value.smallBit ? bitKey(value.smallBit) : 'none'}
           onValueChange={k => set({ smallBit: k === 'none' ? undefined : bits.find(b => bitKey(b) === k) })}>
           <SelectTrigger id="plan-small-bit" className="w-full">
-            <SelectValue />
+            {value.smallBit ? <BitValue bit={value.smallBit} /> : <SelectValue />}
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-w-[min(26rem,calc(100vw-2rem))]">
             <SelectItem value="none">None</SelectItem>
             {smaller.map(b => (
-              <SelectItem key={bitKey(b)} value={bitKey(b)}>
-                {bitLabel(b)}
-              </SelectItem>
+              <BitOption key={bitKey(b)} bit={b} />
             ))}
           </SelectContent>
         </Select>

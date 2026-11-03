@@ -186,10 +186,12 @@ describe('CAM boards step', () => {
       ['Width', '1220'],
       ['Height', '610'],
     ]) {
-      const input = screen.getByLabelText(label);
+      // The board's own fields (the stock list has a Width and Height too).
+      const field = () => screen.getByLabelText(label, { selector: '[id^="board-"]' }) as HTMLInputElement;
+      const input = field();
       fireEvent.change(input, { target: { value } });
       fireEvent.blur(input);
-      await waitFor(() => expect((screen.getByLabelText(label) as HTMLInputElement).value).toBe(value));
+      await waitFor(() => expect(field().value).toBe(value));
     }
     await waitFor(async () =>
       expect((await getJob(job.id))!.boards!.find(b => b.name === 'C')!.size).toEqual({ fit: false, w: 1220, h: 610 })
@@ -307,6 +309,37 @@ describe('CAM boards step', () => {
     await waitFor(() => expect(screen.getByText(/edge margin 8 mm · gap 10 mm/)).toBeTruthy(), { timeout: 10_000 });
   }, 90_000);
 
+  it('labels the stock fields, takes comma decimals, says what is wrong, and shows no size for an empty board', async () => {
+    const job = await openKinderregal();
+    // Fitted boards are whole mm.
+    expect(within(screen.getByRole('region', { name: 'Board A' })).getByText('571 × 739')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /New 8 mm board/ }));
+    const c = await screen.findByRole('region', { name: 'Board C' });
+    expect(within(c).getByText('–')).toBeTruthy();
+    const width = screen.getByLabelText('Width', { selector: '#board-w' }) as HTMLInputElement;
+    expect(width.value).toBe('');
+    expect(width.placeholder).toBe('–');
+
+    // Out of range: an inline error instead of silently going back, and nothing saved.
+    fireEvent.change(width, { target: { value: '5' } });
+    fireEvent.blur(width);
+    expect(width.getAttribute('aria-invalid')).toBe('true');
+    expect(description(width)).toMatch(/^5 is out of range: at least 10 mm\./);
+    expect((await getJob(job.id))!.boards!.find(b => b.name === 'C')!.size).toEqual({ fit: true });
+
+    const stockList = within(screen.getByRole('region', { name: 'Stock list' }));
+    for (const label of ['Thickness', 'Width', 'Height', 'Count']) expect(stockList.getByText(label).tagName).toBe('LABEL');
+    fireEvent.change(stockList.getByLabelText('Stock thickness'), { target: { value: '8' } });
+    fireEvent.change(stockList.getByLabelText('Stock width'), { target: { value: '600,5' } });
+    fireEvent.change(stockList.getByLabelText('Stock height'), { target: { value: '30O' } });
+    expect(stockList.getByText(/^Height: Enter a number/)).toBeTruthy();
+    expect(stockList.getByRole('button', { name: 'Add stock board' }).hasAttribute('disabled')).toBe(true);
+    fireEvent.change(stockList.getByLabelText('Stock height'), { target: { value: '300' } });
+    fireEvent.click(stockList.getByRole('button', { name: 'Add stock board' }));
+    await waitFor(async () => expect((await getJob(job.id))!.stock).toMatchObject([{ thickness: 8, w: 600.5, h: 300 }]));
+    expect(stockList.getByText('8 mm · 600.5 × 300')).toBeTruthy();
+  }, 90_000);
+
   it('after every part is unticked in the Model step, no board keeps parts', async () => {
     const job = await openKinderregal();
     await waitFor(async () => expect((await getJob(job.id))!.boards?.length).toBeGreaterThan(0), { timeout: 10_000 });
@@ -318,7 +351,11 @@ describe('CAM boards step', () => {
         <BoardsStep />
       </QueryClientProvider>
     );
-    expect(await screen.findByText(/No part to mill/, {}, { timeout: 60_000 })).toBeTruthy();
+    const empty = await screen.findByRole('status', {}, { timeout: 60_000 });
+    expect(empty.textContent).toMatch(/^No part to mill/);
+    // The way back, and no way on.
+    expect(within(empty).getByText('Back to the Model step')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Next: Plan' }).hasAttribute('disabled')).toBe(true);
     expect(screen.queryByRole('region', { name: 'Board A' })).toBeNull();
   }, 90_000);
 });

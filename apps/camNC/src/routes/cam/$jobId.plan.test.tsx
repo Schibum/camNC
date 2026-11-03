@@ -106,7 +106,7 @@ describe('CAM plan step', () => {
     // This job only: 3.5 mm per pass (what the Fusion setups use for the outline) makes fewer, deeper passes: the
     // 7.3 mm of outline roughing in 3 even steps of 2.43 instead of 5 of 1.46.
     const panel = screen.getByRole('region', { name: 'Cutting data' });
-    fireEvent.change(within(panel).getByRole('spinbutton', { name: /^Stepdown/ }), { target: { value: '3.5' } });
+    fireEvent.change(within(panel).getByRole('textbox', { name: /^Stepdown/ }), { target: { value: '3.5' } });
     fireEvent.click(within(panel).getByRole('button', { name: 'Only this job' }));
     const deepest = () => Math.max(...stepdowns(screen.getByRole('table', { name: 'Operations for board A' })));
     await vi.waitFor(() => expect(deepest()).toBeGreaterThan(2.4), { timeout: 30_000 });
@@ -118,7 +118,7 @@ describe('CAM plan step', () => {
     const firstStepdown = within(screen.getByRole('table', { name: 'Operations for board A' })).getAllByRole('row')[1];
     fireEvent.click(within(firstStepdown).getAllByRole('cell')[5].querySelector('button')!);
     const popover = await screen.findByRole('dialog');
-    fireEvent.change(within(popover).getByRole('spinbutton', { name: /^Stepdown/ }), { target: { value: '1' } });
+    fireEvent.change(within(popover).getByRole('textbox', { name: /^Stepdown/ }), { target: { value: '1' } });
     fireEvent.click(within(popover).getByRole('button', { name: /^Save for ⌀3.175 .* \+ oak$/ }));
     // Every pass at most 1 mm, except the outline's final pass: from 1 mm above the bottom through to -0.3.
     await vi.waitFor(() => expect(deepest()).toBeLessThanOrEqual(1.3), { timeout: 30_000 });

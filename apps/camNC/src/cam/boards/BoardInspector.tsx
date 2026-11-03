@@ -2,13 +2,13 @@ import type { FlipRegistration, TabFallback } from '@wbcnc/cam';
 import type { HoldDown } from '@wbcnc/cam';
 import { MATERIALS } from '@wbcnc/cam/settings';
 import { Button } from '@wbcnc/ui/components/button';
-import { Input } from '@wbcnc/ui/components/input';
 import { Label } from '@wbcnc/ui/components/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wbcnc/ui/components/select';
 import { kStockAllowance, stockTopOf, type BoardNest, type BoardV1, type StockBoardV1 } from '../boards';
 import type { MaterialKey } from '../planSettings';
 import { kHoldDownLabels } from '../boards';
 import { Hint } from '../Hint';
+import { NumberInput } from '../NumberInput';
 
 const fmt = (v: number) => `${+v.toFixed(1)}`;
 
@@ -18,6 +18,8 @@ function NumberField({
   value,
   onCommit,
   min = 0,
+  integer,
+  empty,
   hint,
 }: {
   id: string;
@@ -25,6 +27,9 @@ function NumberField({
   value: number;
   onCommit: (v: number) => void;
   min?: number;
+  integer?: boolean;
+  /** Nothing to show yet: the field shows "–". */
+  empty?: boolean;
   /** What the value does: tooltip and the input's accessible description. */
   hint?: string;
 }) {
@@ -33,17 +38,17 @@ function NumberField({
       <Label htmlFor={id} className="text-xs font-normal text-muted-foreground">
         {label}
       </Label>
-      <Input
+      <NumberInput
         id={id}
-        key={value}
-        defaultValue={fmt(value)}
-        inputMode="decimal"
-        className="h-8 font-mono"
-        onBlur={e => {
-          const v = parseFloat(e.target.value.replace(',', '.'));
-          if (Number.isFinite(v) && v >= min && v !== value) onCommit(v);
-        }}
-        onKeyDown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+        value={value}
+        digits={1}
+        min={min}
+        integer={integer}
+        unit={integer ? undefined : 'mm'}
+        empty={empty}
+        placeholder={empty ? '–' : undefined}
+        className="h-8"
+        onCommit={onCommit}
         aria-describedby={hint ? `${id}-hint` : undefined}
       />
     </div>
@@ -113,6 +118,8 @@ export function BoardInspector({
     ? 'fit'
     : (matching.find(s => !board.size.fit && s.w === board.size.w && s.h === board.size.h)?.id ?? 'custom');
   const tabs = board.holdDown === 'tabs' || board.holdDown === 'tabs-guided';
+  // A fitted board with nothing on it has no size yet (only its margins): "–", and a size typed in sets both sides.
+  const emptyFit = board.size.fit && !nest.placements.length;
   return (
     <aside className="flex min-h-0 flex-col gap-3.5 overflow-y-auto border-l p-4">
       <div className="flex items-center gap-2">
@@ -136,17 +143,19 @@ export function BoardInspector({
           id="board-w"
           label="Width"
           value={nest.board.w}
-          onCommit={w => onChange({ ...board, size: { fit: false, w, h: nest.board.h } })}
+          empty={emptyFit}
+          onCommit={w => onChange({ ...board, size: { fit: false, w, h: emptyFit ? w : nest.board.h } })}
           min={10}
         />
         <NumberField
           id="board-h"
           label="Height"
           value={nest.board.h}
-          onCommit={h => onChange({ ...board, size: { fit: false, w: nest.board.w, h } })}
+          empty={emptyFit}
+          onCommit={h => onChange({ ...board, size: { fit: false, w: emptyFit ? h : nest.board.w, h } })}
           min={10}
         />
-        <div className="flex flex-col gap-1">
+        <div className="col-span-2 flex flex-col gap-1">
           <Label htmlFor="board-size" className="text-xs font-normal text-muted-foreground">
             Size
           </Label>
@@ -166,6 +175,7 @@ export function BoardInspector({
               {matching.map(s => (
                 <SelectItem key={s.id} value={s.id}>
                   Stock {fmt(s.w)} × {fmt(s.h)}
+                  {s.quantity !== undefined && ` (${s.quantity} pcs)`}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -306,8 +316,9 @@ export function BoardInspector({
             label="Min #"
             hint="Fewest tabs on each part; long outlines get more. More tabs hold small parts steadier."
             value={board.tabs.minCount}
-            onCommit={minCount => onChange({ ...board, tabs: { ...board.tabs, minCount: Math.round(minCount) } })}
+            onCommit={minCount => onChange({ ...board, tabs: { ...board.tabs, minCount } })}
             min={1}
+            integer
           />
         </div>
       )}

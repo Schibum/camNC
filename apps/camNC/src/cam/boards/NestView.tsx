@@ -79,7 +79,7 @@ export function NestView({
           y={0}
           width={w}
           height={h}
-          className="fill-amber-700/15 stroke-muted-foreground"
+          className="fill-amber-700/15 stroke-muted-foreground dark:fill-amber-400/10"
           strokeWidth={stroke}
           strokeDasharray={`${stroke * 6} ${stroke * 4}`}
         />
@@ -109,11 +109,15 @@ export function NestView({
               )}>
               <path
                 d={toD(part.shape.outlines, f)}
-                className={selected ? 'fill-violet-500/25 stroke-violet-500' : 'fill-amber-600/30 stroke-violet-400'}
+                className={
+                  selected
+                    ? 'fill-violet-500/25 stroke-violet-500'
+                    : 'fill-amber-600/30 stroke-violet-500 dark:fill-amber-400/40 dark:stroke-violet-400'
+                }
                 strokeWidth={stroke * 1.5}
               />
               {part.shape.pockets.map(pk => (
-                <path key={pk.depth} d={toD(pk.region, f)} className="fill-violet-600/70" fillRule="evenodd" />
+                <path key={pk.depth} d={toD(pk.region, f)} className="fill-violet-600/70 dark:fill-violet-500/80" fillRule="evenodd" />
               ))}
               <path d={toD(part.shape.holes, f)} className="fill-background" />
             </g>
@@ -126,7 +130,7 @@ export function NestView({
             y1={a[1]}
             x2={b[0]}
             y2={b[1]}
-            className="stroke-amber-500"
+            className="stroke-amber-600 dark:stroke-amber-500"
             strokeWidth={stroke * 5}
             strokeLinecap="square"
           />
@@ -141,7 +145,7 @@ export function NestView({
                 cx={t.at.x}
                 cy={t.at.y}
                 r={stroke * 9}
-                className="fill-none stroke-red-600"
+                className="fill-none stroke-red-600 dark:stroke-red-500"
                 strokeWidth={stroke * 2.5}>
                 <title>{`${h.part}: this tab holds nothing`}</title>
               </circle>
@@ -176,7 +180,7 @@ export function NestView({
           </text>
         );
       })}
-      <text x={0} y={pad * 0.8} fontSize={u / 50} className="pointer-events-none fill-emerald-600">
+      <text x={0} y={pad * 0.8} fontSize={u / 50} className="pointer-events-none fill-emerald-700 dark:fill-emerald-400">
         XY zero · lower left
       </text>
     </svg>

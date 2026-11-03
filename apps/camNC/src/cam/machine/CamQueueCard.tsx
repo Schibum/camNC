@@ -82,7 +82,9 @@ export function CamQueueCard() {
                   isNow && 'bg-background font-medium ring-1 ring-primary/50',
                   isDone && !isNow && 'text-muted-foreground'
                 )}>
-                <span className="w-4">{isDone ? <Check className="size-3.5 text-emerald-600" /> : isNow ? '●' : ''}</span>
+                <span className="w-4">
+                  {isDone ? <Check className="size-3.5 text-emerald-600 dark:text-emerald-400" /> : isNow ? '●' : ''}
+                </span>
                 <span className="grow">{entryTitle(e)}</span>
                 <span className="font-mono text-xs text-muted-foreground">
                   {e.kind === 'flip'

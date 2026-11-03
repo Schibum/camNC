@@ -1,9 +1,9 @@
-import { Input } from '@wbcnc/ui/components/input';
 import { Label } from '@wbcnc/ui/components/label';
 
 import { jobCutting, type MaterialKey, type PlanSettingsV1 } from '../planSettings';
 import { BitSettings } from './BitPicker';
 import { CuttingDataEditor } from './CuttingDataEditor';
+import { NumberInput } from '../NumberInput';
 
 /**
  * Bits, their cutting data in the board's material, cut-through depth: everything the Plan step needs from the user,
@@ -49,20 +49,19 @@ export function PlanSettingsPanel({
 
       <section className="flex flex-col gap-1.5">
         <Label htmlFor="plan-cut-below">Cut through to (mm below the board)</Label>
-        <Input
+        <NumberInput
           id="plan-cut-below"
-          type="number"
           min={0}
           max={2}
-          step={0.1}
-          className="font-mono"
+          unit="mm"
+          commit="change"
           value={value.cutBelow}
-          onChange={e => {
-            const v = parseFloat(e.target.value);
-            if (Number.isFinite(v) && v >= 0 && v <= 2) set({ cutBelow: v });
-          }}
+          onCommit={cutBelow => set({ cutBelow })}
+          aria-describedby="plan-cut-below-help"
         />
-        <p className="text-xs text-muted-foreground">The final pass ends at Z−{value.cutBelow}, in the spoilboard.</p>
+        <p id="plan-cut-below-help" className="text-xs text-muted-foreground">
+          0–2 mm. The final pass ends at Z−{value.cutBelow}, in the spoilboard.
+        </p>
       </section>
 
       <span className="grow" />

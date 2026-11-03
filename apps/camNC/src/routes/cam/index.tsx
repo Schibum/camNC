@@ -1,4 +1,5 @@
 import { PageHeader } from '@/components/page-header';
+import { CamPage } from '@/cam/CamPage';
 import { camKeys, useCamJobs } from '@/cam/camQueries';
 import { deleteJob } from '@/cam/jobDb';
 import { kModelFile } from '@/cam/jobDb';
@@ -41,7 +42,7 @@ function CamIndex() {
   };
 
   return (
-    <div className="flex h-dvh w-full min-w-0 flex-col">
+    <CamPage className="h-dvh">
       <PageHeader title="CAM (beta)" />
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 overflow-y-auto p-6">
         <button
@@ -57,14 +58,6 @@ function CamIndex() {
             <FileUp className="size-4" /> Open model…
           </span>
         </button>
-
-        <p className="rounded-lg bg-violet-500/10 px-4 py-3 text-sm leading-relaxed">
-          <span className="mr-2 rounded-full bg-violet-500/15 px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-violet-700 dark:text-violet-300">
-            Beta
-          </span>
-          Making G-code here is new: check every program in the top view and the simulation before you cut, and keep a hand near the stop
-          button on the first run.
-        </p>
 
         {!!jobs?.length && (
           <section className="flex flex-col gap-2">
@@ -103,7 +96,15 @@ function CamIndex() {
             </ul>
           </section>
         )}
+
+        <p className="rounded-lg bg-violet-500/10 px-4 py-3 text-sm leading-relaxed">
+          <span className="mr-2 rounded-full bg-violet-500/15 px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-violet-700 dark:text-violet-300">
+            Beta
+          </span>
+          Making G-code here is new: check every program in the top view and the simulation before you cut, and keep a hand near the stop
+          button on the first run.
+        </p>
       </div>
-    </div>
+    </CamPage>
   );
 }

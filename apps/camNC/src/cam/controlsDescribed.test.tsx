@@ -89,7 +89,7 @@ describe('CAM controls explain themselves', () => {
       </TooltipProvider>
     );
     for (const field of kCuttingFields) {
-      const input = screen.getByRole('spinbutton', { name: new RegExp(`^${kCuttingLabels[field].label}`) });
+      const input = screen.getByRole('textbox', { name: new RegExp(`^${kCuttingLabels[field].label}`) });
       expect(description(input)).toBe(kCuttingHints[field]);
     }
     expect(kCuttingHints.stepdown).toBe('How deep each pass cuts. Less is gentler on the bit and slower.');

@@ -6,6 +6,8 @@ export interface LibraryTool extends Tool {
   /** Fusion's id of the tool: a re-import updates the bit with the same guid. */
   guid?: string;
   flutes?: number;
+  /** Length of cut (flute length), mm: how deep the bit can cut at most. */
+  fluteLength?: number;
   feed?: number;
   plungeFeed?: number;
   rpm?: number;
@@ -30,7 +32,7 @@ interface FusionTool {
   type?: string;
   unit?: string;
   description?: string;
-  geometry?: { DC?: number; NOF?: number };
+  geometry?: { DC?: number; NOF?: number; LCF?: number };
   'post-process'?: { number?: number };
   'start-values'?: { presets?: FusionPreset[] };
 }
@@ -63,6 +65,7 @@ export function readFusionToolLibrary(json: string | unknown): { tools: LibraryT
       name: t.description || `flat ${t.geometry.DC * mm} mm`,
       guid: t.guid,
       flutes: t.geometry.NOF,
+      fluteLength: t.geometry.LCF ? +(t.geometry.LCF * mm).toFixed(2) : undefined,
       feed: preset?.v_f ? preset.v_f * mm : undefined,
       plungeFeed: preset?.v_f_plunge ? +(preset.v_f_plunge * mm).toFixed(1) : undefined,
       rpm: preset?.n,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   autoFillFromStock,
+  boardSizeLabel,
   dropPart,
   flipOf,
   freezeSpacing,
@@ -293,6 +294,24 @@ describe('boards', () => {
     expect(inside(wider, 15)).toBe(true);
     // Not a strip: fitted boards stay within 2.5:1.
     for (const n of [nest, wider]) expect(Math.max(n.board.w, n.board.h) / Math.min(n.board.w, n.board.h)).toBeLessThanOrEqual(2.5);
+  });
+
+  it('fitted boards are whole mm, rounded up; an empty one shows no size', () => {
+    const [a] = reconcileBoards(undefined, parts, 'oak');
+    for (const board of [a, { ...a, holdDown: 'clamps' as const }, { ...a, margin: 5.37, gap: 7.9 }]) {
+      const nest = nestBoard(board, parts, 3.175);
+      expect(Number.isInteger(nest.board.w) && Number.isInteger(nest.board.h)).toBe(true);
+      expect(boardSizeLabel(board, nest)).toBe(`${nest.board.w} × ${nest.board.h}`);
+      // The clamp corners sit at the rounded edges.
+      for (const k of nest.keepOuts) expect(k.x === 0 || Math.abs(k.x + k.w - nest.board.w) < 1e-6).toBe(true);
+    }
+    // 570.4 × 738.9 before: 571 × 739.
+    expect(nestBoard(a, parts, 3.175).board).toEqual({ w: 571, h: 739 });
+    const empty = { ...a, items: [] };
+    expect(boardSizeLabel(empty, nestBoard(empty, parts, 3.175))).toBe('–');
+    // A fixed size stays as given, even empty.
+    const sheet = { ...empty, size: { fit: false as const, w: 600.5, h: 300 } };
+    expect(boardSizeLabel(sheet, nestBoard(sheet, parts, 3.175))).toBe('600.5 × 300');
   });
 
   it('stock top: parts thickness + 0.3 unless measured', () => {

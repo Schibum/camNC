@@ -1,4 +1,4 @@
-import { getJob, createJob } from '@/cam/jobDb';
+import { getJob, createJob, saveJob } from '@/cam/jobDb';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ComponentType, ReactNode } from 'react';
@@ -44,7 +44,7 @@ describe('CAM model step', () => {
     const thin = screen.getByRole('region', { name: '3 mm boards' });
     expect(within(thin).getByText('back')).toBeTruthy();
 
-    fireEvent.click(within(thin).getByRole('button', { name: /back/ }));
+    fireEvent.click(within(thin).getByRole('button', { name: /^back/ }));
     expect(screen.getByRole('heading', { name: 'back' })).toBeTruthy();
     expect(screen.getByLabelText('Mill this part').getAttribute('aria-describedby')).toBe('mill-part-hint');
     expect(document.getElementById('mill-part-hint')!.textContent).toMatch(/stays out of the boards/);
@@ -83,6 +83,75 @@ describe('CAM model step', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Part name' }), { target: { value: 'nope' } });
     fireEvent.keyDown(screen.getByRole('textbox', { name: 'Part name' }), { key: 'Escape' });
     expect(screen.getByRole('heading', { name: /^Shelf/ })).toBeTruthy();
+  }, 90_000);
+
+  it('renames a part from its card in the list, by its menu or a double-click, like the inspector', async () => {
+    const bytes = await (await fetch(stepUrl)).arrayBuffer();
+    const job = await createJob(new File([bytes], 'kinderregal-eiche.step'));
+    params.jobId = job.id;
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ModelStep />
+      </QueryClientProvider>
+    );
+    const thin = await screen.findByRole('region', { name: '3 mm boards' }, { timeout: 60_000 });
+    expect(screen.getByText('6 bodies · 6 milled')).toBeTruthy();
+    // One way on: the header's "Next: Boards", no second button in the inspector.
+    expect(screen.queryByRole('button', { name: 'Arrange on boards' })).toBeNull();
+
+    // ⋯ › Rename…
+    fireEvent.pointerDown(within(thin).getByRole('button', { name: 'More for back' }), { button: 0, ctrlKey: false });
+    fireEvent.click(await screen.findByRole('menuitem', { name: /Rename/ }));
+    const input = await within(thin).findByRole('textbox', { name: 'New name for back' });
+    fireEvent.change(input, { target: { value: 'Back panel' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    fireEvent.blur(input);
+    await waitFor(() => expect(within(thin).getByText('Back panel')).toBeTruthy());
+    await waitFor(async () => expect((await getJob(job.id))?.parts.map(p => p.name)).toContain('Back panel'));
+
+    // Double-click on the name; Escape keeps it.
+    fireEvent.doubleClick(within(thin).getByText('Back panel'));
+    const again = within(thin).getByRole('textbox', { name: 'New name for Back panel' });
+    fireEvent.change(again, { target: { value: 'nope' } });
+    fireEvent.keyDown(again, { key: 'Escape' });
+    expect(within(thin).queryByRole('textbox')).toBeNull();
+    expect(within(thin).getByText('Back panel')).toBeTruthy();
+
+    // Empty: back to the model's name.
+    fireEvent.doubleClick(within(thin).getByText('Back panel'));
+    const cleared = within(thin).getByRole('textbox', { name: 'New name for Back panel' });
+    fireEvent.change(cleared, { target: { value: '' } });
+    fireEvent.blur(cleared);
+    await waitFor(() => expect(within(thin).getByText('back')).toBeTruthy());
+  }, 90_000);
+
+  it('disables "Next: Boards" with the reason when no part is milled', async () => {
+    const bytes = await (await fetch(stepUrl)).arrayBuffer();
+    const job = await createJob(new File([bytes], 'kinderregal-eiche.step'));
+    params.jobId = job.id;
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ModelStep />
+      </QueryClientProvider>
+    );
+    await screen.findByRole('region', { name: '8 mm boards' }, { timeout: 60_000 });
+    expect(screen.queryByRole('button', { name: 'Next: Boards' })).toBeNull();
+    // Every part unticked (as saved by the Model step).
+    await waitFor(async () => expect((await getJob(job.id))?.parts.length).toBeGreaterThan(0));
+    cleanup();
+    const saved = (await getJob(job.id))!;
+    await saveJob({ ...saved, parts: saved.parts.map(p => ({ ...p, milled: false })) });
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ModelStep />
+      </QueryClientProvider>
+    );
+    await screen.findByRole('region', { name: 'Not milled' }, { timeout: 60_000 });
+    const next = await screen.findByRole('button', { name: 'Next: Boards' });
+    expect(next.hasAttribute('disabled')).toBe(true);
+    const reason = next.getAttribute('aria-describedby')!;
+    expect(document.getElementById(reason)!.textContent).toMatch(/No part is milled/);
+    expect(screen.getByText('6 bodies · 0 milled')).toBeTruthy();
   }, 90_000);
 
   it('stacks the panels in normal flow at phone width', async () => {

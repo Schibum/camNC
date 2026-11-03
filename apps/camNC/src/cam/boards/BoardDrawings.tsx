@@ -3,7 +3,7 @@ import { cn } from '@wbcnc/ui/lib/utils';
 import { MATERIALS } from '@wbcnc/cam/settings';
 import { Plus } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { dropPart, placedRect, type PartDrop, type PartInstance, type PartPosition } from '../boards';
+import { boardSizeLabel, dropPart, placedRect, type PartDrop, type PartInstance, type PartPosition } from '../boards';
 import type { CamPartInfo, PlanResult } from '../camTypes';
 import type { JobBoard } from '../useJobBoards';
 import { useBoardDrag } from './boardDrag';
@@ -235,9 +235,7 @@ export function BoardDrawings({
                 <span className="font-medium">Board {board.name}</span>
                 <span className="whitespace-nowrap text-muted-foreground">
                   {MATERIALS[board.material].name[0].toUpperCase() + MATERIALS[board.material].name.slice(1)} {fmt(board.thickness)} mm ·{' '}
-                  <span className="font-mono text-xs">
-                    {fmt(nest.board.w)} × {fmt(nest.board.h)}
-                  </span>
+                  <span className="font-mono text-xs">{boardSizeLabel(board, nest)}</span>
                 </span>
                 <span className="grow" />
                 {fetching[i] && <LoadingSpinner className="size-3" />}
@@ -251,7 +249,11 @@ export function BoardDrawings({
                 tabHeight={tabHeight}
                 unit={unit}
                 pxPerMm={pxPerMm}
-                label={`Board ${board.name}, ${fmt(nest.board.w)} by ${fmt(nest.board.h)} mm, with ${nest.placements.length} parts`}
+                label={
+                  boardSizeLabel(board, nest) === '–'
+                    ? `Board ${board.name}, empty`
+                    : `Board ${board.name}, ${fmt(nest.board.w)} by ${fmt(nest.board.h)} mm, with ${nest.placements.length} parts`
+                }
                 className="shrink-0 touch-none"
                 dragging={dragging?.from === board.id ? dragging.item : null}
                 preview={
@@ -320,7 +322,11 @@ function DropStatus({
     <span
       className={cn(
         'text-xs',
-        target && !target.drop?.at ? 'font-medium text-red-600' : target ? 'font-medium text-primary' : 'text-muted-foreground'
+        target && !target.drop?.at
+          ? 'font-medium text-red-600 dark:text-red-400'
+          : target
+            ? 'font-medium text-primary'
+            : 'text-muted-foreground'
       )}>
       {text}
     </span>

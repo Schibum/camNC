@@ -17,6 +17,7 @@ import {
   type CuttingField,
 } from '../cuttingData';
 import { Hint } from '../Hint';
+import { numberProblem, parseDecimal } from '../numberFormat';
 import type { MaterialKey } from '../planSettings';
 
 const bitName = (bit: LibraryTool) => `⌀${bit.diameter} ${bit.name}`;
@@ -47,11 +48,21 @@ export function CuttingDataEditor({
   const { save, reset } = useCuttingData.getState();
   const { values, source } = resolveCutting(bit, material, saved, job);
   const [draft, setDraft] = useState<Partial<Record<CuttingField, string>>>({});
+  // Feeds, speeds and steps are > 0; the wall finish may be 0 (off).
+  const rangeOf = (f: CuttingField) => {
+    const { min, unit } = kCuttingLabels[f];
+    return { min: min ?? 0, minExclusive: min === undefined, unit: unit.startsWith('×') ? undefined : unit.split(' ')[0] };
+  };
+  const problems = Object.fromEntries(
+    Object.entries(draft).flatMap(([f, v]) => {
+      const p = numberProblem(v!, rangeOf(f as CuttingField));
+      return p ? [[f, p]] : [];
+    })
+  ) as Partial<Record<CuttingField, string>>;
   const parsed = Object.fromEntries(
     Object.entries(draft).flatMap(([f, v]) => {
-      const n = parseFloat(v!);
-      const min = kCuttingLabels[f as CuttingField].min;
-      return Number.isFinite(n) && (min !== undefined ? n >= min : n > 0) && n !== values[f as CuttingField] ? [[f, n]] : [];
+      const n = parseDecimal(v!);
+      return !problems[f as CuttingField] && n !== values[f as CuttingField] ? [[f, n]] : [];
     })
   ) as Partial<CuttingData>;
   const changed = Object.keys(parsed).length > 0;
@@ -65,7 +76,7 @@ export function CuttingDataEditor({
   return (
     <div className={cn('flex flex-col gap-2', className)}>
       {fields.map(field => {
-        const { label, unit, step } = kCuttingLabels[field];
+        const { label, unit } = kCuttingLabels[field];
         const id = `${uid}-${field}`;
         return (
           <div key={field} className="grid grid-cols-[1fr_96px_auto] items-center gap-x-2 text-[13px]">
@@ -79,11 +90,13 @@ export function CuttingDataEditor({
                 </label>
                 <Input
                   id={id}
-                  type="number"
-                  min={0}
-                  step={step}
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
                   className="h-8 font-mono"
-                  aria-describedby={`${id}-hint`}
+                  aria-invalid={problems[field] ? true : undefined}
+                  aria-describedby={problems[field] ? `${id}-error ${id}-hint` : `${id}-hint`}
+                  onKeyDown={e => e.key === 'Escape' && setDraft(d => without(d, field))}
                   value={draft[field] ?? String(values[field])}
                   onChange={e => setDraft(d => ({ ...d, [field]: e.target.value }))}
                 />
@@ -103,6 +116,11 @@ export function CuttingDataEditor({
               </Hint>
             ) : (
               <span className="w-7" />
+            )}
+            {problems[field] && (
+              <p id={`${id}-error`} className="col-span-3 pt-1 text-xs text-destructive">
+                {problems[field]}
+              </p>
             )}
           </div>
         );

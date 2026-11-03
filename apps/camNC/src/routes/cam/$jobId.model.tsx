@@ -1,4 +1,5 @@
 import { PageHeader } from '@/components/page-header';
+import { CamPage } from '@/cam/CamPage';
 import { camKeys, useCamJob, useCamModel, useSaveCamJob } from '@/cam/camQueries';
 import { deleteJob, replaceModel } from '@/cam/jobDb';
 import { CamJobBar } from '@/cam/model/CamJobBar';
@@ -46,6 +47,14 @@ function ModelStep() {
     toast(`Deleted ${job.name}`);
     void navigate({ to: '/cam' });
   };
+  const milledById = new Map(job.parts.map(p => [p.id, p.milled]));
+  const milled = (id: string) => milledById.get(id) ?? true;
+  // Nothing to arrange: the model can't be read, or every part is unticked.
+  const nextBlocked = model.isError
+    ? 'The model could not be read: there are no parts to arrange.'
+    : model.data && !model.data.parts.some(p => milled(p.id))
+      ? 'No part is milled: tick at least one part to arrange it on boards.'
+      : null;
   const bar = (
     <CamJobBar
       jobId={job.id}
@@ -58,8 +67,8 @@ function ModelStep() {
               Replace model…
             </Button>
           </Hint>
-          {model.isError ? (
-            <Hint text="The model could not be read: there are no parts to arrange.">
+          {nextBlocked ? (
+            <Hint text={nextBlocked} wrap>
               <Button size="sm" disabled>
                 Next: Boards
               </Button>
@@ -105,16 +114,27 @@ function ModelStep() {
     );
 
   const { parts, meshes } = model.data;
-  const milledById = new Map(job.parts.map(p => [p.id, p.milled]));
-  const milled = (id: string) => milledById.get(id) ?? true;
   const part = parts.find(p => p.id === selected) ?? parts.find(p => milled(p.id)) ?? parts[0];
   const setMilled = (id: string, value: boolean) =>
     save.mutate({ ...job, parts: job.parts.map(p => (p.id === id ? { ...p, milled: value } : p)) });
+  // From the inspector and the part list alike: empty goes back to the model's name.
+  const rename = (id: string, name: string) =>
+    save.mutate({
+      ...job,
+      parts: job.parts.map(p => (p.id === id ? { ...p, name: name || (parts.find(x => x.id === id)?.modelName ?? p.name) } : p)),
+    });
 
   return (
     <Shell bar={bar}>
       <div className="grid flex-1 grid-cols-1 md:min-h-0 md:grid-cols-[320px_1fr_300px]">
-        <PartList parts={parts} selectedId={part?.id ?? null} milled={milled} onSelect={setSelected} onMilledChange={setMilled} />
+        <PartList
+          parts={parts}
+          selectedId={part?.id ?? null}
+          milled={milled}
+          onSelect={setSelected}
+          onMilledChange={setMilled}
+          onRename={rename}
+        />
         <main className="relative flex min-h-[320px] flex-col bg-muted/30">
           <div className="flex flex-wrap items-center gap-2 px-4 py-3">
             <div role="group" aria-label="View" className="flex shrink-0 overflow-hidden rounded-md border">
@@ -143,13 +163,7 @@ function ModelStep() {
             part={part}
             milled={milled(part.id)}
             onMilledChange={v => setMilled(part.id, v)}
-            onRename={name =>
-              save.mutate({
-                ...job,
-                parts: job.parts.map(p => (p.id === part.id ? { ...p, name: name || (part.modelName ?? p.name) } : p)),
-              })
-            }
-            onPlan={() => void navigate({ to: '/cam/$jobId/boards', params: { jobId: job.id } })}
+            onRename={name => rename(part.id, name)}
           />
         )}
       </div>
@@ -164,11 +178,11 @@ const kViewHints: Record<ModelView, string> = {
 
 function Shell({ bar, message, children }: { bar?: React.ReactNode; message?: string; children?: React.ReactNode }) {
   return (
-    <div className="flex min-h-dvh w-full min-w-0 flex-col md:h-dvh">
+    <CamPage className="min-h-dvh md:h-dvh">
       <PageHeader title="CAM (beta)" />
       {bar}
       {message && <p className="m-8 text-muted-foreground">{message}</p>}
       {children}
-    </div>
+    </CamPage>
   );
 }

@@ -22,3 +22,16 @@
     scrollbar-width: thin;
   }
 }
+
+/*
+ * CAM pages (CamPage): contrast for their small text. White on the theme violet is 4.0:1 at 14 px, so the CAM primary
+ * is one shade darker (violet-600, 5.4:1, the dark theme's own); grey meta text on the light muted cards gets a darker
+ * grey (5.5:1). The dark theme's greys already pass.
+ */
+.cam-page {
+  --primary: oklch(0.541 0.281 293.009);
+  --ring: oklch(0.541 0.281 293.009);
+}
+html:not(.dark) .cam-page {
+  --muted-foreground: oklch(0.5 0.016 285.938);
+}

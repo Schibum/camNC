@@ -7,11 +7,12 @@ import { useState } from 'react';
 import type { CamPartInfo } from '../camTypes';
 import { Hint } from '../Hint';
 import { fmt } from './partFormat';
+import { PartNameInput } from './PartNameInput';
 
 function insideCorners(r: number | null) {
-  if (r === null) return { value: 'none tight', hint: 'Any bit reaches every inside corner.' };
-  if (r < 0.25) return { value: 'sharp', hint: 'Sharp inside corners come out rounded to the bit radius.' };
-  return { value: `R ${fmt(r)}`, hint: `Bits up to ⌀ ${fmt(2 * r)} mm reach every inside corner.` };
+  if (r === null) return { label: 'No tight inside corners', value: '', hint: 'Any bit reaches every inside corner.' };
+  if (r < 0.25) return { label: 'Inside corners', value: 'sharp', hint: 'Sharp inside corners come out rounded to the bit radius.' };
+  return { label: 'Inside corners', value: `R ${fmt(r)}`, hint: `Bits up to ⌀ ${fmt(2 * r)} mm reach every inside corner.` };
 }
 
 /** Details of the selected part: size, how it lies, what was detected, and whether it is milled at all. */
@@ -20,15 +21,12 @@ export function PartInspector({
   milled,
   onMilledChange,
   onRename,
-  onPlan,
 }: {
   part: CamPartInfo;
   milled: boolean;
   onMilledChange: (milled: boolean) => void;
   /** A new name for the part; empty goes back to the model's name. */
   onRename: (name: string) => void;
-  /** Go on to the Boards step. */
-  onPlan: () => void;
 }) {
   const { summary } = part;
   const corners = insideCorners(summary.smallestInsideRadius);
@@ -85,8 +83,8 @@ export function PartInspector({
               <span className="font-mono text-muted-foreground">{fmt(part.thickness)}</span>
             </li>
             <li className="flex justify-between gap-2" title={corners.hint}>
-              <span>Inside corners</span>
-              <span className="font-mono text-muted-foreground">{corners.value}</span>
+              <span>{corners.label}</span>
+              {corners.value && <span className="font-mono text-muted-foreground">{corners.value}</span>}
             </li>
           </ul>
           <p className="text-xs text-muted-foreground">{corners.hint}</p>
@@ -97,12 +95,6 @@ export function PartInspector({
           {n}
         </p>
       ))}
-      <span className="grow" />
-      {milled && (
-        <Button onClick={onPlan} className="w-full">
-          Arrange on boards
-        </Button>
-      )}
     </aside>
   );
 }
@@ -110,26 +102,8 @@ export function PartInspector({
 /** The part's name, renamed in place: Enter or leaving the field keeps it, Escape doesn't. */
 function PartName({ part, onRename }: { part: CamPartInfo; onRename: (name: string) => void }) {
   const [editing, setEditing] = useState(false);
-  const commit = (value: string) => {
-    setEditing(false);
-    if (value.trim() !== part.name) onRename(value.trim());
-  };
   if (editing)
-    return (
-      <input
-        autoFocus
-        aria-label="Part name"
-        defaultValue={part.name}
-        placeholder={part.modelName}
-        onFocus={e => e.currentTarget.select()}
-        onBlur={e => commit(e.currentTarget.value)}
-        onKeyDown={e => {
-          if (e.key === 'Enter') e.currentTarget.blur();
-          if (e.key === 'Escape') setEditing(false);
-        }}
-        className="h-8 rounded-md border bg-background px-2 text-[15px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      />
-    );
+    return <PartNameInput part={part} onRename={onRename} onDone={() => setEditing(false)} className="text-[15px] font-semibold" />;
   return (
     <div className="flex items-start gap-1">
       <h2 className="min-w-0 break-words text-[15px] font-semibold">

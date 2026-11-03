@@ -220,6 +220,17 @@ function fitCompact(items: { id: string; w: number; h: number }[], gap: number, 
 }
 
 const EPS = 1e-6;
+/** Up to whole mm, ignoring float noise (571.0000001 stays 571). */
+const ceilMm = (v: number) => Math.ceil(v - 1e-6);
+
+/**
+ * A board's size for people: "571 × 739", or "–" for a fitted board with nothing on it yet (its size is only the
+ * edge margins).
+ */
+export function boardSizeLabel(board: Pick<BoardV1, 'size'>, nest: Pick<BoardNest, 'board' | 'placements'>): string {
+  if (board.size.fit && !nest.placements.length) return '–';
+  return `${+nest.board.w.toFixed(1)} × ${+nest.board.h.toFixed(1)}`;
+}
 /** At least `gap` apart. */
 const apart = (a: Rect, b: Rect, gap: number) =>
   a.x + a.w + gap <= b.x + EPS || b.x + b.w + gap <= a.x + EPS || a.y + a.h + gap <= b.y + EPS || b.y + b.h + gap <= a.y + EPS;
@@ -258,8 +269,12 @@ export function nestBoard(board: BoardV1, instances: PartInstance[], bit: number
   const finish = (n: NestResult, keepOuts: Rect[]): BoardNest => {
     const placements = [...fixed, ...n.placements].sort((a, b) => order.get(a.id)! - order.get(b.id)!);
     const area = placements.reduce((a, p) => a + byId.get(p.id)!.size[0] * byId.get(p.id)!.size[1], 0);
-    const { w, h } = n.board;
-    return { ...n, placements, yield: w * h > 0 ? area / (w * h) : 0, gap, margin, keepOuts };
+    // A fitted board is cut from a sheet: whole mm, rounded up (570.4 × 738.9 -> 571 × 739).
+    const board = size ? n.board : { w: ceilMm(n.board.w), h: ceilMm(n.board.h) };
+    const { w, h } = board;
+    // The clamp corners move out with the rounded-up edge: away from the parts.
+    const clampAreas = size || !keepOuts.length ? keepOuts : clampsOn(board);
+    return { ...n, board, placements, yield: w * h > 0 ? area / (w * h) : 0, gap, margin, keepOuts: clampAreas };
   };
 
   if (size) {
