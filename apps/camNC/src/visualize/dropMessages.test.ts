@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { wrongFileMessage } from './GcodeDropZone';
+import { wrongFileMessage } from './dropMessages';
 
 describe('wrongFileMessage', () => {
   it('asks for a model on the CAM pages', () => {
