@@ -1,5 +1,17 @@
 import { areaD, type PathsD } from 'clipper2-ts';
-import { cleanRegion, difference, intersect, offset, polyArea, triangle, triangleNormal2A, union, type Mesh, type PathD } from './geom';
+import {
+  cleanRegion,
+  difference,
+  intersect,
+  offset,
+  polyArea,
+  triangle,
+  triangleNormal2A,
+  union,
+  unionMany,
+  type Mesh,
+  type PathD,
+} from './geom';
 
 /** Height of an up-facing horizontal face group and the area it covers (top view). */
 export interface Level {
@@ -71,7 +83,6 @@ export function openPocketRegion(outlines: PathsD, pocket: Pick<PocketFeature, '
 export function extractFeatures(mesh: Mesh, thickness: number, extendOpen = 2): PartFeatures {
   const byZ = new Map<number, PathsD>();
   const bottomByZ = new Map<number, number>();
-  const all: PathsD = [];
   const sloped: PathsD = [];
   let slopedArea = 0;
   const quantize = (z: number) => +(Math.round(z / Z_TOL) * Z_TOL).toFixed(4);
@@ -86,7 +97,6 @@ export function extractFeatures(mesh: Mesh, thickness: number, extendOpen = 2): 
     const z = quantize((tri[0][2] + tri[1][2] + tri[2][2]) / 3);
     if (nz > HORIZONTAL) {
       const p = projectTriangle(mesh, t);
-      all.push(p);
       let list = byZ.get(z);
       if (!list) byZ.set(z, (list = []));
       list.push(p);
@@ -94,27 +104,33 @@ export function extractFeatures(mesh: Mesh, thickness: number, extendOpen = 2): 
       if (z > Z_TOL && z < thickness - Z_TOL) bottomByZ.set(z, (bottomByZ.get(z) ?? 0) + len / 2);
     } else if (nz > 1e-4) {
       const p = projectTriangle(mesh, t);
-      all.push(p);
       sloped.push(p);
       slopedArea += len / 2;
     }
   }
 
-  const footprint = cleanRegion(union(all));
+  // Each height's triangles and the sloped ones merged once; the footprint is the union of those few merged regions.
+  const rawByZ = [...byZ.entries()].map(([z, tris]) => [z, unionMany(tris)] as const);
+  const slopedRegion = sloped.length ? unionMany(sloped) : [];
+  const footprint = cleanRegion(
+    union(
+      rawByZ.flatMap(([, r]) => r),
+      slopedRegion
+    )
+  );
   const outlines = footprint.filter(p => areaD(p) > 0);
   const throughHoles = footprint.filter(p => areaD(p) < 0).map(p => [...p].reverse());
 
-  const levels: Level[] = [...byZ.entries()]
+  const levels: Level[] = rawByZ
     .sort((a, b) => b[0] - a[0])
-    .map(([z, tris]) => {
-      const region = cleanRegion(union(tris));
+    .map(([z, raw]) => {
+      const region = cleanRegion(raw);
       return { z, region, area: polyArea(region) };
     })
     .filter(l => l.area > 0.5);
 
   const top = levels[0]?.z ?? thickness;
   const pockets: PocketFeature[] = [];
-  const slopedRegion = sloped.length ? union(sloped) : [];
   for (const level of levels) {
     if (level.z >= top - Z_TOL || level.z <= Z_TOL) continue;
     const higher = union(
