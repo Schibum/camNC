@@ -1,10 +1,12 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
-// Local sample data on the dev machine (not in the repo); tests skip when it is missing.
-export const SAMPLE_DIR = '/Users/manu/development/w69b/cnc/sample-data';
-export const FUSION_GCODE_DIR = '/Users/manu/development/cnc/gcode';
-export const OUT_DIR = `${SAMPLE_DIR}/poc-out`;
+/** Sample projects (STEP) and the matching Fusion G-code, checked in under test/fixtures. */
+export const FIXTURE_DIR = fileURLToPath(new URL('../test/fixtures', import.meta.url));
+/** Generated G-code / PNGs for eyeballing (gitignored). Set CAM_OUT_DIR to write elsewhere. */
+export const OUT_DIR = process.env.CAM_OUT_DIR ?? fileURLToPath(new URL('../test/out', import.meta.url));
 
-export const stepPath = (name: string) => `${SAMPLE_DIR}/${name}.step`;
-export const hasFixtures = existsSync(stepPath('kinderregal eiche'));
-export const readStep = (name: string) => new Uint8Array(readFileSync(stepPath(name)));
+const fileName = (name: string) => name.replace(/ /g, '-');
+export const fixturePath = (file: string) => `${FIXTURE_DIR}/${fileName(file)}`;
+export const readStep = (name: string) => new Uint8Array(readFileSync(fixturePath(`${name}.step`)));
+export const fusionGcodePath = (name: string) => fixturePath(`${name}.gcode`);

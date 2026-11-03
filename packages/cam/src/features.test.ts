@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { extractFeatures } from './features';
-import { hasFixtures, readStep } from './fixtures';
+import { readStep } from './fixtures';
 import { bounds2 } from './geom';
 import { detectFlat, loadStep } from './import';
 
@@ -26,7 +26,7 @@ async function analyze(file: string) {
   });
 }
 
-describe.skipIf(!hasFixtures)('spike 2: 2.5D features', () => {
+describe('spike 2: 2.5D features', () => {
   it('kinderregal: mortises at 3.8 + rabbet at 3.5 on the sides, rabbet on top/bottom shelves, plain back', async () => {
     const res = await analyze('kinderregal eiche');
     const byName = Object.fromEntries(res.map(r => [r.part.name, r.f]));
@@ -47,8 +47,10 @@ describe.skipIf(!hasFixtures)('spike 2: 2.5D features', () => {
     expect(res.some(r => r.f.bottomFaces.length > 0)).toBe(true);
   });
 
-  it('messerblock', async () => {
-    const [r] = await analyze('messerblock');
-    expect(r.f.pockets.length).toBeGreaterThan(0);
+  it('messerblock klein: curved knife slots are not 2.5D and get flagged before feature extraction', async () => {
+    // 350k triangles; extracting features from it takes ~30s, which is why the app should stop at this check.
+    const { bodies } = await loadStep(readStep('messerblock klein'));
+    const part = detectFlat(bodies[0]);
+    expect(part.prismaticRatio).toBeLessThan(0.9);
   });
 });

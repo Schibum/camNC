@@ -61,6 +61,29 @@ describe('spike 3/4: toolpaths + gcode', () => {
     expect(raised).toBeGreaterThanOrEqual(3 * 2);
   });
 
+  it('uses a smaller bit for a slot the big one cannot enter, smallest first with an M0 bit swap', () => {
+    const f = board();
+    const slot = rect(100, 20, 180, 23.1); // 3.1mm wide knife slot
+    f.levels.push({ z: 2, region: [slot], area: 80 * 3.1 });
+    f.pockets.push({ floorZ: 2, region: [slot], strictRegion: [slot], area: 80 * 3.1 });
+    expect(camPart(f).warnings).toContain('pocket z=2: no tool fits');
+    const cam = camPart(f, {
+      tools: [
+        { number: 1, diameter: 3.175, name: 'flat end mill' },
+        { number: 3, diameter: 3, name: 'flat end mill' },
+      ],
+    });
+    expect(cam.operations.map(o => `${o.name} T${o.tool.number}`)).toEqual([
+      'Pocket 2 z=2 T3',
+      'Pocket 1 z=4 T1',
+      'Hole 1 T1',
+      'Outline 1 T1',
+    ]);
+    const gcode = toGcode(cam);
+    expect(gcode).toContain('M0 (MSG Insert T3 D=3, turn ON spindle 15000RPM)');
+    expect(gcode).toMatch(/M0 \(MSG Spindle OFF. Change to T1 D=3.175/);
+  });
+
   it('fits arcs to tessellated circles', () => {
     const circle = Array.from({ length: 73 }, (_, i) => ({
       x: 10 * Math.cos((i / 72) * 2 * Math.PI),

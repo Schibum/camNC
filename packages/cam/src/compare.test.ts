@@ -18,7 +18,7 @@ import {
   type Xf,
 } from './analyze';
 import { extractFeatures } from './features';
-import { FUSION_GCODE_DIR, hasFixtures, OUT_DIR, readStep } from './fixtures';
+import { fusionGcodePath, OUT_DIR, readStep } from './fixtures';
 import { toGcode } from './gcode';
 import { detectFlat, flipPart, loadStep, type FlatPart } from './import';
 import { camPart, DEFAULT_SETTINGS, DEFAULT_TABS, type CamSettings } from './toolpaths';
@@ -207,12 +207,11 @@ async function compareWithFusion({ label, part, settings = {}, fusionFile }: Com
   return { toolsGuess, bounds, p95, cov, cam };
 }
 
-describe.skipIf(!hasFixtures)('spike 5: compare with Fusion', async () => {
+describe('spike 5: compare with Fusion', async () => {
   mkdirSync(OUT_DIR, { recursive: true });
-  const load = async (name: string) => (hasFixtures ? (await loadStep(readStep(name))).bodies.map(detectFlat) : []);
+  const load = async (name: string) => (await loadStep(readStep(name))).bodies.map(detectFlat);
   const kinder = await load('kinderregal eiche');
   const besteck = await load('besteckkasten');
-  const messer = await load('messerblock');
 
   afterAll(() => {
     if (!rows.length) return;
@@ -229,7 +228,7 @@ describe.skipIf(!hasFixtures)('spike 5: compare with Fusion', async () => {
     const r = await compareWithFusion({
       label: setup,
       part: kinder.find(p => p.name === bodyName)!,
-      fusionFile: `${FUSION_GCODE_DIR}/kinderregal eiche ${setup}.gcode`,
+      fusionFile: fusionGcodePath(`kinderregal eiche ${setup}`),
     });
     expect(r.toolsGuess).toEqual([{ tool: 1, diameter: 3.175, name: 'flat end mill', isFlat: true }]);
     expect(r.bounds.min.z).toBeCloseTo(-0.3);
@@ -244,14 +243,14 @@ describe.skipIf(!hasFixtures)('spike 5: compare with Fusion', async () => {
       label: 'besteck vert1',
       part: vert1,
       settings: { finalZ: -0.5 },
-      fusionFile: `${FUSION_GCODE_DIR}/besteck b1.gcode`,
+      fusionFile: fusionGcodePath('besteck b1'),
     });
     expect(top.cam.warnings.some(w => w.includes('flipped'))).toBe(true);
     const flipped = await compareWithFusion({
       label: 'besteck vert1 flipped',
       part: flipPart(vert1),
       settings: { cutThrough: false },
-      fusionFile: `${FUSION_GCODE_DIR}/besteck b1 flipped.gcode`,
+      fusionFile: fusionGcodePath('besteck b1 flipped'),
     });
     expect(flipped.cam.operations.map(o => o.kind)).toEqual(['pocket']);
     expect(flipped.cov!.coverage).toBeGreaterThan(0.95);
@@ -260,25 +259,5 @@ describe.skipIf(!hasFixtures)('spike 5: compare with Fusion', async () => {
   it('besteckkasten other boards (ours only)', async () => {
     for (const part of besteck.filter(p => p.name !== 'vert1' && p.name !== 'connector top'))
       await compareWithFusion({ label: `besteck ${part.name}`, part });
-  });
-
-  it('messerblock: 3.1mm knife slots need a smaller bit -> two tools, smallest first, M0 bit swap', async () => {
-    // Fusion's messerblock.gcode is from an older design version (180x353), so ours only.
-    const single = camPart(extractFeatures(messer[0].mesh, messer[0].thickness));
-    expect(single.warnings).toContain('pocket z=2: no tool fits');
-    const r = await compareWithFusion({
-      label: 'messerblock',
-      part: messer[0],
-      settings: {
-        tools: [
-          { number: 1, diameter: 3.175, name: 'flat end mill' },
-          { number: 3, diameter: 3, name: 'flat end mill' },
-        ],
-      },
-    });
-    expect(r.cam.operations.map(o => `${o.name} T${o.tool.number}`)).toEqual(['Pocket 1 z=2 T3', 'Outline 1 T1']);
-    const gcode = readFileSync(`${OUT_DIR}/messerblock.camnc.gcode`, 'utf8');
-    expect(gcode).toMatch(/M0 \(MSG Spindle OFF. Change to T1 D=3.175/);
-    expect(parseToolInfo(gcode).map(t => t.diameter)).toEqual([3, 3.175]);
   });
 });

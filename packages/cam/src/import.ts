@@ -1,3 +1,4 @@
+/// <reference path="./types/occt-import-js.d.ts" />
 import occtimportjs, { type OcctModule, type OcctNode } from 'occt-import-js';
 import { cross, dot, length, meshBounds, normalize, scale, sub, triangle, triangleNormal2A, type Mesh, type Vec3 } from './geom';
 
@@ -259,10 +260,29 @@ export function flipPart(part: FlatPart): FlatPart {
   };
 }
 
-/** Group bodies with the same flat size and triangle count (e.g. two identical shelves). */
+/** Vertex moments around the bbox center, insensitive to a 180° turn but not to mirroring (left/right sides). */
+function moments(p: FlatPart) {
+  const v = p.mesh.positions;
+  const [cx, cy] = [p.size[0] / 2, p.size[1] / 2];
+  let mx = 0,
+    my = 0,
+    mxy = 0;
+  for (let i = 0; i < v.length; i += 3) {
+    const x = v[i] - cx,
+      y = v[i + 1] - cy;
+    mx += x;
+    my += y;
+    mxy += x * y;
+  }
+  const n = v.length / 3 || 1;
+  // A 180° turn (same board) flips the signs of mx and my only; a mirror also flips mxy.
+  return [Math.abs(mx / n), Math.abs(my / n), mxy / n].map(m => (Math.abs(m) < 0.05 ? 0 : m).toFixed(1));
+}
+
+/** Group bodies that are the same board (e.g. two identical shelves); mirrored boards stay separate. */
 export function groupIdentical(parts: FlatPart[]): { part: FlatPart; names: string[] }[] {
   const groups: { part: FlatPart; names: string[] }[] = [];
-  const key = (p: FlatPart) => [...p.size.map(s => s.toFixed(2)), p.mesh.indices.length].join('|');
+  const key = (p: FlatPart) => [...p.size.map(s => s.toFixed(2)), p.mesh.indices.length, ...moments(p)].join('|');
   for (const p of parts) {
     const g = groups.find(g => key(g.part) === key(p));
     if (g) g.names.push(p.name);

@@ -425,11 +425,15 @@ export function camPart(features: PartFeatures, settings: Partial<CamSettings> =
   const ops: Operation[] = [];
   const fits = (region: PathsD, inward: boolean) => (t: Tool) => offset(region, (inward ? -1 : 1) * (t.diameter / 2)).length > 0;
 
-  // Pockets come top-down and each region contains the deeper ones, so a pocket starts at the previous floor.
+  // Pockets come top-down and each region contains the deeper ones, so a pocket starts at the previous floor --
+  // unless that floor was cleared by another (bigger) bit that couldn't reach into this one.
   let pocketTop = top;
+  let prevTool: Tool | undefined;
   features.pockets.forEach((p, i) => {
     const tool = tools.find(fits(p.region, true));
     if (!tool) return warnings.push(`pocket z=${p.floorZ}: no tool fits`);
+    if (prevTool && prevTool !== tool) pocketTop = top;
+    prevTool = tool;
     const uncut = uncutArea(p.region, tool.diameter / 2);
     if (uncut > 1) warnings.push(`pocket z=${p.floorZ}: ${uncut.toFixed(1)}mm² left in corners/narrow spots with D=${tool.diameter}`);
     ops.push(pocketOperation(`Pocket ${i + 1} z=${p.floorZ}`, p.region, pocketTop, p.floorZ, tool, s));
