@@ -17,7 +17,16 @@
         "dist/**"
       ]
     },
-    "test": {},
+    // Not a script: lets a package's test hash include its workspace dependencies' files (camNC's tests run
+    // @wbcnc/cam's code), without running their tests first. See turbo's "transit nodes".
+    "transit": {
+      "dependsOn": ["^transit"]
+    },
+    "test": {
+      "dependsOn": ["transit"],
+      "env": ["FLUIDNC_SIM_HOST", "FLUIDNC_SIM_VARIANT"],
+      "passThroughEnv": ["PLAYWRIGHT_BROWSERS_PATH", "CAM_OUT_DIR"]
+    },
     "smoke:setup": {
       "cache": false,
       "env": ["CAMNC_SMOKE_URL", "CAMNC_SMOKE_HEADED", "CAMNC_SMOKE_OUTPUT"]

@@ -24,6 +24,7 @@ This repository is a pnpm/Turborepo workspace using TypeScript and React.
 
 - The CI workflow lives in `.github/workflows`.
 - Run `pnpm turbo run test --filter <project_name>` to execute checks for a single package.
+- `pnpm run test` replays packages whose files (and workspace dependencies) didn't change from a cache shared by every worktree of the checkout, so a full run after a small change only tests what it touched. Run it from the repo root rather than calling `turbo run test` directly, which uses a per-worktree cache.
 - From within a package you can run `pnpm test`.
 - Focus on one test with `pnpm vitest run -t "<test name>"`.
 - Tests run in headless Chromium (Vitest browser mode); install it once with `pnpm exec playwright install chromium`.

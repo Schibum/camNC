@@ -65,6 +65,15 @@ export function meshBounds(mesh: Mesh): { min: Vec3; max: Vec3 } {
 // ---- 2D polygon helpers (Clipper2, double API) ----
 
 export const union = (a: PathsD, b: PathsD = []) => unionD(a, b, FillRule.NonZero, PRECISION);
+/**
+ * Union of many small polygons (a mesh's projected triangles), split in halves and merged pairwise: Clipper's sweep
+ * over hundreds of thousands of triangles at once is several times slower than merging the partial results.
+ */
+export function unionMany(paths: PathsD, chunk = 256): PathsD {
+  if (paths.length <= chunk) return union(paths);
+  const mid = paths.length >> 1;
+  return union(unionMany(paths.slice(0, mid), chunk), unionMany(paths.slice(mid), chunk));
+}
 export const difference = (a: PathsD, b: PathsD) => differenceD(a, b, FillRule.NonZero, PRECISION);
 export const intersect = (a: PathsD, b: PathsD) => intersectD(a, b, FillRule.NonZero, PRECISION);
 /**

@@ -5,7 +5,7 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
-    "test": "turbo run test -- run",
+    "test": "node scripts/turbo-shared-cache.mjs run test -- run",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-format": "prettier --check \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
