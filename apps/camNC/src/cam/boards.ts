@@ -133,12 +133,18 @@ export function instancesOf(parts: CamPartInfo[], milled: (partId: string) => bo
 
 const letter = (i: number) => (i < 26 ? String.fromCharCode(65 + i) : `B${i + 1}`);
 
-export function newBoard(boards: BoardV1[], thickness: number, material: MaterialKey, items: string[] = []): BoardV1 {
+export function newBoard(
+  boards: BoardV1[],
+  thickness: number,
+  material: MaterialKey,
+  items: string[] = [],
+  id: string = crypto.randomUUID()
+): BoardV1 {
   const used = new Set(boards.map(b => b.name));
   let i = 0;
   while (used.has(letter(i))) i++;
   return {
-    id: crypto.randomUUID(),
+    id,
     name: letter(i),
     thickness: thicknessKey(thickness),
     material,
@@ -183,7 +189,9 @@ export function reconcileBoards(boards: BoardV1[] | undefined, instances: PartIn
     const t = thicknessKey(inst.thickness);
     const board = out.find(b => b.thickness === t);
     if (board) board.items.push(inst.id);
-    else out = [...out, newBoard(out, t, defaultMaterial(t, material), [inst.id])];
+    // The same id every time for the same thickness: until the boards are saved (the Boards step), every change to the
+    // job makes them afresh, and a new id would make them new boards (planned again, the one shown gone).
+    else out = [...out, newBoard(out, t, defaultMaterial(t, material), [inst.id], `auto-${t}mm`)];
   }
   return out;
 }

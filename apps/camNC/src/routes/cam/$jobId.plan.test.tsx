@@ -108,9 +108,14 @@ describe('CAM plan step', () => {
     const panel = screen.getByRole('region', { name: 'Cutting data' });
     fireEvent.change(within(panel).getByRole('textbox', { name: /^Stepdown/ }), { target: { value: '3.5' } });
     fireEvent.click(within(panel).getByRole('button', { name: 'Only this job' }));
+    // While it's planned again, the last program stays shown, but it can't go to the machine.
+    const show = () => (screen.getByRole('button', { name: 'Show board A on machine' }) as HTMLButtonElement).disabled;
+    await vi.waitFor(() => expect(show()).toBe(true));
+    expect(screen.getByRole('table', { name: 'Operations for board A' })).toBeTruthy();
     const deepest = () => Math.max(...stepdowns(screen.getByRole('table', { name: 'Operations for board A' })));
     await vi.waitFor(() => expect(deepest()).toBeGreaterThan(2.4), { timeout: 30_000 });
     expect(deepest()).toBeLessThanOrEqual(3.5);
+    await vi.waitFor(() => expect(show()).toBe(false), { timeout: 30_000 });
     expect((await getJob(job.id))!.plan!.cutting).toEqual({ stepdown: 3.5 });
     expect(within(panel).getByText(/mm · this job/)).toBeTruthy();
 
@@ -123,7 +128,8 @@ describe('CAM plan step', () => {
     // Every pass at most 1 mm, except the outline's final pass: from 1 mm above the bottom through to -0.3.
     await vi.waitFor(() => expect(deepest()).toBeLessThanOrEqual(1.3), { timeout: 30_000 });
     expect(Object.values(useCuttingData.getState().saved)).toEqual([{ stepdown: 1 }]);
-    await vi.waitFor(async () => expect((await getJob(job.id))!.plan!.cutting).toEqual({}));
+    // An IndexedDB read: with the worker busy it alone can take longer than waitFor's default second.
+    await vi.waitFor(async () => expect((await getJob(job.id))!.plan!.cutting).toEqual({}), { timeout: 10_000 });
   }, 120_000);
 
   it('mills a 3D part as a flat board when asked: its outline at least', async () => {

@@ -62,7 +62,8 @@ function PlanStep() {
   const plans = useBoardPlans(
     job,
     active.map(b => ({ request: b.request, material: b.board.material })),
-    !!model.data
+    !!model.data,
+    { keepShown: true }
   );
 
   if (isPending) return <Shell />;
@@ -83,10 +84,18 @@ function PlanStep() {
   const unresolved = missing.filter(m => !settings.leaveOut?.includes(m.id));
   const tight = boards.flatMap(b => spacingProblem(b.board, b.nest, settings.bit.diameter) ?? []);
   const blocked = unresolved.length > 0 || tight.length > 0;
-  const ready = plans.every(p => p.data);
+  // The last programs stay shown while settings change, but only fresh ones go to the machine or a file.
+  const ready = plans.every(p => p.data && !p.isPlaceholderData);
   // Queue: start with the main bit, then boards that start with the bit the last one ended with.
-  const entries = active.map((b, i) => ({ ...b, plan: plans[i].data, fetching: plans[i].isFetching, bits: plans[i].data?.bits ?? [] }));
-  const queue = ready ? orderBoardQueue(entries, Math.min(...entries.flatMap(e => e.bits.slice(0, 1)))) : entries;
+  const entries = active.map((b, i) => ({
+    ...b,
+    plan: plans[i].data,
+    fetching: plans[i].isFetching,
+    stale: plans[i].isPlaceholderData,
+    bits: plans[i].data?.bits ?? [],
+  }));
+  // Ordered by the programs shown (the last ones while they're planned again): the board on screen stays put.
+  const queue = plans.every(p => p.data) ? orderBoardQueue(entries, Math.min(...entries.flatMap(e => e.bits.slice(0, 1)))) : entries;
   const current = queue.find(e => e.board.id === boardParam) ?? queue[0];
   const sideA = current.plan;
   // The board's second side (turned over), when its parts have features underneath.
@@ -94,7 +103,7 @@ function PlanStep() {
   const onSideB = result !== sideA;
   const empty = !!result && result.ops.length === 0;
   // A part neither held by its tabs nor given a fallback would come loose: that blocks, like a safety rule.
-  const safe = !!result && result.safety.length === 0 && !empty && !blocked && loose(sideA).length === 0;
+  const safe = !!result && !current.stale && result.safety.length === 0 && !empty && !blocked && loose(sideA).length === 0;
   const allReady =
     ready &&
     !blocked &&

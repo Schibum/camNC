@@ -1,4 +1,3 @@
-import { pointInPolygonD, PointInPolygonResult } from 'clipper2-ts';
 import { partToBoard, type BoardPart, type BoardSpec } from './board';
 import type { TurnedOver } from './flip';
 import { holdState } from './hold';
@@ -18,8 +17,6 @@ export interface PartHolding {
   id: string;
   name: string;
   how: 'placed' | TabFallback;
-  /** Tab spots facing stock that holds (before picking). */
-  spots: number;
   /** Placed tabs, board coordinates. */
   tabs: P2[];
 }
@@ -58,13 +55,13 @@ export function planTabs(
     const final = outline?.passes.at(-1);
     const fallback = part.tabFallback ?? board.tabFallback ?? 'skin';
     if (!outline || !final) {
-      out.set(part.id, { id: part.id, name: part.name, how: fallback, spots: 0, tabs: [] });
+      out.set(part.id, { id: part.id, name: part.name, how: fallback, tabs: [] });
       continue;
     }
     const r = outline.tool.diameter / 2;
     const loop = final.pts.map(q => ({ x: q[0], y: q[1] }));
-    const shape = part.features.outlines.map(l => l.map(q => partToBoard(part, [q.x, q.y, 0])).map(q => ({ x: q[0], y: q[1] })));
-    const insidePart = (p: P2) => shape.some(l => pointInPolygonD(p, l) === PointInPolygonResult.IsInside);
+    // The bit's path goes round the part: the part is on its left if it runs counterclockwise.
+    const ccw = loop.reduce((s, p, i) => (i ? s + loop[i - 1].x * p.y - p.x * loop[i - 1].y : s), 0) > 0;
     // Not where the pass starts and ends: a tab across that seam would be cut in two.
     const room = tabs.width + outline.tool.diameter;
     const seam = loop[0];
@@ -73,14 +70,15 @@ export function planTabs(
     const hull = convexHull(loop);
     const spots = candidates(loop, room, kCornerClear)
       .filter(c => Math.hypot(c.at.x - seam.x, c.at.y - seam.y) > room && onHull(c.at, hull))
-      .map(c => ({ ...c, out: outward(c, r, insidePart) }))
-      .filter(c => held(c.out.far));
-    const picked = pickTabs(spots, loop, tabs.minCount, room);
+      .map(c => ({ ...c, out: outward(c, r, ccw) }));
+    // Asked only of the spots tried (a part has a thousand), once each.
+    const holds = new Map<Spot, boolean>();
+    const picked = pickTabs(spots, s => holds.get(s) ?? holds.set(s, held(s.out.far)).get(s)!, loop, tabs.minCount, room);
     out.set(
       part.id,
       picked.length >= minTabs
-        ? { id: part.id, name: part.name, how: 'placed', spots: spots.length, tabs: picked }
-        : { id: part.id, name: part.name, how: fallback, spots: spots.length, tabs: [] }
+        ? { id: part.id, name: part.name, how: 'placed', tabs: picked }
+        : { id: part.id, name: part.name, how: fallback, tabs: [] }
     );
   }
   return out;
@@ -95,10 +93,10 @@ type Side = 'left' | 'right' | 'bottom' | 'top';
 type Spot = { at: P2; dir: P2; out: { far: P2; side: Side } };
 
 /** The point just past the cut on the side away from the part, and which side of the part that is. */
-function outward(c: { at: P2; dir: P2 }, r: number, insidePart: (p: P2) => boolean): { far: P2; side: Side } {
+function outward(c: { at: P2; dir: P2 }, r: number, ccw: boolean): { far: P2; side: Side } {
   const l = Math.hypot(c.dir.x, c.dir.y) || 1;
-  let n = { x: -c.dir.y / l, y: c.dir.x / l };
-  if (insidePart({ x: c.at.x + n.x * (r + 0.1), y: c.at.y + n.y * (r + 0.1) })) n = { x: -n.x, y: -n.y };
+  // Away from the part: to the right of a counterclockwise path, the left of a clockwise one.
+  const n = ccw ? { x: c.dir.y / l, y: -c.dir.x / l } : { x: -c.dir.y / l, y: c.dir.x / l };
   const side: Side = Math.abs(n.x) >= Math.abs(n.y) ? (n.x > 0 ? 'right' : 'left') : n.y > 0 ? 'top' : 'bottom';
   return { far: { x: c.at.x + n.x * (r + 0.6), y: c.at.y + n.y * (r + 0.6) }, side };
 }
@@ -106,9 +104,10 @@ function outward(c: { at: P2; dir: P2 }, r: number, insidePart: (p: P2) => boole
 /**
  * A small, balanced set of tabs: on two opposite sides of the part (its long sides if both have spots that hold, else
  * its ends), one per side, two on sides of `kTwoTabEdge` mm or more, at least `minCount` in all; spread evenly along
- * each side. A part held on one side only pivots about it on the last pass: no opposite pair, no tabs (its fallback).
+ * each side, each the spot that holds nearest its place. A part held on one side only pivots about it on the last
+ * pass: no opposite pair, no tabs (its fallback).
  */
-export function pickTabs(spots: Spot[], loop: P2[], minCount: number, minApart: number): P2[] {
+function pickTabs(spots: Spot[], holds: (s: Spot) => boolean, loop: P2[], minCount: number, minApart: number): P2[] {
   const xs = loop.map(p => p.x),
     ys = loop.map(p => p.y);
   const w = Math.max(...xs) - Math.min(...xs),
@@ -118,24 +117,25 @@ export function pickTabs(spots: Spot[], loop: P2[], minCount: number, minApart: 
     { sides: ['left', 'right'], len: h, along: 'y' },
   ];
   pairs.sort((a, b) => b.len - a.len);
-  const pair = pairs.find(p => p.sides.every(s => spots.some(c => c.out.side === s)));
+  const pair = pairs.find(p => p.sides.every(s => spots.some(c => c.out.side === s && holds(c))));
   if (!pair) return [];
   const per = pair.len >= kTwoTabEdge ? 2 : 1;
   const total = Math.max(minCount, 2 * per);
+  const key = (p: P2) => p[pair.along];
   const out: P2[] = [];
   pair.sides.forEach((side, i) => {
-    const mine = spots.filter(c => c.out.side === side).map(c => c.at);
+    const mine = spots.filter(c => c.out.side === side);
     const n = i === 0 ? Math.ceil(total / 2) : Math.floor(total / 2);
-    const key = (p: P2) => p[pair.along];
-    const lo = Math.min(...mine.map(key)),
-      hi = Math.max(...mine.map(key));
+    const lo = Math.min(...mine.map(c => key(c.at))),
+      hi = Math.max(...mine.map(c => key(c.at)));
     for (let k = 0; k < n; k++) {
-      // Evenly along the side's spots: the middle for one, the quarter points for two.
+      // Evenly along the side: the middle for one, the quarter points for two.
       const target = lo + ((k + 0.5) / n) * (hi - lo);
       const best = mine
-        .filter(p => out.every(q => Math.hypot(p.x - q.x, p.y - q.y) >= minApart))
-        .sort((a, b) => Math.abs(key(a) - target) - Math.abs(key(b) - target))[0];
-      if (best) out.push(best);
+        .filter(c => out.every(q => Math.hypot(c.at.x - q.x, c.at.y - q.y) >= minApart))
+        .sort((a, b) => Math.abs(key(a.at) - target) - Math.abs(key(b.at) - target))
+        .find(holds);
+      if (best) out.push(best.at);
     }
   });
   return out;

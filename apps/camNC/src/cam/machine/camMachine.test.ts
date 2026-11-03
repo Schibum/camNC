@@ -49,7 +49,7 @@ describe('machine queue', () => {
   });
 
   it('bottom-skin parts: a "free parts" step after the board, before the tab removal; which part is next', () => {
-    const a = { ...plan([3.175]), holding: [{ name: 'p', how: 'skin' as const, spots: 0 }] };
+    const a = { ...plan([3.175]), holding: [{ name: 'p', how: 'skin' as const }] };
     const q = machineQueue([board('A', 'tabs-guided')], [a]);
     expect(q.map(entryTitle)).toEqual(['Board A · ⌀3.175', 'Board A · free parts', 'Board A · remove tabs']);
     const g = [

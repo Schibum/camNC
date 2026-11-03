@@ -200,7 +200,7 @@ const api = {
     }
     // The hold check runs on the board as laid out, before it's turned to lie like the stock on the bed.
     const flat = board.rotationDeg ? camBoard({ ...spec, rotationDeg: 0 }, settings) : cam;
-    const holding = (cam.holding ?? []).map(h => ({ name: h.name, how: h.how, spots: h.spots }));
+    const holding = (cam.holding ?? []).map(h => ({ name: h.name, how: h.how }));
     // A bottom skin holds every part: nothing to check.
     if (board.holdDown === 'skin') return { ...plan, holding, skin: board.skin ?? kDefaultSkin };
     if (!usesTabs(board.holdDown)) return plan;

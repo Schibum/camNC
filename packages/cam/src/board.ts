@@ -83,7 +83,7 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
   const holding = tabs
     ? planTabs(board, settings)
     : board.holdDown === 'skin'
-      ? new Map(board.parts.map(p => [p.id, { id: p.id, name: p.name, how: 'skin' as const, spots: 0, tabs: [] }]))
+      ? new Map(board.parts.map(p => [p.id, { id: p.id, name: p.name, how: 'skin' as const, tabs: [] }]))
       : undefined;
   for (const part of board.parts) {
     const h = holding?.get(part.id);

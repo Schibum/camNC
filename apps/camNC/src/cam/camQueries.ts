@@ -7,7 +7,7 @@ import { useCuttingData } from './cuttingData';
 import { getJob, getModelBytes, listJobs, saveJob, type CamJobV1 } from './jobDb';
 import { modelReadError } from './openModelFile';
 import { withPartNames } from './partNames';
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 
 let worker: Comlink.Remote<CamWorkerAPI> | undefined;
 /** One long-lived worker, started on the first model: occt's wasm is 2.3 MB brotli. */
@@ -97,15 +97,22 @@ export function useCamPlan(job: CamJobV1 | null | undefined, partId: string | un
   });
 }
 
-/** Programs for every board (they decide the queue order by their bits); recomputed when a board or setting changes. */
+/**
+ * Programs for every board (they decide the queue order by their bits); recomputed when a board or setting changes.
+ * `keepShown`: while one is recomputed, its last program stays (`isPlaceholderData`), so what's shown doesn't blink
+ * away; never hand such a stale one to the machine.
+ */
 export function useBoardPlans(
   job: CamJobV1 | null | undefined,
   boards: { request: BoardRequest; material: string }[],
-  modelReady: boolean
+  modelReady: boolean,
+  { keepShown = false } = {}
 ) {
   const plan = job?.plan ?? kDefaultPlan;
   const saved = useCuttingData(s => s.saved);
-  return useQueries({
+  // Per board id, its last program (a changed setting is a new query: useQueries keeps no placeholder across keys).
+  const last = useRef(new Map<string, PlanResult>());
+  const results = useQueries({
     queries: boards.map(({ request, material }) => {
       const settings = toCamSettings(plan, material as typeof plan.material, saved);
       return {
@@ -116,6 +123,16 @@ export function useBoardPlans(
         queryFn: (): Promise<PlanResult> => camWorker().generateBoard(modelKey(job!), request, settings),
       };
     }),
+  });
+  if (!keepShown) return results;
+  return results.map((r, i) => {
+    const id = boards[i].request.id;
+    if (r.data) {
+      last.current.set(id, r.data);
+      return { ...r, isPlaceholderData: false };
+    }
+    const shown = last.current.get(id);
+    return shown ? { ...r, data: shown, isPlaceholderData: true } : r;
   });
 }
 

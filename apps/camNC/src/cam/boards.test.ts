@@ -318,6 +318,13 @@ describe('boards', () => {
     expect(boardSizeLabel(sheet, nestBoard(sheet, parts, 3.175))).toBe('600.5 × 300');
   });
 
+  it('boards made for a job that has none yet keep their ids: the same boards each time, not new ones', () => {
+    const a = reconcileBoards(undefined, parts, 'oak');
+    const b = reconcileBoards(undefined, parts, 'oak');
+    expect(a.map(x => x.id)).toEqual(b.map(x => x.id));
+    expect(new Set(a.map(x => x.id)).size).toBe(a.length);
+  });
+
   it('stock top: parts thickness + 0.3 unless measured', () => {
     const [a] = reconcileBoards(undefined, parts, 'oak');
     expect(stockTopOf(a)).toBe(8.3);
