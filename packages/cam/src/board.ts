@@ -1,10 +1,11 @@
+import { readGcode } from './analyze';
 import type { PartFeatures } from './features';
 import { dowelOperations, type DowelSpec } from './flip';
 import { boardToPart, kDefaultSkin, planTabs, type PartHolding, type TabFallback } from './tabPlan';
 import type { Vec3 } from './geom';
 import type { HoldOptions } from './hold';
-import type { HoldPoint } from './holdPoints';
-import { camPart, DEFAULT_TABS, fluteWarnings, type CamSettings, type Operation, type PartCam, type TabSettings } from './toolpaths';
+import { holdClashes, holdHeight, type HoldPoint } from './holdPoints';
+import { camPart, DEFAULT_SETTINGS, DEFAULT_TABS, fluteWarnings, type CamSettings, type Operation, type PartCam, type TabSettings } from './toolpaths';
 
 /**
  * How the parts are held while cutting. `tabs` / `tabs-guided`: tabs into held stock (removed by hand, or by a guided
@@ -69,6 +70,53 @@ export interface BoardSpec {
 export function holdOptionsOf(board: Pick<BoardSpec, 'holdDown' | 'holdPoints'>): HoldOptions {
   if (board.holdDown === 'fixture-tape') return { taped: true };
   return board.holdPoints?.length ? { points: board.holdPoints.map(p => ({ x: p.x, y: p.y })) } : {};
+}
+
+/**
+ * Clearance heights of a board's programs: rapids and retract links pass above the tallest hold, wherever they go (and
+ * wherever the machine starts from). Without holds, `toGcode`'s defaults.
+ */
+function aboveHolds(
+  board: Pick<BoardSpec, 'holdPoints'>,
+  stockTop: number,
+  settings: Partial<CamSettings>
+): Pick<PartCam, 'safeZ' | 'retractZ'> {
+  if (!board.holdPoints?.length) return {};
+  const top = stockTop + Math.max(...board.holdPoints.map(holdHeight));
+  return {
+    safeZ: top + (settings.safeHeight ?? DEFAULT_SETTINGS.safeHeight),
+    retractZ: top + (settings.retractHeight ?? DEFAULT_SETTINGS.retractHeight),
+  };
+}
+
+/**
+ * Holds in the way of a job's programs, every move as the G-code has it: cuts, links, rapids and the way back to X0 Y0.
+ * `turned`: a program for the board turned over, whose holds are back in the same spots on the wood (x, H - y on the
+ * bed). The board may lie askew: back to the holds' frame first.
+ */
+export function jobHoldClashes(
+  board: Pick<BoardSpec, 'h' | 'rotationDeg' | 'holdPoints'>,
+  stockTop: number,
+  programs: { gcode: string; diameter: number; turned?: boolean }[]
+): HoldPoint[] {
+  const holds = board.holdPoints ?? [];
+  if (!holds.length) return [];
+  const back = rotateAboutOrigin(-(board.rotationDeg ?? 0));
+  const paths = programs.map(p => {
+    // The first move only says where the machine goes: it starts wherever it is, and goes straight up.
+    const moves = readGcode(p.gcode).slice(1);
+    return {
+      turned: !!p.turned,
+      cut: { r: p.diameter / 2, pts: moves.length ? [back(moves[0].from), ...moves.map(m => back(m.to))] : [] },
+    };
+  });
+  const asLaid = paths.filter(p => !p.turned).map(p => p.cut);
+  const turned = paths.filter(p => p.turned).map(p => p.cut);
+  return holds.filter(
+    h =>
+      holdClashes([h], asLaid, stockTop).length > 0 ||
+      holdClashes([{ ...h, y: board.h - h.y, ...(h.dir && { dir: { x: h.dir.x, y: -h.dir.y } }) }], turned, stockTop).length > 0
+  );
 }
 
 /** Tabs for hold-downs that use them. */
@@ -176,7 +224,7 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
       }
     }
   }
-  return { stockTop, operations, warnings, ...(holding && { holding: [...holding.values()] }) };
+  return { stockTop, operations, warnings, ...(holding && { holding: [...holding.values()] }), ...aboveHolds(board, stockTop, settings) };
 }
 
 /** Bits in the order a board program uses them. */
@@ -218,7 +266,14 @@ export function splitByBit(cam: PartCam): PartCam[] {
   for (const op of cam.operations) {
     const last = out.at(-1);
     if (last && last.operations[0].tool.diameter === op.tool.diameter) last.operations.push(op);
-    else out.push({ stockTop: cam.stockTop, operations: [op], warnings: out.length ? [] : cam.warnings });
+    else
+      out.push({
+        stockTop: cam.stockTop,
+        safeZ: cam.safeZ,
+        retractZ: cam.retractZ,
+        operations: [op],
+        warnings: out.length ? [] : cam.warnings,
+      });
   }
   return out;
 }

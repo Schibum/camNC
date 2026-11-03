@@ -131,6 +131,10 @@ export interface PartCam {
   warnings: string[];
   /** Boards with tabs: how each part is held (tabs where they hold, or its fallback). */
   holding?: PartHolding[];
+  /** Boards with hold points: absolute Z of moves between operations, above the tallest hold (`toGcode`'s default otherwise). */
+  safeZ?: number;
+  /** The same for retract links between passes. */
+  retractZ?: number;
 }
 
 // ---- helpers ----

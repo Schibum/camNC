@@ -78,11 +78,11 @@ export function tabRemovalProgram(
         pauseAfter: `Take out ${part}, then continue`,
       });
   }
-  if (opts.perPart) return { cam: { stockTop: cam.stockTop, operations, warnings: [] }, tabs };
+  if (opts.perPart) return { cam: { stockTop: cam.stockTop, safeZ: cam.safeZ, retractZ: cam.retractZ, operations, warnings: [] }, tabs };
   tabs.forEach(
     t => (operations[t.index - 1].pauseBefore = `Tab ${t.index} of ${tabs.length}: spindle off until Resume. Hold away from bit: ${t.part}`)
   );
-  return { cam: { stockTop: cam.stockTop, operations, warnings: [] }, tabs };
+  return { cam: { stockTop: cam.stockTop, safeZ: cam.safeZ, retractZ: cam.retractZ, operations, warnings: [] }, tabs };
 }
 
 /** Stretches of a closed pass that are lifted above its deepest Z (the tabs), with their end points. */

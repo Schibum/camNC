@@ -123,8 +123,8 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
   const diameters = new Set(cam.operations.map(o => o.tool.diameter));
   if (diameters.size > 1) throw new Error(`One program per bit: split the ${diameters.size} bits with splitByBit first`);
   const rpm = cam.operations[0]?.tool.rpm ?? opts.spindleRpm ?? 15000;
-  const safeZ = opts.safeZ ?? cam.stockTop + 5;
-  const retractZ = opts.retractZ ?? cam.stockTop + 2;
+  const safeZ = opts.safeZ ?? cam.safeZ ?? cam.stockTop + 5;
+  const retractZ = opts.retractZ ?? cam.retractZ ?? cam.stockTop + 2;
   const approachZ = cam.stockTop + 1;
   const useArcs = opts.arcs ?? true;
   const tol = opts.arcTolerance ?? 0.01;

@@ -3,12 +3,14 @@ import type { HoldDown } from '@wbcnc/cam';
 import { usesTabs } from '@wbcnc/cam/board';
 import {
   frameMargin,
-  kHoldClearance,
   kHoldDefaults,
+  kHoldHeights,
   kHoldSpacing,
   kClampWidth,
   edgeDir,
   holdBox,
+  pathClearance,
+  snapClamp,
   suggestHoldPoints,
   type HoldKind,
   type HoldPoint,
@@ -44,9 +46,10 @@ export interface BoardV1 {
   boardHold?: BoardHold;
   /**
    * The hold points: screw or clamp and greatest spacing along an edge (mm). A screw: `d` its head's ⌀. A clamp: `d`
-   * how far its toe reaches in from the edge, `w` its width along the edge. Default a ⌀10 screw every 250.
+   * how far its toe reaches in from the edge, `w` its width along the edge. `height`: how far it stands above the stock's
+   * top, mm (the program's clearance heights go above it). Default a ⌀10 screw every 250.
    */
-  holds?: { kind: HoldKind; d: number; w?: number; spacing?: number };
+  holds?: { kind: HoldKind; d: number; w?: number; height?: number; spacing?: number };
   /** Hold points the user moved (board frame, mm): used as they are instead of the suggested ones. */
   holdPoints?: { x: number; y: number }[];
   /** The board's size when the user moved them: on a board of another size (laid out again) they're suggested afresh. */
@@ -121,6 +124,7 @@ export const holdsOf = (board: Pick<BoardV1, 'holds'>) => {
     kind,
     d: (!old && board.holds?.d) || kHoldDefaults[kind],
     ...(kind === 'clamp' && { w: board.holds?.w ?? kClampWidth }),
+    height: board.holds?.height ?? kHoldHeights[kind],
     spacing: board.holds?.spacing ?? kHoldSpacing,
   };
 };
@@ -381,20 +385,22 @@ export function nestBoard(
   let moved = points && board.holdPoints?.length && (!size || sameSize(size)) ? board.holdPoints : undefined;
   const movedOn = board.holdPointsOn ?? size;
   const holdAt = (p: { x: number; y: number }, on?: { w: number; h: number }): HoldPoint => ({
-    x: p.x,
-    y: p.y,
+    // A clamp grips at the edge, however far it reaches in now: its toe would otherwise be checked off the board.
+    ...(hold.w !== undefined && on ? snapClamp(p, hold.d, on) : { x: p.x, y: p.y }),
     kind: hold.kind,
     d: hold.d,
+    height: hold.height,
     ...(hold.w !== undefined && { w: hold.w, ...(on && { dir: edgeDir(p, on) }) }),
   });
   const keepOutOf = (h: HoldPoint): Rect => {
     const b = holdBox(h);
-    return { x: b.x - kHoldClearance, y: b.y - kHoldClearance, w: b.w + 2 * kHoldClearance, h: b.h + 2 * kHoldClearance };
+    const keep = pathClearance(h, bit / 2) - bit / 2;
+    return { x: b.x - keep, y: b.y - keep, w: b.w + 2 * keep, h: b.h + 2 * keep };
   };
   let keepOuts: Rect[] = (moved ?? []).map(p => keepOutOf(holdAt(p, movedOn)));
   // Packing picks the sheets without the frame: it's only kept where it costs no part (and so no extra board).
   const wantFrame = points && board.frame !== false && !opts.packing;
-  const framed = wantFrame ? Math.max(baseMargin, frameMargin(hold.d, bit, hold.kind)) : baseMargin;
+  const framed = wantFrame ? Math.max(baseMargin, frameMargin(hold.d, bit, hold.kind, hold.height)) : baseMargin;
 
   const layout = (margin: number) => {
     // Placed by hand: kept at their spot while it is inside the margin and clear of the others and the holds.
@@ -445,7 +451,7 @@ export function nestBoard(
       ? []
       : moved
         ? moved.map(p => holdAt(p, out))
-        : suggestHoldPoints(out, rects, { kind: hold.kind, d: hold.d, w: hold.w, bit, spacing: hold.spacing });
+        : suggestHoldPoints(out, rects, { kind: hold.kind, d: hold.d, w: hold.w, height: hold.height, bit, spacing: hold.spacing });
   return {
     ...n,
     board: out,
@@ -535,7 +541,8 @@ export function boardRequest(
     thickness: board.thickness,
     stockTop: stockTopOf(board),
     holdDown: partsHoldOf(board),
-    ...(nest.holds.length && { holdPoints: nest.holds }),
+    // Held by points: all of them, none too (then nothing holds it, which blocks the job, not "held at its edges").
+    ...(boardHoldOf(board) === 'points' && { holdPoints: nest.holds }),
     tabs: board.tabs,
     ...(flipOf(board, instances) !== 'off' && {
       flip: { registration: flipOf(board, instances) as FlipRegistration, dowelDiameter: board.dowelDiameter },

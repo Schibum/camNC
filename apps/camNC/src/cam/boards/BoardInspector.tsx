@@ -4,7 +4,7 @@ import { MATERIALS } from '@wbcnc/cam/settings';
 import { Button } from '@wbcnc/ui/components/button';
 import { Label } from '@wbcnc/ui/components/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wbcnc/ui/components/select';
-import { kClampWidth, kHoldDefaults, type HoldKind } from '@wbcnc/cam/holdPoints';
+import { kClampWidth, kColletClearance, kHoldDefaults, kHoldHeights, kLowHold, type HoldKind } from '@wbcnc/cam/holdPoints';
 import {
   boardGap,
   boardHoldOf,
@@ -319,7 +319,7 @@ export function BoardInspector({
             <div
               className={cn(
                 'grid items-end gap-2',
-                hold.kind === 'clamp' ? 'grid-cols-[1fr_64px_64px_64px]' : 'grid-cols-[1fr_76px_76px]'
+                hold.kind === 'clamp' ? 'grid-cols-[1fr_56px_56px_56px_56px]' : 'grid-cols-[1fr_64px_64px_64px]'
               )}>
               <div className="flex flex-col gap-1">
                 <Label htmlFor="hold-kind" className="text-xs font-normal text-muted-foreground">
@@ -334,6 +334,7 @@ export function BoardInspector({
                       holds: {
                         kind: v as HoldKind,
                         d: kHoldDefaults[v as HoldKind],
+                        height: kHoldHeights[v as HoldKind],
                         spacing: hold.spacing,
                         ...(v === 'clamp' && { w: kClampWidth }),
                       },
@@ -353,7 +354,7 @@ export function BoardInspector({
                   <NumberField
                     id="hold-d"
                     label="Reach in"
-                    hint="How far the clamp’s toe reaches onto the board from its edge. The frame is this wide plus the bit’s cut; the bit keeps clear of the toe."
+                    hint="How far the clamp’s toe reaches onto the board from its edge. The frame is this wide plus the bit’s cut, and room for the collet nut beside a tall clamp; the bit keeps clear of the toe."
                     value={hold.d}
                     onCommit={d => onChange({ ...board, holds: { ...hold, d } })}
                     min={0.5}
@@ -377,6 +378,14 @@ export function BoardInspector({
                   min={2}
                 />
               )}
+              <NumberField
+                id="hold-height"
+                label="Height"
+                hint={`How far it stands above the board's top, mm. Every rapid and link passes above the tallest hold, so measure it: too low and the bit or the collet hits it. Taller than ${kLowHold} mm, cuts also keep ${kColletClearance} mm from it for the collet nut.`}
+                value={hold.height}
+                onCommit={height => onChange({ ...board, holds: { ...hold, height } })}
+                min={0}
+              />
               <NumberField
                 id="hold-spacing"
                 label="Spacing"

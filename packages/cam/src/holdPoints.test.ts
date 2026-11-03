@@ -2,7 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { camBoard, type BoardSpec } from './board';
 import type { PartFeatures } from './features';
 import { holdTimeline } from './hold';
-import { edgeDir, frameMargin, heldByPoints, holdBox, holdClashes, kZeroClear, snapClamp, suggestHoldPoints } from './holdPoints';
+import {
+  edgeDir,
+  frameMargin,
+  heldByPoints,
+  holdBox,
+  holdClashes,
+  kColletClearance,
+  kZeroClear,
+  snapClamp,
+  suggestHoldPoints,
+} from './holdPoints';
 import { DEFAULT_TABS, freePartsProgram } from './index';
 
 const rect = (x0: number, y0: number, x1: number, y1: number) => [
@@ -125,16 +135,16 @@ describe('hold points', () => {
     for (let i = 1; i < bottom.length; i++) expect(bottom[i].x - bottom[i - 1].x).toBeLessThanOrEqual(250 + 1);
   });
 
-  it('clamps grip at the edge: a toe 2 mm in and 20 mm along it needs a narrow frame, and only the toe clashes', () => {
+  it('clamps grip at the edge: a low toe 2 mm in and 20 mm along it needs a narrow frame, and only the toe clashes', () => {
     const bit = 6;
-    const m = frameMargin(2, bit, 'clamp');
+    const m = frameMargin(2, bit, 'clamp', 5);
     expect(m).toBe(11);
     expect(frameMargin(10, bit)).toBe(21);
     const parts = [{ x: m, y: m, w: 571 - 2 * m, h: 779 - 2 * m }];
-    const holds = suggestHoldPoints({ w: 571, h: 779 }, parts, { kind: 'clamp', d: 2, w: 20, bit });
+    const holds = suggestHoldPoints({ w: 571, h: 779 }, parts, { kind: 'clamp', d: 2, w: 20, height: 5, bit });
     expect(holds.length).toBeGreaterThanOrEqual(10);
     for (const h of holds) {
-      expect(h).toMatchObject({ kind: 'clamp', d: 2, w: 20 });
+      expect(h).toMatchObject({ kind: 'clamp', d: 2, w: 20, height: 5 });
       const box = holdBox(h);
       // Against an edge, 2 deep and 20 along it.
       const atEdge = Math.min(box.x, box.y, 571 - box.x - box.w, 779 - box.y - box.h);

@@ -2,6 +2,7 @@ import { frameMargin } from '@wbcnc/cam/holdPoints';
 import { describe, expect, it } from 'vitest';
 import {
   autoFillFromStock,
+  boardRequest,
   boardSizeLabel,
   dropPart,
   flipOf,
@@ -294,16 +295,18 @@ describe('boards', () => {
     expect(nestBoard(tabs, parts, 3.175).margin).toBe(frameMargin(10, 3.175));
     // Clamps grip at the edge: the frame is their reach in (2 mm) plus the cut, not a round toe's size. Their toes
     // lie against an edge, 20 mm along it, and stay clear of the parts.
-    const clamped = nestBoard({ ...tabs, holds: { kind: 'clamp', d: 2, w: 20 } }, parts, 3.175);
-    expect(clamped.margin).toBe(frameMargin(2, 3.175, 'clamp'));
+    const clamped = nestBoard({ ...tabs, holds: { kind: 'clamp', d: 2, w: 20, height: 5 } }, parts, 3.175);
+    expect(clamped.margin).toBe(frameMargin(2, 3.175, 'clamp', 5));
     expect(clamped.margin).toBe(8);
+    // A taller clamp, by default: room for the collet nut beside it too.
+    expect(nestBoard({ ...tabs, holds: { kind: 'clamp', d: 2, w: 20 } }, parts, 3.175).margin).toBe(18);
     expect(clamped.holds.length).toBeGreaterThanOrEqual(4);
     for (const h of clamped.holds) {
       expect(h).toMatchObject({ kind: 'clamp', d: 2, w: 20 });
       expect(Math.min(h.x, h.y, clamped.board.w - h.x, clamped.board.h - h.y)).toBeCloseTo(1, 5);
     }
     // A clamp saved before clamps had a width (sized as a round toe) starts afresh.
-    expect(nestBoard({ ...tabs, holds: { kind: 'clamp', d: 25 } }, parts, 3.175).margin).toBe(8);
+    expect(nestBoard({ ...tabs, holds: { kind: 'clamp', d: 25 } }, parts, 3.175).margin).toBe(18);
     const a = { ...tabs, holdDown: 'fixture-tape' as const };
     const nest = nestBoard(a, parts, 3.175);
     expect(nest.margin).toBe(5.2);
@@ -382,6 +385,29 @@ describe('boards', () => {
     expect(moved.holds.map(h => ({ x: h.x, y: h.y }))).toEqual([middle]);
     expect(moved.keepOuts).toHaveLength(1);
     expect(moved.unplaced).toEqual([]);
+  });
+
+  it('a board held by points always says so, with none on it too; taped, it has none to say', () => {
+    const [a] = reconcileBoards(undefined, parts, 'oak');
+    const none = { ...nestBoard(a, parts, 3.175), holds: [] };
+    expect(boardRequest(a, none, parts).holdPoints).toEqual([]);
+    const taped = { ...a, boardHold: 'tape' as const, holdDown: 'fixture-tape' as const };
+    expect('holdPoints' in boardRequest(taped, nestBoard(taped, parts, 3.175), parts)).toBe(false);
+  });
+
+  it('holds carry their height; a moved clamp stays against its edge when its reach changes', () => {
+    const [a] = reconcileBoards(undefined, parts, 'oak');
+    expect(nestBoard(a, parts, 3.175).holds[0].height).toBe(3);
+    const clamps = { ...a, holds: { kind: 'clamp' as const, d: 2, w: 20 } };
+    const on = nestBoard(clamps, parts, 3.175);
+    expect(on.holds[0].height).toBe(30);
+    // A fixed size, or the larger frame would lay it out afresh, and suggest them afresh.
+    const size = { fit: false as const, w: on.board.w, h: on.board.h };
+    const moved = { ...clamps, size, frame: false, holdPoints: [{ x: 100, y: 1 }], holdPointsOn: on.board };
+    const reach = (d: number) => nestBoard({ ...moved, holds: { ...moved.holds, d } }, parts, 3.175).holds[0];
+    // Reaches 2 in: centre 1 in. Reaches 30 in: centre 15 in, the toe from the edge to 30, not off the board.
+    expect(reach(2)).toMatchObject({ x: 100, y: 1 });
+    expect(reach(30)).toMatchObject({ x: 100, y: 15 });
   });
 
   it('second side: on by default (camera) when a part has features underneath, as chosen otherwise', () => {

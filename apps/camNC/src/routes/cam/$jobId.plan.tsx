@@ -464,7 +464,7 @@ function SideSwitch({ plan, side, onSide }: { plan: PlanResult; side: 'a' | 'b';
       </div>
       <span className="text-muted-foreground">
         {plan.sideB
-          ? `After side A: ${kFlipSteps[flip.registration]} Don’t re-zero XY; zero Z on the spoilboard.`
+          ? `After side A: ${kFlipSteps[flip.registration]} Fasten it in the same spots on the wood. Don’t re-zero XY; zero Z on the spoilboard.`
           : 'No part on this board has features underneath.'}
         {flip.dowels &&
           ` Pins ⌀${flip.dowelDiameter} at ${flip.dowels.map(p => `X${Math.round(p.x)} Y${Math.round(p.y)}`).join(' and ')} (and their mirrors).`}

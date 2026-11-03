@@ -17,8 +17,8 @@ import {
   kTapeLayer,
   flipPart,
   holdCheck,
-  holdClashes,
   holdOptionsOf,
+  jobHoldClashes,
   holdTimeline,
   sideBSpec,
   kMaxSlopedShare,
@@ -159,7 +159,17 @@ const api = {
     }));
     // Skins and tabs are taken care of last: after side B, when there is one, with the board turned over.
     const release = releasePrograms(flat, board, settings, !!plan.sideB, perPart);
-    plan = { ...plan, ...stability(flat, spec), ...(release.length && { release }) };
+    // Holds in the way of any move of any program: side B and the turned programs find them in the same spots on the wood.
+    const clashes = spec.holdPoints?.length
+      ? {
+          holdClash: jobHoldClashes(spec, flat.stockTop, [
+            ...plan.programs,
+            ...(plan.sideB?.programs ?? []).map(p => ({ ...p, turned: true })),
+            ...release,
+          ]).map(h => ({ x: h.x, y: h.y })),
+        }
+      : {};
+    plan = { ...plan, ...stability(flat, spec), ...clashes, ...(release.length && { release }) };
     // A skin (or the layer on the tape) holds every part until the end.
     if (board.holdDown === 'skin' || board.holdDown === 'fixture-tape')
       return {
@@ -175,9 +185,9 @@ const api = {
 
 /**
  * Does everything stay put during the job? What comes loose at which step (stock with too few holds, parts cut free
- * with nothing holding them), and hold points the bit would hit. On the board as laid out (not turned on the bed).
+ * with nothing holding them). On the board as laid out (not turned on the bed).
  */
-function stability(flat: PartCam, spec: BoardSpec): Pick<PlanResult, 'timeline' | 'holdClash'> {
+function stability(flat: PartCam, spec: BoardSpec): Pick<PlanResult, 'timeline'> {
   if (spec.holdDown === 'fixture-tape') return {};
   const how = (part: string) => flat.holding?.find(h => h.name === part)?.how;
   // Nothing holds the parts, as the user chose: say so, don't block.
@@ -198,9 +208,7 @@ function stability(flat: PartCam, spec: BoardSpec): Pick<PlanResult, 'timeline' 
         : `${ev.what} comes loose when its outline is cut through${watched ? ', as you chose: nothing holds the parts. Keep an eye on it.' : ': no tabs into stock that is held.'}`;
     return { ...ev, block, message };
   });
-  const cuts = flat.operations.flatMap(op => op.passes.map(p => ({ r: op.tool.diameter / 2, pts: p.pts })));
-  const holdClash = holdClashes(spec.holdPoints ?? [], cuts, flat.stockTop).map(h => ({ x: h.x, y: h.y }));
-  return { timeline, holdClash };
+  return { timeline };
 }
 
 /**
@@ -324,7 +332,16 @@ function boardSpec(key: string, board: BoardRequest): BoardSpec {
     tabs: { ...DEFAULT_TABS, ...board.tabs },
     parts: board.parts.map(p => {
       const { part, features } = loaded(key, p.partId);
-      return { id: p.id, name: p.name, features, size: part.size, x: p.x, y: p.y, rotated: p.rotated, tabFallback: p.tabFallback };
+      return {
+        id: p.id,
+        name: p.name,
+        features,
+        size: part.size,
+        x: p.x,
+        y: p.y,
+        rotated: p.rotated,
+        tabFallback: p.tabFallback,
+      };
     }),
   };
 }
