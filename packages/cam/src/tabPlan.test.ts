@@ -160,6 +160,8 @@ describe('tab placement', () => {
     const cam = camBoard(tight(), {});
     const free = freePartsProgram(cam, { feed: 900, plungeFeed: 480, finalZ: -0.3 });
     expect(free.parts.map(p => p.name)).toEqual(['a', 'b']);
+    // One lap round each part, once through the skin.
+    expect(free.cam.operations.map(o => o.passes.length)).toEqual([1, 1]);
     const gcode = toGcode(free.cam);
     const lines = gcode.trim().split('\n');
     const pauses = lines.flatMap((l, i) => (l.startsWith('M0 (MSG Take out') ? [i] : []));

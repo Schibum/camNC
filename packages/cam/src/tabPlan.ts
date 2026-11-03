@@ -258,11 +258,8 @@ export function freePartsProgram(
       kind: 'profile',
       feature: 'outline',
       tool: op.tool,
-      passes: [
-        { pts, feeds, link: 'retract' },
-        // A light second lap at the same depth: clean through where the first left a whisker.
-        { pts, feeds: pts.map(() => opts.feed), link: 'direct' },
-      ],
+      // One lap through the skin: finalZ already goes past the bottom, a second lap at the same depth cuts nothing.
+      passes: [{ pts, feeds, link: 'retract' }],
       pauseAfter: `Take out ${name}, then continue`,
     });
     const xs = pts.map(q => q[0]),
