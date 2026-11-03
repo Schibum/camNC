@@ -120,7 +120,14 @@ describe('CAM plan step', () => {
     await vi.waitFor(() => expect(show()).toBe(true));
     expect(screen.getByRole('table', { name: 'Operations for board A' })).toBeTruthy();
     const deepest = () => Math.max(...stepdowns(screen.getByRole('table', { name: 'Operations for board A' })));
-    await vi.waitFor(() => expect(deepest()).toBeGreaterThan(2.4), { timeout: 30_000 });
+    await vi
+      .waitFor(() => expect(deepest()).toBeGreaterThan(2.4), { timeout: 30_000 })
+      .catch(async (e: Error) => {
+        // Which way it went wrong: the override never saved, or saved but not planned with.
+        const saved = (await getJob(job.id))?.plan?.cutting;
+        const source = within(panel).queryByText(/mm · /)?.textContent;
+        throw new Error(`${e.message} (saved cutting ${JSON.stringify(saved)}, panel says "${source}", still planning: ${show()})`);
+      });
     expect(deepest()).toBeLessThanOrEqual(3.5);
     await vi.waitFor(() => expect(show()).toBe(false), { timeout: 30_000 });
     expect((await getJob(job.id))!.plan!.cutting).toEqual({ stepdown: 3.5 });

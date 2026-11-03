@@ -25,6 +25,9 @@ export const camKeys = {
 
 export const useCamJobs = () => useQuery({ queryKey: camKeys.jobs, queryFn: listJobs });
 
+/** Per job id, the number of the newest save started (see useSaveCamJob and useCamModel). */
+const latestSave = new Map<string, number>();
+
 export const useCamJob = (id: string) => useQuery({ queryKey: camKeys.job(id), queryFn: () => getJob(id), staleTime: Infinity });
 
 /**
@@ -48,9 +51,17 @@ export function useCamModel(job: CamJobV1 | null | undefined) {
     // A file that can't be read fails the same way again: say so now, not after three slow retries.
     retry: false,
     queryFn: async (): Promise<ModelImport> => {
-      const write = async (next: CamJobV1) => {
+      // Onto the job as it is now, not as the import found it: the user may have changed it meanwhile (the import
+      // takes a while). Like any save, only if no newer one was started.
+      const write = async (patch: Partial<CamJobV1>, drop?: 'readError') => {
+        const now = queryClient.getQueryData<CamJobV1>(camKeys.job(job!.id)) ?? job!;
+        const next = { ...now, ...patch };
+        if (drop) delete next[drop];
+        const save = (latestSave.get(next.id) ?? 0) + 1;
+        latestSave.set(next.id, save);
+        queryClient.setQueryData(camKeys.job(next.id), next);
         const saved = await saveJob(next);
-        queryClient.setQueryData(camKeys.job(saved.id), saved);
+        if (save === latestSave.get(saved.id)) queryClient.setQueryData(camKeys.job(saved.id), saved);
         void queryClient.invalidateQueries({ queryKey: camKeys.jobs });
       };
       let model: ModelImport;
@@ -61,7 +72,7 @@ export function useCamModel(job: CamJobV1 | null | undefined) {
       } catch (e) {
         // Kept on the job, so the job list shows it failed.
         const readError = modelReadError(job!.fileName, e);
-        if (job!.readError !== readError) await write({ ...job!, readError });
+        if (job!.readError !== readError) await write({ readError });
         throw new Error(readError, { cause: e });
       }
       const known = new Map(job!.parts.map(p => [p.id, p]));
@@ -71,11 +82,7 @@ export function useCamModel(job: CamJobV1 | null | undefined) {
         quantity: p.names.length,
         milled: known.get(p.id)?.milled ?? !p.summary.notFlat,
       }));
-      if (JSON.stringify(parts) !== JSON.stringify(job!.parts) || job!.readError) {
-        const next = { ...job!, parts };
-        delete next.readError;
-        await write(next);
-      }
+      if (JSON.stringify(parts) !== JSON.stringify(job!.parts) || job!.readError) await write({ parts }, 'readError');
       return model;
     },
   });
@@ -136,9 +143,6 @@ export function useBoardPlans(
     return shown ? { ...r, data: shown, isPlaceholderData: true } : r;
   });
 }
-
-/** Per job id, the number of the newest save started (see useSaveCamJob). */
-const latestSave = new Map<string, number>();
 
 export function useSaveCamJob() {
   const queryClient = useQueryClient();
