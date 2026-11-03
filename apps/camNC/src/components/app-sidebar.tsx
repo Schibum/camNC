@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router';
-import { Box, Bug, Cctv, Grid2x2, HardDriveDownload, Layers, Puzzle, Rocket, Scale3d } from 'lucide-react';
+import { Box, Bug, Cctv, FlaskConical, Grid2x2, HardDriveDownload, Layers, Puzzle, Rocket, Scale3d } from 'lucide-react';
+import { useLabs } from '@/cam/labs';
 import * as React from 'react';
 
 import { useLocation } from '@tanstack/react-router';
@@ -36,16 +37,14 @@ const routes: NavRoute[] = [
     icon: Grid2x2,
   },
   {
-    title: 'Make G-code',
-    to: '/cam',
-    icon: Box,
-  },
-  {
     title: 'Get Started',
     to: '/start',
     icon: Rocket,
   },
 ];
+
+// Behind Settings › Labs until the whole flow (model → boards → plan → cut) is there.
+const kCamRoute: NavRoute = { title: 'CAM (beta)', to: '/cam', icon: Box };
 
 const machineRoutes: NavRoute[] = [
   {
@@ -78,6 +77,11 @@ const settingsRoutes: NavRoute[] = [
     title: 'Hide Machine',
     to: '/settings/hide-machine',
     icon: Layers,
+  },
+  {
+    title: 'Labs',
+    to: '/settings/labs',
+    icon: FlaskConical,
   },
   {
     title: 'Debug',
@@ -116,6 +120,7 @@ type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {};
 export function AppSidebar({ ...props }: AppSidebarProps) {
   const location = useLocation({ select: l => l.pathname });
   const { setOpenMobile: setOpen } = useSidebar();
+  const camBeta = useLabs(s => s.camBeta);
   // Auto-close the sidebar when the location changes
   useEffect(() => {
     setOpen(false);
@@ -135,7 +140,7 @@ export function AppSidebar({ ...props }: AppSidebarProps) {
         <CamSourceSelector />
       </SidebarHeader>
       <SidebarContent>
-        <NavRoutes routes={routes} label="Views" />
+        <NavRoutes routes={camBeta ? [...routes.slice(0, 1), kCamRoute, ...routes.slice(1)] : routes} label="Views" />
         <NavRoutes routes={machineRoutes} label="Machine" />
         <NavRoutes routes={cameraRoutes} label="Camera (optional)" />
         <NavRoutes routes={settingsRoutes} label="Settings" />

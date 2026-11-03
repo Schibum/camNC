@@ -1,4 +1,4 @@
-export { loadStep, detectFlat, flipPart, groupIdentical, analyzeFaces } from './import';
+export { loadStep, detectFlat, flipPart, flatMatrix, groupIdentical, analyzeFaces } from './import';
 export type { StepBody, FlatPart, LoadStepOptions } from './import';
 export { extractFeatures } from './features';
 export type { PartFeatures, PocketFeature, Level } from './features';
@@ -17,3 +17,6 @@ export { toGcode, fitArcs } from './gcode';
 export type { GcodeOptions } from './gcode';
 export { readGcode, metrics } from './analyze';
 export type { Move, Metrics } from './analyze';
+export { loadStl } from './stl';
+export { summarizePart } from './summary';
+export type { FeatureChip, PartSummary } from './summary';

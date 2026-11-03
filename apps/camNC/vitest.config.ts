@@ -19,6 +19,8 @@ export default defineConfig({
       'react-timeago-i18n',
       'react-hotkeys-hook',
       '@wbcnc/ui > @radix-ui/react-popover',
+      'occt-import-js',
+      'clipper2-ts',
     ],
   },
   test: {

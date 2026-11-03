@@ -112,6 +112,8 @@ export interface FlatPart {
   thickness: number;
   /** Rows of the rotation applied to the original mesh (new x, y, z axes in original coords). */
   axes: [Vec3, Vec3, Vec3];
+  /** Subtracted after rotating: flat = (dot(axes[i], p) - origin[i]). */
+  origin: Vec3;
   /** Area of horizontal floors between top and bottom that face up (machinable from the top). */
   topFeatureArea: number;
   /** Same for faces that face down, i.e. features that need the part flipped. */
@@ -232,11 +234,19 @@ export function detectFlat(body: StepBody): FlatPart {
     size,
     thickness,
     axes,
+    origin: b.min,
     topFeatureArea: flipped ? negFloor : posFloor,
     bottomFeatureArea: flipped ? posFloor : negFloor,
     flipped,
     prismaticRatio: totalArea > 0 ? prismatic / totalArea : 0,
   };
+}
+
+/** Column-major 4x4 matrix (three.js `Matrix4.fromArray`) taking original model coordinates to the flat frame. */
+export function flatMatrix(part: Pick<FlatPart, 'axes' | 'origin'>): number[] {
+  const [x, y, z] = part.axes;
+  const o = part.origin;
+  return [x[0], y[0], z[0], 0, x[1], y[1], z[1], 0, x[2], y[2], z[2], 0, -o[0], -o[1], -o[2], 1];
 }
 
 /** Second setup: turn the board over around the X axis (x, y, z) -> (x, Ymax - y, T - z). */
@@ -254,6 +264,7 @@ export function flipPart(part: FlatPart): FlatPart {
     name: `${part.name} (flipped)`,
     mesh: { ...part.mesh, positions },
     axes: [x, scale(y, -1), scale(z, -1)],
+    origin: [part.origin[0], -part.origin[1] - part.size[1], -part.origin[2] - part.size[2]],
     topFeatureArea: part.bottomFeatureArea,
     bottomFeatureArea: part.topFeatureArea,
     flipped: !part.flipped,
