@@ -1,4 +1,4 @@
-import { partToBoard, type BoardPart, type BoardSpec } from './board';
+import { holdOptionsOf, partToBoard, type BoardPart, type BoardSpec } from './board';
 import type { TurnedOver } from './flip';
 import { holdState } from './hold';
 import { DEFAULT_TABS, throughCuts, type CamSettings, type Operation, type PartCam, type TabSettings } from './toolpaths';
@@ -50,7 +50,10 @@ export function planTabs(
       })),
     ])
   );
-  const { held } = holdState({ stockTop, operations: [...cuts.values()].flat(), warnings: [] }, board, opts);
+  const { held } = holdState({ stockTop, operations: [...cuts.values()].flat(), warnings: [] }, board, {
+    ...holdOptionsOf(board),
+    ...opts,
+  });
   const out = new Map<string, PartHolding>();
   for (const part of board.parts) {
     const outline = cuts.get(part.id)!.find(o => o.feature === 'outline');
@@ -230,18 +233,29 @@ export function boardToPart(p: Pick<BoardPart, 'x' | 'y' | 'rotated' | 'size'>, 
 }
 
 /**
- * After cutting a board with bottom-skin parts: frees them one at a time. For each, the bit cuts the skin along the
+ * After cutting a board with bottom-skin parts: frees them one at a time (`pause` false, for a taped board: all of
+ * them in one go, smallest first, no pauses). For each, the bit cuts the skin along the
  * outline at the final depth (and once more, light), goes up, stops the spindle and pauses: "Take out <part>". The
  * spindle starts again before the next part; nothing moves while paused.
  */
 export function freePartsProgram(
   cam: PartCam,
-  opts: { feed: number; plungeFeed: number; finalZ: number; turned?: TurnedOver }
+  opts: { feed: number; plungeFeed: number; finalZ: number; turned?: TurnedOver; pause?: boolean }
 ): { cam: PartCam; parts: { name: string; at: P2 }[] } {
   const turned = opts.turned;
+  const pause = opts.pause ?? true;
   const ops: Operation[] = [];
   const parts: { name: string; at: P2 }[] = [];
-  for (const op of cam.operations) {
+  // Without pauses (taped down, nothing taken out in between): the smallest parts first, while the most tape still
+  // holds around them.
+  const footprint = (op: Operation) => {
+    const pts = op.passes.at(-1)?.pts ?? [];
+    const xs = pts.map(q => q[0]),
+      ys = pts.map(q => q[1]);
+    return pts.length ? (Math.max(...xs) - Math.min(...xs)) * (Math.max(...ys) - Math.min(...ys)) : 0;
+  };
+  const outlines = pause ? cam.operations : [...cam.operations].sort((a, b) => footprint(a) - footprint(b));
+  for (const op of outlines) {
     if (op.feature !== 'outline') continue;
     const final = op.passes.at(-1);
     if (!final || Math.min(...final.pts.map(q => q[2])) <= opts.finalZ + 1e-6) continue;
@@ -254,13 +268,13 @@ export function freePartsProgram(
       : final.pts.map(q => [q[0], q[1], opts.finalZ] as [number, number, number]);
     const feeds = pts.map((_, k) => (k === 0 ? opts.plungeFeed : opts.feed));
     ops.push({
-      name: `${name}: Free from the skin`,
+      name: pause ? `${name}: Free from the skin` : `${name}: Cut free`,
       kind: 'profile',
       feature: 'outline',
       tool: op.tool,
       // One lap through the skin: finalZ already goes past the bottom, a second lap at the same depth cuts nothing.
       passes: [{ pts, feeds, link: 'retract' }],
-      pauseAfter: `Take out ${name}, then continue`,
+      ...(pause && { pauseAfter: `Take out ${name}, then continue` }),
     });
     const xs = pts.map(q => q[0]),
       ys = pts.map(q => q[1]);

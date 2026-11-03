@@ -1,12 +1,25 @@
 import type { FlipRegistration, TabFallback } from '@wbcnc/cam';
-import type { HoldDown } from '@wbcnc/cam';
 import { MATERIALS } from '@wbcnc/cam/settings';
 import { Button } from '@wbcnc/ui/components/button';
 import { Label } from '@wbcnc/ui/components/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wbcnc/ui/components/select';
-import { boardGap, defaultMargin, kStockAllowance, stockTopOf, type BoardNest, type BoardV1, type StockBoardV1 } from '../boards';
+import { kHoldDefaults, type HoldKind } from '@wbcnc/cam/holdPoints';
+import {
+  boardGap,
+  boardHoldOf,
+  defaultMargin,
+  holdsOf,
+  kBoardHoldLabels,
+  kHoldDownLabels,
+  kStockAllowance,
+  partsHoldOf,
+  stockTopOf,
+  type BoardHold,
+  type BoardNest,
+  type BoardV1,
+  type StockBoardV1,
+} from '../boards';
 import type { MaterialKey } from '../planSettings';
-import { kHoldDownLabels } from '../boards';
 import { Hint } from '../Hint';
 import { NumberInput } from '../NumberInput';
 
@@ -62,12 +75,17 @@ function NumberField({
   );
 }
 
-const kHoldDownHints: Record<HoldDown, string> = {
-  'fixture-tape': 'The board sits in a fixture or on double-sided tape: no tabs, the parts stay put by themselves.',
+const kBoardHoldHints: Record<BoardHold, string> = {
+  points:
+    'Screw the board to the spoilboard, or clamp it, at the spots shown on the board (suggested clear of every cut; drag one to move it). Each piece of the board that stays after the cuts needs 3 around it, so it can’t turn or lift.',
+  tape: 'The board sits in a fixture or on double-sided tape. Every outline stops a thin layer above the bottom; the last program cuts that layer for all parts together, smallest first, once everything else is done.',
+};
+
+const kHoldDownHints: Record<keyof typeof kHoldDownLabels, string> = {
   tabs: 'Small bridges hold each part in the board; cut them with a knife or chisel afterwards.',
   'tabs-guided': 'Tabs, and at the machine a follow-up step stops at each tab so you can cut it off cleanly.',
   skin: 'No tabs: every outline stops a thin skin above the board’s bottom, so all parts stay in the board while it’s cut. At the machine, a last step cuts them free one at a time and pauses so you can take each one out. Clean edges, no tabs to cut off.',
-  clamps: 'Clamps on two corners: parts are kept out of those areas. No tabs, so parts can move on the last pass.',
+  none: 'No tabs and no skin: each part is free once its outline is cut through. Fine for big, heavy parts; small ones can be thrown. The job says when each comes loose.',
 };
 
 const kFlipLabels: Record<FlipRegistration | 'off', string> = {
@@ -121,7 +139,10 @@ export function BoardInspector({
   const sizeValue = board.size.fit
     ? 'fit'
     : (matching.find(s => !board.size.fit && s.w === board.size.w && s.h === board.size.h)?.id ?? 'custom');
-  const tabs = board.holdDown === 'tabs' || board.holdDown === 'tabs-guided';
+  const parts = partsHoldOf(board);
+  const held = boardHoldOf(board);
+  const hold = holdsOf(board);
+  const tabs = parts === 'tabs' || parts === 'tabs-guided';
   // Tabs hold only on a strip of stock left between the cuts: spacing set for another hold-down (or bit) may leave none.
   const tabGap = boardGap(bit, 'tabs'),
     tabMargin = defaultMargin(bit, 'tabs');
@@ -211,7 +232,7 @@ export function BoardInspector({
         {tabs
           ? `Defaults with tabs: margin ${fmt(tabMargin)} mm, gap ${fmt(tabGap)} mm, so a strip of stock that holds the tabs stays between the cuts (bit ⌀ ${fmt(bit)}).`
           : `Defaults: margin bit + 2 mm, gap bit + 4 mm (bit ⌀ ${fmt(bit)}).`}
-        {board.holdDown === 'clamps' && ' The clamp corners are kept free on top of the margin.'}
+        {nest.frame === 'kept' && ` With screws or clamps, the margin is at least ${fmt(nest.margin)} mm: a frame of stock for them.`}
       </p>
       {tightForTabs && (
         <div className="flex flex-col gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs leading-relaxed">
@@ -268,31 +289,139 @@ export function BoardInspector({
       </div>
 
       <fieldset className="flex flex-col gap-2">
-        <legend className="mb-2 text-[13px] font-semibold">Hold-down</legend>
-        {(Object.keys(kHoldDownLabels) as HoldDown[]).map(h => (
-          <Hint key={h} text={kHoldDownHints[h]} id={`hold-down-${h}-hint`} side="left">
+        <legend className="mb-2 text-[13px] font-semibold">Board held by</legend>
+        {(Object.keys(kBoardHoldLabels) as BoardHold[]).map(h => (
+          <Hint key={h} text={kBoardHoldHints[h]} id={`board-hold-${h}-hint`} side="left">
             <label className="flex items-center gap-2 self-start text-[13px]">
               <input
                 type="radio"
-                name="hold-down"
-                checked={board.holdDown === h}
-                onChange={() => onChange({ ...board, holdDown: h })}
-                aria-describedby={`hold-down-${h}-hint`}
+                name="board-hold"
+                checked={held === h}
+                onChange={() =>
+                  onChange(
+                    h === 'tape'
+                      ? { ...board, boardHold: 'tape', holdDown: 'fixture-tape' }
+                      : { ...board, boardHold: 'points', holdDown: parts === 'fixture-tape' ? 'tabs' : parts }
+                  )
+                }
+                aria-describedby={`board-hold-${h}-hint`}
                 className="accent-primary"
               />
-              {kHoldDownLabels[h]}
+              {kBoardHoldLabels[h]}
             </label>
           </Hint>
         ))}
-        <p className="text-xs leading-relaxed text-muted-foreground">{kHoldDownHints[board.holdDown]}</p>
-        {onHoldDownAll && (
-          <Button size="sm" variant="outline" className="self-start" onClick={onHoldDownAll}>
-            Use for all boards
-          </Button>
+        <p className="text-xs leading-relaxed text-muted-foreground">{kBoardHoldHints[held]}</p>
+        {held === 'points' && (
+          <>
+            <div className="grid grid-cols-[1fr_76px_76px] items-end gap-2">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="hold-kind" className="text-xs font-normal text-muted-foreground">
+                  With
+                </Label>
+                <Select
+                  value={hold.kind}
+                  onValueChange={v =>
+                    onChange({ ...board, holds: { ...hold, kind: v as HoldKind, d: board.holds?.d ?? kHoldDefaults[v as HoldKind] } })
+                  }>
+                  <SelectTrigger id="hold-kind" className="h-8 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="screw">Screws</SelectItem>
+                    <SelectItem value="clamp">Clamps</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <NumberField
+                id="hold-d"
+                label="Size ⌀"
+                hint="The screw head or the clamp’s toe. The bit keeps clear of it."
+                value={hold.d}
+                onCommit={d => onChange({ ...board, holds: { ...hold, d } })}
+                min={2}
+              />
+              <NumberField
+                id="hold-spacing"
+                label="Spacing"
+                hint="Greatest distance between holds along an edge. Closer holds keep a bowed board flatter."
+                value={hold.spacing}
+                onCommit={spacing => onChange({ ...board, holds: { ...hold, spacing } })}
+                min={50}
+              />
+            </div>
+            <Hint
+              text="A border of stock around all parts, wide enough for the holds: the board can never fall apart into pieces, and every tab lands in held stock. Left out on a fixed size board when the parts don't fit with it."
+              id="hold-frame-hint"
+              side="left">
+              <label className="flex items-center gap-2 self-start text-[13px]">
+                <input
+                  type="checkbox"
+                  checked={board.frame !== false}
+                  onChange={e => onChange({ ...board, frame: e.target.checked })}
+                  aria-describedby="hold-frame-hint"
+                  className="accent-primary"
+                />
+                Keep a frame for them
+              </label>
+            </Hint>
+            {nest.frame === 'no-room' && (
+              <p className="text-xs leading-relaxed text-amber-700 dark:text-amber-400">
+                No room for a frame on this board: the parts don’t all fit with it. The holds go where there’s room; the Plan step checks
+                that every piece stays held.
+              </p>
+            )}
+            {nest.holdsMoved && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="self-start"
+                onClick={() => onChange({ ...board, holdPoints: undefined, holdPointsOn: undefined })}>
+                Back to suggested spots
+              </Button>
+            )}
+          </>
+        )}
+        {held === 'tape' && tabHold && onTabHold && (
+          <NumberField
+            id="tape-layer"
+            label="Layer on the tape (mm)"
+            hint="How much of the board’s bottom stays under the parts until the last program cuts it. Thin is enough: the tape holds."
+            value={tabHold.skin ?? 0.5}
+            onCommit={skin => onTabHold({ ...tabHold, skin })}
+            min={0.2}
+          />
         )}
       </fieldset>
 
-      {board.holdDown === 'skin' && tabHold && onTabHold && (
+      {held === 'points' && (
+        <fieldset className="flex flex-col gap-2">
+          <legend className="mb-2 text-[13px] font-semibold">Parts held by</legend>
+          {(Object.keys(kHoldDownLabels) as (keyof typeof kHoldDownLabels)[]).map(h => (
+            <Hint key={h} text={kHoldDownHints[h]} id={`hold-down-${h}-hint`} side="left">
+              <label className="flex items-center gap-2 self-start text-[13px]">
+                <input
+                  type="radio"
+                  name="hold-down"
+                  checked={parts === h}
+                  onChange={() => onChange({ ...board, boardHold: 'points', holdDown: h })}
+                  aria-describedby={`hold-down-${h}-hint`}
+                  className="accent-primary"
+                />
+                {kHoldDownLabels[h]}
+              </label>
+            </Hint>
+          ))}
+          <p className="text-xs leading-relaxed text-muted-foreground">{kHoldDownHints[parts as keyof typeof kHoldDownLabels]}</p>
+        </fieldset>
+      )}
+      {onHoldDownAll && (
+        <Button size="sm" variant="outline" className="self-start" onClick={onHoldDownAll}>
+          Use for all boards
+        </Button>
+      )}
+
+      {parts === 'skin' && tabHold && onTabHold && (
         <NumberField
           id="skin"
           label="Bottom skin (mm)"

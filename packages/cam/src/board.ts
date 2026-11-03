@@ -2,13 +2,24 @@ import type { PartFeatures } from './features';
 import { dowelOperations, type DowelSpec } from './flip';
 import { boardToPart, kDefaultSkin, planTabs, type PartHolding, type TabFallback } from './tabPlan';
 import type { Vec3 } from './geom';
+import type { HoldOptions } from './hold';
+import type { HoldPoint } from './holdPoints';
 import { camPart, DEFAULT_TABS, type CamSettings, type Operation, type PartCam, type TabSettings } from './toolpaths';
 
 /**
- * How the board is held down while cutting; decides tabs, bottom skins and clamp keep-outs. `skin`: every outline
- * stops a skin above the board's bottom, and the parts are cut free one at a time at the machine.
+ * How the parts are held while cutting. `tabs` / `tabs-guided`: tabs into held stock (removed by hand, or by a guided
+ * program). `skin`: every outline stops a skin above the board's bottom, and the parts are cut free one at a time at
+ * the machine. `fixture-tape`: the board is taped down (or in a fixture); every outline stops a thin layer above the
+ * bottom, cut for all parts together at the very end. `none`: nothing holds them once cut (`clamps`: the same, from
+ * before hold points). How the board itself is held: `BoardSpec.holdPoints` (screws or clamps), or tape.
  */
-export type HoldDown = 'fixture-tape' | 'tabs' | 'tabs-guided' | 'skin' | 'clamps';
+export type HoldDown = 'fixture-tape' | 'tabs' | 'tabs-guided' | 'skin' | 'none' | 'clamps';
+
+/** Layer left on the tape under every outline until the end, mm. */
+export const kTapeLayer = 0.5;
+
+/** Hold-downs that leave a layer under every part and cut it for all parts together at the end. */
+export const releasesAtEnd = (holdDown: HoldDown) => holdDown === 'skin' || holdDown === 'fixture-tape';
 
 export interface BoardPart {
   /** Unique on the board (one per body: two identical shelves are two parts). */
@@ -45,8 +56,19 @@ export interface BoardSpec {
   dowels?: DowelSpec;
   /** With tabs: parts without spots for tabs that hold get this, unless they have their own. Default: a bottom skin. */
   tabFallback?: TabFallback;
-  /** Bottom skin thickness, mm (default 1): for the `skin` hold-down, and parts whose tabs can't hold. */
+  /**
+   * Bottom skin thickness, mm (default 1): for the `skin` hold-down, and parts whose tabs can't hold. The layer left on
+   * the tape for `fixture-tape` (default `kTapeLayer`).
+   */
   skin?: number;
+  /** Where the board is screwed or clamped down. None: held at its edges, or taped (`fixture-tape`). */
+  holdPoints?: HoldPoint[];
+}
+
+/** What holds the stock, for the hold checks: the hold points, the tape, or (neither) the board's edge. */
+export function holdOptionsOf(board: Pick<BoardSpec, 'holdDown' | 'holdPoints'>): HoldOptions {
+  if (board.holdDown === 'fixture-tape') return { taped: true };
+  return board.holdPoints?.length ? { points: board.holdPoints.map(p => ({ x: p.x, y: p.y })) } : {};
 }
 
 /** Tabs for hold-downs that use them. */
@@ -71,7 +93,8 @@ const kFeatureOrder = { pocket: 0, hole: 1, outline: 2 } as const;
 /**
  * One program for a whole board: operations grouped by bit (smallest first, so the swap happens once per bit), and
  * per bit inner features (pockets, holes) of every part before any outline, so no part comes loose while others are
- * still cut. Parts follow each other nearest-first.
+ * still cut (with a skin or tape layer: every bit's inner features before any outline). Parts follow each other
+ * nearest-first.
  */
 export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): PartCam {
   const tabs = usesTabs(board.holdDown) ? (board.tabs ?? DEFAULT_TABS) : false;
@@ -82,16 +105,17 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
   // Tabs only where they hold; the other parts get their fallback (a bottom skin by default).
   const holding = tabs
     ? planTabs(board, settings)
-    : board.holdDown === 'skin'
+    : releasesAtEnd(board.holdDown)
       ? new Map(board.parts.map(p => [p.id, { id: p.id, name: p.name, how: 'skin' as const, tabs: [] }]))
       : undefined;
+  const layer = board.holdDown === 'fixture-tape' ? (board.skin ?? kTapeLayer) : (board.skin ?? kDefaultSkin);
   for (const part of board.parts) {
     const h = holding?.get(part.id);
     const own: Partial<CamSettings> =
       h?.how === 'placed' && tabs
         ? { tabs: { ...tabs, centers: h.tabs.map(q => boardToPart(part, q)) } }
         : h?.how === 'skin'
-          ? { tabs: false, outlineFloor: board.skin ?? kDefaultSkin }
+          ? { tabs: false, outlineFloor: layer }
           : h?.how === 'self'
             ? { tabs: false }
             : {};
@@ -120,8 +144,16 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
       }))
     );
   let pos = { x: 0, y: 0 };
-  for (const d of diameters) {
-    for (const stage of ['inner', 'outline'] as const) {
+  // Per bit, inner features before outlines. When every part keeps a layer until the end, the inner features of every
+  // bit come before any outline: no pocket is cut into a part whose outline is already down to its skin.
+  const stages = releasesAtEnd(board.holdDown)
+    ? [...diameters.map(d => ({ d, stage: 'inner' as const })), ...diameters.map(d => ({ d, stage: 'outline' as const }))]
+    : diameters.flatMap(d => [
+        { d, stage: 'inner' as const },
+        { d, stage: 'outline' as const },
+      ]);
+  for (const { d, stage } of stages) {
+    {
       const group = ops.filter(o => o.op.tool.diameter === d && (o.op.feature === 'outline') === (stage === 'outline'));
       // Nearest part next; a part's own operations keep their order (deeper pockets start at the floor above).
       const left = [...new Set(group.map(o => o.part))];

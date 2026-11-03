@@ -11,8 +11,12 @@ import {
   dowelSpots,
   freePartsProgram,
   kDefaultSkin,
+  kTapeLayer,
   flipPart,
   holdCheck,
+  holdClashes,
+  holdOptionsOf,
+  holdTimeline,
   sideBSpec,
   kMaxSlopedShare,
   loadStep,
@@ -164,6 +168,8 @@ const api = {
       plungeFeed: settings.plungeFeed ?? 480,
       finalZ: settings.finalZ ?? -0.3,
       ...(turned && { turned: { h: board.h } }),
+      // Taped down: the last layer of every part in one go, nothing to take out in between.
+      pause: board.holdDown !== 'fixture-tape',
     });
     const turn = onBed(board);
     const free = { cam: turnCam(program.cam, turn), parts: program.parts.map(p => ({ ...p, at: turn2(turn, p.at) })) };
@@ -213,12 +219,49 @@ const api = {
       tabs: h.tabs.length,
       ...(h.wanted && { wanted: h.wanted }),
     }));
-    // A bottom skin holds every part: nothing to check.
-    if (board.holdDown === 'skin') return { ...plan, holding, skin: board.skin ?? kDefaultSkin };
+    plan = { ...plan, ...stability(flat, spec) };
+    // A skin (or the layer on the tape) holds every part until the end.
+    if (board.holdDown === 'skin' || board.holdDown === 'fixture-tape')
+      return {
+        ...plan,
+        holding,
+        skin: board.skin ?? (board.holdDown === 'skin' ? kDefaultSkin : kTapeLayer),
+        ...(board.holdDown === 'fixture-tape' && { taped: true }),
+      };
     if (!usesTabs(board.holdDown)) return plan;
-    return { ...plan, hold: holdCheck(flat, board), holding, skin: board.skin ?? kDefaultSkin };
+    return { ...plan, hold: holdCheck(flat, board, holdOptionsOf(spec)), holding, skin: board.skin ?? kDefaultSkin };
   },
 };
+
+/**
+ * Does everything stay put during the job? What comes loose at which step (stock with too few holds, parts cut free
+ * with nothing holding them), and hold points the bit would hit. On the board as laid out (not turned on the bed).
+ */
+function stability(flat: PartCam, spec: BoardSpec): Pick<PlanResult, 'timeline' | 'holdClash'> {
+  if (spec.holdDown === 'fixture-tape') return {};
+  const how = (part: string) => flat.holding?.find(h => h.name === part)?.how;
+  // Nothing holds the parts, as the user chose: say so, don't block.
+  const watched = spec.holdDown === 'none' || spec.holdDown === 'clamps';
+  const after = (op: string) => {
+    const [, part] = op.match(/^(.+): [^:]*$/) ?? [];
+    return part ? `the outline of ${part}` : op;
+  };
+  const timeline = holdTimeline(flat, spec, holdOptionsOf(spec)).map(ev => {
+    const block = ev.kind === 'pivot' || (!watched && how(ev.what) !== 'self' && how(ev.what) !== 'tabs');
+    const message =
+      ev.kind === 'pivot'
+        ? `After cutting ${after(ev.after)}, a piece of the board ${
+            (ev.holds ?? 0) >= 3
+              ? `has ${ev.holds} screws or clamps, but all to one side of it`
+              : `is held by ${ev.holds === 0 ? 'no' : `only ${ev.holds}`} screw${ev.holds === 1 ? '' : 's'} or clamp${ev.holds === 1 ? '' : 's'}`
+          }, so it can turn or lift. It needs 3 around its middle: drag one there (ringed on the board), or keep a frame on the Boards step.`
+        : `${ev.what} comes loose when its outline is cut through${watched ? ', as you chose: nothing holds the parts. Keep an eye on it.' : ': no tabs into stock that is held.'}`;
+    return { ...ev, block, message };
+  });
+  const cuts = flat.operations.flatMap(op => op.passes.map(p => ({ r: op.tool.diameter / 2, pts: p.pts })));
+  const holdClash = holdClashes(spec.holdPoints ?? [], cuts, flat.stockTop).map(h => ({ x: h.x, y: h.y }));
+  return { timeline, holdClash };
+}
 
 /** Board coordinates -> the program's: turned like the board lies on the bed. */
 const onBed = (board: BoardRequest) => rotateAboutOrigin(board.rotationDeg ?? 0);

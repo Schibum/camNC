@@ -6,6 +6,8 @@ import {
   autoFillFromStock,
   dropPart,
   flipOf,
+  holdLabel,
+  holdSettingsOf,
   layoutSummary,
   newBoard,
   relayoutBoard,
@@ -138,10 +140,7 @@ function BoardsStep() {
       from.material,
       [itemId]
     );
-    saveBoards([
-      ...boards.map(({ board }) => without(board, itemId)),
-      { ...b, holdDown: from.holdDown, tabs: from.tabs, pinned: [itemId] },
-    ]);
+    saveBoards([...boards.map(({ board }) => without(board, itemId)), { ...b, ...holdSettingsOf(from), pinned: [itemId] }]);
     setSelectedId(b.id);
   };
 
@@ -327,6 +326,10 @@ function BoardsStep() {
             onMove={move}
             onNewBoard={toNewBoard}
             onNudge={nudge}
+            onHoldsMove={(id, holdPoints) => {
+              const b = boards.find(x => x.board.id === id);
+              if (b) updateBoard({ ...b.board, holdPoints, holdPointsOn: { w: b.nest.board.w, h: b.nest.board.h } });
+            }}
           />
           <div className="flex flex-wrap gap-5 border-t px-4 py-2.5 text-xs text-muted-foreground">
             <span>
@@ -340,9 +343,9 @@ function BoardsStep() {
                 <span className="text-amber-600 dark:text-amber-500">■</span> tab
               </span>
             )}
-            {boards.some(b => b.nest.keepOuts.length > 0) && (
+            {boards.some(b => b.nest.holds.length > 0) && (
               <span>
-                <span className="text-red-500">■</span> clamp keep-out
+                <span className="text-foreground">⊕</span> screw or clamp (drag to move)
               </span>
             )}
             <span className="grow" />
@@ -368,8 +371,8 @@ function BoardsStep() {
           tabHold={{ fallback: plan.tabFallback, skin: plan.skin }}
           onTabHold={h => save.mutate({ ...job, plan: { ...plan, tabFallback: h.fallback, skin: h.skin } })}
           onHoldDownAll={
-            boards.some(b => b.board.holdDown !== selected.board.holdDown)
-              ? () => saveBoards(boards.map(({ board }) => ({ ...board, holdDown: selected.board.holdDown })))
+            boards.some(b => holdLabel(b.board) !== holdLabel(selected.board))
+              ? () => saveBoards(boards.map(({ board }) => ({ ...board, ...holdSettingsOf(selected.board) })))
               : undefined
           }
           flip={

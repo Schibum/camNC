@@ -1,4 +1,5 @@
 import { cn } from '@wbcnc/ui/lib/utils';
+import { useState } from 'react';
 import type { BoardNest, PartInstance, PartPosition } from '../boards';
 import type { CamPartInfo, PlanResult } from '../camTypes';
 import { place, toD } from './outline';
@@ -11,8 +12,8 @@ export interface NestPreview {
 }
 
 /**
- * Top view of a board: its parts at their nested positions (outline, pockets, holes), clamp keep-outs, tabs from the
- * generated program, XY zero at the lower left. Y up, like the machine. With `pxPerMm`, drawn at that scale (so
+ * Top view of a board: its parts at their nested positions (outline, pockets, holes), its hold points (screws or
+ * clamps, draggable), tabs from the generated program, what comes loose during the job, XY zero at the lower left. Y up, like the machine. With `pxPerMm`, drawn at that scale (so
  * several boards can share one); `unit` then sets the padding, line and text size for all of them.
  */
 export function NestView({
@@ -31,6 +32,7 @@ export function NestView({
   onPartPointerDown,
   onPartKeyDown,
   onPartFocus,
+  onHoldsChange,
 }: {
   nest: BoardNest;
   instances: PartInstance[];
@@ -51,6 +53,8 @@ export function NestView({
   /** Arrow keys on a focused body. */
   onPartKeyDown?: (item: string, e: React.KeyboardEvent) => void;
   onPartFocus?: (item: string) => void;
+  /** A hold point dragged to a new spot: all of the board's hold points, board frame (mm). */
+  onHoldsChange?: (points: { x: number; y: number }[]) => void;
 }) {
   const { w, h } = nest.board;
   const u = unit ?? Math.max(w, h);
@@ -65,6 +69,17 @@ export function NestView({
   const interactive = !!onPartPointerDown;
   const previewInst = preview && byInst.get(preview.item);
   const previewPart = previewInst && byPart.get(previewInst.partId);
+  // A hold point being dragged: its index and where it is now.
+  const [holdDrag, setHoldDrag] = useState<{ i: number; x: number; y: number } | null>(null);
+  const holds = nest.holds.map((h, i) => (holdDrag?.i === i ? { ...h, x: holdDrag.x, y: holdDrag.y } : h));
+  const clash = new Set((plan?.holdClash ?? []).map(p => `${p.x},${p.y}`));
+  const toFrame = (e: React.PointerEvent) => {
+    const frame = (e.currentTarget as SVGElement).closest('[data-board-frame]') as SVGGraphicsElement | null;
+    const m = frame?.getScreenCTM();
+    if (!m) return null;
+    const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
+    return { x: Math.round(Math.min(w, Math.max(0, p.x)) * 10) / 10, y: Math.round(Math.min(h, Math.max(0, p.y)) * 10) / 10 };
+  };
   return (
     <svg
       viewBox={`${-pad} ${-h - pad} ${w + 2 * pad} ${h + 2 * pad}`}
@@ -83,9 +98,17 @@ export function NestView({
           strokeWidth={stroke}
           strokeDasharray={`${stroke * 6} ${stroke * 4}`}
         />
-        {nest.keepOuts.map((k, i) => (
-          <rect key={i} x={k.x} y={k.y} width={k.w} height={k.h} className="fill-red-500/20" />
-        ))}
+        {nest.frame === 'kept' && nest.holds.length > 0 && (
+          <rect
+            x={nest.margin / 2}
+            y={nest.margin / 2}
+            width={Math.max(0, w - nest.margin)}
+            height={Math.max(0, h - nest.margin)}
+            className="pointer-events-none fill-none stroke-emerald-600/40 dark:stroke-emerald-400/40"
+            strokeWidth={stroke}
+            strokeDasharray={`${stroke * 3} ${stroke * 3}`}
+          />
+        )}
         {nest.placements.map(p => {
           const inst = byInst.get(p.id);
           const part = inst && byPart.get(inst.partId);
@@ -151,6 +174,92 @@ export function NestView({
               </circle>
             ))
         )}
+        {/* What comes loose during the job: stock with too few holds (amber), parts with nothing holding them (red). */}
+        {plan?.timeline?.map((ev, i) => (
+          <g key={`ev-${i}`} className="pointer-events-none" data-hold-event={ev.kind}>
+            <circle
+              cx={ev.at.x}
+              cy={ev.at.y}
+              r={stroke * 14}
+              className={cn('fill-none', ev.block ? 'stroke-red-600 dark:stroke-red-500' : 'stroke-amber-500')}
+              strokeWidth={stroke * 3}
+              strokeDasharray={ev.kind === 'pivot' ? `${stroke * 4} ${stroke * 3}` : undefined}
+            />
+            <title>{ev.message}</title>
+          </g>
+        ))}
+        {holds.map((hp, i) => {
+          const bad = clash.has(`${hp.x},${hp.y}`) && holdDrag?.i !== i;
+          const r = hp.d / 2;
+          return (
+            <g
+              key={`hold-${i}`}
+              data-hold={hp.kind}
+              role={onHoldsChange ? 'button' : undefined}
+              aria-label={onHoldsChange ? `${hp.kind === 'screw' ? 'Screw' : 'Clamp'} ${i + 1}: drag to move` : undefined}
+              className={cn(onHoldsChange && 'cursor-move')}
+              onPointerDown={
+                onHoldsChange &&
+                (e => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  (e.currentTarget as SVGGElement).setPointerCapture(e.pointerId);
+                  setHoldDrag({ i, x: hp.x, y: hp.y });
+                })
+              }
+              onPointerMove={
+                onHoldsChange &&
+                (e => {
+                  if (holdDrag?.i !== i) return;
+                  const p = toFrame(e);
+                  if (p) setHoldDrag({ i, ...p });
+                })
+              }
+              onPointerUp={
+                onHoldsChange &&
+                (e => {
+                  if (holdDrag?.i !== i) return;
+                  e.stopPropagation();
+                  const moved = holds.map(q => ({ x: q.x, y: q.y }));
+                  setHoldDrag(null);
+                  if (moved[i].x !== nest.holds[i].x || moved[i].y !== nest.holds[i].y) onHoldsChange(moved);
+                })
+              }
+              onClick={e => e.stopPropagation()}>
+              {hp.kind === 'clamp' ? (
+                <rect
+                  x={hp.x - r}
+                  y={hp.y - r * 0.6}
+                  width={2 * r}
+                  height={1.2 * r}
+                  rx={r * 0.2}
+                  className={bad ? 'fill-red-500/60 stroke-red-600' : 'fill-rose-800/70 stroke-rose-900 dark:fill-rose-400/70'}
+                  strokeWidth={stroke}
+                />
+              ) : (
+                <>
+                  <circle
+                    cx={hp.x}
+                    cy={hp.y}
+                    r={r}
+                    className={bad ? 'fill-red-500/40 stroke-red-600' : 'fill-background stroke-foreground'}
+                    strokeWidth={stroke * 1.5}
+                  />
+                  <path
+                    d={`M${hp.x - r * 0.55},${hp.y}H${hp.x + r * 0.55}M${hp.x},${hp.y - r * 0.55}V${hp.y + r * 0.55}`}
+                    className={bad ? 'stroke-red-600' : 'stroke-foreground'}
+                    strokeWidth={stroke * 1.5}
+                  />
+                </>
+              )}
+              {/* A bigger target than a 10 mm screw for the pointer. */}
+              <circle cx={hp.x} cy={hp.y} r={Math.max(r, u / 60)} className="fill-transparent" />
+              <title>
+                {bad ? 'The bit would hit this: move it into the waste.' : `${hp.kind === 'screw' ? 'Screw' : 'Clamp'} ⌀${hp.d} mm`}
+              </title>
+            </g>
+          );
+        })}
         {preview && previewInst && previewPart && (
           <path
             data-preview={preview.fits ? 'fits' : 'no-room'}

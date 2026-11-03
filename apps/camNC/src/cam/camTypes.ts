@@ -1,5 +1,5 @@
 import type { FlipRegistration, TabFallback } from '@wbcnc/cam';
-import type { HoldDown, PartSummary, TabStop } from '@wbcnc/cam';
+import type { HoldDown, HoldPoint, PartSummary, TabStop } from '@wbcnc/cam';
 
 /** Closed polygons as [x, y] point lists, in the part's flat frame (mm). */
 export type Outline2D = [number, number][][];
@@ -75,11 +75,29 @@ export interface PlanResult {
    * enough and reach the board's edge). A part with too few is not held: the job is blocked.
    */
   hold?: { part: string; tabs: { at: { x: number; y: number }; anchored: boolean }[]; anchored: number; ok: boolean }[];
+  /**
+   * What comes loose during the job, at the step where it happens (see `holdTimeline`). `block`: the job is blocked
+   * (stock that can turn or lift; a part that should be held but isn't). Without `block`: as the user chose (nothing
+   * holds the parts).
+   */
+  timeline?: {
+    step: number;
+    after: string;
+    kind: 'pivot' | 'loose';
+    what: string;
+    at: { x: number; y: number };
+    block: boolean;
+    message: string;
+  }[];
+  /** Hold points the bit would hit (blocks the job). */
+  holdClash?: { x: number; y: number }[];
   /** With tabs: how each part is held: tabs where they hold, or its fallback (a bottom skin, tabs anyway, by hand). */
   /** Per part: tabs placed (`tabs` of them; `wanted` when fewer fit than asked), or its fallback. */
   holding?: { name: string; how: 'placed' | TabFallback; tabs: number; wanted?: number }[];
   /** Bottom skin thickness, mm, for the parts that have one. */
   skin?: number;
+  /** The board is taped down: the skin is the layer on the tape, cut for all parts in one go at the end. */
+  taped?: boolean;
   /** The board's second side, after turning it over top to bottom: the programs for the parts' undersides. */
   sideB?: PlanResult;
   /** How side B lines up; for dowels, where the pins go (and why there's no room for them). */
@@ -98,6 +116,8 @@ export interface BoardRequest {
   /** Board lying askew on the bed: the program is turned about the XY zero (degrees, counterclockwise). */
   rotationDeg?: number;
   holdDown: HoldDown;
+  /** Where the board is screwed or clamped down (board frame). None: taped, or held at its edges. */
+  holdPoints?: HoldPoint[];
   tabs: { width: number; height: number; minCount: number };
   parts: { id: string; partId: string; name: string; x: number; y: number; rotated: boolean; tabFallback?: TabFallback }[];
   /** A second side for the parts' undersides, and how it lines up after turning the board over. */
