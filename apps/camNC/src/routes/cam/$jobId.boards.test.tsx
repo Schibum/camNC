@@ -305,14 +305,14 @@ describe('CAM boards step', () => {
     await waitFor(async () => expect((await getJob(job.id))!.plan?.bit).toMatchObject({ diameter: 6, name: '6 mm upcut' }), {
       timeout: 10_000,
     });
-    // The margin and gap follow the bit: 6 + 2 and 6 + 4.
-    await waitFor(() => expect(screen.getByText(/edge margin 8 mm · gap 10 mm/)).toBeTruthy(), { timeout: 10_000 });
+    // The margin and gap follow the bit, with room for a strip that holds the tabs: 6 + 3.5 and 2 × 6 + 3.5.
+    await waitFor(() => expect(screen.getByText(/edge margin 9.5 mm · gap 16 mm/)).toBeTruthy(), { timeout: 10_000 });
   }, 90_000);
 
   it('labels the stock fields, takes comma decimals, says what is wrong, and shows no size for an empty board', async () => {
     const job = await openKinderregal();
     // Fitted boards are whole mm.
-    expect(within(screen.getByRole('region', { name: 'Board A' })).getByText('571 × 739')).toBeTruthy();
+    expect(within(screen.getByRole('region', { name: 'Board A' })).getByText('574 × 750')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /New 8 mm board/ }));
     const c = await screen.findByRole('region', { name: 'Board C' });
     expect(within(c).getByText('–')).toBeTruthy();

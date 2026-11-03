@@ -1,5 +1,6 @@
 import type { FlipRegistration, TabFallback } from '@wbcnc/cam';
 import type { HoldDown } from '@wbcnc/cam';
+import { usesTabs } from '@wbcnc/cam/board';
 import { clampKeepOuts, nestRects, placedSize, type NestResult, type Placement, type Rect } from '@wbcnc/cam/nest';
 import { autoNest, type NestObjective, type SheetPacker } from './autoNest';
 import type { BoardRequest, CamPartInfo } from './camTypes';
@@ -24,9 +25,9 @@ export interface BoardV1 {
   size: { fit: true } | { fit: false; w: number; h: number };
   holdDown: HoldDown;
   tabs: { width: number; height: number; minCount: number };
-  /** Free border inside the board edge, mm; default bit + 2 (`defaultMargin`). */
+  /** Free border inside the board edge, mm; default bit + 2, with tabs bit + 3.5 (`defaultMargin`). */
   margin?: number;
-  /** Space between parts, mm; default bit + 4 (`boardGap`). */
+  /** Space between parts, mm; default bit + 4, with tabs 2 × bit + 3.5 (`boardGap`). */
   gap?: number;
   /** Stock thickness measured at the machine; default the parts' thickness + `kStockAllowance`. */
   measuredThickness?: number;
@@ -73,20 +74,29 @@ export const kHoldDownLabels = {
   'fixture-tape': 'Fixture + tape',
   tabs: 'Tabs',
   'tabs-guided': 'Tabs + guided removal',
+  skin: 'Bottom skin + guided freeing',
   clamps: 'Clamps only',
 } as const;
 
-/** Default border inside the board edge: the outline cut (bit) plus 2 mm stays on the board. */
-export const defaultMargin = (bit: number) => +(bit + 2).toFixed(1);
-/** Gap between parts: the bit plus 4 mm, so outline cuts never meet. */
-export const boardGap = (bit: number) => Math.ceil(bit + 4);
+/** Narrowest strip of stock, mm, that holds a tab after the cuts on both sides of it (the hold check's). */
+const kTabWeb = 3.5;
+/**
+ * Default border inside the board edge: the outline cut (bit) plus 2 mm stays on the board. With tabs, enough that the
+ * strip left outside the cut holds them.
+ */
+export const defaultMargin = (bit: number, holdDown?: HoldDown) => +(bit + (holdDown && usesTabs(holdDown) ? kTabWeb : 2)).toFixed(1);
+/**
+ * Gap between parts: the bit plus 4 mm, so outline cuts never meet. With tabs, room for both cuts and a strip between
+ * them that holds the tabs of either part.
+ */
+export const boardGap = (bit: number, holdDown?: HoldDown) => Math.ceil(holdDown && usesTabs(holdDown) ? 2 * bit + kTabWeb : bit + 4);
 
 /**
  * Before the bit changes: keep each board's margin and gap as they are, so the nest the user saw stays (a bigger
  * bit would otherwise widen them and push parts off the board).
  */
 export function freezeSpacing(boards: BoardV1[], bit: number): BoardV1[] {
-  return boards.map(b => ({ ...b, margin: b.margin ?? defaultMargin(bit), gap: b.gap ?? boardGap(bit) }));
+  return boards.map(b => ({ ...b, margin: b.margin ?? defaultMargin(bit, b.holdDown), gap: b.gap ?? boardGap(bit, b.holdDown) }));
 }
 
 /** Why a board's spacing is too tight for this bit: the cut around each part needs the bit's width (+1 mm). */
@@ -245,8 +255,8 @@ const insideMargin = (r: Rect, margin: number, board?: { w: number; h: number })
 export function nestBoard(board: BoardV1, instances: PartInstance[], bit: number): BoardNest {
   const byId = new Map(instances.map(i => [i.id, i]));
   const ids = board.items.filter(id => byId.has(id));
-  const gap = board.gap ?? boardGap(bit);
-  const margin = board.margin ?? defaultMargin(bit);
+  const gap = board.gap ?? boardGap(bit, board.holdDown);
+  const margin = board.margin ?? defaultMargin(bit, board.holdDown);
   const clamps = board.holdDown === 'clamps';
   const size = board.size.fit ? undefined : { w: board.size.w, h: board.size.h };
   const clampsOn = (b: { w: number; h: number }) => (clamps ? clampKeepOuts(b, kClamp) : []);

@@ -4,8 +4,11 @@ import { boardToPart, kDefaultSkin, planTabs, type PartHolding, type TabFallback
 import type { Vec3 } from './geom';
 import { camPart, DEFAULT_TABS, type CamSettings, type Operation, type PartCam, type TabSettings } from './toolpaths';
 
-/** How the board is held down while cutting; decides tabs and clamp keep-outs. */
-export type HoldDown = 'fixture-tape' | 'tabs' | 'tabs-guided' | 'clamps';
+/**
+ * How the board is held down while cutting; decides tabs, bottom skins and clamp keep-outs. `skin`: every outline
+ * stops a skin above the board's bottom, and the parts are cut free one at a time at the machine.
+ */
+export type HoldDown = 'fixture-tape' | 'tabs' | 'tabs-guided' | 'skin' | 'clamps';
 
 export interface BoardPart {
   /** Unique on the board (one per body: two identical shelves are two parts). */
@@ -42,7 +45,7 @@ export interface BoardSpec {
   dowels?: DowelSpec;
   /** With tabs: parts without spots for tabs that hold get this, unless they have their own. Default: a bottom skin. */
   tabFallback?: TabFallback;
-  /** Bottom skin thickness, mm (default 1). */
+  /** Bottom skin thickness, mm (default 1): for the `skin` hold-down, and parts whose tabs can't hold. */
   skin?: number;
 }
 
@@ -77,7 +80,11 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
   const warnings: string[] = [];
   const ops: { op: Operation; part: BoardPart; index: number }[] = [];
   // Tabs only where they hold; the other parts get their fallback (a bottom skin by default).
-  const holding = tabs ? planTabs(board, settings) : undefined;
+  const holding = tabs
+    ? planTabs(board, settings)
+    : board.holdDown === 'skin'
+      ? new Map(board.parts.map(p => [p.id, { id: p.id, name: p.name, how: 'skin' as const, spots: 0, tabs: [] }]))
+      : undefined;
   for (const part of board.parts) {
     const h = holding?.get(part.id);
     const own: Partial<CamSettings> =

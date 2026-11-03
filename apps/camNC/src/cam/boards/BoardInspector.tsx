@@ -4,7 +4,7 @@ import { MATERIALS } from '@wbcnc/cam/settings';
 import { Button } from '@wbcnc/ui/components/button';
 import { Label } from '@wbcnc/ui/components/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wbcnc/ui/components/select';
-import { kStockAllowance, stockTopOf, type BoardNest, type BoardV1, type StockBoardV1 } from '../boards';
+import { boardGap, defaultMargin, kStockAllowance, stockTopOf, type BoardNest, type BoardV1, type StockBoardV1 } from '../boards';
 import type { MaterialKey } from '../planSettings';
 import { kHoldDownLabels } from '../boards';
 import { Hint } from '../Hint';
@@ -66,6 +66,7 @@ const kHoldDownHints: Record<HoldDown, string> = {
   'fixture-tape': 'The board sits in a fixture or on double-sided tape: no tabs, the parts stay put by themselves.',
   tabs: 'Small bridges hold each part in the board; cut them with a knife or chisel afterwards.',
   'tabs-guided': 'Tabs, and at the machine a follow-up step stops at each tab so you can cut it off cleanly.',
+  skin: 'No tabs: every outline stops a thin skin above the board’s bottom, so all parts stay in the board while it’s cut. At the machine, a last step cuts them free one at a time and pauses so you can take each one out. Clean edges, no tabs to cut off.',
   clamps: 'Clamps on two corners: parts are kept out of those areas. No tabs, so parts can move on the last pass.',
 };
 
@@ -98,7 +99,10 @@ export function BoardInspector({
   flip,
   tabHold,
   onTabHold,
+  onHoldDownAll,
 }: {
+  /** Use this board's hold-down on every board of the job; undefined when they all have it already. */
+  onHoldDownAll?: () => void;
   /** The job's default for parts whose tabs can't hold, and the bottom skin. */
   tabHold?: { fallback?: TabFallback; skin?: number };
   onTabHold?: (h: { fallback?: TabFallback; skin?: number }) => void;
@@ -118,6 +122,10 @@ export function BoardInspector({
     ? 'fit'
     : (matching.find(s => !board.size.fit && s.w === board.size.w && s.h === board.size.h)?.id ?? 'custom');
   const tabs = board.holdDown === 'tabs' || board.holdDown === 'tabs-guided';
+  // Tabs hold only on a strip of stock left between the cuts: spacing set for another hold-down (or bit) may leave none.
+  const tabGap = boardGap(bit, 'tabs'),
+    tabMargin = defaultMargin(bit, 'tabs');
+  const tightForTabs = tabs && (nest.gap < tabGap || nest.margin < tabMargin);
   // A fitted board with nothing on it has no size yet (only its margins): "–", and a size typed in sets both sides.
   const emptyFit = board.size.fit && !nest.placements.length;
   return (
@@ -200,9 +208,26 @@ export function BoardInspector({
         />
       </div>
       <p className="text-xs leading-relaxed text-muted-foreground">
-        Defaults: margin bit + 2 mm, gap bit + 4 mm (bit ⌀ {fmt(bit)}).
+        {tabs
+          ? `Defaults with tabs: margin ${fmt(tabMargin)} mm, gap ${fmt(tabGap)} mm, so a strip of stock that holds the tabs stays between the cuts (bit ⌀ ${fmt(bit)}).`
+          : `Defaults: margin bit + 2 mm, gap bit + 4 mm (bit ⌀ ${fmt(bit)}).`}
         {board.holdDown === 'clamps' && ' The clamp corners are kept free on top of the margin.'}
       </p>
+      {tightForTabs && (
+        <div className="flex flex-col gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs leading-relaxed">
+          <p>
+            Too tight for tabs: after the cuts, the stock left {nest.gap < tabGap ? 'between parts' : 'at the edge'} is too thin to hold
+            them, so parts there get their fallback. Tabs need margin {fmt(tabMargin)} mm and gap {fmt(tabGap)} mm.
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            className="self-start"
+            onClick={() => onChange({ ...board, margin: Math.max(nest.margin, tabMargin), gap: Math.max(nest.gap, tabGap) })}>
+            Widen for tabs
+          </Button>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-2">
         <div className="flex flex-col gap-1">
@@ -260,7 +285,23 @@ export function BoardInspector({
           </Hint>
         ))}
         <p className="text-xs leading-relaxed text-muted-foreground">{kHoldDownHints[board.holdDown]}</p>
+        {onHoldDownAll && (
+          <Button size="sm" variant="outline" className="self-start" onClick={onHoldDownAll}>
+            Use for all boards
+          </Button>
+        )}
       </fieldset>
+
+      {board.holdDown === 'skin' && tabHold && onTabHold && (
+        <NumberField
+          id="skin"
+          label="Bottom skin (mm)"
+          hint="How much of the board's bottom stays under the parts until they're cut free at the machine. 1 mm holds well in hardwood; thinner breaks out easier but may let go."
+          value={tabHold.skin ?? 1}
+          onCommit={skin => onTabHold({ ...tabHold, skin })}
+          min={0.3}
+        />
+      )}
 
       {tabs && tabHold && onTabHold && (
         <section className="flex flex-col gap-1.5" aria-label="Where tabs can't hold">

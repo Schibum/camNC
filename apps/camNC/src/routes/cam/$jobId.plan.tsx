@@ -540,8 +540,11 @@ function Checks({ plan, checked }: { plan: PlanResult; checked: boolean }) {
         ))}
       {skins.length > 0 && (
         <p className="text-muted-foreground">
-          {skins.map(h => h.name).join(', ')}: no edge where tabs would hold, so {skins.length === 1 ? 'it keeps' : 'they keep'} a{' '}
-          {plan.skin ?? 1} mm bottom skin. At the machine, “Free parts” cuts {skins.length === 1 ? 'it' : 'them'} free one at a time.
+          {/* Without a hold check, the board is held by skins (its hold-down), not tabs. */}
+          {plan.hold
+            ? `${skins.map(h => h.name).join(', ')}: no edge where tabs would hold, so ${skins.length === 1 ? 'it keeps' : 'they keep'} a ${plan.skin ?? 1} mm bottom skin.`
+            : `Every part keeps a ${plan.skin ?? 1} mm bottom skin, so nothing comes loose while the board is cut.`}{' '}
+          At the machine, “Free parts” cuts {skins.length === 1 ? 'it' : 'them'} free one at a time.
         </p>
       )}
       {!checked ? null : plan.safety.length === 0 ? (

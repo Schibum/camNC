@@ -365,6 +365,11 @@ function BoardsStep() {
           onRelayout={() => relayout(selected.board)}
           tabHold={{ fallback: plan.tabFallback, skin: plan.skin }}
           onTabHold={h => save.mutate({ ...job, plan: { ...plan, tabFallback: h.fallback, skin: h.skin } })}
+          onHoldDownAll={
+            boards.some(b => b.board.holdDown !== selected.board.holdDown)
+              ? () => saveBoards(boards.map(({ board }) => ({ ...board, holdDown: selected.board.holdDown })))
+              : undefined
+          }
           flip={
             selected.board.flip || instances.some(i => selected.board.items.includes(i.id) && i.needsFlip)
               ? flipOf(selected.board, instances)

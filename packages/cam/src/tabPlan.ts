@@ -26,9 +26,9 @@ export interface PartHolding {
 export const kDefaultSkin = 1;
 
 /**
- * Where each part's tabs go: only on straight runs of its outline (no notch, curve or corner: room for the tab and the
- * bit) whose far side is stock that holds (wide enough all the way to the board's edge, see the hold check), spread
- * along the part. A part with fewer than `minTabs` such spots gets its fallback.
+ * Where each part's tabs go: only on straight runs of its outer edges (no notch, curve or corner: room for the tab and
+ * the bit, and a saw gets at it) whose far side is stock that holds (wide enough all the way to the board's edge, see
+ * the hold check), a few on two opposite sides (`pickTabs`). A part that can't be held like that gets its fallback.
  */
 export function planTabs(
   board: BoardSpec,
@@ -67,16 +67,14 @@ export function planTabs(
     // Not where the pass starts and ends: a tab across that seam would be cut in two.
     const room = tabs.width + outline.tool.diameter;
     const seam = loop[0];
-    const spots = candidates(loop, room).filter(
-      c => Math.hypot(c.at.x - seam.x, c.at.y - seam.y) > room && held(farSide(c, r, insidePart))
-    );
-    const perimeter = loop.reduce((s, p, i) => s + (i ? Math.hypot(p.x - loop[i - 1].x, p.y - loop[i - 1].y) : 0), 0);
-    const want = Math.max(tabs.minCount, Math.round(perimeter / tabs.spacing));
-    const picked = spread(
-      spots.map(s => s.at),
-      want,
-      tabs.width + outline.tool.diameter
-    );
+    // Only on the part's outer edges (its convex hull), where a saw or flush trim bit gets at the tab afterwards: not in
+    // notches, slots or the inside of an L.
+    const hull = convexHull(loop);
+    const spots = candidates(loop, room, kCornerClear)
+      .filter(c => Math.hypot(c.at.x - seam.x, c.at.y - seam.y) > room && onHull(c.at, hull))
+      .map(c => ({ ...c, out: outward(c, r, insidePart) }))
+      .filter(c => held(c.out.far));
+    const picked = pickTabs(spots, loop, tabs.minCount, room);
     out.set(
       part.id,
       picked.length >= minTabs
@@ -87,19 +85,95 @@ export function planTabs(
   return out;
 }
 
-/** The point just past the cut on the side away from the part. */
-function farSide(c: { at: P2; dir: P2 }, r: number, insidePart: (p: P2) => boolean): P2 {
+/** Tabs stay this far from a corner (along the edge): a tab right at a corner is hard to cut off cleanly. */
+const kCornerClear = 10;
+/** An edge this long gets two tabs, a shorter one one. */
+const kTwoTabEdge = 400;
+
+type Side = 'left' | 'right' | 'bottom' | 'top';
+type Spot = { at: P2; dir: P2; out: { far: P2; side: Side } };
+
+/** The point just past the cut on the side away from the part, and which side of the part that is. */
+function outward(c: { at: P2; dir: P2 }, r: number, insidePart: (p: P2) => boolean): { far: P2; side: Side } {
   const l = Math.hypot(c.dir.x, c.dir.y) || 1;
   let n = { x: -c.dir.y / l, y: c.dir.x / l };
   if (insidePart({ x: c.at.x + n.x * (r + 0.1), y: c.at.y + n.y * (r + 0.1) })) n = { x: -n.x, y: -n.y };
-  return { x: c.at.x + n.x * (r + 0.6), y: c.at.y + n.y * (r + 0.6) };
+  const side: Side = Math.abs(n.x) >= Math.abs(n.y) ? (n.x > 0 ? 'right' : 'left') : n.y > 0 ? 'top' : 'bottom';
+  return { far: { x: c.at.x + n.x * (r + 0.6), y: c.at.y + n.y * (r + 0.6) }, side };
+}
+
+/**
+ * A small, balanced set of tabs: on two opposite sides of the part (its long sides if both have spots that hold, else
+ * its ends), one per side, two on sides of `kTwoTabEdge` mm or more, at least `minCount` in all; spread evenly along
+ * each side. A part held on one side only pivots about it on the last pass: no opposite pair, no tabs (its fallback).
+ */
+export function pickTabs(spots: Spot[], loop: P2[], minCount: number, minApart: number): P2[] {
+  const xs = loop.map(p => p.x),
+    ys = loop.map(p => p.y);
+  const w = Math.max(...xs) - Math.min(...xs),
+    h = Math.max(...ys) - Math.min(...ys);
+  const pairs: { sides: [Side, Side]; len: number; along: 'x' | 'y' }[] = [
+    { sides: ['bottom', 'top'], len: w, along: 'x' },
+    { sides: ['left', 'right'], len: h, along: 'y' },
+  ];
+  pairs.sort((a, b) => b.len - a.len);
+  const pair = pairs.find(p => p.sides.every(s => spots.some(c => c.out.side === s)));
+  if (!pair) return [];
+  const per = pair.len >= kTwoTabEdge ? 2 : 1;
+  const total = Math.max(minCount, 2 * per);
+  const out: P2[] = [];
+  pair.sides.forEach((side, i) => {
+    const mine = spots.filter(c => c.out.side === side).map(c => c.at);
+    const n = i === 0 ? Math.ceil(total / 2) : Math.floor(total / 2);
+    const key = (p: P2) => p[pair.along];
+    const lo = Math.min(...mine.map(key)),
+      hi = Math.max(...mine.map(key));
+    for (let k = 0; k < n; k++) {
+      // Evenly along the side's spots: the middle for one, the quarter points for two.
+      const target = lo + ((k + 0.5) / n) * (hi - lo);
+      const best = mine
+        .filter(p => out.every(q => Math.hypot(p.x - q.x, p.y - q.y) >= minApart))
+        .sort((a, b) => Math.abs(key(a) - target) - Math.abs(key(b) - target))[0];
+      if (best) out.push(best);
+    }
+  });
+  return out;
+}
+
+/** Convex hull, counterclockwise (monotone chain). */
+function convexHull(points: P2[]): P2[] {
+  const pts = [...points].sort((a, b) => a.x - b.x || a.y - b.y);
+  if (pts.length < 3) return pts;
+  const cross = (o: P2, a: P2, b: P2) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  const half = (list: P2[]) => {
+    const h: P2[] = [];
+    for (const p of list) {
+      while (h.length >= 2 && cross(h[h.length - 2], h[h.length - 1], p) <= 0) h.pop();
+      h.push(p);
+    }
+    return h.slice(0, -1);
+  };
+  return [...half(pts), ...half([...pts].reverse())];
+}
+
+/** On the hull's boundary (within 0.5 mm). */
+function onHull(p: P2, hull: P2[]): boolean {
+  for (let i = 0; i < hull.length; i++) {
+    const a = hull[i],
+      b = hull[(i + 1) % hull.length];
+    const dx = b.x - a.x,
+      dy = b.y - a.y;
+    const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy || 1)));
+    if (Math.hypot(a.x + t * dx - p.x, a.y + t * dy - p.y) <= 0.5) return true;
+  }
+  return false;
 }
 
 /**
  * Tab spots on a closed path: every 3 mm along its straight runs (segments within 2° of the run's first), at least `room`/2
- * + 1 mm from a run's ends, so the tab and the bit's turn stay off notches, curves and corners.
+ * + 1 mm (and `clear`) from a run's ends, so the tab and the bit's turn stay off notches, curves and corners.
  */
-export function candidates(loop: P2[], room: number): { at: P2; dir: P2 }[] {
+export function candidates(loop: P2[], room: number, clear = 0): { at: P2; dir: P2 }[] {
   const segs: { a: P2; b: P2; len: number; ang: number }[] = [];
   for (let i = 1; i < loop.length; i++) {
     const [a, b] = [loop[i - 1], loop[i]];
@@ -119,7 +193,7 @@ export function candidates(loop: P2[], room: number): { at: P2; dir: P2 }[] {
   for (const run of runs) {
     const length = run.reduce((t, s) => t + s.len, 0);
     // The tab and the bit's width beside it, plus 1 mm, all on the straight.
-    const margin = room / 2 + 1;
+    const margin = Math.max(room / 2 + 1, clear);
     if (length < 2 * margin) continue;
     const a = run[0].a,
       b = run.at(-1)!.b;
@@ -127,29 +201,6 @@ export function candidates(loop: P2[], room: number): { at: P2; dir: P2 }[] {
     for (let d = margin; d <= length - margin + 1e-6; d += 3) out.push({ at: { x: a.x + dir.x * d, y: a.y + dir.y * d }, dir });
   }
   return out;
-}
-
-/** Up to `n` of the points, far apart (each the farthest from those picked so far), at least `min` apart. */
-export function spread(points: P2[], n: number, min: number): P2[] {
-  if (!points.length) return [];
-  const d = (a: P2, b: P2) => Math.hypot(a.x - b.x, a.y - b.y);
-  // Start at one end of the part: the point farthest from the points' middle.
-  const mid = { x: points.reduce((s, p) => s + p.x, 0) / points.length, y: points.reduce((s, p) => s + p.y, 0) / points.length };
-  const picked = [points.reduce((a, b) => (d(b, mid) > d(a, mid) ? b : a))];
-  while (picked.length < n) {
-    let best: P2 | undefined,
-      bd = -1;
-    for (const p of points) {
-      const near = Math.min(...picked.map(q => d(p, q)));
-      if (near > bd) {
-        bd = near;
-        best = p;
-      }
-    }
-    if (!best || bd < min) break;
-    picked.push(best);
-  }
-  return picked;
 }
 
 /** Board coordinates -> the part's own (inverse of partToBoard). */

@@ -1,4 +1,5 @@
 import type { TabFallback } from '@wbcnc/cam';
+import { usesTabs } from '@wbcnc/cam/board';
 import { MATERIALS } from '@wbcnc/cam/settings';
 import { Button } from '@wbcnc/ui/components/button';
 import { Input } from '@wbcnc/ui/components/input';
@@ -116,7 +117,8 @@ export function BoardList({
                   unplaced={nest.unplaced.includes(id)}
                   pinned={!!board.pinned?.includes(id)}
                   onUnpin={() => onUnpin(id)}
-                  holding={plans[i]?.holding?.find(h => h.name === byId.get(id)?.name)?.how}
+                  // Only on tab boards: the chips and the menu are about parts whose tabs can't hold.
+                  holding={usesTabs(board.holdDown) ? plans[i]?.holding?.find(h => h.name === byId.get(id)?.name)?.how : undefined}
                   fallback={board.tabFallbacks?.[id]}
                   onFallback={f => onTabFallback(id, f)}
                   onDragStart={() => drag.start(id, byId.get(id)?.thickness ?? board.thickness)}

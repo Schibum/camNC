@@ -3,7 +3,7 @@ import { camBoard, type BoardSpec } from './board';
 import type { PartFeatures } from './features';
 import { toGcode } from './gcode';
 import { checkGcodeSafety } from './safety';
-import { candidates, freePartsProgram, planTabs, spread } from './tabPlan';
+import { candidates, freePartsProgram, planTabs } from './tabPlan';
 import { DEFAULT_TABS } from './toolpaths';
 
 const rect = (x0: number, y0: number, x1: number, y1: number) => [
@@ -41,6 +41,18 @@ const tight = (over: Partial<BoardSpec> = {}): BoardSpec => ({
   ...over,
 });
 
+/** Room all around: every edge faces stock that holds. */
+const roomy = (parts: BoardSpec['parts'], w = 240, h = 140): BoardSpec => ({
+  id: 'r',
+  name: 'R',
+  w,
+  h,
+  thickness: 8,
+  holdDown: 'tabs',
+  tabs: DEFAULT_TABS,
+  parts,
+});
+
 describe('tab placement', () => {
   it('only straight runs, off their ends: none on a curve', () => {
     const arc = Array.from({ length: 60 }, (_, i) => ({ x: 50 * Math.cos(i / 20), y: 50 * Math.sin(i / 20) }));
@@ -56,13 +68,47 @@ describe('tab placement', () => {
     for (const c of line) expect(c.at.x >= 5 && c.at.x <= 25).toBe(true);
   });
 
-  it('spreads the tabs: as far apart as the spots allow', () => {
-    const pts = Array.from({ length: 101 }, (_, i) => ({ x: i, y: 0 }));
-    expect(
-      spread(pts, 3, 8)
-        .map(p => p.x)
-        .sort((a, b) => a - b)
-    ).toEqual([0, 50, 100]);
+  it('a few tabs on two opposite sides, spread along them, off the corners: none in a notch', () => {
+    // A U: a 40 mm notch in the middle of the top edge, its floor facing the free area too.
+    const u = [
+      { x: 0, y: 0 },
+      { x: 200, y: 0 },
+      { x: 200, y: 100 },
+      { x: 120, y: 100 },
+      { x: 120, y: 60 },
+      { x: 80, y: 60 },
+      { x: 80, y: 100 },
+      { x: 0, y: 100 },
+    ];
+    const f = { ...plain(), footprint: [u], outlines: [u] };
+    const plan = planTabs(roomy([{ id: 'u', name: 'u', features: f, size: [200, 100, 8], x: 20, y: 20, rotated: false }]), {});
+    const h = plan.get('u')!;
+    expect(h.how).toBe('placed');
+    // Min # 3: two below, one above; only on the bit's path along the part's outer edges.
+    const below = h.tabs.filter(t => t.y < 20),
+      above = h.tabs.filter(t => t.y > 120);
+    expect([below.length, above.length]).toEqual([2, 1]);
+    expect(h.tabs.every(t => t.x >= 20 + 10 && t.x <= 220 - 10)).toBe(true);
+    expect(h.tabs.some(t => t.x > 100 && t.x < 140 && t.y < 125)).toBe(false);
+  });
+
+  it('a long strip: two tabs on each long side, not at its tips', () => {
+    const strip = rect(0, 0, 1200, 50);
+    const f = { ...plain(), footprint: [strip], outlines: [strip] };
+    const h = planTabs(roomy([{ id: 's', name: 's', features: f, size: [1200, 50, 8], x: 20, y: 20, rotated: false }], 1240, 90), {}).get(
+      's'
+    )!;
+    expect(h.tabs).toHaveLength(4);
+    expect(h.tabs.filter(t => t.y < 20)).toHaveLength(2);
+    // Spread out: the quarter points, far from the ends.
+    const xs = h.tabs.map(t => Math.round(t.x - 20)).sort((a, b) => a - b);
+    for (const x of xs) expect(x > 200 && x < 1000).toBe(true);
+  });
+
+  it('held on one side only is not held: the part gets its fallback', () => {
+    // Against the lower left corner (5.2 mm margins hold nothing), free stock only to the right and above.
+    const b = roomy([{ id: 'a', name: 'a', features: plain(), size: [200, 100, 8], x: 5.2, y: 5.2, rotated: false }], 400, 300);
+    expect(planTabs(b, {}).get('a')!.how).toBe('skin');
   });
 
   it('a part with no spot that holds gets its fallback: a bottom skin by default, or tabs anyway, or none', () => {
@@ -74,6 +120,22 @@ describe('tab placement', () => {
     const own = tight();
     own.parts[0] = { ...own.parts[0], tabFallback: 'tabs' };
     expect([...planTabs(own, {}).values()].map(h => h.how)).toEqual(['tabs', 'skin']);
+  });
+
+  it('the bottom skin hold-down: every part keeps a skin, no tabs, freed at the machine', () => {
+    const cam = camBoard(
+      {
+        ...roomy([{ id: 'a', name: 'a', features: plain(), size: [200, 100, 8], x: 20, y: 20, rotated: false }]),
+        holdDown: 'skin',
+        skin: 0.8,
+      },
+      {}
+    );
+    expect(cam.holding?.map(h => h.how)).toEqual(['skin']);
+    const outline = cam.operations.find(o => o.feature === 'outline')!;
+    // No tab: the last pass stays at the skin all the way round.
+    expect(outline.passes.at(-1)!.pts.every(q => Math.abs(q[2] - 0.8) < 1e-6)).toBe(true);
+    expect(freePartsProgram(cam, { feed: 900, plungeFeed: 480, finalZ: -0.3 }).parts.map(p => p.name)).toEqual(['a']);
   });
 
   it('frees skin parts one at a time: cut through, bit up, spindle off, pause; spindle on again before the next', () => {

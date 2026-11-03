@@ -60,6 +60,7 @@ describe('CAM controls explain themselves', () => {
     expect(description(screen.getByRole('radio', { name: 'Tabs' }))).toMatch(/bridges hold each part/);
     expect(description(screen.getByRole('radio', { name: 'Tabs + guided removal' }))).toMatch(/stops at each tab/);
     expect(description(screen.getByRole('radio', { name: 'Clamps only' }))).toMatch(/Clamps on two corners/);
+    expect(description(screen.getByRole('radio', { name: 'Bottom skin + guided freeing' }))).toMatch(/cuts them free one at a time/);
     expect(description(screen.getByLabelText('Edge margin'))).toMatch(/border inside the board edge/);
     expect(description(screen.getByLabelText('Gap between parts'))).toMatch(/outline cuts never meet/);
     expect(description(screen.getByLabelText('Stock thickness'))).toMatch(/caliper/);
@@ -67,6 +68,46 @@ describe('CAM controls explain themselves', () => {
     expect(description(screen.getByLabelText('Tab H'))).toMatch(/^Tab height/);
     expect(description(screen.getByLabelText('Min #'))).toMatch(/^Fewest tabs/);
     expect(description(screen.getByRole('button', { name: 'Re-lay out' }))).toMatch(/unpinned and may move/);
+  });
+
+  it('tabs on spacing too tight to hold them: says so, and widens margin and gap for tabs', () => {
+    const onChange = vi.fn();
+    render(
+      <TooltipProvider>
+        <BoardInspector board={board} nest={nest} stock={[]} bit={3.175} onChange={onChange} />
+      </TooltipProvider>
+    );
+    expect(screen.getByText(/Too tight for tabs/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Widen for tabs' }));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ margin: 6.7, gap: 10 }));
+  });
+
+  it('the bottom skin hold-down: its thickness is set for the job, and a board can pass its hold-down to all', () => {
+    const onTabHold = vi.fn();
+    const onHoldDownAll = vi.fn();
+    render(
+      <TooltipProvider>
+        <BoardInspector
+          board={{ ...board, holdDown: 'skin' }}
+          nest={nest}
+          stock={[]}
+          bit={3.175}
+          onChange={() => {}}
+          tabHold={{ skin: 1 }}
+          onTabHold={onTabHold}
+          onHoldDownAll={onHoldDownAll}
+        />
+      </TooltipProvider>
+    );
+    // No tabs on a skin board: no tab fields, no spacing warning.
+    expect(screen.queryByLabelText('Tab W')).toBeNull();
+    expect(screen.queryByText(/Too tight for tabs/)).toBeNull();
+    const skin = screen.getByLabelText('Bottom skin (mm)');
+    fireEvent.change(skin, { target: { value: '0.8' } });
+    fireEvent.blur(skin);
+    expect(onTabHold).toHaveBeenCalledWith({ skin: 0.8 });
+    fireEvent.click(screen.getByRole('button', { name: 'Use for all boards' }));
+    expect(onHoldDownAll).toHaveBeenCalled();
   });
 
   it('a tooltip opens on keyboard focus, with the same text as the description', async () => {

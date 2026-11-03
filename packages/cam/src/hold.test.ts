@@ -74,18 +74,30 @@ describe('do the tabs hold?', () => {
     expect(holdCheck(camBoard(roomy, {}), roomy).every(h => h.ok)).toBe(true);
   });
 
-  it('kinderregal board A as nested by default (gap 8, margin 5.2): tabs only where they hold, every part held', async () => {
+  it('kinderregal board A: with tab spacing (gap 10, margin 6.7) every part held on two opposite sides; tighter, none left loose', async () => {
     const bodies = (await loadStep(readStep('kinderregal eiche'))).bodies.map(detectFlat).filter(p => Math.abs(p.thickness - 8) < 0.5);
     const items = bodies.map(b => ({ id: b.name, w: b.size[0], h: b.size[1] }));
-    const nest = nestRects(items, { gap: 8, margin: 5.2 });
-    const parts: BoardSpec['parts'] = nest.placements.map(p => {
-      const b = bodies.find(x => x.name === p.id)!;
-      return { id: p.id, name: p.id, features: extractFeatures(b.mesh, b.thickness), size: b.size, x: p.x, y: p.y, rotated: p.rotated };
-    });
-    const board = spec(parts, nest.board.w, nest.board.h);
-    const holds = holdCheck(camBoard(board, {}), board);
+    const features = new Map(bodies.map(b => [b.name, extractFeatures(b.mesh, b.thickness)]));
+    const board = (gap: number, margin: number) => {
+      const nest = nestRects(items, { gap, margin });
+      const parts: BoardSpec['parts'] = nest.placements.map(p => {
+        const b = bodies.find(x => x.name === p.id)!;
+        return { id: p.id, name: p.id, features: features.get(p.id)!, size: b.size, x: p.x, y: p.y, rotated: p.rotated };
+      });
+      return spec(parts, nest.board.w, nest.board.h);
+    };
+    const roomy = board(10, 6.7);
+    const cam = camBoard(roomy, {});
+    const holds = holdCheck(cam, roomy);
     console.info(holds.map(h => `${h.part}: ${h.anchored}/${h.tabs.length} tabs hold`).join(', '));
     expect(holds).toHaveLength(5);
     expect(holds.every(h => h.ok && h.anchored === h.tabs.length)).toBe(true);
+    expect(cam.holding!.every(h => h.how === 'placed')).toBe(true);
+    // The old default spacing: a strip of 1.7 mm between neighbours holds nothing, so parts held on one side only get a
+    // bottom skin instead. Whatever has tabs is held by them.
+    const tight = board(8, 5.2);
+    const tc = camBoard(tight, {});
+    expect(holdCheck(tc, tight).every(h => h.ok)).toBe(true);
+    expect(tc.holding!.every(h => h.how === 'placed' || h.how === 'skin')).toBe(true);
   }, 120_000);
 });

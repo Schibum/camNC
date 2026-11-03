@@ -116,30 +116,37 @@ describe('board programs (kinderregal eiche, 8 mm parts)', () => {
     expect(parts.map(p => p.name).sort()).toEqual(['Part 1', 'Part 2', 'Part 3', 'left', 'right']);
   });
 
-  it.each(['fixture-tape', 'tabs'] as const)('one bit, hold-down %s: inner features first, safe, every cut on its own part', holdDown => {
-    const board = nestBoard(parts, { gap: 7, holdDown });
-    const cam = camBoard(board, {});
-    expect(boardBits(cam)).toEqual([3.175]);
-    expectOpOrder(cam);
-    // Every part's outline is cut, after all pockets.
-    const outlines = cam.operations.filter(o => o.feature === 'outline');
-    expect(outlines).toHaveLength(5);
-    const firstOutline = cam.operations.findIndex(o => o.feature === 'outline');
-    expect(cam.operations.slice(firstOutline).every(o => o.feature === 'outline')).toBe(true);
-    expect(cam.operations.slice(0, firstOutline).length).toBeGreaterThan(0);
-    if (holdDown === 'tabs') {
-      // Tabs: the final outline passes rise to the tab height.
-      for (const o of outlines)
-        expect(
-          o.passes.at(-1)!.pts.some(p => p[2] === DEFAULT_TABS.height),
-          o.name
-        ).toBe(true);
+  it.each(['fixture-tape', 'tabs', 'skin'] as const)(
+    'one bit, hold-down %s: inner features first, safe, every cut on its own part',
+    holdDown => {
+      // Tabs need a gap that leaves a strip between the cuts that holds them.
+      const board = nestBoard(parts, { gap: holdDown === 'tabs' ? 10 : 7, holdDown });
+      const cam = camBoard(board, {});
+      expect(boardBits(cam)).toEqual([3.175]);
+      expectOpOrder(cam);
+      // Every part's outline is cut, after all pockets.
+      const outlines = cam.operations.filter(o => o.feature === 'outline');
+      expect(outlines).toHaveLength(5);
+      const firstOutline = cam.operations.findIndex(o => o.feature === 'outline');
+      expect(cam.operations.slice(firstOutline).every(o => o.feature === 'outline')).toBe(true);
+      expect(cam.operations.slice(0, firstOutline).length).toBeGreaterThan(0);
+      if (holdDown === 'tabs') {
+        // Tabs: the final outline passes rise to the tab height.
+        for (const o of outlines)
+          expect(
+            o.passes.at(-1)!.pts.some(p => p[2] === DEFAULT_TABS.height),
+            o.name
+          ).toBe(true);
+      }
+      if (holdDown === 'skin')
+        // A 1 mm bottom skin under every part, all the way round.
+        for (const o of outlines) expect(Math.min(...o.passes.at(-1)!.pts.map(p => p[2])), o.name).toBe(1);
+      const gcode = toGcode(cam, { partName: board.name, stockSize: [board.w, board.h, board.thickness] });
+      expect(bitSwaps(gcode)).toHaveLength(0);
+      expect(safety(board, gcode, 3.175 / 2)).toEqual([]);
+      expectMovesInsideParts(board, cam, gcode);
     }
-    const gcode = toGcode(cam, { partName: board.name, stockSize: [board.w, board.h, board.thickness] });
-    expect(bitSwaps(gcode)).toHaveLength(0);
-    expect(safety(board, gcode, 3.175 / 2)).toEqual([]);
-    expectMovesInsideParts(board, cam, gcode);
-  });
+  );
 
   it('two bits: one program per bit, smallest bit first, inner features before outlines per bit', () => {
     // The kinderregal pockets all take the 6 mm bit: give the middle shelf a 4 mm wide slot only the 1/8" bit fits.

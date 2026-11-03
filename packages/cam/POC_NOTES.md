@@ -163,27 +163,25 @@ PNGs (Fusion left, ours right; colour = depth, dashed = rapids): `poc-out/left.p
      Side B gets its own program from the bottom-face features (`flipPart`, `cutThrough: false`), mirrored to match the
      chosen registration. It becomes a guided step in the machine queue ("flip board A, align, zero Z").
 
-### Holding parts with tabs: options (decision pending, not built)
+### Holding parts: built
 
-The hold check (4913ed7) shows why today's tabs don't hold: a tab only holds if the stock beyond it is solid to the
-board's edge, and after both neighbouring cuts an 8 mm gap leaves ~1.7 mm (8 - 2 x 3.175), a 5.2 mm margin ~2 mm.
-Kinderregal board A as nested by default: 2 of 24 tabs hold. Options:
+A tab holds only if the stock beyond it is solid to the board's edge (the hold check, `hold.ts`): with the old default
+spacing (gap 8, margin 5.2 with 1/8") the strip left between two cuts is ~1.7 mm and holds nothing.
 
-1. **Wider gaps and margins, tabs as now.** Defaults sized for a >= 3 mm web after both cuts: gap 2 x bit + 3
-   (~10 mm with 1/8"), margin bit + 3 (~6.5 mm). Every tab holds, any layout. ~2-3 % more wood; tabs stay on the long
-   visible edges.
-2. **Smart tab placement.** Tabs only on edges facing solid stock (board edge, a big free area, a wide gap), not in
-   notches, curves or corners, spread out so long parts are held at both ends; where a part has no such edge, the nest
-   widens that one gap or margin. Least wood; tabs end up on short or hidden edges. More complex; tabs move with the
-   layout.
-3. **Frame and webs.** A solid frame plus webs >= 6 mm between parts, tabs only where they reach a web. Most rigid
-   (thin parts, flip setups), most wood, constrains nesting.
-4. **Onion skin.** Outlines stop 0.3-0.5 mm above the bottom; break out and sand, or a last light pass with the board
-   taped down. No tab marks; a ragged bottom edge to clean up.
-
-Recommendation: 1 as the default, 2 later as an optimisation, 4 as a per-board option; per board like the hold-down
-(Tabs (wide gaps) / Tabs (smart placement) / Onion skin / Fixture + tape / Clamps). Once chosen, the hold check becomes
-a blocker on the Plan step with fix actions.
+- **Spacing for tabs.** Tab boards default to gap 2 x bit + 3.5 (10 mm with 1/8") and margin bit + 3.5 (6.7 mm), so a
+  strip that holds is left everywhere. Boards whose spacing is tighter (set by hand, or frozen at another bit) say so and
+  offer "Widen for tabs". Regal board A: 1537 x 1551 -> 1542 x 1564.
+- **Placement** (`tabPlan.ts`). Only on straight runs of the part's outer edges (its convex hull: not in notches, slots
+  or the inside of an L), 10 mm or more from corners, facing stock that holds. Two opposite sides, the long ones if both
+  can hold, else the ends: one tab per side, two on sides of 400 mm or more, at least Min # (3) in all, spread along the
+  side. Held on one side only (it would pivot) counts as not held.
+  - Regal before: 2 to 12 tabs per part, all on the side facing the board's big free area (top: 11 of 12 on one 350 mm
+    end; the sockel strips: 8 tabs at their tips), board B all skin. After: 4 per part, two on each long side, all hold.
+- **Parts tabs can't hold** get their fallback: a bottom skin (default, 1 mm), tabs anyway, or "I hold it down", for the
+  job or per part. A part with neither tabs that hold nor a fallback blocks the Plan step.
+- **Bottom skin + guided freeing** is a hold-down of its own (per board, "Use for all boards" for the job): every outline
+  stops a skin above the bottom, no tabs; at the machine "Free parts" cuts them free one at a time and pauses for each.
+- Not yet: frame and webs, triangular/ramped tabs, tabs on holes, moving tabs by hand, widening a single gap in the nest.
 
 ### Flip setups: built (fc17894), known limits
 

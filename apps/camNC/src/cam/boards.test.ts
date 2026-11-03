@@ -278,8 +278,12 @@ describe('boards', () => {
     });
   });
 
-  it('fitted boards keep a small edge margin (bit + 2) and gap (bit + 4), both editable', () => {
-    const [a] = reconcileBoards(undefined, parts, 'oak');
+  it('fitted boards keep a small edge margin (bit + 2) and gap (bit + 4), with tabs room for a strip that holds them; both editable', () => {
+    const [tabs] = reconcileBoards(undefined, parts, 'oak');
+    const withTabs = nestBoard(tabs, parts, 3.175);
+    // 3.5 mm of stock left beside the cut at the edge, and between the cuts of two neighbours.
+    expect([withTabs.margin, withTabs.gap]).toEqual([6.7, 10]);
+    const a = { ...tabs, holdDown: 'fixture-tape' as const };
     const nest = nestBoard(a, parts, 3.175);
     expect(nest.margin).toBe(5.2);
     expect(nest.gap).toBe(8);
@@ -297,7 +301,7 @@ describe('boards', () => {
   });
 
   it('fitted boards are whole mm, rounded up; an empty one shows no size', () => {
-    const [a] = reconcileBoards(undefined, parts, 'oak');
+    const a = { ...reconcileBoards(undefined, parts, 'oak')[0], holdDown: 'fixture-tape' as const };
     for (const board of [a, { ...a, holdDown: 'clamps' as const }, { ...a, margin: 5.37, gap: 7.9 }]) {
       const nest = nestBoard(board, parts, 3.175);
       expect(Number.isInteger(nest.board.w) && Number.isInteger(nest.board.h)).toBe(true);
@@ -349,7 +353,11 @@ describe('boards', () => {
   describe('changing the bit', () => {
     // Two 560 x 140 sides on a 600 x 300 stock board: they fit with the 1/8" bit's spacing, not with the 6 mm one's.
     const sides = parts.slice(0, 2);
-    const stock: BoardV1 = { ...reconcileBoards(undefined, sides, 'oak')[0], size: { fit: false, w: 600, h: 300 } };
+    const stock: BoardV1 = {
+      ...reconcileBoards(undefined, sides, 'oak')[0],
+      holdDown: 'fixture-tape',
+      size: { fit: false, w: 600, h: 300 },
+    };
     const job = (board: BoardV1, bit: number) => {
       const nest = nestBoard(board, sides, bit);
       return [{ board, nest, request: {} as never }];
