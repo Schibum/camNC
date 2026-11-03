@@ -16,21 +16,27 @@ export interface CuttingData {
   rpm: number;
   /** Final outline pass feed as a share of the feed: 0.5 for a clean edge, 1 like Fusion. */
   finalFeedFactor: number;
+  /**
+   * Pocket walls: the depth passes stay this far off them, then one full-depth pass cuts them to size (cleaner
+   * walls). 0 = off; pockets open to the edge then still leave 0.2.
+   */
+  wallFinish: number;
 }
 
 export type CuttingField = keyof CuttingData;
 /** Where a value comes from, most specific first. */
 export type CuttingSource = 'job' | 'saved' | 'library' | 'default';
 
-export const kCuttingFields: CuttingField[] = ['feed', 'plungeFeed', 'stepdown', 'stepover', 'rpm', 'finalFeedFactor'];
+export const kCuttingFields: CuttingField[] = ['feed', 'plungeFeed', 'stepdown', 'stepover', 'rpm', 'finalFeedFactor', 'wallFinish'];
 
-export const kCuttingLabels: Record<CuttingField, { label: string; unit: string; step: number }> = {
+export const kCuttingLabels: Record<CuttingField, { label: string; unit: string; step: number; min?: number }> = {
   feed: { label: 'Feed', unit: 'mm/min', step: 50 },
   plungeFeed: { label: 'Plunge feed', unit: 'mm/min', step: 10 },
   stepdown: { label: 'Stepdown', unit: 'mm', step: 0.1 },
   stepover: { label: 'Stepover', unit: 'mm', step: 0.1 },
   rpm: { label: 'Spindle speed', unit: 'rpm', step: 500 },
   finalFeedFactor: { label: 'Final pass feed', unit: '× feed', step: 0.1 },
+  wallFinish: { label: 'Wall finish', unit: 'mm left, then full depth · 0 = off', step: 0.05, min: 0 },
 };
 
 export const kSourceLabels: Record<CuttingSource, string> = {
@@ -62,6 +68,7 @@ export function defaultCutting(diameter: number, material: MaterialKey): Cutting
     stepover: round(0.4 * diameter),
     rpm: 15000,
     finalFeedFactor: 0.5,
+    wallFinish: 0,
   };
 }
 

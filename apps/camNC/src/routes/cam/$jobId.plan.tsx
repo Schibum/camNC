@@ -205,7 +205,6 @@ function PlanStep() {
                         : { bit, material: current.board.material };
                     }}
                   />
-                  <OrderBar plan={result} />
                 </>
               )}
               <Checks plan={result} checked={!empty && !blocked} />
@@ -358,33 +357,6 @@ function OperationsTable({ name, plan, editFor }: { name: string; plan: PlanResu
         })}
       </tbody>
     </table>
-  );
-}
-
-const kOpColors = ['bg-violet-800', 'bg-violet-600', 'bg-violet-400', 'bg-violet-300'];
-
-/** Operations in cutting order, as wide as the time they take. */
-function OrderBar({ plan }: { plan: PlanResult }) {
-  const total = plan.ops.reduce((s, o) => s + o.timeMin, 0) || 1;
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-xs text-muted-foreground">Order: inner features before the outline, the board is never loose.</span>
-      <div className="flex h-7 overflow-hidden rounded-md text-xs text-white">
-        {plan.ops.map((op, i) => (
-          <div
-            key={op.name}
-            title={`${op.label} · ${fmtMin(op.timeMin)}`}
-            style={{ width: `${(op.timeMin / total) * 100}%` }}
-            className={cn(
-              'flex min-w-6 items-center truncate px-2',
-              kOpColors[Math.min(i, kOpColors.length - 1)],
-              i >= 2 && 'text-zinc-900'
-            )}>
-            {op.label}
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }
 

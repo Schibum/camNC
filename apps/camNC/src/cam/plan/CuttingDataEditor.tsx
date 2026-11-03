@@ -48,7 +48,8 @@ export function CuttingDataEditor({
   const parsed = Object.fromEntries(
     Object.entries(draft).flatMap(([f, v]) => {
       const n = parseFloat(v!);
-      return Number.isFinite(n) && n > 0 && n !== values[f as CuttingField] ? [[f, n]] : [];
+      const min = kCuttingLabels[f as CuttingField].min;
+      return Number.isFinite(n) && (min !== undefined ? n >= min : n > 0) && n !== values[f as CuttingField] ? [[f, n]] : [];
     })
   ) as Partial<CuttingData>;
   const changed = Object.keys(parsed).length > 0;

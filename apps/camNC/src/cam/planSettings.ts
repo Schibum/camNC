@@ -63,6 +63,7 @@ export function toCamSettings(
     plungeFeed: main.plungeFeed,
     stepoverFactor: main.stepover / p.bit.diameter,
     finalFeedFactor: main.finalFeedFactor,
+    pocketWallAllowance: main.wallFinish,
     spindleRpm: main.rpm,
     finalZ: -p.cutBelow,
     tabs: p.tabs ? DEFAULT_TABS : false,

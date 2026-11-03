@@ -9,7 +9,7 @@ afterEach(() => useCuttingData.setState({ saved: {} }));
 describe('cutting data', () => {
   it('takes each value from this job, else saved for the bit + material, else the library, else the default', () => {
     const { values, source } = resolveCutting(bit, 'oak', { feed: 2000, stepdown: 1.2 }, { stepdown: 2 });
-    expect(values).toEqual({ feed: 2000, plungeFeed: 360, stepdown: 2, stepover: 1.27, rpm: 18000, finalFeedFactor: 0.5 });
+    expect(values).toEqual({ feed: 2000, plungeFeed: 360, stepdown: 2, stepover: 1.27, rpm: 18000, finalFeedFactor: 0.5, wallFinish: 0 });
     expect(source).toEqual({
       feed: 'saved',
       plungeFeed: 'library',
@@ -17,6 +17,7 @@ describe('cutting data', () => {
       stepover: 'library',
       rpm: 'library',
       finalFeedFactor: 'default',
+      wallFinish: 'default',
     });
   });
 
@@ -49,6 +50,11 @@ describe('cutting data', () => {
       [3.175, 1.4],
       [1.5, 0.5],
     ]);
+  });
+
+  it('turns the wall finish on for pockets when set (off by default)', () => {
+    expect(toCamSettings(kDefaultPlan).pocketWallAllowance).toBe(0);
+    expect(toCamSettings({ ...kDefaultPlan, cutting: { wallFinish: 0.2 } }).pocketWallAllowance).toBe(0.2);
   });
 
   it('keeps an older job’s full-feed final pass as this job’s choice', () => {
