@@ -269,4 +269,19 @@ describe('CAM boards step', () => {
     // Part 2 is still on board C.
     expect((await getJob(job.id))!.boards!.find(b => b.name === 'C')!.items).toHaveLength(1);
   }, 90_000);
+
+  it('chooses the bit before nesting, also one that is in no library', async () => {
+    const job = await openKinderregal();
+    fireEvent.click(screen.getByRole('button', { name: /^Bit: ⌀3.175 1\/8″ flat\. Change the bit$/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Custom bit…' }));
+    const form = within(screen.getByRole('group', { name: 'Custom bit' }));
+    fireEvent.change(form.getByLabelText('Diameter (mm)'), { target: { value: '6' } });
+    fireEvent.change(form.getByLabelText('Name'), { target: { value: '6 mm upcut' } });
+    fireEvent.click(form.getByRole('button', { name: 'Add bit' }));
+    await waitFor(async () => expect((await getJob(job.id))!.plan?.bit).toMatchObject({ diameter: 6, name: '6 mm upcut' }), {
+      timeout: 10_000,
+    });
+    // The margin and gap follow the bit: 6 + 2 and 6 + 4.
+    await waitFor(() => expect(screen.getByText(/edge margin 8 mm · gap 10 mm/)).toBeTruthy(), { timeout: 10_000 });
+  }, 90_000);
 });

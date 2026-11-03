@@ -3,6 +3,8 @@ import type { Tool } from './toolpaths';
 /** A flat end mill from a tool library, with the feeds and speed the library suggests. */
 export interface LibraryTool extends Tool {
   name: string;
+  /** Fusion's id of the tool: a re-import updates the bit with the same guid. */
+  guid?: string;
   flutes?: number;
   feed?: number;
   plungeFeed?: number;
@@ -24,6 +26,7 @@ interface FusionPreset {
 }
 
 interface FusionTool {
+  guid?: string;
   type?: string;
   unit?: string;
   description?: string;
@@ -58,6 +61,7 @@ export function readFusionToolLibrary(json: string | unknown): { tools: LibraryT
       number: t['post-process']?.number ?? tools.length + 1,
       diameter: +(t.geometry.DC * mm).toFixed(4),
       name: t.description || `flat ${t.geometry.DC * mm} mm`,
+      guid: t.guid,
       flutes: t.geometry.NOF,
       feed: preset?.v_f ? preset.v_f * mm : undefined,
       plungeFeed: preset?.v_f_plunge ? +(preset.v_f_plunge * mm).toFixed(1) : undefined,

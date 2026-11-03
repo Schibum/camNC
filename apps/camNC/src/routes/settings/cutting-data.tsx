@@ -22,10 +22,11 @@ const materials = Object.keys(MATERIALS) as MaterialKey[];
 
 /** Cutting data per bit + material, for every CAM job on this device: what's saved, and an editor for any pair. */
 function CuttingDataPage() {
-  const { tools, setTools } = useToolLibrary();
+  const importLibrary = useToolLibrary(s => s.importLibrary);
+  const stored = useToolLibrary(s => s.bits);
   const saved = useCuttingData(s => s.saved);
   const reset = useCuttingData(s => s.reset);
-  const bits = [kDefaultBit, ...tools.filter(t => bitKey(t) !== bitKey(kDefaultBit))];
+  const bits = [kDefaultBit, ...stored.filter(t => bitKey(t) !== bitKey(kDefaultBit))];
   const [bit, setBit] = useState<LibraryTool>(kDefaultBit);
   const [material, setMaterial] = useState<MaterialKey>('oak');
   const entries = Object.entries(saved).map(([key, values]) => {
@@ -86,7 +87,7 @@ function CuttingDataPage() {
                 </div>
               </div>
               <CuttingDataEditor key={`${bitKey(bit)}@${material}`} bit={bit} material={material} />
-              <ImportToolLibrary onImport={setTools} />
+              <ImportToolLibrary onImport={importLibrary} />
             </CardContent>
           </Card>
 

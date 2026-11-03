@@ -18,14 +18,20 @@ function pickFile(): Promise<File | null> {
 }
 
 /** "Import Fusion tool library…": where to find the file, then what was found in it. */
-export function ImportToolLibrary({ onImport }: { onImport: (tools: LibraryTool[], source: string) => void }) {
+export function ImportToolLibrary({
+  onImport,
+}: {
+  /** Returns how many bits were new and how many were updated by the import. */
+  onImport: (tools: LibraryTool[], source: string) => { added: number; updated: number } | void;
+}) {
   const [result, setResult] = useState<LibraryImport | null>(null);
+  const [merge, setMerge] = useState<{ added: number; updated: number } | null>(null);
   const choose = async () => {
     const file = await pickFile();
     if (!file) return;
     const r = await readLibraryFile(file);
     setResult(r);
-    if (r.ok) onImport(r.tools, r.file);
+    setMerge(r.ok ? (onImport(r.tools, r.file) ?? null) : null);
   };
   return (
     <Dialog onOpenChange={open => !open && setResult(null)}>
@@ -71,6 +77,7 @@ export function ImportToolLibrary({ onImport }: { onImport: (tools: LibraryTool[
               <>
                 <p className="font-medium">
                   {result.tools.length} flat end {result.tools.length === 1 ? 'mill' : 'mills'} from {result.file}
+                  {merge && `: ${merge.added} new, ${merge.updated} updated`}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">{result.tools.map(t => `⌀${t.diameter} ${t.name}`).join(' · ')}</p>
                 {Object.keys(result.skipped).length > 0 && (

@@ -7,6 +7,7 @@ const library = {
   data: [
     {
       type: 'flat end mill',
+      guid: 'g-1',
       unit: 'millimeters',
       description: '1/8 mill v1',
       geometry: { DC: 3.175, NOF: 1 },
@@ -32,7 +33,7 @@ describe('Fusion tool library', () => {
   it('reads flat end mills with their feeds, in mm', () => {
     expect(parseFusionToolLibrary(JSON.stringify(library))).toEqual([
       // Stepover applies ("use-stepover"), the preset's stepdown doesn't.
-      { number: 1, diameter: 3.175, name: '1/8 mill v1', flutes: 1, feed: 1800, plungeFeed: 480, rpm: 15000, stepover: 1.27 },
+      { number: 1, diameter: 3.175, name: '1/8 mill v1', guid: 'g-1', flutes: 1, feed: 1800, plungeFeed: 480, rpm: 15000, stepover: 1.27 },
       { number: 7, diameter: 6.35, name: '1/4 inch', flutes: 2, feed: 2540, plungeFeed: 508, rpm: 18000 },
     ]);
   });

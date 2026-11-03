@@ -12,7 +12,8 @@ import { cuttingKey, kCuttingLabels, kSourceLabels, resolveCutting, useCuttingDa
 import { Popover, PopoverContent, PopoverTrigger } from '@wbcnc/ui/components/popover';
 import type { ComponentProps } from 'react';
 import { PlanView3D } from '@/cam/plan3d/PlanView3D';
-import { jobCutting, kDefaultPlan } from '@/cam/planSettings';
+import { jobCutting, kDefaultPlan, type PlanSettingsV1 } from '@/cam/planSettings';
+import { BitChip } from '@/cam/plan/BitPicker';
 import { loadIntoMachineView } from '@/cam/showOnMachine';
 import { useCamMachine } from '@/cam/machine/camMachine';
 import { useStore } from '@/store/store';
@@ -90,6 +91,18 @@ function PlanStep() {
   const programName = (p: PlanResult['programs'][number]) =>
     `${job.name} board ${current.board.name}${result && result.programs.length > 1 ? ` T${p.tool}` : ''}.gcode`;
 
+  const savePlan = (plan: PlanSettingsV1) =>
+    save.mutate({
+      ...job,
+      plan,
+      // A different bit keeps the nest: margins and gaps stay what they were (warned about if too tight).
+      ...(plan.bit.diameter !== settings.bit.diameter && {
+        boards: freezeSpacing(
+          boards.map(b => b.board),
+          settings.bit.diameter
+        ),
+      }),
+    });
   const showOnMachine = () => {
     if (!result || !safe) return;
     const first = result.programs[0];
@@ -137,6 +150,7 @@ function PlanStep() {
               Job: {queue.length} {queue.length === 1 ? 'board' : 'boards'} · {swaps} bit {swaps === 1 ? 'swap' : 'swaps'} · ≈{' '}
               {fmtMin(totalMin)} min cutting
             </span>
+            <BitChip value={settings} onChange={savePlan} />
             <Button disabled={!allReady} onClick={takeToMachine}>
               <Factory /> Take the job to the machine
             </Button>
@@ -217,23 +231,7 @@ function PlanStep() {
             </>
           )}
         </main>
-        <PlanSettingsPanel
-          value={settings}
-          material={current.board.material}
-          onChange={plan =>
-            save.mutate({
-              ...job,
-              plan,
-              // A different bit keeps the nest: margins and gaps stay what they were (warned about if too tight).
-              ...(plan.bit.diameter !== settings.bit.diameter && {
-                boards: freezeSpacing(
-                  boards.map(b => b.board),
-                  settings.bit.diameter
-                ),
-              }),
-            })
-          }
-        />
+        <PlanSettingsPanel value={settings} material={current.board.material} onChange={savePlan} />
       </div>
     </Shell>
   );

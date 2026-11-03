@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readLibraryFile } from './toolLibrary';
+import { mergeLibrary, readLibraryFile, useToolLibrary, type StoredBit } from './toolLibrary';
 
 const library = JSON.stringify({
   data: [
@@ -72,5 +72,46 @@ describe('Fusion tool library import', () => {
   it('says what is wrong with other files', async () => {
     const r = await readLibraryFile(new File(['{"x":1}'], 'other.json'));
     expect(r).toEqual({ ok: false, error: 'other.json: Not a Fusion tool library (expected { "data": [...] })' });
+  });
+});
+
+describe('stored bits', () => {
+  const lib = [
+    { number: 1, diameter: 3.175, name: '1/8 mill v1', guid: 'a', feed: 1800 },
+    { number: 2, diameter: 6, name: '6 mm', guid: 'b' },
+  ];
+
+  it('merges a re-import by Fusion guid: updates changed bits, adds new ones, leaves custom bits alone', () => {
+    const custom: StoredBit = { id: 'c', source: 'custom', number: 9, diameter: 2, name: '2 mm' };
+    const first = mergeLibrary([custom], lib, 'Library.json');
+    expect([first.added, first.updated]).toEqual([2, 0]);
+    // Fusion renamed the 1/8" bit and changed its feed; a third bit is new.
+    const again = mergeLibrary(
+      first.bits,
+      [{ ...lib[0], name: '1/8 mill v2', feed: 2400 }, lib[1], { number: 3, diameter: 1.5, name: '1.5 mm', guid: 'c' }],
+      'Library.json'
+    );
+    expect([again.added, again.updated]).toEqual([1, 1]);
+    expect(again.bits.map(b => [b.source, b.name])).toEqual([
+      ['custom', '2 mm'],
+      ['library', '1/8 mill v2'],
+      ['library', '6 mm'],
+      ['library', '1.5 mm'],
+    ]);
+    expect(again.bits.find(b => b.guid === 'a')!.feed).toBe(2400);
+  });
+
+  it('adds custom bits with the next free tool number, edits and removes them', () => {
+    useToolLibrary.setState({ bits: [], imports: [] });
+    const { importLibrary, addCustom, updateBit, removeBit } = useToolLibrary.getState();
+    expect(importLibrary(lib, 'Library.json')).toEqual({ added: 2, updated: 0 });
+    addCustom({ diameter: 4, name: '4 mm 2-flute', flutes: 2 });
+    const custom = useToolLibrary.getState().bits.at(-1)!;
+    expect([custom.source, custom.number]).toEqual(['custom', 3]);
+    updateBit(custom.id, { name: '4 mm upcut' });
+    expect(useToolLibrary.getState().bits.at(-1)!.name).toBe('4 mm upcut');
+    removeBit(custom.id);
+    expect(useToolLibrary.getState().bits).toHaveLength(2);
+    expect(useToolLibrary.getState().imports.map(i => [i.file, i.added])).toEqual([['Library.json', 2]]);
   });
 });

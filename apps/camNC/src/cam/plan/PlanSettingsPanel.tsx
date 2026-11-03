@@ -1,14 +1,9 @@
-import type { LibraryTool } from '@wbcnc/cam';
 import { Input } from '@wbcnc/ui/components/input';
 import { Label } from '@wbcnc/ui/components/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wbcnc/ui/components/select';
-import { bitKey } from '../cuttingData';
-import { jobCutting, kDefaultBit, type MaterialKey, type PlanSettingsV1 } from '../planSettings';
-import { CuttingDataEditor } from './CuttingDataEditor';
-import { useToolLibrary } from '../toolLibrary';
-import { ImportToolLibrary } from './ImportToolLibrary';
 
-const bitLabel = (b: LibraryTool) => `⌀ ${b.diameter} · ${b.name}`;
+import { jobCutting, type MaterialKey, type PlanSettingsV1 } from '../planSettings';
+import { BitSettings } from './BitPicker';
+import { CuttingDataEditor } from './CuttingDataEditor';
 
 /**
  * Bits, their cutting data in the board's material, cut-through depth: everything the Plan step needs from the user,
@@ -24,62 +19,13 @@ export function PlanSettingsPanel({
   material: MaterialKey;
   onChange: (v: PlanSettingsV1) => void;
 }) {
-  const { tools, source, setTools } = useToolLibrary();
-  const bits = [kDefaultBit, ...tools.filter(t => bitKey(t) !== bitKey(kDefaultBit))];
-  if (!bits.some(b => bitKey(b) === bitKey(value.bit))) bits.push(value.bit);
   const set = (patch: Partial<PlanSettingsV1>) => onChange({ ...value, ...patch });
-  const smaller = [...bits, ...(value.smallBit ? [value.smallBit] : [])].filter(
-    (b, i, all) => b.diameter < value.bit.diameter && all.findIndex(x => bitKey(x) === bitKey(b)) === i
-  );
 
   return (
     <aside className="flex min-h-0 flex-col gap-4 overflow-y-auto border-l p-4">
       <h2 className="text-[15px] font-semibold">Settings</h2>
 
-      <section className="flex flex-col gap-1.5">
-        <Label htmlFor="plan-bit">Bit</Label>
-        <Select value={bitKey(value.bit)} onValueChange={k => set({ bit: bits.find(b => bitKey(b) === k)! })}>
-          <SelectTrigger id="plan-bit" className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {bits.map(b => (
-              <SelectItem key={bitKey(b)} value={bitKey(b)}>
-                {bitLabel(b)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <p className="text-xs text-muted-foreground">
-          Flat end mill{value.bit.flutes ? `, ${value.bit.flutes} flutes` : ''}
-          {source ? ` · library: ${source}` : ''}
-        </p>
-        <ImportToolLibrary onImport={setTools} />
-      </section>
-
-      <section className="flex flex-col gap-1.5">
-        <Label htmlFor="plan-small-bit">Second, smaller bit (optional)</Label>
-        <Select
-          value={value.smallBit ? bitKey(value.smallBit) : 'none'}
-          onValueChange={k => set({ smallBit: k === 'none' ? undefined : bits.find(b => bitKey(b) === k) })}>
-          <SelectTrigger id="plan-small-bit" className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">None</SelectItem>
-            {smaller.map(b => (
-              <SelectItem key={bitKey(b)} value={bitKey(b)}>
-                {bitLabel(b)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <p className="text-xs text-muted-foreground">
-          {value.smallBit
-            ? 'Cuts what the main bit can’t reach, first. Boards that need it pause once to swap bits.'
-            : 'For slots or corners narrower than the main bit.'}
-        </p>
-      </section>
+      <BitSettings value={value} onChange={onChange} />
 
       <section className="flex flex-col gap-1.5" aria-label="Cutting data">
         <h3 className="text-sm font-medium">

@@ -4,6 +4,7 @@ import { autoFillFromStock, dropPart, newBoard, relayoutBoard, type BoardV1, typ
 import { BoardDrawings } from '@/cam/boards/BoardDrawings';
 import { BoardInspector } from '@/cam/boards/BoardInspector';
 import { BoardList } from '@/cam/boards/BoardList';
+import { BitChip } from '@/cam/plan/BitPicker';
 import { camKeys, useBoardPlans, useCamJob, useCamModel, useSaveCamJob } from '@/cam/camQueries';
 import type { CamJobV1 } from '@/cam/jobDb';
 import { CamJobBar } from '@/cam/model/CamJobBar';
@@ -51,11 +52,15 @@ function BoardsStep() {
       fileName={job.fileName}
       step="Boards"
       actions={
-        <Button size="sm" asChild>
-          <Link to="/cam/$jobId/plan" params={{ jobId: job.id }}>
-            Next: Plan
-          </Link>
-        </Button>
+        <>
+          {/* The bit sets the margin and gap between parts: choose it before nesting. */}
+          <BitChip value={job.plan ?? kDefaultPlan} onChange={plan => save.mutate({ ...job, plan })} />
+          <Button size="sm" asChild>
+            <Link to="/cam/$jobId/plan" params={{ jobId: job.id }}>
+              Next: Plan
+            </Link>
+          </Button>
+        </>
       }
     />
   );
