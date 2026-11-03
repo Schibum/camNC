@@ -8,7 +8,7 @@ import { PartList } from '@/cam/model/PartList';
 import { pickModelFile } from '@/cam/openModelFile';
 import { kModelFile } from '@/cam/jobDb';
 import { useQueryClient } from '@tanstack/react-query';
-import { createFileRoute, useParams } from '@tanstack/react-router';
+import { createFileRoute, useNavigate, useParams } from '@tanstack/react-router';
 import { Button } from '@wbcnc/ui/components/button';
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
 import { toast } from '@wbcnc/ui/components/sonner';
@@ -26,6 +26,7 @@ function ModelStep() {
   const model = useCamModel(job);
   const save = useSaveCamJob();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [selected, setSelected] = useState<string | null>(null);
   const [view, setView] = useState<ModelView>('flat');
 
@@ -40,6 +41,7 @@ function ModelStep() {
   };
   const bar = (
     <CamJobBar
+      jobId={job.id}
       fileName={job.fileName}
       step="Model"
       actions={
@@ -47,7 +49,7 @@ function ModelStep() {
           <Button size="sm" variant="outline" onClick={() => void replace()}>
             Replace model…
           </Button>
-          <NextStepButton>Next: Boards</NextStepButton>
+          <NextStepButton hint="Boards and nesting come next; meanwhile plan each part on its own.">Next: Boards</NextStepButton>
         </>
       }
     />
@@ -98,7 +100,14 @@ function ModelStep() {
             <ModelViewport meshes={meshes} parts={parts} view={view} selectedId={part?.id ?? null} milled={milled} onSelect={setSelected} />
           </div>
         </main>
-        {part && <PartInspector part={part} milled={milled(part.id)} onMilledChange={v => setMilled(part.id, v)} />}
+        {part && (
+          <PartInspector
+            part={part}
+            milled={milled(part.id)}
+            onMilledChange={v => setMilled(part.id, v)}
+            onPlan={() => void navigate({ to: '/cam/$jobId/plan', params: { jobId: job.id }, search: { part: part.id } })}
+          />
+        )}
       </div>
     </Shell>
   );

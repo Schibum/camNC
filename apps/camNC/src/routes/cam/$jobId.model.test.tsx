@@ -11,6 +11,7 @@ const params = vi.hoisted(() => ({ jobId: '' }));
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (options: unknown) => ({ options }),
   useParams: () => params,
+  useNavigate: () => () => undefined,
   Link: ({ children }: { children: ReactNode }) => <a>{children}</a>,
 }));
 vi.mock('@/components/page-header', () => ({ PageHeader: () => null }));

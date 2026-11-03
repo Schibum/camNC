@@ -1,3 +1,4 @@
+import { Button } from '@wbcnc/ui/components/button';
 import { Checkbox } from '@wbcnc/ui/components/checkbox';
 import { Label } from '@wbcnc/ui/components/label';
 import type { CamPartInfo } from '../camTypes';
@@ -14,10 +15,13 @@ export function PartInspector({
   part,
   milled,
   onMilledChange,
+  onPlan,
 }: {
   part: CamPartInfo;
   milled: boolean;
   onMilledChange: (milled: boolean) => void;
+  /** Go to toolpaths + G-code for this part. */
+  onPlan: () => void;
 }) {
   const { summary } = part;
   const corners = insideCorners(summary.smallestInsideRadius);
@@ -95,6 +99,11 @@ export function PartInspector({
         <Checkbox id="mill-part" checked={milled} onCheckedChange={v => onMilledChange(v === true)} />
         <Label htmlFor="mill-part">Mill this part</Label>
       </div>
+      {milled && !summary.notFlat && (
+        <Button onClick={onPlan} className="w-full">
+          Make G-code for this part
+        </Button>
+      )}
     </aside>
   );
 }

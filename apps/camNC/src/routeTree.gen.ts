@@ -33,6 +33,7 @@ import { Route as DebugUndistort2RouteImport } from './routes/debug/undistort2'
 import { Route as DebugRawWebgpuRouteImport } from './routes/debug/raw-webgpu'
 import { Route as SetupCamerasIndexRouteImport } from './routes/setup/cameras.index'
 import { Route as SetupCamerasCamIdRouteImport } from './routes/setup/cameras.$camId'
+import { Route as CamJobIdPlanRouteImport } from './routes/cam/$jobId.plan'
 import { Route as CamJobIdModelRouteImport } from './routes/cam/$jobId.model'
 
 const StartRoute = StartRouteImport.update({
@@ -156,6 +157,11 @@ const SetupCamerasCamIdRoute = SetupCamerasCamIdRouteImport.update({
   path: '/setup/cameras/$camId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CamJobIdPlanRoute = CamJobIdPlanRouteImport.update({
+  id: '/cam/$jobId/plan',
+  path: '/cam/$jobId/plan',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CamJobIdModelRoute = CamJobIdModelRouteImport.update({
   id: '/cam/$jobId/model',
   path: '/cam/$jobId/model',
@@ -186,6 +192,7 @@ export interface FileRoutesByFullPath {
   '/cam': typeof CamIndexRoute
   '/setup': typeof SetupIndexRoute
   '/cam/$jobId/model': typeof CamJobIdModelRoute
+  '/cam/$jobId/plan': typeof CamJobIdPlanRoute
   '/setup/cameras/$camId': typeof SetupCamerasCamIdRoute
   '/setup/cameras': typeof SetupCamerasIndexRoute
 }
@@ -213,6 +220,7 @@ export interface FileRoutesByTo {
   '/cam': typeof CamIndexRoute
   '/setup': typeof SetupIndexRoute
   '/cam/$jobId/model': typeof CamJobIdModelRoute
+  '/cam/$jobId/plan': typeof CamJobIdPlanRoute
   '/setup/cameras/$camId': typeof SetupCamerasCamIdRoute
   '/setup/cameras': typeof SetupCamerasIndexRoute
 }
@@ -241,6 +249,7 @@ export interface FileRoutesById {
   '/cam/': typeof CamIndexRoute
   '/setup/': typeof SetupIndexRoute
   '/cam/$jobId/model': typeof CamJobIdModelRoute
+  '/cam/$jobId/plan': typeof CamJobIdPlanRoute
   '/setup/cameras/$camId': typeof SetupCamerasCamIdRoute
   '/setup/cameras/': typeof SetupCamerasIndexRoute
 }
@@ -270,6 +279,7 @@ export interface FileRouteTypes {
     | '/cam'
     | '/setup'
     | '/cam/$jobId/model'
+    | '/cam/$jobId/plan'
     | '/setup/cameras/$camId'
     | '/setup/cameras'
   fileRoutesByTo: FileRoutesByTo
@@ -297,6 +307,7 @@ export interface FileRouteTypes {
     | '/cam'
     | '/setup'
     | '/cam/$jobId/model'
+    | '/cam/$jobId/plan'
     | '/setup/cameras/$camId'
     | '/setup/cameras'
   id:
@@ -324,6 +335,7 @@ export interface FileRouteTypes {
     | '/cam/'
     | '/setup/'
     | '/cam/$jobId/model'
+    | '/cam/$jobId/plan'
     | '/setup/cameras/$camId'
     | '/setup/cameras/'
   fileRoutesById: FileRoutesById
@@ -352,6 +364,7 @@ export interface RootRouteChildren {
   CamIndexRoute: typeof CamIndexRoute
   SetupIndexRoute: typeof SetupIndexRoute
   CamJobIdModelRoute: typeof CamJobIdModelRoute
+  CamJobIdPlanRoute: typeof CamJobIdPlanRoute
   SetupCamerasCamIdRoute: typeof SetupCamerasCamIdRoute
   SetupCamerasIndexRoute: typeof SetupCamerasIndexRoute
 }
@@ -526,6 +539,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SetupCamerasCamIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/cam/$jobId/plan': {
+      id: '/cam/$jobId/plan'
+      path: '/cam/$jobId/plan'
+      fullPath: '/cam/$jobId/plan'
+      preLoaderRoute: typeof CamJobIdPlanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/cam/$jobId/model': {
       id: '/cam/$jobId/model'
       path: '/cam/$jobId/model'
@@ -560,6 +580,7 @@ const rootRouteChildren: RootRouteChildren = {
   CamIndexRoute: CamIndexRoute,
   SetupIndexRoute: SetupIndexRoute,
   CamJobIdModelRoute: CamJobIdModelRoute,
+  CamJobIdPlanRoute: CamJobIdPlanRoute,
   SetupCamerasCamIdRoute: SetupCamerasCamIdRoute,
   SetupCamerasIndexRoute: SetupCamerasIndexRoute,
 }

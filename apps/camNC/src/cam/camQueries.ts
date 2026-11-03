@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Comlink from 'comlink';
 import type { CamWorkerAPI } from '../workers/cam.worker';
-import type { ModelImport } from './camTypes';
+import type { ModelImport, PlanResult } from './camTypes';
+import { kDefaultPlan, toCamSettings } from './planSettings';
 import { getJob, getModelBytes, listJobs, saveJob, type CamJobV1 } from './jobDb';
 
 let worker: Comlink.Remote<CamWorkerAPI> | undefined;
@@ -15,6 +16,7 @@ export const camKeys = {
   jobs: ['cam', 'jobs'] as const,
   job: (id: string) => ['cam', 'job', id] as const,
   model: (id: string, fileName: string) => ['cam', 'model', id, fileName] as const,
+  plan: (id: string, fileName: string, partId: string, settings: unknown) => ['cam', 'plan', id, fileName, partId, settings] as const,
 };
 
 export const useCamJobs = () => useQuery({ queryKey: camKeys.jobs, queryFn: listJobs });
@@ -35,7 +37,7 @@ export function useCamModel(job: CamJobV1 | null | undefined) {
     queryFn: async (): Promise<ModelImport> => {
       const bytes = await getModelBytes(job!.id);
       if (!bytes) throw new Error('The model file of this job is missing.');
-      const model = await camWorker().importModel(Comlink.transfer(bytes, [bytes.buffer as ArrayBuffer]), job!.fileName);
+      const model = await camWorker().importModel(Comlink.transfer(bytes, [bytes.buffer as ArrayBuffer]), job!.fileName, modelKey(job!));
       const known = new Map(job!.parts.map(p => [p.id, p]));
       const parts = model.parts.map(p => ({
         id: p.id,
@@ -49,6 +51,21 @@ export function useCamModel(job: CamJobV1 | null | undefined) {
       }
       return model;
     },
+  });
+}
+
+const modelKey = (job: CamJobV1) => `${job.id}:${job.fileName}`;
+
+/** Toolpaths + G-code of one part with the job's plan settings; recomputed (~0.3s) when they change. */
+export function useCamPlan(job: CamJobV1 | null | undefined, partId: string | undefined, modelReady: boolean) {
+  const settings = toCamSettings(job?.plan ?? kDefaultPlan);
+  return useQuery({
+    queryKey: camKeys.plan(job?.id ?? '', job?.fileName ?? '', partId ?? '', settings),
+    enabled: !!job && !!partId && modelReady,
+    staleTime: Infinity,
+    gcTime: 60_000,
+    placeholderData: prev => prev,
+    queryFn: (): Promise<PlanResult> => camWorker().generate(modelKey(job!), partId!, settings),
   });
 }
 

@@ -1,3 +1,5 @@
+import type { PlanSettingsV1 } from './planSettings';
+
 /**
  * CAM jobs live in IndexedDB, not in the persisted zustand store: model files are megabytes, and jobs are documents
  * the user opens, not app settings.
@@ -20,6 +22,8 @@ export interface CamJobV1 {
   updatedAt: number;
   /** Empty until the model has been imported once. */
   parts: CamJobPartV1[];
+  /** Plan step choices (bit, material, ...); defaults until changed. */
+  plan?: PlanSettingsV1;
 }
 
 const kDbName = 'camnc-cam';

@@ -1,18 +1,28 @@
 import {
+  camPart,
+  checkGcodeSafety,
   detectFlat,
   extractFeatures,
   flatMatrix,
   groupIdentical,
   loadStep,
   loadStl,
+  metrics,
+  readGcode,
   summarizePart,
+  toGcode,
+  type CamSettings,
   type FlatPart,
+  type PartFeatures,
   type StepBody,
 } from '@wbcnc/cam';
 import * as Comlink from 'comlink';
 // Lazy: this worker only starts when a model is opened, and occt only loads the wasm on the first STEP file.
 import occtWasmUrl from 'occt-import-js/dist/occt-import-js.wasm?url';
-import type { BodyMesh, CamPartInfo, ModelImport } from '../cam/camTypes';
+import type { BodyMesh, CamPartInfo, ModelImport, OpSummary, PlanResult } from '../cam/camTypes';
+
+/** Parts of the models imported in this worker, by model key, so generating G-code needs no re-import. */
+const models = new Map<string, Map<string, { part: FlatPart; features: PartFeatures }>>();
 
 async function readBodies(bytes: Uint8Array, fileName: string): Promise<{ bodies: StepBody[]; readMs: number }> {
   if (/\.stl$/i.test(fileName)) {
@@ -25,18 +35,22 @@ async function readBodies(bytes: Uint8Array, fileName: string): Promise<{ bodies
 
 const api = {
   /** STEP or STL → flat parts, identical ones grouped, with feature summaries and display meshes. */
-  async importModel(bytes: Uint8Array, fileName: string): Promise<ModelImport> {
+  async importModel(bytes: Uint8Array, fileName: string, key = fileName): Promise<ModelImport> {
     const { bodies, readMs } = await readBodies(bytes, fileName);
     const t0 = performance.now();
     const flat = bodies.map(b => detectFlat(b));
     const groups = groupIdentical(flat);
     const partOf = new Map<FlatPart, string>();
+    const cache = new Map<string, { part: FlatPart; features: PartFeatures }>();
+    models.set(key, cache);
     const parts: CamPartInfo[] = groups.map((g, i) => {
       const id = `part-${i}`;
       g.names.forEach(n => partOf.set(flat.find(f => f.name === n && !partOf.has(f))!, id));
       const notFlat = g.part.prismaticRatio < 0.95;
       // Freeform parts (350k triangles of knife slots) would take ~30s and give nothing machinable.
-      const summary = summarizePart(g.part, notFlat ? emptyFeatures(g.part) : extractFeatures(g.part.mesh, g.part.thickness));
+      const features = notFlat ? emptyFeatures(g.part) : extractFeatures(g.part.mesh, g.part.thickness);
+      cache.set(id, { part: g.part, features });
+      const summary = summarizePart(g.part, features);
       return { id, name: g.names[0], names: g.names, size: g.part.size, thickness: g.part.thickness, summary };
     });
     const meshes: BodyMesh[] = bodies.map((b, i) => ({
@@ -52,9 +66,60 @@ const api = {
       meshes.flatMap(m => [m.positions.buffer as ArrayBuffer, m.indices.buffer as ArrayBuffer])
     );
   },
+
+  /** Toolpaths and FluidNC G-code for one part of an imported model, with per-operation numbers and safety checks. */
+  async generate(key: string, partId: string, settings: Partial<CamSettings>): Promise<PlanResult> {
+    const entry = models.get(key)?.get(partId);
+    if (!entry) throw new Error('Open the model again: this part is not loaded.');
+    const { part, features } = entry;
+    const cam = camPart(features, settings);
+    const gcode = toGcode(cam, { partName: part.name, stockSize: part.size });
+    const one = (ops: typeof cam.operations) => metrics(readGcode(toGcode({ ...cam, operations: ops })), cam.stockTop);
+    const ops: OpSummary[] = cam.operations.map(op => {
+      const zs = op.passes.flatMap(p => p.pts.map(q => q[2]));
+      const levels = new Set(op.passes.map(p => Math.min(...p.pts.map(q => q[2])).toFixed(2)));
+      return {
+        name: op.name,
+        label: label(op.name, cam.stockTop),
+        kind: op.kind,
+        tool: { number: op.tool.number, diameter: op.tool.diameter },
+        // Where it starts cutting: a deeper pocket starts at the floor of the one before.
+        zTop: op.kind === 'pocket' ? Math.min(cam.stockTop, Math.max(...zs)) : cam.stockTop,
+        zBottom: Math.min(...zs),
+        depthSteps: levels.size,
+        feeds: [...new Set(op.passes.flatMap(p => p.feeds.slice(1)))].sort((a, b) => b - a),
+        timeMin: one([op]).timeMin,
+      };
+    });
+    const moves = readGcode(gcode);
+    const safety = checkGcodeSafety(gcode, {
+      stockTop: cam.stockTop,
+      size: [part.size[0], part.size[1]],
+      minZ: settings.finalZ ?? -0.3,
+      toolRadius: Math.max(0, ...cam.operations.map(o => o.tool.diameter / 2)),
+    }).map(i => i.message);
+    return {
+      gcode,
+      timeMin: metrics(moves, cam.stockTop).timeMin,
+      warnings: cam.warnings,
+      safety,
+      ops,
+      size: part.size,
+      // Cutting moves inside the stock, for the preview.
+      path: moves.filter(m => !m.rapid && Math.min(m.from[2], m.to[2]) < cam.stockTop - 1e-3).map(m => [m.from, m.to]),
+    };
+  },
 };
 
-function emptyFeatures(part: FlatPart) {
+const label = (name: string, top: number) => {
+  const z = name.match(/z=([\d.]+)/);
+  if (z) return `Pocket ${+(top - +z[1]).toFixed(2)} deep`;
+  if (name.startsWith('Hole')) return 'Through hole';
+  if (name.startsWith('Outline')) return 'Outline: rough + final pass';
+  return name;
+};
+
+function emptyFeatures(part: FlatPart): PartFeatures {
   return {
     thickness: part.thickness,
     footprint: [],

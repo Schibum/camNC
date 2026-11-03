@@ -27,3 +27,29 @@ export interface ModelImport {
   readMs: number;
   analyzeMs: number;
 }
+
+export interface OpSummary {
+  name: string;
+  /** For people: "Pocket 4.2 deep", "Outline: rough + final pass". */
+  label: string;
+  kind: 'pocket' | 'profile';
+  tool: { number: number; diameter: number };
+  zTop: number;
+  zBottom: number;
+  /** Distinct depths the operation cuts at (pocket stepdowns, outline roughing + final). */
+  depthSteps: number;
+  /** Cutting feeds used, fastest first (the final pass may be slower). */
+  feeds: number[];
+  timeMin: number;
+}
+
+export interface PlanResult {
+  gcode: string;
+  timeMin: number;
+  warnings: string[];
+  /** Broken safety rules (empty when fine): never shown as a downloadable program then. */
+  safety: string[];
+  ops: OpSummary[];
+  size: [number, number, number];
+  path: [number, number, number][][];
+}
