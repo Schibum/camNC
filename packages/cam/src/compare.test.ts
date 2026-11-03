@@ -1,5 +1,5 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { chromium } from 'playwright';
+import { chromium, type Browser } from 'playwright';
 import { afterAll, describe, expect, it } from 'vitest';
 import { parseGCode } from '../../../apps/camNC/src/visualize/gcodeParsing';
 import { hasProbeOrZeroCommand } from '../../../apps/camNC/src/visualize/gcodeChecks';
@@ -36,15 +36,21 @@ const PARTS: Record<string, string> = {
 
 const rows: string[] = [];
 
+// One browser for every render of the file: launching Chromium for each PNG took longer than drawing it.
+let browser: Promise<Browser> | undefined;
+afterAll(async () => {
+  await (await browser)?.close();
+});
+
 async function renderPng(svg: string, file: string) {
   // Mock keychain: otherwise macOS asks for "Chromium Safe Storage" access.
-  const browser = await chromium.launch({ args: ['--use-mock-keychain', '--password-store=basic'] });
+  browser ??= chromium.launch({ args: ['--use-mock-keychain', '--password-store=basic'] });
+  const page = await (await browser).newPage();
   try {
-    const page = await browser.newPage();
     await page.setContent(`<html><body style="margin:0">${svg}</body></html>`);
     await page.locator('svg').screenshot({ path: file });
   } finally {
-    await browser.close();
+    await page.close();
   }
 }
 
