@@ -78,7 +78,8 @@ const api = {
       name: b.name,
       partId: partOf.get(flat[i]) ?? parts[0].id,
       positions: Float32Array.from(b.mesh.positions),
-      indices: b.mesh.indices,
+      // A copy: the transfer detaches it, and a 3D part milled anyway still needs its mesh here (loaded()).
+      indices: b.mesh.indices.slice(),
       flat: flatMatrix(flat[i]),
     }));
     const result: ModelImport = { parts, meshes, readMs, analyzeMs: performance.now() - t0 };
