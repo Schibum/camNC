@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { BoardNest, PartInstance, PartPosition } from '../boards';
 import type { CamPartInfo, PlanResult } from '../camTypes';
 import { place, toD } from './outline';
+import { edgeDir, holdBox, snapClamp } from '@wbcnc/cam/holdPoints';
 
 /** Where a dragged part would land on this board; `fits` false: it fits nowhere, drawn in red at the pointer. */
 export interface NestPreview {
@@ -71,7 +72,14 @@ export function NestView({
   const previewPart = previewInst && byPart.get(previewInst.partId);
   // A hold point being dragged: its index and where it is now.
   const [holdDrag, setHoldDrag] = useState<{ i: number; x: number; y: number } | null>(null);
-  const holds = nest.holds.map((h, i) => (holdDrag?.i === i ? { ...h, x: holdDrag.x, y: holdDrag.y } : h));
+  // A clamp being moved slides along the nearest edge, pushed against it.
+  const holds = nest.holds.map((h, i) =>
+    holdDrag?.i !== i
+      ? h
+      : h.kind === 'clamp' && h.w !== undefined
+        ? { ...h, ...snapClamp(holdDrag, h.d, nest.board), dir: edgeDir(holdDrag, nest.board) }
+        : { ...h, x: holdDrag.x, y: holdDrag.y }
+  );
   const clash = new Set((plan?.holdClash ?? []).map(p => `${p.x},${p.y}`));
   const toFrame = (e: React.PointerEvent) => {
     const frame = (e.currentTarget as SVGElement).closest('[data-board-frame]') as SVGGraphicsElement | null;
@@ -191,6 +199,7 @@ export function NestView({
         {holds.map((hp, i) => {
           const bad = clash.has(`${hp.x},${hp.y}`) && holdDrag?.i !== i;
           const r = hp.d / 2;
+          const box = holdBox(hp);
           return (
             <g
               key={`hold-${i}`}
@@ -228,11 +237,11 @@ export function NestView({
               onClick={e => e.stopPropagation()}>
               {hp.kind === 'clamp' ? (
                 <rect
-                  x={hp.x - r}
-                  y={hp.y - r * 0.6}
-                  width={2 * r}
-                  height={1.2 * r}
-                  rx={r * 0.2}
+                  x={box.x}
+                  y={box.y}
+                  width={box.w}
+                  height={box.h}
+                  rx={Math.min(box.w, box.h) * 0.2}
                   className={bad ? 'fill-red-500/60 stroke-red-600' : 'fill-rose-800/70 stroke-rose-900 dark:fill-rose-400/70'}
                   strokeWidth={stroke}
                 />
@@ -253,9 +262,13 @@ export function NestView({
                 </>
               )}
               {/* A bigger target than a 10 mm screw for the pointer. */}
-              <circle cx={hp.x} cy={hp.y} r={Math.max(r, u / 60)} className="fill-transparent" />
+              <circle cx={hp.x} cy={hp.y} r={Math.max(Math.max(box.w, box.h) / 2, u / 60)} className="fill-transparent" />
               <title>
-                {bad ? 'The bit would hit this: move it into the waste.' : `${hp.kind === 'screw' ? 'Screw' : 'Clamp'} ⌀${hp.d} mm`}
+                {bad
+                  ? 'The bit would hit this: move it into the waste.'
+                  : hp.kind === 'clamp' && hp.w !== undefined
+                    ? `Clamp: ${hp.w} mm wide, reaching ${hp.d} mm in`
+                    : `${hp.kind === 'screw' ? 'Screw' : 'Clamp'} ⌀${hp.d} mm`}
               </title>
             </g>
           );

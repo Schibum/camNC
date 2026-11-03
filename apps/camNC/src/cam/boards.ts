@@ -6,6 +6,9 @@ import {
   kHoldClearance,
   kHoldDefaults,
   kHoldSpacing,
+  kClampWidth,
+  edgeDir,
+  holdBox,
   suggestHoldPoints,
   type HoldKind,
   type HoldPoint,
@@ -39,8 +42,11 @@ export interface BoardV1 {
    * parts keep a thin layer until the end: `fixture-tape`).
    */
   boardHold?: BoardHold;
-  /** The hold points: screw or clamp, footprint ⌀ and greatest spacing along an edge (mm). Default a ⌀10 screw every 250. */
-  holds?: { kind: HoldKind; d: number; spacing?: number };
+  /**
+   * The hold points: screw or clamp and greatest spacing along an edge (mm). A screw: `d` its head's ⌀. A clamp: `d`
+   * how far its toe reaches in from the edge, `w` its width along the edge. Default a ⌀10 screw every 250.
+   */
+  holds?: { kind: HoldKind; d: number; w?: number; spacing?: number };
   /** Hold points the user moved (board frame, mm): used as they are instead of the suggested ones. */
   holdPoints?: { x: number; y: number }[];
   /** The board's size when the user moved them: on a board of another size (laid out again) they're suggested afresh. */
@@ -107,11 +113,17 @@ export const partsHoldOf = (board: Pick<BoardV1, 'boardHold' | 'holdDown'>): Hol
       ? 'none'
       : board.holdDown;
 
-export const holdsOf = (board: Pick<BoardV1, 'holds'>) => ({
-  kind: board.holds?.kind ?? ('screw' as HoldKind),
-  d: board.holds?.d ?? kHoldDefaults[board.holds?.kind ?? 'screw'],
-  spacing: board.holds?.spacing ?? kHoldSpacing,
-});
+export const holdsOf = (board: Pick<BoardV1, 'holds'>) => {
+  const kind = board.holds?.kind ?? ('screw' as HoldKind);
+  // Clamps saved before they had a width were sized as a round toe: start them afresh.
+  const old = kind === 'clamp' && board.holds?.w === undefined;
+  return {
+    kind,
+    d: (!old && board.holds?.d) || kHoldDefaults[kind],
+    ...(kind === 'clamp' && { w: board.holds?.w ?? kClampWidth }),
+    spacing: board.holds?.spacing ?? kHoldSpacing,
+  };
+};
 
 /** The board's hold-down settings, to copy to another board. */
 export const holdSettingsOf = (b: BoardV1): Partial<BoardV1> => ({
@@ -367,11 +379,22 @@ export function nestBoard(
   const sameSize = (b: { w: number; h: number }) =>
     !board.holdPointsOn || (Math.abs(board.holdPointsOn.w - b.w) < 0.5 && Math.abs(board.holdPointsOn.h - b.h) < 0.5);
   let moved = points && board.holdPoints?.length && (!size || sameSize(size)) ? board.holdPoints : undefined;
-  const side = hold.d + 2 * kHoldClearance;
-  let keepOuts: Rect[] = (moved ?? []).map(p => ({ x: p.x - side / 2, y: p.y - side / 2, w: side, h: side }));
+  const movedOn = board.holdPointsOn ?? size;
+  const holdAt = (p: { x: number; y: number }, on?: { w: number; h: number }): HoldPoint => ({
+    x: p.x,
+    y: p.y,
+    kind: hold.kind,
+    d: hold.d,
+    ...(hold.w !== undefined && { w: hold.w, ...(on && { dir: edgeDir(p, on) }) }),
+  });
+  const keepOutOf = (h: HoldPoint): Rect => {
+    const b = holdBox(h);
+    return { x: b.x - kHoldClearance, y: b.y - kHoldClearance, w: b.w + 2 * kHoldClearance, h: b.h + 2 * kHoldClearance };
+  };
+  let keepOuts: Rect[] = (moved ?? []).map(p => keepOutOf(holdAt(p, movedOn)));
   // Packing picks the sheets without the frame: it's only kept where it costs no part (and so no extra board).
   const wantFrame = points && board.frame !== false && !opts.packing;
-  const framed = wantFrame ? Math.max(baseMargin, frameMargin(hold.d, bit)) : baseMargin;
+  const framed = wantFrame ? Math.max(baseMargin, frameMargin(hold.d, bit, hold.kind)) : baseMargin;
 
   const layout = (margin: number) => {
     // Placed by hand: kept at their spot while it is inside the margin and clear of the others and the holds.
@@ -421,8 +444,8 @@ export function nestBoard(
     !points || opts.holds === false
       ? []
       : moved
-        ? moved.map(p => ({ x: p.x, y: p.y, kind: hold.kind, d: hold.d }))
-        : suggestHoldPoints(out, rects, { kind: hold.kind, d: hold.d, bit, spacing: hold.spacing });
+        ? moved.map(p => holdAt(p, out))
+        : suggestHoldPoints(out, rects, { kind: hold.kind, d: hold.d, w: hold.w, bit, spacing: hold.spacing });
   return {
     ...n,
     board: out,

@@ -10,15 +10,25 @@ type Rect = { x: number; y: number; w: number; h: number };
 export type HoldKind = 'screw' | 'clamp';
 
 export interface HoldPoint {
+  /** The footprint's centre. */
   x: number;
   y: number;
   kind: HoldKind;
-  /** Footprint diameter, mm: the screw head or the clamp's toe. The bit stays clear of it. */
+  /**
+   * A screw: its head's diameter, mm. A clamp: how far its toe reaches in from the board's edge, mm (it grips at the
+   * edge). The bit stays clear of the footprint.
+   */
   d: number;
+  /** A clamp: its toe's width along the edge, mm. */
+  w?: number;
+  /** A clamp: the edge it grips, as the direction into the board (axis aligned). */
+  dir?: P2;
 }
 
-/** Starting sizes, until the user sets their own: a screw head, a small clamp toe. */
-export const kHoldDefaults: Record<HoldKind, number> = { screw: 10, clamp: 25 };
+/** Starting sizes, until the user sets their own: a screw head; how far a small clamp's toe reaches in. */
+export const kHoldDefaults: Record<HoldKind, number> = { screw: 10, clamp: 2 };
+/** A clamp toe's starting width along the edge, mm. */
+export const kClampWidth = 20;
 /** Holds along an edge at most this far apart, mm. */
 export const kHoldSpacing = 250;
 /** No hold this close to the lower left corner, mm: the XY zero, where the probe or the camera finds the corner. */
@@ -30,7 +40,45 @@ export const kHoldClearance = 1.5;
  * Edge margin that leaves a frame of stock for holds around the parts: the hold, a little stock on its outer side, the
  * clearance and the outline cut (`bit`).
  */
-export const frameMargin = (d: number, bit: number) => Math.ceil(d + 2 + kHoldClearance + bit + 1);
+export const frameMargin = (d: number, bit: number, kind: HoldKind = 'screw') =>
+  Math.ceil(d + (kind === 'clamp' ? 0 : 2) + kHoldClearance + bit + 1);
+
+/** The edge nearest to p, as the direction into the board: where a clamp there grips. */
+export function edgeDir(p: P2, board: { w: number; h: number }): P2 {
+  const d = [p.y, board.w - p.x, board.h - p.y, p.x];
+  const i = d.indexOf(Math.min(...d));
+  return [
+    { x: 0, y: 1 },
+    { x: -1, y: 0 },
+    { x: 0, y: -1 },
+    { x: 1, y: 0 },
+  ][i];
+}
+
+/** A clamp pushed against its edge: the footprint's centre moved to d / 2 in from it. */
+export function snapClamp(p: P2, d: number, board: { w: number; h: number }): P2 {
+  const n = edgeDir(p, board);
+  if (n.y === 1) return { x: p.x, y: d / 2 };
+  if (n.y === -1) return { x: p.x, y: board.h - d / 2 };
+  if (n.x === 1) return { x: d / 2, y: p.y };
+  return { x: board.w - d / 2, y: p.y };
+}
+
+/** The hold's footprint as a box: a clamp's toe (w along its edge, d in), or the box around a screw head. */
+export function holdBox(h: Pick<HoldPoint, 'x' | 'y' | 'kind' | 'd' | 'w' | 'dir'>): Rect {
+  const [hx, hy] =
+    h.kind === 'clamp' && h.w !== undefined ? (h.dir && h.dir.x !== 0 ? [h.d / 2, h.w / 2] : [h.w / 2, h.d / 2]) : [h.d / 2, h.d / 2];
+  return { x: h.x - hx, y: h.y - hy, w: 2 * hx, h: 2 * hy };
+}
+
+/** How far p is from the hold's footprint (0 on it). */
+export function holdDist(h: HoldPoint, p: P2): number {
+  if (h.kind === 'clamp' && h.w !== undefined) return toRect(p, holdBox(h));
+  return Math.max(0, Math.hypot(p.x - h.x, p.y - h.y) - h.d / 2);
+}
+
+const rectGap = (a: Rect, b: Rect) =>
+  Math.hypot(Math.max(0, b.x - a.x - a.w, a.x - b.x - b.w), Math.max(0, b.y - a.y - a.h, a.y - b.y - b.h));
 
 /** Distance from a point to a rectangle (0 inside). */
 const toRect = (p: P2, r: Rect) => Math.hypot(Math.max(r.x - p.x, 0, p.x - r.x - r.w), Math.max(r.y - p.y, 0, p.y - r.y - r.h));
@@ -45,27 +93,36 @@ const toRect = (p: P2, r: Rect) => Math.hypot(Math.max(r.x - p.x, 0, p.x - r.x -
 export function suggestHoldPoints(
   board: { w: number; h: number },
   parts: Rect[],
-  opts: { kind?: HoldKind; d?: number; bit: number; spacing?: number }
+  opts: { kind?: HoldKind; d?: number; w?: number; bit: number; spacing?: number }
 ): HoldPoint[] {
   const kind = opts.kind ?? 'screw';
   const d = opts.d ?? kHoldDefaults[kind];
+  const clamp = kind === 'clamp';
+  const w = clamp ? (opts.w ?? kClampWidth) : d;
   const spacing = opts.spacing ?? kHoldSpacing;
-  const keep = d / 2 + kHoldClearance + opts.bit;
-  // A clamp grips at the edge; a screw needs a little stock around it.
-  const inset = d / 2 + (kind === 'clamp' ? 0 : 2);
-  const free = (p: P2) =>
-    p.x >= inset - 1e-6 &&
-    p.y >= inset - 1e-6 &&
-    p.x <= board.w - inset + 1e-6 &&
-    p.y <= board.h - inset + 1e-6 &&
-    Math.hypot(p.x, p.y) >= kZeroClear + d / 2 &&
-    parts.every(r => toRect(p, r) >= keep);
+  const keep = kHoldClearance + opts.bit;
+  const hold = (p: P2, dir: P2): HoldPoint => ({ x: p.x, y: p.y, kind, d, ...(clamp && { w, dir }) });
+  // A clamp grips at the edge, its toe reaching d in; a screw needs a little stock around it.
+  const deep0 = d / 2 + (clamp ? 0 : 2);
+  const side = clamp ? w / 2 : deep0;
+  const free = (h: HoldPoint) => {
+    const box = holdBox(h);
+    return (
+      box.x >= -1e-6 &&
+      box.y >= -1e-6 &&
+      box.x + box.w <= board.w + 1e-6 &&
+      box.y + box.h <= board.h + 1e-6 &&
+      Math.hypot(h.x, h.y) >= kZeroClear + Math.max(w, d) / 2 &&
+      parts.every(r => (clamp ? rectGap(box, r) : toRect(h, r) - d / 2) >= keep)
+    );
+  };
   const out: HoldPoint[] = [];
+  // Each edge: its line deep0 in, from `side` past its start to `side` before its end.
   const edges: { a: P2; b: P2; n: P2 }[] = [
-    { a: { x: inset, y: inset }, b: { x: board.w - inset, y: inset }, n: { x: 0, y: 1 } },
-    { a: { x: board.w - inset, y: inset }, b: { x: board.w - inset, y: board.h - inset }, n: { x: -1, y: 0 } },
-    { a: { x: board.w - inset, y: board.h - inset }, b: { x: inset, y: board.h - inset }, n: { x: 0, y: -1 } },
-    { a: { x: inset, y: board.h - inset }, b: { x: inset, y: inset }, n: { x: 1, y: 0 } },
+    { a: { x: side, y: deep0 }, b: { x: board.w - side, y: deep0 }, n: { x: 0, y: 1 } },
+    { a: { x: board.w - deep0, y: side }, b: { x: board.w - deep0, y: board.h - side }, n: { x: -1, y: 0 } },
+    { a: { x: board.w - side, y: board.h - deep0 }, b: { x: side, y: board.h - deep0 }, n: { x: 0, y: -1 } },
+    { a: { x: deep0, y: board.h - side }, b: { x: deep0, y: side }, n: { x: 1, y: 0 } },
   ];
   for (const { a, b, n } of edges) {
     const len = Math.hypot(b.x - a.x, b.y - a.y);
@@ -77,17 +134,17 @@ export function suggestHoldPoints(
       const t = (k / segs) * len;
       const reach = Math.min(spacing / 3, len / segs / 2);
       // Nearest first: the first spot that is free is the one.
-      let best: P2 | undefined;
-      for (const [along, deep] of offsets(reach, Math.min(30, spacing / 5))) {
+      let best: HoldPoint | undefined;
+      // A clamp stays at the edge; a screw may move in a little.
+      for (const [along, deep] of offsets(reach, clamp ? 0 : Math.min(30, spacing / 5))) {
         const at = Math.min(len, Math.max(0, t + along));
-        const p = { x: a.x + dir.x * at + n.x * deep, y: a.y + dir.y * at + n.y * deep };
-        if (free(p)) {
-          best = p;
+        const h = hold({ x: +(a.x + dir.x * at + n.x * deep).toFixed(1), y: +(a.y + dir.y * at + n.y * deep).toFixed(1) }, n);
+        if (free(h)) {
+          best = h;
           break;
         }
       }
-      if (best && out.every(q => Math.hypot(q.x - best.x, q.y - best.y) >= Math.max(d + 4, spacing / 4)))
-        out.push({ x: +best.x.toFixed(1), y: +best.y.toFixed(1), kind, d });
+      if (best && out.every(q => Math.hypot(q.x - best.x, q.y - best.y) >= Math.max(w + 4, spacing / 4))) out.push(best);
     }
   }
   return out;
@@ -131,11 +188,12 @@ export function heldByPoints(points: P2[], centre: P2, area: number): boolean {
 export function holdClashes(points: HoldPoint[], cuts: { r: number; pts: [number, number, number][] }[], stockTop: number): HoldPoint[] {
   return points.filter(h =>
     cuts.some(({ r, pts }) => {
-      const keep = h.d / 2 + r + kHoldClearance - 0.5;
+      const keep = r + kHoldClearance - 0.5;
+      const box = h.kind === 'clamp' && h.w !== undefined ? holdBox(h) : undefined;
       for (let i = 1; i < pts.length; i++) {
         const [a, b] = [pts[i - 1], pts[i]];
         if (Math.min(a[2], b[2]) >= stockTop - 1e-3) continue;
-        if (segDist(h, a, b) < keep) return true;
+        if ((box ? segRectDist(a, b, box) : segDist(h, a, b) - h.d / 2) < keep) return true;
       }
       return false;
     })
@@ -147,6 +205,34 @@ function segDist(p: P2, a: [number, number, number], b: [number, number, number]
     dy = b[1] - a[1];
   const t = Math.max(0, Math.min(1, ((p.x - a[0]) * dx + (p.y - a[1]) * dy) / (dx * dx + dy * dy || 1)));
   return Math.hypot(a[0] + t * dx - p.x, a[1] + t * dy - p.y);
+}
+
+/** Distance from a segment to a box (0 when it crosses it). */
+function segRectDist(a: [number, number, number], b: [number, number, number], r: Rect) {
+  // Clipped to the box (Liang-Barsky): any part inside means it crosses.
+  let t0 = 0,
+    t1 = 1;
+  const dx = b[0] - a[0],
+    dy = b[1] - a[1];
+  const clip = (p: number, q: number) => {
+    if (Math.abs(p) < 1e-12) return q >= 0;
+    const t = q / p;
+    if (p < 0) t0 = Math.max(t0, t);
+    else t1 = Math.min(t1, t);
+    return t0 <= t1;
+  };
+  if (clip(-dx, a[0] - r.x) && clip(dx, r.x + r.w - a[0]) && clip(-dy, a[1] - r.y) && clip(dy, r.y + r.h - a[1])) return 0;
+  const corners: [number, number, number][] = [
+    [r.x, r.y, 0],
+    [r.x + r.w, r.y, 0],
+    [r.x + r.w, r.y + r.h, 0],
+    [r.x, r.y + r.h, 0],
+  ];
+  return Math.min(
+    toRect({ x: a[0], y: a[1] }, r),
+    toRect({ x: b[0], y: b[1] }, r),
+    ...corners.map(c => segDist({ x: c[0], y: c[1] }, a, b))
+  );
 }
 
 function polygonArea(poly: P2[]) {

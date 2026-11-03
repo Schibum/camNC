@@ -27,7 +27,19 @@ export type { SafetyIssue, SafetyLimits } from './safety';
 export { nestRects, clampKeepOuts, placedSize } from './nest';
 export type { Rect, NestItem, NestOptions, NestResult, Placement } from './nest';
 export { holdCheck, holdTimeline } from './hold';
-export { suggestHoldPoints, heldByPoints, holdClashes, frameMargin, kHoldDefaults, kHoldSpacing } from './holdPoints';
+export {
+  suggestHoldPoints,
+  heldByPoints,
+  holdClashes,
+  frameMargin,
+  kHoldDefaults,
+  kHoldSpacing,
+  kClampWidth,
+  holdBox,
+  holdDist,
+  edgeDir,
+  snapClamp,
+} from './holdPoints';
 export type { HoldPoint, HoldKind } from './holdPoints';
 export { planTabs, freePartsProgram, kDefaultSkin } from './tabPlan';
 export type { TabFallback, PartHolding } from './tabPlan';

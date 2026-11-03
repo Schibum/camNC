@@ -292,6 +292,18 @@ describe('boards', () => {
     expect([withTabs.margin, withTabs.gap]).toEqual([6.7, 10]);
     // Held by screws, by default with a frame of stock for them: a wider margin.
     expect(nestBoard(tabs, parts, 3.175).margin).toBe(frameMargin(10, 3.175));
+    // Clamps grip at the edge: the frame is their reach in (2 mm) plus the cut, not a round toe's size. Their toes
+    // lie against an edge, 20 mm along it, and stay clear of the parts.
+    const clamped = nestBoard({ ...tabs, holds: { kind: 'clamp', d: 2, w: 20 } }, parts, 3.175);
+    expect(clamped.margin).toBe(frameMargin(2, 3.175, 'clamp'));
+    expect(clamped.margin).toBe(8);
+    expect(clamped.holds.length).toBeGreaterThanOrEqual(4);
+    for (const h of clamped.holds) {
+      expect(h).toMatchObject({ kind: 'clamp', d: 2, w: 20 });
+      expect(Math.min(h.x, h.y, clamped.board.w - h.x, clamped.board.h - h.y)).toBeCloseTo(1, 5);
+    }
+    // A clamp saved before clamps had a width (sized as a round toe) starts afresh.
+    expect(nestBoard({ ...tabs, holds: { kind: 'clamp', d: 25 } }, parts, 3.175).margin).toBe(8);
     const a = { ...tabs, holdDown: 'fixture-tape' as const };
     const nest = nestBoard(a, parts, 3.175);
     expect(nest.margin).toBe(5.2);

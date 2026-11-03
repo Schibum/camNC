@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { camBoard, type BoardSpec } from './board';
 import type { PartFeatures } from './features';
 import { holdTimeline } from './hold';
-import { frameMargin, heldByPoints, kZeroClear, holdClashes, suggestHoldPoints } from './holdPoints';
+import { edgeDir, frameMargin, heldByPoints, holdBox, holdClashes, kZeroClear, snapClamp, suggestHoldPoints } from './holdPoints';
 import { DEFAULT_TABS, freePartsProgram } from './index';
 
 const rect = (x0: number, y0: number, x1: number, y1: number) => [
@@ -123,6 +123,41 @@ describe('hold points', () => {
     // Neighbours along an edge no farther apart than the spacing (plus the room to dodge a part).
     const bottom = holds.filter(h => h.y < 20).sort((a, b) => a.x - b.x);
     for (let i = 1; i < bottom.length; i++) expect(bottom[i].x - bottom[i - 1].x).toBeLessThanOrEqual(250 + 1);
+  });
+
+  it('clamps grip at the edge: a toe 2 mm in and 20 mm along it needs a narrow frame, and only the toe clashes', () => {
+    const bit = 6;
+    const m = frameMargin(2, bit, 'clamp');
+    expect(m).toBe(11);
+    expect(frameMargin(10, bit)).toBe(21);
+    const parts = [{ x: m, y: m, w: 571 - 2 * m, h: 779 - 2 * m }];
+    const holds = suggestHoldPoints({ w: 571, h: 779 }, parts, { kind: 'clamp', d: 2, w: 20, bit });
+    expect(holds.length).toBeGreaterThanOrEqual(10);
+    for (const h of holds) {
+      expect(h).toMatchObject({ kind: 'clamp', d: 2, w: 20 });
+      const box = holdBox(h);
+      // Against an edge, 2 deep and 20 along it.
+      const atEdge = Math.min(box.x, box.y, 571 - box.x - box.w, 779 - box.y - box.h);
+      expect(atEdge).toBeCloseTo(0, 5);
+      expect([box.w, box.h].sort((a, b) => a - b)).toEqual([2, 20]);
+      expect(h.dir).toEqual(edgeDir(h, { w: 571, h: 779 }));
+    }
+    // The outline cut runs 3 + 1.5 clear of the toe: no clash. 1 mm closer: clash.
+    const left = holds.find(h => h.dir!.x === 1)!;
+    const cut = (x: number) => [
+      {
+        r: 3,
+        pts: [
+          [x, 0, -1],
+          [x, 779, -1],
+        ] as [number, number, number][],
+      },
+    ];
+    expect(holdClashes([left], cut(2 + 3 + 1.5), 8)).toEqual([]);
+    expect(holdClashes([left], cut(2 + 3 + 0.5), 8)).toHaveLength(1);
+    // Snapped against the nearest edge when moved.
+    expect(snapClamp({ x: 100, y: 30 }, 2, { w: 571, h: 779 })).toEqual({ x: 100, y: 1 });
+    expect(snapClamp({ x: 560, y: 300 }, 2, { w: 571, h: 779 })).toEqual({ x: 570, y: 300 });
   });
 
   it('a hold in the way of a cut clashes', () => {

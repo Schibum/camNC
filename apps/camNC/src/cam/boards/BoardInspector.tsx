@@ -1,9 +1,10 @@
+import { cn } from '@wbcnc/ui/lib/utils';
 import type { FlipRegistration, TabFallback } from '@wbcnc/cam';
 import { MATERIALS } from '@wbcnc/cam/settings';
 import { Button } from '@wbcnc/ui/components/button';
 import { Label } from '@wbcnc/ui/components/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wbcnc/ui/components/select';
-import { kHoldDefaults, type HoldKind } from '@wbcnc/cam/holdPoints';
+import { kClampWidth, kHoldDefaults, type HoldKind } from '@wbcnc/cam/holdPoints';
 import {
   boardGap,
   boardHoldOf,
@@ -315,7 +316,11 @@ export function BoardInspector({
         <p className="text-xs leading-relaxed text-muted-foreground">{kBoardHoldHints[held]}</p>
         {held === 'points' && (
           <>
-            <div className="grid grid-cols-[1fr_76px_76px] items-end gap-2">
+            <div
+              className={cn(
+                'grid items-end gap-2',
+                hold.kind === 'clamp' ? 'grid-cols-[1fr_64px_64px_64px]' : 'grid-cols-[1fr_76px_76px]'
+              )}>
               <div className="flex flex-col gap-1">
                 <Label htmlFor="hold-kind" className="text-xs font-normal text-muted-foreground">
                   With
@@ -323,7 +328,16 @@ export function BoardInspector({
                 <Select
                   value={hold.kind}
                   onValueChange={v =>
-                    onChange({ ...board, holds: { ...hold, kind: v as HoldKind, d: board.holds?.d ?? kHoldDefaults[v as HoldKind] } })
+                    // Each kind starts at its own size: a screw head's ⌀ and a clamp's reach are not alike.
+                    onChange({
+                      ...board,
+                      holds: {
+                        kind: v as HoldKind,
+                        d: kHoldDefaults[v as HoldKind],
+                        spacing: hold.spacing,
+                        ...(v === 'clamp' && { w: kClampWidth }),
+                      },
+                    })
                   }>
                   <SelectTrigger id="hold-kind" className="h-8 w-full">
                     <SelectValue />
@@ -334,14 +348,35 @@ export function BoardInspector({
                   </SelectContent>
                 </Select>
               </div>
-              <NumberField
-                id="hold-d"
-                label="Size ⌀"
-                hint="The screw head or the clamp’s toe. The bit keeps clear of it."
-                value={hold.d}
-                onCommit={d => onChange({ ...board, holds: { ...hold, d } })}
-                min={2}
-              />
+              {hold.kind === 'clamp' ? (
+                <>
+                  <NumberField
+                    id="hold-d"
+                    label="Reach in"
+                    hint="How far the clamp’s toe reaches onto the board from its edge. The frame is this wide plus the bit’s cut; the bit keeps clear of the toe."
+                    value={hold.d}
+                    onCommit={d => onChange({ ...board, holds: { ...hold, d } })}
+                    min={0.5}
+                  />
+                  <NumberField
+                    id="hold-w"
+                    label="Width"
+                    hint="The clamp’s toe along the edge."
+                    value={hold.w ?? kClampWidth}
+                    onCommit={w => onChange({ ...board, holds: { ...hold, w } })}
+                    min={2}
+                  />
+                </>
+              ) : (
+                <NumberField
+                  id="hold-d"
+                  label="Size ⌀"
+                  hint="The screw head. The bit keeps clear of it."
+                  value={hold.d}
+                  onCommit={d => onChange({ ...board, holds: { ...hold, d } })}
+                  min={2}
+                />
+              )}
               <NumberField
                 id="hold-spacing"
                 label="Spacing"
