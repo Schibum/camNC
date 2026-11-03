@@ -5,6 +5,7 @@ import { useBoardPlans, useCamJob, useCamModel, useSaveCamJob } from '@/cam/camQ
 import type { BoardRequest, CamPartInfo, OpSummary, PlanResult, ReleaseProgram } from '@/cam/camTypes';
 import type { FlipRegistration } from '@wbcnc/cam';
 import { missingParts, useJobBoards, type MissingPart } from '@/cam/useJobBoards';
+import { layoutBlock, loose, planBlock, releaseProblems, unstable } from '@/cam/boardBlock';
 import { edgeNote, freezeSpacing, spacingProblem } from '@/cam/boards';
 import { orderBoardQueue } from '@wbcnc/cam/board';
 import { CamJobBar } from '@/cam/model/CamJobBar';
@@ -16,7 +17,7 @@ import { PlanView3D } from '@/cam/plan3d/PlanView3D';
 import { usePlanPlayback } from '@/cam/plan3d/planPlayback';
 import { jobCutting, kDefaultPlan, type PlanSettingsV1 } from '@/cam/planSettings';
 import { BitChip } from '@/cam/plan/BitPicker';
-import { loadIntoMachineView } from '@/cam/showOnMachine';
+import { clearMachineView, loadIntoMachineView } from '@/cam/showOnMachine';
 import { useCamMachine } from '@/cam/machine/camMachine';
 import { selectMachineBounds, useStore } from '@/store/store';
 import { createFileRoute, Link, useNavigate, useParams, useSearch } from '@tanstack/react-router';
@@ -81,7 +82,7 @@ function PlanStep() {
   const unresolved = missing.filter(m => !settings.leaveOut?.includes(m.id));
   const tight = boards.flatMap(b => spacingProblem(b.board, b.nest, settings.bit.diameter) ?? []);
   const edges = boards.flatMap(b => edgeNote(b.board, b.nest, settings.bit.diameter) ?? []);
-  const blocked = unresolved.length > 0 || tight.length > 0;
+  const blocked = boards.some(b => layoutBlock(b, { bit: settings.bit.diameter, missing: unresolved }));
   // The last programs stay shown while settings change, but only fresh ones go to the machine or a file.
   const ready = plans.every(p => p.data && !p.isPlaceholderData);
   // Queue: start with the main bit, then boards that start with the bit the last one ended with.
@@ -101,34 +102,13 @@ function PlanStep() {
   const result = side === 'b' && sideA?.sideB ? sideA.sideB : sideA;
   const onSideB = result !== sideA;
   const empty = !!result && result.ops.length === 0;
-  // A part neither held by its tabs nor given a fallback would come loose: that blocks, like a safety rule.
-  // What the guided programs after the cutting broke counts for the whole board.
+  // What the guided programs after the cutting broke counts for the whole board, shown on either side.
   const releaseSafety = releaseProblems(sideA);
-  const safe =
-    !!result &&
-    !current.stale &&
-    result.safety.length === 0 &&
-    releaseSafety.length === 0 &&
-    !empty &&
-    !blocked &&
-    !sideA?.flip?.problem &&
-    loose(sideA).length === 0 &&
-    !unstable(sideA);
+  // The same reasons block the board in the machine queue.
+  const safe = !!result && !!sideA && !current.stale && !planBlock(sideA) && !blocked;
   // They come last: on side B, with the board turned over, when there is one.
   const shownRelease = onSideB || !sideA?.sideB ? sideA?.release : undefined;
-  const allReady =
-    ready &&
-    !blocked &&
-    queue.every(
-      e =>
-        e.plan!.ops.length > 0 &&
-        e.plan!.safety.length === 0 &&
-        (e.plan!.sideB?.safety.length ?? 0) === 0 &&
-        releaseProblems(e.plan).length === 0 &&
-        !e.plan!.flip?.problem &&
-        !loose(e.plan).length &&
-        !unstable(e.plan)
-    );
+  const allReady = ready && !blocked && queue.every(e => !planBlock(e.plan!));
   const totalMin = queue.reduce((t, e) => t + jobMinutes(e.plan), 0);
   const swaps = queue.reduce(
     (n, e, i) => n + Math.max(0, e.bits.length - 1) + (i > 0 && queue[i - 1].bits.at(-1) !== e.bits[0] ? 1 : 0),
@@ -163,6 +143,8 @@ function PlanStep() {
   const takeToMachine = () => {
     if (!allReady) return;
     useCamMachine.getState().start(job.id);
+    // Whatever was loaded before isn't part of this: the queue loads each program in its turn.
+    clearMachineView();
     useStore.getState().setMachinePanelOpen(true);
     toMachineView();
   };
@@ -273,7 +255,7 @@ function PlanStep() {
         mark={
           !result
             ? null
-            : result.safety.length > 0 || releaseSafety.length > 0 || loose(sideA).length > 0 || unstable(sideA)
+            : result.safety.length > 0 || releaseSafety.length > 0 || loose(sideA).length > 0 || unstable(sideA) || !!sideA?.flip?.problem
               ? 'problem'
               : hasWarnings(result)
                 ? 'warning'
@@ -492,9 +474,6 @@ function SideSwitch({ plan, side, onSide }: { plan: PlanResult; side: 'a' | 'b';
   );
 }
 
-/** Broken safety rules of the guided programs after the board's cutting. */
-const releaseProblems = (plan: PlanResult | undefined) => plan?.release?.flatMap(r => r.safety) ?? [];
-
 /** All of a board's programs: side A, side B, and the guided ones after them. */
 const jobMinutes = (plan: PlanResult | undefined) =>
   (plan?.timeMin ?? 0) + (plan?.sideB?.timeMin ?? 0) + (plan?.release ?? []).reduce((t, r) => t + r.timeMin, 0);
@@ -504,17 +483,6 @@ const hasWarnings = (plan: PlanResult) =>
   plan.warnings.length > 0 ||
   (plan.timeline ?? []).some(e => !e.block) ||
   (plan.hold ?? []).some(h => !h.ok && plan.holding?.find(x => x.name === h.part)?.how === 'tabs');
-
-/** Stock that would turn or lift during the job, a part that comes loose, or a screw or clamp in the bit's way. */
-function unstable(plan: PlanResult | undefined) {
-  return !!plan && ((plan.timeline ?? []).some(e => e.block) || (plan.holdClash ?? []).length > 0);
-}
-
-/** Parts that would come loose: their tabs don't hold, and they have no fallback (tabs anyway, or held by hand). */
-function loose(plan: PlanResult | undefined) {
-  if (!plan?.hold) return [];
-  return plan.hold.filter(h => !h.ok && (plan.holding?.find(x => x.name === h.part)?.how ?? 'placed') === 'placed');
-}
 
 /** Parts the job would silently not cut, and spacing too tight for the bit: fix on Boards or leave them out. */
 function MissingBanner({

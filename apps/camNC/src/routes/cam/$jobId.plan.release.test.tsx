@@ -172,6 +172,7 @@ describe('CAM plan step, the guided programs after the cutting', () => {
     await opList();
     expect(screen.getByText(problem)).toBeTruthy();
     expect(screen.getByRole('button', { name: /Take the job to the machine/ })).toHaveProperty('disabled', true);
+    expect(operationsTab().querySelector('[data-mark]')!.getAttribute('data-mark')).toBe('problem');
   }, 150_000);
 
   it('a guided program that breaks a safety rule blocks the job and flags the Operations tab; warnings get an amber mark', async () => {

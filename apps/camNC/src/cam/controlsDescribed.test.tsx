@@ -13,7 +13,7 @@ import { loadIntoMachineView } from './showOnMachine';
 
 const queue = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
 vi.mock('./machine/useMachineQueue', () => ({ useMachineQueue: () => queue.value }));
-vi.mock('./showOnMachine', () => ({ loadIntoMachineView: vi.fn() }));
+vi.mock('./showOnMachine', () => ({ loadIntoMachineView: vi.fn(), clearMachineView: vi.fn() }));
 
 afterEach(() => {
   cleanup();

@@ -16,3 +16,12 @@ export function loadIntoMachineView(plan: Pick<PlanResult, 'gcode' | 'size' | 'b
   depth.setZeroAt('bottom');
   depth.setToolShape('flat');
 }
+
+/** Nothing to show or run: what's loaded is not what the current step is about. */
+export function clearMachineView() {
+  useStore.setState(state => {
+    state.toolpath = null;
+    state.toolpathName = null;
+    state.stockHeightCheck = null;
+  });
+}

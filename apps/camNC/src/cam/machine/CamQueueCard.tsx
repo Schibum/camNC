@@ -1,57 +1,109 @@
+import { useStore } from '@/store/store';
 import { Button } from '@wbcnc/ui/components/button';
 import { Checkbox } from '@wbcnc/ui/components/checkbox';
 import { cn } from '@wbcnc/ui/lib/utils';
-import { Check, RotateCcw, RotateCw, X } from 'lucide-react';
+import { AlertTriangle, Check, RotateCcw, RotateCw, X } from 'lucide-react';
 import { useEffect } from 'react';
 import { Hint } from '../Hint';
-import { loadIntoMachineView } from '../showOnMachine';
-import { stockTopOf } from '../boards';
-import { entryTitle, useCamMachine, type QueueEntry } from './camMachine';
+import { NumberInput } from '../NumberInput';
+import { clearMachineView, loadIntoMachineView } from '../showOnMachine';
+import { kStockAllowance, stockTopOf } from '../boards';
+import { entryProgram, entryRotation, entryTitle, nextEntry, rotationKey, useCamMachine, type QueueEntry } from './camMachine';
 import { useMachineQueue } from './useMachineQueue';
 
 const fmt = (v: number) => `${+v.toFixed(2)}`;
 
+/** Turns the program of the current entry, to match a board lying askew. */
+function RotationControl({ deg, onTurn }: { deg: number; onTurn: (d: number) => void }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <Hint text="Turn the program 0.5° clockwise, to match a board that lies askew.">
+        <Button size="sm" variant="outline" aria-label="Turn 0.5° clockwise" onClick={() => onTurn(-0.5)}>
+          <RotateCw />
+        </Button>
+      </Hint>
+      <span className="w-16 text-center font-mono" aria-label="Rotation">
+        {deg.toFixed(1)}°
+      </span>
+      <Hint text="Turn the program 0.5° counterclockwise, to match a board that lies askew.">
+        <Button size="sm" variant="outline" aria-label="Turn 0.5° counterclockwise" onClick={() => onTurn(0.5)}>
+          <RotateCcw />
+        </Button>
+      </Hint>
+      <span className="text-xs text-muted-foreground">about the XY zero (lower left)</span>
+    </div>
+  );
+}
+
 /**
  * The CAM job at the machine, in the machine panel: the queue of programs (boards in an order that keeps the bit in
- * the collet, one program per bit, guided tab removal), and for the current one what to do before running it.
+ * the collet, one program per bit, guided tab removal), and for the current one what to do before running it. Once an
+ * entry is active the machine view holds its program or nothing, never the program of another entry.
  */
 export function CamQueueCard() {
   const { jobId, active, setActive, markDone, setRotation, rotation, leave, setOverlay, pauseEachTab, setPauseEachTab } = useCamMachine();
-  const { job, queue, current, done, stale, loading } = useMachineQueue();
-  const gcodeOf = (e: QueueEntry) =>
-    e.kind === 'flip' || stale?.has(e.board.board.id) ? undefined : (e.release?.gcode ?? e.plan.programs[e.program].gcode);
+  const { job, queue, current, done, stale, loading, modelError, setStockThickness } = useMachineQueue();
+  const gcodeOf = (e: QueueEntry) => (e.blocked || stale?.has(e.board.board.id) ? undefined : entryProgram(e)?.gcode);
+  /** The machine view for this entry. `force`: load it even if the same program seems to be there. */
+  const show = (e: QueueEntry, force: boolean) => {
+    const program = entryProgram(e);
+    const gcode = gcodeOf(e);
+    if (program && gcode) {
+      if (force || useStore.getState().toolpath?.gcode !== gcode)
+        loadIntoMachineView({ gcode, size: e.plan!.size, bits: [program.diameter] }, `${job?.name} ${entryTitle(e)}.gcode`);
+    } else clearMachineView();
+    // The outline stays while there's no program: it shows where the board goes and at what angle.
+    setOverlay(
+      e.plan
+        ? {
+            w: e.plan.size[0],
+            h: e.plan.size[1],
+            rotationDeg: entryRotation(e, rotation),
+            ...(gcode && { tabs: e.release?.tabs, tabsPerPart: !!e.release?.perPart, freeParts: e.release?.parts }),
+          }
+        : null
+    );
+  };
   const load = (e: QueueEntry) => {
     setActive(e.key);
-    const gcode = gcodeOf(e);
-    if (!gcode) return;
-    const bit = e.release?.diameter ?? e.plan.programs[e.program].diameter;
-    loadIntoMachineView({ gcode, size: e.plan.size, bits: [bit] }, `${job?.name} ${entryTitle(e)}.gcode`);
-    setOverlay({
-      w: e.plan.size[0],
-      h: e.plan.size[1],
-      rotationDeg: rotation[e.board.board.id] ?? 0,
-      tabs: e.release?.tabs,
-      tabsPerPart: !!e.release?.perPart,
-      freeParts: e.release?.parts,
-    });
+    show(e, true);
   };
-  // Turning the board (or changing the pauses) makes a new program: reload the one that's loaded.
-  const loadedGcode = current && current.key === active ? gcodeOf(current) : undefined;
+  const gcode = current ? gcodeOf(current) : undefined;
+  const shownDeg = current ? entryRotation(current, rotation) : 0;
+  // Planned again, turned, blocked, gone: what's loaded follows the active entry.
   useEffect(() => {
-    if (current && loadedGcode) load(current);
+    if (!jobId || !active) return;
+    if (!current) {
+      clearMachineView();
+      setOverlay(null);
+      if (!loading) setActive(null);
+      return;
+    }
+    // The active entry's board is being planned: its entry comes back then.
+    if (current.key !== active && current.kind !== 'pending') setActive(current.key);
+    show(current, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadedGcode]);
+  }, [jobId, active, current?.key, gcode, shownDeg, loading]);
   if (!jobId) return null;
   const next = () => {
     if (!current) return;
-    markDone(current.key);
-    const after = queue[queue.indexOf(current) + 1];
+    markDone(current.doneId);
+    const after = nextEntry(queue, current, done);
     if (after) load(after);
-    else setActive(null);
+    else {
+      setActive(null);
+      clearMachineView();
+      setOverlay(null);
+    }
   };
   const board = current?.board.board;
-  const deg = board ? (rotation[board.id] ?? 0) : 0;
-  const turn = (d: number) => board && setRotation(board.id, Math.round((deg + d) * 10) / 10);
+  const deg = current ? entryRotation(current, rotation) : 0;
+  const turn = (d: number) => current && setRotation(rotationKey(current), Math.round((deg + d) * 10) / 10);
+  const bit = current && entryProgram(current)?.diameter;
+  // The previous entry in the queue left another bit in the collet, on any kind of entry.
+  const swap = bit !== undefined && bit !== current?.bitBefore;
+  const swapText = current?.bitBefore === undefined ? `Put in the ⌀${bit} mm bit` : `Swap the bit to ⌀${bit} mm`;
+  const onCamera = current?.flip?.registration === 'camera';
 
   return (
     <section aria-label="CAM job" className="flex flex-col gap-3 rounded-lg border border-primary/40 bg-primary/5 p-3">
@@ -65,9 +117,14 @@ export function CamQueueCard() {
         </Hint>
       </div>
       {loading && !queue.length && <p className="text-xs text-muted-foreground">Making the programs…</p>}
+      {modelError && (
+        <p role="alert" className="text-[13px] text-destructive">
+          {modelError}
+        </p>
+      )}
       <ol className="flex flex-col gap-1 text-[13px]" aria-label="Board queue">
         {queue.map(e => {
-          const isDone = done.includes(e.key);
+          const isDone = done.includes(e.doneId);
           const isNow = e === current;
           return (
             <li key={e.key}>
@@ -79,11 +136,19 @@ export function CamQueueCard() {
                   isDone && !isNow && 'text-muted-foreground'
                 )}>
                 <span className="w-4">
-                  {isDone ? <Check className="size-3.5 text-emerald-600 dark:text-emerald-400" /> : isNow ? '●' : ''}
+                  {e.kind !== 'pending' && e.blocked ? (
+                    <AlertTriangle aria-label="Blocked" className="size-3.5 text-destructive" />
+                  ) : isDone ? (
+                    <Check className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                  ) : isNow ? (
+                    '●'
+                  ) : (
+                    ''
+                  )}
                 </span>
                 <span className="grow">{entryTitle(e)}</span>
                 <span className="font-mono text-xs text-muted-foreground">
-                  {e.kind === 'flip'
+                  {!e.plan || e.kind === 'flip'
                     ? ''
                     : e.release
                       ? `${e.release.parts ? `${e.release.parts.length} parts` : `${e.release.tabs?.length ?? 0} tabs`} · ${Math.ceil(e.release.timeMin)} min`
@@ -97,36 +162,51 @@ export function CamQueueCard() {
 
       {current && board && (
         <div className="flex flex-col gap-2 border-t pt-3 text-[13px]">
-          {current.firstOfBoard && (
+          {current.blocked && (
+            <p
+              role={current.kind === 'pending' ? 'status' : 'alert'}
+              className={cn('flex gap-2', current.kind !== 'pending' && 'text-destructive')}>
+              {current.kind !== 'pending' && <AlertTriangle className="mt-0.5 size-4 shrink-0" />}
+              <span>
+                {current.blocked}
+                {current.kind !== 'pending' && ' Fix it on the Plan step: this can’t be loaded until then.'}
+              </span>
+            </p>
+          )}
+          {current.firstOfBoard && current.plan && (
             <>
+              <div className="flex flex-col gap-1.5">
+                <p>
+                  <span className="font-medium">1. Measure the board’s thickness</span>
+                  {board.measuredThickness === undefined
+                    ? ` and enter it. Assumed: ${fmt(stockTopOf(board))} mm (parts + ${kStockAllowance} mm). Thicker than that, the bit moves fast into the wood where it should still be above it.`
+                    : `. Measured: ${fmt(board.measuredThickness)} mm.`}
+                </p>
+                <div className="flex w-40 flex-col gap-1">
+                  <NumberInput
+                    id={`queue-stock-${board.id}`}
+                    aria-label={`Stock thickness of board ${board.name}, mm`}
+                    value={stockTopOf(board)}
+                    min={board.thickness}
+                    unit="mm"
+                    onCommit={t => setStockThickness(board.id, t)}
+                  />
+                </div>
+              </div>
               <p>
-                <span className="font-medium">1. Place board {board.name}</span> ({fmt(current.plan.size[0])} × {fmt(current.plan.size[1])}{' '}
+                <span className="font-medium">2. Place board {board.name}</span> ({fmt(current.plan.size[0])} × {fmt(current.plan.size[1])}{' '}
                 mm, {fmt(stockTopOf(board))} mm thick) on the bed.
               </p>
               <div className="flex flex-col gap-1.5">
                 <p>
-                  <span className="font-medium">2. Align:</span> drag the dashed board outline onto the board in the camera view. If it lies
+                  <span className="font-medium">3. Align:</span> drag the dashed board outline onto the board in the camera view. If it lies
                   askew, turn the program:
                 </p>
-                <div className="flex items-center gap-1.5">
-                  <Hint text="Turn the program 0.5° clockwise, to match a board that lies askew.">
-                    <Button size="sm" variant="outline" aria-label="Turn 0.5° clockwise" onClick={() => turn(-0.5)}>
-                      <RotateCw />
-                    </Button>
-                  </Hint>
-                  <span className="w-16 text-center font-mono" aria-label="Rotation">
-                    {deg.toFixed(1)}°
-                  </span>
-                  <Hint text="Turn the program 0.5° counterclockwise, to match a board that lies askew.">
-                    <Button size="sm" variant="outline" aria-label="Turn 0.5° counterclockwise" onClick={() => turn(0.5)}>
-                      <RotateCcw />
-                    </Button>
-                  </Hint>
-                  <span className="text-xs text-muted-foreground">about the XY zero (lower left)</span>
-                </div>
+                <RotationControl deg={deg} onTurn={turn} />
               </div>
               <p>
-                <span className="font-medium">3. Zero Z</span> on the spoilboard: Z0 is the bottom of the board (Zero section below).
+                <span className="font-medium">4. {swap ? `${swapText}, then zero Z` : 'Zero Z'}</span> on the spoilboard: Z0 is the bottom
+                of the board (Zero section below).
               </p>
             </>
           )}
@@ -138,25 +218,45 @@ export function CamQueueCard() {
                   ? `put the ⌀${current.flip.dowelDiameter} dowel pins into the holes side A drilled, and drop the board onto them.`
                   : current.flip?.registration === 'fence'
                     ? 'push it against the fence and the stop again, as for side A.'
-                    : 'then drag the dashed outline onto it in the camera view again.'}
+                    : 'you’ll drag the dashed outline onto it in the camera view on the next step, with side B’s program loaded.'}
               </p>
+              <p>
+                <span className="font-medium">Refit the screws, clamps or tape</span> where side B needs them: they have to stay clear of
+                side B’s cuts, which the checks don’t know about.
+              </p>
+              {onCamera && (
+                <>
+                  <p>If it lies at another angle now, turn side B’s program (dashed outline):</p>
+                  <RotationControl deg={deg} onTurn={turn} />
+                </>
+              )}
               <p className="text-muted-foreground">
-                {current.flip?.registration === 'camera'
+                {onCamera
                   ? 'Z stays: it’s measured from the spoilboard.'
                   : 'Don’t touch the XY zero: side B is mirrored to it. Z stays: it’s measured from the spoilboard.'}
               </p>
             </div>
           )}
           {current.kind === 'bit' && current.sideB && current.program === 0 && (
-            <p>
-              <span className="font-medium">Side B</span> with the ⌀{current.plan.programs[0].diameter} mm bit: the parts’ undersides, not
-              cut through. If you changed the bit, zero Z again.
-            </p>
+            <>
+              <p>
+                <span className="font-medium">Side B</span> with the ⌀{current.plan.programs[0].diameter} mm bit: the parts’ undersides, not
+                cut through.
+              </p>
+              {onCamera && (
+                <div className="flex flex-col gap-1.5">
+                  <p>
+                    <span className="font-medium">Align:</span> drag the dashed board outline onto the turned board in the camera view. If
+                    it lies askew, turn the program:
+                  </p>
+                  <RotationControl deg={deg} onTurn={turn} />
+                </div>
+              )}
+            </>
           )}
-          {current.kind === 'bit' && !current.firstOfBoard && !(current.sideB && current.program === 0) && (
+          {!current.firstOfBoard && swap && (
             <p>
-              <span className="font-medium">Swap the bit</span> to ⌀{current.plan.programs[current.program].diameter} mm, then zero Z again.
-              Don’t move the board: XY stays.
+              <span className="font-medium">{swapText}</span>, then zero Z again. Don’t move the board: XY stays.
             </p>
           )}
           {current.kind === 'free' && current.board.request.holdDown === 'fixture-tape' && (
@@ -201,9 +301,9 @@ export function CamQueueCard() {
               </p>
             </>
           )}
-          {current.kind !== 'flip' && <p className="text-muted-foreground">Then load and run it below. When it’s done:</p>}
+          {current.plan && current.kind !== 'flip' && <p className="text-muted-foreground">Then load and run it below. When it’s done:</p>}
           <div className="flex gap-2">
-            {current.kind !== 'flip' && (
+            {current.plan && current.kind !== 'flip' && (
               <Hint text="Puts this program in the machine view, ready to run.">
                 <Button size="sm" variant="outline" disabled={!gcodeOf(current)} onClick={() => load(current)}>
                   Load {current.kind === 'tabs' ? 'tab removal' : current.kind === 'free' ? 'parts freeing' : 'program'}
@@ -211,7 +311,8 @@ export function CamQueueCard() {
               </Hint>
             )}
             <Hint text="Marks this one as cut and loads the next program in the queue.">
-              <Button size="sm" onClick={next}>
+              {/* Only for what could be loaded: a program not there yet, or blocked, wasn't cut. */}
+              <Button size="sm" disabled={!!current.blocked || !!stale?.has(current.board.board.id)} onClick={next}>
                 {current.kind === 'flip' ? 'Turned over, next' : 'Done, next'}
               </Button>
             </Hint>

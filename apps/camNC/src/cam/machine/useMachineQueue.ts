@@ -1,36 +1,57 @@
-import { useBoardPlans, useCamJob, useCamModel } from '../camQueries';
-import { useJobBoards } from '../useJobBoards';
-import { machineQueue, useCamMachine } from './camMachine';
+import { useBoardPlans, useCamJob, useCamModel, useSaveCamJob } from '../camQueries';
+import { kDefaultPlan } from '../planSettings';
+import { missingParts, useJobBoards } from '../useJobBoards';
+import { currentEntry, machineQueue, useCamMachine } from './camMachine';
 
 /**
  * The CAM job at the machine: its queue (programs with each board's rotation baked in) and the active entry. All
  * programs come from the board's plan. While a board is planned again (turned, or "Pause after each tab" changed) its
- * entries stay in the queue, but its programs can't be loaded: see `stale`.
+ * entries stay in the queue, but its programs can't be loaded: see `stale`. A board not planned yet, or whose plan
+ * failed, stays in it too, as one entry saying so; one that fails a check has `blocked` on its entries.
  */
 export function useMachineQueue() {
   const { jobId, rotation, active, done } = useCamMachine();
   const { data: job } = useCamJob(jobId ?? '');
   const model = useCamModel(jobId ? job : null);
-  const { boards: plain } = useJobBoards(job, model.data);
-  const boards = plain.map(b => ({ ...b, request: { ...b.request, rotationDeg: rotation[b.board.id] ?? 0 } }));
+  const { boards: plain, instances } = useJobBoards(job, model.data);
+  const boards = plain.map(b => {
+    const [sideA, sideB] = [rotation[b.board.id], rotation[`${b.board.id}:b`]];
+    // A board lying straight asks for what the Plan step asked for: the same plan.
+    return {
+      ...b,
+      request: { ...b.request, ...(sideA && { rotationDeg: sideA }), ...(sideB !== undefined && { sideBRotationDeg: sideB }) },
+    };
+  });
   const plans = useBoardPlans(
     job,
     boards.map(b => ({ request: b.request, material: b.board.material })),
     !!model.data,
     { keepShown: true }
   );
+  const settings = job?.plan ?? kDefaultPlan;
   const queue = machineQueue(
     boards,
-    plans.map(p => p.data)
+    plans.map(p => p.data),
+    {
+      bit: settings.bit.diameter,
+      missing: missingParts(plain, instances).filter(m => !settings.leaveOut?.includes(m.id)),
+      errors: plans.map(p => (p.isError ? p.error.message : undefined)),
+    }
   );
-  const current = queue.find(e => e.key === active) ?? queue.find(e => !done.includes(e.key)) ?? null;
+  const save = useSaveCamJob();
   return {
     job,
-    loading: !!jobId && (!model.data || plans.some(p => p.isPending && p.fetchStatus !== 'idle')),
+    loading: !!jobId && !model.isError && !model.data,
+    /** The job's model can't be read: there is no queue. */
+    modelError: model.error?.message,
     queue,
-    current,
+    current: currentEntry(queue, active, done),
     done,
     /** Boards (ids) whose shown programs are being replaced: never load those. */
     stale: new Set(boards.filter((_, i) => plans[i].isPlaceholderData).map(b => b.board.id)),
+    /** The measured stock thickness of a board: its programs are planned again from it. */
+    setStockThickness: (boardId: string, measuredThickness: number) => {
+      if (job) save.mutate({ ...job, boards: plain.map(b => (b.board.id === boardId ? { ...b.board, measuredThickness } : b.board)) });
+    },
   };
 }
