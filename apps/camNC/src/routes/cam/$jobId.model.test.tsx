@@ -1,11 +1,13 @@
+import { camWorker } from '@/cam/camQueries';
 import { getJob, createJob, saveJob } from '@/cam/jobDb';
+import * as Comlink from 'comlink';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ComponentType, ReactNode } from 'react';
 // The app's styles: the phone layout test measures real boxes.
 import '@/style.css';
 import { page } from '@vitest/browser/context';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import stepUrl from '../../../../../packages/cam/test/fixtures/kinderregal-eiche.step?url';
 import { Route } from './$jobId.model';
 
@@ -25,7 +27,23 @@ const ModelStep = (Route as unknown as { options: { component: ComponentType } }
 
 afterEach(cleanup);
 
+// Loading the CAD kernel (occt wasm, ~2.3 MB) and compiling it is the slow part of the first import, slower still on a
+// loaded CI runner: do it once up front, so the tests below measure the Model step, not the kernel's cold start.
+beforeAll(async () => {
+  const bytes = new Uint8Array(await (await fetch(stepUrl)).arrayBuffer());
+  await camWorker().importModel(Comlink.transfer(bytes, [bytes.buffer]), 'warm-up.step', 'warm-up');
+}, 120_000);
+
 describe('CAM model step', () => {
+  it('reads a STEP model in seconds once the CAD kernel is loaded', async () => {
+    const bytes = new Uint8Array(await (await fetch(stepUrl)).arrayBuffer());
+    const t0 = performance.now();
+    const model = await camWorker().importModel(Comlink.transfer(bytes, [bytes.buffer]), 'timed.step', 'timed');
+    expect(model.parts.length).toBeGreaterThan(0);
+    // ~2 s here; generous for a busy CI runner.
+    expect(performance.now() - t0).toBeLessThan(20_000);
+  }, 60_000);
+
   it('lists the parts of a STEP model grouped by thickness, and saves "Mill this part"', async () => {
     const bytes = await (await fetch(stepUrl)).arrayBuffer();
     const job = await createJob(new File([bytes], 'kinderregal-eiche.step'));
@@ -52,7 +70,7 @@ describe('CAM model step', () => {
     const notMilled = screen.getByRole('region', { name: 'Not milled' });
     await waitFor(() => expect(within(notMilled).getByText('back')).toBeTruthy());
     await waitFor(async () => expect((await getJob(job.id))?.parts.find(p => p.name === 'back')?.milled).toBe(false));
-  });
+  }, 90_000);
 
   it('names each identical body, and renames a part in place', async () => {
     const bytes = await (await fetch(stepUrl)).arrayBuffer();
