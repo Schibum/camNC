@@ -49,6 +49,7 @@ const part = (id: string, w: number, h: number, x: number, y: number): BoardSpec
 describe('hold points', () => {
   it('3 holds around the centre hold a piece; 2 at opposite corners, or 3 in a line, do not', () => {
     const c = { x: 50, y: 50 };
+    const square = rect(0, 0, 100, 100);
     expect(
       heldByPoints(
         [
@@ -56,7 +57,7 @@ describe('hold points', () => {
           { x: 95, y: 95 },
         ],
         c,
-        100 * 100
+        square
       )
     ).toBe(false);
     expect(
@@ -67,7 +68,7 @@ describe('hold points', () => {
           { x: 95, y: 95 },
         ],
         c,
-        100 * 100
+        square
       )
     ).toBe(false);
     expect(
@@ -78,7 +79,7 @@ describe('hold points', () => {
           { x: 50, y: 95 },
         ],
         c,
-        100 * 100
+        square
       )
     ).toBe(true);
     expect(
@@ -89,7 +90,7 @@ describe('hold points', () => {
           { x: 95, y: 30 },
         ],
         c,
-        100 * 100
+        square
       )
     ).toBe(false);
     // A long narrow strip, held near both ends.
@@ -100,7 +101,7 @@ describe('hold points', () => {
           { x: 495, y: 5 },
         ],
         { x: 250, y: 5 },
-        500 * 10
+        rect(0, 0, 500, 10)
       )
     ).toBe(true);
   });

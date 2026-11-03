@@ -170,3 +170,233 @@ describe('rapids and links over holds', () => {
     expect(on(nearBottom, true)).toEqual([]);
   });
 });
+
+describe('pockets and what holds the parts', () => {
+  const R = (r: number, w: number, h: number) => ({ size: [w, h, 18] as [number, number, number], rotated: !!r });
+  const longRabbets = [rect(0, 0, 400, 15), rect(0, 85, 400, 100)];
+  /** The finding: 400 x 100 x 18 on 500 x 180, stock 18.3, a 5 mm deep underside rabbet along both long edges. */
+  const board = (over: Partial<BoardSpec['parts'][number]> = {}, spec: Partial<BoardSpec> = {}): BoardSpec => ({
+    id: 'a',
+    name: 'A',
+    w: 500,
+    h: 180,
+    thickness: 18,
+    stockTop: 18.3,
+    holdDown: 'tabs',
+    tabs: DEFAULT_TABS,
+    parts: [
+      {
+        id: 'p',
+        name: 'p',
+        features: plain(400, 100),
+        underside: rabbeted(400, 100, 13.3, longRabbets, 18.3),
+        ...R(0, 400, 100),
+        x: 50,
+        y: 40,
+        ...over,
+      },
+    ],
+    ...spec,
+  });
+
+  it("side B's rabbets: tabs on the short edges, none on the long ones it cuts away", () => {
+    const b = board();
+    const h = planTabs(b, {}).get('p')!;
+    expect(h.how).toBe('placed');
+    expect(h.tabs.length).toBeGreaterThanOrEqual(2);
+    for (const t of h.tabs) expect(t.x < 50 || t.x > 450).toBe(true);
+    // And the plan comes through the checks: no pocket event, all anchored.
+    const cam = camBoard(b, {});
+    const opts = holdOptionsOf(b);
+    expect(holdCheck(cam, b, opts).every(p => p.ok && p.anchored === p.tabs.length)).toBe(true);
+    expect(holdTimeline(cam, b, opts)).toEqual([]);
+  });
+
+  it('without the side B pockets it was the long edges, so the rabbets do move them', () => {
+    const h = planTabs(board({ underside: undefined }), {}).get('p')!;
+    expect(h.tabs.filter(t => t.x > 50 && t.x < 450)).toHaveLength(h.tabs.length);
+  });
+
+  it('tabs that end up under a pocket anyway ("tabs anyway") are reported: not anchored, and blocking', () => {
+    // Rabbets all round: no edge left, so the fallback; asked to put tabs anyway, they land in the rabbet.
+    const all = [rect(0, 0, 400, 15), rect(0, 85, 400, 100), rect(0, 0, 15, 100), rect(385, 0, 400, 100)];
+    const b = board({ underside: rabbeted(400, 100, 13.3, all, 18.3), tabFallback: 'tabs' });
+    expect(planTabs(b, {}).get('p')!.how).toBe('tabs');
+    const cam = camBoard(b, {});
+    const opts = holdOptionsOf(b);
+    const [hold] = holdCheck(cam, b, opts);
+    expect(hold.tabs.length).toBeGreaterThan(0);
+    expect(hold.anchored).toBe(0);
+    expect(holdTimeline(cam, b, opts).filter(e => e.kind === 'pocket')).toMatchObject([{ what: 'p', cut: 'tabs' }]);
+  });
+
+  it('rabbets all round: no tab spots, its fallback; a skin thinner than the rabbet is cut away too, and that is reported', () => {
+    const all = [rect(0, 0, 400, 15), rect(0, 85, 400, 100), rect(0, 0, 15, 100), rect(385, 0, 400, 100)];
+    const b = board({ underside: rabbeted(400, 100, 13.3, all, 18.3) });
+    const plan = planTabs(b, {}).get('p')!;
+    expect(plan.how).toBe('skin');
+    const events = holdTimeline(camBoard(b, {}), b, holdOptionsOf(b));
+    expect(events).toMatchObject([{ kind: 'pocket', what: 'p', cut: 'skin' }]);
+    // A skin thicker than the rabbet is deep (5 mm from the part's bottom, 18.3 - 13.3): it stays.
+    const thick = { ...b, skin: 6 };
+    expect(holdTimeline(camBoard(thick, {}), thick, holdOptionsOf(thick))).toEqual([]);
+    // Same on the skin hold-down.
+    const skin = { ...b, holdDown: 'skin' as const };
+    expect(holdTimeline(camBoard(skin, {}), skin, holdOptionsOf(skin))).toMatchObject([{ kind: 'pocket', cut: 'skin' }]);
+  });
+
+  it('a skin kept on two opposite edges still surrounds the part; on one edge it does not', () => {
+    const skin = { holdDown: 'skin' as const };
+    // Rabbets on the long edges: the skin stays along both short ones, far more than tabs would hold.
+    const two = board({}, skin);
+    expect(holdTimeline(camBoard(two, {}), two, holdOptionsOf(two))).toEqual([]);
+    // Three edges gone: it hangs on the fourth, and pivots about it.
+    const three = board({ underside: rabbeted(400, 100, 13.3, [...longRabbets, rect(0, 0, 15, 100)], 18.3) }, skin);
+    expect(holdTimeline(camBoard(three, {}), three, holdOptionsOf(three))).toMatchObject([{ kind: 'pocket', cut: 'skin' }]);
+  });
+
+  it('a side A rabbet with its floor below the tab height: no tabs there; above it: fine', () => {
+    const low = board({ features: rabbeted(400, 100, 1, longRabbets), underside: undefined });
+    for (const t of planTabs(low, {}).get('p')!.tabs) expect(t.x < 50 || t.x > 450).toBe(true);
+    const high = board({ features: rabbeted(400, 100, 3, longRabbets), underside: undefined });
+    expect(
+      planTabs(high, {})
+        .get('p')!
+        .tabs.some(t => t.x > 50 && t.x < 450)
+    ).toBe(true);
+    // Forced there, the tab is thinner than assumed: not anchored.
+    const forced = board({ features: rabbeted(400, 100, 1, [...longRabbets, rect(0, 0, 15, 100), rect(385, 0, 400, 100)]), underside: undefined, tabFallback: 'tabs' }); // prettier-ignore
+    const [hold] = holdCheck(camBoard(forced, {}), forced, holdOptionsOf(forced));
+    expect(hold.anchored).toBe(0);
+  });
+
+  it.each([
+    [false, 400, 100, 50, 40, 500, 180],
+    [true, 400, 100, 40, 50, 180, 500],
+  ])('the turned frame is the one side B really cuts in (rotated %s)', (rotated, w, h, x, y, bw, bh) => {
+    // One rabbet, on one long edge only, as side B sees the part.
+    const under = rabbeted(w, h, 13.3, [rect(0, 85, w, h)], 18.3);
+    const b: BoardSpec = {
+      ...board({ underside: under, x, y, rotated }),
+      w: bw,
+      h: bh,
+    };
+    const tabs = planTabs(b, {}).get('p')!;
+    expect(tabs.how).toBe('placed');
+    const sideB = camBoard(
+      sideBSpec(b, p => p.underside!),
+      { cutThrough: false }
+    );
+    const cut = sideB.operations.flatMap(op => op.passes.flatMap(p => p.pts)).map(q => ({ x: q[0], y: bh - q[1] }));
+    expect(cut.length).toBeGreaterThan(0);
+    // The layer the plan went by agrees with the real path: it's where side B cuts.
+    const layer = holdOptionsOf(b).layer!;
+    for (const q of cut) expect(layer(q).from).toBeCloseTo(5, 6);
+    // And no tab lands on that path.
+    for (const t of tabs.tabs) expect(Math.min(...cut.map(q => Math.hypot(q.x - t.x, q.y - t.y)))).toBeGreaterThan(5);
+  });
+
+  it("side B's spec doesn't carry the underside on: it is its own top now", () => {
+    const b = board();
+    expect(sideBSpec(b, p => p.underside!).parts[0].underside).toBeUndefined();
+  });
+});
+
+describe('held by points', () => {
+  const plate = (w: number, h: number, x: number, y: number, thickness = 8): BoardSpec['parts'][number] => ({
+    id: 'p',
+    name: 'p',
+    features: plain(w, h, thickness),
+    size: [w, h, thickness],
+    x,
+    y,
+    rotated: false,
+  });
+
+  it('a board meant to be screwed with no screws on it: not held, tabs not anchored, parts on their fallback', () => {
+    // A 12 mm margin has no room for a ⌀10 screw.
+    expect(suggestHoldPoints({ w: 400, h: 200 }, [{ x: 12, y: 12, w: 376, h: 176 }], { d: 10, bit: 3.175 })).toEqual([]);
+    const b: BoardSpec = {
+      id: 'a',
+      name: 'A',
+      w: 400,
+      h: 200,
+      thickness: 8,
+      holdDown: 'tabs',
+      tabs: DEFAULT_TABS,
+      holdPoints: [],
+      parts: [plate(376, 176, 12, 12)],
+    };
+    const opts = holdOptionsOf(b);
+    expect(opts.points).toEqual([]);
+    expect(planTabs(b, {}).get('p')!.how).toBe('skin');
+    const cam = camBoard(b, {});
+    // On the fallback the outline never cuts through, so only the board itself can say it.
+    expect(holdTimeline(cam, b, opts)).toMatchObject([{ kind: 'board', holds: 0, step: -1 }]);
+    // Tabs anyway hold nothing.
+    const anyway = { ...b, tabFallback: 'tabs' as const };
+    const [hold] = holdCheck(camBoard(anyway, {}), anyway, holdOptionsOf(anyway));
+    expect(hold.anchored).toBe(0);
+    expect(hold.ok).toBe(false);
+    // Not given at all: held some other way (its edges), as before.
+    const edges = { ...b, holdPoints: undefined };
+    expect(holdTimeline(camBoard(edges, {}), edges, {})).toEqual([]);
+    // Taped: nothing to say.
+    expect(holdTimeline(cam, b, { taped: true })).toEqual([]);
+  });
+
+  it('two screws on one rail of a frame do not hold the frame', () => {
+    const b: BoardSpec = {
+      id: 'b',
+      name: 'B',
+      w: 1000,
+      h: 500,
+      thickness: 8,
+      holdDown: 'tabs',
+      tabs: DEFAULT_TABS,
+      holdPoints: [screw(60, 15), screw(985, 15)],
+      parts: [plate(920, 420, 40, 40)],
+    };
+    const opts = holdOptionsOf(b);
+    expect(planTabs(b, {}).get('p')!.how).toBe('skin');
+    const events = holdTimeline(camBoard(b, {}), b, opts);
+    expect(events).toMatchObject([{ kind: 'board', holds: 2 }]);
+    // Tabs anyway: none of them is anchored, the top rail's 470 mm from any screw least of all.
+    const anyway = { ...b, tabFallback: 'tabs' as const };
+    const [hold] = holdCheck(camBoard(anyway, {}), anyway, opts);
+    expect(hold.tabs.length).toBeGreaterThan(0);
+    expect(hold.anchored).toBe(0);
+    // Screws around it hold it.
+    const around = { ...b, holdPoints: [screw(60, 15), screw(985, 15), screw(985, 485), screw(15, 485)] };
+    expect(holdTimeline(camBoard(around, {}), around, holdOptionsOf(around))).toEqual([]);
+    expect(holdCheck(camBoard(around, {}), around, holdOptionsOf(around)).every(p => p.ok)).toBe(true);
+  });
+
+  it('the 2-point rule is for strips only: narrow across the line between the holds, and held near both ends', () => {
+    const pair = [
+      { x: 5, y: 5 },
+      { x: 495, y: 5 },
+    ];
+    const c = { x: 250, y: 5 };
+    expect(heldByPoints(pair, c, rect(0, 0, 500, 10))).toBe(true);
+    // The frame ring of a big part: small area, wide across.
+    expect(heldByPoints(pair, { x: 250, y: 150 }, rect(0, 0, 500, 300))).toBe(false);
+    // An L: its long leg is a strip, its other leg isn't.
+    const l = [...rect(0, 0, 500, 10).slice(0, 2), { x: 500, y: 200 }, { x: 490, y: 200 }, { x: 490, y: 10 }, { x: 0, y: 10 }];
+    expect(heldByPoints(pair, c, l)).toBe(false);
+    // A strip with its holds close together in the middle: its ends flap.
+    expect(
+      heldByPoints(
+        [
+          { x: 240, y: 5 },
+          { x: 260, y: 5 },
+        ],
+        c,
+        rect(0, 0, 500, 10)
+      )
+    ).toBe(false);
+    // One hold, or two on the same spot.
+    expect(heldByPoints([pair[0]], c, rect(0, 0, 500, 10))).toBe(false);
+    expect(heldByPoints([pair[0], pair[0]], c, rect(0, 0, 500, 10))).toBe(false);
+  });
+});

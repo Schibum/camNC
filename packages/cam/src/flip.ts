@@ -26,7 +26,7 @@ export interface TurnedOver {
   h: number;
 }
 
-const partRect = (p: BoardPart) => {
+export const partRect = (p: Pick<BoardPart, 'x' | 'y' | 'rotated' | 'size'>) => {
   const [w, h] = p.rotated ? [p.size[1], p.size[0]] : [p.size[0], p.size[1]];
   return { x: p.x, y: p.y, w, h };
 };
@@ -42,7 +42,7 @@ export function sideBSpec(board: BoardSpec, flipped: (part: BoardPart) => PartFe
     dowels: undefined,
     parts: board.parts.map(p => {
       const r = partRect(p);
-      return { ...p, features: flipped(p), y: board.h - r.y - r.h };
+      return { ...p, features: flipped(p), underside: undefined, y: board.h - r.y - r.h };
     }),
   };
 }

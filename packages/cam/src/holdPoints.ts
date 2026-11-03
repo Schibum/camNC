@@ -193,23 +193,40 @@ function offsets(reach: number, depth: number): [number, number][] {
 const kOffsets = new Map<string, [number, number][]>();
 
 /**
- * Is a piece of stock (its area and the hold points on it) held? At least 3 holds, not in a line, with the piece's
- * centre inside the polygon they span: it can neither pivot nor lift. A narrow strip may make do with 2, far apart.
+ * Is a piece of stock (the hold points on it, its centre and its outline) held? At least 3 holds, not in a line, with
+ * the piece's centre inside the polygon they span: it can neither pivot nor lift. A narrow strip makes do with 2 near
+ * both ends: narrow across the line between them, and hardly any of it past them.
  */
-export function heldByPoints(points: P2[], centre: P2, area: number): boolean {
+export function heldByPoints(points: P2[], centre: P2, outline: P2[]): boolean {
   if (points.length >= 3) {
     const hull = convexHull(points);
     if (hull.length >= 3 && Math.abs(polygonArea(hull)) > 1e-3 && insideConvex(centre, hull)) return true;
   }
-  if (points.length >= 2) {
-    // The farthest pair: a strip much longer than wide that is held near both ends.
-    let far = 0;
-    for (let i = 0; i < points.length; i++)
-      for (let j = i + 1; j < points.length; j++) far = Math.max(far, Math.hypot(points[i].x - points[j].x, points[i].y - points[j].y));
-    if (far > 0 && area < 0.15 * far * far) return true;
-  }
-  return false;
+  if (points.length < 2) return false;
+  // The farthest pair.
+  let far = 0,
+    a = points[0],
+    b = points[1];
+  for (let i = 0; i < points.length; i++)
+    for (let j = i + 1; j < points.length; j++) {
+      const d = Math.hypot(points[i].x - points[j].x, points[i].y - points[j].y);
+      if (d > far) [far, a, b] = [d, points[i], points[j]];
+    }
+  if (far < 1e-6) return false;
+  const along = { x: (b.x - a.x) / far, y: (b.y - a.y) / far };
+  const spread = (f: (p: P2) => number) => {
+    const v = outline.map(f);
+    return Math.max(...v) - Math.min(...v);
+  };
+  const across = spread(p => (p.y - a.y) * along.x - (p.x - a.x) * along.y);
+  const length = spread(p => (p.x - a.x) * along.x + (p.y - a.y) * along.y);
+  return across < kStripShare * far && length < kStripOverhang * far;
 }
+
+/** A strip's width against the distance between its two holds. */
+const kStripShare = 0.15;
+/** A strip's length against the distance between its two holds. */
+const kStripOverhang = 1.5;
 
 /**
  * Holds something would hit: a path (cuts and rapids alike) passing within `pathClearance` of the footprint, lower than

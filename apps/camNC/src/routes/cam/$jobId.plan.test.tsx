@@ -208,14 +208,14 @@ describe('CAM plan step', () => {
   it('names parts that don\u2019t fit their board and blocks the job until they fit or are left out', async () => {
     const bytes = await (await fetch(stepUrl)).arrayBuffer();
     const job = await createJob(new File([bytes], 'kinderregal-eiche.step'));
-    // Board A as a 600 x 300 stock board: room for two of its five 8 mm bodies.
+    // Board A as a 640 x 340 stock board: room for two of its five 8 mm bodies, and a frame for the screws holding it.
     const copy = new Uint8Array(bytes.slice(0));
     const model = await camWorker().importModel(Comlink.transfer(copy, [copy.buffer]), job.fileName, modelKey(job));
     const boards = reconcileBoards(
       undefined,
       instancesOf(model.parts, () => true),
       'oak'
-    ).map(b => (b.name === 'A' ? { ...b, size: { fit: false as const, w: 600, h: 300 } } : b));
+    ).map(b => (b.name === 'A' ? { ...b, size: { fit: false as const, w: 640, h: 340 } } : b));
     await saveJob({ ...job, boards });
     params.jobId = job.id;
     render(
@@ -262,13 +262,26 @@ describe('CAM plan step', () => {
     const job = await createJob(new File([bytes], 'kinderregal-eiche.step'));
     const copy = new Uint8Array(bytes.slice(0));
     const model = await camWorker().importModel(Comlink.transfer(copy, [copy.buffer]), job.fileName, modelKey(job));
-    // Only the back, alone on its board with a 4 mm margin: after its cut, nothing beyond a tab is wide enough to hold it.
+    // Only the back, alone on its board, with a 4 mm margin on two sides: stock that holds a tab on the other two only, no
+    // opposite pair. Screwed down in that stock, around the board's middle.
     const parts = model.parts.map(p => ({ id: p.id, name: p.name, quantity: p.names.length, milled: p.name === 'back' }));
     const boards = reconcileBoards(
       undefined,
       instancesOf(model.parts, id => parts.find(p => p.id === id)!.milled),
       'oak'
-    ).map(b => ({ ...b, margin: 4, frame: false }));
+    ).map(b => ({
+      ...b,
+      margin: 4,
+      frame: false,
+      size: { fit: false as const, w: 444, h: 424 },
+      positions: { [b.items[0]]: { x: 4, y: 4, rotated: false } },
+      holdPoints: [
+        { x: 430, y: 8 },
+        { x: 430, y: 414 },
+        { x: 8, y: 414 },
+      ],
+      holdPointsOn: { w: 444, h: 424 },
+    }));
     await saveJob({ ...job, parts, boards });
     params.jobId = job.id;
     // Last time this viewer left the Plan step on its settings: it opens there again.

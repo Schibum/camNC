@@ -1,6 +1,6 @@
 import { holdOptionsOf, partToBoard, type BoardPart, type BoardSpec } from './board';
 import type { TurnedOver } from './flip';
-import { holdState } from './hold';
+import { holdState, layerAcross, tabWhole } from './hold';
 import { DEFAULT_TABS, throughCuts, type CamSettings, type Operation, type PartCam, type TabSettings } from './toolpaths';
 
 type P2 = { x: number; y: number };
@@ -50,10 +50,9 @@ export function planTabs(
       })),
     ])
   );
-  const { held } = holdState({ stockTop, operations: [...cuts.values()].flat(), warnings: [] }, board, {
-    ...holdOptionsOf(board),
-    ...opts,
-  });
+  const options = { ...holdOptionsOf(board, settings), ...opts };
+  const { held } = holdState({ stockTop, operations: [...cuts.values()].flat(), warnings: [] }, board, options);
+  const { layer } = options;
   const out = new Map<string, PartHolding>();
   for (const part of board.parts) {
     const outline = cuts.get(part.id)!.find(o => o.feature === 'outline');
@@ -73,8 +72,10 @@ export function planTabs(
     // Only where a saw, chisel or flush trim bit gets at the tab afterwards (`reachable`): not in notches, slots or the
     // inside of a hook, but a long free edge set back from the part's hull is fine.
     const hull = convexHull(loop);
+    // Nor where a pocket of either side eats into the tab: side B's would cut the part free with the bit at depth.
     const spots = candidates(loop, room, kCornerClear)
       .filter(c => Math.hypot(c.at.x - seam.x, c.at.y - seam.y) > room)
+      .filter(c => !layer || tabWhole(layerAcross(layer, c.at, c.dir, r, tabs.width), tabs.height))
       .map(c => ({ ...c, out: outward(c, r, ccw) }))
       .filter(c => reachable(c, loop, hull));
     // Not on a thin finger (a hook, a tongue) when the part has sturdier spots: it flexes, and the part pivots about it.

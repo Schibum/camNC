@@ -1,9 +1,9 @@
 import { readGcode } from './analyze';
-import type { PartFeatures } from './features';
-import { dowelOperations, type DowelSpec } from './flip';
+import { openPocketRegion, type PartFeatures } from './features';
+import { dowelOperations, partRect, type DowelSpec } from './flip';
 import { boardToPart, kDefaultSkin, planTabs, type PartHolding, type TabFallback } from './tabPlan';
 import type { Vec3 } from './geom';
-import type { HoldOptions } from './hold';
+import type { BottomLayer, HoldOptions } from './hold';
 import { holdClashes, holdHeight, type HoldPoint } from './holdPoints';
 import { camPart, DEFAULT_SETTINGS, DEFAULT_TABS, fluteWarnings, type CamSettings, type Operation, type PartCam, type TabSettings } from './toolpaths';
 
@@ -27,6 +27,10 @@ export interface BoardPart {
   id: string;
   name: string;
   features: PartFeatures;
+  /**
+   * With a side B: the part's underside as side B cuts it (see `sideBSpec`), so tabs and skins keep clear of its pockets.
+   */
+  underside?: PartFeatures;
   /** Part size laid flat (before turning). */
   size: Vec3;
   /** Where its tabs can't hold: this instead of the board's fallback. */
@@ -62,14 +66,96 @@ export interface BoardSpec {
    * the tape for `fixture-tape` (default `kTapeLayer`).
    */
   skin?: number;
-  /** Where the board is screwed or clamped down. None: held at its edges, or taped (`fixture-tape`). */
+  /**
+   * Where the board is screwed or clamped down. Empty: it should be, but nothing does: it isn't held. Not given: held at
+   * its edges (a fence, a fixture), or taped (`fixture-tape`).
+   */
   holdPoints?: HoldPoint[];
 }
 
-/** What holds the stock, for the hold checks: the hold points, the tape, or (neither) the board's edge. */
-export function holdOptionsOf(board: Pick<BoardSpec, 'holdDown' | 'holdPoints'>): HoldOptions {
+/** What holds the stock, for the hold checks: the hold points (none: nothing), the tape, or (neither) the board's edge. */
+export function holdOptionsOf(
+  board: Pick<BoardSpec, 'holdDown' | 'holdPoints'> & Partial<Pick<BoardSpec, 'parts' | 'h' | 'stockTop'>>,
+  settings: Partial<CamSettings> = {}
+): HoldOptions {
   if (board.holdDown === 'fixture-tape') return { taped: true };
-  return board.holdPoints?.length ? { points: board.holdPoints.map(p => ({ x: p.x, y: p.y })) } : {};
+  const layer =
+    board.parts && board.h !== undefined ? bottomLayer({ parts: board.parts, h: board.h, stockTop: board.stockTop }, settings) : undefined;
+  return { ...(board.holdPoints && { points: board.holdPoints.map(p => ({ x: p.x, y: p.y })) }), ...(layer && { layer }) };
+}
+
+/**
+ * What the pockets of both sides leave of the board's bottom, where tabs and skins are (see `BottomLayer`). Open pockets
+ * count as far past the outline as the largest bit runs them. Undefined without any pocket.
+ */
+function bottomLayer(board: Pick<BoardSpec, 'parts' | 'h' | 'stockTop'>, settings: Partial<CamSettings>): BottomLayer | undefined {
+  type Area = { loops: { x: number; y: number }[][]; x0: number; y0: number; x1: number; y1: number; from: number; to: number };
+  const areas: Area[] = [];
+  const ext = Math.max(...(settings.tools ?? DEFAULT_SETTINGS.tools).map(t => t.diameter)) / 2 + 1;
+  const add = (features: PartFeatures, toBoard: (q: Vec3) => Vec3, cut: (floorZ: number) => { from: number; to: number }) => {
+    for (const pocket of features.pockets) {
+      const loops = openPocketRegion(features.outlines, pocket, ext).map(loop =>
+        loop.map(q => {
+          const [x, y] = toBoard([q.x, q.y, 0]);
+          return { x, y };
+        })
+      );
+      const pts = loops.flat();
+      if (!pts.length) continue;
+      areas.push({
+        loops,
+        x0: Math.min(...pts.map(q => q.x)),
+        y0: Math.min(...pts.map(q => q.y)),
+        x1: Math.max(...pts.map(q => q.x)),
+        y1: Math.max(...pts.map(q => q.y)),
+        ...cut(pocket.floorZ),
+      });
+    }
+  };
+  for (const part of board.parts) {
+    add(
+      part.features,
+      q => partToBoard(part, q),
+      to => ({ from: 0, to })
+    );
+    if (!part.underside) continue;
+    // Where side B cuts it, turned back to how side A lies: board y -> H - y, and a floor at Z in side B's frame leaves
+    // everything above stockTop - Z. Its features' depths are measured from the stock's top, whatever the stock.
+    const r = partRect(part);
+    const turned = { ...part, y: board.h - r.y - r.h };
+    const stockTop = board.stockTop ?? part.underside.thickness;
+    add(
+      part.underside,
+      q => {
+        const [x, y, z] = partToBoard(turned, q);
+        return [x, board.h - y, z];
+      },
+      floorZ => ({ from: stockTop - floorZ, to: Infinity })
+    );
+  }
+  if (!areas.length) return undefined;
+  return p => {
+    let from = 0,
+      to = Infinity;
+    for (const a of areas) {
+      if (p.x < a.x0 || p.x > a.x1 || p.y < a.y0 || p.y > a.y1 || !insideLoops(p, a.loops)) continue;
+      from = Math.max(from, a.from);
+      to = Math.min(to, a.to);
+    }
+    return { from, to };
+  };
+}
+
+/** Inside loops (outer and holes, either way round), by crossing parity. */
+function insideLoops(p: { x: number; y: number }, loops: { x: number; y: number }[][]) {
+  let c = false;
+  for (const poly of loops)
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const a = poly[i],
+        b = poly[j];
+      if (a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) c = !c;
+    }
+  return c;
 }
 
 /**

@@ -114,7 +114,7 @@ export interface PlanResult {
   timeline?: {
     step: number;
     after: string;
-    kind: 'pivot' | 'loose';
+    kind: 'board' | 'pivot' | 'loose' | 'pocket';
     what: string;
     at: { x: number; y: number };
     block: boolean;

@@ -169,7 +169,7 @@ const api = {
           ]).map(h => ({ x: h.x, y: h.y })),
         }
       : {};
-    plan = { ...plan, ...stability(flat, spec), ...clashes, ...(release.length && { release }) };
+    plan = { ...plan, ...stability(flat, spec, settings), ...clashes, ...(release.length && { release }) };
     // A skin (or the layer on the tape) holds every part until the end.
     if (board.holdDown === 'skin' || board.holdDown === 'fixture-tape')
       return {
@@ -179,15 +179,15 @@ const api = {
         ...(board.holdDown === 'fixture-tape' && { taped: true }),
       };
     if (!usesTabs(board.holdDown)) return plan;
-    return { ...plan, hold: holdCheck(flat, board, holdOptionsOf(spec)), holding, skin: board.skin ?? kDefaultSkin };
+    return { ...plan, hold: holdCheck(flat, board, holdOptionsOf(spec, settings)), holding, skin: board.skin ?? kDefaultSkin };
   },
 };
 
 /**
  * Does everything stay put during the job? What comes loose at which step (stock with too few holds, parts cut free
- * with nothing holding them). On the board as laid out (not turned on the bed).
+ * with nothing holding them, tabs or skins a pocket cuts away). On the board as laid out (not turned on the bed).
  */
-function stability(flat: PartCam, spec: BoardSpec): Pick<PlanResult, 'timeline'> {
+function stability(flat: PartCam, spec: BoardSpec, settings: Partial<CamSettings>): Pick<PlanResult, 'timeline'> {
   if (spec.holdDown === 'fixture-tape') return {};
   const how = (part: string) => flat.holding?.find(h => h.name === part)?.how;
   // Nothing holds the parts, as the user chose: say so, don't block.
@@ -196,8 +196,20 @@ function stability(flat: PartCam, spec: BoardSpec): Pick<PlanResult, 'timeline'>
     const [, part] = op.match(/^(.+): [^:]*$/) ?? [];
     return part ? `the outline of ${part}` : op;
   };
-  const timeline = holdTimeline(flat, spec, holdOptionsOf(spec)).map(ev => {
-    const block = ev.kind === 'pivot' || (!watched && how(ev.what) !== 'self' && how(ev.what) !== 'tabs');
+  const timeline = holdTimeline(flat, spec, holdOptionsOf(spec, settings)).map(ev => {
+    const block = ev.kind !== 'loose' || (!watched && how(ev.what) !== 'self' && how(ev.what) !== 'tabs');
+    if (ev.kind === 'board')
+      return {
+        ...ev,
+        block,
+        message: `Nothing holds this board: it has ${ev.holds === 0 ? 'no' : `only ${ev.holds}`} screw${ev.holds === 1 ? '' : 's'} or clamp${ev.holds === 1 ? '' : 's'} where it needs 3 around its middle. On the Boards step, leave room for them (a frame or a bigger board) or tape it down.`,
+      };
+    if (ev.kind === 'pocket')
+      return {
+        ...ev,
+        block,
+        message: `A pocket cuts away ${ev.cut === 'skin' ? 'the bottom skin' : 'the tabs'} holding ${ev.what}, so it would come free with the bit at depth. Give it ${ev.cut === 'skin' ? 'a skin thicker than the pocket is deep, or tabs on another edge' : 'room for tabs on other edges, or a skin thicker than the pocket is deep'}, on the Boards step.`,
+      };
     const message =
       ev.kind === 'pivot'
         ? `After cutting ${after(ev.after)}, a piece of the board ${
@@ -336,6 +348,8 @@ function boardSpec(key: string, board: BoardRequest): BoardSpec {
         id: p.id,
         name: p.name,
         features,
+        // Tabs and skins keep clear of the pockets side B will cut.
+        ...(board.flip && { underside: flippedFeatures(key, p.id, board, p.rotated) }),
         size: part.size,
         x: p.x,
         y: p.y,
