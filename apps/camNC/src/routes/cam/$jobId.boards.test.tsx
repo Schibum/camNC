@@ -45,7 +45,9 @@ function drag(chip: HTMLElement, target: HTMLElement) {
 
 /** A part's outline in a board drawing. */
 const partIn = (board: string, name: string) =>
-  within(screen.getByRole('region', { name: `Board ${board} drawing` })).getByRole('button', { name: new RegExp(`^${name}:`) });
+  within(screen.getByRole('region', { name: `Board ${board} drawing` })).getByRole('button', {
+    name: new RegExp(`^${name}: drag, or move`),
+  });
 
 /** Client point of a board point (mm, lower left zero) in a board's drawing. */
 function clientOf(board: string, x: number, y: number) {
