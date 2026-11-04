@@ -107,7 +107,7 @@ describe('CAM plan step', () => {
     expect(how.getAttribute('aria-expanded')).toBe('false');
     fireEvent.click(how);
     expect(screen.getByText(/One setting for the whole job/)).toBeTruthy();
-    expect(screen.getByText(/no rest machining yet/)).toBeTruthy();
+    expect(screen.getByText(/only flagged, not cleaned up/)).toBeTruthy();
     // The default layout (tabs, 8 mm gaps, 5.2 mm edge): tabs only where they hold, every part held.
     expect(screen.queryByText(/tabs would hold it/)).toBeNull();
     expect(screen.queryByText(/bottom skin/)).toBeNull();

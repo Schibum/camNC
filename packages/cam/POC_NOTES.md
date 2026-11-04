@@ -59,8 +59,8 @@ Outputs (G-code, PNG top views, `summary.md`) go to `sample-data/poc-out/`.
   climb = CW around the part, CCW inside holes. Start in the middle of the longest edge.
 - Tabs (option): 2 mm high, 5 mm (+D) long, ≥3, ~every 250 mm, spread over the long straight runs; applied to every
   pass below tab height (roughing at +1 included). See `*.tabs.png`.
-- Tool choice: each feature gets the largest tool that fits; ops sorted smallest tool first, then pockets (top-down) →
-  holes → outline. messerblock: its 3.1 mm knife slots don't fit 3.175 → "no tool fits"; with a D=3 bit added it
+- Tool choice: each feature gets the largest tool that fits, smaller ones cut the narrow spots of a pocket it doesn't
+  reach; ops sorted smallest tool first, then pockets (top-down) → holes → outline. messerblock: its 3.1 mm knife slots don't fit 3.175 → "no tool fits"; with a D=3 bit added it
   emits pocket with T3, then `M0 (MSG Spindle OFF. Change to T1 D=3.175, re-zero Z, spindle ON 15000RPM)`, outline T1.
 - G-code: `G21 G90 G94 G17`, `( Tools Table:)` + `(  T1 D=3.175 CR=0 - ZMIN=-0.3 - flat end mill )` (camNC's
   `parseToolInfo` reads it back exactly), `M0 (MSG Turn ON spindle 15000RPM)`, safe Z = top+5, retract top+2, approach
