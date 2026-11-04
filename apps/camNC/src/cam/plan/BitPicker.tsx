@@ -206,15 +206,16 @@ export function BitSettings({ value, onChange }: { value: PlanSettingsV1; onChan
         {howOpen && (
           <ul id="small-bit-how" className="flex list-disc flex-col gap-1 pl-4 text-xs leading-relaxed text-muted-foreground">
             <li>One setting for the whole job, not per part or per operation.</li>
-            <li>Each pocket or hole gets the largest bit that fits it whole. Outlines always use the main bit.</li>
+            <li>
+              Each pocket or hole gets the largest bit that fits it. Where a pocket narrows to a slot that bit can’t enter, the smaller bit
+              cuts the slot. Outlines always use the main bit.
+            </li>
             <li>
               A board that needs both bits gets two programs, the smaller bit first. The machine queue stops in between to swap the bit and
               zero Z; XY stays.
             </li>
             <li>For now you can’t pick the bit for one pocket or part.</li>
-            <li>
-              Corners the main bit can’t reach are only flagged, not cleaned up with the smaller bit afterwards (no rest machining yet).
-            </li>
+            <li>Inside corners the main bit can’t reach are only flagged, not cleaned up with the smaller bit afterwards.</li>
           </ul>
         )}
       </section>

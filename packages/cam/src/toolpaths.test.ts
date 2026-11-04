@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { readGcode, metrics } from './analyze';
-import type { PartFeatures } from './features';
+import { DepthMap, readGcode, metrics } from './analyze';
+import { extractFeatures, type PartFeatures } from './features';
+import { readStep } from './fixtures';
 import { fitArcs, kMaxGcodeLine, toGcode } from './gcode';
-import { difference } from './geom';
+import { bounds2, difference, polyArea } from './geom';
+import { detectFlat, loadStep } from './import';
 import { checkGcodeSafety, kMaxFeed } from './safety';
 import { splitByBit } from './board';
 import { camPart, DEFAULT_TABS, type Pass, type Tool } from './toolpaths';
@@ -612,4 +614,135 @@ describe('pocket wall pass', () => {
     expect(Math.min(...finish.pts.map(distToWall))).toBeCloseTo(0, 3);
     expect(finish.feeds.slice(1).every(f => f === 900)).toBe(true);
   });
+});
+
+describe('narrow spots of a pocket', () => {
+  const T6: Tool = { number: 1, diameter: 6 };
+  const T3: Tool = { number: 2, diameter: 3 };
+  const outline = rect(0, 0, 200, 100);
+
+  /** One pocket 4 deep in an 8 thick board. */
+  const withPocket = (pocket: { x: number; y: number }[]): PartFeatures => ({
+    thickness: 8,
+    footprint: [outline],
+    outlines: [outline],
+    throughHoles: [],
+    levels: [],
+    pockets: [{ floorZ: 4, region: [pocket], strictRegion: [pocket], above: difference([outline], [pocket]), area: polyArea([pocket]) }],
+    bottomFaces: [],
+    slopedArea: 0,
+  });
+
+  /** A 40x40 pocket with a slot 80 long and `width` wide off its right side. */
+  const withSlot = (width: number) =>
+    withPocket([
+      { x: 20, y: 30 },
+      { x: 60, y: 30 },
+      { x: 60, y: 50 - width / 2 },
+      { x: 140, y: 50 - width / 2 },
+      { x: 140, y: 50 + width / 2 },
+      { x: 60, y: 50 + width / 2 },
+      { x: 60, y: 70 },
+      { x: 20, y: 70 },
+    ]);
+
+  /** The lowest the bits of these operations reach around a point of the slot, by their cutting paths. */
+  const cutDepthAt = (ops: ReturnType<typeof camPart>['operations'], x: number, y: number) => {
+    let z = Infinity;
+    for (const op of ops)
+      for (const pass of op.passes)
+        for (let i = 1; i < pass.pts.length; i++)
+          if (segDist(pass.pts[i - 1], pass.pts[i], x, y) <= op.tool.diameter / 2) z = Math.min(z, pass.pts[i][2]);
+    return z;
+  };
+
+  it('the smaller bit cuts the slot the main bit can not enter, into the wide part, and goes first', () => {
+    const { operations, warnings } = camPart(withSlot(4), { tools: [T6, T3], cutThrough: false });
+    expect(operations.map(o => [o.name, o.tool.diameter, o.title])).toEqual([
+      ['Pocket 1 z=4 narrow spots', 3, '1 narrow spot 4 deep'],
+      ['Pocket 1 z=4', 6, '1 pocket 4 deep'],
+    ]);
+    const [narrow] = operations;
+    for (const x of [62, 100, 138]) expect(cutDepthAt([narrow], x, 50)).toBeCloseTo(4, 6);
+    // Stays inside the slot, and joins the wide part without a wall left between them.
+    const pts = narrow.passes.flatMap(p => p.pts);
+    expect(Math.max(...pts.map(q => q[0]))).toBeCloseTo(138.5, 3);
+    expect(Math.min(...pts.map(q => q[0]))).toBeLessThan(60);
+    const inSlot = pts.filter(q => q[0] > 60);
+    expect(Math.max(...inSlot.map(q => Math.abs(q[1] - 50)))).toBeLessThanOrEqual(0.5 + 1e-3);
+    expect(narrow.passes[0].pts[0][2]).toBe(8);
+    // Only the corners stay.
+    expect(warnings.filter(w => w.includes('left in corners'))).toEqual([expect.stringMatching(/pocket z=4: [0-9.]+mm²/)]);
+    expect(parseFloat(warnings[0].split(': ')[1])).toBeLessThan(20);
+    expect(splitByBit({ operations, warnings, stockTop: 8 }).map(p => p.operations[0].tool.diameter)).toEqual([3, 6]);
+  });
+
+  it('a slot just as wide as the smaller bit gets cut too', () => {
+    const { operations } = camPart(withSlot(3.01), { tools: [T6, T3], cutThrough: false });
+    expect(
+      cutDepthAt(
+        operations.filter(o => o.tool === T3),
+        100,
+        50
+      )
+    ).toBeCloseTo(4, 6);
+  });
+
+  it('without a smaller bit, or one that does not fit, the slot stays uncut and flagged', () => {
+    for (const [width, tools] of [
+      [4, [T6]],
+      [2, [T6, T3]],
+    ] as const) {
+      const { operations, warnings } = camPart(withSlot(width), { tools: [...tools], cutThrough: false });
+      expect(operations.map(o => o.tool)).toEqual([T6]);
+      expect(warnings.some(w => w.includes('left in corners'))).toBe(true);
+    }
+  });
+
+  it('a pocket with nothing but inside corners the main bit can not reach does not need the smaller bit', () => {
+    const { operations, warnings } = camPart(withPocket(rect(20, 30, 60, 70)), { tools: [T6, T3], cutThrough: false });
+    expect(operations.map(o => o.tool)).toEqual([T6]);
+    expect(warnings.some(w => w.includes('left in corners'))).toBe(true);
+  });
+
+  it('three bits: the middle one cuts what it fits, the smallest only what is left', () => {
+    const T4: Tool = { number: 3, diameter: 4 };
+    const { operations } = camPart(withSlot(5), { tools: [T6, T4, T3], cutThrough: false });
+    expect(operations.map(o => o.tool)).toEqual([T4, T6]);
+  });
+
+  it('kinderregal side panels: the back panel groove is cut all along by the 3 mm bit', async () => {
+    const { bodies } = await loadStep(readStep('kinderregal-20mm'));
+    const panels = bodies.map(detectFlat).filter(p => p.name === 'seite2' || p.name === 'seitenteil');
+    expect(panels.length).toBe(2);
+    for (const panel of panels) {
+      const features = extractFeatures(panel.mesh, panel.size[2]);
+      const { operations } = camPart(features, { tools: [T6, T3], cutThrough: false });
+      expect(operations.map(o => o.tool.diameter)).toEqual([3, 6]);
+      expect(operations[0].passes.length).toBeGreaterThan(0);
+
+      // Sweep both bits over the pocket: all of it is cut to the floor but for what its corners leave.
+      const [pocket] = features.pockets;
+      const b = bounds2(pocket.strictRegion);
+      const map = new DepthMap(b.minX, b.minY, b.maxX, b.maxY, 0.25);
+      for (const op of operations)
+        for (const pass of op.passes)
+          for (let i = 1; i < pass.pts.length; i++) {
+            const [p, q] = [pass.pts[i - 1], pass.pts[i]];
+            const n = Math.max(1, Math.ceil(Math.hypot(q[0] - p[0], q[1] - p[1]) / 0.2));
+            for (let k = 0; k <= n; k++)
+              map.stamp(
+                p[0] + ((q[0] - p[0]) * k) / n,
+                p[1] + ((q[1] - p[1]) * k) / n,
+                p[2] + ((q[2] - p[2]) * k) / n,
+                op.tool.diameter / 2
+              );
+          }
+      const cellArea = 0.25 ** 2;
+      let cut = 0;
+      for (const z of map.data) if (z <= pocket.floorZ + 0.01) cut += cellArea;
+      // Was 2143 mm² short of the 5005 with the 6 mm bit alone.
+      expect(pocket.area - cut).toBeLessThan(100);
+    }
+  }, 60000);
 });

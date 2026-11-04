@@ -1,6 +1,6 @@
 import { areaD, pointInPolygonD, PointInPolygonResult, simplifyPathsD, type PathD, type PathsD } from 'clipper2-ts';
 import { openPocketRegion, type PartFeatures } from './features';
-import { clipLines, difference, intersect, offset, pathLength, polyArea, type Vec3 } from './geom';
+import { cleanRegion, clipLines, difference, intersect, offset, pathLength, polyArea, union, type Vec3 } from './geom';
 
 export interface Tool {
   number: number;
@@ -900,14 +900,28 @@ export function profileOperation(
   return { name, kind: 'profile', feature: inside ? 'hole' : 'outline', tool, passes };
 }
 
-/** Uncut area left in inside corners / narrow spots of a region for a tool of radius r. */
-function uncutArea(region: PathsD, r: number) {
-  return polyArea(difference(region, offset(offset(region, -r), r)));
+/** Where a bit of radius r can cut in a region. */
+const reachOf = (region: PathsD, r: number) => offset(offset(region, -r), r);
+
+/** A bit fits a spot if it does at this share of its radius (it may be just as wide as the bit). */
+const kNarrowSpotFit = 0.9;
+
+/**
+ * What a smaller bit should cut of a region, given what bigger bits `reached`: the spots it fits into whole, such as a
+ * slot off a wider pocket. Rounded inside corners aren't: the bit doesn't fit into what they leave. The spots grow by
+ * the bit's diameter into the rest of the region, so that the bit reaches all of them and leaves no wall where they join it.
+ */
+function narrowSpots(region: PathsD, reached: PathsD, tool: Tool): PathsD {
+  const r = tool.diameter / 2;
+  const left = cleanRegion(difference(reachOf(region, r), reached), 0.03, 0.5);
+  const spots = components(left).filter(c => offset(c, -kNarrowSpotFit * r).length > 0);
+  return spots.length ? cleanRegion(intersect(offset(spots.flat(), tool.diameter), region)) : [];
 }
 
 /**
- * All operations for one flat board. Each feature uses the largest tool that fits; operations are ordered smallest
- * tool first, inner features (pockets high to low, then holes) before the outline.
+ * All operations for one flat board. Each feature uses the largest tool that fits, smaller ones then cut the narrow
+ * spots of a pocket that it doesn't reach; operations are ordered smallest tool first, inner features (pockets high to
+ * low, then holes) before the outline.
  */
 /**
  * Only what cuts through: a part's through holes and outlines, no tabs (for the board's tab plan, which needs to know
@@ -967,12 +981,23 @@ export function camPart(features: PartFeatures, settings: Partial<CamSettings> =
     if (prevTool && prevTool !== tool) pocketTop = top;
     prevTool = tool;
     const region = openFor(tool);
-    const uncut = uncutArea(region, tool.diameter / 2);
-    if (uncut > 1) warnings.push(`pocket z=${p.floorZ}: ${uncut.toFixed(1)}mm² left in corners/narrow spots with D=${tool.diameter}`);
     ops.push({
       ...pocketOperation(`Pocket ${i + 1} z=${p.floorZ}`, region, pocketTop, p.floorZ, tool, s, features.outlines),
       title: pocketTitle(features, i, region, pocketTop),
     });
+    let reached = reachOf(region, tool.diameter / 2);
+    for (const small of tools.filter(t => t.diameter < tool.diameter)) {
+      const spots = narrowSpots(openFor(small), reached, small);
+      if (!spots.length) continue;
+      // From the stock top: smaller bits go first, nothing has cleared these spots' surroundings yet.
+      ops.push({
+        ...pocketOperation(`Pocket ${i + 1} z=${p.floorZ} narrow spots`, spots, top, p.floorZ, small, s, features.outlines),
+        title: `${plural(components(spots).length, 'narrow spot')} ${round2(features.thickness - p.floorZ)} deep`,
+      });
+      reached = union(reached, reachOf(spots, small.diameter / 2));
+    }
+    const uncut = polyArea(difference(region, reached));
+    if (uncut > 1) warnings.push(`pocket z=${p.floorZ}: ${uncut.toFixed(1)}mm² left in corners/narrow spots with D=${tool.diameter}`);
     pocketTop = p.floorZ;
   });
   if (s.cutThrough)
