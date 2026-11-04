@@ -134,6 +134,15 @@ export function BoardList({
                   holding={usesTabs(board.holdDown) ? plans[i]?.holding?.find(h => h.name === byId.get(id)?.name)?.how : undefined}
                   fallback={board.tabFallbacks?.[id]}
                   onFallback={f => onTabFallback(id, f)}
+                  onTabsReset={
+                    board.tabsAt?.[id]
+                      ? () => {
+                          const rest = { ...board.tabsAt };
+                          delete rest[id];
+                          onBoardChange({ ...board, tabsAt: Object.keys(rest).length ? rest : undefined });
+                        }
+                      : undefined
+                  }
                   onDragStart={() => drag.start(id, byId.get(id)?.thickness ?? board.thickness)}
                   onDragEnd={() => {
                     drag.end();
@@ -221,6 +230,7 @@ function PartChip({
   onDragStart,
   onDragEnd,
   onMoveTo,
+  onTabsReset,
 }: {
   name: string;
   dragId: string;
@@ -235,6 +245,8 @@ function PartChip({
   onDragStart: () => void;
   onDragEnd: () => void;
   onMoveTo: (board: string | 'new') => void;
+  /** Its tabs were placed by hand: back to picked ones. */
+  onTabsReset?: () => void;
 }) {
   return (
     <span
@@ -308,6 +320,12 @@ function PartChip({
               <DropdownMenuItem onSelect={onUnpin}>
                 <PinOff className="size-3" /> Unpin (auto-fill may move it)
               </DropdownMenuItem>
+            </>
+          )}
+          {onTabsReset && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={onTabsReset}>Place its tabs automatically again</DropdownMenuItem>
             </>
           )}
           {holding && (

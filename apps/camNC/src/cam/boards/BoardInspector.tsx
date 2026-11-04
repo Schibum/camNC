@@ -564,8 +564,8 @@ export function BoardInspector({
       )}
       {tabs && (
         <p className="text-xs text-muted-foreground">
-          Tabs sit on straight edges where the stock beyond them holds. Drag one along its part’s outline in the board view to move it; a
-          red ring says the stock there doesn’t hold it.
+          Tabs sit on straight edges where the stock beyond them holds. Drag one along its part’s outline in the board view to move it,
+          double-click a part’s edge to add one, double-click a tab to remove it. A red ring says the stock there doesn’t hold it.
         </p>
       )}
       {tabs && Object.keys(board.tabsAt ?? {}).some(id => board.items.includes(id)) && (

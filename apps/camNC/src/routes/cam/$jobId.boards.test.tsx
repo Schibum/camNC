@@ -277,6 +277,28 @@ describe('CAM boards step', () => {
       },
       { timeout: 60_000 }
     );
+    // A double-click on the part's edge adds one there; one on a tab removes it.
+    const count = async () => {
+      const b = await saved();
+      return b.tabsAt![b.items.find(id => b.tabsAt?.[id])!].length;
+    };
+    const before = await count();
+    const outline = drawing().querySelector<SVGGElement>(`[data-item][data-part="${part}"]`)!;
+    const box = outline.getBBox();
+    fireEvent.doubleClick(outline, clientOf('A', box.x + box.width / 2, box.y + 1));
+    await waitFor(async () => expect(await count()).toBe(before + 1));
+    await waitFor(() => expect(drawing().querySelectorAll(`[data-tab="${part}"]`).length).toBeGreaterThanOrEqual(before + 1), {
+      timeout: 60_000,
+    });
+    fireEvent.doubleClick(drawing().querySelector(`[data-tab="${part}"]`)!);
+    await waitFor(async () => expect(await count()).toBe(before));
+    // Back to picked tabs: for the part, from its menu.
+    fireEvent.pointerDown(screen.getByRole('button', { name: `Move ${part}` }), { button: 0, ctrlKey: false });
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Place its tabs automatically again' }));
+    await waitFor(async () => expect((await saved()).tabsAt).toBeUndefined());
+    // And for the whole board, from its settings.
+    fireEvent.doubleClick(outline, clientOf('A', box.x + box.width / 2, box.y + 1));
+    await waitFor(async () => expect((await saved()).tabsAt).toBeTruthy(), { timeout: 60_000 });
     fireEvent.click(screen.getByRole('region', { name: 'Board A' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Place tabs automatically again' }));
     await waitFor(async () => expect((await saved()).tabsAt).toBeUndefined());

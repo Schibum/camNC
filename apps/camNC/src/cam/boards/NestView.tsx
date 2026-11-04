@@ -117,8 +117,32 @@ export function NestView({
       }
     return best;
   };
+  // A body's tabs as the program has them (one per spot, though each pass through lists it), board frame.
+  const tabsOf = (h: NonNullable<PlanResult['hold']>[number]) =>
+    h.tabs.map(t => t.at).filter((q, k, list) => !list.slice(0, k).some(o => Math.hypot(o.x - q.x, o.y - q.y) < 1));
+  const saveTabs = (name: string, tabs: { x: number; y: number }[]) => {
+    const at = placedOf(name);
+    if (at && onTabsChange)
+      onTabsChange(
+        at.p.id,
+        tabs.map(q => toPart(at.p, at.inst.size, q))
+      );
+  };
+  // Never the last one: a part with none is cut free; "I hold it down" says that.
+  const remove = (h: NonNullable<PlanResult['hold']>[number], i: number) => {
+    const gone = h.tabs[i].at;
+    const rest = tabsOf(h).filter(q => Math.hypot(q.x - gone.x, q.y - gone.y) >= 1);
+    if (rest.length) saveTabs(h.part, rest);
+  };
+  /** A double-click on a body: a tab on its outline nearest the pointer. */
+  const addTab = (name: string, e: React.MouseEvent) => {
+    const h = plan?.hold?.find(x => x.part === name);
+    const p = toFrame(e);
+    if (!h || !p) return;
+    saveTabs(name, [...tabsOf(h), onOutline(name, p)]);
+  };
   const clash = new Set((plan?.holdClash ?? []).map(p => `${p.x},${p.y}`));
-  const toFrame = (e: React.PointerEvent) => {
+  const toFrame = (e: React.MouseEvent) => {
     const frame = (e.currentTarget as SVGElement).closest('[data-board-frame]') as SVGGraphicsElement | null;
     const m = frame?.getScreenCTM();
     if (!m) return null;
@@ -169,6 +193,7 @@ export function NestView({
               tabIndex={interactive ? 0 : undefined}
               aria-label={interactive ? `${inst.name}: drag, or move with the arrow keys` : undefined}
               onPointerDown={onPartPointerDown && (e => onPartPointerDown(p.id, e))}
+              onDoubleClick={onTabsChange && plan?.hold?.some(x => x.part === inst.name) ? e => addTab(inst.name, e) : undefined}
               onKeyDown={onPartKeyDown && (e => onPartKeyDown(p.id, e))}
               onFocus={onPartFocus && (() => onPartFocus(p.id))}
               className={cn(
@@ -232,7 +257,8 @@ export function NestView({
                   key={`tab-${h.part}-${i}`}
                   data-tab={h.part}
                   role="button"
-                  aria-label={`${h.part}: tab ${i + 1}, drag along the outline to move`}
+                  aria-label={`${h.part}: tab ${i + 1}, drag along the outline to move; double-click or Delete removes it`}
+                  tabIndex={0}
                   cx={pos.x}
                   cy={pos.y}
                   r={stroke * 6}
@@ -257,17 +283,28 @@ export function NestView({
                     e.stopPropagation();
                     setTabDrag(null);
                     if (Math.hypot(tabDrag.x - t.at.x, tabDrag.y - t.at.y) < 0.5) return;
-                    // The same tab twice (one per pass through): once.
-                    const all = h.tabs
-                      .map((q, k) => (k === i ? tabDrag : q.at))
-                      .filter((q, k, list) => !list.slice(0, k).some(o => Math.hypot(o.x - q.x, o.y - q.y) < 1));
-                    onTabsChange(
-                      at.p.id,
-                      all.map(q => toPart(at.p, at.inst.size, q))
+                    const from = t.at;
+                    saveTabs(
+                      h.part,
+                      tabsOf(h).map(q => (Math.hypot(q.x - from.x, q.y - from.y) < 1 ? { x: tabDrag.x, y: tabDrag.y } : q))
                     );
                   }}
-                  onClick={e => e.stopPropagation()}>
-                  <title>{`${h.part}: drag the tab along the outline`}</title>
+                  onClick={e => e.stopPropagation()}
+                  onDoubleClick={e => {
+                    e.stopPropagation();
+                    remove(h, i);
+                  }}
+                  onKeyDown={e => {
+                    if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    remove(h, i);
+                  }}>
+                  <title>
+                    {h.tabs.length > 1
+                      ? `${h.part}: drag the tab along the outline; double-click removes it`
+                      : `${h.part}: its only tab, drag it along the outline`}
+                  </title>
                 </circle>
               );
             });
