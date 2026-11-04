@@ -234,14 +234,13 @@ export function JogPanel() {
   );
 }
 
-export function ProbePanel() {
+/** Probe Z with the touch plate settings, with a toast for how it went. */
+export function useProbeZ() {
   'use no memo';
   const api = getCncApi();
   const prefs = useStore(s => s.machinePrefs);
-  const setPrefs = useStore(s => s.setMachinePrefs);
   const [busy, setBusy] = useState(false);
   const idle = api.state.value === 'Idle';
-
   async function probe() {
     setBusy(true);
     const promise = api.probeZ({ plateThickness: prefs.probePlateThickness, maxTravel: prefs.probeMaxTravel, feed: prefs.probeFeed });
@@ -253,7 +252,13 @@ export function ProbePanel() {
     await promise.catch(() => {});
     setBusy(false);
   }
+  return { probe, disabled: !idle || busy, prefs };
+}
 
+/** Touch plate thickness, how far to probe down and how fast. */
+export function ProbeSettings() {
+  const prefs = useStore(s => s.machinePrefs);
+  const setPrefs = useStore(s => s.setMachinePrefs);
   const field = (label: string, key: 'probePlateThickness' | 'probeMaxTravel' | 'probeFeed') => (
     <Label className="text-xs flex flex-col items-start gap-1">
       {label}
@@ -269,16 +274,12 @@ export function ProbePanel() {
       />
     </Label>
   );
-
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-row flex-wrap gap-2 items-end">
         {field('Plate (mm)', 'probePlateThickness')}
         {field('Travel (mm)', 'probeMaxTravel')}
         {field('Feed', 'probeFeed')}
-        <Button size="sm" className="ml-auto" disabled={!idle || busy} onClick={probe}>
-          Probe Z
-        </Button>
       </div>
       <p className="text-xs text-muted-foreground">
         Clip on, plate under the bit. Probes down with <code>G38.2</code> and sets Z zero to the plate thickness.

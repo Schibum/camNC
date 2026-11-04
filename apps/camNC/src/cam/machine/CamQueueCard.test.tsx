@@ -207,11 +207,11 @@ describe('the machine queue card', () => {
       rerender(view());
     };
     // The first board: nothing to compare with, it says which bit goes in, one zero step.
-    expect(card().getByText(/4\. Put in the ⌀2 mm bit, then zero Z/)).toBeTruthy();
+    expect(card().getByRole('region', { name: 'Bit' }).textContent).toMatch(/^Put in the ⌀2 mm bit.*Then zero Z on the spoilboard/);
     open('A:bit:1');
     expect(card().getByText(/Swap the bit to ⌀6 mm/)).toBeTruthy();
     open('B:bit:0');
-    expect(card().getByText(/4\. Swap the bit to ⌀3\.175 mm, then zero Z/)).toBeTruthy();
+    expect(card().getByRole('region', { name: 'Bit' }).textContent).toMatch(/^Swap the bit to ⌀3\.175 mm.*Then zero Z on the spoilboard/);
     open('B:free');
     expect(card().queryByText(/Swap the bit/)).toBeNull();
 

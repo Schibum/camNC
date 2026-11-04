@@ -3,7 +3,8 @@ import { Button } from '@wbcnc/ui/components/button';
 import { Checkbox } from '@wbcnc/ui/components/checkbox';
 import { cn } from '@wbcnc/ui/lib/utils';
 import { AlertTriangle, Check, RotateCcw, RotateCw, X } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { SetupStep } from '@/components/machine/SetupStep';
 import { Hint } from '../Hint';
 import { NumberInput } from '../NumberInput';
 import { clearMachineView, loadIntoMachineView } from '../showOnMachine';
@@ -92,6 +93,7 @@ export function CamQueueCard() {
   const gcode = current ? gcodeOf(current) : undefined;
   const shownDeg = current ? entryRotation(current, rotation) : 0;
   const busy = useMachineBusy();
+  const loadedGcode = useStore(s => s.toolpath?.gcode);
   // Planned again (a hold moved, the board turned), blocked, gone: what's loaded follows the active entry. Never while a
   // program runs or is paused partway: it follows once that's done.
   useEffect(() => {
@@ -129,9 +131,9 @@ export function CamQueueCard() {
   const onCamera = current?.flip?.registration === 'camera';
 
   return (
-    <section aria-label="CAM job" className="flex flex-col gap-3 rounded-lg border border-primary/40 bg-primary/5 p-3">
+    <section aria-label="CAM job" className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
-        <h3 className="text-sm font-semibold">CAM job{job ? `: ${job.name}` : ''}</h3>
+        <h3 className="truncate text-sm font-semibold">{job ? job.name : 'CAM job'}</h3>
         <span className="grow" />
         <Hint text="Closes the queue here. Which boards are done is forgotten; the job itself stays.">
           <Button size="icon" variant="ghost" className="size-6" aria-label="Leave the CAM job" onClick={leave}>
@@ -145,7 +147,7 @@ export function CamQueueCard() {
           {modelError}
         </p>
       )}
-      <ol className="flex flex-col gap-1 text-[13px]" aria-label="Board queue">
+      <ol className="flex flex-col gap-0.5 rounded-lg border p-1 text-[13px]" aria-label="Board queue">
         {queue.map(e => {
           const isDone = done.includes(e.doneId);
           const isNow = e === current;
@@ -154,8 +156,8 @@ export function CamQueueCard() {
               <button
                 onClick={() => load(e)}
                 className={cn(
-                  'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted',
-                  isNow && 'bg-background font-medium ring-1 ring-primary/50',
+                  'flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-muted',
+                  isNow && 'bg-primary/10 font-medium',
                   isDone && !isNow && 'text-muted-foreground'
                 )}>
                 <span className="w-4">
@@ -184,7 +186,7 @@ export function CamQueueCard() {
       </ol>
 
       {current && board && (
-        <div className="flex flex-col gap-2 border-t pt-3 text-[13px]">
+        <div className="flex flex-col gap-2 text-[13px]">
           {current.blocked && (
             <p
               role={current.kind === 'pending' ? 'status' : 'alert'}
@@ -197,7 +199,11 @@ export function CamQueueCard() {
             </p>
           )}
           {current.firstOfBoard && current.plan && (
-            <>
+            <SetupStep
+              state="todo"
+              label="Board"
+              title={`Board ${board.name} on the bed`}
+              summary={`${fmt(current.plan.size[0])} × ${fmt(current.plan.size[1])} × ${fmt(stockTopOf(board))} mm`}>
               <div className="flex flex-col gap-1.5">
                 <p>
                   <span className="font-medium">1. Measure the board’s thickness</span>
@@ -217,8 +223,7 @@ export function CamQueueCard() {
                 </div>
               </div>
               <p>
-                <span className="font-medium">2. Place board {board.name}</span> ({fmt(current.plan.size[0])} × {fmt(current.plan.size[1])}{' '}
-                mm, {fmt(stockTopOf(board))} mm thick) on the bed.
+                <span className="font-medium">2. Place it</span> on the bed.
               </p>
               <div className="flex flex-col gap-1.5">
                 <p>
@@ -233,23 +238,18 @@ export function CamQueueCard() {
                   works better? Drag the mark there, or add or remove marks in the top view: the program follows.
                 </p>
               )}
-              <p>
-                <span className="font-medium">
-                  {current.board.request?.holdPoints ? 5 : 4}. {swap ? `${swapText}, then zero Z` : 'Zero Z'}
-                </span>{' '}
-                on the spoilboard: Z0 is the bottom of the board (Zero section below).
-              </p>
-            </>
+              {!swap && <p className="text-muted-foreground">Z0 is the bottom of the board: zero Z on the spoilboard below.</p>}
+            </SetupStep>
           )}
           {current.kind === 'flip' && (
-            <div className="flex flex-col gap-1.5">
+            <SetupStep state="todo" label="Turn over" title={`Turn board ${board.name} over`} summary="top to bottom">
               <p>
-                <span className="font-medium">Turn board {board.name} over</span>, top to bottom (the front edge goes to the back):{' '}
+                The front edge goes to the back.{' '}
                 {current.flip?.registration === 'dowels'
-                  ? `put the ⌀${current.flip.dowelDiameter} dowel pins into the holes side A drilled, and drop the board onto them.`
+                  ? `Put the ⌀${current.flip.dowelDiameter} dowel pins into the holes side A drilled, and drop the board onto them.`
                   : current.flip?.registration === 'fence'
-                    ? 'push it against the fence and the stop again, as for side A.'
-                    : 'you’ll drag the dashed outline onto it in the camera view on the next step, with side B’s program loaded.'}
+                    ? 'Push it against the fence and the stop again, as for side A.'
+                    : 'You’ll drag the dashed outline onto it in the camera view on the next step, with side B’s program loaded.'}
               </p>
               <p>
                 <span className="font-medium">Refit the screws, clamps or tape</span> where side B needs them: they have to stay clear of
@@ -266,14 +266,11 @@ export function CamQueueCard() {
                   ? 'Z stays: it’s measured from the spoilboard.'
                   : 'Don’t touch the XY zero: side B is mirrored to it. Z stays: it’s measured from the spoilboard.'}
               </p>
-            </div>
+            </SetupStep>
           )}
           {current.kind === 'bit' && current.sideB && current.program === 0 && (
-            <>
-              <p>
-                <span className="font-medium">Side B</span> with the ⌀{current.plan.programs[0].diameter} mm bit: the parts’ undersides, not
-                cut through.
-              </p>
+            <SetupStep state="todo" label="Side B" title="Side B" summary={`⌀${current.plan.programs[0].diameter} mm, the undersides`}>
+              <p>The parts’ undersides, not cut through.</p>
               {onCamera && (
                 <div className="flex flex-col gap-1.5">
                   <p>
@@ -283,67 +280,81 @@ export function CamQueueCard() {
                   <RotationControl deg={deg} onTurn={turn} />
                 </div>
               )}
-            </>
+            </SetupStep>
           )}
-          {!current.firstOfBoard && swap && (
-            <p>
-              <span className="font-medium">{swapText}</span>, then zero Z again. Don’t move the board: XY stays.
-            </p>
-          )}
-          {current.kind === 'free' && current.board.request.holdDown === 'fixture-tape' && (
-            <p>
-              <span className="font-medium">Cut the parts free:</span> the last layer on the tape, for all parts in one go, smallest first.
-              No pauses: take the parts off the tape when it’s done.
-            </p>
-          )}
-          {current.kind === 'free' && current.board.request.holdDown !== 'fixture-tape' && (
-            <>
+          {swap && (
+            <SetupStep state="todo" label="Bit" title={swapText}>
               <p>
-                <span className="font-medium">Free the parts:</span> the program cuts one part’s bottom skin at a time, then lifts the bit,
-                stops the spindle and pauses. Take out the part ringed green in the camera view, then press Resume: the spindle starts again
-                before the next one. A router you switch by hand: switch it off at each pause, back on before Resume.
+                {current.firstOfBoard
+                  ? 'Then zero Z on the spoilboard below: Z0 is the bottom of the board.'
+                  : 'Then zero Z again below. Don’t move the board: XY stays.'}
               </p>
-              <p className="text-xs text-muted-foreground">Green ring: the part being freed, then taken out.</p>
-            </>
+            </SetupStep>
+          )}
+          {current.kind === 'free' && current.board.request?.holdDown === 'fixture-tape' && (
+            <SetupStep state="todo" label="Cut the parts free" title="Cut the parts free" summary="no pauses">
+              <p>The last layer on the tape, for all parts in one go, smallest first. Take the parts off the tape when it’s done.</p>
+            </SetupStep>
+          )}
+          {current.kind === 'free' && current.board.request?.holdDown !== 'fixture-tape' && (
+            <SetupStep
+              state="todo"
+              label="Free the parts"
+              title="Free the parts"
+              summary={current.release?.parts ? `one per pause, ${current.release.parts.length} parts` : 'one per pause'}>
+              <p>
+                Hold down the part ringed green while it’s cut free. At each pause, take out the amber one, hold down the next green one,
+                then Resume.
+              </p>
+              <HowItWorks>
+                The program cuts one part’s bottom skin at a time, then lifts the bit, stops the spindle and pauses. The spindle starts
+                again on Resume, before the next one. A router you switch by hand: switch it off at each pause, back on before Resume.
+              </HowItWorks>
+            </SetupStep>
           )}
           {current.kind === 'tabs' && (
-            <>
+            <SetupStep
+              state="todo"
+              label="Remove the tabs"
+              title="Remove the tabs"
+              summary={pauseEachTab ? 'a pause before each tab' : 'a pause per part'}>
               <p>
-                {pauseEachTab ? (
-                  <>
-                    <span className="font-medium">Remove the tabs:</span> the program lifts the bit, stops the spindle and pauses before
-                    each tab. Hold the part at the green ring in the camera view, away from the bit, then press Resume: the spindle starts
-                    again. A router you switch by hand: switch it off at each pause, back on before Resume.
-                  </>
-                ) : (
-                  <>
-                    <span className="font-medium">Remove the tabs:</span> the program cuts all of a part’s tabs in a row, the last one
-                    slower, then lifts the bit, stops the spindle and pauses. Take out the part, then press Resume: the spindle starts again
-                    before the next one. A router you switch by hand: switch it off at each pause, back on before Resume.
-                  </>
-                )}
+                {pauseEachTab
+                  ? 'At each pause, hold the part at the green ring, away from the bit, then Resume.'
+                  : 'At each pause, take out the part marked amber, then Resume.'}
               </p>
+              <HowItWorks>
+                {pauseEachTab
+                  ? 'The program lifts the bit, stops the spindle and pauses before each tab. The spindle starts again on Resume.'
+                  : 'The program cuts all of a part’s tabs in a row, the last one slower, then lifts the bit, stops the spindle and pauses. The spindle starts again on Resume, before the next part.'}{' '}
+                A router you switch by hand: switch it off at each pause, back on before Resume.
+              </HowItWorks>
               <label className="flex items-center gap-2 text-[13px]">
                 <Checkbox checked={pauseEachTab} onCheckedChange={v => setPauseEachTab(v === true)} aria-label="Pause after each tab" />
                 Pause after each tab
               </label>
-              <p className="text-xs text-muted-foreground">
-                {pauseEachTab ? 'Orange: next tab · Green ring: hold the part here' : 'Orange: the part’s tabs being cut'}
-              </p>
-            </>
+            </SetupStep>
           )}
-          {current.plan && current.kind !== 'flip' && <p className="text-muted-foreground">Then load and run it below. When it’s done:</p>}
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {current.plan && current.kind !== 'flip' && (
               <Hint text="Puts this program in the machine view, ready to run.">
-                <Button size="sm" variant="outline" disabled={!gcodeOf(current)} onClick={() => load(current)}>
+                <Button
+                  size="sm"
+                  variant={loadedGcode && loadedGcode === gcodeOf(current) ? 'outline' : 'default'}
+                  disabled={!gcodeOf(current)}
+                  onClick={() => load(current)}>
                   Load {current.kind === 'tabs' ? 'tab removal' : current.kind === 'free' ? 'parts freeing' : 'program'}
                 </Button>
               </Hint>
             )}
+            <span className="grow" />
             <Hint text="Marks this one as cut and loads the next program in the queue.">
               {/* Only for what could be loaded: a program not there yet, or blocked, wasn't cut. */}
-              <Button size="sm" disabled={!!current.blocked || !!stale?.has(current.board.board.id)} onClick={next}>
+              <Button
+                size="sm"
+                variant={current.kind === 'flip' ? 'default' : 'outline'}
+                disabled={!!current.blocked || !!stale?.has(current.board.board.id)}
+                onClick={next}>
                 {current.kind === 'flip' ? 'Turned over, next' : 'Done, next'}
               </Button>
             </Hint>
@@ -352,5 +363,22 @@ export function CamQueueCard() {
       )}
       {!current && queue.length > 0 && <p className="text-[13px]">All boards are cut.</p>}
     </section>
+  );
+}
+
+/** The long explanation of a guided program, folded. */
+function HowItWorks({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="flex flex-col gap-1">
+      <button
+        type="button"
+        className="self-start text-xs text-muted-foreground underline"
+        onClick={() => setOpen(o => !o)}
+        aria-expanded={open}>
+        How it works
+      </button>
+      {open && <p className="text-xs text-muted-foreground">{children}</p>}
+    </div>
   );
 }

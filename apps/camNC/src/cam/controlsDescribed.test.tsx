@@ -189,10 +189,12 @@ describe('CAM controls explain themselves', () => {
     const card = within(screen.getByRole('region', { name: 'CAM job' }));
     const box = card.getByRole('checkbox', { name: 'Pause after each tab' });
     expect(box.getAttribute('aria-checked')).toBe('false');
+    expect(card.getByText(/take out the part marked amber/)).toBeTruthy();
+    fireEvent.click(card.getByRole('button', { name: 'How it works' }));
     expect(card.getByText(/cuts all of a part’s tabs in a row/)).toBeTruthy();
     fireEvent.click(box);
     expect(useCamMachine.getState().pauseEachTab).toBe(true);
-    expect(card.getByText('Orange: next tab · Green ring: hold the part here')).toBeTruthy();
+    expect(card.getByText(/hold the part at the green ring, away from the bit/)).toBeTruthy();
   });
 
   it('the machine queue runs the guided program from the plan, and not while the board is planned again', () => {

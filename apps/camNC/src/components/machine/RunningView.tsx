@@ -5,12 +5,13 @@ import { pauseHint } from '@/lib/machine/pauseHints';
 import { useStore } from '@/store/store';
 import { Button } from '@wbcnc/ui/components/button';
 import { toast } from '@wbcnc/ui/components/sonner';
-import { Pause, Play, Square } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@wbcnc/ui/components/collapsible';
+import { cn } from '@wbcnc/ui/lib/utils';
+import { ChevronRight, Pause, Play, Square } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { AlarmCard } from './AlarmCard';
 import { OverridesPanel, PositionLine } from './controls';
 import { PauseSteps } from './PauseSteps';
-import { Section } from './SetupView';
 
 function formatDuration(ms: number) {
   const minutes = Math.round(ms / 60_000);
@@ -67,6 +68,30 @@ function HoldExplanation() {
   );
 }
 
+/** Overrides, folded to one line while all are at 100 %. */
+function OverridesFold() {
+  'use no memo';
+  const o = getCncApi().overrides.value;
+  const changed = o.feed !== 100 || o.spindle !== 100 || o.rapid !== 100;
+  const [open, setOpen] = useState(changed);
+  useEffect(() => {
+    if (changed) setOpen(true);
+  }, [changed]);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="flex flex-col gap-2">
+      <CollapsibleTrigger asChild>
+        <Button variant="ghost" size="sm" className="-ml-1 self-start px-1 text-muted-foreground">
+          <ChevronRight className={cn('transition-transform', open && 'rotate-90')} /> Overrides
+          <span className="font-mono text-xs">
+            feed {o.feed}% · spindle {o.spindle}% · rapids {o.rapid}%
+          </span>
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>{open && <OverridesPanel />}</CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 /** While a job runs: progress, pause/resume, stop and overrides. Jogging and zeroing are not possible now. */
 export function RunningView({ onShowConsole }: { onShowConsole?: () => void } = {}) {
   'use no memo';
@@ -112,9 +137,7 @@ export function RunningView({ onShowConsole }: { onShowConsole?: () => void } = 
         </Button>
       </div>
 
-      <Section title="Overrides">
-        <OverridesPanel />
-      </Section>
+      <OverridesFold />
 
       <PositionLine showFeed />
     </div>
