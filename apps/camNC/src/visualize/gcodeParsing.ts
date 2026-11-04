@@ -53,10 +53,30 @@ export interface Tool {
 }
 
 /**
- * G53 moves commented out, line numbers kept: the interpreter would read their machine coordinates as work
- * coordinates, a lift to G53 Z-5 as a dive to Z-5. They are not part of the path; the machine's travel check reads them.
+ * Omit G53 coordinates: the interpreter would read a machine-coordinate lift to Z-5 as a work-coordinate dive.
+ * Keep the rest of the block (especially modal G0/G1 and F) so subsequent moves are interpreted correctly.
+ * Comments and line numbers stay intact; the machine's travel check reads the original G-code.
  */
-const withoutMachineMoves = (gcode: string) => gcode.replace(/^(?=[^(;\n]*\bG53\b)(.*)$/gim, line => `(${line.replace(/[()]/g, '')})`);
+function withoutMachineMoves(gcode: string) {
+  return gcode.replace(/[^\r\n]+/g, line => {
+    const pieces = line.split(/(\([^)]*\)|;.*$)/);
+    const word = /([a-z])\s*([+-]?(?:\d+\.?\d*|\.\d+))/gi;
+    const isMachineMove = pieces.some(
+      (piece, i) =>
+        i % 2 === 0 && [...piece.matchAll(word)].some(([, letter, value]) => letter.toUpperCase() === 'G' && Number(value) === 53)
+    );
+    if (!isMachineMove) return line;
+    return pieces
+      .map((piece, i) =>
+        i % 2
+          ? piece
+          : piece.replace(word, (match, letter: string, value: string) =>
+              /[XYZ]/i.test(letter) || (letter.toUpperCase() === 'G' && Number(value) === 53) ? '' : match
+            )
+      )
+      .join('');
+  });
+}
 
 /**
  * Parse GCode string into toolpath segments
