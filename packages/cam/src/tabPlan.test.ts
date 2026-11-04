@@ -199,10 +199,15 @@ describe('tab placement', () => {
     const pauses = lines.flatMap((l, i) => (l.startsWith('M0 (MSG Take out') ? [i] : []));
     expect(pauses).toHaveLength(2);
     for (const i of pauses) {
-      // Spindle off right before, the bit at safe height (Z13 = stock top 8 + 5).
-      expect(lines[i - 1]).toBe('M5');
-      expect(lines[i - 2]).toMatch(/Z13$/);
+      // Spindle off right before the marker, the bit at safe height (Z13 = stock top 8 + 5).
+      expect(lines[i - 2]).toBe('M5');
+      expect(lines[i - 3]).toMatch(/Z13$/);
     }
+    // Each pause names the part to take out and the one freed after Resume: that's the one to hold down.
+    expect(pauses.map(i => lines[i - 1])).toEqual([
+      '(CAMNC PAUSE take-out; n=1/2; part=a; next=b)',
+      '(CAMNC PAUSE take-out; n=2/2; part=b)',
+    ]);
     // Between the pause and the next cut: spindle on and a dwell first, no XY move while paused.
     const after = lines.slice(pauses[0] + 1, pauses[0] + 3);
     expect(after).toEqual(['M3 S15000', 'G4 P3']);

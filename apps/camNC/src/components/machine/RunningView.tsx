@@ -9,6 +9,7 @@ import { Pause, Play, Square } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { AlarmCard } from './AlarmCard';
 import { OverridesPanel, PositionLine } from './controls';
+import { PauseSteps } from './PauseSteps';
 import { Section } from './SetupView';
 
 function formatDuration(ms: number) {
@@ -47,6 +48,8 @@ function HoldExplanation() {
   if (status?.state === 'Hold' && status.subState === 1) {
     return <p className="text-sm rounded-md bg-amber-100 text-amber-900 p-2">Pausing… the machine is slowing down.</p>;
   }
+  // One of our own pauses: steps, no line numbers or quoted messages.
+  if (hint?.marker) return <PauseSteps marker={hint.marker} line={hint.line} />;
   return (
     <div className="text-sm rounded-md bg-amber-100 text-amber-900 p-2 flex flex-col gap-1" data-testid="hold-explanation">
       {hint ? (

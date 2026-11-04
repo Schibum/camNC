@@ -123,6 +123,8 @@ export interface Operation {
   title?: string;
   /** Pause (M0) after this operation with this message, the spindle off and the bit up (e.g. "take the part out"). */
   pauseAfter?: string;
+  /** The part this operation frees or cuts the tabs of: named in the pause marker (`pauseMarker`) for the machine view. */
+  part?: string;
 }
 
 export interface PartCam {

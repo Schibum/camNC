@@ -77,3 +77,26 @@ describe('pauses close together (guided tab removal)', () => {
     }
   });
 });
+
+describe('camNC’s own pauses', () => {
+  const free = [
+    '(camNC CAM)',
+    'G0 Z13',
+    'M5',
+    '(CAMNC PAUSE take-out; n=2/5; part=Part 1b; next=Part 2)',
+    'M0 (MSG Take out Part 1b, then continue. Manual spindle: off now, on before Resume)',
+    'M3 S18000',
+    'G4 P3',
+    ...Array.from({ length: 500 }, (_, i) => `G1 X${i % 100} Y${i % 50} F1800`),
+  ].join('\n');
+
+  it('carry what the pause is for from the marker before the M0', () => {
+    const hint = pauseHint(free, percentAfter(free, 'MSG Take out'));
+    expect(hint?.line).toBe(5);
+    expect(hint?.marker).toEqual({ kind: 'take-out', n: 2, of: 5, part: 'Part 1b', next: 'Part 2' });
+  });
+
+  it('other programs have no marker', () => {
+    expect(pauseHint(fusion, percentAfter(fusion, 'Turn ON'))?.marker).toBeUndefined();
+  });
+});

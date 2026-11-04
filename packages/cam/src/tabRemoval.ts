@@ -66,6 +66,7 @@ export function tabRemovalProgram(
         feature: 'outline',
         tool: op.tool,
         passes: [pass],
+        part,
       });
     }
     if (opts.perPart && passes.length)
@@ -76,6 +77,7 @@ export function tabRemovalProgram(
         tool: op.tool,
         passes,
         pauseAfter: `Take out ${part}, then continue`,
+        part,
       });
   }
   if (opts.perPart) return { cam: { stockTop: cam.stockTop, safeZ: cam.safeZ, retractZ: cam.retractZ, operations, warnings: [] }, tabs };

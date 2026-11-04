@@ -397,7 +397,7 @@ export function freePartsProgram(
       tool: op.tool,
       // Through the skin once: finalZ already goes past the bottom, a second lap at the same depth cuts nothing.
       passes,
-      ...(pause && { pauseAfter: `Take out ${name}, then continue` }),
+      ...(pause && { pauseAfter: `Take out ${name}, then continue`, part: name }),
     });
     const xs = pts.map(q => q[0]),
       ys = pts.map(q => q[1]);

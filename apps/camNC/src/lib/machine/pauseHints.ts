@@ -1,3 +1,5 @@
+import { parsePauseMarker, type PauseMarker } from '@wbcnc/cam/pauseMarker';
+
 /** Why a job is paused and what Resume will do, from the uploaded G-code and FluidNC's SD progress. */
 export interface PauseHint {
   /** E.g. "The program paused (M0): Turn ON 30000RPM". */
@@ -6,6 +8,8 @@ export interface PauseHint {
   next: string | null;
   /** 1-based line of the pausing command. */
   line: number;
+  /** In a program camNC generated: what the pause is for (`(CAMNC PAUSE …)` on the line before). */
+  marker?: PauseMarker;
 }
 
 const kPause = /\b(M0?0|M0?1|M60|M0?6)\b/i;
@@ -93,5 +97,6 @@ export function pauseHint(gcode: string, percent: number): PauseHint | null {
   const kind = command === 'M6' ? 'tool change (M6)' : command === 'M1' ? 'optional stop (M1)' : `program pause (${command})`;
   const reason = `The job stopped at a ${kind} on line ${best + 1}${message ? `: “${message}”` : ''}.`;
   const next = command === 'M6' ? describeNext([line], 0, gcode) : describeNext(lines, best + 1, gcode);
-  return { reason, next, line: best + 1 };
+  const marker = best > 0 ? parsePauseMarker(lines[best - 1]!.comment) : null;
+  return { reason, next, line: best + 1, ...(marker && { marker }) };
 }

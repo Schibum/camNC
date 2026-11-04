@@ -1,5 +1,6 @@
 import type { Vec3 } from './geom';
-import type { PartCam, Tool } from './toolpaths';
+import { pauseMarker, type PauseMarker } from './pauseMarker';
+import type { Operation, PartCam, Tool } from './toolpaths';
 
 type P2 = { x: number; y: number };
 export type Prim = { type: 'line'; to: P2 } | { type: 'arc'; to: P2; c: P2; cw: boolean };
@@ -181,23 +182,32 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
     spindleOff = false;
   };
   /** Bit up and spindle off before anyone reaches in; nothing moves until Resume. */
-  const pause = (message: string, manual: string) => {
+  const pause = (message: string, manual: string, marker: PauseMarker | null) => {
     move('G0', { z: safeZ });
     const room = kMaxGcodeLine - 'M0 (MSG . )'.length - manual.length;
-    out.push('M5', `M0 (MSG ${commentText(message, room)}. ${manual})`);
+    out.push('M5', ...(marker ? [pauseMarker(marker)] : []), `M0 (MSG ${commentText(message, room)}. ${manual})`);
     spindleOff = true;
   };
+  // Pauses are counted per kind, for "2 of 5" and to name the part freed after the next Resume.
+  const takeOuts = cam.operations.filter(o => o.pauseAfter);
+  const tabStops = cam.operations.filter(o => o.pauseBefore);
+  const takeOutMarker = (op: Operation): PauseMarker | null => {
+    const n = takeOuts.indexOf(op);
+    return op.part ? { kind: 'take-out', n: n + 1, of: takeOuts.length, part: op.part, next: takeOuts[n + 1]?.part } : null;
+  };
+  const tabMarker = (op: Operation): PauseMarker | null =>
+    op.part ? { kind: 'tab', n: tabStops.indexOf(op) + 1, of: tabStops.length, part: op.part } : null;
 
   move('G0', { z: safeZ });
   // Confirm before the spindle starts; a spindle the machine doesn't control (a router) is switched on here. A program
   // that begins with a pause confirms there: no spinning up just to stop again.
   if (!cam.operations[0]?.pauseBefore) {
-    out.push(`M0 (MSG Spindle starts at ${rpm} RPM next. Manual spindle: turn it on now)`);
+    out.push(pauseMarker({ kind: 'start', rpm }), `M0 (MSG Spindle starts at ${rpm} RPM next. Manual spindle: turn it on now)`);
     spindleOn();
   }
 
   cam.operations.forEach((op, oi) => {
-    if (op.pauseBefore) pause(op.pauseBefore, kManualOffOn);
+    if (op.pauseBefore) pause(op.pauseBefore, kManualOffOn, tabMarker(op));
     spindleOn();
     // Markers for the job view: which operation and pass the machine is in.
     const [opHead, opTail] = [`(OP ${oi + 1}/${cam.operations.length} `, ` - T${op.tool.number} D=${fmt(op.tool.diameter)})`];
@@ -259,13 +269,13 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
       }
     });
     // After the last operation the program only parks: nothing to switch back on for.
-    if (op.pauseAfter) pause(op.pauseAfter, oi < cam.operations.length - 1 ? kManualOffOn : kManualOff);
+    if (op.pauseAfter) pause(op.pauseAfter, oi < cam.operations.length - 1 ? kManualOffOn : kManualOff, takeOutMarker(op));
   });
   move('G0', { z: safeZ });
   out.push('M5');
   move('G0', { x: 0, y: 0 });
   // M5 did nothing on a router switched by hand: parked, say so. Not after a last pause that already did.
-  if (!cam.operations.at(-1)?.pauseAfter) out.push(`M0 (MSG Program done. ${kManualOff})`);
+  if (!cam.operations.at(-1)?.pauseAfter) out.push(pauseMarker({ kind: 'done' }), `M0 (MSG Program done. ${kManualOff})`);
   out.push('M30');
   return out.join('\n') + '\n';
 }

@@ -108,8 +108,10 @@ describe('at the machine', () => {
     expect(lines.indexOf('M3 S15000')).toBeGreaterThan(lines.indexOf(pauses[0]));
     for (const pause of pauses) {
       const i = lines.indexOf(pause);
-      expect(lines[i - 2]).toMatch(/Z13$/);
-      expect(lines[i - 1]).toBe('M5');
+      expect(lines[i - 3]).toMatch(/Z13$/);
+      expect(lines[i - 2]).toBe('M5');
+      // What the pause is for, for the machine view.
+      expect(lines[i - 1]).toMatch(new RegExp(`^\\(CAMNC PAUSE tab; n=${pauses.indexOf(pause) + 1}/${tabs.length}; part=side\\)$`));
       expect(lines.slice(i + 1, i + 3)).toEqual(['M3 S15000', 'G4 P3']);
     }
     for (const t of tabs) {
@@ -141,9 +143,10 @@ describe('at the machine', () => {
     // The last pause only leaves the parking move: a hand-switched spindle stays off.
     expect(lines[pauses[0]]).toBe('M0 (MSG Take out side, then continue. Manual spindle: off now)');
     for (const i of pauses) {
-      // Bit up (stock top 8 + 5), spindle off.
-      expect(lines[i - 1]).toBe('M5');
-      expect(lines[i - 2]).toMatch(/Z13$/);
+      // Bit up (stock top 8 + 5), spindle off, then what the pause is for.
+      expect(lines[i - 1]).toMatch(/^\(CAMNC PAUSE take-out; n=\d+\/\d+; part=side/);
+      expect(lines[i - 2]).toBe('M5');
+      expect(lines[i - 3]).toMatch(/Z13$/);
     }
     // Per part: every tab at the full feed but the last one, which frees the part.
     const feeds = removal.operations.map(o => o.passes.map(p => p.feeds[1]));
