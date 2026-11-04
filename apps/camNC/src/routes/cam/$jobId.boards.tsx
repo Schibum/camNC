@@ -395,7 +395,7 @@ function BoardsStep() {
 /** Auto-fill's objective: value, label, what it costs. */
 const kObjectives = [
   ['boards', 'Fewest boards', 'Fewer setups at the machine, may waste a bit more wood.'],
-  ['wood', 'Least wood', 'Least sheet area, may need more boards.'],
+  ['wood', 'Least wood', 'Least board area, may need more boards.'],
 ] as const;
 
 const unpinned = (board: BoardV1, itemId: string) => (board.pinned ?? []).filter(i => i !== itemId);

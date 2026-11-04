@@ -606,7 +606,7 @@ function Checks({ plan, checked, releaseSafety }: { plan: PlanResult; checked: b
       {skins.length > 0 && plan.taped && (
         <p className="text-muted-foreground">
           Every outline stops {plan.skin ?? 0.5} mm above the bottom, so the parts stay on the tape while the board is cut. The last
-          program, “Cut free”, cuts that layer for all parts together, smallest first.
+          program, “Cut the parts free”, cuts the skin for all parts together, smallest first.
         </p>
       )}
       {skins.length > 0 && !plan.taped && (
@@ -615,7 +615,7 @@ function Checks({ plan, checked, releaseSafety }: { plan: PlanResult; checked: b
           {plan.hold
             ? `${skins.map(h => h.name).join(', ')}: no edge where tabs would hold, so ${skins.length === 1 ? 'it keeps' : 'they keep'} a ${plan.skin ?? 1} mm bottom skin.`
             : `Every part keeps a ${plan.skin ?? 1} mm bottom skin, so nothing comes loose while the board is cut.`}{' '}
-          At the machine, “Free parts” cuts {skins.length === 1 ? 'it' : 'them'} free one at a time.
+          At the machine, the “Cut the parts free” step cuts {skins.length === 1 ? 'it' : 'them'} free one at a time.
         </p>
       )}
       {!checked ? null : failed.length === 0 ? (

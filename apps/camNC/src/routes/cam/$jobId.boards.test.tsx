@@ -256,7 +256,7 @@ describe('CAM boards step', () => {
     expect(description(group.getByRole('button', { name: 'Fewest boards' }))).toBe(
       'Fewer setups at the machine, may waste a bit more wood.'
     );
-    expect(description(group.getByRole('button', { name: 'Least wood' }))).toBe('Least sheet area, may need more boards.');
+    expect(description(group.getByRole('button', { name: 'Least wood' }))).toBe('Least board area, may need more boards.');
     expect(description(screen.getByRole('button', { name: 'More layout actions' }))).toMatch(/re-lay out everything/);
     expect(description(screen.getByRole('button', { name: 'Auto-fill from stock' }))).toMatch(/stock list/);
     expect(screen.getByRole('status', { name: 'Layout result' }).textContent).toMatch(/^2 boards, \d+ % yield$/);

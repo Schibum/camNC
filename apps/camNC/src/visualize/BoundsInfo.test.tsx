@@ -59,6 +59,6 @@ describe('BoundsInfo without a camera', () => {
     camera.ready = false;
     const { container } = render(<BoundsInfo />);
     expect(container.textContent).not.toContain('PnP');
-    expect(container.textContent).toContain('No toolpath loaded');
+    expect(container.textContent).toContain('No program loaded');
   });
 });

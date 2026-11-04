@@ -61,13 +61,13 @@ describe('CAM controls explain themselves', () => {
         <BoardInspector board={board} nest={nest} stock={[]} bit={3.175} onChange={() => {}} onRelayout={() => {}} />
       </TooltipProvider>
     );
-    expect(description(screen.getByRole('radio', { name: 'Tape or fixture' }))).toMatch(/thin layer/);
+    expect(description(screen.getByRole('radio', { name: 'Tape or fixture' }))).toMatch(/thin bottom skin/);
     expect(description(screen.getByRole('radio', { name: 'Screws or clamps' }))).toMatch(/needs 3 around it/);
     expect(description(screen.getByRole('radio', { name: 'Nothing (I watch them)' }))).toMatch(/free once its outline/);
     expect(description(screen.getByLabelText('Size ⌀'))).toMatch(/screw head/);
     expect(description(screen.getByRole('radio', { name: 'Tabs' }))).toMatch(/bridges hold each part/);
     expect(description(screen.getByRole('radio', { name: 'Tabs + guided removal' }))).toMatch(/stops at each tab/);
-    expect(description(screen.getByRole('radio', { name: 'Bottom skin + guided freeing' }))).toMatch(/cuts them free one at a time/);
+    expect(description(screen.getByRole('radio', { name: 'Bottom skin + guided removal' }))).toMatch(/cuts them free one at a time/);
     expect(description(screen.getByLabelText('Edge margin'))).toMatch(/border inside the board edge/);
     expect(description(screen.getByLabelText('Gap between parts'))).toMatch(/outline cuts never meet/);
     expect(description(screen.getByLabelText('Stock thickness'))).toMatch(/caliper/);
@@ -188,7 +188,7 @@ describe('CAM controls explain themselves', () => {
       </TooltipProvider>
     );
     const card = within(screen.getByRole('region', { name: 'CAM job' }));
-    const box = card.getByRole('checkbox', { name: 'Pause after each tab' });
+    const box = card.getByRole('checkbox', { name: 'Pause before each tab' });
     expect(box.getAttribute('aria-checked')).toBe('false');
     expect(card.getByText(/take out the part marked amber/)).toBeTruthy();
     fireEvent.click(card.getByRole('button', { name: 'How it works' }));

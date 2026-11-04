@@ -75,7 +75,7 @@ function JobStep() {
     <SetupStep
       label="Job"
       state={hasToolpath && stockHeight > 0 ? 'done' : 'todo'}
-      title={<span className="truncate">{hasToolpath ? (name ?? 'G-code loaded') : 'Open a G-code file'}</span>}
+      title={<span className="truncate">{hasToolpath ? (name ?? 'Program loaded') : 'Open a G-code file'}</span>}
       summary={hasToolpath && stockHeight > 0 ? `stock ${stockHeight} mm` : undefined}
       action={
         <Button size="sm" variant="outline" onClick={openGcodeFile}>

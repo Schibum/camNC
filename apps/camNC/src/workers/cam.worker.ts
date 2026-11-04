@@ -267,7 +267,7 @@ function releasePrograms(flat: PartCam, board: BoardRequest, settings: Partial<C
     });
     add(
       'free',
-      taped ? 'Cut free' : 'Free the parts',
+      'Cut the parts free',
       n => (taped ? 'No pauses: take the parts off the tape at the end' : pauses(n, n === 1 ? 'take out the part' : 'take out each part')),
       turnCam(program.cam, turn),
       board.skin ?? (taped ? kTapeLayer : kDefaultSkin),

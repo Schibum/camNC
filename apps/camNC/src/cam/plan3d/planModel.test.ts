@@ -71,11 +71,11 @@ describe('guided programs after the cutting', () => {
       'M0 (MSG Take out b, then continue)',
       'M30',
     ].join('\n');
-    const program = { kind: 'free' as const, title: 'Free the parts', note: '2 pauses: take out each part' };
+    const program = { kind: 'free' as const, title: 'Cut the parts free', note: '2 pauses: take out each part' };
     const release = [
       {
         kind: 'free',
-        title: 'Free the parts',
+        title: 'Cut the parts free',
         gcode,
         timeMin: 1,
         tool: 7,
@@ -96,7 +96,7 @@ describe('guided programs after the cutting', () => {
     expect(m.ops).toHaveLength(without.ops.length + 2);
     expect(m.summaries).toHaveLength(m.ops.length);
     // One row for both laps, last.
-    expect(m.groups.at(-1)!.label).toBe('Free the parts');
+    expect(m.groups.at(-1)!.label).toBe('Cut the parts free');
     expect(m.ops.at(-1)!.group).toBe(m.groups.length - 1);
     expect(m.ops.at(-2)!.group).toBe(m.groups.length - 1);
     expect(m.ops.at(-2)!.start).toBeGreaterThanOrEqual(without.total);

@@ -83,7 +83,7 @@ function NumberField({
 const kBoardHoldHints: Record<BoardHold, string> = {
   points:
     'Screw the board to the spoilboard, or clamp it, at the spots shown on the board (suggested clear of every cut; drag one to move it). Each piece of the board that stays after the cuts needs 3 around it, so it can’t turn or lift.',
-  tape: 'The board sits in a fixture or on double-sided tape. Every outline stops a thin layer above the bottom; the last program cuts that layer for all parts together, smallest first, once everything else is done.',
+  tape: 'The board sits in a fixture or on double-sided tape. Every outline stops a thin bottom skin above the bottom; the last program cuts the skin for all parts together, smallest first, once everything else is done.',
 };
 
 const kHoldDownHints: Record<keyof typeof kHoldDownLabels, string> = {
@@ -452,7 +452,7 @@ export function BoardInspector({
         {held === 'tape' && tabHold && onTabHold && (
           <NumberField
             id="tape-layer"
-            label="Layer on the tape (mm)"
+            label="Bottom skin (mm)"
             hint="How much of the board’s bottom stays under the parts until the last program cuts it. Thin is enough: the tape holds."
             value={tabHold.skin ?? 0.5}
             onCommit={skin => onTabHold({ ...tabHold, skin })}
@@ -522,7 +522,7 @@ export function BoardInspector({
             {tabHold.fallback === 'skin' && (
               <NumberField
                 id="skin"
-                label="Skin (mm)"
+                label="Bottom skin (mm)"
                 hint="How much of the board's bottom stays under such a part until it's freed at the machine."
                 value={tabHold.skin ?? 1}
                 onCommit={skin => onTabHold({ ...tabHold, skin })}
@@ -598,7 +598,7 @@ export function BoardInspector({
           )}
           {flip !== 'off' && !tabs && (
             <p className="text-xs text-amber-700 dark:text-amber-400">
-              Turning the board over needs its parts still in it: choose Tabs as hold-down, or the cut-out parts fall out.
+              Turning the board over needs its parts still in it: choose Tabs under Parts held by, or the cut-out parts fall out.
             </p>
           )}
         </section>

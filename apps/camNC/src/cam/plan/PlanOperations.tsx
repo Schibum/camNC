@@ -218,8 +218,8 @@ function ProgramNumbers({ group, seconds }: { group: PlanOpGroup; seconds: numbe
       </dl>
       {op.program?.kind === 'tabs' && (
         <label className="flex items-center gap-2 text-xs">
-          <Checkbox checked={pauseEachTab} onCheckedChange={v => setPauseEachTab(v === true)} aria-label="Pause after each tab" />
-          Pause after each tab
+          <Checkbox checked={pauseEachTab} onCheckedChange={v => setPauseEachTab(v === true)} aria-label="Pause before each tab" />
+          Pause before each tab
         </label>
       )}
     </>

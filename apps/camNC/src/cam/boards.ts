@@ -177,7 +177,7 @@ export const kBoardHoldLabels: Record<BoardHold, string> = {
 export const kHoldDownLabels = {
   tabs: 'Tabs',
   'tabs-guided': 'Tabs + guided removal',
-  skin: 'Bottom skin + guided freeing',
+  skin: 'Bottom skin + guided removal',
   none: 'Nothing (I watch them)',
 } as const;
 

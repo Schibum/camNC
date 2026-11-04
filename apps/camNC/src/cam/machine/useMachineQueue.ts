@@ -6,7 +6,7 @@ import { currentEntry, machineQueue, useCamMachine } from './camMachine';
 
 /**
  * The CAM job at the machine: its queue (programs with each board's rotation baked in) and the active entry. All
- * programs come from the board's plan. While a board is planned again (turned, or "Pause after each tab" changed) its
+ * programs come from the board's plan. While a board is planned again (turned, or "Pause before each tab" changed) its
  * entries stay in the queue, but its programs can't be loaded: see `stale`. A board not planned yet, or whose plan
  * failed, stays in it too, as one entry saying so; one that fails a check has `blocked` on its entries.
  */

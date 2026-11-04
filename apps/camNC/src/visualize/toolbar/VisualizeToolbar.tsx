@@ -64,7 +64,7 @@ function AddCameraButton() {
 }
 
 function OpenFileButton() {
-  return <TooltipIconButton label="Open gcode File" icon={<FolderOpen />} shortcut="o" onClick={openGcodeFile} />;
+  return <TooltipIconButton label="Open G-code file" icon={<FolderOpen />} shortcut="o" onClick={openGcodeFile} />;
 }
 
 function ToolDiameterButton({ onClick }: { onClick: () => void }) {

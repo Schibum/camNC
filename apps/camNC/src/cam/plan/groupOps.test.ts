@@ -18,11 +18,11 @@ const op = (label: string, over: Partial<OpSummary> = {}): OpSummary => ({
 
 describe('guided programs', () => {
   it('are one row, whatever each step is called', () => {
-    const program = { kind: 'free' as const, title: 'Free the parts', note: '2 pauses: take out each part' };
-    const rows = groupOps([op('hole'), op('a · Free from the skin', { program }), op('b · Free from the skin', { program, timeMin: 1 })]);
+    const program = { kind: 'free' as const, title: 'Cut the parts free', note: '2 pauses: take out each part' };
+    const rows = groupOps([op('hole'), op('a · Cut free', { program }), op('b · Cut free', { program, timeMin: 1 })]);
     expect(rows.map(r => [r.label, r.count, r.note])).toEqual([
       ['hole', 1, undefined],
-      ['Free the parts', 2, program.note],
+      ['Cut the parts free', 2, program.note],
     ]);
     expect(rows[1].timeMin).toBe(1.5);
   });

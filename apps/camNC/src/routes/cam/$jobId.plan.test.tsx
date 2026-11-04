@@ -310,7 +310,7 @@ describe('CAM plan step', () => {
     // Arrow keys move between the tabs.
     fireEvent.keyDown(sidebarTab('Settings'), { key: 'ArrowRight' });
     expect(sidebarTab('Operations').getAttribute('aria-selected')).toBe('true');
-    expect((await screen.findByText(/1 mm bottom skin/, {}, { timeout: 60_000 })).textContent).toMatch(/^back: .*Free parts/);
+    expect((await screen.findByText(/1 mm bottom skin/, {}, { timeout: 60_000 })).textContent).toMatch(/^back: .*Cut the parts free/);
     // Held by the skin: nothing comes loose, nothing blocks.
     expect(screen.queryByText(/tabs would hold it/)).toBeNull();
     await waitFor(() => expect(screen.getByRole('button', { name: /Take the job to the machine/ })).toHaveProperty('disabled', false), {

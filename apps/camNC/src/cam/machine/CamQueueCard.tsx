@@ -293,14 +293,14 @@ export function CamQueueCard() {
           )}
           {current.kind === 'free' && current.board.request?.holdDown === 'fixture-tape' && (
             <SetupStep state="todo" label="Cut the parts free" title="Cut the parts free" summary="no pauses">
-              <p>The last layer on the tape, for all parts in one go, smallest first. Take the parts off the tape when it’s done.</p>
+              <p>Cuts the bottom skin of all parts in one go, smallest first. Take the parts off the tape when it’s done.</p>
             </SetupStep>
           )}
           {current.kind === 'free' && current.board.request?.holdDown !== 'fixture-tape' && (
             <SetupStep
               state="todo"
-              label="Free the parts"
-              title="Free the parts"
+              label="Cut the parts free"
+              title="Cut the parts free"
               summary={current.release?.parts ? `one per pause, ${current.release.parts.length} parts` : 'one per pause'}>
               <p>
                 Hold down the part ringed green while it’s cut free. At each pause, take out the amber one, hold down the next green one,
@@ -330,8 +330,8 @@ export function CamQueueCard() {
                 A router you switch by hand: switch it off at each pause, back on before Resume.
               </HowItWorks>
               <label className="flex items-center gap-2 text-[13px]">
-                <Checkbox checked={pauseEachTab} onCheckedChange={v => setPauseEachTab(v === true)} aria-label="Pause after each tab" />
-                Pause after each tab
+                <Checkbox checked={pauseEachTab} onCheckedChange={v => setPauseEachTab(v === true)} aria-label="Pause before each tab" />
+                Pause before each tab
               </label>
             </SetupStep>
           )}

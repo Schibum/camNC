@@ -88,15 +88,15 @@ describe('CAM plan step, the guided programs after the cutting', () => {
     // Seen once under load with 6 pauses: if it comes back, say which parts it was.
     const taken = (plans.last[0] as PlanResult).release?.[0]?.gcode.match(/^M0 \(MSG Take out [^,]*/gm);
     expect(items.at(-1)!.textContent, JSON.stringify(taken)).toMatch(
-      /After the cutting.*Free the parts.*⌀3\.175 · \d+:\d\d sim.*5 pauses: take out each part/
+      /After the cutting.*Cut the parts free.*⌀3\.175 · \d+:\d\d sim.*5 pauses: take out each part/
     );
-    expect(items.filter(li => li.textContent!.includes('Free'))).toHaveLength(1);
+    expect(items.filter(li => /free/i.test(li.textContent!))).toHaveLength(1);
 
     const view = screen.getByRole('region', { name: /^3D view of board/ });
     expect(within(view).getAllByRole('img', { name: /^Pause: Take out / })).toHaveLength(5);
     // A band per lap, in the row's colour, and selecting the row frames them.
     fireEvent.click(within(items.at(-1)!).getAllByRole('button')[0]);
-    expect(within(view).getByText(/^Free the parts: solid where it has cut/)).toBeTruthy();
+    expect(within(view).getByText(/^Cut the parts free: solid where it has cut/)).toBeTruthy();
     expect(within(items.at(-1)!).getByText(/without the pauses/)).toBeTruthy();
 
     const a = plans.last[0] as PlanResult;
@@ -116,7 +116,7 @@ describe('CAM plan step, the guided programs after the cutting', () => {
     });
   }, 120_000);
 
-  it('tab removal follows "Pause after each tab": changing it plans again', async () => {
+  it('tab removal follows "Pause before each tab": changing it plans again', async () => {
     useCamMachine.setState({ pauseEachTab: true });
     await open(stepUrl, 'kinderregal-eiche.step', b => ({ ...b, holdDown: 'tabs-guided' }));
     const list = await opList();
@@ -128,7 +128,7 @@ describe('CAM plan step, the guided programs after the cutting', () => {
     );
     expect(list).toBeTruthy();
     fireEvent.click(within(tabs()).getAllByRole('button')[0]);
-    fireEvent.click(within(tabs()).getByRole('checkbox', { name: 'Pause after each tab' }));
+    fireEvent.click(within(tabs()).getByRole('checkbox', { name: 'Pause before each tab' }));
     expect(useCamMachine.getState().pauseEachTab).toBe(false);
     await waitFor(() => expect(tabs().textContent).toContain('5 pauses: take out each part'), { timeout: 30_000 });
     const planned = (plans.last[0] as PlanResult).release![0];
@@ -140,7 +140,7 @@ describe('CAM plan step, the guided programs after the cutting', () => {
   it('taped down: the layer on the tape is planned too, no pauses', async () => {
     await open(stepUrl, 'kinderregal-eiche.step', b => ({ ...b, holdDown: 'fixture-tape', boardHold: 'tape', holdPoints: [] }));
     const list = await opList();
-    expect(row(list, /Cut free/)!.textContent).toContain('No pauses: take the parts off the tape at the end');
+    expect(row(list, /Cut the parts free/)!.textContent).toContain('No pauses: take the parts off the tape at the end');
     expect(within(screen.getByRole('region', { name: /^3D view of board/ })).queryAllByRole('img', { name: /^Pause: / })).toHaveLength(0);
     const [cut] = (plans.last[0] as PlanResult).release!;
     expect(cut.pauses).toBe(0);
@@ -156,9 +156,9 @@ describe('CAM plan step, the guided programs after the cutting', () => {
     }));
     const sides = await screen.findByRole('group', { name: 'Board side' }, { timeout: 90_000 });
     // Side A: not yet.
-    expect(row(await opList(), /Free the parts/)).toBeUndefined();
+    expect(row(await opList(), /Cut the parts free/)).toBeUndefined();
     fireEvent.click(within(sides).getByRole('button', { name: 'Side B (turned over)' }));
-    await waitFor(() => expect(row(screen.getByRole('list', { name: 'Operations for board A' }), /Free the parts/)).toBeTruthy());
+    await waitFor(() => expect(row(screen.getByRole('list', { name: 'Operations for board A' }), /Cut the parts free/)).toBeTruthy());
 
     const a = plans.last[0] as PlanResult;
     const [free] = a.release!;
@@ -183,11 +183,11 @@ describe('CAM plan step, the guided programs after the cutting', () => {
   it('a guided program that breaks a safety rule blocks the job and flags the Operations tab; warnings get an amber mark', async () => {
     plans.tamper = p => {
       const plan = p as PlanResult;
-      return { ...plan, release: plan.release?.map(r => ({ ...r, safety: ['Free the parts: move to Z-9 is below -0.3'] })) };
+      return { ...plan, release: plan.release?.map(r => ({ ...r, safety: ['Cut the parts free: move to Z-9 is below -0.3'] })) };
     };
     await open(stepUrl, 'kinderregal-eiche.step', b => ({ ...b, holdDown: 'skin', holdPoints: [] }));
     await opList();
-    expect(screen.getByText('Free the parts: move to Z-9 is below -0.3')).toBeTruthy();
+    expect(screen.getByText('Cut the parts free: move to Z-9 is below -0.3')).toBeTruthy();
     expect(screen.queryByText(/Safety checks passed/)).toBeNull();
     expect(screen.getByRole('button', { name: /Take the job to the machine/ })).toHaveProperty('disabled', true);
     // Red from the Settings tab too.

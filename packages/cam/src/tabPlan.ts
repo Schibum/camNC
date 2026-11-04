@@ -393,7 +393,7 @@ export function freePartsProgram(
     });
     const pts = passes[0].pts;
     ops.push({
-      name: pause ? `${name}: Free from the skin` : `${name}: Cut free`,
+      name: `${name}: Cut free`,
       kind: 'profile',
       feature: 'outline',
       tool: op.tool,

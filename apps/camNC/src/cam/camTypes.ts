@@ -62,7 +62,7 @@ export interface OpSummary {
  */
 export interface ReleaseProgram {
   kind: 'free' | 'tabs';
-  /** "Free the parts", "Cut free", "Remove the tabs". */
+  /** "Cut the parts free", "Remove the tabs". */
   title: string;
   gcode: string;
   timeMin: number;

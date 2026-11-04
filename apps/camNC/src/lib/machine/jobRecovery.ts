@@ -138,7 +138,7 @@ export function watchJobRecovery(api: CncApi) {
             // The same SD file and work offset: it is the recorded job, only another toolpath is loaded.
             runningJobName.value = record.toolpathName;
             toast('A job camNC started is still running', {
-              description: 'You have loaded a different toolpath since. Show the running job instead?',
+              description: 'You have loaded a different program since. Show the running job instead?',
               duration: Infinity,
               action: { label: 'Show running job', onClick: () => applyRecord(api, record, { machineState: true }) },
             });
@@ -160,7 +160,7 @@ export function watchJobRecovery(api: CncApi) {
             toast('Job finished or stopped while this page was closed', {
               duration: Infinity,
               action: {
-                label: 'Load its toolpath',
+                label: 'Load its program',
                 onClick: () => {
                   applyRecord(api, record, { machineState: false });
                   void clearJobRecord(host);
