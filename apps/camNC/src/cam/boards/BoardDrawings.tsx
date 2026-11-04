@@ -141,8 +141,26 @@ export function BoardDrawings({
       const { zoom, zoomTo } = zoomRef.current;
       zoomTo(zoom * Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.002)), { x: e.clientX, y: e.clientY });
     };
+    // Safari (and the Mac app's web view) sends a trackpad pinch as gesture events, not as Ctrl + wheel.
+    type Gesture = UIEvent & { scale: number; clientX: number; clientY: number };
+    let start = 1;
+    const gestureStart = (e: Event) => {
+      e.preventDefault();
+      start = zoomRef.current.zoom;
+    };
+    const gestureChange = (e: Event) => {
+      e.preventDefault();
+      const g = e as Gesture;
+      zoomRef.current.zoomTo(start * g.scale, { x: g.clientX, y: g.clientY });
+    };
     el.addEventListener('wheel', wheel, { passive: false });
-    return () => el.removeEventListener('wheel', wheel);
+    el.addEventListener('gesturestart', gestureStart, { passive: false });
+    el.addEventListener('gesturechange', gestureChange, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', wheel);
+      el.removeEventListener('gesturestart', gestureStart);
+      el.removeEventListener('gesturechange', gestureChange);
+    };
   }, []);
   // Panning: one pointer dragged on the background; pinching: two touches.
   const pan = useRef<{ id: number; x: number; y: number; left: number; top: number; moved: boolean } | null>(null);

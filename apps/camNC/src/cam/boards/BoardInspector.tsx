@@ -36,6 +36,7 @@ function NumberField({
   integer,
   empty,
   hint,
+  side,
 }: {
   id: string;
   label: string;
@@ -47,6 +48,8 @@ function NumberField({
   empty?: boolean;
   /** What the value does: tooltip and the input's accessible description. */
   hint?: string;
+  /** Where the tooltip opens: beside the field where one above or below would cover what's next to it. */
+  side?: 'top' | 'left';
 }) {
   const field = (
     <div className="flex flex-col gap-1">
@@ -69,7 +72,7 @@ function NumberField({
     </div>
   );
   return hint ? (
-    <Hint text={hint} id={`${id}-hint`}>
+    <Hint text={hint} id={`${id}-hint`} side={side}>
       {field}
     </Hint>
   ) : (
@@ -351,6 +354,7 @@ export function BoardInspector({
                 <>
                   <NumberField
                     id="hold-d"
+                    side="left"
                     label="Reach in"
                     hint="How far the clamp’s toe reaches onto the board from its edge. The frame is this wide plus the bit’s cut, and room for the collet nut beside a tall clamp; the bit keeps clear of the toe."
                     value={hold.d}
@@ -359,6 +363,7 @@ export function BoardInspector({
                   />
                   <NumberField
                     id="hold-w"
+                    side="left"
                     label="Width"
                     hint="The clamp’s toe along the edge."
                     value={hold.w ?? kClampWidth}
@@ -369,6 +374,7 @@ export function BoardInspector({
               ) : (
                 <NumberField
                   id="hold-d"
+                  side="left"
                   label="Size ⌀"
                   hint="The screw head. The bit keeps clear of it."
                   value={hold.d}
@@ -378,6 +384,7 @@ export function BoardInspector({
               )}
               <NumberField
                 id="hold-height"
+                side="left"
                 label="Height"
                 hint={`How far it stands above the board's top, mm. Every rapid and link passes above the tallest hold, so measure it: too low and the bit or the collet hits it. Where it stands higher than the collet nut gets down to (see Stick-out), cuts also keep ${kColletClearance} mm from it for the nut.`}
                 value={hold.height}
@@ -386,6 +393,7 @@ export function BoardInspector({
               />
               <NumberField
                 id="hold-spacing"
+                side="left"
                 label="Spacing"
                 hint="Greatest distance between holds along an edge. Closer holds keep a bowed board flatter."
                 value={hold.spacing}
@@ -394,6 +402,7 @@ export function BoardInspector({
               />
               <NumberField
                 id="hold-stickout"
+                side="left"
                 label="Stick-out"
                 hint="How far the bit sticks out below the collet nut, mm: measure it once the bit is in. With the deepest cut it says how low the nut gets, so whether it can hit a hold."
                 value={hold.stickout}

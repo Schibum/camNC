@@ -43,27 +43,44 @@ describe('tab notes per part', () => {
     expect(screen.queryByRole('list')).toBeNull();
   });
 
-  it('a part with no fallback chosen is not switched silently: it blocks, with one click to keep a frame or choose', () => {
+  it('parts with no fallback chosen are not switched silently: one note for all, with one click to keep a frame or choose', () => {
     const onFallback = vi.fn();
     const onFrame = vi.fn();
+    const ids: Record<string, string> = { 'Part 7': 'i7', left: 'il', right: 'ir' };
     render(
       <HoldingNotes
-        board={{ ...board, items: ['i7'] }}
-        itemOf={name => (name === 'Part 7' ? 'i7' : undefined)}
+        board={{ ...board, items: ['i7', 'il', 'ir'] }}
+        itemOf={name => ids[name]}
         onFallback={onFallback}
         onFrame={onFrame}
-        holding={[{ name: 'Part 7', how: 'unheld', tabs: 0 }]}
+        holding={[
+          { name: 'Part 7', how: 'unheld', tabs: 0 },
+          { name: 'left', how: 'unheld', tabs: 0 },
+          { name: 'right', how: 'unheld', tabs: 0 },
+          { name: 'top', how: 'self', tabs: 0 },
+          { name: 'back', how: 'self', tabs: 0 },
+        ]}
       />
     );
     const notes = within(screen.getByRole('list', { name: 'Tabs on board A' }));
-    expect(notes.getByText(/Part 7: no two opposite edges where tabs would hold it, so it would come loose/)).toBeTruthy();
+    expect(notes.getAllByRole('listitem')).toHaveLength(2);
+    expect(notes.getByText(/Part 7, left and right have no two opposite edges where tabs would hold them/)).toBeTruthy();
+    expect(notes.getByText(/top and back: no two opposite edges where tabs hold, so each gets no tabs/)).toBeTruthy();
+    expect(notes.getAllByRole('button', { name: 'Bottom skin' })).toHaveLength(1);
     fireEvent.click(notes.getByRole('button', { name: 'Keep a frame' }));
     expect(onFrame).toHaveBeenCalled();
     fireEvent.click(notes.getByRole('button', { name: 'Bottom skin' }));
-    expect(onFallback).toHaveBeenCalledWith('i7', 'skin');
+    expect(onFallback).toHaveBeenCalledWith(['i7', 'il', 'ir'], 'skin');
     fireEvent.click(notes.getByRole('button', { name: 'Tabs anyway' }));
-    expect(onFallback).toHaveBeenCalledWith('i7', 'tabs');
+    expect(onFallback).toHaveBeenCalledWith(['i7', 'il', 'ir'], 'tabs');
     fireEvent.click(notes.getByRole('button', { name: 'I hold it down' }));
-    expect(onFallback).toHaveBeenCalledWith('i7', 'self');
+    expect(onFallback).toHaveBeenCalledWith(['i7', 'il', 'ir'], 'self');
+  });
+
+  it('one part reads as one', () => {
+    render(<HoldingNotes board={board} itemOf={() => 'i7'} onFallback={() => {}} holding={[{ name: 'Part 7', how: 'unheld', tabs: 0 }]} />);
+    expect(
+      screen.getByText(/Part 7 has no two opposite edges where tabs would hold it, so it would come loose. The job waits until you choose:/)
+    ).toBeTruthy();
   });
 });

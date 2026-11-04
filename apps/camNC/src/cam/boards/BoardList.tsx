@@ -146,7 +146,9 @@ export function BoardList({
                 holding={plans[i]?.holding}
                 board={board}
                 itemOf={name => board.items.find(id => byId.get(id)?.name === name)}
-                onFallback={onTabFallback}
+                onFallback={(ids, f) =>
+                  onBoardChange({ ...board, tabFallbacks: { ...board.tabFallbacks, ...Object.fromEntries(ids.map(id => [id, f])) } })
+                }
                 onFrame={
                   boardHoldOf(board) === 'points' && board.frame === false ? () => onBoardChange({ ...board, frame: true }) : undefined
                 }
@@ -425,7 +427,13 @@ const kFallbackNote: Record<TabFallback, string> = {
   self: 'gets no tabs: hold it down yourself',
 };
 
-/** Per part, where its tabs fell short: fewer than Min # fit, or no two opposite sides hold (its fallback). */
+const names = (list: string[]) => (list.length > 1 ? `${list.slice(0, -1).join(', ')} and ${list.at(-1)}` : list[0]);
+
+/**
+ * Where tabs fell short on a board, grouped so each reason is said once: the parts with no two opposite edges to hold
+ * them (which block the job until one choice fixes them all), the parts that get the fallback chosen for them, and
+ * the parts where fewer tabs fit than asked. A single part can still be set apart from its chip's menu.
+ */
 export function HoldingNotes({
   holding,
   board,
@@ -437,47 +445,52 @@ export function HoldingNotes({
   board: BoardV1;
   /** The board item of a part name, for its own fallback. */
   itemOf: (name: string) => string | undefined;
-  onFallback: (itemId: string, f: TabFallback) => void;
+  /** One fallback for all of these items, in one change. */
+  onFallback: (itemIds: string[], f: TabFallback) => void;
   /** Turns the frame on, when it's off: the usual reason tabs have nothing to hold on to. */
   onFrame?: () => void;
 }) {
-  const unheld = (holding ?? []).filter(h => h.how === 'unheld');
-  const notes = (holding ?? []).flatMap(h =>
-    h.how === 'placed'
-      ? h.wanted
-        ? [`${h.name}: ${h.tabs} of ${h.wanted} tabs fit (short edges or little stock that holds around it).`]
-        : []
-      : h.how === 'unheld'
-        ? []
-        : [`${h.name}: no two opposite edges where tabs hold, so it ${kFallbackNote[h.how]}, as you chose.`]
-  );
-  if (!notes.length && !unheld.length) return null;
+  const all = holding ?? [];
+  const unheld = all.filter(h => h.how === 'unheld').map(h => h.name);
+  const ids = unheld.map(itemOf).filter((id): id is string => !!id);
+  const short = all.filter(h => h.how === 'placed' && h.wanted);
+  const chosen = (Object.keys(kFallbackNote) as TabFallback[])
+    .map(f => [f, all.filter(h => h.how === f).map(h => h.name)] as const)
+    .filter(([, list]) => list.length);
+  if (!unheld.length && !short.length && !chosen.length) return null;
+  const one = unheld.length === 1;
   return (
     <ul aria-label={`Tabs on board ${board.name}`} className="flex flex-col gap-1 text-xs">
-      {unheld.map(h => {
-        const id = itemOf(h.name);
-        return (
-          <li key={h.name} className="flex flex-col gap-1 text-destructive" onClick={e => e.stopPropagation()}>
-            <span>{h.name}: no two opposite edges where tabs would hold it, so it would come loose. The job waits until you choose:</span>
-            <span className="flex flex-wrap gap-1">
-              {onFrame && (
-                <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={onFrame}>
-                  Keep a frame
+      {unheld.length > 0 && (
+        <li className="flex flex-col gap-1 text-destructive" onClick={e => e.stopPropagation()}>
+          <span>
+            {`${names(unheld)} ${one ? 'has' : 'have'} no two opposite edges where tabs would hold ${one ? 'it' : 'them'}, so ${
+              one ? 'it' : 'they'
+            } would come loose. The job waits until you choose${one ? '' : ' (for all of them; set one apart from its chip)'}:`}
+          </span>
+          <span className="flex flex-wrap gap-1">
+            {onFrame && (
+              <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={onFrame}>
+                Keep a frame
+              </Button>
+            )}
+            {ids.length > 0 &&
+              kFixes.map(([f, label]) => (
+                <Button key={f} size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={() => onFallback(ids, f)}>
+                  {label}
                 </Button>
-              )}
-              {id &&
-                kFixes.map(([f, label]) => (
-                  <Button key={f} size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={() => onFallback(id, f)}>
-                    {label}
-                  </Button>
-                ))}
-            </span>
-          </li>
-        );
-      })}
-      {notes.map(n => (
-        <li key={n} className="text-amber-700 dark:text-amber-400">
-          {n}
+              ))}
+          </span>
+        </li>
+      )}
+      {chosen.map(([f, list]) => (
+        <li key={f} className="text-amber-700 dark:text-amber-400">
+          {`${names(list)}: no two opposite edges where tabs hold, so ${list.length > 1 ? 'each' : 'it'} ${kFallbackNote[f]}, as you chose.`}
+        </li>
+      ))}
+      {short.map(h => (
+        <li key={h.name} className="text-amber-700 dark:text-amber-400">
+          {`${h.name}: ${h.tabs} of ${h.wanted} tabs fit (short edges or little stock that holds around it).`}
         </li>
       ))}
     </ul>
