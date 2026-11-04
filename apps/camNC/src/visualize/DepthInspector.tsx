@@ -36,6 +36,7 @@ import { useSmoothedMachinePos } from './smoothedMachinePos';
 import { getPlasmaColor } from './toolpathColors';
 import { SimToolMarker, SimulatedStock } from './stockSim/SimulatedStock';
 import { kToolShapeChoices } from './stockSim/toolShapes';
+import { kOrbitDamping } from '@/lib/orbitDamping';
 
 export type DepthViewPreset = '3d' | 'front' | 'side';
 
@@ -387,7 +388,7 @@ export function DepthScene({ toolpath, view, fitKey }: { toolpath: ParsedToolpat
 
   return (
     <>
-      <OrbitControls makeDefault enableDamping dampingFactor={0.15} />
+      <OrbitControls makeDefault enableDamping dampingFactor={kOrbitDamping} />
       <CameraRig box={fitBox} view={view} fitKey={fitKey} />
       <GizmoHelper alignment="bottom-right" margin={[64, 64]}>
         <GizmoViewport axisColors={['#ef4444', '#22c55e', '#3b82f6']} labelColor="white" axisHeadScale={0.9} hideNegativeAxes />

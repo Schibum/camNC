@@ -5,6 +5,7 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
 import type { BodyMesh, CamPartInfo } from '../camTypes';
 import { centerAssembled, layoutFlat } from './layoutFlat';
+import { kOrbitDamping } from '@/lib/orbitDamping';
 
 export type ModelView = 'assembled' | 'flat';
 
@@ -126,7 +127,7 @@ export function ModelViewport({
           />
         ))}
       </group>
-      <OrbitControls makeDefault />
+      <OrbitControls makeDefault dampingFactor={kOrbitDamping} />
     </Canvas>
   );
 }

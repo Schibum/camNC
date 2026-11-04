@@ -8,6 +8,7 @@ import { Suspense, useEffect, useMemo, useRef } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import * as THREE from 'three';
 import { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
+import { kOrbitDamping } from '@/lib/orbitDamping';
 
 const maxZoomFactor = 10;
 
@@ -91,7 +92,7 @@ function DefaultControls({ worldScale }: { worldScale: IWorldScale }) {
       ref={orbitRef}
       keyEvents={true}
       makeDefault
-      dampingFactor={0.25}
+      dampingFactor={kOrbitDamping}
       enableRotate={false}
       enablePan={true}
       enableZoom={true}

@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { Box3, OrthographicCamera, PerspectiveCamera, Vector3 } from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { applyView, fitView, kFov, readView, type Projection, type ViewKind } from './framing';
+import { kOrbitDamping } from '@/lib/orbitDamping';
 
 /**
  * The 3D view's cameras and orbit controls. Frames `box` whenever `frameKey` or the view changes; switching the
@@ -78,6 +79,7 @@ export function CameraRig({
       ref={controls}
       camera={camera}
       makeDefault
+      dampingFactor={kOrbitDamping}
       enableRotate={view === '3d'}
       screenSpacePanning
       onChange={() => controls.current && target.current.copy(controls.current.target)}
