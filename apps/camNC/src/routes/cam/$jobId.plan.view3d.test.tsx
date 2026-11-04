@@ -45,6 +45,43 @@ const pressed = (group: HTMLElement) =>
     .map(b => b.textContent);
 
 describe('CAM plan step, 3D view', () => {
+  it('draws no frames while nothing changes, and draws again when something does', async () => {
+    const draws = vi.spyOn(WebGL2RenderingContext.prototype, 'drawElementsInstanced');
+    const bytes = await (await fetch(stepUrl)).arrayBuffer();
+    const job = await createJob(new File([bytes], 'besteckkasten.step'));
+    params.jobId = job.id;
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <PlanStep />
+      </QueryClientProvider>
+    );
+    const view = await screen.findByRole('region', { name: /^3D view of board/ }, { timeout: 90_000 });
+    const quiet = () =>
+      vi.waitFor(
+        async () => {
+          const before = draws.mock.calls.length;
+          await new Promise(r => setTimeout(r, 1000));
+          expect(draws.mock.calls.length).toBe(before);
+        },
+        { timeout: 30_000, interval: 0 }
+      );
+
+    await quiet();
+    expect(draws.mock.calls.length).toBeGreaterThan(0);
+    for (const change of [
+      () => within(within(view).getByRole('group', { name: 'View' })).getByRole('button', { name: 'Top' }),
+      () => within(view).getByRole('button', { name: 'Compare to model' }),
+      () => within(view).getByRole('button', { name: 'Play' }),
+    ]) {
+      const before = draws.mock.calls.length;
+      fireEvent.click(change());
+      await vi.waitFor(() => expect(draws.mock.calls.length).toBeGreaterThan(before), { timeout: 10_000 });
+    }
+    fireEvent.click(within(view).getByRole('button', { name: 'Pause' }));
+    await quiet();
+    draws.mockRestore();
+  }, 180_000);
+
   it('shows the board in 3D with its op list beside it, and the toggles switch between result and toolpath', async () => {
     const bytes = await (await fetch(stepUrl)).arrayBuffer();
     const job = await createJob(new File([bytes], 'besteckkasten.step'));

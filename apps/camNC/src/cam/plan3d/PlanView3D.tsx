@@ -1,7 +1,7 @@
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useThree } from '@react-three/fiber';
 import { cn } from '@wbcnc/ui/lib/utils';
 import { Focus } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Vector3 } from 'three';
 import { playheadAt, type Playhead } from '@/visualize/stockSim/jobTimeline';
 import type { ToolShape } from '@/visualize/stockSim/toolShapes';
@@ -84,7 +84,7 @@ export function PlanView3D({
       className={cn('flex flex-col overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800', className)}>
       <div className="flex h-[420px] min-w-0 flex-col md:h-auto md:min-h-0 md:flex-1">
         <div className="relative min-h-0 flex-1" style={{ background: kViewBackground }}>
-          <Canvas dpr={[1, 2]} className="absolute! inset-0">
+          <Canvas dpr={[1, 2]} frameloop="demand" className="absolute! inset-0">
             <color attach="background" args={[kViewBackground]} />
             <Scene model={model} plan={plan} board={board} parts={parts} time={mode === 'result' ? time : model.total} ui={playback} />
             <CameraRig
@@ -220,6 +220,9 @@ function Scene({
 }) {
   const { mode, seeThrough, showRapids, compare } = usePlan3dView();
   const { selected, hidden } = ui;
+  // Frames only on demand: a still view draws nothing (the battery, the fan, and a long job on a laptop).
+  const invalidate = useThree(s => s.invalidate);
+  useEffect(() => invalidate());
   const comparing = useMemo(() => (compare ? { board, parts } : undefined), [compare, board, parts]);
   const playhead = playheadAt(model.times, time);
   const selectedOps = useMemo(() => (selected === null ? [] : groupOpsOf(model, selected)), [model, selected]);

@@ -1,5 +1,6 @@
+import { Matrix4 } from 'three';
 import { describe, expect, it } from 'vitest';
-import { gridCells, gridGeometry, kMaxGridSize } from './stockGrid';
+import { gridCells, gridGeometry, kMaxGridSize, sameMatrix } from './stockGrid';
 
 describe('stock surface grid', () => {
   it('one cell per heightmap texel, up to the largest grid', () => {
@@ -15,5 +16,18 @@ describe('stock surface grid', () => {
     // Two triangles per cell between column i's lower (2i) and upper (2i + 1) corners and column i + 1's.
     expect([...g.index!.array.slice(0, 6)]).toEqual([0, 2, 1, 1, 2, 3]);
     expect(Math.max(...g.index!.array)).toBe(2 * 2048 + 1);
+  });
+
+  it('a camera counts as still despite rounding errors, but not after a move or zoom you can see', () => {
+    const camera = new Matrix4().makeRotationY(0.5).setPosition(300, 400, 500);
+    const rounded = camera.clone();
+    rounded.elements[1] += 1e-14;
+    rounded.elements[12] += 1e-11;
+    expect(sameMatrix(camera, rounded)).toBe(true);
+    expect(sameMatrix(camera, new Matrix4().makeRotationY(0.51).setPosition(300, 400, 500))).toBe(false);
+    expect(sameMatrix(camera, new Matrix4().makeRotationY(0.5).setPosition(301, 400, 500))).toBe(false);
+    // An orthographic projection's scale is tiny in mm: 1% zoom is still a change.
+    const scale = (s: number) => new Matrix4().makeScale(s, s, s);
+    expect(sameMatrix(scale(0.001), scale(0.00101))).toBe(false);
   });
 });

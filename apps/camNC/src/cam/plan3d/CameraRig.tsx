@@ -25,6 +25,7 @@ export function CameraRig({
   minSpan: number;
 }) {
   const set = useThree(s => s.set);
+  const invalidate = useThree(s => s.invalidate);
   const size = useThree(s => s.size);
   const cameras = useMemo(
     () => ({ perspective: new PerspectiveCamera(kFov, 1, 0.1, 1e5), orthographic: new OrthographicCamera(-1, 1, 1, -1, -1e5, 1e5) }),
@@ -50,6 +51,7 @@ export function CameraRig({
     shown.current = camera;
     set({ camera });
     syncControls();
+    invalidate();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the camera changes
   }, [camera, set]);
 
@@ -62,12 +64,14 @@ export function CameraRig({
     applyView(camera, state, size.width, size.height);
     target.current.copy(state.target);
     syncControls();
-  }, [box, frameKey, view, margin, minSpan, camera, size]);
+    invalidate();
+  }, [box, frameKey, view, margin, minSpan, camera, size, invalidate]);
 
   // Resize: same zoom, frustum fitted to the canvas.
   useEffect(() => {
     if (framed.current) applyView(camera, readView(camera, target.current, size.height), size.width, size.height);
-  }, [camera, size]);
+    invalidate();
+  }, [camera, size, invalidate]);
 
   return (
     <OrbitControls
