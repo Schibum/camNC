@@ -35,18 +35,24 @@ export interface HoldPoint {
 /** How far the bit sticks out of the collet nut until the user measures it, mm. */
 export const kDefaultStickout = 20;
 
-/** Starting sizes, until the user sets their own: a screw head; how far a small clamp's toe reaches in. */
-export const kHoldDefaults: Record<HoldKind, number> = { screw: 10, clamp: 2 };
-/** A clamp toe's starting width along the edge, mm. */
-export const kClampWidth = 20;
+/**
+ * Starting sizes, until the user sets their own: a screw head; how far a clamp's toe reaches in. The clamp defaults
+ * are the printed M6 edge clamps the user runs (a bolted foot, a post beside the board, a 3 mm lip over its edge).
+ */
+export const kHoldDefaults: Record<HoldKind, number> = { screw: 10, clamp: 3 };
+/** A clamp toe's starting width along the edge, mm: the M6 edge clamp's lip. */
+export const kClampWidth = 24;
 /** Holds along an edge at most this far apart, mm. */
 export const kHoldSpacing = 250;
 /** No hold this close to the lower left corner, mm: the XY zero, where the probe or the camera finds the corner. */
 export const kZeroClear = 40;
 /** The bit's cut stays this far from a hold's footprint, mm. */
 export const kHoldClearance = 1.5;
-/** How far a hold stands above the stock's top until the user says otherwise, mm: a screw head; a clamp, well above safe Z. */
-export const kHoldHeights: Record<HoldKind, number> = { screw: 3, clamp: 30 };
+/**
+ * How far a hold stands above the stock's top until the user says otherwise, mm: a screw head; the M6 edge clamp's
+ * 3 mm lip (each clamp is printed for one stock thickness and presses its lip down 0.5 mm).
+ */
+export const kHoldHeights: Record<HoldKind, number> = { screw: 3, clamp: 2.5 };
 /** A hold no taller than this stays below the collet nut however deep the bit cuts, mm: only the bit can touch it. */
 export const kLowHold = 5;
 /**

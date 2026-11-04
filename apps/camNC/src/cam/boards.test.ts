@@ -322,15 +322,17 @@ describe('boards', () => {
     const clamped = nestBoard({ ...tabs, holds: { kind: 'clamp', d: 2, w: 20, height: 5 } }, parts, 3.175);
     expect(clamped.margin).toBe(frameMargin(2, 3.175, 'clamp', 5));
     expect(clamped.margin).toBe(8);
-    // A taller clamp, by default: room for the collet nut beside it too.
-    expect(nestBoard({ ...tabs, holds: { kind: 'clamp', d: 2, w: 20 } }, parts, 3.175).margin).toBe(18);
+    // By default the low M6 edge clamp (2.5 mm above the stock): below the collet nut, no room kept for it.
+    expect(nestBoard({ ...tabs, holds: { kind: 'clamp', d: 2, w: 20 } }, parts, 3.175).margin).toBe(8);
+    // A taller clamp: room for the collet nut beside it too.
+    expect(nestBoard({ ...tabs, holds: { kind: 'clamp', d: 2, w: 20, height: 30 } }, parts, 3.175).margin).toBe(18);
     expect(clamped.holds.length).toBeGreaterThanOrEqual(4);
     for (const h of clamped.holds) {
       expect(h).toMatchObject({ kind: 'clamp', d: 2, w: 20 });
       expect(Math.min(h.x, h.y, clamped.board.w - h.x, clamped.board.h - h.y)).toBeCloseTo(1, 5);
     }
-    // A clamp saved before clamps had a width (sized as a round toe) starts afresh.
-    expect(nestBoard({ ...tabs, holds: { kind: 'clamp', d: 25 } }, parts, 3.175).margin).toBe(18);
+    // A clamp saved before clamps had a width (sized as a round toe) starts afresh: the edge clamp's 3 mm lip.
+    expect(nestBoard({ ...tabs, holds: { kind: 'clamp', d: 25 } }, parts, 3.175).margin).toBe(9);
     // The collet nut needs room beside a 30 mm clamp only while it gets that low: with the bit 45 mm out of the nut,
     // it stays above the clamp on the deepest cut (8.3 + 0.3) and only the bit's own clearance is left.
     // Unset, the stick-out clears the deepest cut by 10 mm: the nut never starts out below the board.
@@ -439,7 +441,7 @@ describe('boards', () => {
     expect(nestBoard(a, parts, 3.175).holds[0].height).toBe(3);
     const clamps = { ...a, holds: { kind: 'clamp' as const, d: 2, w: 20 } };
     const on = nestBoard(clamps, parts, 3.175);
-    expect(on.holds[0].height).toBe(30);
+    expect(on.holds[0].height).toBe(2.5);
     // A fixed size, or the larger frame would lay it out afresh, and suggest them afresh.
     const size = { fit: false as const, w: on.board.w, h: on.board.h };
     const moved = { ...clamps, size, frame: false, holdPoints: [{ x: 100, y: 1 }], holdPointsOn: on.board };

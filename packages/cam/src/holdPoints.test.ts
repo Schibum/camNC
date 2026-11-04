@@ -8,8 +8,12 @@ import {
   heldByPoints,
   holdBox,
   holdClashes,
+  kClampWidth,
   kColletClearance,
+  kHoldDefaults,
+  kHoldHeights,
   kZeroClear,
+  nutReaches,
   snapClamp,
   suggestHoldPoints,
 } from './holdPoints';
@@ -169,6 +173,19 @@ describe('hold points', () => {
     // Snapped against the nearest edge when moved.
     expect(snapClamp({ x: 100, y: 30 }, 2, { w: 571, h: 779 })).toEqual({ x: 100, y: 1 });
     expect(snapClamp({ x: 560, y: 300 }, 2, { w: 571, h: 779 })).toEqual({ x: 570, y: 300 });
+  });
+
+  it('the clamp defaults are the M6 edge clamp: a 3 mm lip, 24 mm wide, 2.5 mm above the stock, below the collet nut', () => {
+    expect(kHoldDefaults.clamp).toBe(3);
+    expect(kClampWidth).toBe(24);
+    expect(kHoldHeights.clamp).toBe(2.5);
+    const hold = { kind: 'clamp' as const, height: kHoldHeights.clamp };
+    expect(nutReaches(hold)).toBe(false);
+    // A 6 mm bit: the lip, 3 + 1.5 clear of it, the cut and 1 mm; no room kept for the nut.
+    expect(frameMargin(kHoldDefaults.clamp, 6, 'clamp', kHoldHeights.clamp)).toBe(12);
+    const holds = suggestHoldPoints({ w: 600, h: 400 }, [{ x: 12, y: 12, w: 576, h: 376 }], { kind: 'clamp', bit: 6 });
+    expect(holds.length).toBeGreaterThanOrEqual(4);
+    for (const h of holds) expect([holdBox(h).w, holdBox(h).h].sort((a, b) => a - b)).toEqual([3, 24]);
   });
 
   it('a hold in the way of a cut clashes', () => {

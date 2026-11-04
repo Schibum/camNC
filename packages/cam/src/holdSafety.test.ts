@@ -34,7 +34,8 @@ const rabbeted = (w: number, h: number, floorZ: number, regions: ReturnType<type
   pockets: [{ floorZ, region: regions, strictRegion: regions, above: [], area: 1 }],
 });
 
-const clamp = (x: number, y: number, over: Partial<HoldPoint> = {}): HoldPoint => ({ x, y, kind: 'clamp', d: 25, ...over });
+/** A tall clamp (a toggle or strap clamp, 30 mm above the stock), not the low edge clamp the defaults describe. */
+const clamp = (x: number, y: number, over: Partial<HoldPoint> = {}): HoldPoint => ({ x, y, kind: 'clamp', d: 25, height: 30, ...over });
 const screw = (x: number, y: number): HoldPoint => ({ x, y, kind: 'screw', d: 10 });
 
 describe('rapids and links over holds', () => {
@@ -120,7 +121,7 @@ describe('rapids and links over holds', () => {
   });
 
   it('the clamp toe: rapids over it clash, its shape counts, not a circle; the collet nut keeps away from a tall one', () => {
-    const toe: HoldPoint = { x: 250, y: 1, kind: 'clamp', d: 2, w: 20, dir: { x: 0, y: 1 } };
+    const toe: HoldPoint = { x: 250, y: 1, kind: 'clamp', d: 2, w: 20, dir: { x: 0, y: 1 }, height: 30 };
     const line = (x0: number, y0: number, x1: number, y1: number, z: number) => [
       {
         r: 3,
@@ -142,10 +143,14 @@ describe('rapids and links over holds', () => {
     expect(holdClashes([toe], beside, 18)).toHaveLength(1);
     expect(holdClashes([{ ...toe, height: 5 }], beside, 18)).toEqual([]);
     // The frame and the suggestions leave that room.
-    const m = frameMargin(2, 6, 'clamp');
+    const m = frameMargin(2, 6, 'clamp', 30);
     const parts = [{ x: m, y: m, w: 500 - 2 * m, h: 300 - 2 * m }];
-    expect(suggestHoldPoints({ w: 500, h: 300 }, parts, { kind: 'clamp', d: 2, w: 20, bit: 6 }).length).toBeGreaterThanOrEqual(4);
-    expect(suggestHoldPoints({ w: 500, h: 300 }, [{ x: 8, y: 8, w: 484, h: 284 }], { kind: 'clamp', d: 2, w: 20, bit: 6 })).toEqual([]);
+    expect(suggestHoldPoints({ w: 500, h: 300 }, parts, { kind: 'clamp', d: 2, w: 20, height: 30, bit: 6 }).length).toBeGreaterThanOrEqual(
+      4
+    );
+    expect(
+      suggestHoldPoints({ w: 500, h: 300 }, [{ x: 8, y: 8, w: 484, h: 284 }], { kind: 'clamp', d: 2, w: 20, height: 30, bit: 6 })
+    ).toEqual([]);
   });
 
   it('a board askew on the bed: the program is turned back to the holds before checking', () => {
