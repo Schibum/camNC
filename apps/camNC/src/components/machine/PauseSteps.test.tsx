@@ -1,7 +1,8 @@
 import { useCamMachine } from '@/cam/machine/camMachine';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { PauseSteps, pauseSteps } from './PauseSteps';
+import { pauseSteps } from '@/lib/machine/pauseSteps';
+import { PauseSteps } from './PauseSteps';
 
 afterEach(() => {
   cleanup();
