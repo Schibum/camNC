@@ -1,7 +1,8 @@
 import { getCncApi } from '@/lib/fluidnc/machine';
 import { isCamncJobFile } from '@/lib/machine/jobs';
 import { useStore } from '@/store/store';
-import { Html, Line } from '@react-three/drei';
+import { Line } from '@react-three/drei';
+import { CanvasLabel } from '@/scene/CanvasLabel';
 import { useMemo } from 'react';
 import { CamBedLayer } from './CamBedLayer';
 import { CamHolds } from './CamHolds';
@@ -15,12 +16,12 @@ const kHold = '#22c55e';
 /** A label beside a marker: readable over the camera image at any zoom, never in the way of the pointer. */
 function Label({ at, text, tone, big }: { at: { x: number; y: number }; text: string; tone: 'tab' | 'hold'; big?: boolean }) {
   return (
-    <Html position={[at.x, at.y, 0.4]} style={{ pointerEvents: 'none' }} zIndexRange={[10, 0]}>
+    <CanvasLabel position={[at.x, at.y, 0.4]} offset={[12, big ? -14 : -10]} maxWidth={224}>
       <span
-        className={`ml-3 block w-max max-w-56 rounded font-medium text-black shadow-[0_1px_3px_rgba(0,0,0,0.6)] ${big ? '-mt-3.5 px-2 py-1 text-sm font-semibold' : '-mt-2.5 px-1.5 py-0.5 text-xs'} ${tone === 'tab' ? 'bg-amber-400' : 'bg-green-400'}`}>
+        className={`block max-w-full rounded font-medium text-black shadow-[0_1px_3px_rgba(0,0,0,0.6)] ${big ? 'px-2 py-1 text-sm font-semibold' : 'px-1.5 py-0.5 text-xs'} ${tone === 'tab' ? 'bg-amber-400' : 'bg-green-400'}`}>
         {text}
       </span>
-    </Html>
+    </CanvasLabel>
   );
 }
 
