@@ -51,6 +51,8 @@ const nest: BoardNest = {
   holds: [],
   frame: 'kept',
   frameWidth: 0,
+  stickout: 20,
+  nutAbove: 11,
   holdsMoved: false,
 };
 

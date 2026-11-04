@@ -15,7 +15,6 @@ import {
   kStockAllowance,
   partsHoldOf,
   stockTopOf,
-  nutAboveOf,
   type BoardHold,
   type BoardNest,
   type BoardV1,
@@ -116,6 +115,7 @@ export function BoardInspector({
   nest,
   stock,
   bit,
+  onStickout,
   onChange,
   onRelayout,
   onDelete,
@@ -135,6 +135,8 @@ export function BoardInspector({
   nest: BoardNest;
   stock: StockBoardV1[];
   bit: number;
+  /** The job's bit's stick-out changed, mm. */
+  onStickout?: (stickout: number) => void;
   onChange: (b: BoardV1) => void;
   /** Nest this board's parts afresh: unpins them and forgets where they were put by hand. */
   onRelayout?: () => void;
@@ -146,7 +148,7 @@ export function BoardInspector({
     : (matching.find(s => !board.size.fit && s.w === board.size.w && s.h === board.size.h)?.id ?? 'custom');
   const parts = partsHoldOf(board);
   const held = boardHoldOf(board);
-  const hold = holdsOf(board);
+  const hold = holdsOf(board, nest.stickout);
   const tabs = parts === 'tabs' || parts === 'tabs-guided';
   // Tabs hold only on a strip of stock left between the cuts: spacing set for another hold-down (or bit) may leave none.
   const tabGap = boardGap(bit, 'tabs'),
@@ -404,19 +406,13 @@ export function BoardInspector({
                 id="hold-stickout"
                 side="left"
                 label="Stick-out"
-                hint="How far the bit sticks out below the collet nut, mm: measure it once the bit is in. With the deepest cut it says how low the nut gets, so whether it can hit a hold."
+                hint="How far the job's bit sticks out below the collet nut, mm: measure it once the bit is in. It's kept with the bit (for every board of the job, and the next job with this bit). With the deepest cut it says how low the nut gets, so whether it can hit a hold."
                 value={hold.stickout}
-                onCommit={stickout => onChange({ ...board, holds: { ...hold, stickout } })}
+                onCommit={v => onStickout?.(v)}
                 min={1}
               />
             </div>
-            <HoldDiagram
-              hold={hold}
-              bit={bit}
-              stockTop={stockTopOf(board)}
-              nutAbove={nutAboveOf(board)}
-              leftOut={nest.frame === 'no-room'}
-            />
+            <HoldDiagram hold={hold} bit={bit} stockTop={stockTopOf(board)} nutAbove={nest.nutAbove} leftOut={nest.frame === 'no-room'} />
             <Hint
               text="A border of stock around all parts, wide enough for the holds: the board can never fall apart into pieces, and every tab lands in held stock. Left out on a fixed size board when the parts don't fit with it."
               id="hold-frame-hint"

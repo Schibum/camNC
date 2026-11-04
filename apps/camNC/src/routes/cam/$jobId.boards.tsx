@@ -27,7 +27,9 @@ import type { CamJobV1 } from '@/cam/jobDb';
 import { CamJobBar } from '@/cam/model/CamJobBar';
 import { forgetCut } from '@/cam/machine/camMachine';
 import { Hint } from '@/cam/Hint';
+import { bitKey } from '@/cam/cuttingData';
 import { kDefaultPlan } from '@/cam/planSettings';
+import { useToolLibrary } from '@/cam/toolLibrary';
 import { useJobBoards } from '@/cam/useJobBoards';
 import { useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, useParams } from '@tanstack/react-router';
@@ -434,6 +436,23 @@ function BoardsStep() {
           nest={selected.nest}
           stock={job.stock ?? []}
           bit={plan.bit.diameter}
+          onStickout={stickout => {
+            // Kept with the bit: this job's copy and the library's, so the next job with it starts from it. Older jobs
+            // kept one per board: those go.
+            const lib = useToolLibrary.getState();
+            const own = lib.bits.find(b => bitKey(b) === bitKey(plan.bit));
+            if (own) lib.updateBit(own.id, { stickout });
+            save.mutate({
+              ...job,
+              plan: { ...plan, bit: { ...plan.bit, stickout } },
+              boards: boards.map(({ board }) => {
+                if (board.holds?.stickout === undefined) return board;
+                const holds = { ...board.holds };
+                delete holds.stickout;
+                return { ...board, holds };
+              }),
+            });
+          }}
           onChange={updateBoard}
           onRelayout={() => relayout(selected.board)}
           tabHold={{ fallback: plan.tabFallback, skin: plan.skin }}

@@ -8,6 +8,11 @@ export interface LibraryTool extends Tool {
   flutes?: number;
   /** Length of cut (flute length), mm: how deep the bit can cut at most. */
   fluteLength?: number;
+  /**
+   * How far it sticks out below the collet nut as mounted, mm (measured): with the deepest cut, how low the nut gets
+   * beside the holds.
+   */
+  stickout?: number;
   feed?: number;
   plungeFeed?: number;
   rpm?: number;

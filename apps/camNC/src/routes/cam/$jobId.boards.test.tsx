@@ -304,6 +304,23 @@ describe('CAM boards step', () => {
     await waitFor(async () => expect((await saved()).tabsAt).toBeUndefined());
   }, 150_000);
 
+  it('keeps the stick-out with the job’s bit, not the board', async () => {
+    const job = await openKinderregal();
+    fireEvent.click(await screen.findByRole('region', { name: 'Board A' }));
+    const field = () => document.getElementById('hold-stickout') as HTMLInputElement;
+    await waitFor(() => expect(field()).toBeTruthy());
+    fireEvent.change(field(), { target: { value: '42' } });
+    fireEvent.blur(field());
+    await waitFor(async () => {
+      const saved = (await getJob(job.id))!;
+      expect(saved.plan?.bit.stickout).toBe(42);
+      expect(saved.boards!.every(b => b.holds?.stickout === undefined)).toBe(true);
+    });
+    // Every board of the job shows it.
+    fireEvent.click(screen.getByRole('region', { name: 'Board B' }));
+    await waitFor(() => expect(field().value).toBe('42'));
+  }, 90_000);
+
   it('auto-fill optimizes for fewest boards unless the job says least wood', async () => {
     const job = await openKinderregal();
     // Tabs only where they hold: no tab marked red on the drawings once the programs are made.

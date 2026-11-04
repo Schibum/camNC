@@ -179,7 +179,11 @@ export const partsHoldOf = (board: Pick<BoardV1, 'boardHold' | 'holdDown'>): Hol
 export const defaultStickout = (board: Pick<BoardV1, 'thickness' | 'measuredThickness'>) =>
   Math.max(kDefaultStickout, Math.ceil((board.measuredThickness ?? board.thickness + kStockAllowance) + 0.3 + 10));
 
-export const holdsOf = (board: Pick<BoardV1, 'holds' | 'thickness' | 'measuredThickness'>) => {
+/**
+ * The board's holds. `stickout`: the job's bit's, as measured; else what older jobs saved with the board; else the
+ * default for the board.
+ */
+export const holdsOf = (board: Pick<BoardV1, 'holds' | 'thickness' | 'measuredThickness'>, stickout?: number) => {
   const kind = board.holds?.kind ?? ('screw' as HoldKind);
   // Clamps saved before they had a width were sized as a round toe: start them afresh.
   const old = kind === 'clamp' && board.holds?.w === undefined;
@@ -189,12 +193,13 @@ export const holdsOf = (board: Pick<BoardV1, 'holds' | 'thickness' | 'measuredTh
     ...(kind === 'clamp' && { w: board.holds?.w ?? kClampWidth }),
     height: board.holds?.height ?? kHoldHeights[kind],
     spacing: board.holds?.spacing ?? kHoldSpacing,
-    stickout: board.holds?.stickout ?? defaultStickout(board),
+    stickout: stickout ?? board.holds?.stickout ?? defaultStickout(board),
   };
 };
 
 /** The lowest the collet nut gets on this board, mm above the stock's top: the stick-out less the deepest cut. */
-export const nutAboveOf = (board: BoardV1, cutBelow = 0.3) => +(holdsOf(board).stickout - stockTopOf(board) - cutBelow).toFixed(2);
+export const nutAboveOf = (board: BoardV1, stickout?: number, cutBelow = 0.3) =>
+  +(holdsOf(board, stickout).stickout - stockTopOf(board) - cutBelow).toFixed(2);
 
 /** The board's hold-down settings, to copy to another board. */
 export const holdSettingsOf = (b: BoardV1): Partial<BoardV1> => ({
@@ -368,6 +373,9 @@ export interface BoardNest extends NestResult {
   frame: 'kept' | 'off' | 'no-room';
   /** How wide the frame is, or would be when left out for lack of room, mm. */
   frameWidth: number;
+  /** The bit's stick-out below the collet nut, mm, and how low the nut gets over the board on the deepest cut. */
+  stickout: number;
+  nutAbove: number;
   /** The holds are the ones the user moved, not suggested. */
   holdsMoved: boolean;
 }
@@ -439,14 +447,14 @@ export function nestBoard(
    * `holds: false`: only where the parts go, no hold points. `packing`: also without the frame (packing picks the
    * sheets; the frame is then kept where the parts still fit with it).
    */
-  opts: { holds?: boolean; packing?: boolean } = {}
+  opts: { holds?: boolean; packing?: boolean; stickout?: number } = {}
 ): BoardNest {
   const byId = new Map(instances.map(i => [i.id, i]));
   const ids = board.items.filter(id => byId.has(id));
   const gap = board.gap ?? boardGap(bit, partsHoldOf(board));
   const baseMargin = board.margin ?? defaultMargin(bit, partsHoldOf(board));
   const points = boardHoldOf(board) === 'points';
-  const hold = holdsOf(board);
+  const hold = holdsOf(board, opts.stickout);
   const size = board.size.fit ? undefined : { w: board.size.w, h: board.size.h };
   // Holds the user moved: parts keep clear of them, while the board keeps the size they were moved on.
   const sameSize = (b: { w: number; h: number }) =>
@@ -454,7 +462,7 @@ export function nestBoard(
   // All of them removed by hand: none, not the suggested ones again.
   let moved = points && board.holdPoints && (!size || sameSize(size)) ? board.holdPoints : undefined;
   const movedOn = board.holdPointsOn ?? size;
-  const nutAbove = nutAboveOf(board);
+  const nutAbove = nutAboveOf(board, opts.stickout);
   const holdAt = (p: { x: number; y: number }, on?: { w: number; h: number }): HoldPoint => ({
     // A clamp grips at the edge, however far it reaches in now: its toe would otherwise be checked off the board.
     ...(hold.w !== undefined && on ? snapClamp(p, hold.d, on) : { x: p.x, y: p.y }),
@@ -547,6 +555,8 @@ export function nestBoard(
     holds,
     frame,
     frameWidth: framed,
+    stickout: hold.stickout,
+    nutAbove,
     holdsMoved: !!moved,
   };
 }

@@ -340,6 +340,11 @@ describe('boards', () => {
     expect(holdsOf({ ...tabs, thickness: 20 }).stickout).toBe(31);
     expect(holdsOf({ ...tabs, thickness: 6 }).stickout).toBe(20);
     expect(nutAboveOf({ ...tabs, thickness: 20 })).toBeGreaterThan(9);
+    // The bit's own stick-out wins over one an older job saved with the board.
+    const legacy = { ...tabs, holds: { kind: 'clamp' as const, d: 2, w: 20, height: 30, stickout: 20 } };
+    expect(holdsOf(legacy, 45).stickout).toBe(45);
+    expect(nutAboveOf(legacy, 45)).toBe(36.4);
+    expect(nestBoard(legacy, parts, 3.175, { stickout: 45 })).toMatchObject({ stickout: 45, nutAbove: 36.4 });
     expect(nutAboveOf({ ...tabs, holds: { kind: 'clamp', d: 2, w: 20, height: 30, stickout: 45 } })).toBe(36.4);
     const long = nestBoard({ ...tabs, holds: { kind: 'clamp', d: 2, w: 20, height: 30, stickout: 45 } }, parts, 3.175);
     expect(long.margin).toBe(Math.ceil(2 + 1.5875 + 1.5 + 1.5875 + 1));

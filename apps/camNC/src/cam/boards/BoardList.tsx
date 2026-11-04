@@ -21,7 +21,6 @@ import {
   boardSizeLabel,
   holdLabel,
   holdsOf,
-  nutAboveOf,
   stockTopOf,
   type BoardV1,
   type PartInstance,
@@ -164,9 +163,9 @@ export function BoardList({
               {holdLabel(board)} · {bits.length || 1} {bits.length > 1 ? 'bits' : 'bit'}
               {nest.unplaced.length > 0 && <span className="text-destructive"> · {nest.unplaced.length} don’t fit</span>}
             </span>
-            {boardHoldOf(board) === 'points' && nutAboveOf(board) < 0 && (
+            {boardHoldOf(board) === 'points' && nest.nutAbove < 0 && (
               <span role="alert" className="text-xs text-destructive">
-                {`The stick-out (${holdsOf(board).stickout} mm) is shorter than the deepest cut (${+(stockTopOf(board) + 0.3).toFixed(1)} mm): the collet nut would hit the board. Check it in the board's settings.`}
+                {`The bit's stick-out (${nest.stickout} mm) is shorter than the deepest cut (${+(stockTopOf(board) + 0.3).toFixed(1)} mm): the collet nut would hit the board. Check it in the board's settings or with the bit.`}
               </span>
             )}
             {usesTabs(board.holdDown) && (
@@ -179,7 +178,7 @@ export function BoardList({
                 }
                 noFrame={
                   nest.frame === 'no-room'
-                    ? { width: nest.frameWidth, nut: nutReaches({ ...holdsOf(board), nutAbove: nutAboveOf(board) }) }
+                    ? { width: nest.frameWidth, nut: nutReaches({ ...holdsOf(board, nest.stickout), nutAbove: nest.nutAbove }) }
                     : undefined
                 }
                 onFrame={
