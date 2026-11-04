@@ -33,7 +33,7 @@ export const useCamMachine = create(
         /** What the top view draws for the loaded program: the board outline and, for tab removal, the tabs. */
         overlay: null as BoardOverlay | null,
         /** Guided tab removal stops before every tab (hold the part), or once per part (take it out). */
-        pauseEachTab: true,
+        pauseEachTab: false,
       },
       set => ({
         /** Nothing is loaded for the job yet, also when taking the same job again. What's cut stays, while it's the same program. */
@@ -47,7 +47,13 @@ export const useCamMachine = create(
         setPauseEachTab: (pauseEachTab: boolean) => set({ pauseEachTab }),
       })
     ),
-    { name: 'camnc-cam-machine' }
+    {
+      name: 'camnc-cam-machine',
+      // Version 1: once per part became the default, with the hand off the part while tabs are cut. Browsers saved the old
+      // default without anyone choosing it.
+      version: 1,
+      migrate: (saved, version) => (version < 1 ? { ...(saved as object), pauseEachTab: false } : saved) as never,
+    }
   )
 );
 

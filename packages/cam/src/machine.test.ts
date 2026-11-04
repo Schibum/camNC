@@ -103,7 +103,8 @@ describe('at the machine', () => {
     // Bit up, spindle off before each; started again and up to speed before any cut. A program that begins with a pause
     // has no spindle start before it.
     const lines = gcode.trim().split('\n');
-    expect(lines.filter(l => l.startsWith('M0 '))).toHaveLength(tabs.length);
+    // One per tab, and the one when parked.
+    expect(lines.filter(l => l.startsWith('M0 '))).toHaveLength(tabs.length + 1);
     expect(lines.indexOf('M3 S15000')).toBeGreaterThan(lines.indexOf(pauses[0]));
     for (const pause of pauses) {
       const i = lines.indexOf(pause);

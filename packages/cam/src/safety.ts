@@ -22,7 +22,7 @@ export interface SafetyLimits {
 }
 
 /** No router this CAM drives cuts wood faster than this. */
-export const kMaxFeed = 15000;
+export const kMaxFeed = 9000;
 
 export interface SafetyIssue {
   rule: 'rapid-in-stock' | 'outside-board' | 'too-deep' | 'spindle-off' | 'bad-feed' | 'line-too-long';

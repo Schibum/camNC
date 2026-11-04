@@ -118,7 +118,8 @@ describe('spike 3/4: toolpaths + gcode', () => {
     expect(programs).toHaveLength(2);
     expect(programs[0]).toMatch(/^\(  T3 D=3 /m);
     expect(programs[1]).toMatch(/^\(  T1 D=3.175 /m);
-    for (const g of programs) expect(g.match(/^M0 /gm)).toEqual(['M0 ']);
+    // Each: the confirmation before the spindle starts, and the one when parked. No bit swap inside a program.
+    for (const g of programs) expect(g.match(/^M0 \(MSG [A-Z][a-z]+/gm)).toEqual(['M0 (MSG Spindle', 'M0 (MSG Program']);
   });
 
   it('leaves no strip in the middle of a pocket with a stepover above half the bit', () => {
@@ -246,7 +247,8 @@ describe('spike 3/4: toolpaths + gcode', () => {
     expect(lines[m3 - 1]).toMatch(/^M0 \(MSG Spindle starts at 15000 RPM next/);
     expect(lines[m3 + 1]).toBe('G4 P3');
     expect(lines.findIndex(l => /^G1 /.test(l))).toBeGreaterThan(m3);
-    expect(lines.slice(-3)).toEqual(['M5', 'X0 Y0', 'M30']);
+    // Parked, a pause for whoever switches the spindle by hand (M5 did nothing there).
+    expect(lines.slice(-4)).toEqual(['M5', 'X0 Y0', 'M0 (MSG Program done. Manual spindle: off now)', 'M30']);
     expect(gcode).toMatch(/G[23] X/);
     const m = metrics(readGcode(gcode), 8);
     expect(m.zMin).toBeCloseTo(-0.3);
@@ -292,6 +294,7 @@ describe('safety rules', () => {
 
   it('flags a cutting move with no feed, and lets a fast but sane one through', () => {
     expect(checkGcodeSafety('M3 S15000\nG0 Z23\nG1 Z5\n', stock).map(i => i.rule)).toEqual(['bad-feed']);
+    expect(kMaxFeed).toBe(9000);
     expect(checkGcodeSafety(`M3 S15000\nG0 Z23\nG1 Z5 F${kMaxFeed}\n`, stock)).toEqual([]);
     expect(checkGcodeSafety(`M3 S15000\nG0 Z23\nG1 Z5 F${kMaxFeed + 1}\n`, stock).map(i => i.rule)).toEqual(['bad-feed']);
     expect(checkGcodeSafety('M3 S15000\nG0 Z23\nG1 Z5 F20000\n', { ...stock, maxFeed: 30000 })).toEqual([]);

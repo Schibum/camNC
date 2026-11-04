@@ -328,4 +328,17 @@ describe('machine queue', () => {
     expect(entryRotation(first, { A: 2, 'A:b': -1 })).toBe(2);
     expect(entryRotation(first, {})).toBe(0);
   });
+
+  it('tab removal pauses once per part by default, also in a browser that saved the old default', async () => {
+    expect(useCamMachine.getInitialState().pauseEachTab).toBe(false);
+    localStorage.setItem('camnc-cam-machine', JSON.stringify({ state: { pauseEachTab: true }, version: 0 }));
+    await useCamMachine.persist.rehydrate();
+    expect(useCamMachine.getState().pauseEachTab).toBe(false);
+    // Once chosen, it stays chosen.
+    useCamMachine.getState().setPauseEachTab(true);
+    await useCamMachine.persist.rehydrate();
+    expect(useCamMachine.getState().pauseEachTab).toBe(true);
+    useCamMachine.getState().setPauseEachTab(false);
+    localStorage.removeItem('camnc-cam-machine');
+  });
 });

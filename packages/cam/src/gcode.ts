@@ -264,6 +264,8 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
   move('G0', { z: safeZ });
   out.push('M5');
   move('G0', { x: 0, y: 0 });
+  // M5 did nothing on a router switched by hand: parked, say so. Not after a last pause that already did.
+  if (!cam.operations.at(-1)?.pauseAfter) out.push(`M0 (MSG Program done. ${kManualOff})`);
   out.push('M30');
   return out.join('\n') + '\n';
 }

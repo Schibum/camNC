@@ -113,6 +113,7 @@ describe('CAM plan step, the guided programs after the cutting', () => {
   }, 120_000);
 
   it('tab removal follows "Pause after each tab": changing it plans again', async () => {
+    useCamMachine.setState({ pauseEachTab: true });
     await open(stepUrl, 'kinderregal-eiche.step', b => ({ ...b, holdDown: 'tabs-guided' }));
     const list = await opList();
     const tabs = () => row(screen.getByRole('list', { name: 'Operations for board A' }), /Remove the tabs/)!;

@@ -176,7 +176,7 @@ describe('CAM controls explain themselves', () => {
     expect(description(card.getByRole('button', { name: 'Done, next' }))).toMatch(/loads the next program/);
   });
 
-  it('guided tab removal at the machine: pause after each tab (default) or once per part, with the legend for the marks', () => {
+  it('guided tab removal at the machine: once per part (default) or a pause after each tab, with the legend for the marks', () => {
     const plan = { size: [400, 300, 8.3], bits: [3.175], programs: [{ tool: 1, diameter: 3.175, gcode: 'G0', timeMin: 3 }] };
     const entry = { key: 'b1:tabs', board: { board }, kind: 'tabs', program: 0, firstOfBoard: false, plan };
     queue.value = { job: { name: 'job' }, queue: [entry], current: entry, done: [], tabRemoval: undefined, loading: false };
@@ -188,11 +188,11 @@ describe('CAM controls explain themselves', () => {
     );
     const card = within(screen.getByRole('region', { name: 'CAM job' }));
     const box = card.getByRole('checkbox', { name: 'Pause after each tab' });
-    expect(box.getAttribute('aria-checked')).toBe('true');
-    expect(card.getByText('Orange: next tab · Green ring: hold the part here')).toBeTruthy();
-    fireEvent.click(box);
-    expect(useCamMachine.getState().pauseEachTab).toBe(false);
+    expect(box.getAttribute('aria-checked')).toBe('false');
     expect(card.getByText(/cuts all of a part’s tabs in a row/)).toBeTruthy();
+    fireEvent.click(box);
+    expect(useCamMachine.getState().pauseEachTab).toBe(true);
+    expect(card.getByText('Orange: next tab · Green ring: hold the part here')).toBeTruthy();
   });
 
   it('the machine queue runs the guided program from the plan, and not while the board is planned again', () => {
