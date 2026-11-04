@@ -1,3 +1,4 @@
+/// <reference types="@vitest/browser/providers/playwright" />
 import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
@@ -9,9 +10,12 @@ export default defineConfig({
       enabled: true,
       headless: true,
       provider: 'playwright',
-      instances: [{ browser: 'chromium' }],
+      // Mock keychain: otherwise macOS asks for "Chromium Safe Storage" access on every run.
+      instances: [{ browser: 'chromium', launch: { args: ['--use-mock-keychain', '--password-store=basic'] } }],
     },
   },
+  // Pre-bundled up front: optimizing these on the fly reloads the test page mid-run (flaky CI timeouts).
+  optimizeDeps: { include: ['@wbcnc/video-worker-utils > three', 'react-device-detect'] },
   server: {
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',

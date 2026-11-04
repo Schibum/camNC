@@ -1,6 +1,5 @@
 import { Canvas } from '@react-three/fiber';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { userEvent } from '@vitest/browser/context';
 import { Box2, Vector2 } from 'three';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DepthHoverReadout, DepthPanel, DepthScene, DepthViewPreset } from './DepthInspector';
@@ -133,13 +132,15 @@ describe('DepthPanel', () => {
     // Stays visible with the panel collapsed.
     fireEvent.click(screen.getByRole('button', { expanded: true }));
     const input = screen.getByRole('spinbutton', { name: 'Stock height' });
-    act(() => input.focus());
+    // The test page is not focused (document.hasFocus() is false headless), so input.focus() fires no focus events:
+    // dispatch them, as a user clicking into the field would.
+    fireEvent.focus(input);
     fireEvent.change(input, { target: { value: '12.5' } });
     expect(store.stockHeight).toBe(12.5);
     // Not hidden mid-typing.
     rerender(<DepthPanel toolpath={parseGCode(gcode)} />);
     expect(screen.getByRole('spinbutton', { name: 'Stock height' })).toBe(input);
-    act(() => input.blur());
+    fireEvent.blur(input);
     // Done, so it moves out of the way with the rest of the panel.
     expect(screen.queryByRole('spinbutton', { name: 'Stock height' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { expanded: false }));
@@ -200,43 +201,38 @@ describe('DepthScene', () => {
           </Canvas>
         </div>
         <DepthHoverReadout toolpath={toolpath} />
-        <button type="button">Outside</button>
       </>
     );
     return toolpath;
   }
 
+  /**
+   * Moves the pointer over the view's center until the readout shows Z -0.50: the camera takes a frame or more to get
+   * into place. The event is dispatched: a real mouse move waits for rendered frames, and parallel test files that
+   * draw in software can hold those back past any timeout (all pages share one GPU thread).
+   */
+  const hoverUntilZ = (canvas: HTMLCanvasElement) =>
+    waitFor(
+      () => {
+        const { left, top, width, height } = canvas.getBoundingClientRect();
+        fireEvent.pointerMove(canvas, { clientX: left + width / 2, clientY: top + height / 2 });
+        expect(screen.getByText(/^-0\.50$/).textContent).toBe('Z -0.50');
+      },
+      { timeout: 25_000, interval: 50 }
+    );
+
   it('reads out the exact position of the hovered path point', async () => {
     // Seen from the front, the diagonal plunge crosses the center of the fitted view at Z -0.50.
     renderScene('G1 X40 Z-1 F100', 'front');
-    const canvas = screen.getByTestId('scene').querySelector('canvas')!;
-    const outside = screen.getByRole('button', { name: 'Outside' });
-    // Retry until the camera has moved into place, leaving the canvas in between to trigger a fresh pointer move.
-    await waitFor(
-      async () => {
-        await userEvent.hover(outside);
-        await userEvent.hover(canvas);
-        expect(screen.getByText(/^-0\.50$/).textContent).toBe('Z -0.50');
-      },
-      { timeout: 5000 }
-    );
-  });
+    await hoverUntilZ(screen.getByTestId('scene').querySelector('canvas')!);
+  }, 30_000);
 
   it('keeps hover working while a level is selected', async () => {
     const toolpath = renderScene('G1 X40 Z-1 F100', 'front');
     // Selecting a level recolors the path, which must not drop its pointer handlers.
     act(() => useDepthView.getState().setSelected(toolpath, -1));
-    const canvas = screen.getByTestId('scene').querySelector('canvas')!;
-    const outside = screen.getByRole('button', { name: 'Outside' });
-    await waitFor(
-      async () => {
-        await userEvent.hover(outside);
-        await userEvent.hover(canvas);
-        expect(screen.getByText(/^-0\.50$/).textContent).toBe('Z -0.50');
-      },
-      { timeout: 5000 }
-    );
-  });
+    await hoverUntilZ(screen.getByTestId('scene').querySelector('canvas')!);
+  }, 30_000);
 
   it('forgets the hovered point of a previous toolpath', () => {
     const previous = parseGCode(gcode);

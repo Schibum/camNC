@@ -234,26 +234,28 @@ export function JogPanel() {
   );
 }
 
-export function ProbePanel() {
-  'use no memo';
-  const api = getCncApi();
+/** Who switches the spindle: CAM programs pause for a router switched by hand, or let M3/M5 do it. */
+export function SpindleSetting() {
+  const spindle = useStore(s => s.machinePrefs.spindleSwitch ?? 'hand');
+  const setPrefs = useStore(s => s.setMachinePrefs);
+  return (
+    <Label className="text-sm flex flex-row gap-2 items-center">
+      Spindle switched
+      <select
+        className="rounded-md border bg-transparent px-1.5 py-0.5"
+        value={spindle}
+        onChange={e => setPrefs({ spindleSwitch: e.target.value as 'hand' | 'controller' })}>
+        <option value="hand">by hand (a router)</option>
+        <option value="controller">by the controller (M3/M5)</option>
+      </select>
+    </Label>
+  );
+}
+
+/** Touch plate thickness, how far to probe down and how fast. */
+export function ProbeSettings() {
   const prefs = useStore(s => s.machinePrefs);
   const setPrefs = useStore(s => s.setMachinePrefs);
-  const [busy, setBusy] = useState(false);
-  const idle = api.state.value === 'Idle';
-
-  async function probe() {
-    setBusy(true);
-    const promise = api.probeZ({ plateThickness: prefs.probePlateThickness, maxTravel: prefs.probeMaxTravel, feed: prefs.probeFeed });
-    toast.promise(promise, {
-      loading: 'Probing Z…',
-      success: `Z zero set (plate ${prefs.probePlateThickness} mm)`,
-      error: err => `Probe failed: ${err instanceof Error ? err.message : err}`,
-    });
-    await promise.catch(() => {});
-    setBusy(false);
-  }
-
   const field = (label: string, key: 'probePlateThickness' | 'probeMaxTravel' | 'probeFeed') => (
     <Label className="text-xs flex flex-col items-start gap-1">
       {label}
@@ -269,16 +271,12 @@ export function ProbePanel() {
       />
     </Label>
   );
-
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-row flex-wrap gap-2 items-end">
         {field('Plate (mm)', 'probePlateThickness')}
         {field('Travel (mm)', 'probeMaxTravel')}
         {field('Feed', 'probeFeed')}
-        <Button size="sm" className="ml-auto" disabled={!idle || busy} onClick={probe}>
-          Probe Z
-        </Button>
       </div>
       <p className="text-xs text-muted-foreground">
         Clip on, plate under the bit. Probes down with <code>G38.2</code> and sets Z zero to the plate thickness.
@@ -310,8 +308,14 @@ function OverrideSlider({ kind, label }: { kind: 'feed' | 'spindle'; label: stri
           isDisabled={!api.isConnected.value}
         />
       </div>
-      <Button size="sm" variant="ghost" onClick={() => api.setOverride(kind, 100)} disabled={!api.isConnected.value}>
-        100%
+      {/* The slider label shows the current value; this only resets it. FluidNC clamps feed and spindle overrides to 10-200%. */}
+      <Button
+        size="sm"
+        variant="ghost"
+        title="Reset to 100%"
+        onClick={() => api.setOverride(kind, 100)}
+        disabled={!api.isConnected.value || current === 100}>
+        Reset
       </Button>
     </div>
   );

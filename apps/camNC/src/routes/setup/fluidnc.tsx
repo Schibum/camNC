@@ -1,4 +1,5 @@
 import { MachineConnectionForm } from '@/components/machine/MachineConnectionForm';
+import { SpindleSetting } from '@/components/machine/controls';
 import { PageHeader } from '@/components/page-header';
 import { ICamSource, isCameraReady, useCamSource, useMachineBoundsOrNull } from '@/store/store';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
@@ -42,6 +43,20 @@ function RouteComponent() {
                 <Button onClick={() => navigate({ to: next })}>{next === '/visualize/2DView' ? 'Continue to top view' : 'Continue'}</Button>
               </div>
             </div>
+          </CardContent>
+        </Card>
+      </div>
+      <div className="flex justify-center p-1 flex-row">
+        <Card className="w-full max-w-xl">
+          <CardHeader>
+            <CardTitle>Spindle</CardTitle>
+            <CardDescription>
+              By hand: every pause in a CAM program tells you to switch the router off, and on again before Resume. By the controller: the
+              program&apos;s M3 and M5 do it, and the pauses don&apos;t mention it.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SpindleSetting />
           </CardContent>
         </Card>
       </div>

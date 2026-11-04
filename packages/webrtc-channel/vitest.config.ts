@@ -1,3 +1,4 @@
+/// <reference types="@vitest/browser/providers/playwright" />
 import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
@@ -9,7 +10,8 @@ export default defineConfig({
       enabled: true,
       headless: true,
       provider: 'playwright',
-      instances: [{ browser: 'chromium' }],
+      // Mock keychain: otherwise macOS asks for "Chromium Safe Storage" access on every run.
+      instances: [{ browser: 'chromium', launch: { args: ['--use-mock-keychain', '--password-store=basic'] } }],
     },
   },
 });

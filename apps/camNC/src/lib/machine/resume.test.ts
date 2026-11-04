@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildResumeProgram, findRestartLine, parseProgram, programBounds, resumeWarnings } from './resume';
+import { buildResumeProgram, findRestartLine, parseProgram, passContaining, passStarts, programBounds, resumeWarnings } from './resume';
 
 // A small Fusion-style program: tool change, spindle on with a pause, two passes around a 20 x 10 rectangle.
 const kJob = [
@@ -169,5 +169,112 @@ describe('buildResumeProgram', () => {
     const bounds = programBounds(parseProgram(resume.gcode));
     expect(bounds.min).toEqual({ x: 0, y: 0, z: -2 });
     expect(bounds.max.x).toBe(20);
+  });
+});
+
+// Shaped like camNC's own CAM output (packages/cam toGcode): OP and PASS markers, retract passes and a linked pass.
+const kCamJob = [
+  'G21 G90 G17', // 0
+  'G0 Z5', // 1
+  'M0 (MSG Turn ON spindle 18000RPM)', // 2
+  '(OP 1/2 left: Outline 1 - T1 D=3.175)', // 3
+  '(PASS 1/2 Z-1)', // 4
+  'G0 X0 Y0', // 5
+  'Z1', // 6
+  'G1 Z-1 F300', // 7: first cut of pass 1
+  'X20 F1200', // 8
+  'Y10', // 9
+  '(PASS 2/2 Z-2)', // 10
+  'G1 X20 Y10 Z-2 F300', // 11: linked straight down
+  'X0 F1200', // 12
+  'Y0', // 13
+  '(OP 2/2 Pocket 1 z=3.8 - T1 D=3.175)', // 14
+  '(PASS 1/1 Z-0.5)', // 15
+  'G0 Z2', // 16
+  'X5 Y5', // 17
+  'Z1', // 18
+  'G1 Z-0.5 F300', // 19
+  'X6 F1200', // 20
+  'G0 Z5', // 21
+  'X0 Y0', // 22
+  '',
+].join('\n');
+
+describe('passStarts', () => {
+  const program = parseProgram(kCamJob);
+  const passes = passStarts(program);
+
+  it('lists the passes with the first cutting move of each', () => {
+    expect(passes).toEqual([
+      { op: 1, opCount: 2, opName: 'left: Outline 1', pass: 1, passCount: 2, z: -1, markerLine: 4, line: 7 },
+      { op: 1, opCount: 2, opName: 'left: Outline 1', pass: 2, passCount: 2, z: -2, markerLine: 10, line: 11 },
+      { op: 2, opCount: 2, opName: 'Pocket 1 z=3.8', pass: 1, passCount: 1, z: -0.5, markerLine: 15, line: 19 },
+    ]);
+  });
+
+  it('finds nothing in a program without markers', () => {
+    expect(passStarts(parseProgram(kJob))).toEqual([]);
+  });
+
+  it('finds the pass a line belongs to', () => {
+    expect(passContaining(passes, 2)).toBe(-1);
+    expect(passContaining(passes, 4)).toBe(0);
+    expect(passContaining(passes, 9)).toBe(0);
+    expect(passContaining(passes, 12)).toBe(1);
+    // The final retract belongs to the last pass.
+    expect(passContaining(passes, 22)).toBe(2);
+  });
+
+  it('resumes at a pass start with that pass’s first move', () => {
+    for (const pass of passes) {
+      const resume = buildResumeProgram(program, { line: pass.line, safeZMachine: -1 });
+      const lines = resume.gcode.split('\n');
+      expect(resume.start).toEqual(program.lines[pass.line]!.start);
+      expect(lines[resume.preambleLines]).toBe(program.lines[pass.line]!.raw);
+      expect(lines.slice(resume.preambleLines + 1)).toEqual(kCamJob.split('\n').slice(pass.line + 1));
+    }
+    // The pocket's opening rapids are left to the resume moves: it goes down over X5 Y5, just above the material.
+    expect(buildResumeProgram(program, { line: passes[2]!.line, safeZMachine: -1 }).start).toEqual({ x: 5, y: 5, z: 1 });
+    // The linked pass starts where the previous one ended.
+    expect(buildResumeProgram(program, { line: passes[1]!.line, safeZMachine: -1 }).start).toEqual({ x: 20, y: 10, z: -1 });
+  });
+});
+
+describe('resuming a camNC CAM program', () => {
+  // What the CAM emits now: a confirm pause, M3 with a dwell, passes, then M5 and M30.
+  const gcode = [
+    '(camNC CAM)',
+    '(X0 Y0 = lower left corner of board A, 600 x 300 mm. Z0 = stock bottom)',
+    'G21 G90 G94 G17',
+    'G0 Z13',
+    'M0 (MSG Spindle starts at 15000 RPM next. Manual spindle: turn it on now)',
+    'M3 S15000',
+    'G4 P3',
+    '(OP 1/1 Outline - T1 D=3.175)',
+    '(PASS 1/2 Z4)',
+    'G0 X0 Y0',
+    'Z9',
+    'G1 Z4 F480',
+    'X20 F1800',
+    '(PASS 2/2 Z0)',
+    'G1 Z0 F480',
+    'X0 F1800',
+    'G0 Z13',
+    'M5',
+    'X0 Y0',
+    'M30',
+    '',
+  ].join('\n');
+
+  it('starts the spindle again before plunging and keeps the program end', () => {
+    const program = parseProgram(gcode);
+    const [, second] = passStarts(program);
+    const resume = buildResumeProgram(program, { line: second!.line, safeZMachine: -1 });
+    const lines = resume.gcode.split('\n');
+    const m3 = lines.indexOf('M3 S15000');
+    expect(m3).toBeGreaterThan(0);
+    expect(m3).toBeLessThan(resume.preambleLines);
+    expect(lines.slice(-4)).toEqual(['M5', 'X0 Y0', 'M30', '']);
+    expect(resume.warnings).toEqual([]);
   });
 });

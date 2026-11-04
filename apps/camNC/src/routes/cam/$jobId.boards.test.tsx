@@ -1,0 +1,489 @@
+import { createJob, getJob, saveJob } from '@/cam/jobDb';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import type { ComponentType } from 'react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import stepUrl from '../../../../../packages/cam/test/fixtures/kinderregal-eiche.step?url';
+import { Route } from './$jobId.boards';
+
+const params = vi.hoisted(() => ({ jobId: '' }));
+const toastError = vi.hoisted(() => vi.fn());
+const toastSuccess = vi.hoisted(() => vi.fn());
+
+vi.mock('@tanstack/react-router', () => ({
+  createFileRoute: () => (options: unknown) => ({ options }),
+  useParams: () => params,
+  useSearch: () => ({}),
+  useNavigate: () => () => undefined,
+  Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
+}));
+vi.mock('@/components/page-header', () => ({ PageHeader: () => null }));
+vi.mock('@wbcnc/ui/components/sonner', () => ({
+  toast: Object.assign(vi.fn(), { error: toastError, success: toastSuccess, warning: vi.fn() }),
+}));
+
+const BoardsStep = (Route as unknown as { options: { component: ComponentType } }).options.component;
+
+afterEach(cleanup);
+
+/** The accessible description: the text of the elements `aria-describedby` points to. */
+const description = (el: Element) =>
+  (el.getAttribute('aria-describedby') ?? '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(id => document.getElementById(id)?.textContent ?? '')
+    .join(' ')
+    .trim();
+
+/** A board's drawing: its header, the parts on it, the ones that don't fit. */
+const drawing = (board: string) => screen.getByRole('region', { name: `Board ${board} drawing` });
+
+/** Pointer drag of a part (its outline, or its chip where it doesn't fit) to the middle of another board's drawing. */
+function drag(part: Element, board: string) {
+  const start = part.getBoundingClientRect();
+  const frame = drawing(board).querySelector('svg')!.getBoundingClientRect();
+  const to = { clientX: frame.x + frame.width / 2, clientY: frame.y + frame.height / 2 };
+  fireEvent.pointerDown(part, { clientX: start.x + 3, clientY: start.y + 3, button: 0 });
+  fireEvent.pointerMove(window, to);
+  fireEvent.pointerUp(window, to);
+}
+
+/** A part's menu, from the ⋯ that shows on the part last touched. */
+async function openMenu(board: string, name: string) {
+  fireEvent.focus(partIn(board, name));
+  fireEvent.pointerDown(await within(drawing(board)).findByRole('button', { name: `${name} menu` }), { button: 0, ctrlKey: false });
+}
+
+/** A part's outline in a board drawing. */
+const partIn = (board: string, name: string) =>
+  within(screen.getByRole('region', { name: `Board ${board} drawing` })).getByRole('button', {
+    name: new RegExp(`^${name}: drag, or move`),
+  });
+
+/** Client point of a board point (mm, lower left zero) in a board's drawing. */
+function clientOf(board: string, x: number, y: number) {
+  const frame = screen.getByRole('region', { name: `Board ${board} drawing` }).querySelector<SVGGraphicsElement>('[data-board-frame]')!;
+  const p = new DOMPoint(x, y).matrixTransform(frame.getScreenCTM()!);
+  return { clientX: p.x, clientY: p.y };
+}
+
+async function openKinderregal() {
+  const bytes = await (await fetch(stepUrl)).arrayBuffer();
+  const job = await createJob(new File([bytes], 'kinderregal-eiche.step'));
+  params.jobId = job.id;
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <BoardsStep />
+    </QueryClientProvider>
+  );
+  await screen.findByRole('region', { name: 'Board A drawing' }, { timeout: 60_000 });
+  return job;
+}
+
+describe('CAM boards step', () => {
+  it('auto-fill keeps parts moved by hand, and Undo restores the boards exactly', async () => {
+    const job = await openKinderregal();
+
+    // The middle shelf on a board of its own, by hand: pinned there. Enter on a part opens its menu.
+    fireEvent.keyDown(partIn('A', 'Part 2'), { key: 'Enter' });
+    fireEvent.click(await screen.findByRole('menuitem', { name: /New board/ }));
+    const c = await screen.findByRole('region', { name: 'Board C drawing' });
+    expect(within(c).getByText('Part 2')).toBeTruthy();
+    expect(description(within(c).getByRole('img', { name: 'Placed by hand' }))).toMatch(/^Pinned:/);
+
+    // One 8 mm stock board size, as many as needed: the stock list opens next to Auto-fill.
+    fireEvent.click(screen.getByRole('button', { name: /^Stock list/ }));
+    const stockList = within(screen.getByRole('region', { name: 'Stock list' }));
+    fireEvent.change(stockList.getByLabelText('Stock thickness'), { target: { value: '8' } });
+    fireEvent.change(stockList.getByLabelText('Stock width'), { target: { value: '1220' } });
+    fireEvent.change(stockList.getByLabelText('Stock height'), { target: { value: '610' } });
+    fireEvent.click(stockList.getByRole('button', { name: 'Add stock board' }));
+    // Both saves (the new board, the stock list) land before auto-fill reads the job.
+    await waitFor(
+      async () => {
+        const saved = (await getJob(job.id))!;
+        expect(saved.stock).toHaveLength(1);
+        expect(saved.boards?.map(b => b.name)).toContain('C');
+      },
+      { timeout: 10_000 }
+    );
+    const before = (await getJob(job.id))!.boards!;
+    expect(before.find(b => b.name === 'C')!.pinned).toEqual([before.find(b => b.name === 'C')!.items[0]]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Auto-fill from stock' }));
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
+    const [message, { action }] = toastSuccess.mock.calls.at(-1)! as [string, { action: { label: string; onClick: () => void } }];
+    expect(message).toBe('Parts placed on 1 board from stock');
+    expect(action.label).toBe('Undo');
+    let after: typeof before = [];
+    await waitFor(async () => {
+      after = (await getJob(job.id))!.boards!;
+      expect(after).not.toEqual(before);
+    });
+    // The pinned board is still there with its part; the others are on one stock board.
+    const pinned = before.find(b => b.name === 'C')!;
+    expect(after.find(b => b.id === pinned.id)).toEqual(pinned);
+    const stockBoard = after.find(b => !b.size.fit)!;
+    expect(stockBoard.size).toEqual({ fit: false, w: 1220, h: 610 });
+    expect(stockBoard.items).toHaveLength(4);
+
+    action.onClick();
+    await waitFor(async () => expect((await getJob(job.id))!.boards).toStrictEqual(before));
+    expect(drawing('C')).toBeTruthy();
+    // Undo leaves the stock list alone.
+    expect((await getJob(job.id))!.stock).toHaveLength(1);
+  }, 90_000);
+
+  it('nests the parts on one board per thickness and regroups them by drag and drop', async () => {
+    const job = await openKinderregal();
+    const a = drawing('A');
+    const b = drawing('B');
+    for (const name of ['left', 'right', 'Part 1a', 'Part 1b', 'Part 2']) expect(within(a).getByText(name)).toBeTruthy();
+    expect(within(b).getByText('back')).toBeTruthy();
+    expect(screen.getByRole('group', { name: /Board A, .* with 5 parts/ })).toBeTruthy();
+    expect(screen.getByRole('group', { name: /Board B, .* with 1 parts/ })).toBeTruthy();
+
+    // A new 8 mm board, and the middle shelf dragged onto it.
+    fireEvent.click(screen.getByRole('button', { name: /New 8 mm board/ }));
+    await screen.findByRole('region', { name: 'Board C drawing' });
+    drag(partIn('A', 'Part 2'), 'C');
+    await waitFor(() => expect(within(drawing('C')).getByText('Part 2')).toBeTruthy(), { timeout: 10_000 });
+    expect(within(drawing('A')).queryByText('Part 2')).toBeNull();
+
+    // The 3 mm back can't go on an 8 mm board.
+    drag(partIn('B', 'back'), 'A');
+    expect(toastError).toHaveBeenCalledWith(expect.stringContaining('3 mm thick'));
+
+    // Without dragging: ⋯ › Move to › New board.
+    await openMenu('A', 'Part 1b');
+    fireEvent.click(await screen.findByRole('menuitem', { name: /New board/ }));
+    await waitFor(() => expect(within(screen.getByRole('region', { name: 'Board D drawing' })).getByText('Part 1b')).toBeTruthy());
+
+    // The left side onto board C (pointer events, so touch works too).
+    const left = partIn('A', 'left');
+    const start = left.getBoundingClientRect();
+    const frame = drawing('C').querySelector('svg')!.getBoundingClientRect();
+    const to = { clientX: frame.x + frame.width / 2, clientY: frame.y + frame.height / 2 };
+    fireEvent.pointerDown(left, { clientX: start.x + 5, clientY: start.y + 5, button: 0 });
+    fireEvent.pointerMove(window, to);
+    // While dragging, the board under the pointer says where it lands; the 3 mm board doesn't take it.
+    expect(within(drawing('C')).getByText(/^(Lands where you drop it|Snaps into the nest)$/)).toBeTruthy();
+    expect(within(drawing('B')).getByText('Different thickness')).toBeTruthy();
+    fireEvent.pointerUp(window, to);
+    await waitFor(() => expect(within(drawing('C')).getByText('left')).toBeTruthy(), { timeout: 10_000 });
+
+    await waitFor(async () => {
+      const saved = (await getJob(job.id))!.boards!;
+      expect(saved.map(x => [x.name, x.items.length])).toEqual([
+        ['A', 2],
+        ['B', 1],
+        ['C', 2],
+        ['D', 1],
+      ]);
+    });
+
+    // Screwed or clamped down by default: the holds are drawn on the board; taped down there are none.
+    fireEvent.click(drawing('A'));
+    const holdsOnA = () => screen.getByRole('region', { name: 'Board A drawing' }).querySelectorAll('[data-hold]').length;
+    expect(holdsOnA()).toBeGreaterThanOrEqual(3);
+    fireEvent.click(screen.getByLabelText('Tape or fixture'));
+    await waitFor(() => expect(holdsOnA()).toBe(0));
+  }, 90_000);
+
+  it('drags a part’s outline from one board drawing onto another, where it lands exactly at the drop point', async () => {
+    const job = await openKinderregal();
+    // Board C: a 1220 × 610 sheet, empty.
+    fireEvent.click(screen.getByRole('button', { name: /New 8 mm board/ }));
+    await screen.findByRole('region', { name: 'Board C drawing' });
+    for (const [label, value] of [
+      ['Width', '1220'],
+      ['Height', '610'],
+    ]) {
+      // The board's own fields (the stock list has a Width and Height too).
+      const field = () => screen.getByLabelText(label, { selector: '[id^="board-"]' }) as HTMLInputElement;
+      const input = field();
+      fireEvent.change(input, { target: { value } });
+      fireEvent.blur(input);
+      await waitFor(() => expect(field().value).toBe(value));
+    }
+    await waitFor(
+      async () => expect((await getJob(job.id))!.boards!.find(b => b.name === 'C')!.size).toEqual({ fit: false, w: 1220, h: 610 }),
+      { timeout: 10_000 }
+    );
+
+    // Grab the left side (560 × 140) at its lower left corner + (20, 10) mm.
+    const left = partIn('A', 'left');
+    const box = (left as unknown as SVGGElement).getBBox();
+    // getBBox is in the drawing's frame (Y up): lower left corner of the outline.
+    fireEvent.pointerDown(left, { ...clientOf('A', box.x + 20, box.y + 10), button: 0 });
+
+    // Over board C at (300, 300) + the grab offset: the outline follows the pointer, C is highlighted and shows
+    // where it lands.
+    const c = screen.getByRole('region', { name: 'Board C drawing' });
+    c.scrollIntoView({ block: 'center' });
+    const drop = clientOf('C', 320, 310);
+    fireEvent.pointerMove(window, drop);
+    expect(document.elementFromPoint(drop.clientX, drop.clientY)?.closest('[data-board-drop]')).toBe(c);
+    expect(document.querySelector('[data-drag-ghost]')).toBeTruthy();
+    expect(c.querySelector('[data-preview="fits"]')).toBeTruthy();
+    expect(within(c).getByText('Lands where you drop it')).toBeTruthy();
+    // Near the column's edge the drag scrolls it: let go where that point of board C is now.
+    fireEvent.pointerUp(window, clientOf('C', 320, 310));
+
+    await waitFor(
+      async () => {
+        const boards = (await getJob(job.id))!.boards!;
+        const onC = boards.find(b => b.name === 'C')!;
+        expect(onC.items).toHaveLength(1);
+        expect(onC.pinned).toEqual(onC.items);
+        const at = onC.positions![onC.items[0]];
+        expect(Math.abs(at.x - 300)).toBeLessThan(5);
+        expect(Math.abs(at.y - 300)).toBeLessThan(5);
+        expect(at.rotated).toBe(false);
+        expect(boards.find(b => b.name === 'A')!.items).not.toContain(onC.items[0]);
+        // The save takes longer than the default second on a busy CI machine.
+      },
+      { timeout: 10_000 }
+    );
+    expect(within(drawing('C')).getByText('left')).toBeTruthy();
+    expect(document.querySelector('[data-drag-ghost]')).toBeNull();
+
+    // Arrow keys move it on its board, 10 mm with Shift.
+    const before = (await getJob(job.id))!.boards!.find(b => b.name === 'C')!;
+    const id = before.items[0];
+    fireEvent.keyDown(partIn('C', 'left'), { key: 'ArrowRight', shiftKey: true });
+    await waitFor(
+      async () => {
+        const at = (await getJob(job.id))!.boards!.find(b => b.name === 'C')!.positions![id];
+        expect(at.x).toBeCloseTo(before.positions![id].x + 10, 5);
+        expect(at.y).toBeCloseTo(before.positions![id].y, 5);
+      },
+      { timeout: 10_000 }
+    );
+  }, 90_000);
+
+  it('drags a tab along its part’s outline: saved in the part’s frame, and placed automatically again on request', async () => {
+    const job = await openKinderregal();
+    const drawingA = () => drawing('A');
+    // The board's program comes back with its tabs.
+    const tab = await waitFor(
+      () => {
+        const t = drawingA().querySelector<SVGCircleElement>('[data-tab]');
+        expect(t).toBeTruthy();
+        return t!;
+      },
+      { timeout: 60_000 }
+    );
+    const part = tab.getAttribute('data-tab')!;
+    const [cx, cy] = [+tab.getAttribute('cx')!, +tab.getAttribute('cy')!];
+    // 30 mm along the board's x, and a little off the outline: it lands on the outline.
+    fireEvent.pointerDown(tab, { ...clientOf('A', cx, cy), button: 0, pointerId: 1 });
+    fireEvent.pointerMove(tab, { ...clientOf('A', cx + 30, cy + 2), pointerId: 1 });
+    fireEvent.pointerUp(tab, { ...clientOf('A', cx + 30, cy + 2), pointerId: 1 });
+    const saved = async () => (await getJob(job.id))!.boards!.find(b => b.name === 'A')!;
+    await waitFor(async () => {
+      const b = await saved();
+      const item = b.items.find(id => b.tabsAt?.[id]);
+      expect(item).toBeTruthy();
+      expect(b.tabsAt![item!].length).toBeGreaterThanOrEqual(2);
+    });
+    // The next program has a tab where it was dropped.
+    await waitFor(
+      () => {
+        const moved = [...drawingA().querySelectorAll<SVGCircleElement>(`[data-tab="${part}"]`)];
+        expect(moved.some(t => Math.abs(+t.getAttribute('cx')! - (cx + 30)) < 4)).toBe(true);
+      },
+      { timeout: 60_000 }
+    );
+    // A double-click on the part's edge adds one there; one on a tab removes it.
+    const count = async () => {
+      const b = await saved();
+      return b.tabsAt![b.items.find(id => b.tabsAt?.[id])!].length;
+    };
+    const before = await count();
+    const outline = drawingA().querySelector<SVGGElement>(`[data-item][data-part="${part}"]`)!;
+    const box = outline.getBBox();
+    fireEvent.doubleClick(outline, clientOf('A', box.x + box.width / 2, box.y + 1));
+    await waitFor(async () => expect(await count()).toBe(before + 1));
+    await waitFor(() => expect(drawingA().querySelectorAll(`[data-tab="${part}"]`).length).toBeGreaterThanOrEqual(before + 1), {
+      timeout: 60_000,
+    });
+    fireEvent.doubleClick(drawingA().querySelector(`[data-tab="${part}"]`)!);
+    await waitFor(async () => expect(await count()).toBe(before));
+    // Back to picked tabs: for the part, from its menu.
+    await openMenu('A', part);
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Place its tabs automatically again' }));
+    await waitFor(async () => expect((await saved()).tabsAt).toBeUndefined());
+    // And for the whole board, from its settings.
+    fireEvent.doubleClick(outline, clientOf('A', box.x + box.width / 2, box.y + 1));
+    await waitFor(async () => expect((await saved()).tabsAt).toBeTruthy(), { timeout: 60_000 });
+    fireEvent.click(drawingA());
+    fireEvent.click(await screen.findByRole('button', { name: 'Place tabs automatically again' }));
+    await waitFor(async () => expect((await saved()).tabsAt).toBeUndefined());
+  }, 150_000);
+
+  it('keeps the stick-out with the job’s bit, not the board', async () => {
+    const job = await openKinderregal();
+    fireEvent.click(drawing('A'));
+    const field = () => document.getElementById('hold-stickout') as HTMLInputElement;
+    await waitFor(() => expect(field()).toBeTruthy());
+    fireEvent.change(field(), { target: { value: '42' } });
+    fireEvent.blur(field());
+    await waitFor(async () => {
+      const saved = (await getJob(job.id))!;
+      expect(saved.plan?.bit.stickout).toBe(42);
+      expect(saved.boards!.every(b => b.holds?.stickout === undefined)).toBe(true);
+    });
+    // Every board of the job shows it.
+    fireEvent.click(drawing('B'));
+    await waitFor(() => expect(field().value).toBe('42'));
+  }, 90_000);
+
+  it('auto-fill optimizes for fewest boards unless the job says least wood', async () => {
+    const job = await openKinderregal();
+    // Tabs only where they hold: no tab marked red on the drawings once the programs are made.
+    const tabs = () => document.querySelectorAll('line[class*="stroke-amber"]').length;
+    const floating = () => [...document.querySelectorAll('circle > title')].filter(t => /this tab holds nothing/.test(t.textContent ?? ''));
+    await waitFor(() => expect(tabs()).toBeGreaterThan(0), { timeout: 60_000 });
+    expect(floating()).toHaveLength(0);
+    const group = within(screen.getByRole('group', { name: 'Auto-fill optimizes for' }));
+    expect(screen.getByText('Auto-fill prefers:')).toBeTruthy();
+    expect(description(group.getByRole('button', { name: 'Fewest boards' }))).toBe(
+      'Fewer setups at the machine, may waste a bit more wood.'
+    );
+    expect(description(group.getByRole('button', { name: 'Least wood' }))).toBe('Least board area, may need more boards.');
+    expect(description(screen.getByRole('button', { name: 'More layout actions' }))).toMatch(/re-lay out everything/);
+    expect(description(screen.getByRole('button', { name: 'Auto-fill from stock' }))).toMatch(/stock list/);
+    expect(screen.getByRole('status', { name: 'Layout result' }).textContent).toMatch(/^2 boards, \d+ % yield$/);
+    expect(group.getByRole('button', { name: 'Fewest boards' }).getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(group.getByRole('button', { name: 'Least wood' }));
+    await waitFor(async () => expect((await getJob(job.id))!.nestObjective).toBe('wood'), { timeout: 10_000 });
+    expect(group.getByRole('button', { name: 'Least wood' }).getAttribute('aria-pressed')).toBe('true');
+  }, 90_000);
+
+  it('re-lays out one board or everything after moves by hand, with Undo', async () => {
+    const job = await openKinderregal();
+    // Part 2 by hand onto a board of its own: pinned.
+    await openMenu('A', 'Part 2');
+    fireEvent.click(await screen.findByRole('menuitem', { name: /New board/ }));
+    await screen.findByRole('region', { name: 'Board C drawing' });
+    const pinnedBoards = async () => ((await getJob(job.id))!.boards ?? []).filter(b => b.pinned?.length).map(b => b.name);
+    await waitFor(async () => expect(await pinnedBoards()).toEqual(['C']), { timeout: 10_000 });
+    const before = (await getJob(job.id))!.boards!;
+
+    // Everything: unpinned (no stock list, so the boards keep their parts and nest afresh).
+    toastSuccess.mockClear();
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'More layout actions' }), { button: 0, ctrlKey: false });
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Re-lay out everything (unpin all)' }));
+    await waitFor(async () => expect(await pinnedBoards()).toEqual([]), { timeout: 10_000 });
+    const [message, { action }] = toastSuccess.mock.calls.at(-1)! as [string, { action: { label: string; onClick: () => void } }];
+    expect(message).toBe('All boards laid out again');
+    action.onClick();
+    await waitFor(async () => expect((await getJob(job.id))!.boards).toStrictEqual(before), { timeout: 10_000 });
+
+    // One board: select C's drawing, re-lay it out from its inspector.
+    fireEvent.click(await screen.findByRole('region', { name: 'Board C drawing' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Re-lay out' }));
+    await waitFor(async () => expect(await pinnedBoards()).toEqual([]), { timeout: 10_000 });
+    expect(toastSuccess.mock.calls.at(-1)![0]).toBe('Board C laid out again');
+    // Part 2 is still on board C.
+    expect((await getJob(job.id))!.boards!.find(b => b.name === 'C')!.items).toHaveLength(1);
+  }, 90_000);
+
+  it('shows parts that don’t fit under their board’s drawing, to drag or move from there', async () => {
+    const job = await openKinderregal();
+    // Part 2 on a board of its own, then that board made too small for it.
+    await openMenu('A', 'Part 2');
+    fireEvent.click(await screen.findByRole('menuitem', { name: /New board/ }));
+    fireEvent.click(await screen.findByRole('region', { name: 'Board C drawing' }));
+    for (const id of ['board-w', 'board-h']) {
+      const input = () => document.getElementById(id) as HTMLInputElement;
+      await waitFor(() => expect(input()).toBeTruthy());
+      fireEvent.change(input(), { target: { value: '50' } });
+      fireEvent.blur(input());
+    }
+    const tray = await screen.findByRole('group', { name: 'Doesn’t fit on board C' }, { timeout: 10_000 });
+    expect(within(tray).getByText('Part 2')).toBeTruthy();
+    expect(within(drawing('C')).getByText('1 don’t fit')).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toMatch(/^Part 2 doesn’t fit on this board\./);
+
+    // Dragged from the tray back onto board A.
+    drag(tray.querySelector('[data-unplaced="Part 2"]')!, 'A');
+    await waitFor(
+      async () => {
+        const boards = (await getJob(job.id))!.boards!;
+        expect(boards.find(b => b.name === 'C')!.items).toHaveLength(0);
+        expect(boards.find(b => b.name === 'A')!.items).toHaveLength(5);
+      },
+      { timeout: 10_000 }
+    );
+    expect(screen.queryByRole('group', { name: 'Doesn’t fit on board C' })).toBeNull();
+  }, 90_000);
+
+  it('chooses the bit before nesting, also one that is in no library', async () => {
+    const job = await openKinderregal();
+    fireEvent.click(screen.getByRole('button', { name: /^Bit: ⌀3.175 1\/8″ flat\. Change the bit$/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Custom bit…' }));
+    const form = within(screen.getByRole('group', { name: 'Custom bit' }));
+    fireEvent.change(form.getByLabelText('Diameter (mm)'), { target: { value: '6' } });
+    fireEvent.change(form.getByLabelText('Name'), { target: { value: '6 mm upcut' } });
+    fireEvent.click(form.getByRole('button', { name: 'Add bit' }));
+    await waitFor(async () => expect((await getJob(job.id))!.plan?.bit).toMatchObject({ diameter: 6, name: '6 mm upcut' }), {
+      timeout: 10_000,
+    });
+    // The margin leaves a frame for the screws (10 + 2, clearance 1.5, the cut 6, 1 more); the gap follows the bit,
+    // with room for a strip that holds the tabs: 2 × 6 + 3.5.
+    await waitFor(() => expect(screen.getByText(/edge margin 21 mm · gap 16 mm/)).toBeTruthy(), { timeout: 10_000 });
+  }, 90_000);
+
+  it('labels the stock fields, takes comma decimals, says what is wrong, and shows no size for an empty board', async () => {
+    const job = await openKinderregal();
+    // Fitted boards are whole mm.
+    expect(within(drawing('A')).getByText('596 × 773')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /New 8 mm board/ }));
+    const c = await screen.findByRole('region', { name: 'Board C drawing' });
+    expect(within(c).getByText('–')).toBeTruthy();
+    const width = screen.getByLabelText('Width', { selector: '#board-w' }) as HTMLInputElement;
+    expect(width.value).toBe('');
+    expect(width.placeholder).toBe('–');
+
+    // Out of range: an inline error instead of silently going back, and nothing saved.
+    fireEvent.change(width, { target: { value: '5' } });
+    fireEvent.blur(width);
+    expect(width.getAttribute('aria-invalid')).toBe('true');
+    expect(description(width)).toMatch(/^5 is out of range: at least 10 mm\./);
+    expect((await getJob(job.id))!.boards!.find(b => b.name === 'C')!.size).toEqual({ fit: true });
+
+    fireEvent.click(screen.getByRole('button', { name: /^Stock list/ }));
+    const stockList = within(await screen.findByRole('region', { name: 'Stock list' }));
+    for (const label of ['Thickness', 'Width', 'Height', 'Count']) expect(stockList.getByText(label).tagName).toBe('LABEL');
+    fireEvent.change(stockList.getByLabelText('Stock thickness'), { target: { value: '8' } });
+    fireEvent.change(stockList.getByLabelText('Stock width'), { target: { value: '600,5' } });
+    fireEvent.change(stockList.getByLabelText('Stock height'), { target: { value: '30O' } });
+    expect(stockList.getByText(/^Height: Enter a number/)).toBeTruthy();
+    expect(stockList.getByRole('button', { name: 'Add stock board' }).hasAttribute('disabled')).toBe(true);
+    fireEvent.change(stockList.getByLabelText('Stock height'), { target: { value: '300' } });
+    fireEvent.click(stockList.getByRole('button', { name: 'Add stock board' }));
+    await waitFor(async () => expect((await getJob(job.id))!.stock).toMatchObject([{ thickness: 8, w: 600.5, h: 300 }]));
+    expect(stockList.getByText('8 mm · 600.5 × 300')).toBeTruthy();
+  }, 90_000);
+
+  it('after every part is unticked in the Model step, no board keeps parts', async () => {
+    const job = await openKinderregal();
+    await waitFor(async () => expect((await getJob(job.id))!.boards?.length).toBeGreaterThan(0), { timeout: 10_000 });
+    cleanup();
+    const saved = (await getJob(job.id))!;
+    await saveJob({ ...saved, parts: saved.parts.map(p => ({ ...p, milled: false })) });
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <BoardsStep />
+      </QueryClientProvider>
+    );
+    const empty = await screen.findByRole('status', {}, { timeout: 60_000 });
+    expect(empty.textContent).toMatch(/^No part to mill/);
+    // The way back, and no way on.
+    expect(within(empty).getByText('Back to the Model step')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Next: Plan' }).hasAttribute('disabled')).toBe(true);
+    expect(screen.queryByRole('region', { name: 'Board A drawing' })).toBeNull();
+  }, 90_000);
+});

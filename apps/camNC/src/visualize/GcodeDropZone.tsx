@@ -2,11 +2,22 @@ import { useStore } from '@/store/store';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { useEffect } from 'react';
 import { isDemoMode } from '@/lib/demo/demo-mode';
+import { camKeys } from '@/cam/camQueries';
+import { kModelFile } from '@/cam/jobDb';
+import { createJobFromFile } from '@/cam/openModelFile';
+import { useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
+import { wrongFileMessage } from './dropMessages';
 
 const kGcodeFile = /\.(gcode|nc|ngc|tap|txt)$/i;
 
-/** Load a G-code file dropped anywhere on the page as the toolpath, entirely in the browser. */
+/**
+ * Load a G-code file dropped anywhere on the page as the toolpath, entirely in the browser. A STEP/STL file starts a
+ * new CAM job.
+ */
 export function GcodeDropZone() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   useEffect(() => {
     const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes('Files');
     const onDragOver = (e: DragEvent) => {
@@ -17,8 +28,14 @@ export function GcodeDropZone() {
       e.preventDefault();
       const file = e.dataTransfer?.files[0];
       if (!file) return;
+      if (kModelFile.test(file.name)) {
+        const job = await createJobFromFile(file);
+        void queryClient.invalidateQueries({ queryKey: camKeys.jobs });
+        void navigate({ to: '/cam/$jobId/model', params: { jobId: job.id } });
+        return;
+      }
       if (!kGcodeFile.test(file.name)) {
-        toast.error('Drop a G-code file (.gcode or .nc).');
+        toast.error(wrongFileMessage(window.location.pathname));
         return;
       }
       useStore.getState().updateToolpath(await file.text(), file.name);
@@ -30,6 +47,6 @@ export function GcodeDropZone() {
       window.removeEventListener('dragover', onDragOver);
       window.removeEventListener('drop', onDrop);
     };
-  }, []);
+  }, [navigate, queryClient]);
   return null;
 }

@@ -1,14 +1,17 @@
 import { getCncApi } from '@/lib/fluidnc/machine';
-import { errorText, isCamncJobFile, stopJob } from '@/lib/machine/jobs';
+import { errorText, isCamncJobFile, runningJobTitle, stopJob } from '@/lib/machine/jobs';
+import { runningJobName } from '@/lib/machine/jobRecovery';
 import { pauseHint } from '@/lib/machine/pauseHints';
 import { useStore } from '@/store/store';
 import { Button } from '@wbcnc/ui/components/button';
 import { toast } from '@wbcnc/ui/components/sonner';
-import { Pause, Play, Square } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@wbcnc/ui/components/collapsible';
+import { cn } from '@wbcnc/ui/lib/utils';
+import { ChevronRight, Pause, Play, Square } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { AlarmCard } from './AlarmCard';
 import { OverridesPanel, PositionLine } from './controls';
-import { Section } from './SetupView';
+import { PauseSteps } from './PauseSteps';
 
 function formatDuration(ms: number) {
   const minutes = Math.round(ms / 60_000);
@@ -42,12 +45,24 @@ function HoldExplanation() {
   const percent = job?.percent;
   const hint = useMemo(() => (ours && percent !== undefined ? pauseHint(gcode!, percent) : null), [ours, gcode, percent]);
   if (status?.state === 'Door')
-    return <p className="text-sm rounded-md bg-amber-100 text-amber-900 p-2">Safety door open. Close it, then Resume.</p>;
+    return (
+      <p className="text-sm rounded-md bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-100 p-2">
+        Safety door open. Close it, then Resume.
+      </p>
+    );
   if (status?.state === 'Hold' && status.subState === 1) {
-    return <p className="text-sm rounded-md bg-amber-100 text-amber-900 p-2">Pausing… the machine is slowing down.</p>;
+    return (
+      <p className="text-sm rounded-md bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-100 p-2">
+        Pausing… the machine is slowing down.
+      </p>
+    );
   }
+  // One of our own pauses: steps, no line numbers or quoted messages.
+  if (hint?.marker) return <PauseSteps marker={hint.marker} line={hint.line} />;
   return (
-    <div className="text-sm rounded-md bg-amber-100 text-amber-900 p-2 flex flex-col gap-1" data-testid="hold-explanation">
+    <div
+      className="text-sm rounded-md bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-100 p-2 flex flex-col gap-1"
+      data-testid="hold-explanation">
       {hint ? (
         <>
           <p>{hint.reason}</p>
@@ -57,9 +72,31 @@ function HoldExplanation() {
         <p>{ours ? 'Paused with Hold.' : 'Paused.'} Resume continues the job; Stop ends it.</p>
       )}
       {lastMessage && !hint?.reason.includes(lastMessage.replace(/^INFO:\s*(MSG,)?/i, '')) && (
-        <p className="text-xs font-mono text-amber-800">Controller: {lastMessage}</p>
+        <p className="text-xs font-mono text-amber-800 dark:text-amber-200/80">Controller: {lastMessage}</p>
       )}
     </div>
+  );
+}
+
+/** Overrides, folded to one line while all are at 100 %. */
+function OverridesFold() {
+  'use no memo';
+  const o = getCncApi().overrides.value;
+  const changed = o.feed !== 100 || o.spindle !== 100 || o.rapid !== 100;
+  const [open, setOpen] = useState(changed);
+  useEffect(() => {
+    if (changed) setOpen(true);
+  }, [changed]);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="flex flex-col gap-2">
+      <CollapsibleTrigger asChild>
+        <Button variant="ghost" size="sm" className="-ml-1 self-start px-1 text-muted-foreground">
+          <ChevronRight className={cn('transition-transform', open && 'rotate-90')} /> Overrides
+          <span className="text-xs">{changed ? `feed ${o.feed} · spindle ${o.spindle} · rapids ${o.rapid} %` : 'all at 100 %'}</span>
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>{open && <OverridesPanel />}</CollapsibleContent>
+    </Collapsible>
   );
 }
 
@@ -71,7 +108,7 @@ export function RunningView({ onShowConsole }: { onShowConsole?: () => void } = 
   const state = api.state.value;
   const holding = state === 'Hold' || state === 'Door';
   const time = useTimeLeft(job?.percent, api.jobStartedAt.value);
-  const file = job?.file.split('/').pop();
+  const title = runningJobTitle(job?.file, runningJobName.value);
 
   return (
     <div className="flex flex-col gap-5">
@@ -79,7 +116,7 @@ export function RunningView({ onShowConsole }: { onShowConsole?: () => void } = 
       <div className="flex flex-col gap-1.5">
         <div className="flex flex-row justify-between items-baseline gap-2">
           <span className="font-medium truncate" title={job?.file}>
-            {file ?? 'Running'}
+            {title ?? 'Running'}
           </span>
           {job && <span className="text-2xl font-semibold tabular-nums">{job.percent.toFixed(1)}%</span>}
         </div>
@@ -108,9 +145,7 @@ export function RunningView({ onShowConsole }: { onShowConsole?: () => void } = 
         </Button>
       </div>
 
-      <Section title="Overrides">
-        <OverridesPanel />
-      </Section>
+      <OverridesFold />
 
       <PositionLine showFeed />
     </div>

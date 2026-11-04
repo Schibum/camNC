@@ -1,0 +1,17 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      // The Fusion comparison parses G-code with the app's parser and checks, and their npm packages (gcode-toolpath,
+      // three) are camNC's, not ours: the lockfile stands in for them.
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/apps/camNC/src/visualize/gcodeParsing.ts",
+        "$TURBO_ROOT$/apps/camNC/src/visualize/gcodeChecks.ts",
+        "$TURBO_ROOT$/apps/camNC/src/visualize/guess-tools.tsx",
+        "$TURBO_ROOT$/pnpm-lock.yaml"
+      ]
+    }
+  }
+}

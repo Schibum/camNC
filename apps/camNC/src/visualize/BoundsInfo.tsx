@@ -37,7 +37,7 @@ export function BoundsInfo() {
           </div>
         </>
       ) : (
-        <div className="text-xs text-gray-600">No toolpath loaded</div>
+        <div className="text-xs text-gray-600">No program loaded</div>
       )}
       {pnpResult && (
         <>

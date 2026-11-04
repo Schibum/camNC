@@ -3,12 +3,15 @@ import type { ComponentType, ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Route } from './start';
 
-const router = vi.hoisted(() => ({ navigate: vi.fn() }));
+const router = vi.hoisted(() => ({ navigate: vi.fn(), search: {} as { for?: 'cam' } }));
 const store = vi.hoisted(() => ({ setMachineBounds: vi.fn() }));
 
+const toastInfo = vi.hoisted(() => vi.fn());
+vi.mock('@wbcnc/ui/components/sonner', () => ({ toast: { info: toastInfo, success: vi.fn(), error: vi.fn() } }));
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (options: unknown) => ({ options }),
   useNavigate: () => router.navigate,
+  useSearch: () => router.search,
   Link: ({ children, to }: { children: ReactNode; to: string }) => <a href={to}>{children}</a>,
 }));
 vi.mock('@/components/page-header', () => ({ PageHeader: () => null }));
@@ -25,6 +28,8 @@ const Start = (Route as unknown as { options: { component: ComponentType } }).op
 afterEach(() => {
   cleanup();
   router.navigate.mockReset();
+  router.search = {};
+  toastInfo.mockReset();
   store.setMachineBounds.mockReset();
 });
 
@@ -34,6 +39,15 @@ describe('getting started', () => {
     fireEvent.click(screen.getByRole('button', { name: /Full sheet/ }));
     expect(store.setMachineBounds).toHaveBeenCalledWith(0, 0, 1220, 2440);
     expect(router.navigate).toHaveBeenCalledWith({ to: '/visualize/2DView' });
+  });
+
+  it('from CAM: says to pick a bed first, then shows the loaded program without the open-a-file hint', () => {
+    router.search = { for: 'cam' };
+    render(<Start />);
+    expect(screen.getByRole('status').textContent).toMatch(/^Pick your bed first\. Then camNC shows your CAM program on it/);
+    fireEvent.click(screen.getByRole('button', { name: /Full sheet/ }));
+    expect(router.navigate).toHaveBeenCalledWith({ to: '/visualize/2DView' });
+    expect(toastInfo).not.toHaveBeenCalled();
   });
 
   it('offers a custom size, the demo and the camera setup', () => {

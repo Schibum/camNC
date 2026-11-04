@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { Bug, Cctv, Grid2x2, HardDriveDownload, Layers, Puzzle, Rocket, Scale3d } from 'lucide-react';
+import { Box, Bug, Cctv, Grid2x2, Gauge, HardDriveDownload, Layers, Puzzle, Rocket, Scale3d, Wrench } from 'lucide-react';
 import * as React from 'react';
 
 import { useLocation } from '@tanstack/react-router';
@@ -27,6 +27,8 @@ type NavRoute = {
   to: string;
   icon: React.ComponentType<{ className?: string }>;
   exact?: boolean;
+  /** Small label after the title, e.g. "Beta". */
+  badge?: string;
 };
 
 const routes: NavRoute[] = [
@@ -34,6 +36,12 @@ const routes: NavRoute[] = [
     title: 'Top View',
     to: '/visualize/2DView',
     icon: Grid2x2,
+  },
+  {
+    title: 'CAM',
+    to: '/cam',
+    icon: Box,
+    badge: 'Beta',
   },
   {
     title: 'Get Started',
@@ -75,6 +83,16 @@ const settingsRoutes: NavRoute[] = [
     icon: Layers,
   },
   {
+    title: 'Bits',
+    to: '/settings/bits',
+    icon: Wrench,
+  },
+  {
+    title: 'Cutting Data',
+    to: '/settings/cutting-data',
+    icon: Gauge,
+  },
+  {
     title: 'Debug',
     to: '/setup/edit-settings',
     icon: Bug,
@@ -97,6 +115,11 @@ function NavRoutes({ routes, label }: { routes: NavRoute[]; label: string }) {
                 activeOptions={{ exact: route.exact }}>
                 <route.icon className="size-4" />
                 <span>{route.title}</span>
+                {route.badge && (
+                  <span className="ml-auto rounded-full bg-violet-500/15 px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-violet-700 dark:text-violet-300">
+                    {route.badge}
+                  </span>
+                )}
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

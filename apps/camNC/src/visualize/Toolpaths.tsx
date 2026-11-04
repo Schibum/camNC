@@ -12,6 +12,7 @@ import {
   useToolpathOpacity,
   useMachineBounds,
 } from '../store/store';
+import { useCamMachine } from '@/cam/machine/camMachine';
 import { LineAxesHelper } from './LineAxesHelper';
 import { ToolpathCanvasPlane } from './ToolpathCanvasPlane';
 import { getZHeightColors } from './toolpathColors';
@@ -87,6 +88,8 @@ function ToolpathBackgroundPlane() {
   const { opacity } = useSpring({ opacity: isToolpathHovered ? 0.05 : 0.02 });
   const bounds = toolpath?.getBounds();
   const toolDiameter = useToolDiameter();
+  // A CAM board shown: its outline (turned with it) is what's lined up, not the program's box square to the axes.
+  const camBoard = useCamMachine(s => !!s.overlay);
   const boundingSize = useMemo(() => {
     if (!bounds) return null;
     const size = new Vector3();
@@ -95,7 +98,7 @@ function ToolpathBackgroundPlane() {
     return size;
   }, [bounds, toolDiameter]);
 
-  if (!boundingSize || !bounds) return null;
+  if (!boundingSize || !bounds || camBoard) return null;
 
   return (
     <group>
@@ -213,9 +216,13 @@ function ToolpathTransformControls({ children }: { children: React.ReactElement<
   const setIsToolpathDragging = useSetIsToolpathDragging();
   const setToolpathOffset = useStore(s => s.setToolpathOffset);
   const isToolpathHovered = useIsToolpathHovered();
+  const camBoard = useCamMachine(s => !!s.overlay);
   function onDrag(l: Matrix4, deltaL: Matrix4, w: Matrix4) {
     setToolpathOffset(new Vector3().setFromMatrixPosition(w));
   }
+  // A CAM board shown: it's moved by dragging the board itself (`CamBedLayer`). The arrows would lie on its edges,
+  // over the clamps there.
+  if (camBoard) return <group position={[toolpathOffset.x, toolpathOffset.y, 0]}>{children}</group>;
   return (
     <PivotControls
       matrix={matrix.current}

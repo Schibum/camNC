@@ -53,6 +53,35 @@ export interface Tool {
 }
 
 /**
+ * Omit G53 coordinates: the interpreter would read a machine-coordinate lift to Z-5 as a work-coordinate dive.
+ * Keep the rest of the block (especially modal G0/G1 and F) so subsequent moves are interpreted correctly.
+ * Comments and line numbers stay intact; the machine's travel check reads the original G-code.
+ */
+function withoutMachineMoves(gcode: string) {
+  return gcode.replace(/[^\r\n]+/g, line => {
+    const pieces = line.split(/(\([^)]*\)|;.*$)/);
+    const word = /([a-z])\s*([+-]?(?:\d+\.?\d*|\.\d+))/gi;
+    const isMachineMove = pieces.some(
+      (piece, i) =>
+        i % 2 === 0 && [...piece.matchAll(word)].some(([, letter, value]) => letter.toUpperCase() === 'G' && Number(value) === 53)
+    );
+    if (!isMachineMove) return line;
+    const filtered = pieces
+      .map((piece, i) =>
+        i % 2
+          ? piece
+          : piece.replace(word, (match, letter: string, value: string) =>
+              /[XYZ]/i.test(letter) || (letter.toUpperCase() === 'G' && Number(value) === 53) ? '' : match
+            )
+      )
+      .join('');
+    // A G53 block can inherit its motion mode. Keep even a block with only coordinates nonblank, since the
+    // interpreter drops blank lines and its callback indices must still match sourceLines.
+    return `(G53 machine coordinates omitted) ${filtered}`;
+  });
+}
+
+/**
  * Parse GCode string into toolpath segments
  */
 export function parseGCode(gcode: string): ParsedToolpath {
@@ -83,7 +112,7 @@ export function parseGCode(gcode: string): ParsedToolpath {
     });
 
     // Called after each line: the points it added get its line number and feed rate (an F word applies to its own line).
-    toolpath.loadFromStringSync(gcode, (data: { words: [string, number][] }, index: number) => {
+    toolpath.loadFromStringSync(withoutMachineMoves(gcode), (data: { words: [string, number][] }, index: number) => {
       for (const [letter, value] of data.words) if (letter === 'F') feed = value;
       for (let i = parsed.feeds.length; i < parsed.pathPoints.length; i++) {
         parsed.feeds.push(feed);

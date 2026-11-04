@@ -205,15 +205,37 @@ export function fadeOutsideLevel(
   // Six floats per segment: two endpoints with three components each.
   for (let i = 0; i < positions.length; i += 6) {
     const onLevel = Math.abs(positions[i + 2] - z) <= tolerance && Math.abs(positions[i + 5] - z) <= tolerance;
-    if (onLevel) continue;
-    for (let j = i; j < i + 6; j += 3) {
-      // Desaturate, so only the level keeps its depth color, then fade.
-      const gray = 0.2126 * faded[j] + 0.7152 * faded[j + 1] + 0.0722 * faded[j + 2];
-      faded[j] = gray + (background.r - gray) * fade;
-      faded[j + 1] = gray + (background.g - gray) * fade;
-      faded[j + 2] = gray + (background.b - gray) * fade;
-    }
+    // Desaturate, so only the level keeps its depth color, then fade.
+    if (!onLevel) fadeSegmentColors(faded, i, background, fade);
   }
+  return faded;
+}
+
+/** Grays the color of the segment whose endpoint colors start at `i` and fades it towards `background`, in place. */
+function fadeSegmentColors(colors: Float32Array, i: number, background: Color, fade: number) {
+  for (let j = i; j < i + 6; j += 3) {
+    const gray = 0.2126 * colors[j] + 0.7152 * colors[j + 1] + 0.0722 * colors[j + 2];
+    colors[j] = gray + (background.r - gray) * fade;
+    colors[j + 1] = gray + (background.g - gray) * fade;
+    colors[j + 2] = gray + (background.b - gray) * fade;
+  }
+}
+
+/**
+ * Segment colors with the segments a running job has done (toolpath segment index below `doneBefore`) grayed and
+ * faded towards `background`, so the part still to cut stands out. `segmentIndex` is ascending, as in
+ * `DepthGeometryData`.
+ */
+export function fadeDoneSegments(
+  colors: Float32Array,
+  segmentIndex: Uint32Array,
+  doneBefore: number,
+  background: Color,
+  fade = 0.7
+): Float32Array {
+  if (doneBefore <= 0 || !segmentIndex.length || segmentIndex[0] >= doneBefore) return colors;
+  const faded = new Float32Array(colors);
+  for (let k = 0; k < segmentIndex.length && segmentIndex[k] < doneBefore; k++) fadeSegmentColors(faded, k * 6, background, fade);
   return faded;
 }
 

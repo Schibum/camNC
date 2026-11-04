@@ -1,0 +1,32 @@
+{
+  "name": "@wbcnc/cam",
+  "version": "0.0.1",
+  "description": "POC: built-in 2.5D CAM (STEP -> flat parts -> pocket/contour toolpaths -> FluidNC G-code)",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./nest": "./src/nest.ts",
+    "./board": "./src/board.ts",
+    "./settings": "./src/settings.ts",
+    "./tools": "./src/tools.ts",
+    "./holdPoints": "./src/holdPoints.ts",
+    "./pauseMarker": "./src/pauseMarker.ts"
+  },
+  "scripts": {
+    "test": "vitest",
+    "check-types": "tsc --noEmit"
+  },
+  "license": "Apache-2.0",
+  "dependencies": {
+    "clipper2-ts": "2.0.1-18",
+    "occt-import-js": "0.0.23"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@wbcnc/typescript-config": "workspace:*",
+    "playwright": "catalog:",
+    "vitest": "catalog:"
+  }
+}

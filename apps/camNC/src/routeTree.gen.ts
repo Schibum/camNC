@@ -13,6 +13,7 @@ import { Route as StartRouteImport } from './routes/start'
 import { Route as DemoRouteImport } from './routes/demo'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SetupIndexRouteImport } from './routes/setup/index'
+import { Route as CamIndexRouteImport } from './routes/cam/index'
 import { Route as VisualizeVisualizeCommandsRouteImport } from './routes/visualize/VisualizeCommands'
 import { Route as Visualize2DViewRouteImport } from './routes/visualize/2DView'
 import { Route as SetupUrlEntryRouteImport } from './routes/setup/url-entry'
@@ -25,12 +26,17 @@ import { Route as SetupFluidncRouteImport } from './routes/setup/fluidnc'
 import { Route as SetupEditSettingsRouteImport } from './routes/setup/edit-settings'
 import { Route as SetupCameraCalibrationRouteImport } from './routes/setup/camera-calibration'
 import { Route as SettingsHideMachineRouteImport } from './routes/settings/hide-machine'
+import { Route as SettingsCuttingDataRouteImport } from './routes/settings/cutting-data'
+import { Route as SettingsBitsRouteImport } from './routes/settings/bits'
 import { Route as SettingsBackupRouteImport } from './routes/settings/backup'
 import { Route as DebugUnprojectRouteImport } from './routes/debug/unproject'
 import { Route as DebugUndistort2RouteImport } from './routes/debug/undistort2'
 import { Route as DebugRawWebgpuRouteImport } from './routes/debug/raw-webgpu'
 import { Route as SetupCamerasIndexRouteImport } from './routes/setup/cameras.index'
 import { Route as SetupCamerasCamIdRouteImport } from './routes/setup/cameras.$camId'
+import { Route as CamJobIdPlanRouteImport } from './routes/cam/$jobId.plan'
+import { Route as CamJobIdModelRouteImport } from './routes/cam/$jobId.model'
+import { Route as CamJobIdBoardsRouteImport } from './routes/cam/$jobId.boards'
 
 const StartRoute = StartRouteImport.update({
   id: '/start',
@@ -50,6 +56,11 @@ const IndexRoute = IndexRouteImport.update({
 const SetupIndexRoute = SetupIndexRouteImport.update({
   id: '/setup/',
   path: '/setup/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CamIndexRoute = CamIndexRouteImport.update({
+  id: '/cam/',
+  path: '/cam/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const VisualizeVisualizeCommandsRoute =
@@ -113,6 +124,16 @@ const SettingsHideMachineRoute = SettingsHideMachineRouteImport.update({
   path: '/settings/hide-machine',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsCuttingDataRoute = SettingsCuttingDataRouteImport.update({
+  id: '/settings/cutting-data',
+  path: '/settings/cutting-data',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsBitsRoute = SettingsBitsRouteImport.update({
+  id: '/settings/bits',
+  path: '/settings/bits',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsBackupRoute = SettingsBackupRouteImport.update({
   id: '/settings/backup',
   path: '/settings/backup',
@@ -143,6 +164,21 @@ const SetupCamerasCamIdRoute = SetupCamerasCamIdRouteImport.update({
   path: '/setup/cameras/$camId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CamJobIdPlanRoute = CamJobIdPlanRouteImport.update({
+  id: '/cam/$jobId/plan',
+  path: '/cam/$jobId/plan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CamJobIdModelRoute = CamJobIdModelRouteImport.update({
+  id: '/cam/$jobId/model',
+  path: '/cam/$jobId/model',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CamJobIdBoardsRoute = CamJobIdBoardsRouteImport.update({
+  id: '/cam/$jobId/boards',
+  path: '/cam/$jobId/boards',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -152,6 +188,8 @@ export interface FileRoutesByFullPath {
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
   '/settings/backup': typeof SettingsBackupRoute
+  '/settings/bits': typeof SettingsBitsRoute
+  '/settings/cutting-data': typeof SettingsCuttingDataRoute
   '/settings/hide-machine': typeof SettingsHideMachineRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
@@ -164,7 +202,11 @@ export interface FileRoutesByFullPath {
   '/setup/url-entry': typeof SetupUrlEntryRoute
   '/visualize/2DView': typeof Visualize2DViewRoute
   '/visualize/VisualizeCommands': typeof VisualizeVisualizeCommandsRoute
+  '/cam': typeof CamIndexRoute
   '/setup': typeof SetupIndexRoute
+  '/cam/$jobId/boards': typeof CamJobIdBoardsRoute
+  '/cam/$jobId/model': typeof CamJobIdModelRoute
+  '/cam/$jobId/plan': typeof CamJobIdPlanRoute
   '/setup/cameras/$camId': typeof SetupCamerasCamIdRoute
   '/setup/cameras': typeof SetupCamerasIndexRoute
 }
@@ -176,6 +218,8 @@ export interface FileRoutesByTo {
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
   '/settings/backup': typeof SettingsBackupRoute
+  '/settings/bits': typeof SettingsBitsRoute
+  '/settings/cutting-data': typeof SettingsCuttingDataRoute
   '/settings/hide-machine': typeof SettingsHideMachineRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
@@ -188,7 +232,11 @@ export interface FileRoutesByTo {
   '/setup/url-entry': typeof SetupUrlEntryRoute
   '/visualize/2DView': typeof Visualize2DViewRoute
   '/visualize/VisualizeCommands': typeof VisualizeVisualizeCommandsRoute
+  '/cam': typeof CamIndexRoute
   '/setup': typeof SetupIndexRoute
+  '/cam/$jobId/boards': typeof CamJobIdBoardsRoute
+  '/cam/$jobId/model': typeof CamJobIdModelRoute
+  '/cam/$jobId/plan': typeof CamJobIdPlanRoute
   '/setup/cameras/$camId': typeof SetupCamerasCamIdRoute
   '/setup/cameras': typeof SetupCamerasIndexRoute
 }
@@ -201,6 +249,8 @@ export interface FileRoutesById {
   '/debug/undistort2': typeof DebugUndistort2Route
   '/debug/unproject': typeof DebugUnprojectRoute
   '/settings/backup': typeof SettingsBackupRoute
+  '/settings/bits': typeof SettingsBitsRoute
+  '/settings/cutting-data': typeof SettingsCuttingDataRoute
   '/settings/hide-machine': typeof SettingsHideMachineRoute
   '/setup/camera-calibration': typeof SetupCameraCalibrationRoute
   '/setup/edit-settings': typeof SetupEditSettingsRoute
@@ -213,7 +263,11 @@ export interface FileRoutesById {
   '/setup/url-entry': typeof SetupUrlEntryRoute
   '/visualize/2DView': typeof Visualize2DViewRoute
   '/visualize/VisualizeCommands': typeof VisualizeVisualizeCommandsRoute
+  '/cam/': typeof CamIndexRoute
   '/setup/': typeof SetupIndexRoute
+  '/cam/$jobId/boards': typeof CamJobIdBoardsRoute
+  '/cam/$jobId/model': typeof CamJobIdModelRoute
+  '/cam/$jobId/plan': typeof CamJobIdPlanRoute
   '/setup/cameras/$camId': typeof SetupCamerasCamIdRoute
   '/setup/cameras/': typeof SetupCamerasIndexRoute
 }
@@ -227,6 +281,8 @@ export interface FileRouteTypes {
     | '/debug/undistort2'
     | '/debug/unproject'
     | '/settings/backup'
+    | '/settings/bits'
+    | '/settings/cutting-data'
     | '/settings/hide-machine'
     | '/setup/camera-calibration'
     | '/setup/edit-settings'
@@ -239,7 +295,11 @@ export interface FileRouteTypes {
     | '/setup/url-entry'
     | '/visualize/2DView'
     | '/visualize/VisualizeCommands'
+    | '/cam'
     | '/setup'
+    | '/cam/$jobId/boards'
+    | '/cam/$jobId/model'
+    | '/cam/$jobId/plan'
     | '/setup/cameras/$camId'
     | '/setup/cameras'
   fileRoutesByTo: FileRoutesByTo
@@ -251,6 +311,8 @@ export interface FileRouteTypes {
     | '/debug/undistort2'
     | '/debug/unproject'
     | '/settings/backup'
+    | '/settings/bits'
+    | '/settings/cutting-data'
     | '/settings/hide-machine'
     | '/setup/camera-calibration'
     | '/setup/edit-settings'
@@ -263,7 +325,11 @@ export interface FileRouteTypes {
     | '/setup/url-entry'
     | '/visualize/2DView'
     | '/visualize/VisualizeCommands'
+    | '/cam'
     | '/setup'
+    | '/cam/$jobId/boards'
+    | '/cam/$jobId/model'
+    | '/cam/$jobId/plan'
     | '/setup/cameras/$camId'
     | '/setup/cameras'
   id:
@@ -275,6 +341,8 @@ export interface FileRouteTypes {
     | '/debug/undistort2'
     | '/debug/unproject'
     | '/settings/backup'
+    | '/settings/bits'
+    | '/settings/cutting-data'
     | '/settings/hide-machine'
     | '/setup/camera-calibration'
     | '/setup/edit-settings'
@@ -287,7 +355,11 @@ export interface FileRouteTypes {
     | '/setup/url-entry'
     | '/visualize/2DView'
     | '/visualize/VisualizeCommands'
+    | '/cam/'
     | '/setup/'
+    | '/cam/$jobId/boards'
+    | '/cam/$jobId/model'
+    | '/cam/$jobId/plan'
     | '/setup/cameras/$camId'
     | '/setup/cameras/'
   fileRoutesById: FileRoutesById
@@ -300,6 +372,8 @@ export interface RootRouteChildren {
   DebugUndistort2Route: typeof DebugUndistort2Route
   DebugUnprojectRoute: typeof DebugUnprojectRoute
   SettingsBackupRoute: typeof SettingsBackupRoute
+  SettingsBitsRoute: typeof SettingsBitsRoute
+  SettingsCuttingDataRoute: typeof SettingsCuttingDataRoute
   SettingsHideMachineRoute: typeof SettingsHideMachineRoute
   SetupCameraCalibrationRoute: typeof SetupCameraCalibrationRoute
   SetupEditSettingsRoute: typeof SetupEditSettingsRoute
@@ -312,7 +386,11 @@ export interface RootRouteChildren {
   SetupUrlEntryRoute: typeof SetupUrlEntryRoute
   Visualize2DViewRoute: typeof Visualize2DViewRoute
   VisualizeVisualizeCommandsRoute: typeof VisualizeVisualizeCommandsRoute
+  CamIndexRoute: typeof CamIndexRoute
   SetupIndexRoute: typeof SetupIndexRoute
+  CamJobIdBoardsRoute: typeof CamJobIdBoardsRoute
+  CamJobIdModelRoute: typeof CamJobIdModelRoute
+  CamJobIdPlanRoute: typeof CamJobIdPlanRoute
   SetupCamerasCamIdRoute: typeof SetupCamerasCamIdRoute
   SetupCamerasIndexRoute: typeof SetupCamerasIndexRoute
 }
@@ -345,6 +423,13 @@ declare module '@tanstack/react-router' {
       path: '/setup'
       fullPath: '/setup'
       preLoaderRoute: typeof SetupIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cam/': {
+      id: '/cam/'
+      path: '/cam'
+      fullPath: '/cam'
+      preLoaderRoute: typeof CamIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/visualize/VisualizeCommands': {
@@ -431,6 +516,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsHideMachineRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/cutting-data': {
+      id: '/settings/cutting-data'
+      path: '/settings/cutting-data'
+      fullPath: '/settings/cutting-data'
+      preLoaderRoute: typeof SettingsCuttingDataRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings/bits': {
+      id: '/settings/bits'
+      path: '/settings/bits'
+      fullPath: '/settings/bits'
+      preLoaderRoute: typeof SettingsBitsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings/backup': {
       id: '/settings/backup'
       path: '/settings/backup'
@@ -473,6 +572,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SetupCamerasCamIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/cam/$jobId/plan': {
+      id: '/cam/$jobId/plan'
+      path: '/cam/$jobId/plan'
+      fullPath: '/cam/$jobId/plan'
+      preLoaderRoute: typeof CamJobIdPlanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cam/$jobId/model': {
+      id: '/cam/$jobId/model'
+      path: '/cam/$jobId/model'
+      fullPath: '/cam/$jobId/model'
+      preLoaderRoute: typeof CamJobIdModelRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cam/$jobId/boards': {
+      id: '/cam/$jobId/boards'
+      path: '/cam/$jobId/boards'
+      fullPath: '/cam/$jobId/boards'
+      preLoaderRoute: typeof CamJobIdBoardsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -484,6 +604,8 @@ const rootRouteChildren: RootRouteChildren = {
   DebugUndistort2Route: DebugUndistort2Route,
   DebugUnprojectRoute: DebugUnprojectRoute,
   SettingsBackupRoute: SettingsBackupRoute,
+  SettingsBitsRoute: SettingsBitsRoute,
+  SettingsCuttingDataRoute: SettingsCuttingDataRoute,
   SettingsHideMachineRoute: SettingsHideMachineRoute,
   SetupCameraCalibrationRoute: SetupCameraCalibrationRoute,
   SetupEditSettingsRoute: SetupEditSettingsRoute,
@@ -496,7 +618,11 @@ const rootRouteChildren: RootRouteChildren = {
   SetupUrlEntryRoute: SetupUrlEntryRoute,
   Visualize2DViewRoute: Visualize2DViewRoute,
   VisualizeVisualizeCommandsRoute: VisualizeVisualizeCommandsRoute,
+  CamIndexRoute: CamIndexRoute,
   SetupIndexRoute: SetupIndexRoute,
+  CamJobIdBoardsRoute: CamJobIdBoardsRoute,
+  CamJobIdModelRoute: CamJobIdModelRoute,
+  CamJobIdPlanRoute: CamJobIdPlanRoute,
   SetupCamerasCamIdRoute: SetupCamerasCamIdRoute,
   SetupCamerasIndexRoute: SetupCamerasIndexRoute,
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkTravel, g53Targets, getJobChecklist, machineView } from './workflow';
+import { checkTravel, g53Targets, getJobChecklist, kHomeFirst, machineView } from './workflow';
 
 describe('machineView', () => {
   it('switches to running while a job is active or the machine is running/held', () => {
@@ -36,6 +36,15 @@ describe('getJobChecklist', () => {
       toolpathOffset: { x: 1200, y: 60 },
     });
     expect(items.filter(i => !i.ok).map(i => i.id)).toEqual(['homed', 'bounds', 'xy-zero', 'z-zero', 'tool-change']);
+  });
+
+  it('only a program with moves in machine coordinates needs homing to run', () => {
+    const home = (gcode: string, homed: boolean) => getJobChecklist({ ...base, gcode, homed }).find(i => i.id === 'homed')!;
+    expect(home('G1 X10\nM5\nG53 G0 Z-5\nM30', false)).toEqual({ id: 'homed', ok: false, label: kHomeFirst, blocking: true });
+    expect(home('G1 X10\nM5\nG53 G0 Z-5\nM30', true).blocking).toBeUndefined();
+    expect(home('G1 X10', false).blocking).toBeUndefined();
+    // A comment mentioning it doesn't count.
+    expect(home('(G53 G0 Z-5)\nG1 X10', false).blocking).toBeUndefined();
   });
 
   it('accepts G-code that probes Z itself', () => {

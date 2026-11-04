@@ -6,7 +6,9 @@ import { MachineBoundsForm } from '@/setup/MachineBoundsForm';
 import { BedFromMachine } from '@/start/BedFromMachine';
 import { boundsFromSize, kBedPresets } from '@/start/bedPresets';
 import { useStore } from '@/store/store';
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate, useSearch } from '@tanstack/react-router';
+import { zodValidator } from '@tanstack/zod-adapter';
+import { z } from 'zod';
 import { Button } from '@wbcnc/ui/components/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@wbcnc/ui/components/card';
 import { toast } from '@wbcnc/ui/components/sonner';
@@ -15,16 +17,21 @@ import { useState } from 'react';
 
 export const Route = createFileRoute('/start')({
   component: StartComponent,
+  // `for=cam`: sent here from the CAM Plan step to pick a bed before seeing the program on it.
+  validateSearch: zodValidator(z.object({ for: z.enum(['cam']).optional() })),
 });
 
 /** Getting started without a camera: connect FluidNC (or pick a bed size), and the top view works on a drawn bed. */
 function StartComponent() {
   const navigate = useNavigate();
+  const { for: purpose } = useSearch({ from: '/start' });
   const setMachineBounds = useStore(s => s.setMachineBounds);
   const [customSize, setCustomSize] = useState(false);
 
   function openWorkspace() {
     navigate({ to: '/visualize/2DView' });
+    // From CAM the program is already loaded: no "open a file" hint.
+    if (purpose === 'cam') return;
     toast.info('Open a G-code file with O or drop one on the page. With a machine connected, double-click the bed to jog there.', {
       duration: 10_000,
     });
@@ -35,6 +42,12 @@ function StartComponent() {
       <PageHeader title="Get started" />
       <div className="flex justify-center p-1 flex-row">
         <div className="max-w-xl gap-4 flex flex-1 flex-col pb-8">
+          {purpose === 'cam' && (
+            <p role="status" className="rounded-lg border border-primary/40 bg-primary/5 p-3 text-sm">
+              <span className="font-medium">Pick your bed first.</span> Then camNC shows your CAM program on it: connect your FluidNC below,
+              or choose a bed size.
+            </p>
+          )}
           <p className="text-sm text-muted-foreground px-1">
             See your G-code on your machine, jog and run jobs. No camera needed to start: camNC draws your bed, and you can add a camera any
             time later.
