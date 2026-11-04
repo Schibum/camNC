@@ -34,6 +34,8 @@ export {
   holdClashes,
   holdHeight,
   pathClearance,
+  nutReaches,
+  kDefaultStickout,
   frameMargin,
   kHoldDefaults,
   kHoldHeights,

@@ -25,7 +25,15 @@ export interface HoldPoint {
   dir?: P2;
   /** How far it stands above the stock's top, mm. Default `kHoldHeights`. */
   height?: number;
+  /**
+   * The lowest the collet nut gets, mm above the stock's top (the bit's stick-out less the deepest cut; below 0 when
+   * the nut goes below the top). A hold lower than this, by `kOverHold`, only the bit can touch. Unknown: `kLowHold`.
+   */
+  nutAbove?: number;
 }
+
+/** How far the bit sticks out of the collet nut until the user measures it, mm. */
+export const kDefaultStickout = 20;
 
 /** Starting sizes, until the user sets their own: a screw head; how far a small clamp's toe reaches in. */
 export const kHoldDefaults: Record<HoldKind, number> = { screw: 10, clamp: 2 };
@@ -52,16 +60,20 @@ export const kOverHold = 1;
 /** How far it stands above the stock's top, mm. */
 export const holdHeight = (h: Pick<HoldPoint, 'kind' | 'height'>) => h.height ?? kHoldHeights[h.kind];
 
+/** Does the collet nut come down beside this hold (it stands higher than the nut ever gets)? */
+export const nutReaches = (h: Pick<HoldPoint, 'kind' | 'height' | 'nutAbove'>) =>
+  h.nutAbove === undefined ? holdHeight(h) > kLowHold : holdHeight(h) + kOverHold > h.nutAbove;
+
 /** How close the path of a bit of radius `r` may come to the hold's footprint: its edge, or the collet nut beside a tall hold. */
-export const pathClearance = (h: Pick<HoldPoint, 'kind' | 'height'>, r: number) =>
-  Math.max(r + kHoldClearance, holdHeight(h) > kLowHold ? kColletClearance : 0);
+export const pathClearance = (h: Pick<HoldPoint, 'kind' | 'height' | 'nutAbove'>, r: number) =>
+  Math.max(r + kHoldClearance, nutReaches(h) ? kColletClearance : 0);
 
 /**
  * Edge margin that leaves a frame of stock for holds around the parts: the hold, a little stock on its outer side, the
  * clearance and the outline cut (`bit`).
  */
-export const frameMargin = (d: number, bit: number, kind: HoldKind = 'screw', height?: number) =>
-  Math.ceil(d + (kind === 'clamp' ? 0 : 2) + pathClearance({ kind, height }, bit / 2) + bit / 2 + 1);
+export const frameMargin = (d: number, bit: number, kind: HoldKind = 'screw', height?: number, nutAbove?: number) =>
+  Math.ceil(d + (kind === 'clamp' ? 0 : 2) + pathClearance({ kind, height, nutAbove }, bit / 2) + bit / 2 + 1);
 
 /** The edge nearest to p, as the direction into the board: where a clamp there grips. */
 export function edgeDir(p: P2, board: { w: number; h: number }): P2 {
@@ -113,14 +125,14 @@ const toRect = (p: P2, r: Rect) => Math.hypot(Math.max(r.x - p.x, 0, p.x - r.x -
 export function suggestHoldPoints(
   board: { w: number; h: number },
   parts: Rect[],
-  opts: { kind?: HoldKind; d?: number; w?: number; height?: number; bit: number; spacing?: number }
+  opts: { kind?: HoldKind; d?: number; w?: number; height?: number; nutAbove?: number; bit: number; spacing?: number }
 ): HoldPoint[] {
   const kind = opts.kind ?? 'screw';
   const d = opts.d ?? kHoldDefaults[kind];
   const clamp = kind === 'clamp';
   const w = clamp ? (opts.w ?? kClampWidth) : d;
   const spacing = opts.spacing ?? kHoldSpacing;
-  const keep = pathClearance({ kind, height: opts.height }, opts.bit / 2) + opts.bit / 2;
+  const keep = pathClearance({ kind, height: opts.height, nutAbove: opts.nutAbove }, opts.bit / 2) + opts.bit / 2;
   const hold = (p: P2, dir: P2): HoldPoint => ({
     x: p.x,
     y: p.y,
@@ -128,6 +140,7 @@ export function suggestHoldPoints(
     d,
     ...(clamp && { w, dir }),
     ...(opts.height !== undefined && { height: opts.height }),
+    ...(opts.nutAbove !== undefined && { nutAbove: opts.nutAbove }),
   });
   // A clamp grips at the edge, its toe reaching d in; a screw needs a little stock around it.
   const deep0 = d / 2 + (clamp ? 0 : 2);

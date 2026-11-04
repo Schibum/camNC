@@ -13,6 +13,7 @@ import {
   relayoutBoard,
   spacingProblem,
   edgeNote,
+  nutAboveOf,
   stockTopOf,
   type BoardV1,
   type PartInstance,
@@ -307,6 +308,14 @@ describe('boards', () => {
     }
     // A clamp saved before clamps had a width (sized as a round toe) starts afresh.
     expect(nestBoard({ ...tabs, holds: { kind: 'clamp', d: 25 } }, parts, 3.175).margin).toBe(18);
+    // The collet nut needs room beside a 30 mm clamp only while it gets that low: with the bit 45 mm out of the nut,
+    // it stays above the clamp on the deepest cut (8.3 + 0.3) and only the bit's own clearance is left.
+    expect(nutAboveOf({ ...tabs, holds: { kind: 'clamp', d: 2, w: 20, height: 30, stickout: 45 } })).toBe(36.4);
+    const long = nestBoard({ ...tabs, holds: { kind: 'clamp', d: 2, w: 20, height: 30, stickout: 45 } }, parts, 3.175);
+    expect(long.margin).toBe(Math.ceil(2 + 1.5875 + 1.5 + 1.5875 + 1));
+    expect(long.holds.every(h => h.nutAbove === 36.4)).toBe(true);
+    // 20 mm out: the nut comes down to 11.4 mm, beside the clamp.
+    expect(nestBoard({ ...tabs, holds: { kind: 'clamp', d: 2, w: 20, height: 30, stickout: 20 } }, parts, 3.175).margin).toBe(18);
     const a = { ...tabs, holdDown: 'fixture-tape' as const };
     const nest = nestBoard(a, parts, 3.175);
     expect(nest.margin).toBe(5.2);

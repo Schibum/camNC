@@ -1,20 +1,10 @@
-import { cn } from '@wbcnc/ui/lib/utils';
+import { HoldDiagram } from './HoldDiagram';
 import type { FlipRegistration, TabFallback } from '@wbcnc/cam';
 import { MATERIALS } from '@wbcnc/cam/settings';
 import { Button } from '@wbcnc/ui/components/button';
 import { Label } from '@wbcnc/ui/components/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wbcnc/ui/components/select';
-import {
-  frameMargin,
-  kClampWidth,
-  kColletClearance,
-  kHoldClearance,
-  kHoldDefaults,
-  kHoldHeights,
-  kLowHold,
-  pathClearance,
-  type HoldKind,
-} from '@wbcnc/cam/holdPoints';
+import { kClampWidth, kColletClearance, kHoldDefaults, kHoldHeights, type HoldKind } from '@wbcnc/cam/holdPoints';
 import {
   boardGap,
   boardHoldOf,
@@ -25,6 +15,7 @@ import {
   kStockAllowance,
   partsHoldOf,
   stockTopOf,
+  nutAboveOf,
   type BoardHold,
   type BoardNest,
   type BoardV1,
@@ -98,24 +89,6 @@ const kHoldDownHints: Record<keyof typeof kHoldDownLabels, string> = {
   skin: 'No tabs: every outline stops a thin skin above the board’s bottom, so all parts stay in the board while it’s cut. At the machine, a last step cuts them free one at a time and pauses so you can take each one out. Clean edges, no tabs to cut off.',
   none: 'No tabs and no skin: each part is free once its outline is cut through. Fine for big, heavy parts; small ones can be thrown. The job says when each comes loose.',
 };
-
-/** What the frame for these holds is made of, mm: "at least 22 mm: 5 reach + 13 kept clear …". */
-function frameNote(hold: ReturnType<typeof holdsOf>, bit: number) {
-  const clamp = hold.kind === 'clamp';
-  const keep = pathClearance(hold, bit / 2);
-  const nut = keep > bit / 2 + kHoldClearance;
-  const parts = [
-    clamp ? `${fmt(hold.d)} the clamp reaches in` : `${fmt(hold.d)} the screw head + 2 stock around it`,
-    nut
-      ? `${fmt(keep)} kept clear for the collet nut (the ${clamp ? 'clamp' : 'screw'} stands over ${kLowHold} mm high)`
-      : `${fmt(keep)} clearance`,
-    `${fmt(bit / 2)} the bit's radius`,
-    '1 spare',
-  ];
-  return ` With these ${clamp ? 'clamps' : 'screws'}, the margin is at least ${fmt(frameMargin(hold.d, bit, hold.kind, hold.height))} mm, a frame of stock for them: ${parts.join(' + ')}, rounded up. ${
-    nut ? `Lower holds (set their Height to ${kLowHold} mm or less) need less. ` : ''
-  }Untick “Keep a frame for them” below to use your own margin.`;
-}
 
 const kFlipLabels: Record<FlipRegistration | 'off', string> = {
   off: 'No second side',
@@ -261,7 +234,8 @@ export function BoardInspector({
         {tabs
           ? `Defaults with tabs: margin ${fmt(tabMargin)} mm, gap ${fmt(tabGap)} mm, so a strip of stock that holds the tabs stays between the cuts (bit ⌀ ${fmt(bit)}).`
           : `Defaults: margin bit + 2 mm, gap bit + 4 mm (bit ⌀ ${fmt(bit)}).`}
-        {nest.frame === 'kept' && frameNote(hold, bit)}
+        {nest.frame === 'kept' &&
+          ` With these ${hold.kind === 'clamp' ? 'clamps' : 'screws'}, the margin is at least ${fmt(nest.margin)} mm: a frame of stock for them (see the drawing below). Untick “Keep a frame for them” to use your own margin.`}
       </p>
       {tightForTabs && (
         <div className="flex flex-col gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs leading-relaxed">
@@ -343,12 +317,8 @@ export function BoardInspector({
         <p className="text-xs leading-relaxed text-muted-foreground">{kBoardHoldHints[held]}</p>
         {held === 'points' && (
           <>
-            <div
-              className={cn(
-                'grid items-end gap-2',
-                hold.kind === 'clamp' ? 'grid-cols-[1fr_56px_56px_56px_56px]' : 'grid-cols-[1fr_64px_64px_64px]'
-              )}>
-              <div className="flex flex-col gap-1">
+            <div className="grid grid-cols-3 items-end gap-2">
+              <div className="col-span-3 flex flex-col gap-1">
                 <Label htmlFor="hold-kind" className="text-xs font-normal text-muted-foreground">
                   With
                 </Label>
@@ -363,6 +333,7 @@ export function BoardInspector({
                         d: kHoldDefaults[v as HoldKind],
                         height: kHoldHeights[v as HoldKind],
                         spacing: hold.spacing,
+                        stickout: hold.stickout,
                         ...(v === 'clamp' && { w: kClampWidth }),
                       },
                     })
@@ -408,7 +379,7 @@ export function BoardInspector({
               <NumberField
                 id="hold-height"
                 label="Height"
-                hint={`How far it stands above the board's top, mm. Every rapid and link passes above the tallest hold, so measure it: too low and the bit or the collet hits it. Taller than ${kLowHold} mm, cuts also keep ${kColletClearance} mm from it for the collet nut.`}
+                hint={`How far it stands above the board's top, mm. Every rapid and link passes above the tallest hold, so measure it: too low and the bit or the collet hits it. Where it stands higher than the collet nut gets down to (see Stick-out), cuts also keep ${kColletClearance} mm from it for the nut.`}
                 value={hold.height}
                 onCommit={height => onChange({ ...board, holds: { ...hold, height } })}
                 min={0}
@@ -421,7 +392,16 @@ export function BoardInspector({
                 onCommit={spacing => onChange({ ...board, holds: { ...hold, spacing } })}
                 min={50}
               />
+              <NumberField
+                id="hold-stickout"
+                label="Stick-out"
+                hint="How far the bit sticks out below the collet nut, mm: measure it once the bit is in. With the deepest cut it says how low the nut gets, so whether it can hit a hold."
+                value={hold.stickout}
+                onCommit={stickout => onChange({ ...board, holds: { ...hold, stickout } })}
+                min={1}
+              />
             </div>
+            <HoldDiagram hold={hold} bit={bit} stockTop={stockTopOf(board)} nutAbove={nutAboveOf(board)} />
             <Hint
               text="A border of stock around all parts, wide enough for the holds: the board can never fall apart into pieces, and every tab lands in held stock. Left out on a fixed size board when the parts don't fit with it."
               id="hold-frame-hint"
@@ -510,9 +490,9 @@ export function BoardInspector({
             Tabs go only on straight edges facing stock that holds them. A part with no such edge gets (for the whole job; each part can
             choose its own in its ⋯ menu):
           </p>
-          <div className="grid grid-cols-[1fr_88px] items-end gap-2">
+          <div className="grid grid-cols-[minmax(0,1fr)_72px] items-end gap-2">
             <Select value={tabHold.fallback ?? 'skin'} onValueChange={v => onTabHold({ ...tabHold, fallback: v as TabFallback })}>
-              <SelectTrigger aria-label="Parts whose tabs can't hold get" className="w-full">
+              <SelectTrigger aria-label="Parts whose tabs can't hold get" className="w-full min-w-0 [&>span]:truncate">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

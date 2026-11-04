@@ -6,6 +6,7 @@ import {
   kHoldDefaults,
   kHoldHeights,
   kHoldSpacing,
+  kDefaultStickout,
   kClampWidth,
   edgeDir,
   holdBox,
@@ -47,9 +48,10 @@ export interface BoardV1 {
   /**
    * The hold points: screw or clamp and greatest spacing along an edge (mm). A screw: `d` its head's ⌀. A clamp: `d`
    * how far its toe reaches in from the edge, `w` its width along the edge. `height`: how far it stands above the stock's
-   * top, mm (the program's clearance heights go above it). Default a ⌀10 screw every 250.
+   * top, mm (the program's clearance heights go above it). `stickout`: how far the bit sticks out of the collet nut, mm:
+   * beside a hold taller than the nut ever gets down to, cuts keep room for the nut. Default a ⌀10 screw every 250.
    */
-  holds?: { kind: HoldKind; d: number; w?: number; height?: number; spacing?: number };
+  holds?: { kind: HoldKind; d: number; w?: number; height?: number; spacing?: number; stickout?: number };
   /** Hold points the user moved (board frame, mm): used as they are instead of the suggested ones. */
   holdPoints?: { x: number; y: number }[];
   /** The board's size when the user moved them: on a board of another size (laid out again) they're suggested afresh. */
@@ -137,8 +139,12 @@ export const holdsOf = (board: Pick<BoardV1, 'holds'>) => {
     ...(kind === 'clamp' && { w: board.holds?.w ?? kClampWidth }),
     height: board.holds?.height ?? kHoldHeights[kind],
     spacing: board.holds?.spacing ?? kHoldSpacing,
+    stickout: board.holds?.stickout ?? kDefaultStickout,
   };
 };
+
+/** The lowest the collet nut gets on this board, mm above the stock's top: the stick-out less the deepest cut. */
+export const nutAboveOf = (board: BoardV1, cutBelow = 0.3) => +(holdsOf(board).stickout - stockTopOf(board) - cutBelow).toFixed(2);
 
 /** The board's hold-down settings, to copy to another board. */
 export const holdSettingsOf = (b: BoardV1): Partial<BoardV1> => ({
@@ -396,12 +402,14 @@ export function nestBoard(
   // All of them removed by hand: none, not the suggested ones again.
   let moved = points && board.holdPoints && (!size || sameSize(size)) ? board.holdPoints : undefined;
   const movedOn = board.holdPointsOn ?? size;
+  const nutAbove = nutAboveOf(board);
   const holdAt = (p: { x: number; y: number }, on?: { w: number; h: number }): HoldPoint => ({
     // A clamp grips at the edge, however far it reaches in now: its toe would otherwise be checked off the board.
     ...(hold.w !== undefined && on ? snapClamp(p, hold.d, on) : { x: p.x, y: p.y }),
     kind: hold.kind,
     d: hold.d,
     height: hold.height,
+    nutAbove,
     ...(hold.w !== undefined && { w: hold.w, ...(on && { dir: edgeDir(p, on) }) }),
   });
   // Where the cut's edge may not come, less what the nest keeps between it and a part anyway (`gap`): a part only needs
@@ -416,7 +424,7 @@ export function nestBoard(
   let keepOuts: Rect[] = (moved ?? []).map(p => keepOutOf(holdAt(p, movedOn)));
   // Packing picks the sheets without the frame: it's only kept where it costs no part (and so no extra board).
   const wantFrame = points && board.frame !== false && !opts.packing;
-  const framed = wantFrame ? Math.max(baseMargin, frameMargin(hold.d, bit, hold.kind, hold.height)) : baseMargin;
+  const framed = wantFrame ? Math.max(baseMargin, frameMargin(hold.d, bit, hold.kind, hold.height, nutAbove)) : baseMargin;
 
   const layout = (margin: number) => {
     // Placed by hand: kept at their spot while it is inside the margin and clear of the others and the holds.
@@ -467,7 +475,15 @@ export function nestBoard(
       ? []
       : moved
         ? moved.map(p => holdAt(p, out))
-        : suggestHoldPoints(out, rects, { kind: hold.kind, d: hold.d, w: hold.w, height: hold.height, bit, spacing: hold.spacing });
+        : suggestHoldPoints(out, rects, {
+            kind: hold.kind,
+            d: hold.d,
+            w: hold.w,
+            height: hold.height,
+            nutAbove,
+            bit,
+            spacing: hold.spacing,
+          });
   return {
     ...n,
     board: out,
