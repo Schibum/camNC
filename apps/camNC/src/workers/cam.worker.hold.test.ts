@@ -2,6 +2,7 @@ import { boardRequest, instancesOf, nestBoard, reconcileBoards, type BoardV1 } f
 import { camWorker } from '@/cam/camQueries';
 import type { BoardRequest, PlanResult } from '@/cam/camTypes';
 import { readGcode } from '@wbcnc/cam';
+import { kClampWidth, kHoldDefaults, kHoldHeights, kOverHold } from '@wbcnc/cam/holdPoints';
 import * as Comlink from 'comlink';
 import { beforeAll, describe, expect, it } from 'vitest';
 import besteckUrl from '../../../../packages/cam/test/fixtures/besteckkasten.step?url';
@@ -45,17 +46,18 @@ describe('the worker: holds on a real board with a second side', () => {
   }, 120_000);
 
   it('with clamps: every program travels above them, the guided ones too, and nothing is in their way', async () => {
-    const board: BoardV1 = { ...sheet, holdDown: 'tabs-guided', holds: { kind: 'clamp', d: 2, w: 20 } };
+    // A tall clamp (a toggle or strap clamp, 30 mm above the stock).
+    const board: BoardV1 = { ...sheet, holdDown: 'tabs-guided', holds: { kind: 'clamp', d: 2, w: 20, height: 30 } };
     const p = await plan(board);
     expect(p.release?.length).toBeGreaterThan(0);
     expect(p.holdClash).toEqual([]);
     expect((p.timeline ?? []).filter(e => e.block)).toEqual([]);
-    expect(lowestTravel(p)).toBeGreaterThan(p.size[2] + 30);
-    // A low clamp, on its narrow frame, is as good a hold.
-    const low = await plan({ ...board, holds: { kind: 'clamp', d: 2, w: 20, height: 5 } });
+    expect(lowestTravel(p)).toBeGreaterThanOrEqual(p.size[2] + 30 + kOverHold);
+    // The default low edge clamp, on its narrow frame, is as good a hold, and the bit still passes over it.
+    const low = await plan({ ...board, holds: { kind: 'clamp', d: kHoldDefaults.clamp, w: kClampWidth } });
     expect(low.holdClash).toEqual([]);
     expect((low.timeline ?? []).filter(e => e.block)).toEqual([]);
-    expect(lowestTravel(low)).toBeGreaterThan(low.size[2] + 5);
+    expect(lowestTravel(low)).toBeGreaterThanOrEqual(low.size[2] + kHoldHeights.clamp + kOverHold);
   }, 240_000);
 
   it('no tab lands where side B cuts', async () => {

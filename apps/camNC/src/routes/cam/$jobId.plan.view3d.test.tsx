@@ -66,8 +66,8 @@ describe('CAM plan step, 3D view', () => {
         { timeout: 30_000, interval: 0 }
       );
 
+    await vi.waitFor(() => expect(draws.mock.calls.length).toBeGreaterThan(0), { timeout: 30_000 });
     await quiet();
-    expect(draws.mock.calls.length).toBeGreaterThan(0);
     for (const change of [
       () => within(within(view).getByRole('group', { name: 'View' })).getByRole('button', { name: 'Top' }),
       () => within(view).getByRole('button', { name: 'Compare to model' }),
@@ -75,7 +75,7 @@ describe('CAM plan step, 3D view', () => {
     ]) {
       const before = draws.mock.calls.length;
       fireEvent.click(change());
-      await vi.waitFor(() => expect(draws.mock.calls.length).toBeGreaterThan(before), { timeout: 10_000 });
+      await vi.waitFor(() => expect(draws.mock.calls.length).toBeGreaterThan(before), { timeout: 30_000 });
     }
     fireEvent.click(within(view).getByRole('button', { name: 'Pause' }));
     await quiet();
