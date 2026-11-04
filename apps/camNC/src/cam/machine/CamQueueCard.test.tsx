@@ -1,3 +1,4 @@
+import { getCncApi } from '@/lib/fluidnc/machine';
 import { useStore } from '@/store/store';
 import { TooltipProvider } from '@wbcnc/ui/components/tooltip';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
@@ -94,6 +95,30 @@ describe('the machine queue card', () => {
     // Picking it from the list doesn't load it either.
     fireEvent.click(card().getByRole('button', { name: /Board A · ⌀3.175/ }));
     expect(loadedGcode()).toBeUndefined();
+  });
+
+  it('while a program runs or is paused, nothing in the queue replaces what’s loaded', () => {
+    const fine = plan([3.175, 6]);
+    setQueue([board('A')], [fine]);
+    const { rerender } = render(view());
+    fireEvent.click(card().getByRole('button', { name: 'Load program' }));
+    expect(loadedGcode()).toBe(fine.programs[0].gcode);
+
+    getCncApi().jobStartedAt.value = Date.now();
+    try {
+      rerender(view());
+      fireEvent.click(card().getByRole('button', { name: /Board A .*⌀6/ }));
+      expect(card().getByRole('button', { name: 'Load program' })).toHaveProperty('disabled', true);
+      expect(card().getByRole('button', { name: 'Done, next' })).toHaveProperty('disabled', true);
+      expect(useCamMachine.getState().active).toBe('A:bit:0');
+      expect(useCamMachine.getState().done).toEqual([]);
+      expect(loadedGcode()).toBe(fine.programs[0].gcode);
+    } finally {
+      getCncApi().jobStartedAt.value = null;
+    }
+    rerender(view());
+    fireEvent.click(card().getByRole('button', { name: /Board A .*⌀6/ }));
+    expect(loadedGcode()).toBe(fine.programs[1].gcode);
   });
 
   it('the loaded program goes away when its board becomes blocked (a screw dragged into a cut path)', () => {
