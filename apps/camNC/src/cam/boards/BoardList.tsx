@@ -14,7 +14,7 @@ import {
 import { cn } from '@wbcnc/ui/lib/utils';
 import { Check, GripVertical, MoreHorizontal, Pin, PinOff, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { boardSizeLabel, holdLabel, type BoardV1, type PartInstance, type StockBoardV1 } from '../boards';
+import { boardHoldOf, boardSizeLabel, holdLabel, type BoardV1, type PartInstance, type StockBoardV1 } from '../boards';
 import type { PlanResult } from '../camTypes';
 import { Hint } from '../Hint';
 import { numberProblem, parseDecimal } from '../numberFormat';
@@ -39,11 +39,13 @@ export function BoardList({
   onNewBoard,
   onUnpin,
   onTabFallback,
+  onBoardChange,
   stock,
   onStockChange,
 }: {
   /** A body's own fallback if its tabs can't hold (undefined: the job's default). */
   onTabFallback: (itemId: string, fallback: TabFallback | undefined) => void;
+  onBoardChange: (board: BoardV1) => void;
   boards: JobBoard[];
   instances: PartInstance[];
   plans: (PlanResult | undefined)[];
@@ -139,7 +141,17 @@ export function BoardList({
               {holdLabel(board)} · {bits.length || 1} {bits.length > 1 ? 'bits' : 'bit'}
               {nest.unplaced.length > 0 && <span className="text-destructive"> · {nest.unplaced.length} don’t fit</span>}
             </span>
-            {usesTabs(board.holdDown) && <HoldingNotes holding={plans[i]?.holding} board={board} />}
+            {usesTabs(board.holdDown) && (
+              <HoldingNotes
+                holding={plans[i]?.holding}
+                board={board}
+                itemOf={name => board.items.find(id => byId.get(id)?.name === name)}
+                onFallback={onTabFallback}
+                onFrame={
+                  boardHoldOf(board) === 'points' && board.frame === false ? () => onBoardChange({ ...board, frame: true }) : undefined
+                }
+              />
+            )}
           </section>
         );
       })}
@@ -193,7 +205,7 @@ function PartChip({
   pinned: boolean;
   onUnpin: () => void;
   /** How it's held on its board (tabs placed where they hold, or a fallback); undefined without tabs. */
-  holding?: 'placed' | TabFallback;
+  holding?: 'placed' | TabFallback | 'unheld';
   fallback?: TabFallback;
   onFallback: (f: TabFallback | undefined) => void;
   targets: BoardV1[];
@@ -223,6 +235,13 @@ function PartChip({
           className="ml-0.5 rounded bg-muted px-1 text-[10px] text-muted-foreground"
           title="Held by a bottom skin: no edge where tabs would hold">
           skin
+        </span>
+      )}
+      {holding === 'unheld' && (
+        <span
+          className="ml-0.5 rounded bg-destructive/15 px-1 text-[10px] text-destructive"
+          title="No edge where tabs would hold it: choose what holds it (⋯ menu or the note below)">
+          not held
         </span>
       )}
       {holding === 'tabs' && (
@@ -274,7 +293,7 @@ function PartChip({
               <DropdownMenuLabel className="text-xs">If its tabs can’t hold it</DropdownMenuLabel>
               {(
                 [
-                  [undefined, 'Job default'],
+                  [undefined, 'As the job says'],
                   ['skin', 'Bottom skin'],
                   ['tabs', 'Tabs anyway'],
                   ['self', 'Hold it down myself'],
@@ -393,6 +412,13 @@ function StockList({ stock, onChange }: { stock: StockBoardV1[]; onChange: (s: S
   );
 }
 
+/** What fixes a part whose tabs can't hold: one click each, nothing switched without asking. */
+const kFixes: [TabFallback, string][] = [
+  ['skin', 'Bottom skin'],
+  ['tabs', 'Tabs anyway'],
+  ['self', 'I hold it down'],
+];
+
 const kFallbackNote: Record<TabFallback, string> = {
   skin: 'keeps a bottom skin, freed at the machine',
   tabs: 'gets tabs anyway (they may not hold)',
@@ -400,19 +426,59 @@ const kFallbackNote: Record<TabFallback, string> = {
 };
 
 /** Per part, where its tabs fell short: fewer than Min # fit, or no two opposite sides hold (its fallback). */
-export function HoldingNotes({ holding, board }: { holding: PlanResult['holding']; board: BoardV1 }) {
+export function HoldingNotes({
+  holding,
+  board,
+  itemOf,
+  onFallback,
+  onFrame,
+}: {
+  holding: PlanResult['holding'];
+  board: BoardV1;
+  /** The board item of a part name, for its own fallback. */
+  itemOf: (name: string) => string | undefined;
+  onFallback: (itemId: string, f: TabFallback) => void;
+  /** Turns the frame on, when it's off: the usual reason tabs have nothing to hold on to. */
+  onFrame?: () => void;
+}) {
+  const unheld = (holding ?? []).filter(h => h.how === 'unheld');
   const notes = (holding ?? []).flatMap(h =>
     h.how === 'placed'
       ? h.wanted
         ? [`${h.name}: ${h.tabs} of ${h.wanted} tabs fit (short edges or little stock that holds around it).`]
         : []
-      : [`${h.name}: no two opposite edges where tabs hold, so it ${kFallbackNote[h.how]}.`]
+      : h.how === 'unheld'
+        ? []
+        : [`${h.name}: no two opposite edges where tabs hold, so it ${kFallbackNote[h.how]}, as you chose.`]
   );
-  if (!notes.length) return null;
+  if (!notes.length && !unheld.length) return null;
   return (
-    <ul aria-label={`Tabs on board ${board.name}`} className="flex flex-col gap-0.5 text-xs text-amber-700 dark:text-amber-400">
+    <ul aria-label={`Tabs on board ${board.name}`} className="flex flex-col gap-1 text-xs">
+      {unheld.map(h => {
+        const id = itemOf(h.name);
+        return (
+          <li key={h.name} className="flex flex-col gap-1 text-destructive" onClick={e => e.stopPropagation()}>
+            <span>{h.name}: no two opposite edges where tabs would hold it, so it would come loose. The job waits until you choose:</span>
+            <span className="flex flex-wrap gap-1">
+              {onFrame && (
+                <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={onFrame}>
+                  Keep a frame
+                </Button>
+              )}
+              {id &&
+                kFixes.map(([f, label]) => (
+                  <Button key={f} size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={() => onFallback(id, f)}>
+                    {label}
+                  </Button>
+                ))}
+            </span>
+          </li>
+        );
+      })}
       {notes.map(n => (
-        <li key={n}>{n}</li>
+        <li key={n} className="text-amber-700 dark:text-amber-400">
+          {n}
+        </li>
       ))}
     </ul>
   );

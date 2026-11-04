@@ -219,7 +219,9 @@ function stability(flat: PartCam, spec: BoardSpec, settings: Partial<CamSettings
               ? `has ${ev.holds} screws or clamps, but all to one side of it`
               : `is held by ${ev.holds === 0 ? 'no' : `only ${ev.holds}`} screw${ev.holds === 1 ? '' : 's'} or clamp${ev.holds === 1 ? '' : 's'}`
           }, so it can turn or lift. It needs 3 around its middle: drag one there (ringed on the board), or keep a frame on the Boards step.`
-        : `${ev.what} comes loose when its outline is cut through${watched ? ', as you chose: nothing holds the parts. Keep an eye on it.' : ': no tabs into stock that is held.'}`;
+        : how(ev.what) === 'unheld'
+          ? `${ev.what} has no two opposite edges where tabs would hold it, so it would come loose when its outline is cut through. On the Boards step, keep a frame around the parts, or choose for it: a bottom skin, tabs anyway, or you hold it down.`
+          : `${ev.what} comes loose when its outline is cut through${watched ? ', as you chose: nothing holds the parts. Keep an eye on it.' : ': no tabs into stock that is held.'}`;
     return { ...ev, block, message };
   });
   return { timeline };

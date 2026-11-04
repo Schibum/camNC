@@ -261,7 +261,7 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
         ? { tabs: { ...tabs, centers: h.tabs.map(q => boardToPart(part, q)) } }
         : h?.how === 'skin'
           ? { tabs: false, outlineFloor: layer }
-          : h?.how === 'self'
+          : h?.how === 'self' || h?.how === 'unheld'
             ? { tabs: false }
             : {};
     const cam = camPart(part.features, { ...settings, tabs, stockTop, ...own });

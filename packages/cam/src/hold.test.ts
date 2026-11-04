@@ -93,9 +93,9 @@ describe('do the tabs hold?', () => {
     expect(holds).toHaveLength(5);
     expect(holds.every(h => h.ok && h.anchored === h.tabs.length)).toBe(true);
     expect(cam.holding!.every(h => h.how === 'placed')).toBe(true);
-    // The old default spacing: a strip of 1.7 mm between neighbours holds nothing, so parts held on one side only get a
-    // bottom skin instead. Whatever has tabs is held by them.
-    const tight = board(8, 5.2);
+    // The old default spacing: a strip of 1.7 mm between neighbours holds nothing, so parts held on one side only get
+    // their fallback, here a bottom skin. Whatever has tabs is held by them.
+    const tight = { ...board(8, 5.2), tabFallback: 'skin' as const };
     const tc = camBoard(tight, {});
     expect(holdCheck(tc, tight).every(h => h.ok)).toBe(true);
     expect(tc.holding!.every(h => h.how === 'placed' || h.how === 'skin')).toBe(true);

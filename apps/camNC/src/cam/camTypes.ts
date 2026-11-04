@@ -124,7 +124,7 @@ export interface PlanResult {
   holdClash?: { x: number; y: number }[];
   /** With tabs: how each part is held: tabs where they hold, or its fallback (a bottom skin, tabs anyway, by hand). */
   /** Per part: tabs placed (`tabs` of them; `wanted` when fewer fit than asked), or its fallback. */
-  holding?: { name: string; how: 'placed' | TabFallback; tabs: number; wanted?: number }[];
+  holding?: { name: string; how: 'placed' | TabFallback | 'unheld'; tabs: number; wanted?: number }[];
   /** Bottom skin thickness, mm, for the parts that have one. */
   skin?: number;
   /** The board is taped down: the skin is the layer on the tape, cut for all parts in one go at the end. */

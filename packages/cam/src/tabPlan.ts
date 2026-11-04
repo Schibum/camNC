@@ -25,7 +25,8 @@ export interface PartHolding {
   /** Board part id. */
   id: string;
   name: string;
-  how: 'placed' | TabFallback;
+  /** `unheld`: no tabs that hold and no fallback chosen: cut without tabs, and the job is blocked until one is. */
+  how: 'placed' | TabFallback | 'unheld';
   /** Placed tabs, board coordinates. */
   tabs: P2[];
   /** Placed: how many it should have had (Min #, or more on long sides), when fewer fit. */
@@ -66,7 +67,8 @@ export function planTabs(
   for (const part of board.parts) {
     const outline = cuts.get(part.id)!.find(o => o.feature === 'outline');
     const final = outline?.passes.at(-1);
-    const fallback = part.tabFallback ?? board.tabFallback ?? 'skin';
+    // Not chosen: nothing is switched behind the user's back; the part is cut without tabs and the job says so.
+    const fallback = part.tabFallback ?? board.tabFallback ?? 'unheld';
     if (!outline || !final) {
       out.set(part.id, { id: part.id, name: part.name, how: fallback, tabs: [] });
       continue;

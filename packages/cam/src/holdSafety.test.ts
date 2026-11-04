@@ -245,7 +245,7 @@ describe('pockets and what holds the parts', () => {
 
   it('rabbets all round: no tab spots, its fallback; a skin thinner than the rabbet is cut away too, and that is reported', () => {
     const all = [rect(0, 0, 400, 15), rect(0, 85, 400, 100), rect(0, 0, 15, 100), rect(385, 0, 400, 100)];
-    const b = board({ underside: rabbeted(400, 100, 13.3, all, 18.3) });
+    const b: BoardSpec = { ...board({ underside: rabbeted(400, 100, 13.3, all, 18.3) }), tabFallback: 'skin' };
     const plan = planTabs(b, {}).get('p')!;
     expect(plan.how).toBe('skin');
     const events = holdTimeline(camBoard(b, {}), b, holdOptionsOf(b));
@@ -338,6 +338,7 @@ describe('held by points', () => {
       holdDown: 'tabs',
       tabs: DEFAULT_TABS,
       holdPoints: [],
+      tabFallback: 'skin',
       parts: [plate(376, 176, 12, 12)],
     };
     const opts = holdOptionsOf(b);
@@ -368,6 +369,7 @@ describe('held by points', () => {
       holdDown: 'tabs',
       tabs: DEFAULT_TABS,
       holdPoints: [screw(60, 15), screw(985, 15)],
+      tabFallback: 'skin',
       parts: [plate(920, 420, 40, 40)],
     };
     const opts = holdOptionsOf(b);

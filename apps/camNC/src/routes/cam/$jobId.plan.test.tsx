@@ -257,7 +257,7 @@ describe('CAM plan step', () => {
     expect(screen.getByText(/Safety checks passed/)).toBeTruthy();
   }, 120_000);
 
-  it('parts with no edge where tabs would hold keep a bottom skin, freed at the machine', async () => {
+  it('a part with no edge where tabs would hold blocks the job until you choose; with a bottom skin, freed at the machine', async () => {
     const bytes = await (await fetch(stepUrl)).arrayBuffer();
     const job = await createJob(new File([bytes], 'kinderregal-eiche.step'));
     const copy = new Uint8Array(bytes.slice(0));
@@ -282,8 +282,21 @@ describe('CAM plan step', () => {
       ],
       holdPointsOn: { w: 444, h: 424 },
     }));
-    await saveJob({ ...job, parts, boards });
     params.jobId = job.id;
+    // Nothing chosen for it: not switched to a skin behind your back. The job is blocked and says what to do.
+    await saveJob({ ...job, parts, boards });
+    const first = render(
+      <QueryClientProvider client={new QueryClient()}>
+        <PlanStep />
+      </QueryClientProvider>
+    );
+    expect(
+      await screen.findByText(/back has no two opposite edges where tabs would hold it, so it would come loose/, {}, { timeout: 60_000 })
+    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Take the job to the machine/ })).toHaveProperty('disabled', true);
+    first.unmount();
+    // A bottom skin for it, chosen on the Boards step.
+    await saveJob({ ...job, parts, boards: boards.map(b => ({ ...b, tabFallbacks: { [b.items[0]]: 'skin' as const } })) });
     // Last time this viewer left the Plan step on its settings: it opens there again.
     localStorage.setItem('camnc-plan-layout', JSON.stringify({ state: { tab: 'settings', opsView: 'list' }, version: 0 }));
     await usePlanLayout.persist.rehydrate();

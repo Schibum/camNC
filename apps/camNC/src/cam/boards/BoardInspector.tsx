@@ -487,21 +487,24 @@ export function BoardInspector({
       {tabs && tabHold && onTabHold && (
         <section className="flex flex-col gap-1.5" aria-label="Where tabs can't hold">
           <p className="text-xs leading-relaxed text-muted-foreground">
-            Tabs go only on straight edges facing stock that holds them. A part with no such edge gets (for the whole job; each part can
-            choose its own in its ⋯ menu):
+            Tabs go only on straight edges facing stock that holds them. A part with no such edge (for the whole job; each part can choose
+            its own in its ⋯ menu):
           </p>
           <div className="grid grid-cols-[minmax(0,1fr)_72px] items-end gap-2">
-            <Select value={tabHold.fallback ?? 'skin'} onValueChange={v => onTabHold({ ...tabHold, fallback: v as TabFallback })}>
-              <SelectTrigger aria-label="Parts whose tabs can't hold get" className="w-full min-w-0 [&>span]:truncate">
+            <Select
+              value={tabHold.fallback ?? 'ask'}
+              onValueChange={v => onTabHold({ ...tabHold, fallback: v === 'ask' ? undefined : (v as TabFallback) })}>
+              <SelectTrigger aria-label="A part whose tabs can't hold" className="w-full min-w-0 [&>span]:truncate">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="skin">Bottom skin (freed at the machine)</SelectItem>
-                <SelectItem value="tabs">Tabs anyway (may not hold)</SelectItem>
-                <SelectItem value="self">No tabs: I hold it down</SelectItem>
+                <SelectItem value="ask">Blocks the job until I choose</SelectItem>
+                <SelectItem value="skin">Gets a bottom skin (freed at the machine)</SelectItem>
+                <SelectItem value="tabs">Gets tabs anyway (may not hold)</SelectItem>
+                <SelectItem value="self">Gets no tabs: I hold it down</SelectItem>
               </SelectContent>
             </Select>
-            {(tabHold.fallback ?? 'skin') === 'skin' && (
+            {tabHold.fallback === 'skin' && (
               <NumberField
                 id="skin"
                 label="Skin (mm)"

@@ -257,6 +257,7 @@ function BoardsStep() {
               })
             )
           }
+          onBoardChange={updateBoard}
           stock={job.stock ?? []}
           onStockChange={stock => save.mutate({ ...job, stock })}
         />
