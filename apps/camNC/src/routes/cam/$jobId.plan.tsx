@@ -1,4 +1,5 @@
 import { RehearsalButton } from '@/lib/rehearsal/RehearsalButton';
+import { freezeRehearsalBoard } from '@/lib/rehearsal/boardSnapshot';
 import { PageHeader } from '@/components/page-header';
 import { CamPage } from '@/cam/CamPage';
 import { NoPartsToMill } from '@/cam/NoPartsToMill';
@@ -220,11 +221,7 @@ function PlanStep() {
           Job: {queue.length} {queue.length === 1 ? 'board' : 'boards'} · {swaps} bit {swaps === 1 ? 'swap' : 'swaps'} · ≈{' '}
           {fmtMin(totalMin)} min cutting
         </span>
-        <RehearsalButton
-          job={job}
-          boards={boards.map(b => ({ ...b.board, size: { fit: false, w: b.nest.board.w, h: b.nest.board.h } }))}
-          ready={allReady}
-        />
+        <RehearsalButton job={job} boards={boards.map(b => freezeRehearsalBoard(b.board, b.nest))} ready={allReady} />
         <BitChip value={settings} onChange={savePlan} onOpen={openSettings} />
         <Hint
           wrap
