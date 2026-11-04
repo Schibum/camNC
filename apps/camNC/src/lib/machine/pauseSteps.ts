@@ -9,6 +9,11 @@ export interface Step {
 
 const kRouterOn = 'Router on, then Resume';
 const kRouterOnDetail = 'If you switch the router by hand, turn it back on first. Otherwise Resume starts the spindle.';
+/** M5 stops only a spindle the machine controls: a router switched by hand keeps turning until you switch it off. */
+const kRouterOff: Step = {
+  title: 'Router off, if you switch it by hand',
+  detail: 'The bit is up. The machine stopped its spindle, but not a router switched by hand: wait until the bit stands still.',
+};
 
 /** What to do at one of our own pauses, in order, from its marker. */
 export function pauseSteps(m: PauseMarker): { title: string; steps: Step[] } {
@@ -25,19 +30,21 @@ export function pauseSteps(m: PauseMarker): { title: string; steps: Step[] } {
       return {
         title: `Take out ${m.part}`,
         steps: [
-          { title: `Take out ${m.part}`, detail: 'The bit is up and the spindle is stopped.' },
+          kRouterOff,
+          { title: `Take out ${m.part}` },
           ...(m.next
             ? [
                 { title: `Hold down ${m.next}`, detail: 'It’s cut loose right after Resume. Ringed green in the camera view.', hold: true },
                 { title: kRouterOn, detail: kRouterOnDetail },
               ]
-            : [{ title: 'Resume', detail: 'That was the last part: the machine parks. A router you switch by hand stays off.' }]),
+            : [{ title: 'Resume', detail: 'That was the last part: the machine parks. Leave a router you switch by hand off.' }]),
         ],
       };
     case 'tab':
       return {
         title: `Tab ${m.n} of ${m.of}`,
         steps: [
+          kRouterOff,
           { title: `Hold ${m.part} at the green ring`, detail: 'Away from the bit. Resume cuts through this tab.', hold: true },
           { title: kRouterOn, detail: kRouterOnDetail },
         ],

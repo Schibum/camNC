@@ -21,6 +21,10 @@ describe('pause markers', () => {
     expect(line.slice(1, -1)).not.toMatch(/[()]/);
     expect(line.length).toBeLessThanOrEqual(127);
     expect(parsePauseMarker(line.slice(1, -1))).toMatchObject({ kind: 'take-out', n: 12, of: 12 });
+    // Within the limit in UTF-8 bytes, not characters.
+    const umlauts = pauseMarker({ kind: 'take-out', n: 2, of: 5, part: 'Länge'.repeat(8), next: 'Länge'.repeat(8) });
+    expect(new TextEncoder().encode(umlauts).length).toBeLessThanOrEqual(127);
+    expect(parsePauseMarker(umlauts.slice(1, -1))).toMatchObject({ kind: 'take-out', part: expect.stringMatching(/^Länge/) });
   });
 
   it('is null for other comments and broken markers', () => {

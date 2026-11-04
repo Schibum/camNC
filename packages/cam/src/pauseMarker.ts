@@ -16,10 +16,20 @@ export function pauseMarker(m: PauseMarker): string {
   const fields: string[] = [m.kind];
   if ('n' in m) fields.push(`n=${m.n}/${m.of}`);
   if ('rpm' in m) fields.push(`rpm=${Math.round(m.rpm)}`);
-  if ('part' in m) fields.push(`part=${clean(m.part)}`);
-  if ('next' in m && m.next) fields.push(`next=${clean(m.next)}`);
-  return `(${kMarker} ${fields.join('; ')})`;
+  const line = (names: string[]) => `(${kMarker} ${[...fields, ...names].join('; ')})`;
+  // Part names share what's left of FluidNC's line limit, in UTF-8 bytes: the longer one gives way first.
+  const names = [...('part' in m ? [`part=${clean(m.part)}`] : []), ...('next' in m && m.next ? [`next=${clean(m.next)}`] : [])];
+  while (bytes(line(names)) > kMaxLine) {
+    const i = names.reduce((longest, s, k) => (bytes(s) > bytes(names[longest]!) ? k : longest), 0);
+    names[i] = [...names[i]!].slice(0, -1).join('');
+  }
+  return line(names);
 }
+
+/** FluidNC's line limit in bytes (`kMaxGcodeLine` in gcode.ts). */
+const kMaxLine = 127;
+const encoder = new TextEncoder();
+const bytes = (s: string) => encoder.encode(s).length;
 
 /** The marker in a comment's text (without the parentheses), or null. Inverse of `pauseMarker`. */
 export function parsePauseMarker(comment: string): PauseMarker | null {
@@ -39,4 +49,4 @@ export function parsePauseMarker(comment: string): PauseMarker | null {
 }
 
 /** Inside a `( )` comment and between our `;` separators: no parentheses or semicolons, one line, short. */
-const clean = (text: string) => text.replace(/[();]/g, '').replace(/\s+/g, ' ').trim().slice(0, 38);
+const clean = (text: string) => text.replace(/[();]/g, '').replace(/\s+/g, ' ').trim();
