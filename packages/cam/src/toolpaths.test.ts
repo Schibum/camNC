@@ -249,8 +249,8 @@ describe('spike 3/4: toolpaths + gcode', () => {
     expect(lines[m3 - 1]).toMatch(/^M0 \(MSG Spindle starts at 15000 RPM next/);
     expect(lines[m3 + 1]).toBe('G4 P3');
     expect(lines.findIndex(l => /^G1 /.test(l))).toBeGreaterThan(m3);
-    // Parked, a pause for whoever switches the spindle by hand (M5 did nothing there).
-    expect(lines.slice(-5)).toEqual(['M5', 'X0 Y0', '(CAMNC PAUSE done)', 'M0 (MSG Program done. Manual spindle: off now)', 'M30']);
+    // Spindle off, Z lifted to the top where the bit is, a pause for whoever switches the spindle by hand (M5 did nothing there).
+    expect(lines.slice(-5)).toEqual(['M5', 'G53 G0 Z-5', '(CAMNC PAUSE done)', 'M0 (MSG Program done. Manual spindle: off now)', 'M30']);
     expect(gcode).toMatch(/G[23] X/);
     const m = metrics(readGcode(gcode), 8);
     expect(m.zMin).toBeCloseTo(-0.3);

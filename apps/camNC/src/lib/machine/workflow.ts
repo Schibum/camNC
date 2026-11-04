@@ -30,6 +30,8 @@ const fmt = (n: number) => n.toFixed(2).replace(/\.?0+$/, '');
 const kTravelEpsilon = 0.001;
 
 /** Machine-coordinate targets of `G53` moves, per axis (`G53` words are not offset by the work zero). */
+export const kHomeFirst = 'Home the machine first: this program lifts Z in machine coordinates (G53), which needs a homed machine.';
+
 export function g53Targets(gcode: string): { axis: 'x' | 'y' | 'z'; value: number }[] {
   const out: { axis: 'x' | 'y' | 'z'; value: number }[] = [];
   for (const raw of gcode.split('\n')) {
@@ -129,7 +131,13 @@ export interface ChecklistInput {
 export function getJobChecklist(input: ChecklistInput): ChecklistItem[] {
   const { gcode, toolpathBounds, toolpathOffset, machineZero, machineBounds } = input;
   const items: ChecklistItem[] = [];
-  items.push({ id: 'homed', ok: input.homed, label: input.homed ? 'Homed' : 'Not homed since connecting' });
+  const needsHoming = !input.homed && g53Targets(gcode).length > 0;
+  items.push({
+    id: 'homed',
+    ok: input.homed,
+    label: input.homed ? 'Homed' : needsHoming ? kHomeFirst : 'Not homed since connecting',
+    ...(needsHoming && { blocking: true }),
+  });
 
   if (toolpathBounds && machineBounds) {
     const inside =

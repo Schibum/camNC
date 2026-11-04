@@ -53,6 +53,12 @@ export interface Tool {
 }
 
 /**
+ * G53 moves commented out, line numbers kept: the interpreter would read their machine coordinates as work
+ * coordinates, a lift to G53 Z-5 as a dive to Z-5. They are not part of the path; the machine's travel check reads them.
+ */
+const withoutMachineMoves = (gcode: string) => gcode.replace(/^(?=[^(;\n]*\bG53\b)(.*)$/gim, line => `(${line.replace(/[()]/g, '')})`);
+
+/**
  * Parse GCode string into toolpath segments
  */
 export function parseGCode(gcode: string): ParsedToolpath {
@@ -83,7 +89,7 @@ export function parseGCode(gcode: string): ParsedToolpath {
     });
 
     // Called after each line: the points it added get its line number and feed rate (an F word applies to its own line).
-    toolpath.loadFromStringSync(gcode, (data: { words: [string, number][] }, index: number) => {
+    toolpath.loadFromStringSync(withoutMachineMoves(gcode), (data: { words: [string, number][] }, index: number) => {
       for (const [letter, value] of data.words) if (letter === 'F') feed = value;
       for (let i = parsed.feeds.length; i < parsed.pathPoints.length; i++) {
         parsed.feeds.push(feed);

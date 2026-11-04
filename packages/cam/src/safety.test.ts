@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { checkGcodeSafety, checkProgramSafety } from './safety';
 import { toGcode } from './gcode';
+import { readGcode } from './analyze';
 import type { Operation, PartCam } from './toolpaths';
 
 const tool = { number: 1, diameter: 6, name: 'bit', flutes: 2 } as unknown as Operation['tool'];
@@ -22,6 +23,26 @@ const op = (name: string, z: number, at = [50, 50]): Operation => ({
 });
 const cam = (...operations: Operation[]): PartCam => ({ stockTop: 8, operations, warnings: [] });
 const limits = { stockTop: 8, size: [400, 100] as [number, number], minZ: -0.3, toolRadius: 3 };
+
+describe('the lift at the end of a program', () => {
+  it('is in machine coordinates: no move on the board, so no rule sees a rapid at Z-5', () => {
+    const gcode = toGcode(cam(op('Outline', 2)));
+    expect(gcode).toContain('G53 G0 Z-5');
+    expect(checkGcodeSafety(gcode, limits)).toEqual([]);
+    const moves = readGcode(gcode);
+    expect(Math.min(...moves.filter(m => m.rapid).map(m => m.to[2]))).toBeGreaterThan(limits.stockTop);
+    // And it adds nothing sideways: the last move is the lift to safe Z above the cut's end.
+    const last = moves.at(-1)!;
+    expect(last.to.slice(0, 2)).toEqual([55, 50]);
+    expect(last.to.slice(0, 2)).toEqual(last.from.slice(0, 2));
+  });
+
+  it('comes after the spindle stops, and a real rapid at that Z would still be caught', () => {
+    const lines = toGcode(cam(op('Outline', 2))).split('\n');
+    expect(lines.indexOf('G53 G0 Z-5')).toBeGreaterThan(lines.lastIndexOf('M5'));
+    expect(checkGcodeSafety('G0 X10 Y10 Z20\nG0 Z-5', limits).map(i => i.rule)).toContain('rapid-in-stock');
+  });
+});
 
 describe('safety of a program for a board lying askew', () => {
   const turned = (deg: number, x: number, y: number) => {

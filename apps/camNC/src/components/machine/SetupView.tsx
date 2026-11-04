@@ -217,7 +217,8 @@ function RunFooter() {
       </Button>
       {blocked && (
         <p className="text-xs text-red-700 dark:text-red-400">
-          Fix the travel problem above first: with soft limits on, the controller would stop this job with an alarm.
+          {checklist.find(item => item.id === 'homed' && item.blocking)?.label ??
+            'Fix the travel problem above first: with soft limits on, the controller would stop this job with an alarm.'}
         </p>
       )}
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>

@@ -117,6 +117,13 @@ const toolLine = (t: Tool, zMin: number) =>
   `(  T${t.number} D=${fmt(t.diameter)} CR=0 - ZMIN=${fmt(zMin)} - ${commentText(t.name ?? 'flat end mill', 60)} )`;
 
 /**
+ * Machine Z a finished program lifts to, out of the way of taking the parts out: just below the Z switches of the
+ * LowRider V4, the same height as its Retract and Park macros. In machine coordinates, so only on a homed machine:
+ * the machine view won't start a program with G53 before homing.
+ */
+export const kParkMachineZ = -5;
+
+/**
  * FluidNC/grbl dialect G-code for one bit. Z0 = stock bottom, XY0 = lower left of the stock (the board). Several bits make
  * several programs (`splitByBit`): FluidNC can't zero Z while a program is paused, so a swap can't happen inside one.
  */
@@ -273,7 +280,7 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
   });
   move('G0', { z: safeZ });
   out.push('M5');
-  move('G0', { x: 0, y: 0 });
+  out.push(`G53 G0 Z${kParkMachineZ}`);
   // M5 did nothing on a router switched by hand: parked, say so. Not after a last pause that already did.
   if (!cam.operations.at(-1)?.pauseAfter) out.push(pauseMarker({ kind: 'done' }), `M0 (MSG Program done. ${kManualOff})`);
   out.push('M30');

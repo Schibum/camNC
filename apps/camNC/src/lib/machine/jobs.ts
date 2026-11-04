@@ -6,7 +6,7 @@ import { JobRecord, saveJobRecord } from './jobRecord';
 import { applyRecord, InterruptedJob, interruptedJob, noteJobStopRequested, runningJobName } from './jobRecovery';
 import type { Macro } from './macros';
 import { buildResumeProgram, parseProgram, programBounds } from './resume';
-import { checkTravel, getJobChecklist } from './workflow';
+import { checkTravel, g53Targets, getJobChecklist, kHomeFirst } from './workflow';
 
 export function errorText(err: unknown) {
   return err instanceof Error ? err.message : String(err);
@@ -88,6 +88,10 @@ export async function uploadAndRun() {
   const api = getCncApi();
   const { toolpath, toolpathName } = useStore.getState();
   if (!toolpath?.gcode) throw new Error('No toolpath loaded');
+  if (!api.homed.value && g53Targets(toolpath.gcode).length > 0) {
+    toast.error(kHomeFirst);
+    throw new Error(kHomeFirst);
+  }
   await step(api.uploadGcode(toolpath.gcode, kJobFileName), 'Uploading…', 'Uploaded and verified');
   runningJobName.value = toolpathName;
   await step(api.runFile(kJobFileName), 'Starting job…', 'Job started');
