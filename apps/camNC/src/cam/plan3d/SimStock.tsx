@@ -16,7 +16,7 @@ import {
 import type { ParsedToolpath } from '@/visualize/gcodeParsing';
 import { HeightmapStamper, heightmapSize, type HeightmapDomain } from '@/visualize/stockSim/HeightmapStamper';
 import type { Playhead } from '@/visualize/stockSim/jobTimeline';
-import { kGridVertex, useAdaptiveGrid, wallGeometry } from '@/visualize/stockSim/stockGrid';
+import { kGridVertex, softwareRendering, useAdaptiveGrid, wallGeometry } from '@/visualize/stockSim/stockGrid';
 import type { ToolShape } from '@/visualize/stockSim/toolShapes';
 import type { BoardRequest, CamPartInfo } from '../camTypes';
 import { designTexture, kCompareTolerance } from './compareMap';
@@ -24,6 +24,7 @@ import { cutsOf, onlyOps, type PlanOp } from './planModel';
 import { kStockColor } from './palette';
 
 const kMaxHeightmap = 2048;
+const kSoftwareHeightmap = 512;
 
 const kSurfaceVertex = /* glsl */ `
   uniform sampler2D uCurrent;
@@ -189,7 +190,9 @@ export function SimStock({
     const pad = Math.max(1, toolShape(undefined).radius) * 2;
     const footprint = new Box2(new Vector2(-pad, -pad), new Vector2(w + pad, h + pad));
     const zLow = Math.min(0, toolpath.getBounds().min.z) - 1;
-    const px = heightmapSize(footprint, Math.min(kMaxHeightmap, gl.capabilities.maxTextureSize));
+    // Stamping a whole job on the CPU takes many seconds at full size, and holds up all WebGL in the browser meanwhile.
+    const largest = softwareRendering(gl.getContext()) ? kSoftwareHeightmap : kMaxHeightmap;
+    const px = heightmapSize(footprint, Math.min(largest, gl.capabilities.maxTextureSize));
     return { footprint, zTop, zLow, width: px.width, height: px.height };
   }, [w, h, zTop, toolpath, gl, toolShape]);
   const stamper = useMemo(() => new HeightmapStamper(toolpath, domain, toolShape), [toolpath, domain, toolShape]);

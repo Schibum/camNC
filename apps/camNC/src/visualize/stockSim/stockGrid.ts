@@ -25,7 +25,7 @@ export const sameMatrix = (a: Matrix4, b: Matrix4) =>
   a.elements.every((v, i) => Math.abs(v - b.elements[i]) <= 1e-4 * Math.max(Math.abs(v), Math.abs(b.elements[i])) + 1e-9);
 
 /** Is WebGL drawn on the CPU (no GPU, or none Chromium trusts)? */
-function softwareRendering(gl: WebGLRenderingContext | WebGL2RenderingContext) {
+export function softwareRendering(gl: WebGLRenderingContext | WebGL2RenderingContext) {
   const info = gl.getExtension('WEBGL_debug_renderer_info');
   return /swiftshader|llvmpipe|software/i.test(info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : '');
 }
