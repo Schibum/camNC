@@ -4,7 +4,17 @@ import { MATERIALS } from '@wbcnc/cam/settings';
 import { Button } from '@wbcnc/ui/components/button';
 import { Label } from '@wbcnc/ui/components/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wbcnc/ui/components/select';
-import { kClampWidth, kColletClearance, kHoldDefaults, kHoldHeights, kLowHold, type HoldKind } from '@wbcnc/cam/holdPoints';
+import {
+  frameMargin,
+  kClampWidth,
+  kColletClearance,
+  kHoldClearance,
+  kHoldDefaults,
+  kHoldHeights,
+  kLowHold,
+  pathClearance,
+  type HoldKind,
+} from '@wbcnc/cam/holdPoints';
 import {
   boardGap,
   boardHoldOf,
@@ -88,6 +98,24 @@ const kHoldDownHints: Record<keyof typeof kHoldDownLabels, string> = {
   skin: 'No tabs: every outline stops a thin skin above the board’s bottom, so all parts stay in the board while it’s cut. At the machine, a last step cuts them free one at a time and pauses so you can take each one out. Clean edges, no tabs to cut off.',
   none: 'No tabs and no skin: each part is free once its outline is cut through. Fine for big, heavy parts; small ones can be thrown. The job says when each comes loose.',
 };
+
+/** What the frame for these holds is made of, mm: "at least 22 mm: 5 reach + 13 kept clear …". */
+function frameNote(hold: ReturnType<typeof holdsOf>, bit: number) {
+  const clamp = hold.kind === 'clamp';
+  const keep = pathClearance(hold, bit / 2);
+  const nut = keep > bit / 2 + kHoldClearance;
+  const parts = [
+    clamp ? `${fmt(hold.d)} the clamp reaches in` : `${fmt(hold.d)} the screw head + 2 stock around it`,
+    nut
+      ? `${fmt(keep)} kept clear for the collet nut (the ${clamp ? 'clamp' : 'screw'} stands over ${kLowHold} mm high)`
+      : `${fmt(keep)} clearance`,
+    `${fmt(bit / 2)} the bit's radius`,
+    '1 spare',
+  ];
+  return ` With these ${clamp ? 'clamps' : 'screws'}, the margin is at least ${fmt(frameMargin(hold.d, bit, hold.kind, hold.height))} mm, a frame of stock for them: ${parts.join(' + ')}, rounded up. ${
+    nut ? `Lower holds (set their Height to ${kLowHold} mm or less) need less. ` : ''
+  }Untick “Keep a frame for them” below to use your own margin.`;
+}
 
 const kFlipLabels: Record<FlipRegistration | 'off', string> = {
   off: 'No second side',
@@ -233,8 +261,7 @@ export function BoardInspector({
         {tabs
           ? `Defaults with tabs: margin ${fmt(tabMargin)} mm, gap ${fmt(tabGap)} mm, so a strip of stock that holds the tabs stays between the cuts (bit ⌀ ${fmt(bit)}).`
           : `Defaults: margin bit + 2 mm, gap bit + 4 mm (bit ⌀ ${fmt(bit)}).`}
-        {nest.frame === 'kept' &&
-          ` With screws or clamps, the margin is at least ${fmt(nest.margin)} mm: a frame of stock for them (the hold’s size, the bit and a little clearance). Untick “Keep a frame for them” below to use your own.`}
+        {nest.frame === 'kept' && frameNote(hold, bit)}
       </p>
       {tightForTabs && (
         <div className="flex flex-col gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs leading-relaxed">
