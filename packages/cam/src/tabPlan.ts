@@ -31,6 +31,8 @@ export interface PartHolding {
   tabs: P2[];
   /** Placed: how many it should have had (Min #, or more on long sides), when fewer fit. */
   wanted?: number;
+  /** Placed where the user put them (see `BoardPart.tabsAt`), not picked. */
+  moved?: boolean;
 }
 
 export const kDefaultSkin = 1;
@@ -80,6 +82,19 @@ export function planTabs(
     // Not where the pass starts and ends: a tab across that seam would be cut in two.
     const room = tabs.width + outline.tool.diameter;
     const seam = loop[0];
+    // Where the user put them: on the bit's path, nearest to each. The hold check then says whether they hold.
+    if (part.tabsAt?.length) {
+      const tabsOn = part.tabsAt.map(q => {
+        const [x, y] = partToBoard(part, [q.x, q.y, 0]);
+        const at = nearestOnLoop(loop, { x, y });
+        // Off the seam, where the pass starts and ends: a tab across it would be cut in two.
+        if (Math.hypot(at.x - loop[0].x, at.y - loop[0].y) > room) return at;
+        const [fwd, back] = [alongLoop(loop, room), alongLoop([...loop].reverse(), room)];
+        return Math.hypot(fwd.x - at.x, fwd.y - at.y) <= Math.hypot(back.x - at.x, back.y - at.y) ? fwd : back;
+      });
+      out.set(part.id, { id: part.id, name: part.name, how: 'placed', tabs: tabsOn, moved: true });
+      continue;
+    }
     // Only where a saw, chisel or flush trim bit gets at the tab afterwards (`reachable`): not in notches, slots or the
     // inside of a hook, but a long free edge set back from the part's hull is fine.
     const hull = convexHull(loop);
@@ -107,6 +122,35 @@ export function planTabs(
     );
   }
   return out;
+}
+
+/** The point of a closed path nearest to `q`. */
+export function nearestOnLoop(loop: P2[], q: P2): P2 {
+  let best = loop[0],
+    d = Infinity;
+  for (let i = 0; i < loop.length; i++) {
+    const a = loop[i],
+      b = loop[(i + 1) % loop.length];
+    const dx = b.x - a.x,
+      dy = b.y - a.y;
+    const l2 = dx * dx + dy * dy;
+    const t = l2 ? Math.min(1, Math.max(0, ((q.x - a.x) * dx + (q.y - a.y) * dy) / l2)) : 0;
+    const p = { x: a.x + t * dx, y: a.y + t * dy };
+    const e = Math.hypot(p.x - q.x, p.y - q.y);
+    if (e < d) [best, d] = [p, e];
+  }
+  return best;
+}
+
+/** The point `dist` along a path from its start (its end if it's shorter). */
+function alongLoop(loop: P2[], dist: number): P2 {
+  for (let i = 1; i < loop.length; i++) {
+    const [a, b] = [loop[i - 1], loop[i]];
+    const l = Math.hypot(b.x - a.x, b.y - a.y);
+    if (l >= dist) return { x: a.x + ((b.x - a.x) * dist) / (l || 1), y: a.y + ((b.y - a.y) * dist) / (l || 1) };
+    dist -= l;
+  }
+  return loop[loop.length - 1];
 }
 
 /** Tabs stay this far from a corner (along the edge): a tab right at a corner is hard to cut off cleanly. */

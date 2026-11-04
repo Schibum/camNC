@@ -92,6 +92,31 @@ describe('tab placement', () => {
     expect(h.tabs.some(t => t.x > 100 && t.x < 140 && t.y < 125)).toBe(false);
   });
 
+  it("tabs the user placed: used instead of picked ones, on the bit's path, in the part frame however it is turned", () => {
+    const part = { id: 'p', name: 'p', features: plain(), size: [200, 100, 8] as [number, number, number], x: 20, y: 20, rotated: false };
+    // Part frame: one a little inside the bottom edge, one a little outside the right one.
+    const tabsAt = [
+      { x: 60, y: 3 },
+      { x: 205, y: 50 },
+    ];
+    const h = planTabs(roomy([{ ...part, tabsAt }]), {}).get('p')!;
+    expect(h).toMatchObject({ how: 'placed', moved: true });
+    expect(h.tabs).toHaveLength(2);
+    // On the path, a bit radius outside the outline.
+    expect(h.tabs[0].x).toBeCloseTo(80, 0);
+    expect(h.tabs[0].y).toBeLessThan(20);
+    expect(h.tabs[0].y).toBeGreaterThan(17);
+    expect(h.tabs[1].y).toBeCloseTo(70, 0);
+    expect(h.tabs[1].x).toBeGreaterThan(220);
+    // Turned 90°: the same spots on the part, wherever that is on the board.
+    const turned = planTabs(roomy([{ ...part, tabsAt, rotated: true }], 240, 260), {}).get('p')!;
+    expect(turned.tabs[0].y).toBeCloseTo(80, 0);
+    expect(turned.tabs[0].x).toBeGreaterThan(20 + 100);
+    // And the program has them.
+    const cam = camBoard(roomy([{ ...part, tabsAt }]), {});
+    expect(cam.holding?.find(x => x.id === 'p')).toMatchObject({ how: 'placed', moved: true });
+  });
+
   it('a long strip: two tabs on each long side, not at its tips', () => {
     const strip = rect(0, 0, 1200, 50);
     const f = { ...plain(), footprint: [strip], outlines: [strip] };

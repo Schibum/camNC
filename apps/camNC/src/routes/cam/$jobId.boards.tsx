@@ -331,6 +331,10 @@ function BoardsStep() {
               const b = boards.find(x => x.board.id === id);
               if (b) updateBoard({ ...b.board, holdPoints, holdPointsOn: { w: b.nest.board.w, h: b.nest.board.h } });
             }}
+            onTabsMove={(id, item, tabs) => {
+              const b = boards.find(x => x.board.id === id);
+              if (b) updateBoard({ ...b.board, tabsAt: { ...b.board.tabsAt, [item]: tabs } });
+            }}
           />
           <div className="flex flex-wrap gap-5 border-t px-4 py-2.5 text-xs text-muted-foreground">
             <span>

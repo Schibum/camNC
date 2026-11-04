@@ -66,6 +66,7 @@ export function BoardDrawings({
   onNewBoard,
   onNudge,
   onHoldsMove,
+  onTabsMove,
 }: {
   boards: JobBoard[];
   instances: PartInstance[];
@@ -84,6 +85,8 @@ export function BoardDrawings({
   onNudge: (item: string, board: string, at: PartPosition) => void;
   /** A hold point dragged: the board's hold points as they are now. */
   onHoldsMove?: (board: string, points: { x: number; y: number }[]) => void;
+  /** A tab dragged: all tabs of that body (instance id), part frame (mm). */
+  onTabsMove?: (board: string, item: string, tabs: { x: number; y: number }[]) => void;
 }) {
   const byId = new Map(instances.map(i => [i.id, i]));
   const byPart = new Map(parts.map(p => [p.id, p]));
@@ -169,7 +172,7 @@ export function BoardDrawings({
   const panned = useRef(false);
   const onBackgroundDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const t = e.target as Element;
-    if (t.closest('[data-item],[data-hold],button,input,[role="button"]')) return;
+    if (t.closest('[data-item],[data-hold],[data-tab],button,input,[role="button"]')) return;
     if (e.pointerType === 'touch') {
       touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (touches.current.size === 2) {
@@ -430,6 +433,7 @@ export function BoardDrawings({
                   onPartKeyDown={(item, e) => nudge(b, item, e)}
                   onPartFocus={() => onSelect(board.id)}
                   onHoldsChange={onHoldsMove && (pts => onHoldsMove(board.id, pts))}
+                  onTabsChange={onTabsMove && usesTabs(partsHoldOf(board)) ? (item, tabs) => onTabsMove(board.id, item, tabs) : undefined}
                 />
               </section>
             );

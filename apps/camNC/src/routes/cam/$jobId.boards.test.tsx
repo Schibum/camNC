@@ -244,6 +244,44 @@ describe('CAM boards step', () => {
     });
   }, 90_000);
 
+  it('drags a tab along its part’s outline: saved in the part’s frame, and placed automatically again on request', async () => {
+    const job = await openKinderregal();
+    const drawing = () => screen.getByRole('region', { name: 'Board A drawing' });
+    // The board's program comes back with its tabs.
+    const tab = await waitFor(
+      () => {
+        const t = drawing().querySelector<SVGCircleElement>('[data-tab]');
+        expect(t).toBeTruthy();
+        return t!;
+      },
+      { timeout: 60_000 }
+    );
+    const part = tab.getAttribute('data-tab')!;
+    const [cx, cy] = [+tab.getAttribute('cx')!, +tab.getAttribute('cy')!];
+    // 30 mm along the board's x, and a little off the outline: it lands on the outline.
+    fireEvent.pointerDown(tab, { ...clientOf('A', cx, cy), button: 0, pointerId: 1 });
+    fireEvent.pointerMove(tab, { ...clientOf('A', cx + 30, cy + 2), pointerId: 1 });
+    fireEvent.pointerUp(tab, { ...clientOf('A', cx + 30, cy + 2), pointerId: 1 });
+    const saved = async () => (await getJob(job.id))!.boards!.find(b => b.name === 'A')!;
+    await waitFor(async () => {
+      const b = await saved();
+      const item = b.items.find(id => b.tabsAt?.[id]);
+      expect(item).toBeTruthy();
+      expect(b.tabsAt![item!].length).toBeGreaterThanOrEqual(2);
+    });
+    // The next program has a tab where it was dropped.
+    await waitFor(
+      () => {
+        const moved = [...drawing().querySelectorAll<SVGCircleElement>(`[data-tab="${part}"]`)];
+        expect(moved.some(t => Math.abs(+t.getAttribute('cx')! - (cx + 30)) < 4)).toBe(true);
+      },
+      { timeout: 60_000 }
+    );
+    fireEvent.click(screen.getByRole('region', { name: 'Board A' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Place tabs automatically again' }));
+    await waitFor(async () => expect((await saved()).tabsAt).toBeUndefined());
+  }, 150_000);
+
   it('auto-fill optimizes for fewest boards unless the job says least wood', async () => {
     const job = await openKinderregal();
     // Tabs only where they hold: no tab marked red on the drawings once the programs are made.

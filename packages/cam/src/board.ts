@@ -44,6 +44,11 @@ export interface BoardPart {
   size: Vec3;
   /** Where its tabs can't hold: this instead of the board's fallback. */
   tabFallback?: TabFallback;
+  /**
+   * Tabs the user placed, part frame (as laid flat, before turning), mm: used instead of picked ones, each moved onto
+   * the bit's path round the outline.
+   */
+  tabsAt?: { x: number; y: number }[];
   /** Lower left corner on the board, and whether the part is turned 90° counterclockwise. */
   x: number;
   y: number;

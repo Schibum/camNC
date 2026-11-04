@@ -158,6 +158,7 @@ const api = {
       how: h.how,
       tabs: h.tabs.length,
       ...(h.wanted && { wanted: h.wanted }),
+      ...(h.moved && { moved: true }),
     }));
     // Skins and tabs are taken care of last: after side B, when there is one, with the board turned over.
     const release = releasePrograms(flat, board, settings, !!plan.sideB, perPart);
@@ -366,6 +367,7 @@ function boardSpec(key: string, board: BoardRequest): BoardSpec {
         y: p.y,
         rotated: p.rotated,
         tabFallback: p.tabFallback,
+        ...(p.tabsAt && { tabsAt: p.tabsAt }),
       };
     }),
   };

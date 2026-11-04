@@ -34,6 +34,7 @@ export function NestView({
   onPartKeyDown,
   onPartFocus,
   onHoldsChange,
+  onTabsChange,
 }: {
   nest: BoardNest;
   instances: PartInstance[];
@@ -56,6 +57,8 @@ export function NestView({
   onPartFocus?: (item: string) => void;
   /** A hold point dragged to a new spot: all of the board's hold points, board frame (mm). */
   onHoldsChange?: (points: { x: number; y: number }[]) => void;
+  /** A tab dragged along a part's outline: all of that body's tabs (instance id), part frame (mm). */
+  onTabsChange?: (item: string, tabs: { x: number; y: number }[]) => void;
 }) {
   const { w, h } = nest.board;
   const u = unit ?? Math.max(w, h);
@@ -80,6 +83,40 @@ export function NestView({
         ? { ...h, ...snapClamp(holdDrag, h.d, nest.board), dir: edgeDir(holdDrag, nest.board) }
         : { ...h, x: holdDrag.x, y: holdDrag.y }
   );
+  // A tab being dragged: its part, which of its tabs, and where it is now (on the part's outline).
+  const [tabDrag, setTabDrag] = useState<{ part: string; i: number; x: number; y: number } | null>(null);
+  const placedOf = (name: string) => {
+    const p = nest.placements.find(q => byInst.get(q.id)?.name === name);
+    const inst = p && byInst.get(p.id);
+    const part = inst && byPart.get(inst.partId);
+    return p && inst && part ? { p, inst, part } : undefined;
+  };
+  // Board frame -> the body's own frame (as laid flat), the inverse of `place`.
+  const toPart = (p: PartPosition, size: number[], q: { x: number; y: number }) =>
+    p.rotated
+      ? { x: +(q.y - p.y).toFixed(1), y: +(p.x + size[1] - q.x).toFixed(1) }
+      : { x: +(q.x - p.x).toFixed(1), y: +(q.y - p.y).toFixed(1) };
+  // The point of the body's outlines nearest to `q`, board frame: where a dragged tab goes.
+  const onOutline = (name: string, q: { x: number; y: number }) => {
+    const at = placedOf(name);
+    if (!at) return q;
+    const f = place(at.p, at.inst.size);
+    let best = q,
+      d = Infinity;
+    for (const path of at.part.shape.outlines)
+      for (let k = 0; k < path.length; k++) {
+        const [ax, ay] = f(path[k]),
+          [bx, by] = f(path[(k + 1) % path.length]);
+        const dx = bx - ax,
+          dy = by - ay;
+        const l2 = dx * dx + dy * dy;
+        const t = l2 ? Math.min(1, Math.max(0, ((q.x - ax) * dx + (q.y - ay) * dy) / l2)) : 0;
+        const p = { x: ax + t * dx, y: ay + t * dy };
+        const e = Math.hypot(p.x - q.x, p.y - q.y);
+        if (e < d) [best, d] = [p, e];
+      }
+    return best;
+  };
   const clash = new Set((plan?.holdClash ?? []).map(p => `${p.x},${p.y}`));
   const toFrame = (e: React.PointerEvent) => {
     const frame = (e.currentTarget as SVGElement).closest('[data-board-frame]') as SVGGraphicsElement | null;
@@ -182,6 +219,59 @@ export function NestView({
               </circle>
             ))
         )}
+        {/* Tabs to drag along the outline (the planner puts each on the bit's path nearest to where it's dropped). */}
+        {onTabsChange &&
+          plan?.hold?.flatMap(h => {
+            const at = placedOf(h.part);
+            if (!at) return [];
+            return h.tabs.map((t, i) => {
+              const dragged = tabDrag?.part === h.part && tabDrag.i === i;
+              const pos = dragged ? tabDrag : t.at;
+              return (
+                <circle
+                  key={`tab-${h.part}-${i}`}
+                  data-tab={h.part}
+                  role="button"
+                  aria-label={`${h.part}: tab ${i + 1}, drag along the outline to move`}
+                  cx={pos.x}
+                  cy={pos.y}
+                  r={stroke * 6}
+                  className={cn(
+                    'cursor-move stroke-amber-600 dark:stroke-amber-500',
+                    dragged ? 'fill-amber-500/70' : 'fill-amber-500/0 hover:fill-amber-500/40'
+                  )}
+                  strokeWidth={stroke * 1.5}
+                  onPointerDown={e => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    (e.currentTarget as SVGCircleElement).setPointerCapture(e.pointerId);
+                    setTabDrag({ part: h.part, i, x: t.at.x, y: t.at.y });
+                  }}
+                  onPointerMove={e => {
+                    if (!dragged) return;
+                    const p = toFrame(e);
+                    if (p) setTabDrag({ part: h.part, i, ...onOutline(h.part, p) });
+                  }}
+                  onPointerUp={e => {
+                    if (!dragged) return;
+                    e.stopPropagation();
+                    setTabDrag(null);
+                    if (Math.hypot(tabDrag.x - t.at.x, tabDrag.y - t.at.y) < 0.5) return;
+                    // The same tab twice (one per pass through): once.
+                    const all = h.tabs
+                      .map((q, k) => (k === i ? tabDrag : q.at))
+                      .filter((q, k, list) => !list.slice(0, k).some(o => Math.hypot(o.x - q.x, o.y - q.y) < 1));
+                    onTabsChange(
+                      at.p.id,
+                      all.map(q => toPart(at.p, at.inst.size, q))
+                    );
+                  }}
+                  onClick={e => e.stopPropagation()}>
+                  <title>{`${h.part}: drag the tab along the outline`}</title>
+                </circle>
+              );
+            });
+          })}
         {/* What comes loose during the job: stock with too few holds (amber), parts with nothing holding them (red). */}
         {plan?.timeline?.map((ev, i) => (
           <g key={`ev-${i}`} className="pointer-events-none" data-hold-event={ev.kind}>

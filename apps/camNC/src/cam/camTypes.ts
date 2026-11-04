@@ -124,7 +124,7 @@ export interface PlanResult {
   holdClash?: { x: number; y: number }[];
   /** With tabs: how each part is held: tabs where they hold, or its fallback (a bottom skin, tabs anyway, by hand). */
   /** Per part: tabs placed (`tabs` of them; `wanted` when fewer fit than asked), or its fallback. */
-  holding?: { name: string; how: 'placed' | TabFallback | 'unheld'; tabs: number; wanted?: number }[];
+  holding?: { name: string; how: 'placed' | TabFallback | 'unheld'; tabs: number; wanted?: number; moved?: boolean }[];
   /** Bottom skin thickness, mm, for the parts that have one. */
   skin?: number;
   /** The board is taped down: the skin is the layer on the tape, cut for all parts in one go at the end. */
@@ -154,7 +154,17 @@ export interface BoardRequest {
   /** Where the board is screwed or clamped down (board frame). None: taped, or held at its edges. */
   holdPoints?: HoldPoint[];
   tabs: { width: number; height: number; minCount: number };
-  parts: { id: string; partId: string; name: string; x: number; y: number; rotated: boolean; tabFallback?: TabFallback }[];
+  parts: {
+    id: string;
+    partId: string;
+    name: string;
+    x: number;
+    y: number;
+    rotated: boolean;
+    tabFallback?: TabFallback;
+    /** Tabs dragged into place, part frame, mm. */
+    tabsAt?: { x: number; y: number }[];
+  }[];
   /** A second side for the parts' undersides, and how it lines up after turning the board over. */
   flip?: { registration: FlipRegistration; dowelDiameter?: number };
   /** With tabs: what parts without a spot for tabs that hold get (each part may choose its own), and the skin. */

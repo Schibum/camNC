@@ -76,6 +76,8 @@ export interface BoardV1 {
   dowelDiameter?: number;
   /** Per body (instance id): what it gets if its tabs can't hold, over the job's default. */
   tabFallbacks?: Record<string, TabFallback>;
+  /** Per body (instance id): tabs the user dragged into place, part frame (as laid flat), mm. Unset: picked. */
+  tabsAt?: Record<string, { x: number; y: number }[]>;
   /** Bodies the user put on this board by hand: auto-fill leaves them here. */
   pinned?: string[];
   /**
@@ -599,6 +601,7 @@ export function boardRequest(
       y: p.y,
       rotated: p.rotated,
       ...(board.tabFallbacks?.[p.id] && { tabFallback: board.tabFallbacks[p.id] }),
+      ...(board.tabsAt?.[p.id]?.length && { tabsAt: board.tabsAt[p.id] }),
     })),
   };
 }
