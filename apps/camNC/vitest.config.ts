@@ -21,6 +21,7 @@ export default defineConfig({
       'react-timeago-i18n',
       'react-hotkeys-hook',
       '@wbcnc/ui > @radix-ui/react-popover',
+      '@wbcnc/ui > @radix-ui/react-dropdown-menu',
       'occt-import-js',
       // Only a dependency of @wbcnc/cam, so not resolvable from here by its bare name: unresolved, Vite discovers it
       // mid-run and reloads the page, failing whichever test file is running.
