@@ -5,6 +5,7 @@ import { Html, Line } from '@react-three/drei';
 import { useMemo } from 'react';
 import { CamBedLayer, CamGhostBoards } from './CamBedLayer';
 import { CamHolds } from './CamHolds';
+import { CamPartGhost } from './CamPartGhost';
 import { currentTab, takeOutAt, useCamMachine } from './camMachine';
 
 const kOutline = '#a78bfa';
@@ -84,6 +85,7 @@ export function CamBoardOverlay() {
     <>
       <CamGhostBoards running={running} />
       <group position={[offset.x, offset.y, 0]}>
+        <CamPartGhost overlay={overlay} running={running} />
         <Line points={outline} color={kOutline} lineWidth={2} dashed dashSize={6} gapSize={4} />
         <CamBedLayer overlay={overlay} offset={offset} running={running} />
         <CamHolds overlay={overlay} offset={offset} running={running} />

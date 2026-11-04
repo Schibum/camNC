@@ -7,6 +7,7 @@ import { boardBlock, type BlockContext } from '../boardBlock';
 import { holdsOf, type BoardCut } from '../boards';
 import type { PlanResult, ReleaseProgram } from '../camTypes';
 import type { JobBoard } from '../useJobBoards';
+import type { GhostPart, ShowInTopView } from './partGhost';
 
 export interface BoardOverlay {
   w: number;
@@ -31,9 +32,14 @@ export interface BoardOverlay {
   holdClash?: { x: number; y: number }[];
   /** The program's bit, mm: how far its path stays from a hold. */
   bit?: number;
-  /** The program's path (program coordinates) and stock top: a hold being dragged is checked against it at once. */
+  /**
+   * The cutting moves of every program on this side of the board (program coordinates) and the stock top: a hold being
+   * dragged is checked against them at once, and the top view can draw them faint ("all programs").
+   */
   path?: [number, number, number][][];
   stockTop?: number;
+  /** The board's parts as seen from above (program coordinates): what the loaded program is lined up against. */
+  parts?: GhostPart[];
 }
 
 /** The CAM job being cut at the machine: which program is loaded, what's done, how each board lies on the bed. */
@@ -52,6 +58,8 @@ export const useCamMachine = create(
         overlay: null as BoardOverlay | null,
         /** Guided tab removal stops before every tab (hold the part), or once per part (take it out). */
         pauseEachTab: false,
+        /** What the top view shows besides the loaded program: the whole parts (default), or every program too. */
+        showInTopView: 'parts' as ShowInTopView,
       },
       set => ({
         /** Nothing is loaded for the job yet, also when taking the same job again. What's cut stays, while it's the same program. */
@@ -63,6 +71,7 @@ export const useCamMachine = create(
         setRotation: (key: string, deg: number) => set(s => ({ rotation: { ...s.rotation, [key]: deg } })),
         setOverlay: (overlay: BoardOverlay | null) => set({ overlay }),
         setPauseEachTab: (pauseEachTab: boolean) => set({ pauseEachTab }),
+        setShowInTopView: (showInTopView: ShowInTopView) => set({ showInTopView }),
       })
     ),
     {

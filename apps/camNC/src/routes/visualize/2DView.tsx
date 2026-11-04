@@ -17,6 +17,7 @@ import { SnapPositionMarker } from '@/visualize/SnapPositionMarker';
 import { GCodeVisualizer } from '@/visualize/Toolpaths';
 import { CamBoardOverlay } from '@/cam/machine/CamBoardOverlay';
 import { CamBedEditor } from '@/cam/machine/CamBedEditor';
+import { CamTopViewShow } from '@/cam/machine/CamTopViewShow';
 import { CamMachineJobNav } from '@/cam/machine/CamMachineJobNav';
 import { MachineBedMesh } from '@/visualize/MachineBed';
 import { nearestPointOnToolpath } from '@/visualize/nearestPoint';
@@ -285,8 +286,9 @@ function VisualizeComponent() {
               <VisualizeToolbar />
             </PageHeader>
             {isTop && (
-              <div className="pointer-events-none flex px-2 pt-2 [&>*]:pointer-events-auto">
+              <div className="pointer-events-none flex flex-wrap items-start gap-2 px-2 pt-2 [&>*]:pointer-events-auto">
                 <CamBedEditor />
+                <CamTopViewShow />
               </div>
             )}
             {!isTop && toolpath && (

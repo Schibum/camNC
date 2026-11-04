@@ -24,6 +24,7 @@ import {
   useCamMachine,
   type QueueEntry,
 } from './camMachine';
+import { entryGhost } from './partGhost';
 import { useMachineBusy } from './useMachineBusy';
 import { useMachineQueue } from './useMachineQueue';
 
@@ -90,7 +91,7 @@ function RotationControl({ deg, onSet }: { deg: number; onSet: (d: number) => vo
  */
 export function CamQueueCard() {
   const { jobId, active, setActive, markDone, setRotation, rotation, leave, setOverlay, pauseEachTab, setPauseEachTab } = useCamMachine();
-  const { job, queue, current, done, stale, loading, modelError, setStockThickness } = useMachineQueue();
+  const { job, queue, current, done, stale, loading, modelError, setStockThickness, parts } = useMachineQueue();
   const gcodeOf = (e: QueueEntry) => (e.blocked || stale?.has(e.board.board.id) ? undefined : entryProgram(e)?.gcode);
   /** The machine view for this entry. `force`: load it even if the same program seems to be there. */
   const show = (e: QueueEntry, force: boolean) => {
@@ -113,6 +114,7 @@ export function CamQueueCard() {
             rotationDeg: entryRotation(e, rotation),
             ...(gcode && { tabs: e.release?.tabs, tabsPerPart: !!e.release?.perPart, freeParts: e.release?.parts }),
             ...entryHolds(e),
+            ...entryGhost(e, parts, entryRotation(e, rotation)),
           }
         : null
     );
@@ -139,7 +141,7 @@ export function CamQueueCard() {
     if (current.key !== active && current.kind !== 'pending') setActive(current.key);
     show(current, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobId, active, current?.key, gcode, shownDeg, loading, busy]);
+  }, [jobId, active, current?.key, gcode, shownDeg, loading, busy, parts]);
   if (!jobId) return null;
   const next = () => {
     if (!current) return;

@@ -51,6 +51,8 @@ export function useMachineQueue() {
     /** The job's model can't be read: there is no queue. */
     modelError: model.error?.message,
     queue,
+    /** The job's parts (shapes as seen from above), once its model is read. */
+    parts: model.data?.parts,
     current: currentEntry(queue, active, done),
     done,
     /** Boards (ids) whose shown programs are being replaced: never load those. */
