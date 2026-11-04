@@ -45,14 +45,24 @@ function HoldExplanation() {
   const percent = job?.percent;
   const hint = useMemo(() => (ours && percent !== undefined ? pauseHint(gcode!, percent) : null), [ours, gcode, percent]);
   if (status?.state === 'Door')
-    return <p className="text-sm rounded-md bg-amber-100 text-amber-900 p-2">Safety door open. Close it, then Resume.</p>;
+    return (
+      <p className="text-sm rounded-md bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-100 p-2">
+        Safety door open. Close it, then Resume.
+      </p>
+    );
   if (status?.state === 'Hold' && status.subState === 1) {
-    return <p className="text-sm rounded-md bg-amber-100 text-amber-900 p-2">Pausing… the machine is slowing down.</p>;
+    return (
+      <p className="text-sm rounded-md bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-100 p-2">
+        Pausing… the machine is slowing down.
+      </p>
+    );
   }
   // One of our own pauses: steps, no line numbers or quoted messages.
   if (hint?.marker) return <PauseSteps marker={hint.marker} line={hint.line} />;
   return (
-    <div className="text-sm rounded-md bg-amber-100 text-amber-900 p-2 flex flex-col gap-1" data-testid="hold-explanation">
+    <div
+      className="text-sm rounded-md bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-100 p-2 flex flex-col gap-1"
+      data-testid="hold-explanation">
       {hint ? (
         <>
           <p>{hint.reason}</p>
@@ -62,7 +72,7 @@ function HoldExplanation() {
         <p>{ours ? 'Paused with Hold.' : 'Paused.'} Resume continues the job; Stop ends it.</p>
       )}
       {lastMessage && !hint?.reason.includes(lastMessage.replace(/^INFO:\s*(MSG,)?/i, '')) && (
-        <p className="text-xs font-mono text-amber-800">Controller: {lastMessage}</p>
+        <p className="text-xs font-mono text-amber-800 dark:text-amber-200/80">Controller: {lastMessage}</p>
       )}
     </div>
   );

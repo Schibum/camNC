@@ -38,15 +38,15 @@ export function ConnectionBadge() {
 }
 
 const kStateColors: Record<string, string> = {
-  Idle: 'bg-green-100 text-green-900',
-  Run: 'bg-blue-100 text-blue-900',
-  Jog: 'bg-blue-100 text-blue-900',
-  Hold: 'bg-yellow-100 text-yellow-900',
+  Idle: 'bg-green-100 text-green-900 dark:bg-green-950 dark:text-green-200',
+  Run: 'bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200',
+  Jog: 'bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200',
+  Hold: 'bg-yellow-100 text-yellow-900 dark:bg-yellow-950 dark:text-yellow-200',
   Alarm: 'bg-red-600 text-white',
-  Door: 'bg-orange-100 text-orange-900',
-  Home: 'bg-purple-100 text-purple-900',
-  Check: 'bg-gray-100 text-gray-900',
-  Sleep: 'bg-gray-100 text-gray-900',
+  Door: 'bg-orange-100 text-orange-900 dark:bg-orange-950 dark:text-orange-200',
+  Home: 'bg-purple-100 text-purple-900 dark:bg-purple-950 dark:text-purple-200',
+  Check: 'bg-gray-100 text-gray-900 dark:bg-gray-950 dark:text-gray-200',
+  Sleep: 'bg-gray-100 text-gray-900 dark:bg-gray-950 dark:text-gray-200',
 };
 
 export function MachineStateBadge() {
@@ -57,7 +57,7 @@ export function MachineStateBadge() {
   if (!status) return null;
   const badge = (
     <span
-      className={cn('px-2 py-0.5 rounded-full text-xs font-semibold', kStateColors[status.state] ?? 'bg-gray-100')}
+      className={cn('px-2 py-0.5 rounded-full text-xs font-semibold', kStateColors[status.state] ?? kStateColors.Check)}
       data-testid="machine-state">
       {status.state}
       {status.subState !== undefined ? `:${status.subState}` : ''}
