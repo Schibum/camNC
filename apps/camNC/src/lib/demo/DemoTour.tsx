@@ -6,8 +6,6 @@ import { useEffect, useState } from 'react';
 import { exitDemo, isDemoWithoutCamera } from './demo-mode';
 import { kOpenTourEvent } from './tour-events';
 
-const kTourSeen = 'camnc-demo-tour-seen';
-
 interface TourStep {
   title: string;
   body: string;
@@ -22,8 +20,8 @@ const kFirstStep = isDemoWithoutCamera()
       body: 'Without a camera, camNC draws the bed from the machine size it reads from FluidNC, with a 10 mm grid in machine coordinates. The toolpath sits where the machine will cut. Drag it to place it, and double-click the bed to jog there.',
     }
   : {
-      title: 'A live camera over a CNC router',
-      body: 'This is a real camera feed above a LowRider bed. camNC straightens it into a top view and draws the toolpath where the machine will cut. Drag the toolpath to place it on the stock.',
+      title: 'A recorded camera example',
+      body: 'This is a recorded camera clip above a LowRider bed, not a live feed synchronized to the simulator. camNC straightens it into a top view and draws the toolpath where the machine will cut. Drag the toolpath to place it on the stock.',
     };
 
 const kSteps: TourStep[] = [
@@ -62,26 +60,10 @@ const kSteps: TourStep[] = [
   },
 ];
 
-function seen() {
-  try {
-    return localStorage.getItem(kTourSeen) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function markSeen() {
-  try {
-    localStorage.setItem(kTourSeen, '1');
-  } catch {
-    // Not remembering that the tour was shown is fine.
-  }
-}
-
-/** A short walkthrough, shown on the first demo visit and from the demo bar afterwards. */
+/** A short walkthrough, opened from the demo bar. */
 export function DemoTour() {
   const navigate = useNavigate();
-  const [step, setStep] = useState<number | null>(() => (seen() ? null : 0));
+  const [step, setStep] = useState<number | null>(null);
   const setMachinePanelOpen = useStore(s => s.setMachinePanelOpen);
 
   useEffect(() => {
@@ -101,7 +83,6 @@ export function DemoTour() {
   if (step === null) return null;
   const current = kSteps[step]!;
   const close = () => {
-    markSeen();
     setStep(null);
   };
   return (

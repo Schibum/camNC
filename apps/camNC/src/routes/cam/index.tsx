@@ -1,3 +1,6 @@
+import { zodValidator } from '@tanstack/zod-adapter';
+import { z } from 'zod';
+import { SampleProjectCard } from '@/cam/samples/SampleProjectCard';
 import { PageHeader } from '@/components/page-header';
 import { CamPage } from '@/cam/CamPage';
 import { camKeys, useCamJobs } from '@/cam/camQueries';
@@ -5,13 +8,14 @@ import { deleteJob } from '@/cam/jobDb';
 import { kModelFile } from '@/cam/jobDb';
 import { createJobFromFile, pickModelFile, toastNotAModel } from '@/cam/openModelFile';
 import { useQueryClient } from '@tanstack/react-query';
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { Button } from '@wbcnc/ui/components/button';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { Box, FileUp, Trash2, TriangleAlert } from 'lucide-react';
 
 export const Route = createFileRoute('/cam/')({
   component: CamIndex,
+  validateSearch: zodValidator(z.object({ sample: z.enum(['pocket-tray']).optional(), notice: z.enum(['rehearsal-expired']).optional() })),
 });
 
 const kWhen = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
@@ -19,6 +23,7 @@ const kWhen = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyl
 /** CAM jobs: one per model file. Drop a STEP/STL anywhere (or pick one) to start a new one. */
 function CamIndex() {
   const navigate = useNavigate();
+  const { sample, notice } = useSearch({ from: '/cam/' });
   const queryClient = useQueryClient();
   const { data: jobs } = useCamJobs();
 
@@ -59,6 +64,13 @@ function CamIndex() {
           </span>
         </button>
 
+        {notice && (
+          <p role="alert" className="rounded-lg border p-3 text-sm">
+            This rehearsal has expired or is unavailable. Your saved projects are unchanged. Open a plan to start a new rehearsal.
+          </p>
+        )}
+        <SampleProjectCard autoOpen={sample === 'pocket-tray'} />
+
         {!!jobs?.length && (
           <section className="flex flex-col gap-2">
             <h2 className="text-sm font-medium text-muted-foreground">Recent jobs</h2>
@@ -77,6 +89,7 @@ function CamIndex() {
                         )}
                       </span>
                       <span className="truncate text-xs text-muted-foreground">
+                        {job.origin?.kind === 'sample' && 'Sample project · '}
                         {job.fileName}
                         {job.parts.length > 0 && ` · ${parts} ${parts === 1 ? 'part' : 'parts'} to mill`} · {kWhen.format(job.updatedAt)}
                       </span>

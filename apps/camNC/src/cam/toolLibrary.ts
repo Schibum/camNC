@@ -1,10 +1,11 @@
+import { demoStorage } from '@/lib/demo/demo-storage';
 import type { LibraryTool } from '@wbcnc/cam';
 import { readFusionToolLibrary } from '@wbcnc/cam/tools';
 import { bitKey } from './cuttingData';
 import { kDefaultBit } from './planSettings';
 import { fusionLibraryText } from './unzip';
 import { create } from 'zustand';
-import { combine, persist } from 'zustand/middleware';
+import { combine, createJSONStorage, persist } from 'zustand/middleware';
 
 /** A bit offered in every job: from an imported Fusion tool library, or added by hand. */
 export interface StoredBit extends LibraryTool {
@@ -73,6 +74,7 @@ export const useToolLibrary = create(
       removeBit: (id: string) => set(s => ({ bits: s.bits.filter(b => b.id !== id) })),
     })),
     {
+      storage: createJSONStorage(() => demoStorage),
       name: 'camnc-tool-library',
       version: 2,
       // v1 kept one imported list: those become library bits.

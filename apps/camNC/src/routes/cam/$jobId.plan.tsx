@@ -1,3 +1,4 @@
+import { RehearsalButton } from '@/lib/rehearsal/RehearsalButton';
 import { PageHeader } from '@/components/page-header';
 import { CamPage } from '@/cam/CamPage';
 import { NoPartsToMill } from '@/cam/NoPartsToMill';
@@ -34,12 +35,12 @@ import {
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
 import { cn } from '@wbcnc/ui/lib/utils';
 import { AlertTriangle, Download, Factory, MoreHorizontal, Play, ShieldCheck } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { z } from 'zod';
 
 export const Route = createFileRoute('/cam/$jobId/plan')({
   component: PlanStep,
-  validateSearch: zodValidator(z.object({ board: z.string().optional() })),
+  validateSearch: zodValidator(z.object({ board: z.string().optional(), rehearsed: z.string().optional() })),
 });
 
 const fmtMin = (m: number) => `${Math.floor(m)}:${String(Math.round((m % 1) * 60)).padStart(2, '0')}`;
@@ -50,7 +51,7 @@ const fmtMin = (m: number) => `${Math.floor(m)}:${String(Math.round((m % 1) * 60
  */
 function PlanStep() {
   const { jobId } = useParams({ from: '/cam/$jobId/plan' });
-  const { board: boardParam } = useSearch({ from: '/cam/$jobId/plan' });
+  const { board: boardParam, rehearsed } = useSearch({ from: '/cam/$jobId/plan' });
   const navigate = useNavigate();
   const { data: job, isPending } = useCamJob(jobId);
   const model = useCamModel(job);
@@ -65,9 +66,13 @@ function PlanStep() {
     { keepShown: true }
   );
 
+  useEffect(() => {
+    if (rehearsed && !isPending && !job) void navigate({ to: '/cam' });
+  }, [rehearsed, isPending, job, navigate]);
+
   if (isPending) return <Shell />;
   if (!job) return <Shell message="This job doesn't exist (any more)." />;
-  const bar = <CamJobBar jobId={job.id} fileName={job.fileName} step="Plan" />;
+  const bar = <CamJobBar jobId={job.id} fileName={job.fileName} origin={job.origin} step="Plan" />;
   if (model.isError) return <Shell bar={bar} message={model.error.message} />;
   if (!model.data) return <Shell bar={bar} loading={`Reading ${job.fileName}…`} />;
   if (!active.length)
@@ -181,6 +186,11 @@ function PlanStep() {
   const cut = queue.filter(e => isCut(e.board));
   return (
     <Shell bar={bar}>
+      {rehearsed && (
+        <p role="status" className="border-b bg-primary/5 px-4 py-2 text-sm">
+          Back in your saved project. Rehearsal progress was discarded; your cut history is unchanged.
+        </p>
+      )}
       {cut.length > 0 && (
         <p role="note" className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm">
           {cut.length === 1 ? `Board ${cut[0].board.name} is` : `Boards ${cut.map(e => e.board.name).join(', ')} are`} already cut at the
@@ -210,6 +220,11 @@ function PlanStep() {
           Job: {queue.length} {queue.length === 1 ? 'board' : 'boards'} · {swaps} bit {swaps === 1 ? 'swap' : 'swaps'} · ≈{' '}
           {fmtMin(totalMin)} min cutting
         </span>
+        <RehearsalButton
+          job={job}
+          boards={boards.map(b => ({ ...b.board, size: { fit: false, w: b.nest.board.w, h: b.nest.board.h } }))}
+          ready={allReady}
+        />
         <BitChip value={settings} onChange={savePlan} onOpen={openSettings} />
         <Hint
           wrap

@@ -12,7 +12,7 @@ import { z } from 'zod';
 import { Button } from '@wbcnc/ui/components/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@wbcnc/ui/components/card';
 import { toast } from '@wbcnc/ui/components/sonner';
-import { Camera, HardDriveUpload } from 'lucide-react';
+import { Box, Camera, HardDriveUpload } from 'lucide-react';
 import { useState } from 'react';
 
 export const Route = createFileRoute('/start')({
@@ -52,6 +52,21 @@ function StartComponent() {
             See your G-code on your machine, jog and run jobs. No camera needed to start: camNC draws your bed, and you can add a camera any
             time later.
           </p>
+          {purpose !== 'cam' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Make a cutting plan</CardTitle>
+                <CardDescription>Open your STEP or STL model, or start with an editable sample. No machine needed.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button asChild>
+                  <Link to="/cam">
+                    <Box /> Open CAM
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
           <Card>
             <CardHeader>
               <CardTitle>Connect your FluidNC</CardTitle>

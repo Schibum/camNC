@@ -1,3 +1,4 @@
+import { isDemoMode } from '../demo/demo-mode';
 import type { MachineStatus, Position } from '@wbcnc/fluidnc';
 import type { AlarmRecord } from './alarms';
 
@@ -104,6 +105,8 @@ export function jobEnding(input: {
 
 // --- storage: IndexedDB, since G-code can be several MB -------------------------------------------------------------
 
+const demoRecords = new Map<string, JobRecord>();
+const demoProgress = new Map<string, JobProgressLog>();
 const kDbName = 'camnc-jobs';
 const kStore = 'jobs';
 const kProgressStore = 'progress';
@@ -136,28 +139,47 @@ async function withStore<T>(name: string, mode: IDBTransactionMode, fn: (store: 
 
 /** The last job started on `host`; a new one replaces it. */
 export function saveJobRecord(record: JobRecord) {
+  if (isDemoMode()) {
+    demoRecords.set(record.host, structuredClone(record));
+    return Promise.resolve();
+  }
   return withStore(kStore, 'readwrite', store => store.put(record, record.host)).then(() => {});
 }
 
 export function loadJobRecord(host: string): Promise<JobRecord | null> {
+  if (isDemoMode()) return Promise.resolve(structuredClone(demoRecords.get(host) ?? null));
   return withStore<JobRecord | undefined>(kStore, 'readonly', store => store.get(host)).then(record => record ?? null);
 }
 
 /** Forget the job and where it was. */
 export async function clearJobRecord(host: string) {
+  if (isDemoMode()) {
+    demoRecords.delete(host);
+    demoProgress.delete(host);
+    return;
+  }
   await withStore(kStore, 'readwrite', store => store.delete(host));
   await clearJobProgress(host);
 }
 
 /** Kept apart from the record, so that the G-code is not written again every few seconds. */
 export function saveJobProgress(progress: JobProgressLog) {
+  if (isDemoMode()) {
+    demoProgress.set(progress.host, structuredClone(progress));
+    return Promise.resolve();
+  }
   return withStore(kProgressStore, 'readwrite', store => store.put(progress, progress.host)).then(() => {});
 }
 
 export function loadJobProgress(host: string): Promise<JobProgressLog | null> {
+  if (isDemoMode()) return Promise.resolve(structuredClone(demoProgress.get(host) ?? null));
   return withStore<JobProgressLog | undefined>(kProgressStore, 'readonly', store => store.get(host)).then(p => p ?? null);
 }
 
 export function clearJobProgress(host: string) {
+  if (isDemoMode()) {
+    demoProgress.delete(host);
+    return Promise.resolve();
+  }
   return withStore(kProgressStore, 'readwrite', store => store.delete(host)).then(() => {});
 }

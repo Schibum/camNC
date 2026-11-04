@@ -88,6 +88,7 @@ function BoardsStep() {
     <CamJobBar
       jobId={job.id}
       fileName={job.fileName}
+      origin={job.origin}
       step="Boards"
       actions={
         <>

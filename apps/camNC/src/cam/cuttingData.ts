@@ -1,7 +1,8 @@
+import { demoStorage } from '@/lib/demo/demo-storage';
 import type { LibraryTool } from '@wbcnc/cam';
 import { MATERIALS } from '@wbcnc/cam/settings';
 import { create } from 'zustand';
-import { combine, persist } from 'zustand/middleware';
+import { combine, createJSONStorage, persist } from 'zustand/middleware';
 
 type MaterialKey = keyof typeof MATERIALS;
 
@@ -137,6 +138,6 @@ export const useCuttingData = create(
           return { saved: Object.keys(others).length ? { ...rest, [key]: others } : rest };
         }),
     })),
-    { name: 'camnc-cutting-data' }
+    { storage: createJSONStorage(() => demoStorage), name: 'camnc-cutting-data' }
   )
 );

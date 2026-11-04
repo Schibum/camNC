@@ -1,3 +1,4 @@
+import { demoStorage } from '@/lib/demo/demo-storage';
 import { orderBoardQueue } from '@wbcnc/cam/board';
 import { create } from 'zustand';
 import { combine, createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
@@ -44,15 +45,15 @@ export interface BoardOverlay {
 
 /** A save that doesn't fit costs what's kept over a reload, never what's on screen: it must not throw into the UI. */
 const forgivingLocalStorage: StateStorage = {
-  getItem: name => localStorage.getItem(name),
+  getItem: name => demoStorage.getItem(name),
   setItem: (name, value) => {
     try {
-      localStorage.setItem(name, value);
+      demoStorage.setItem(name, value);
     } catch (e) {
       console.warn(`Couldn't save ${name}`, e);
     }
   },
-  removeItem: name => localStorage.removeItem(name),
+  removeItem: name => demoStorage.removeItem(name),
 };
 
 /** The CAM job being cut at the machine: which program is loaded, what's done, how each board lies on the bed. */

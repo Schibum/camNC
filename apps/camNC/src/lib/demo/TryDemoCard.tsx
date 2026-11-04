@@ -11,10 +11,10 @@ export function TryDemoCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>New here? Try the demo</CardTitle>
+        <CardTitle>Explore a demo machine</CardTitle>
         <CardDescription>
-          See camNC on a real machine camera with a simulated controller, in one click and without any setup. Bring your own G-code if you
-          like.
+          Practice machine controls with a simulated FluidNC and a recorded camera example. Bring your own G-code if you like. Demo changes
+          are discarded.
         </CardDescription>
       </CardHeader>
       <CardContent>
