@@ -30,7 +30,8 @@ function ModelStep() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [selected, setSelected] = useState<string | null>(null);
-  const [view, setView] = useState<ModelView>('flat');
+  const [chosenView, setView] = useState<ModelView | null>(null);
+  const view = chosenView ?? (job?.origin?.id === 'standing-shelf' ? 'assembled' : 'flat');
 
   if (jobPending) return <Shell />;
   if (!job) return <Shell message="This job doesn't exist (any more)." />;

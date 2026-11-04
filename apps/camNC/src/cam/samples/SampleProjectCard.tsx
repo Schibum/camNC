@@ -16,7 +16,7 @@ export function SampleProjectCard({ autoOpen = false }: { autoOpen?: boolean }) 
   const opening = useRef(false);
   const autoStarted = useRef(false);
   const open = useCallback(async () => {
-    if (isDemoMode()) return exitDemo('/cam?sample=pocket-tray');
+    if (isDemoMode()) return exitDemo('/cam?sample=standing-shelf');
     if (opening.current) return;
     opening.current = true;
     setPending(true);
@@ -52,9 +52,9 @@ export function SampleProjectCard({ autoOpen = false }: { autoOpen?: boolean }) 
         </div>
         <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
           <span className="text-xs font-medium text-primary">Start with an example</span>
-          <h2 className="text-lg font-medium">Pocket tray</h2>
+          <h2 className="text-lg font-medium">Standing shelf</h2>
           <p className="text-sm text-muted-foreground">
-            One part, two pockets and an outline. Explore Model → Boards → Plan without a machine.
+            An assembled STEP shelf with multiple parts. Lay them flat, arrange boards and plan the cuts without a machine.
           </p>
           <Button variant="outline" disabled={pending} onClick={() => void open()}>
             {pending ? 'Opening sample…' : error ? 'Retry sample project' : 'Open sample project'} <ArrowRight aria-hidden />

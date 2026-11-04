@@ -58,6 +58,8 @@ describe('rehearsal isolation', () => {
       ],
       { bits: [], cutting: { test: { feed: 123 } }, pauseEachTab: true, spindle: 'hand' }
     );
+    snapshot.job.boards!.push({ ...snapshot.job.boards![0], id: 'b', name: 'B' });
+    snapshot.boardId = 'b';
     await saveSnapshot(snapshot);
     const saved = await getJob(source.id);
     // Real persisted data must survive both bootstrapping and editing the rehearsal.
@@ -70,6 +72,7 @@ describe('rehearsal isolation', () => {
     await prepareRehearsal();
     const firstId = useCamMachine.getState().jobId!;
     expect(firstId).not.toBe(source.id);
+    expect(useCamMachine.getState().active).toBe('b:');
     const copy = (await getJob(firstId))!;
     expect(copy.boards![0].cut).toBeUndefined();
     expect(copy.boards![0].bed).toBeUndefined();

@@ -40,7 +40,7 @@ describe('rehearsal entry', () => {
     action.launch.mockRejectedValueOnce(new Error('Storage is unavailable.'));
     fireEvent.click(screen.getByRole('button', { name: 'Start rehearsal' }));
     await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Storage is unavailable.'));
-    expect(action.launch).toHaveBeenCalledWith(job, [], expect.any(AbortSignal));
+    expect(action.launch).toHaveBeenCalledWith(job, [], expect.any(AbortSignal), undefined);
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Start rehearsal' }).disabled).toBe(false);
   });
 });

@@ -21,13 +21,16 @@ export function TryDemoCard() {
         {/* A full page load, so that demo mode is decided before the app starts. */}
         <div className="flex flex-row flex-wrap items-center gap-2">
           <Button asChild>
-            <a href="/demo">
+            <a href="/demo?machine=1">
               <FlaskConical /> Open the demo
             </a>
           </Button>
-          <Button asChild variant="ghost">
-            <a href="/demo?camera=off">Without a camera</a>
-          </Button>
+          <details>
+            <summary className="cursor-pointer text-sm text-muted-foreground">Camera options</summary>
+            <Button asChild variant="ghost">
+              <a href="/demo?camera=off">Without a camera</a>
+            </Button>
+          </details>
         </div>
       </CardContent>
     </Card>

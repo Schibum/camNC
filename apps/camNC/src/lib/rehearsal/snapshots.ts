@@ -10,6 +10,8 @@ export interface RehearsalSnapshot {
   id: string;
   expiresAt: number;
   sourceId: string;
+  /** Board selected before the setup detour; the rehearsal still contains the full job. */
+  boardId?: string;
   job: CamJobV1;
   model: Uint8Array;
   bits: StoredBit[];

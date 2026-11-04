@@ -142,7 +142,7 @@ describe('CAM plan step', () => {
     // No bed yet (no machine connected, no size picked): pick one first, then the program shows on it.
     bed.bounds = null;
     fireEvent.click(await showOnMachineItem());
-    expect(navigate).toHaveBeenLastCalledWith({ to: '/start', search: { for: 'cam' } });
+    expect(navigate).toHaveBeenLastCalledWith({ to: '/start', search: { for: 'cam', job: job.id, board: expect.any(String) } });
     bed.bounds = {};
     // The machine view gets the board's setup: stock top 8 + 0.3 allowance, Z0 at the bottom, the 1/8" flat bit.
     expect(store.setStockHeight).toHaveBeenCalledWith(8.3);

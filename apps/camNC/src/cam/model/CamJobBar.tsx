@@ -75,7 +75,7 @@ function AtTheMachine({ jobId }: { jobId: string }) {
       className="whitespace-nowrap rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted"
       onClick={() => {
         const to = openAtMachine(jobId, board);
-        void navigate(to === '/start' ? { to, search: { for: 'cam' } } : { to });
+        void navigate(to === '/start' ? { to, search: { for: 'cam', job: jobId, board } } : { to });
       }}>
       At the machine
     </button>

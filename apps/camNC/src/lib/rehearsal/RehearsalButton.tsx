@@ -7,7 +7,7 @@ import { Button } from '@wbcnc/ui/components/button';
 import { FlaskConical } from 'lucide-react';
 import { launchRehearsal } from './rehearsal';
 
-export function RehearsalButton({ job, boards, ready }: { job: CamJobV1; boards: BoardV1[]; ready: boolean }) {
+export function RehearsalButton({ job, boards, ready, boardId }: { job: CamJobV1; boards: BoardV1[]; ready: boolean; boardId?: string }) {
   const busy = useMachineBusy(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const abort = useRef<AbortController | null>(null);
@@ -26,7 +26,7 @@ export function RehearsalButton({ job, boards, ready }: { job: CamJobV1; boards:
     setPending(true);
     setError(null);
     try {
-      await launchRehearsal(job, boards, abort.current.signal);
+      await launchRehearsal(job, boards, abort.current.signal, boardId);
     } catch (e) {
       if (!abort.current?.signal.aborted) setError(e instanceof Error ? e.message : 'The rehearsal could not be saved. Try again.');
       setPending(false);

@@ -141,11 +141,15 @@ function PlanStep() {
     if (!result || !safe) return;
     const first = result.programs[0];
     loadIntoMachineView({ ...result, gcode: first.gcode, bits: [first.diameter] }, programName(first));
-    toMachineView();
+    toMachineView(current.board.id);
   };
   // Without a bed (no machine connected, no size picked) the machine view can't show the program: pick one first.
-  const toMachineView = () =>
-    void navigate(selectMachineBounds(useStore.getState()) ? { to: '/visualize/2DView' } : { to: '/start', search: { for: 'cam' } });
+  const toMachineView = (boardId?: string) =>
+    void navigate(
+      selectMachineBounds(useStore.getState())
+        ? { to: '/visualize/2DView' }
+        : { to: '/start', search: { for: 'cam', job: job.id, board: boardId } }
+    );
   // All boards, in queue order, in the machine panel: place, align, zero, cut, swap bits, remove tabs.
   const takeToMachine = () => {
     if (!allReady) return;

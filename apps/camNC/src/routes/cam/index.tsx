@@ -15,7 +15,9 @@ import { Box, FileUp, Trash2, TriangleAlert } from 'lucide-react';
 
 export const Route = createFileRoute('/cam/')({
   component: CamIndex,
-  validateSearch: zodValidator(z.object({ sample: z.enum(['pocket-tray']).optional(), notice: z.enum(['rehearsal-expired']).optional() })),
+  validateSearch: zodValidator(
+    z.object({ sample: z.enum(['standing-shelf', 'pocket-tray']).optional(), notice: z.enum(['rehearsal-expired']).optional() })
+  ),
 });
 
 const kWhen = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
@@ -69,7 +71,7 @@ function CamIndex() {
             This rehearsal has expired or is unavailable. Your saved projects are unchanged. Open a plan to start a new rehearsal.
           </p>
         )}
-        <SampleProjectCard autoOpen={sample === 'pocket-tray'} />
+        <SampleProjectCard autoOpen={!!sample} />
 
         {!!jobs?.length && (
           <section className="flex flex-col gap-2">

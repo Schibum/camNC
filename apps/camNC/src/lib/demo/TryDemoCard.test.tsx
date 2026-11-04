@@ -13,7 +13,7 @@ afterEach(() => {
 describe('TryDemoCard', () => {
   it('offers the demo to visitors without a camera, as a full page load', () => {
     render(<TryDemoCard />);
-    expect(screen.getByRole('link', { name: /open the demo/i }).getAttribute('href')).toBe('/demo');
+    expect(screen.getByRole('link', { name: /open the demo/i }).getAttribute('href')).toBe('/demo?machine=1');
   });
 
   it('stays out of the way once a camera exists or inside the demo', () => {

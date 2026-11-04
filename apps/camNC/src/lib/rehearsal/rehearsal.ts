@@ -35,7 +35,7 @@ export function rehearsalBlockedReason() {
   return null;
 }
 
-export async function launchRehearsal(job: CamJobV1, boards: BoardV1[], signal?: AbortSignal) {
+export async function launchRehearsal(job: CamJobV1, boards: BoardV1[], signal?: AbortSignal, boardId?: string) {
   if (isDemoMode()) throw new Error('Return to your saved CAM project before starting another rehearsal.');
   const blocked = rehearsalBlockedReason();
   if (blocked) throw new Error(blocked);
@@ -47,6 +47,7 @@ export async function launchRehearsal(job: CamJobV1, boards: BoardV1[], signal?:
     pauseEachTab: useCamMachine.getState().pauseEachTab,
     spindle: useStore.getState().machinePrefs.spindleSwitch ?? 'hand',
   });
+  if (boardId && boards.some(b => b.id === boardId)) snapshot.boardId = boardId;
   await cleanExpiredSnapshots();
   await saveSnapshot(snapshot);
   // Navigation and reload need a tab-local token; blocked session storage must fail before leaving the real app.
@@ -92,7 +93,7 @@ export async function prepareRehearsal() {
     s.machineBounds = new Box2(new Vector2(0, 0), new Vector2(width, height));
     s.machinePrefs.spindleSwitch = snapshot.spindle;
   });
-  openAtMachine(job.id);
+  openAtMachine(job.id, snapshot.boardId);
   active = snapshot;
 }
 
