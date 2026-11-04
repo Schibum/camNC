@@ -27,7 +27,7 @@ const fmt = (v: number) => `${+v.toFixed(2)}`;
 
 /** "Clamp it", "Screw it down": what the board is held with. */
 const holdKindName = (e: QueueEntry) =>
-  (e.board.request.holdPoints?.[0]?.kind ?? e.board.board.holds?.kind) === 'clamp' ? 'Clamp it' : 'Screw it down';
+  (e.board.request?.holdPoints?.[0]?.kind ?? e.board.board.holds?.kind) === 'clamp' ? 'Clamp it' : 'Screw it down';
 
 /** Turns the program of the current entry, to match a board lying askew. */
 function RotationControl({ deg, onTurn }: { deg: number; onTurn: (d: number) => void }) {
@@ -227,7 +227,7 @@ export function CamQueueCard() {
                 </p>
                 <RotationControl deg={deg} onTurn={turn} />
               </div>
-              {!!current.board.request.holdPoints && (
+              {!!current.board.request?.holdPoints && (
                 <p>
                   <span className="font-medium">4. {holdKindName(current)}:</span> fit one on each blue mark in the camera view. Elsewhere
                   works better? Drag the mark there, or add or remove marks in the top view: the program follows.
@@ -235,7 +235,7 @@ export function CamQueueCard() {
               )}
               <p>
                 <span className="font-medium">
-                  {current.board.request.holdPoints ? 5 : 4}. {swap ? `${swapText}, then zero Z` : 'Zero Z'}
+                  {current.board.request?.holdPoints ? 5 : 4}. {swap ? `${swapText}, then zero Z` : 'Zero Z'}
                 </span>{' '}
                 on the spoilboard: Z0 is the bottom of the board (Zero section below).
               </p>

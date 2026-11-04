@@ -304,7 +304,7 @@ export function entryHolds(
 ): Pick<BoardOverlay, 'boardId' | 'side' | 'holds' | 'holdLike' | 'holdsOn' | 'holdClash' | 'bit' | 'path' | 'stockTop'> {
   const side = entrySide(e);
   const base = { boardId: e.board.board.id, side };
-  const holds = e.board.request.holdPoints;
+  const holds = e.board.request?.holdPoints;
   if (side === 'b' || !holds) return base;
   const like = holdsOf(e.board.board);
   return {
