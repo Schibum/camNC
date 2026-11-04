@@ -9,6 +9,7 @@ import { useInitToolpathOffset } from '@/hooks/useInitToolpathOffset';
 import { getCncApi } from '@/lib/fluidnc/machine';
 import { JobProgressPath } from '@/visualize/JobProgressPath';
 import { MachineDock } from '@/components/machine/MachineDock';
+import { DarkScope } from '@wbcnc/ui/components/dark-scope';
 import { PresentCanvas } from '@/scene/PresentCanvas';
 import { MachinePositionMarker } from '@/visualize/MachinePositionMarker';
 import { MachineZeroAxes } from '@/visualize/MachineZeroAxes';
@@ -210,102 +211,105 @@ function VisualizeComponent() {
   }
 
   return (
-    <div className="flex flex-row w-full h-dvh">
-      <div className="relative flex-1 min-w-0 h-full">
-        {cameraReady && <DepthBlendWorker />}
+    // The page is dark (its header, overlays and the machine panel carry the `dark` class), and so are their menus.
+    <DarkScope>
+      <div className="flex flex-row w-full h-dvh">
+        <div className="relative flex-1 min-w-0 h-full">
+          {cameraReady && <DepthBlendWorker />}
 
-        {/* One canvas for all views: the camera video keeps running when switching between them. */}
-        {/* The canvas is transparent: all views share one dark backdrop around the camera image and the 3D scene. */}
-        <div className="w-full h-dvh absolute top-0 left-0" style={{ background: kDepthSceneBackground }}>
-          <PresentCanvas worldScale="machine" defaultControls={isTop}>
-            {/* <group rotation={[0, 0, Math.PI / 2]}> */}
-            {/*
+          {/* One canvas for all views: the camera video keeps running when switching between them. */}
+          {/* The canvas is transparent: all views share one dark backdrop around the camera image and the 3D scene. */}
+          <div className="w-full h-dvh absolute top-0 left-0" style={{ background: kDepthSceneBackground }}>
+            <PresentCanvas worldScale="machine" defaultControls={isTop}>
+              {/* <group rotation={[0, 0, Math.PI / 2]}> */}
+              {/*
               The video loads in its own boundaries, so the 3D views stay usable while the camera is unavailable.
             */}
-            {cameraReady ? (
-              <ErrorBoundary fallbackRender={({ error }) => <ReportVideoState value={error as Error} onChange={setVideoError} />}>
-                <Suspense fallback={<ReportVideoState value={true} onChange={setVideoLoading} />}>
-                  <UnprojectVideoMeshWithStockHeight
-                    visible={isTop || showStockVideo}
-                    bounds={isTop ? undefined : stockTop}
-                    opacity={isTop ? 1 : 0.7}
-                    // On the simulated stock, only on its uncut top: cuts below it must not be covered.
-                    onlyOnDepth={!isTop && simEnabled}
-                    // In the 3D views, the video is drawn first, below the toolpath.
-                    renderOrder={isTop ? 0 : -2}
-                    onDoubleClick={isTop ? onDbClick : undefined}
-                    onPointerMove={isTop ? onPointerMove : undefined}
-                  />
-                </Suspense>
-              </ErrorBoundary>
-            ) : (
-              // No camera yet: the drawn bed takes the video's place and its clicks in the top view.
-              isTop && <MachineBedMesh onDoubleClick={onDbClick} onPointerMove={onPointerMove} />
-            )}
-            {isTop || !toolpath ? (
-              <>
-                <TopCameraMemory memory={topCamera} />
-                <GCodeVisualizer />
-                <CamBoardOverlay />
-                <MachinePositionMarker />
-                <SnapPositionMarker />
-                <MachineZeroAxes />
-                <JobProgressPath />
-              </>
-            ) : (
-              <DepthScene toolpath={toolpath} view={view} fitKey={fitKey} />
-            )}
-            {/* </group> */}
+              {cameraReady ? (
+                <ErrorBoundary fallbackRender={({ error }) => <ReportVideoState value={error as Error} onChange={setVideoError} />}>
+                  <Suspense fallback={<ReportVideoState value={true} onChange={setVideoLoading} />}>
+                    <UnprojectVideoMeshWithStockHeight
+                      visible={isTop || showStockVideo}
+                      bounds={isTop ? undefined : stockTop}
+                      opacity={isTop ? 1 : 0.7}
+                      // On the simulated stock, only on its uncut top: cuts below it must not be covered.
+                      onlyOnDepth={!isTop && simEnabled}
+                      // In the 3D views, the video is drawn first, below the toolpath.
+                      renderOrder={isTop ? 0 : -2}
+                      onDoubleClick={isTop ? onDbClick : undefined}
+                      onPointerMove={isTop ? onPointerMove : undefined}
+                    />
+                  </Suspense>
+                </ErrorBoundary>
+              ) : (
+                // No camera yet: the drawn bed takes the video's place and its clicks in the top view.
+                isTop && <MachineBedMesh onDoubleClick={onDbClick} onPointerMove={onPointerMove} />
+              )}
+              {isTop || !toolpath ? (
+                <>
+                  <TopCameraMemory memory={topCamera} />
+                  <GCodeVisualizer />
+                  <CamBoardOverlay />
+                  <MachinePositionMarker />
+                  <SnapPositionMarker />
+                  <MachineZeroAxes />
+                  <JobProgressPath />
+                </>
+              ) : (
+                <DepthScene toolpath={toolpath} view={view} fitKey={fitKey} />
+              )}
+              {/* </group> */}
 
-            {/* <TransformToolpath /> */}
-          </PresentCanvas>
-        </div>
-
-        {isTop && cameraReady && (videoError || videoLoading) && (
-          <div className="dark pointer-events-none absolute inset-0 h-dvh text-foreground">
-            {videoError ? (
-              <div className="flex h-full items-center justify-center p-4 text-center text-red-500">
-                Error loading video: {videoError.message || 'unknown error'}
-              </div>
-            ) : (
-              <LoadingVideoOverlay />
-            )}
+              {/* <TransformToolpath /> */}
+            </PresentCanvas>
           </div>
-        )}
 
-        <div className="pointer-events-none absolute inset-0 flex h-dvh flex-col">
-          <PageHeader title={viewModeTitle(view)} className="dark pointer-events-auto pr-2 flex-wrap h-auto p-1 text-foreground">
-            <div className="pl-2">
-              <ViewSwitcher view={view} hasToolpath={!!toolpath} onSelect={selectView} />
-            </div>
-            <CamMachineJobNav />
-            <VisualizeToolbar />
-          </PageHeader>
-          {isTop && (
-            <div className="pointer-events-none flex px-2 pt-2 [&>*]:pointer-events-auto">
-              <CamBedEditor />
-            </div>
-          )}
-          {!isTop && toolpath && (
-            <div className="relative min-h-0 flex-1">
-              <div className="absolute top-2 right-2 bottom-12 flex flex-col items-end">
-                <DepthPanel toolpath={toolpath} />
-              </div>
-              {simEnabled ? (
-                // Leaves room for the axis gizmo in the bottom right corner, and for the demo banner.
-                <div className={cn('absolute left-2 right-36', isDemoMode() ? 'bottom-16' : 'bottom-2')}>
-                  <SimTimeline toolpath={toolpath} />
+          {isTop && cameraReady && (videoError || videoLoading) && (
+            <div className="dark pointer-events-none absolute inset-0 h-dvh text-foreground">
+              {videoError ? (
+                <div className="flex h-full items-center justify-center p-4 text-center text-red-500">
+                  Error loading video: {videoError.message || 'unknown error'}
                 </div>
               ) : (
-                <div className="absolute bottom-2 left-2">
-                  <DepthHoverReadout toolpath={toolpath} />
-                </div>
+                <LoadingVideoOverlay />
               )}
             </div>
           )}
+
+          <div className="pointer-events-none absolute inset-0 flex h-dvh flex-col">
+            <PageHeader title={viewModeTitle(view)} className="dark pointer-events-auto pr-2 flex-wrap h-auto p-1 text-foreground">
+              <div className="pl-2">
+                <ViewSwitcher view={view} hasToolpath={!!toolpath} onSelect={selectView} />
+              </div>
+              <CamMachineJobNav />
+              <VisualizeToolbar />
+            </PageHeader>
+            {isTop && (
+              <div className="pointer-events-none flex px-2 pt-2 [&>*]:pointer-events-auto">
+                <CamBedEditor />
+              </div>
+            )}
+            {!isTop && toolpath && (
+              <div className="relative min-h-0 flex-1">
+                <div className="absolute top-2 right-2 bottom-12 flex flex-col items-end">
+                  <DepthPanel toolpath={toolpath} />
+                </div>
+                {simEnabled ? (
+                  // Leaves room for the axis gizmo in the bottom right corner, and for the demo banner.
+                  <div className={cn('absolute left-2 right-36', isDemoMode() ? 'bottom-16' : 'bottom-2')}>
+                    <SimTimeline toolpath={toolpath} />
+                  </div>
+                ) : (
+                  <div className="absolute bottom-2 left-2">
+                    <DepthHoverReadout toolpath={toolpath} />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
+        <MachineDock />
       </div>
-      <MachineDock />
-    </div>
+    </DarkScope>
   );
 }
