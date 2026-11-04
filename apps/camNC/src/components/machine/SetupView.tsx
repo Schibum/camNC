@@ -135,7 +135,7 @@ function ZeroStep() {
       state={xy?.ok && zOk ? 'done' : 'todo'}
       title="Zero"
       summary={xy?.ok && zOk ? 'XY = toolpath · Z set' : undefined}>
-      <ZeroRow ok={!!xy?.ok} label={xy ? (xy.ok ? 'XY zero = toolpath' : 'XY zero differs from the toolpath') : 'XY: load a job first'}>
+      <ZeroRow ok={!!xy?.ok} label={xy ? (xy.ok ? 'XY = toolpath' : 'XY not at the toolpath') : 'XY: load a job first'}>
         <Button
           size="sm"
           variant={xy?.ok ? 'ghost' : 'default'}
@@ -145,7 +145,7 @@ function ZeroStep() {
           Set XY zero = toolpath
         </Button>
       </ZeroRow>
-      <ZeroRow ok={zOk} label={z?.label ?? (zOk ? 'Z zeroed' : 'Z not probed or zeroed since connecting')}>
+      <ZeroRow ok={zOk} label={zOk ? (z?.label ?? 'Z zeroed') : 'Z not set yet'}>
         <Button size="sm" variant={zOk ? 'ghost' : 'default'} disabled={disabled} onClick={probe}>
           Probe Z
         </Button>
@@ -166,8 +166,12 @@ function ZeroStep() {
   );
 }
 
-/** Checklist items the steps above already show. */
-const kShownInSteps = new Set(['homed', 'xy-zero', 'z-zero']);
+/** Checklist items the steps above already show, by a short name. */
+const kShownInSteps = new Map([
+  ['homed', 'Home'],
+  ['xy-zero', 'XY zero'],
+  ['z-zero', 'Z zero'],
+]);
 
 /** Pinned under the steps: what still blocks or warns, and Run. */
 function RunFooter() {
@@ -205,7 +209,9 @@ function RunFooter() {
           ))}
         </ul>
       )}
-      {open.length > 0 && <p className="text-xs text-muted-foreground">Not done yet: {open.map(w => w.label).join(' · ')}</p>}
+      {open.length > 0 && (
+        <p className="text-xs text-muted-foreground">Not done yet: {open.map(w => kShownInSteps.get(w.id)).join(' · ')}</p>
+      )}
       <Button size="lg" disabled={!idle || blocked} onClick={() => setConfirmOpen(true)}>
         <CirclePlay /> Run job
       </Button>

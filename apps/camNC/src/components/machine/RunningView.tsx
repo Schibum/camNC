@@ -82,9 +82,7 @@ function OverridesFold() {
       <CollapsibleTrigger asChild>
         <Button variant="ghost" size="sm" className="-ml-1 self-start px-1 text-muted-foreground">
           <ChevronRight className={cn('transition-transform', open && 'rotate-90')} /> Overrides
-          <span className="font-mono text-xs">
-            feed {o.feed}% · spindle {o.spindle}% · rapids {o.rapid}%
-          </span>
+          <span className="text-xs">{changed ? `feed ${o.feed} · spindle ${o.spindle} · rapids ${o.rapid} %` : 'all at 100 %'}</span>
         </Button>
       </CollapsibleTrigger>
       <CollapsibleContent>{open && <OverridesPanel />}</CollapsibleContent>
