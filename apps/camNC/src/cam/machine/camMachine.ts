@@ -1,3 +1,4 @@
+import type { SpindleSwitch } from '@wbcnc/cam';
 import { orderBoardQueue } from '@wbcnc/cam/board';
 import { create } from 'zustand';
 import { combine, persist } from 'zustand/middleware';
@@ -58,6 +59,8 @@ export const useCamMachine = create(
         overlay: null as BoardOverlay | null,
         /** Guided tab removal stops before every tab (hold the part), or once per part (take it out). */
         pauseEachTab: false,
+        /** Who switches the spindle: by hand (a router; the program's pauses say when), or the controller. */
+        spindle: 'hand' as SpindleSwitch,
         /** What the top view shows besides the loaded program: the whole parts (default), or every program too. */
         showInTopView: 'parts' as ShowInTopView,
       },
@@ -71,6 +74,7 @@ export const useCamMachine = create(
         setRotation: (key: string, deg: number) => set(s => ({ rotation: { ...s.rotation, [key]: deg } })),
         setOverlay: (overlay: BoardOverlay | null) => set({ overlay }),
         setPauseEachTab: (pauseEachTab: boolean) => set({ pauseEachTab }),
+        setSpindle: (spindle: SpindleSwitch) => set({ spindle }),
         setShowInTopView: (showInTopView: ShowInTopView) => set({ showInTopView }),
       })
     ),

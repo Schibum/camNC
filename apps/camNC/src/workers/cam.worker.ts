@@ -316,6 +316,7 @@ function releaseProgram(
     board: board.name,
     stockSize: size,
     spindleRpm: settings.spindleRpm,
+    spindle: settings.spindle,
   });
   return {
     kind,
@@ -443,6 +444,7 @@ function summarize(
       board,
       stockSize: size,
       spindleRpm: settings.spindleRpm,
+      spindle: settings.spindle,
     });
     return { tool: tool.number, diameter: tool.diameter, gcode, timeMin: metrics(readGcode(gcode), cam.stockTop).timeMin };
   });

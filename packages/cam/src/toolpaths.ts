@@ -1,3 +1,4 @@
+import type { SpindleSwitch } from './gcode';
 import { areaD, pointInPolygonD, PointInPolygonResult, simplifyPathsD, type PathD, type PathsD } from 'clipper2-ts';
 import { openPocketRegion, type PartFeatures } from './features';
 import { cleanRegion, clipLines, difference, intersect, offset, pathLength, polyArea, union, type Vec3 } from './geom';
@@ -26,6 +27,8 @@ import { MATERIALS, DEFAULT_TABS, type Material, type TabSettings } from './sett
 import type { PartHolding } from './tabPlan';
 
 export interface CamSettings {
+  /** Only for the G-code (`GcodeOptions.spindle`): the toolpaths are the same. */
+  spindle?: SpindleSwitch;
   tools: Tool[];
   material: Material;
   feed: number;

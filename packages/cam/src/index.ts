@@ -16,7 +16,7 @@ export {
 export type { CamSettings, Tool, Material, TabSettings, Operation, Pass, PartCam } from './toolpaths';
 export { toGcode, fitArcs } from './gcode';
 export { pauseMarker, parsePauseMarker } from './pauseMarker';
-export type { GcodeOptions } from './gcode';
+export type { GcodeOptions, SpindleSwitch } from './gcode';
 export type { PauseMarker } from './pauseMarker';
 export { readGcode, metrics } from './analyze';
 export type { Move, Metrics } from './analyze';

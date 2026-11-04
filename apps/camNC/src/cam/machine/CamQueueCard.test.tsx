@@ -84,6 +84,17 @@ afterEach(() => {
 });
 
 describe('the machine queue card', () => {
+  it('asks who switches the spindle: by hand until told otherwise', () => {
+    setQueue([board('A')], [plan([3.175], 'a')]);
+    render(view());
+    const setting = screen.getByRole('combobox', { name: /Spindle switched/ });
+    expect((setting as HTMLSelectElement).value).toBe('hand');
+    expect(useCamMachine.getState().spindle).toBe('hand');
+    fireEvent.change(setting, { target: { value: 'controller' } });
+    expect(useCamMachine.getState().spindle).toBe('controller');
+    useCamMachine.getState().setSpindle('hand');
+  });
+
   it('shows why a board is blocked and refuses to load it', () => {
     const blocked = plan([3.175], 'a', { holdClash: [{ x: 1, y: 1 }] });
     setQueue([board('A')], [blocked]);

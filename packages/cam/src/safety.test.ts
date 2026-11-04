@@ -44,6 +44,39 @@ describe('the lift at the end of a program', () => {
   });
 });
 
+describe('who switches the spindle', () => {
+  const take: Operation = { ...op('Outline', 2), pauseBefore: 'Hold the part', part: 'Side' };
+  const manualLines = (gcode: string) => gcode.split('\n').filter(l => /manual/i.test(l));
+
+  it('by hand, the default: every pause says what to do, and a last pause after the park', () => {
+    const gcode = toGcode(cam(take, op('Outline 2', 2)));
+    expect(gcode).toBe(toGcode(cam(take, op('Outline 2', 2)), { spindle: 'hand' }));
+    expect(manualLines(gcode)).toEqual([
+      'M0 (MSG Hold the part. Manual spindle: off now, on before Resume)',
+      'M0 (MSG Program done. Manual spindle: off now)',
+    ]);
+  });
+
+  it('by the controller: no such words and no last pause, the same M3, M5 and dwell', () => {
+    const hand = toGcode(cam(take, op('Outline 2', 2)));
+    const gcode = toGcode(cam(take, op('Outline 2', 2)), { spindle: 'controller' });
+    expect(manualLines(gcode)).toEqual([]);
+    expect(gcode).toContain('M0 (MSG Hold the part)');
+    expect(gcode).not.toContain('Program done');
+    expect(gcode.trim().split('\n').slice(-3)).toEqual(['M5', 'G53 G0 Z-5', 'M30']);
+    const spindleLines = (g: string) => g.split('\n').filter(l => /^(M3|M5|G4)\b/.test(l));
+    expect(spindleLines(gcode)).toEqual(spindleLines(hand));
+    expect(spindleLines(gcode).some(l => l.startsWith('G4'))).toBe(true);
+    expect(checkGcodeSafety(gcode, limits)).toEqual([]);
+  });
+
+  it('by the controller, the confirmation before the first start stays', () => {
+    const gcode = toGcode(cam(op('Outline', 2)), { spindle: 'controller', spindleRpm: 15000 });
+    expect(gcode).toContain('M0 (MSG Spindle starts at 15000 RPM next)');
+    expect(gcode.indexOf('M0 (MSG Spindle')).toBeLessThan(gcode.indexOf('M3 S15000'));
+  });
+});
+
 describe('safety of a program for a board lying askew', () => {
   const turned = (deg: number, x: number, y: number) => {
     const a = (deg * Math.PI) / 180;

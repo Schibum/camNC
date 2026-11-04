@@ -96,7 +96,8 @@ export const modelKey = (job: CamJobV1) => `${job.id}:${job.fileName}:${job.mode
 /** Toolpaths + G-code of one part with the job's plan settings; recomputed (~0.3s) when they change. */
 export function useCamPlan(job: CamJobV1 | null | undefined, partId: string | undefined, modelReady: boolean) {
   const saved = useCuttingData(s => s.saved);
-  const settings = toCamSettings(job?.plan ?? kDefaultPlan, undefined, saved);
+  const spindle = useCamMachine(s => s.spindle);
+  const settings = { ...toCamSettings(job?.plan ?? kDefaultPlan, undefined, saved), spindle };
   return useQuery({
     queryKey: camKeys.plan(job ? modelKey(job) : '', partId ?? '', settings),
     enabled: !!job && !!partId && modelReady,
@@ -121,11 +122,12 @@ export function useBoardPlans(
   const plan = job?.plan ?? kDefaultPlan;
   const saved = useCuttingData(s => s.saved);
   const pauseEachTab = useCamMachine(s => s.pauseEachTab);
+  const spindle = useCamMachine(s => s.spindle);
   // Per board id, its last program (a changed setting is a new query: useQueries keeps no placeholder across keys).
   const last = useRef(new Map<string, PlanResult>());
   const results = useQueries({
     queries: boards.map(({ request, material }) => {
-      const settings = toCamSettings(plan, material as typeof plan.material, saved);
+      const settings = { ...toCamSettings(plan, material as typeof plan.material, saved), spindle };
       // The guided tab removal is planned with the board: only boards that have one plan again when this changes.
       const perPart = request.holdDown === 'tabs-guided' && !pauseEachTab;
       return {

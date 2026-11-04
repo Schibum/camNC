@@ -67,6 +67,8 @@ export function fitArcs(p: P2[], tol = 0.01, maxSagitta = 0.05, maxRadius = 1000
   return out;
 }
 
+export type SpindleSwitch = 'hand' | 'controller';
+
 export interface GcodeOptions {
   partName?: string;
   /** The board's name ("A"): the header then says XY0 is that board's lower left corner. */
@@ -74,6 +76,8 @@ export interface GcodeOptions {
   stockSize?: Vec3;
   /** For a bit without its own speed (`Tool.rpm`). */
   spindleRpm?: number;
+  /** Who switches the spindle: by hand (default; pauses say what to do, M3/M5 do nothing), or the controller. */
+  spindle?: SpindleSwitch;
   /** Seconds to wait after M3 for the spindle to reach speed. */
   spindleDwell?: number;
   /** Absolute Z for moves between operations / at start and end. Default stock top + 5. */
@@ -131,6 +135,7 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
   const diameters = new Set(cam.operations.map(o => o.tool.diameter));
   if (diameters.size > 1) throw new Error(`One program per bit: split the ${diameters.size} bits with splitByBit first`);
   const rpm = cam.operations[0]?.tool.rpm ?? opts.spindleRpm ?? 15000;
+  const byHand = (opts.spindle ?? 'hand') === 'hand';
   const safeZ = opts.safeZ ?? cam.safeZ ?? cam.stockTop + 5;
   const retractZ = opts.retractZ ?? cam.retractZ ?? cam.stockTop + 2;
   const approachZ = cam.stockTop + 1;
@@ -191,8 +196,9 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
   /** Bit up and spindle off before anyone reaches in; nothing moves until Resume. */
   const pause = (message: string, manual: string, marker: PauseMarker | null) => {
     move('G0', { z: safeZ });
-    const room = kMaxGcodeLine - 'M0 (MSG . )'.length - manual.length;
-    out.push('M5', ...(marker ? [pauseMarker(marker)] : []), `M0 (MSG ${commentText(message, room)}. ${manual})`);
+    const tail = byHand ? `. ${manual}` : '';
+    const room = kMaxGcodeLine - 'M0 (MSG )'.length - tail.length;
+    out.push('M5', ...(marker ? [pauseMarker(marker)] : []), `M0 (MSG ${commentText(message, room)}${tail})`);
     spindleOff = true;
   };
   // Pauses are counted per kind, for "2 of 5" and to name the part freed after the next Resume.
@@ -209,7 +215,8 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
   // Confirm before the spindle starts; a spindle the machine doesn't control (a router) is switched on here. A program
   // that begins with a pause confirms there: no spinning up just to stop again.
   if (!cam.operations[0]?.pauseBefore) {
-    out.push(pauseMarker({ kind: 'start', rpm }), `M0 (MSG Spindle starts at ${rpm} RPM next. Manual spindle: turn it on now)`);
+    const turnOn = byHand ? '. Manual spindle: turn it on now' : '';
+    out.push(pauseMarker({ kind: 'start', rpm }), `M0 (MSG Spindle starts at ${rpm} RPM next${turnOn})`);
     spindleOn();
   }
 
@@ -282,7 +289,7 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
   out.push('M5');
   out.push(`G53 G0 Z${kParkMachineZ}`);
   // M5 did nothing on a router switched by hand: parked, say so. Not after a last pause that already did.
-  if (!cam.operations.at(-1)?.pauseAfter) out.push(pauseMarker({ kind: 'done' }), `M0 (MSG Program done. ${kManualOff})`);
+  if (byHand && !cam.operations.at(-1)?.pauseAfter) out.push(pauseMarker({ kind: 'done' }), `M0 (MSG Program done. ${kManualOff})`);
   out.push('M30');
   return out.join('\n') + '\n';
 }

@@ -60,6 +60,17 @@ describe('the worker: holds on a real board with a second side', () => {
     expect(lowestTravel(low)).toBeGreaterThanOrEqual(low.size[2] + kHoldHeights.clamp + kOverHold);
   }, 240_000);
 
+  it('the spindle switched by the controller: every program of the board, guided ones too, says nothing of a manual spindle', async () => {
+    const board: BoardV1 = { ...sheet, holdDown: 'tabs-guided' };
+    const request = boardRequest(board, nestBoard(board, parts, kBit), parts);
+    const tools = [{ number: 1, diameter: kBit }];
+    const hand = await camWorker().generateBoard(key, request, { tools });
+    const controller = await camWorker().generateBoard(key, request, { tools, spindle: 'controller' });
+    expect(programs(hand).every(q => q.gcode.includes('Manual spindle'))).toBe(true);
+    expect(programs(controller).length).toBe(programs(hand).length);
+    for (const q of programs(controller)) expect(q.gcode).not.toContain('Manual spindle');
+  }, 120_000);
+
   it('no tab lands where side B cuts', async () => {
     const p = await plan(sheet);
     const h = p.size[1];

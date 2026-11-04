@@ -1,3 +1,4 @@
+import type { SpindleSwitch } from '@wbcnc/cam';
 import { useStore } from '@/store/store';
 import { Button } from '@wbcnc/ui/components/button';
 import { Checkbox } from '@wbcnc/ui/components/checkbox';
@@ -90,7 +91,20 @@ function RotationControl({ deg, onSet }: { deg: number; onSet: (d: number) => vo
  * entry is active the machine view holds its program or nothing, never the program of another entry.
  */
 export function CamQueueCard() {
-  const { jobId, active, setActive, markDone, setRotation, rotation, leave, setOverlay, pauseEachTab, setPauseEachTab } = useCamMachine();
+  const {
+    jobId,
+    active,
+    setActive,
+    markDone,
+    setRotation,
+    rotation,
+    leave,
+    setOverlay,
+    pauseEachTab,
+    setPauseEachTab,
+    spindle,
+    setSpindle,
+  } = useCamMachine();
   const { job, queue, current, done, stale, loading, modelError, setStockThickness, parts } = useMachineQueue();
   const gcodeOf = (e: QueueEntry) => (e.blocked || stale?.has(e.board.board.id) ? undefined : entryProgram(e)?.gcode);
   /** The machine view for this entry. `force`: load it even if the same program seems to be there. */
@@ -365,7 +379,7 @@ export function CamQueueCard() {
                 {pauseEachTab
                   ? 'The program lifts the bit, stops the spindle and pauses before each tab. The spindle starts again on Resume.'
                   : 'The program cuts all of a part’s tabs in a row, the last one slower, then lifts the bit, stops the spindle and pauses. The spindle starts again on Resume, before the next part.'}{' '}
-                A router you switch by hand: switch it off at each pause, back on before Resume.
+                {spindle === 'hand' && ' A router you switch by hand: switch it off at each pause, back on before Resume.'}
               </HowItWorks>
               <label className="flex items-center gap-2 text-[13px]">
                 <Checkbox checked={pauseEachTab} onCheckedChange={v => setPauseEachTab(v === true)} aria-label="Pause before each tab" />
@@ -400,6 +414,18 @@ export function CamQueueCard() {
         </div>
       )}
       {!current && queue.length > 0 && <p className="text-[13px]">All boards are cut.</p>}
+      <Hint text="By hand: every pause tells you to switch the router off, and on again before Resume. By the controller: the program's M3 and M5 do it, and the pauses don't mention it.">
+        <label className="flex items-center gap-2 text-[13px]">
+          Spindle switched
+          <select
+            className="rounded-md border bg-transparent px-1.5 py-0.5"
+            value={spindle}
+            onChange={e => setSpindle(e.target.value as SpindleSwitch)}>
+            <option value="hand">by hand</option>
+            <option value="controller">by the controller</option>
+          </select>
+        </label>
+      </Hint>
     </section>
   );
 }
