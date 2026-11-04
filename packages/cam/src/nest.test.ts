@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clampKeepOuts, nestRects, placedSize, type NestItem, type NestOptions, type NestResult, type Rect } from './nest';
+import { nestRects, placedSize, type NestItem, type NestOptions, type NestResult, type Rect } from './nest';
 
 const TOL = 1e-6;
 
@@ -71,6 +71,12 @@ const KINDER: NestItem[] = [
   { id: 'Part 2', w: 400, h: 136.5 },
 ];
 
+/** Keep-outs at two opposite corners, like a board held by two clamps. */
+const corners = (board: { w: number; h: number }, clamp = { w: 60, h: 40 }): Rect[] => [
+  { x: 0, y: board.h - clamp.h, w: clamp.w, h: clamp.h },
+  { x: board.w - clamp.w, y: 0, w: clamp.w, h: clamp.h },
+];
+
 describe('nestRects', () => {
   it('fits the kinderregal 8 mm parts on a board no bigger than shelf packing', () => {
     const opts = { gap: 7, margin: 20 };
@@ -103,7 +109,7 @@ describe('nestRects', () => {
 
   it('keeps out of clamp zones (+ gap)', () => {
     const board = { w: 1000, h: 700 };
-    const opts = { gap: 7, margin: 10, board, keepOuts: clampKeepOuts(board, { w: 80, h: 60 }) };
+    const opts = { gap: 7, margin: 10, board, keepOuts: corners(board, { w: 80, h: 60 }) };
     const res = nestRects(KINDER, opts);
     checkNest(KINDER, opts, res);
     expect(res.unplaced).toEqual([]);
@@ -179,7 +185,7 @@ describe('nestRects', () => {
         gap: [0, 3.175, 7, 10][int(0, 3)],
         margin: int(0, 30),
         board: fixed ? board : undefined,
-        keepOuts: r() < 0.5 ? (fixed ? clampKeepOuts(board) : [{ x: 0, y: 0, w: int(10, 200), h: int(10, 200) }]) : undefined,
+        keepOuts: r() < 0.5 ? (fixed ? corners(board) : [{ x: 0, y: 0, w: int(10, 200), h: int(10, 200) }]) : undefined,
       };
       const res = nestRects(items, opts);
       checkNest(items, opts, res);

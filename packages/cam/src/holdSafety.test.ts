@@ -5,7 +5,7 @@ import type { PartFeatures } from './features';
 import { sideBSpec } from './flip';
 import { toGcode } from './gcode';
 import { holdCheck, holdTimeline } from './hold';
-import { frameMargin, heldByPoints, holdClashes, kColletClearance, suggestHoldPoints, type HoldPoint } from './holdPoints';
+import { heldByPoints, holdClashes, kColletClearance, type HoldPoint } from './holdPoints';
 import { freePartsProgram, planTabs } from './tabPlan';
 import { tabRemovalProgram } from './tabRemoval';
 import { DEFAULT_TABS } from './toolpaths';
@@ -141,15 +141,6 @@ describe('rapids and links over holds', () => {
     const beside = line(0, 2 + 6, 500, 2 + 6, 2);
     expect(holdClashes([toe], beside, 18)).toHaveLength(1);
     expect(holdClashes([{ ...toe, height: 5 }], beside, 18)).toEqual([]);
-    // The frame and the suggestions leave that room.
-    const m = frameMargin(2, 6, 'clamp', 30);
-    const parts = [{ x: m, y: m, w: 500 - 2 * m, h: 300 - 2 * m }];
-    expect(suggestHoldPoints({ w: 500, h: 300 }, parts, { kind: 'clamp', d: 2, w: 20, height: 30, bit: 6 }).length).toBeGreaterThanOrEqual(
-      4
-    );
-    expect(
-      suggestHoldPoints({ w: 500, h: 300 }, [{ x: 8, y: 8, w: 484, h: 284 }], { kind: 'clamp', d: 2, w: 20, height: 30, bit: 6 })
-    ).toEqual([]);
   });
 
   it('a board askew on the bed: the program is turned back to the holds before checking', () => {
@@ -234,11 +225,15 @@ describe('pockets and what holds the parts', () => {
     expect(h.tabs.filter(t => t.x > 50 && t.x < 450)).toHaveLength(h.tabs.length);
   });
 
-  it('tabs that end up under a pocket anyway ("tabs anyway") are reported: not anchored, and blocking', () => {
-    // Rabbets all round: no edge left, so the fallback; asked to put tabs anyway, they land in the rabbet.
+  it('tabs put under a pocket by hand are reported: not anchored, and blocking', () => {
+    // Rabbets all round: no edge left for the planner; put there by hand, they land in the rabbet.
     const all = [rect(0, 0, 400, 15), rect(0, 85, 400, 100), rect(0, 0, 15, 100), rect(385, 0, 400, 100)];
-    const b = board({ underside: rabbeted(400, 100, 13.3, all, 18.3), tabFallback: 'tabs' });
-    expect(planTabs(b, {}).get('p')!.how).toBe('tabs');
+    const tabsAt = [100, 300].flatMap(x => [
+      { x, y: 0 },
+      { x, y: 100 },
+    ]);
+    const b = board({ underside: rabbeted(400, 100, 13.3, all, 18.3), tabsAt });
+    expect(planTabs(b, {}).get('p')!.how).toBe('placed');
     const cam = camBoard(b, {});
     const opts = holdOptionsOf(b);
     const [hold] = holdCheck(cam, b, opts);
@@ -247,19 +242,15 @@ describe('pockets and what holds the parts', () => {
     expect(holdTimeline(cam, b, opts).filter(e => e.kind === 'pocket')).toMatchObject([{ what: 'p', cut: 'tabs' }]);
   });
 
-  it('rabbets all round: no tab spots, its fallback; a skin thinner than the rabbet is cut away too, and that is reported', () => {
+  it('rabbets all round: no tab spots; a skin thinner than the rabbet is cut away too, and that is reported', () => {
     const all = [rect(0, 0, 400, 15), rect(0, 85, 400, 100), rect(0, 0, 15, 100), rect(385, 0, 400, 100)];
-    const b: BoardSpec = { ...board({ underside: rabbeted(400, 100, 13.3, all, 18.3) }), tabFallback: 'skin' };
-    const plan = planTabs(b, {}).get('p')!;
-    expect(plan.how).toBe('skin');
+    const b: BoardSpec = { ...board({ underside: rabbeted(400, 100, 13.3, all, 18.3) }), holdDown: 'skin' };
+    expect(planTabs({ ...b, holdDown: 'tabs' }, {}).get('p')!.how).toBe('unheld');
     const events = holdTimeline(camBoard(b, {}), b, holdOptionsOf(b));
     expect(events).toMatchObject([{ kind: 'pocket', what: 'p', cut: 'skin' }]);
     // A skin thicker than the rabbet is deep (5 mm from the part's bottom, 18.3 - 13.3): it stays.
     const thick = { ...b, skin: 6 };
     expect(holdTimeline(camBoard(thick, {}), thick, holdOptionsOf(thick))).toEqual([]);
-    // Same on the skin hold-down.
-    const skin = { ...b, holdDown: 'skin' as const };
-    expect(holdTimeline(camBoard(skin, {}), skin, holdOptionsOf(skin))).toMatchObject([{ kind: 'pocket', cut: 'skin' }]);
   });
 
   it('a skin kept on two opposite edges still surrounds the part; on one edge it does not', () => {
@@ -282,7 +273,7 @@ describe('pockets and what holds the parts', () => {
         .tabs.some(t => t.x > 50 && t.x < 450)
     ).toBe(true);
     // Forced there, the tab is thinner than assumed: not anchored.
-    const forced = board({ features: rabbeted(400, 100, 1, [...longRabbets, rect(0, 0, 15, 100), rect(385, 0, 400, 100)]), underside: undefined, tabFallback: 'tabs' }); // prettier-ignore
+    const forced = board({ features: rabbeted(400, 100, 1, [...longRabbets, rect(0, 0, 15, 100), rect(385, 0, 400, 100)]), underside: undefined, tabsAt: [100, 300].flatMap(x => [{ x, y: 0 }, { x, y: 100 }]) }); // prettier-ignore
     const [hold] = holdCheck(camBoard(forced, {}), forced, holdOptionsOf(forced));
     expect(hold.anchored).toBe(0);
   });
@@ -330,9 +321,7 @@ describe('held by points', () => {
     rotated: false,
   });
 
-  it('a board meant to be screwed with no screws on it: not held, tabs not anchored, parts on their fallback', () => {
-    // A 12 mm margin has no room for a ⌀10 screw.
-    expect(suggestHoldPoints({ w: 400, h: 200 }, [{ x: 12, y: 12, w: 376, h: 176 }], { d: 10, bit: 3.175 })).toEqual([]);
+  it('a board with no screws on it: nothing fastens it, which is said, but its tabs hold on to stock at its edge', () => {
     const b: BoardSpec = {
       id: 'a',
       name: 'A',
@@ -342,28 +331,26 @@ describe('held by points', () => {
       holdDown: 'tabs',
       tabs: DEFAULT_TABS,
       holdPoints: [],
-      tabFallback: 'skin',
       parts: [plate(376, 176, 12, 12)],
     };
     const opts = holdOptionsOf(b);
     expect(opts.points).toEqual([]);
-    expect(planTabs(b, {}).get('p')!.how).toBe('skin');
+    expect(planTabs(b, {}).get('p')!.how).toBe('placed');
     const cam = camBoard(b, {});
-    // On the fallback the outline never cuts through, so only the board itself can say it.
-    expect(holdTimeline(cam, b, opts)).toMatchObject([{ kind: 'board', holds: 0, step: -1 }]);
-    // Tabs anyway hold nothing.
-    const anyway = { ...b, tabFallback: 'tabs' as const };
-    const [hold] = holdCheck(camBoard(anyway, {}), anyway, holdOptionsOf(anyway));
-    expect(hold.anchored).toBe(0);
-    expect(hold.ok).toBe(false);
+    expect(holdCheck(cam, b, opts).every(p => p.ok)).toBe(true);
+    const events = holdTimeline(cam, b, opts);
+    expect(events[0]).toMatchObject({ kind: 'board', holds: 0, step: -1 });
+    expect(events.some(e => e.kind === 'loose')).toBe(false);
     // Not given at all: held some other way (its edges), as before.
     const edges = { ...b, holdPoints: undefined };
     expect(holdTimeline(camBoard(edges, {}), edges, {})).toEqual([]);
     // Taped: nothing to say.
     expect(holdTimeline(cam, b, { taped: true })).toEqual([]);
+    const taped = { ...b, taped: true };
+    expect(holdTimeline(camBoard(taped, {}), taped, holdOptionsOf(taped))).toEqual([]);
   });
 
-  it('two screws on one rail of a frame do not hold the frame', () => {
+  it('two screws on one rail of a frame: the frame can turn, which is said; screws around it stop that', () => {
     const b: BoardSpec = {
       id: 'b',
       name: 'B',
@@ -373,22 +360,44 @@ describe('held by points', () => {
       holdDown: 'tabs',
       tabs: DEFAULT_TABS,
       holdPoints: [screw(60, 15), screw(985, 15)],
-      tabFallback: 'skin',
       parts: [plate(920, 420, 40, 40)],
     };
     const opts = holdOptionsOf(b);
-    expect(planTabs(b, {}).get('p')!.how).toBe('skin');
     const events = holdTimeline(camBoard(b, {}), b, opts);
-    expect(events).toMatchObject([{ kind: 'board', holds: 2 }]);
-    // Tabs anyway: none of them is anchored, the top rail's 470 mm from any screw least of all.
-    const anyway = { ...b, tabFallback: 'tabs' as const };
-    const [hold] = holdCheck(camBoard(anyway, {}), anyway, opts);
-    expect(hold.tabs.length).toBeGreaterThan(0);
-    expect(hold.anchored).toBe(0);
-    // Screws around it hold it.
+    expect(events[0]).toMatchObject({ kind: 'board', holds: 2 });
+    expect(events.some(e => e.kind === 'loose')).toBe(false);
     const around = { ...b, holdPoints: [screw(60, 15), screw(985, 15), screw(985, 485), screw(15, 485)] };
     expect(holdTimeline(camBoard(around, {}), around, holdOptionsOf(around))).toEqual([]);
     expect(holdCheck(camBoard(around, {}), around, holdOptionsOf(around)).every(p => p.ok)).toBe(true);
+  });
+
+  it('a piece cut off from the edge takes tabs only with enough holds on it', () => {
+    // Four bars around a small part, their cuts meeting at the corners: the stock inside reaches no edge.
+    const bar = (id: string, w: number, h: number, x: number, y: number): BoardSpec['parts'][number] => ({
+      ...plate(w, h, x, y),
+      id,
+      name: id,
+    });
+    const parts = [
+      bar('bottom', 300, 40, 30, 30),
+      bar('top', 300, 40, 30, 230),
+      bar('left', 40, 158, 30, 71),
+      bar('right', 40, 158, 290, 71),
+      bar('inner', 60, 40, 150, 130),
+    ];
+    const b = (holdPoints: HoldPoint[]): BoardSpec => ({
+      id: 'b',
+      name: 'B',
+      w: 360,
+      h: 300,
+      thickness: 8,
+      holdDown: 'tabs',
+      tabs: DEFAULT_TABS,
+      holdPoints,
+      parts,
+    });
+    expect(planTabs(b([]), {}).get('inner')!.how).toBe('unheld');
+    expect(planTabs(b([screw(100, 100), screw(260, 100), screw(180, 200)]), {}).get('inner')!.how).toBe('placed');
   });
 
   it('the 2-point rule is for strips only: narrow across the line between the holds, and held near both ends', () => {

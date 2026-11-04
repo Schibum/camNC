@@ -35,9 +35,9 @@ const release = (kind: ReleaseProgram['kind']) => ({ kind, gcode: `(${kind})`, t
 
 const board = (name: string, holdDown: 'tabs' | 'tabs-guided' = 'tabs'): JobBoard =>
   ({
-    board: { id: name, name, holdDown },
+    board: { id: name, name },
     nest: {},
-    request: { parts: [{ id: 'p' }] },
+    request: { parts: [{ id: 'p' }], holdDown },
   }) as unknown as JobBoard;
 
 describe('machine queue', () => {

@@ -4,18 +4,17 @@ import { CamPage } from '@/cam/CamPage';
 import { NoPartsToMill } from '@/cam/NoPartsToMill';
 import {
   autoFillFromStock,
-  boardHoldOf,
   changesCutBoard,
   cutLabel,
   dropPart,
   flipOf,
-  holdLabel,
   holdSettingsOf,
-  holdsOf,
+  holdVerdict,
   isCut,
   layoutSummary,
   newBoard,
   relayoutBoard,
+  respaceBoard,
   stockTopOf,
   type BoardV1,
   type PartDrop,
@@ -23,13 +22,10 @@ import {
 } from '@/cam/boards';
 import { BoardDrawings } from '@/cam/boards/BoardDrawings';
 import { BoardInspector } from '@/cam/boards/BoardInspector';
-import { HoldingNotes } from '@/cam/boards/HoldingNotes';
 import type { PartMenuProps } from '@/cam/boards/PartMenu';
 import { StockPopover } from '@/cam/boards/StockList';
 import type { JobBoard } from '@/cam/useJobBoards';
-import type { TabFallback } from '@wbcnc/cam';
-import { usesTabs } from '@wbcnc/cam/board';
-import { nutReaches } from '@wbcnc/cam/holdPoints';
+import { useHoldHardware } from '@/cam/holdHardware';
 import { BitChip } from '@/cam/plan/BitPicker';
 import { camKeys, useBoardPlans, useCamJob, useCamModel, useSaveCamJob } from '@/cam/camQueries';
 import type { CamJobV1 } from '@/cam/jobDb';
@@ -50,7 +46,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { ChevronDown, Plus } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export const Route = createFileRoute('/cam/$jobId/boards')({
   component: BoardsStep,
@@ -75,6 +71,10 @@ function BoardsStep() {
   );
   const { board: boardParam } = useSearch({ from: '/cam/$jobId/boards' });
   const [selectedId, setSelectedId] = useState<string | null>(boardParam ?? null);
+  const hardware = useHoldHardware(s => s.hardware);
+  // What just happened on the drawing, and the boards before each change, to go back to.
+  const [note, setNote] = useState('');
+  const history = useRef<BoardV1[][]>([]);
 
   // Persist the derived boards once (first visit, or parts changed in the Model step).
   useEffect(() => {
@@ -132,8 +132,10 @@ function BoardsStep() {
       );
       return;
     }
+    history.current = [...history.current.slice(-49), boards.map(b => b.board)];
     save.mutate({ ...job, boards: next });
   };
+  const nestOptions = { stickout: plan.bit.stickout, hardware };
   const startOver = (board: BoardV1) => {
     const { cut, ...rest } = board;
     void cut;
@@ -194,11 +196,7 @@ function BoardsStep() {
   };
 
   const unpin = (itemId: string) =>
-    saveBoards(
-      boards.map(({ board }) =>
-        board.pinned?.includes(itemId) ? { ...board, pinned: unpinned(board, itemId), ...unpositioned(board, itemId) } : board
-      )
-    );
+    saveBoards(boards.map(({ board }) => (board.pinned?.includes(itemId) ? { ...board, pinned: unpinned(board, itemId) } : board)));
 
   // The body on the target board as `dropPart` laid it out (positioned there, or in the nest), off every other board.
   const place = (itemId: string, target: BoardV1) =>
@@ -225,7 +223,7 @@ function BoardsStep() {
   const nudge = (itemId: string, boardId: string, at: PartPosition) => {
     const target = boards.find(b => b.board.id === boardId)?.board;
     if (!target) return;
-    const drop = dropPart(target, instances, plan.bit.diameter, itemId, at);
+    const drop = dropPart(target, instances, plan.bit.diameter, itemId, at, 0, nestOptions);
     if (drop.exact) place(itemId, drop.board);
   };
 
@@ -238,16 +236,16 @@ function BoardsStep() {
       save.mutate({ ...latest, boards: before });
     },
   });
-  /** One board's parts nested afresh: they stay on it, unpinned. */
+  /** One board's parts nested afresh, around its fixtures: they stay on it, unpinned. */
   const relayout = (board: BoardV1) => {
     const before = boards.map(b => b.board);
-    saveBoards(before.map(b => (b.id === board.id ? relayoutBoard(b) : b)));
+    saveBoards(before.map(b => (b.id === board.id ? relayoutBoard(b, instances, plan.bit.diameter, nestOptions) : b)));
     toast.success(`Board ${board.name} laid out again`, { action: undoTo(before), duration: 10_000 });
   };
   /** Everything unpinned, then nested from scratch: from the stock list when there is one. */
   const relayoutAll = () => {
     const before = boards.map(b => b.board);
-    const free = before.map(b => (isCut(b) ? b : relayoutBoard(b)));
+    const free = before.map(b => (isCut(b) ? b : relayoutBoard(b, instances, plan.bit.diameter, nestOptions)));
     if (!(job.stock ?? []).length) {
       saveBoards(free);
       return toast.success('All boards laid out again', { action: undoTo(before), duration: 10_000 });
@@ -297,18 +295,8 @@ function BoardsStep() {
     setSelectedId(b.id);
   };
 
-  const setTabFallback = (itemId: string, f: TabFallback | undefined) =>
-    saveBoards(
-      boards.map(({ board }) => {
-        if (!board.items.includes(itemId)) return board;
-        const own = { ...board.tabFallbacks };
-        if (f) own[itemId] = f;
-        else delete own[itemId];
-        return { ...board, tabFallbacks: own };
-      })
-    );
   const planOf = (board: BoardV1) => plans[boards.findIndex(b => b.board.id === board.id)]?.data;
-  /** A body's menu on the drawings: move it, unpin it, what holds it where tabs can't. */
+  /** A body's menu on the drawings: move it, unpin it. */
   const partMenu = ({ board }: JobBoard, id: string): PartMenuProps => {
     const name = byId.get(id)?.name ?? id;
     return {
@@ -317,9 +305,6 @@ function BoardsStep() {
       onMoveTo: target => (target === 'new' ? toNewBoard(id) : void move(id, target)),
       pinned: !!board.pinned?.includes(id),
       onUnpin: () => unpin(id),
-      holding: usesTabs(board.holdDown) ? planOf(board)?.holding?.find(h => h.name === name)?.how : undefined,
-      fallback: board.tabFallbacks?.[id],
-      onFallback: f => setTabFallback(id, f),
       onTabsReset: board.tabsAt?.[id]
         ? () => {
             const rest = { ...board.tabsAt };
@@ -329,10 +314,12 @@ function BoardsStep() {
         : undefined,
     };
   };
-  // What needs a choice on the selected board: in its settings. The drawings' headers say which board has some.
+  // What needs attention on the selected board: under the drawings, whose headers say which board has some.
   const sel = selected.board,
     selNest = selected.nest;
   const unplacedNames = selNest.unplaced.map(id => byId.get(id)?.name ?? id);
+  const cantHold = sel.retention === 'tabs' ? (planOf(sel)?.holding ?? []).filter(h => h.how === 'unheld').map(h => h.name) : [];
+  const verdict = holdVerdict(sel, selNest, hardware);
   const alerts = (
     <>
       {unplacedNames.length > 0 && (
@@ -342,31 +329,27 @@ function BoardsStep() {
           } from under its drawing onto another ${sel.thickness} mm board or onto “New board”, or make this board larger.`}
         </p>
       )}
-      {boardHoldOf(sel) === 'points' && selNest.nutAbove < 0 && (
+      {(sel.fixtures?.length ?? 0) > 0 && selNest.nutAbove < 0 && (
         <p role="alert" className="text-xs text-destructive">
-          {`The bit's stick-out (${selNest.stickout} mm) is shorter than the deepest cut (${+(stockTopOf(sel) + 0.3).toFixed(1)} mm): the collet nut would hit the board. Check it below or with the bit.`}
+          {`The bit's stick-out (${selNest.stickout} mm) is shorter than the deepest cut (${+(stockTopOf(sel) + 0.3).toFixed(1)} mm): the collet nut would hit the board. Check it under “Clamp and screw sizes” or with the bit.`}
         </p>
       )}
-      {usesTabs(sel.holdDown) && (
-        <HoldingNotes
-          holding={planOf(sel)?.holding}
-          board={sel}
-          itemOf={name => sel.items.find(id => byId.get(id)?.name === name)}
-          onFallback={(ids, f) =>
-            updateBoard({ ...sel, tabFallbacks: { ...sel.tabFallbacks, ...Object.fromEntries(ids.map(id => [id, f])) } })
-          }
-          noFrame={
-            selNest.frame === 'no-room'
-              ? { width: selNest.frameWidth, nut: nutReaches({ ...holdsOf(sel, selNest.stickout), nutAbove: selNest.nutAbove }) }
-              : undefined
-          }
-          onFrame={boardHoldOf(sel) === 'points' && sel.frame === false ? () => updateBoard({ ...sel, frame: true }) : undefined}
-        />
+      {cantHold.length > 0 && (
+        <p role="alert" className="flex flex-wrap items-center gap-2 text-xs text-destructive">
+          {`${cantHold.join(', ')}: no edge where tabs would hold, so the job waits. Move ${cantHold.length === 1 ? 'it' : 'them'}, or`}
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-6 px-2 text-xs"
+            onClick={() => updateBoard(respaceBoard(sel, { ...sel, retention: 'skin' }, instances, plan.bit.diameter, nestOptions))}>
+            Use a bottom skin
+          </Button>
+        </p>
       )}
     </>
   );
 
-  const tabs = boards.some(b => b.board.holdDown === 'tabs' || b.board.holdDown === 'tabs-guided');
+  const tabs = boards.some(b => b.board.retention === 'tabs');
   const partArea = selected.nest.placements.length ? `Yield ${Math.round(selected.nest.yield * 100)} %` : '';
 
   return (
@@ -447,6 +430,23 @@ function BoardsStep() {
             </div>
           )}
           <BoardDrawings
+            nestOptions={nestOptions}
+            onNote={setNote}
+            onBoardEdit={(b, text) => {
+              setNote(text);
+              updateBoard(b);
+            }}
+            onUndo={
+              history.current.length
+                ? () => {
+                    const before = history.current.at(-1)!;
+                    history.current = history.current.slice(0, -1);
+                    setNote('Undone.');
+                    const latest = queryClient.getQueryData<CamJobV1>(camKeys.job(job.id)) ?? job;
+                    save.mutate({ ...latest, boards: before });
+                  }
+                : undefined
+            }
             boards={boards}
             instances={instances}
             parts={model.data.parts}
@@ -459,15 +459,30 @@ function BoardsStep() {
             partMenu={partMenu}
             onNewBoard={toNewBoard}
             onNudge={nudge}
-            onHoldsMove={(id, holdPoints) => {
-              const b = boards.find(x => x.board.id === id);
-              if (b) updateBoard({ ...b.board, holdPoints, holdPointsOn: { w: b.nest.board.w, h: b.nest.board.h } });
-            }}
             onTabsMove={(id, item, tabs) => {
               const b = boards.find(x => x.board.id === id);
               if (b) updateBoard({ ...b.board, tabsAt: { ...b.board.tabsAt, [item]: tabs } });
             }}
           />
+          {/* The one place the Boards step speaks: its height never changes, or the drawings would rescale under the pointer. */}
+          <div
+            aria-label={`Board ${sel.name} status`}
+            className="grid h-[5.5rem] shrink-0 grid-cols-1 gap-x-4 gap-y-1 overflow-y-auto border-t px-4 py-2 text-[13px] md:grid-cols-2">
+            <p role="status" className="flex gap-2">
+              <span
+                aria-hidden
+                className={cn(
+                  'mt-1.5 size-2 shrink-0 rounded-full',
+                  verdict.tone === 'ok' ? 'bg-emerald-500' : verdict.tone === 'warn' ? 'bg-amber-500' : 'bg-muted-foreground'
+                )}
+              />
+              {verdict.text}
+            </p>
+            <div className="flex flex-col gap-1 text-muted-foreground">
+              {note && <p>{note}</p>}
+              {alerts}
+            </div>
+          </div>
           <div className="flex flex-wrap gap-5 border-t px-4 py-2.5 text-xs text-muted-foreground">
             <span>
               <span className="text-violet-500 dark:text-violet-400">■</span> part outline
@@ -483,6 +498,11 @@ function BoardsStep() {
             {boards.some(b => b.nest.holds.length > 0) && (
               <span>
                 <span className="text-foreground">⊕</span> screw or clamp (drag to move)
+              </span>
+            )}
+            {boards.some(b => b.nest.holds.length > 0) && (
+              <span>
+                <span className="text-red-500">▨</span> blocked for the bit
               </span>
             )}
             <span className="grow" />
@@ -504,32 +524,16 @@ function BoardsStep() {
           stock={job.stock ?? []}
           bit={plan.bit.diameter}
           onStickout={stickout => {
-            // Kept with the bit: this job's copy and the library's, so the next job with it starts from it. Older jobs
-            // kept one per board: those go.
+            // Kept with the bit: this job's copy and the library's, so the next job with it starts from it.
             const lib = useToolLibrary.getState();
             const own = lib.bits.find(b => bitKey(b) === bitKey(plan.bit));
             if (own) lib.updateBit(own.id, { stickout });
-            save.mutate({
-              ...job,
-              plan: { ...plan, bit: { ...plan.bit, stickout } },
-              boards: boards.map(({ board }) => {
-                if (board.holds?.stickout === undefined) return board;
-                const holds = { ...board.holds };
-                delete holds.stickout;
-                return { ...board, holds };
-              }),
-            });
+            save.mutate({ ...job, plan: { ...plan, bit: { ...plan.bit, stickout } } });
           }}
-          onChange={updateBoard}
-          alerts={alerts}
+          onChange={next => updateBoard(respaceBoard(selected.board, next, instances, plan.bit.diameter, nestOptions))}
           onRelayout={() => relayout(selected.board)}
-          tabHold={{ fallback: plan.tabFallback, skin: plan.skin }}
-          onTabHold={h => save.mutate({ ...job, plan: { ...plan, tabFallback: h.fallback, skin: h.skin } })}
-          onHoldDownAll={
-            boards.some(b => holdLabel(b.board) !== holdLabel(selected.board))
-              ? () => saveBoards(boards.map(({ board }) => ({ ...board, ...holdSettingsOf(selected.board) })))
-              : undefined
-          }
+          skin={plan.skin}
+          onSkin={skin => save.mutate({ ...job, plan: { ...plan, skin } })}
           flip={
             selected.board.flip || instances.some(i => selected.board.items.includes(i.id) && i.needsFlip)
               ? flipOf(selected.board, instances)
@@ -553,10 +557,10 @@ const kObjectives = [
 ] as const;
 
 const unpinned = (board: BoardV1, itemId: string) => (board.pinned ?? []).filter(i => i !== itemId);
-/** The board's positions without this body's (when it has positions). */
+/** The board's layout without this body. */
 const unpositioned = (board: BoardV1, itemId: string) =>
-  board.positions && { positions: Object.fromEntries(Object.entries(board.positions).filter(([id]) => id !== itemId)) };
-/** The board without this body (nor its pin and position). */
+  board.layout && { layout: { ...board.layout, at: Object.fromEntries(Object.entries(board.layout.at).filter(([id]) => id !== itemId)) } };
+/** The board without this body (nor its pin and spot). */
 const without = (board: BoardV1, itemId: string): BoardV1 => ({
   ...board,
   items: board.items.filter(i => i !== itemId),

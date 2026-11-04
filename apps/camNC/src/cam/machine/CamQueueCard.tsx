@@ -18,8 +18,7 @@ import { useMachineQueue } from './useMachineQueue';
 const fmt = (v: number) => `${+v.toFixed(2)}`;
 
 /** "Clamp it", "Screw it down": what the board is held with. */
-const holdKindName = (e: QueueEntry) =>
-  (e.board.request?.holdPoints?.[0]?.kind ?? e.board.board.holds?.kind) === 'clamp' ? 'Clamp it' : 'Screw it down';
+const holdKindName = (e: QueueEntry) => (e.board.request?.holdPoints?.[0]?.kind === 'clamp' ? 'Clamp it' : 'Screw it down');
 
 /**
  * The CAM job at the machine, in the machine panel: the queue of programs (boards in an order that keeps the bit in
@@ -197,7 +196,7 @@ export function CamQueueCard() {
               <p>
                 <span className="font-medium">3. Line up the outline</span> with the board in the camera view.
               </p>
-              {!!current.board.request?.holdPoints && (
+              {!!current.board.request?.holdPoints?.length && (
                 <p>
                   <span className="font-medium">4. {holdKindName(current)}</span> on the blue marks.
                 </p>

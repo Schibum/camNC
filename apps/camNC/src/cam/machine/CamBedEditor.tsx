@@ -64,7 +64,7 @@ function Editor() {
     if (!current || current.board.board.id !== edit.boardId) return;
     const b = current.board.board;
     // A real sheet at the machine: a hold edited there leaves the board's size and the other parts as they are.
-    if (edit.patch.holdPoints) edit = { ...edit, patch: { ...freezeAtMachine(b, current.board.nest), ...edit.patch } };
+    if (edit.patch.fixtures) edit = { ...edit, patch: { ...freezeAtMachine(b, current.board.nest), ...edit.patch } };
     const before = Object.fromEntries(Object.keys(edit.patch).map(k => [k, b[k as keyof BoardV1]])) as Partial<BoardV1>;
     updateBoard(edit.boardId, edit.patch);
     if (silent) return;
@@ -245,7 +245,7 @@ function Editor() {
       const o = useCamMachine.getState().overlay;
       if (sel?.kind !== 'hold' || !o?.holds || !board || locked) return;
       e.preventDefault();
-      save(removeHold(o.holds, sel.i, o.holdsOn ?? { w: o.w, h: o.h }, board.id));
+      save(removeHold(o.holds, sel.i, board.id));
       setSelected(null);
     },
     keyOpts,

@@ -27,21 +27,18 @@ export { parseFusionToolLibrary } from './tools';
 export type { LibraryTool } from './tools';
 export { checkGcodeSafety, checkProgramSafety, kMaxFeed } from './safety';
 export type { SafetyIssue, SafetyLimits } from './safety';
-export { nestRects, clampKeepOuts, placedSize } from './nest';
+export { nestRects, placedSize } from './nest';
 export type { Rect, NestItem, NestOptions, NestResult, Placement } from './nest';
 export { holdCheck, holdTimeline } from './hold';
 export {
-  suggestHoldPoints,
   heldByPoints,
   holdClashes,
   holdHeight,
   pathClearance,
   nutReaches,
   kDefaultStickout,
-  frameMargin,
   kHoldDefaults,
   kHoldHeights,
-  kHoldSpacing,
   kClampWidth,
   holdBox,
   holdDist,
@@ -50,7 +47,20 @@ export {
 } from './holdPoints';
 export type { HoldPoint, HoldKind } from './holdPoints';
 export { planTabs, freePartsProgram, kDefaultSkin } from './tabPlan';
-export type { TabFallback, PartHolding } from './tabPlan';
+export type { PartHolding } from './tabPlan';
+export {
+  clampPlay,
+  edgeBands,
+  fixtureBox,
+  fixtureFree,
+  fixturesAround,
+  largestOffcut,
+  screwPlay,
+  settle,
+  snapScrew,
+  suggestHolds,
+} from './settle';
+export type { BoardSide, EdgeFit, Fixture, SettleBoard, SettlePart, Settled, Spots } from './settle';
 export { sideBSpec, dowelClearance, dowelProblem, dowelSpots, dowelOperations } from './flip';
 export type { FlipRegistration, DowelSpec, TurnedOver } from './flip';
 export type { HoldOptions, PartHold, TabHold, HoldEvent } from './hold';

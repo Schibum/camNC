@@ -139,16 +139,14 @@ describe('boards after a replaced model', () => {
     const board = {
       items: ['part-0#0', 'part-0#1', 'part-1#0'],
       pinned: ['part-0#1', 'part-1#0'],
-      positions: { 'part-0#1': { x: 1, y: 2 }, 'part-1#0': { x: 3, y: 4 } },
+      layout: { w: 9, h: 9, at: { 'part-0#1': { x: 1, y: 2 }, 'part-1#0': { x: 3, y: 4 } } },
       tabsAt: { 'part-1#0': [{ x: 1, y: 1 }] },
-      tabFallbacks: { 'part-0#0': 'skin' },
     } as unknown as BoardV1;
     // Old part-0 is now part-1; old part-1 is not found again, though a new part took its id.
     const [next] = remapBoards([board], new Map([['part-1', 'part-0']]));
     expect(next.items).toEqual(['part-1#0', 'part-1#1']);
     expect(next.pinned).toEqual(['part-1#1']);
-    expect(next.positions).toEqual({ 'part-1#1': { x: 1, y: 2 } });
+    expect(next.layout!.at).toEqual({ 'part-1#1': { x: 1, y: 2 } });
     expect(next.tabsAt).toEqual({});
-    expect(next.tabFallbacks).toEqual({ 'part-1#0': 'skin' });
   });
 });

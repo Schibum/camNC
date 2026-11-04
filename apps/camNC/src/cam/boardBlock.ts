@@ -13,7 +13,7 @@ export interface BlockContext {
 /** Broken safety rules of the guided programs after the board's cutting. */
 export const releaseProblems = (plan: PlanResult | undefined) => plan?.release?.flatMap(r => r.safety) ?? [];
 
-/** Parts that would come loose: their tabs don't hold, and they have no fallback (tabs anyway, or held by hand). */
+/** Parts that would come loose: tabs were placed for them, but too few hold. */
 export function loose(plan: PlanResult | undefined) {
   if (!plan?.hold) return [];
   return plan.hold.filter(h => !h.ok && (plan.holding?.find(x => x.name === h.part)?.how ?? 'placed') === 'placed');

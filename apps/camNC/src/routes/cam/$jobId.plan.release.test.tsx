@@ -81,7 +81,7 @@ const fmtMin = (m: number) => `${Math.floor(m)}:${String(Math.round((m % 1) * 60
 
 describe('CAM plan step, the guided programs after the cutting', () => {
   it('free parts: its own row after the cutting, pauses on the timeline, and the job time includes it', async () => {
-    await open(stepUrl, 'kinderregal-eiche.step', b => ({ ...b, holdDown: 'skin', holdPoints: [] }));
+    await open(stepUrl, 'kinderregal-eiche.step', b => ({ ...b, retention: 'skin' as const }));
     const list = await opList();
     const items = within(list).getAllByRole('listitem');
     // Last, one row for all the laps.
@@ -118,7 +118,7 @@ describe('CAM plan step, the guided programs after the cutting', () => {
 
   it('tab removal follows "Pause before each tab": changing it plans again', async () => {
     useCamMachine.setState({ pauseEachTab: true });
-    await open(stepUrl, 'kinderregal-eiche.step', b => ({ ...b, holdDown: 'tabs-guided' }));
+    await open(stepUrl, 'kinderregal-eiche.step', b => ({ ...b, guidedTabs: true }));
     const list = await opList();
     const tabs = () => row(screen.getByRole('list', { name: 'Operations for board A' }), /Remove the tabs/)!;
     const n = (plans.last[0] as PlanResult).release![0].tabs!.length;
@@ -138,7 +138,7 @@ describe('CAM plan step, the guided programs after the cutting', () => {
   }, 120_000);
 
   it('taped down: the layer on the tape is planned too, no pauses', async () => {
-    await open(stepUrl, 'kinderregal-eiche.step', b => ({ ...b, holdDown: 'fixture-tape', boardHold: 'tape', holdPoints: [] }));
+    await open(stepUrl, 'kinderregal-eiche.step', b => ({ ...b, retention: 'skin' as const, taped: true }));
     const list = await opList();
     expect(row(list, /Cut the parts free/)!.textContent).toContain('No pauses: take the parts off the tape at the end');
     expect(within(screen.getByRole('region', { name: /^3D view of board/ })).queryAllByRole('img', { name: /^Pause: / })).toHaveLength(0);
@@ -150,8 +150,7 @@ describe('CAM plan step, the guided programs after the cutting', () => {
   it('a flipped board: on side B, the board turned over, cutting from the new top; checked against that', async () => {
     await open(besteckUrl, 'besteckkasten.step', b => ({
       ...b,
-      holdDown: 'skin',
-      holdPoints: [],
+      retention: 'skin' as const,
       size: { fit: false as const, w: 1220, h: 610 },
     }));
     const sides = await screen.findByRole('group', { name: 'Board side' }, { timeout: 90_000 });
@@ -185,7 +184,7 @@ describe('CAM plan step, the guided programs after the cutting', () => {
       const plan = p as PlanResult;
       return { ...plan, release: plan.release?.map(r => ({ ...r, safety: ['Cut the parts free: move to Z-9 is below -0.3'] })) };
     };
-    await open(stepUrl, 'kinderregal-eiche.step', b => ({ ...b, holdDown: 'skin', holdPoints: [] }));
+    await open(stepUrl, 'kinderregal-eiche.step', b => ({ ...b, retention: 'skin' as const }));
     await opList();
     expect(screen.getByText('Cut the parts free: move to Z-9 is below -0.3')).toBeTruthy();
     expect(screen.queryByText(/Safety checks passed/)).toBeNull();
