@@ -12,7 +12,7 @@ import { CameraRig } from './CameraRig';
 import type { PlanPlayback } from './planPlayback';
 import { kViewBackground } from './palette';
 import { boardBox, cutBounds, groupOpsOf, type PlanModel } from './planModel';
-import { usePlan3dView } from './plan3dViewStore';
+import { projectionOf, usePlan3dView } from './plan3dViewStore';
 import { kCompareTolerance } from './compareMap';
 import { PlanTimeline } from './PlanTimeline';
 import { SimLines, SimStock } from './SimStock';
@@ -43,20 +43,8 @@ export function PlanView3D({
   className?: string;
 }) {
   const { model, time, setTime, selected, select, playing, setPlaying, speed, setSpeed } = playback;
-  const {
-    mode,
-    seeThrough,
-    view,
-    projection,
-    showRapids,
-    compare,
-    setMode,
-    setSeeThrough,
-    setView,
-    setProjection,
-    setShowRapids,
-    setCompare,
-  } = usePlan3dView();
+  const { mode, seeThrough, view, ortho3d, showRapids, setMode, setSeeThrough, setView, setOrtho3d, setShowRapids } = usePlan3dView();
+  const timed = mode !== 'toolpath';
   const [fitCount, setFitCount] = useState(0);
 
   const selectedOps = useMemo(() => (selected === null ? [] : groupOpsOf(model, selected)), [model, selected]);
@@ -69,7 +57,7 @@ export function PlanView3D({
 
   const label = selected !== null ? model.groups[selected].label : null;
   const hint =
-    mode === 'result'
+    mode !== 'toolpath'
       ? label
         ? `${label}: solid where it has cut, a tint where it still cuts`
         : 'Select an operation to see what it removes'
@@ -86,12 +74,12 @@ export function PlanView3D({
         <div className="relative min-h-0 flex-1" style={{ background: kViewBackground }}>
           <Canvas dpr={[1, 2]} frameloop="demand" className="absolute! inset-0">
             <color attach="background" args={[kViewBackground]} />
-            <Scene model={model} plan={plan} board={board} parts={parts} time={mode === 'result' ? time : model.total} ui={playback} />
+            <Scene model={model} plan={plan} board={board} parts={parts} time={timed ? time : model.total} ui={playback} />
             <CameraRig
               box={frameBox}
               frameKey={frameKey}
               view={view}
-              projection={projection[view]}
+              projection={projectionOf(view, ortho3d)}
               margin={selected !== null ? 1.6 : 1.12}
               minSpan={selected !== null ? kOpMinSpan : 0}
             />
@@ -103,7 +91,12 @@ export function PlanView3D({
               onChange={setMode}
               options={[
                 ['result', 'Result', 'The board as it comes out, cut up to the playhead.'],
-                ['toolpath', 'Toolpath', 'Every move of the bit, at its real depth.'],
+                [
+                  'compare',
+                  'Compare',
+                  "The cut board against your model: green as designed, orange where material is left, red where it's cut too deep.",
+                ],
+                ['toolpath', 'Toolpath', 'Every move of the bit, at its real depth, through a see-through board.'],
               ]}
             />
             <Segmented
@@ -115,27 +108,20 @@ export function PlanView3D({
                 ['top', 'Top', 'Look straight down on the board.'],
               ]}
             />
-            <Segmented
-              label="Projection"
-              value={projection[view]}
-              onChange={setProjection}
-              options={[
-                ['perspective', 'Perspective', 'Far things look smaller, like in a photo.'],
-                ['orthographic', 'Orthographic', 'No perspective: sizes compare true across the whole board.'],
-              ]}
-            />
-            <Toggle
-              pressed={seeThrough}
-              onChange={setSeeThrough}
-              hint="A see-through board: the toolpaths and the finished parts show through it.">
-              See through
-            </Toggle>
+            {view === '3d' && (
+              <Toggle
+                pressed={ortho3d}
+                onChange={setOrtho3d}
+                hint="No perspective: sizes compare true across the whole board. The top view always is.">
+                Orthographic
+              </Toggle>
+            )}
             {mode === 'result' && (
               <Toggle
-                pressed={compare}
-                onChange={setCompare}
-                hint="Colour the cut board against your model: green as designed, orange where material is left, red where it's cut too deep.">
-                Compare to model
+                pressed={seeThrough}
+                onChange={setSeeThrough}
+                hint="A see-through board: the toolpaths and the finished parts show through it.">
+                See through
               </Toggle>
             )}
             {mode === 'toolpath' && (
@@ -155,7 +141,7 @@ export function PlanView3D({
               </button>
             </Hint>
           </div>
-          {mode === 'result' && compare ? (
+          {mode === 'compare' ? (
             <div
               role="note"
               aria-label="Compared to the model"
@@ -179,7 +165,7 @@ export function PlanView3D({
             </div>
           )}
         </div>
-        {mode === 'result' && (
+        {timed && (
           <PlanTimeline
             model={model}
             time={time}
@@ -218,7 +204,10 @@ function Scene({
   time: number;
   ui: { selected: number | null; hidden: ReadonlySet<number> };
 }) {
-  const { mode, seeThrough, showRapids, compare } = usePlan3dView();
+  const { mode, showRapids, seeThrough: resultSeeThrough } = usePlan3dView();
+  // Toolpath always shows through the board; Compare never does, so its colours read true.
+  const seeThrough = mode === 'toolpath' || (mode === 'result' && resultSeeThrough);
+  const compare = mode === 'compare';
   const { selected, hidden } = ui;
   // Frames only on demand: a still view draws nothing (the battery, the fan, and a long job on a laptop).
   const invalidate = useThree(s => s.invalidate);
@@ -285,7 +274,7 @@ function Scene({
           />
         )
       )}
-      {mode === 'result' && time < model.total && (
+      {mode !== 'toolpath' && time < model.total && (
         <ToolMarker model={model} playhead={playhead} radius={toolShape(model.toolpath.modals[playhead.index]?.tool).radius} top={top} />
       )}
     </>

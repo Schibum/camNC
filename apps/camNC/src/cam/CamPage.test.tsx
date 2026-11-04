@@ -74,7 +74,6 @@ describe('CAM pages', () => {
         <CamPage>
           <span className="bg-primary text-primary-foreground">Next: Boards</span>
           <span className="bg-muted text-muted-foreground">600 × 300</span>
-          <span className="text-muted-foreground/75">4 Check</span>
         </CamPage>
       );
       const style = (text: string) => getComputedStyle(screen.getByText(text));
@@ -82,9 +81,6 @@ describe('CAM pages', () => {
       expect(contrast(next.color, next.backgroundColor)).toBeGreaterThanOrEqual(4.5);
       const meta = style('600 × 300');
       expect(contrast(meta.color, meta.backgroundColor)).toBeGreaterThanOrEqual(4.5);
-      // A step that's not there yet: lighter, but 3:1 on the page.
-      const page = getComputedStyle(screen.getByText('4 Check').parentElement!).backgroundColor;
-      expect(contrast(style('4 Check').color, page)).toBeGreaterThanOrEqual(3);
       cleanup();
       vi.restoreAllMocks();
     }

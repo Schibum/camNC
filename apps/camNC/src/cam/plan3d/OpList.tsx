@@ -25,7 +25,7 @@ export function OpList({
   details: (group: PlanOpGroup) => React.ReactNode;
 }) {
   const { model, selected, select, hidden, toggleHidden, setPlaying, setTime } = playback;
-  const time = mode === 'result' ? playback.time : model.total;
+  const time = mode !== 'toolpath' ? playback.time : model.total;
   const jump = (t: number) => {
     setPlaying(false);
     setTime(t);
@@ -62,7 +62,7 @@ export function OpList({
                   </span>
                   <span className="block text-xs text-muted-foreground">
                     ⌀{g.op.tool.diameter} · {formatDuration(ops.reduce((t, o) => t + o.end - o.start, 0))} sim
-                    {mode === 'result' && status && ` · ${status}`}
+                    {mode !== 'toolpath' && status && ` · ${status}`}
                   </span>
                   {g.note && <span className="block text-xs text-muted-foreground">{g.note}</span>}
                 </span>
@@ -92,7 +92,7 @@ export function OpList({
             {isSelected && (
               <div className="flex flex-col gap-2 pr-2 pb-2.5 pl-7">
                 {details(g)}
-                {mode === 'result' && (
+                {mode !== 'toolpath' && (
                   <div className="flex gap-1">
                     <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => jump(start)}>
                       Jump to start
