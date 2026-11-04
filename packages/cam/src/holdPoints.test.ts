@@ -5,6 +5,8 @@ import { holdTimeline } from './hold';
 import {
   edgeDir,
   frameMargin,
+  nutReaches,
+  type HoldPoint,
   heldByPoints,
   holdBox,
   holdClashes,
@@ -134,6 +136,28 @@ describe('hold points', () => {
     // Neighbours along an edge no farther apart than the spacing (plus the room to dodge a part).
     const bottom = holds.filter(h => h.y < 20).sort((a, b) => a.x - b.x);
     for (let i = 1; i < bottom.length; i++) expect(bottom[i].x - bottom[i - 1].x).toBeLessThanOrEqual(250 + 1);
+  });
+
+  it('the stick-out decides whether a hold needs room for the collet nut', () => {
+    const bit = 6;
+    // A tall clamp and a board 18 deep: the nut clears 30 mm and the 1 mm over it from a stick-out of 49 mm.
+    expect(frameMargin(2, bit, 'clamp', 30, { stickout: 48, depth: 18 })).toBe(19);
+    expect(frameMargin(2, bit, 'clamp', 30, { stickout: 49, depth: 18 })).toBe(11);
+    // Not set: any hold over 5 mm is taken as tall, however deep.
+    expect(frameMargin(2, bit, 'clamp', 6, { depth: 1 })).toBe(19);
+    expect(frameMargin(2, bit, 'clamp', 5, { depth: 18 })).toBe(11);
+    // A low screw with a short stick-out does get the nut beside it.
+    expect(frameMargin(10, bit, 'screw', 3, { stickout: 20, depth: 18 })).toBe(29);
+    expect(nutReaches({ kind: 'screw', height: 3, stickout: 20 }, 18)).toBe(true);
+    expect(nutReaches({ kind: 'screw', height: 3, stickout: 25 }, 18)).toBe(false);
+  });
+
+  it('the clash check takes the nut at each move’s own depth', () => {
+    const toe: HoldPoint = { x: 1, y: 150, kind: 'clamp', d: 2, w: 20, dir: { x: 1, y: 0 }, height: 10, stickout: 25 };
+    const at = (z: number) => [{ r: 3, pts: [[8, 0, z], [8, 300, z]] as [number, number, number][] }]; // prettier-ignore
+    // 6 from the toe: enough for the bit. Shallow, the nut stays above the toe; deep, it comes down beside it.
+    expect(holdClashes([toe], at(18 - 5), 18)).toEqual([]);
+    expect(holdClashes([toe], at(0), 18)).toHaveLength(1);
   });
 
   it('clamps grip at the edge: a low toe 2 mm in and 20 mm along it needs a narrow frame, and only the toe clashes', () => {

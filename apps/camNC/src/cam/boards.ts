@@ -3,6 +3,7 @@ import type { HoldDown } from '@wbcnc/cam';
 import { usesTabs } from '@wbcnc/cam/board';
 import {
   frameMargin,
+  kThroughBelow,
   kHoldDefaults,
   kHoldHeights,
   kHoldSpacing,
@@ -49,7 +50,7 @@ export interface BoardV1 {
    * how far its toe reaches in from the edge, `w` its width along the edge. `height`: how far it stands above the stock's
    * top, mm (the program's clearance heights go above it). Default a ⌀10 screw every 250.
    */
-  holds?: { kind: HoldKind; d: number; w?: number; height?: number; spacing?: number };
+  holds?: { kind: HoldKind; d: number; w?: number; height?: number; stickout?: number; spacing?: number };
   /** Hold points the user moved (board frame, mm): used as they are instead of the suggested ones. */
   holdPoints?: { x: number; y: number }[];
   /** The board's size when the user moved them: on a board of another size (laid out again) they're suggested afresh. */
@@ -136,6 +137,7 @@ export const holdsOf = (board: Pick<BoardV1, 'holds'>) => {
     d: (!old && board.holds?.d) || kHoldDefaults[kind],
     ...(kind === 'clamp' && { w: board.holds?.w ?? kClampWidth }),
     height: board.holds?.height ?? kHoldHeights[kind],
+    stickout: board.holds?.stickout,
     spacing: board.holds?.spacing ?? kHoldSpacing,
   };
 };
@@ -389,6 +391,8 @@ export function nestBoard(
   const baseMargin = board.margin ?? defaultMargin(bit, partsHoldOf(board));
   const points = boardHoldOf(board) === 'points';
   const hold = holdsOf(board);
+  // How deep the outlines go from the stock's top: what decides whether the collet nut comes down beside a hold.
+  const depth = stockTopOf(board) + kThroughBelow;
   const size = board.size.fit ? undefined : { w: board.size.w, h: board.size.h };
   // Holds the user moved: parts keep clear of them, while the board keeps the size they were moved on.
   const sameSize = (b: { w: number; h: number }) =>
@@ -402,6 +406,7 @@ export function nestBoard(
     kind: hold.kind,
     d: hold.d,
     height: hold.height,
+    ...(hold.stickout !== undefined && { stickout: hold.stickout }),
     ...(hold.w !== undefined && { w: hold.w, ...(on && { dir: edgeDir(p, on) }) }),
   });
   // Where the cut's edge may not come, less what the nest keeps between it and a part anyway (`gap`): a part only needs
@@ -409,14 +414,16 @@ export function nestBoard(
   // count as moved) pushes the parts beside every hold away, and on a sheet of fixed size some no longer fit.
   const keepOutOf = (h: HoldPoint): Rect => {
     const b = holdBox(h);
-    const keep = pathClearance(h, bit / 2) - bit / 2 - (gap - bit);
+    const keep = pathClearance(h, bit / 2, depth) - bit / 2 - (gap - bit);
     const [kx, ky] = [Math.max(keep, -b.w / 2), Math.max(keep, -b.h / 2)];
     return { x: b.x - kx, y: b.y - ky, w: b.w + 2 * kx, h: b.h + 2 * ky };
   };
   let keepOuts: Rect[] = (moved ?? []).map(p => keepOutOf(holdAt(p, movedOn)));
   // Packing picks the sheets without the frame: it's only kept where it costs no part (and so no extra board).
   const wantFrame = points && board.frame !== false && !opts.packing;
-  const framed = wantFrame ? Math.max(baseMargin, frameMargin(hold.d, bit, hold.kind, hold.height)) : baseMargin;
+  const framed = wantFrame
+    ? Math.max(baseMargin, frameMargin(hold.d, bit, hold.kind, hold.height, { stickout: hold.stickout, depth }))
+    : baseMargin;
 
   const layout = (margin: number) => {
     // Placed by hand: kept at their spot while it is inside the margin and clear of the others and the holds.
@@ -467,7 +474,16 @@ export function nestBoard(
       ? []
       : moved
         ? moved.map(p => holdAt(p, out))
-        : suggestHoldPoints(out, rects, { kind: hold.kind, d: hold.d, w: hold.w, height: hold.height, bit, spacing: hold.spacing });
+        : suggestHoldPoints(out, rects, {
+            kind: hold.kind,
+            d: hold.d,
+            w: hold.w,
+            height: hold.height,
+            stickout: hold.stickout,
+            depth,
+            bit,
+            spacing: hold.spacing,
+          });
   return {
     ...n,
     board: out,

@@ -234,4 +234,20 @@ describe('CAM controls explain themselves', () => {
     expect(layoutSummary([b(100, 100, 0.81)])).toBe('1 board, 81 % yield');
     expect(layoutSummary([])).toBe('No part placed yet.');
   });
+
+  it('hold settings: stick-out described and kept, the drawing follows them', () => {
+    const onChange = vi.fn();
+    const held: BoardV1 = { ...board, boardHold: 'points', holds: { kind: 'clamp', d: 2, w: 20, height: 30 }, measuredThickness: 18 };
+    render(
+      <TooltipProvider>
+        <BoardInspector board={held} nest={nest} stock={[]} bit={6} onChange={onChange} />
+      </TooltipProvider>
+    );
+    const stickout = screen.getByLabelText('Bit stick-out');
+    expect(description(stickout)).toMatch(/tip to nut/);
+    fireEvent.change(stickout, { target: { value: '60' } });
+    fireEvent.blur(stickout);
+    expect(onChange.mock.calls.at(-1)?.[0].holds).toMatchObject({ kind: 'clamp', stickout: 60 });
+    expect(within(screen.getByTestId('hold-diagram')).getByRole('img').getAttribute('aria-label')).toMatch(/stick-out not set/);
+  });
 });

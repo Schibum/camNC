@@ -1,3 +1,4 @@
+import { kThroughBelow } from './holdPoints';
 import { areaD, pointInPolygonD, PointInPolygonResult, simplifyPathsD, type PathD, type PathsD } from 'clipper2-ts';
 import { openPocketRegion, type PartFeatures } from './features';
 import { clipLines, difference, intersect, offset, pathLength, polyArea, type Vec3 } from './geom';
@@ -90,7 +91,7 @@ export const DEFAULT_SETTINGS: CamSettings = {
   pocketWallAllowance: 0,
   pocketFinishFeedFactor: 1,
   innerCornerRadius: 0.3,
-  finalZ: -0.3,
+  finalZ: -kThroughBelow,
   finalFeedFactor: 0.5,
   climb: true,
   rampAngleDeg: 3,

@@ -1,6 +1,6 @@
 import { Html, Line } from '@react-three/drei';
 import { useThree, type ThreeEvent } from '@react-three/fiber';
-import { holdBox, pathClearance } from '@wbcnc/cam/holdPoints';
+import { holdBox, kThroughBelow, pathClearance } from '@wbcnc/cam/holdPoints';
 import { useRef, useState } from 'react';
 import { Plane, Vector3 } from 'three';
 import { addHold, bedToBoard, hitsPath, moveHold, onBoard, placeHold, removeHold, useBedEdit } from './bedEdit';
@@ -87,7 +87,7 @@ export function CamHolds({ overlay, offset, running }: { overlay: BoardOverlay; 
       )}
       {shown.map((h, i) => {
         const box = holdBox(h);
-        const keep = pathClearance(h, r) - r;
+        const keep = pathClearance(h, r, overlay.stockTop === undefined ? undefined : overlay.stockTop + kThroughBelow) - r;
         const halo = { x: box.x - keep, y: box.y - keep, w: box.w + 2 * keep, h: box.h + 2 * keep };
         const bad = drag?.i === i ? live : isClash(holds[i]);
         const color = bad ? kClash : kHold;

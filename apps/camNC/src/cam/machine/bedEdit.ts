@@ -50,7 +50,11 @@ export function boardToBed(p: P2, at: P2, deg: number): P2 {
 }
 
 /** Where a hold goes when dropped or added at `p` (board frame): a clamp grips the nearest edge, a screw stays put. */
-export function placeHold(h: Pick<HoldPoint, 'kind' | 'd' | 'w' | 'height'>, p: P2, board: { w: number; h: number }): HoldPoint {
+export function placeHold(
+  h: Pick<HoldPoint, 'kind' | 'd' | 'w' | 'height' | 'stickout'>,
+  p: P2,
+  board: { w: number; h: number }
+): HoldPoint {
   const clamp = h.kind === 'clamp' && h.w !== undefined;
   const at = clamp ? snapClamp(p, h.d, board) : { x: p.x, y: p.y };
   return { ...h, ...at, ...(clamp && { dir: edgeDir(p, board) }) } as HoldPoint;
@@ -71,7 +75,7 @@ export function moveHold(holds: HoldPoint[], i: number, to: P2, board: { w: numb
 /** The board's holds with one more, like the others (or a clamp, the first). */
 export function addHold(
   holds: HoldPoint[],
-  like: Pick<HoldPoint, 'kind' | 'd' | 'w' | 'height'>,
+  like: Pick<HoldPoint, 'kind' | 'd' | 'w' | 'height' | 'stickout'>,
   at: P2,
   board: { w: number; h: number },
   boardId: string

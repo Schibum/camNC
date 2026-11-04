@@ -24,7 +24,7 @@ export interface BoardOverlay {
   /** Side A: where the board is screwed or clamped (board frame, turned with the outline). */
   holds?: HoldPoint[];
   /** What a hold added here is like: the board's screw or clamp. */
-  holdLike?: Pick<HoldPoint, 'kind' | 'd' | 'w' | 'height'>;
+  holdLike?: Pick<HoldPoint, 'kind' | 'd' | 'w' | 'height' | 'stickout'>;
   /** The board's size as nested, mm: what the holds are placed on (edges a clamp grips), and saved with them. */
   holdsOn?: { w: number; h: number };
   /** Holds the program's bit would hit (board frame): drawn red. */
@@ -310,7 +310,7 @@ export function entryHolds(
   return {
     ...base,
     holds,
-    holdLike: { kind: like.kind, d: like.d, w: like.w, height: like.height },
+    holdLike: { kind: like.kind, d: like.d, w: like.w, height: like.height, stickout: like.stickout },
     holdsOn: { w: e.board.nest.board.w, h: e.board.nest.board.h },
     ...(e.plan && {
       holdClash: e.plan.holdClash,
