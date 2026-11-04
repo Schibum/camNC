@@ -9,13 +9,13 @@ import {
   cutLabel,
   dropPart,
   flipOf,
-  holdLabel,
   holdSettingsOf,
   holdsOf,
   isCut,
   layoutSummary,
   newBoard,
   relayoutBoard,
+  resolveBoardRetention,
   stockTopOf,
   type BoardV1,
   type PartDrop,
@@ -37,7 +37,7 @@ import { CamJobBar } from '@/cam/model/CamJobBar';
 import { forgetCut } from '@/cam/machine/camMachine';
 import { Hint } from '@/cam/Hint';
 import { bitKey } from '@/cam/cuttingData';
-import { kDefaultPlan } from '@/cam/planSettings';
+import { kDefaultPlan, type PlanSettingsV1 } from '@/cam/planSettings';
 import { useToolLibrary } from '@/cam/toolLibrary';
 import { getMachineBounds } from '@/store/store';
 import { useJobBoards } from '@/cam/useJobBoards';
@@ -152,6 +152,22 @@ function BoardsStep() {
     });
   };
   const updateBoard = (b: BoardV1) => saveBoards(boards.map(x => (x.board.id === b.id ? b : x.board)));
+  // Job defaults affect inheriting boards only. A board already cut must keep the programs it was cut with.
+  const updateHoldingPlan = (next: PlanSettingsV1) => {
+    const cut = boards.find(({ board }) => {
+      if (!isCut(board)) return false;
+      return (
+        changesCutBoard(board, resolveBoardRetention(board, next.retentionDefaults)) ||
+        plan.skin !== next.skin ||
+        plan.tabFallback !== next.tabFallback
+      );
+    });
+    if (cut) {
+      toast.error(`Board ${cut.board.name} is already cut: start over before changing its retention or removal procedure.`);
+      return;
+    }
+    save.mutate({ ...job, plan: next });
+  };
   const byId = new Map(instances.map(i => [i.id, i]));
 
   const move = (itemId: string, boardId: string) => {
@@ -367,6 +383,20 @@ function BoardsStep() {
   );
 
   const tabs = boards.some(b => b.board.holdDown === 'tabs' || b.board.holdDown === 'tabs-guided');
+  const holding = planOf(sel)?.holding ?? [];
+  const unheld = holding.filter(h => h.how === 'unheld').length;
+  const exceptions = holding.filter(h => h.how !== 'placed' && h.how !== 'unheld').length;
+  const shortTabs = holding.filter(h => h.how === 'placed' && h.wanted).length;
+  const alertSummary =
+    [
+      selNest.unplaced.length > 0 && `${selNest.unplaced.length} parts don't fit`,
+      boardHoldOf(sel) === 'points' && selNest.nutAbove < 0 && 'Check bit stick-out',
+      unheld > 0 && `${unheld} parts need a holding choice`,
+      exceptions > 0 && `${exceptions} holding exceptions`,
+      shortTabs > 0 && `${shortTabs} parts have fewer tabs`,
+    ]
+      .filter(Boolean)
+      .join(' · ') || 'Review layout and holding details';
   const partArea = selected.nest.placements.length ? `Yield ${Math.round(selected.nest.yield * 100)} %` : '';
 
   return (
@@ -522,14 +552,12 @@ function BoardsStep() {
           }}
           onChange={updateBoard}
           alerts={alerts}
+          alertSummary={alertSummary}
           onRelayout={() => relayout(selected.board)}
           tabHold={{ fallback: plan.tabFallback, skin: plan.skin }}
-          onTabHold={h => save.mutate({ ...job, plan: { ...plan, tabFallback: h.fallback, skin: h.skin } })}
-          onHoldDownAll={
-            boards.some(b => holdLabel(b.board) !== holdLabel(selected.board))
-              ? () => saveBoards(boards.map(({ board }) => ({ ...board, ...holdSettingsOf(selected.board) })))
-              : undefined
-          }
+          onTabHold={h => updateHoldingPlan({ ...plan, tabFallback: h.fallback, skin: h.skin })}
+          jobRetention={plan.retentionDefaults}
+          onJobRetention={retentionDefaults => updateHoldingPlan({ ...plan, retentionDefaults })}
           flip={
             selected.board.flip || instances.some(i => selected.board.items.includes(i.id) && i.needsFlip)
               ? flipOf(selected.board, instances)

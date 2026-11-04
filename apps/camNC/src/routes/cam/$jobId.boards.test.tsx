@@ -81,6 +81,81 @@ async function openKinderregal() {
 }
 
 describe('CAM boards step', () => {
+  it('job defaults update inheriting settings while preserving board and part overrides', async () => {
+    const job = await openKinderregal();
+    await waitFor(async () => expect((await getJob(job.id))!.boards).toHaveLength(2));
+    await waitFor(() => expect(drawing('A').querySelector('[data-tab]')).toBeTruthy(), { timeout: 60_000 });
+    await openMenu('A', 'left');
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Bottom skin' }));
+    await waitFor(async () => expect(Object.values((await getJob(job.id))!.boards![0].tabFallbacks ?? {})).toContain('skin'));
+    const thickness = screen.getByLabelText('Stock thickness');
+    fireEvent.change(thickness, { target: { value: '8.4' } });
+    fireEvent.blur(thickness);
+    await waitFor(async () => expect((await getJob(job.id))!.boards![0].measuredThickness).toBe(8.4));
+    const original = (await getJob(job.id))!.boards!;
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Tape-assisted holding' }));
+    await waitFor(async () => {
+      const saved = (await getJob(job.id))!.boards!;
+      expect(saved.find(b => b.name === 'A')!.retentionSettings).toEqual({ tapeAssisted: true });
+      expect(saved.find(b => b.name === 'B')!.retentionSettings).toEqual({});
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit job settings' }));
+    let dialog = within(screen.getByRole('dialog', { name: 'Job settings' }));
+    fireEvent.click(dialog.getByRole('radio', { name: 'Bottom skin' }));
+    await waitFor(async () => expect((await getJob(job.id))!.plan?.retentionDefaults?.retention).toBe('skin'));
+    fireEvent.click(dialog.getByRole('checkbox', { name: 'Guide tab removal by default' }));
+    await waitFor(async () => expect((await getJob(job.id))!.plan?.retentionDefaults?.guidedRemoval).toBe(true));
+    fireEvent.click(dialog.getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect((screen.getByRole('radio', { name: 'Bottom skin' }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole('checkbox', { name: 'Tape-assisted holding' }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole('checkbox', { name: 'Guide tab removal' }) as HTMLInputElement).checked).toBe(true);
+
+    // An explicit primary-retention override on B survives later job changes too.
+    fireEvent.click(drawing('B'));
+    fireEvent.click(screen.getByRole('radio', { name: 'Tabs' }));
+    await waitFor(async () =>
+      expect((await getJob(job.id))!.boards!.find(b => b.name === 'B')!.retentionSettings).toEqual({ retention: 'tabs' })
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Edit job settings' }));
+    dialog = within(screen.getByRole('dialog', { name: 'Job settings' }));
+    fireEvent.click(dialog.getByRole('checkbox', { name: 'Tape-assisted holding by default' }));
+    await waitFor(async () => expect((await getJob(job.id))!.plan?.retentionDefaults?.tapeAssisted).toBe(true));
+    fireEvent.click(dialog.getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect((screen.getByRole('radio', { name: 'Tabs' }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole('checkbox', { name: 'Tape-assisted holding' }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole('checkbox', { name: 'Guide tab removal' }) as HTMLInputElement).checked).toBe(true);
+    const saved = (await getJob(job.id))!.boards!;
+    for (const before of original) {
+      const after = saved.find(b => b.id === before.id)!;
+      expect(after.items).toEqual(before.items);
+      expect(after.measuredThickness).toBe(before.measuredThickness);
+      expect(after.tabFallbacks).toEqual(before.tabFallbacks);
+    }
+  }, 90_000);
+
+  it('refuses job defaults that would change the retention of a partly cut board', async () => {
+    const job = await openKinderregal();
+    await waitFor(async () => expect((await getJob(job.id))!.boards).toHaveLength(2));
+    cleanup();
+    const saved = (await getJob(job.id))!;
+    const boards = saved.boards!.map(b => (b.name === 'A' ? { ...b, cut: { at: 1, keys: ['bit:0'] } } : b));
+    await saveJob({ ...saved, boards });
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <BoardsStep />
+      </QueryClientProvider>
+    );
+    await screen.findByRole('region', { name: 'Board A drawing' }, { timeout: 60_000 });
+    fireEvent.click(screen.getByRole('button', { name: 'Edit job settings' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Job settings' })).getByRole('radio', { name: 'Bottom skin' }));
+    expect(toastError).toHaveBeenLastCalledWith(expect.stringContaining('start over before changing'));
+    expect((await getJob(job.id))!.plan?.retentionDefaults).toBeUndefined();
+    expect((await getJob(job.id))!.boards).toEqual(boards);
+  }, 90_000);
+
   it('auto-fill keeps parts moved by hand, and Undo restores the boards exactly', async () => {
     const job = await openKinderregal();
 
@@ -182,12 +257,18 @@ describe('CAM boards step', () => {
       ]);
     });
 
-    // Screwed or clamped down by default: the holds are drawn on the board; taped down there are none.
+    // Tape supplements fastening and tabs: it must not remove the mechanical holds from the drawing.
     fireEvent.click(drawing('A'));
     const holdsOnA = () => screen.getByRole('region', { name: 'Board A drawing' }).querySelectorAll('[data-hold]').length;
     expect(holdsOnA()).toBeGreaterThanOrEqual(3);
-    fireEvent.click(screen.getByLabelText('Tape or fixture'));
-    await waitFor(() => expect(holdsOnA()).toBe(0));
+    const beforeHolds = holdsOnA();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Tape-assisted holding' }));
+    await waitFor(async () => {
+      const saved = (await getJob(job.id))!.boards!.find(b => b.name === 'A')!;
+      expect(saved.retentionSettings?.tapeAssisted).toBe(true);
+      expect(holdsOnA()).toBe(beforeHolds);
+      expect(saved.holdDown).toBe('tabs');
+    });
   }, 90_000);
 
   it('drags a part’s outline from one board drawing onto another, where it lands exactly at the drop point', async () => {
@@ -405,9 +486,14 @@ describe('CAM boards step', () => {
     const tray = await screen.findByRole('group', { name: 'Doesn’t fit on board C' }, { timeout: 10_000 });
     expect(within(tray).getByText('Part 2')).toBeTruthy();
     expect(within(drawing('C')).getByText('1 don’t fit')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Review board setup' }).textContent).toContain("1 parts don't fit");
+    fireEvent.click(screen.getByRole('button', { name: 'Review board setup' }));
     expect(screen.getByRole('alert').textContent).toMatch(/^Part 2 doesn’t fit on this board\./);
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 
     // Dragged from the tray back onto board A.
+    drawing('A').scrollIntoView({ block: 'center' });
     drag(tray.querySelector('[data-unplaced="Part 2"]')!, 'A');
     await waitFor(
       async () => {

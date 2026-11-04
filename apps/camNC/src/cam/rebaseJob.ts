@@ -22,7 +22,11 @@ function rebaseBoards(base: Boards, next: Boards, current: Boards): Boards {
   const kept = current.flatMap(b => {
     const [was, now] = [inBase.get(b.id), inNext.get(b.id)];
     if (was && !now) return [];
-    return [was && now ? rebaseFields(was, now, b) : b];
+    if (!was || !now) return [b];
+    const updated = rebaseFields(was, now, b);
+    if (!same(was.retentionSettings, now.retentionSettings) && now.retentionSettings && b.retentionSettings)
+      updated.retentionSettings = rebaseFields(was.retentionSettings ?? {}, now.retentionSettings, b.retentionSettings);
+    return [updated];
   });
   const known = new Set(current.map(b => b.id));
   return [...kept, ...next.filter(b => !inBase.has(b.id) && !known.has(b.id))];
@@ -39,6 +43,15 @@ export function rebaseJob(base: CamJobV1, next: CamJobV1, current: CamJobV1): Ca
   const { boards: nextBoards, ...nextRest } = next;
   const { boards: currentBoards, ...currentRest } = current;
   const rest = rebaseFields<Omit<CamJobV1, 'boards'>>(baseRest, nextRest, currentRest);
+  if (!same(base.plan, next.plan) && next.plan && current.plan) {
+    rest.plan = rebaseFields(base.plan ?? ({} as NonNullable<CamJobV1['plan']>), next.plan, current.plan);
+    if (!same(base.plan?.retentionDefaults, next.plan.retentionDefaults) && next.plan.retentionDefaults && current.plan.retentionDefaults)
+      rest.plan.retentionDefaults = rebaseFields(
+        base.plan?.retentionDefaults ?? {},
+        next.plan.retentionDefaults,
+        current.plan.retentionDefaults
+      );
+  }
   const boards = same(baseBoards, nextBoards)
     ? currentBoards
     : nextBoards && rebaseBoards(baseBoards ?? [], nextBoards, currentBoards ?? []);

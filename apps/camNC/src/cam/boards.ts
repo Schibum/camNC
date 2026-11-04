@@ -19,7 +19,7 @@ import {
 import { nestRects, placedSize, type NestResult, type Placement, type Rect } from '@wbcnc/cam/nest';
 import { autoNest, type NestObjective, type SheetPacker } from './autoNest';
 import type { BoardRequest, CamPartInfo } from './camTypes';
-import type { MaterialKey } from './planSettings';
+import { kDefaultRetention, type MaterialKey, type RetentionSettingsV1 } from './planSettings';
 
 export interface StockBoardV1 {
   id: string;
@@ -45,6 +45,11 @@ export interface BoardV1 {
    * parts keep a thin layer until the end: `fixture-tape`).
    */
   boardHold?: BoardHold;
+  /**
+   * Independent retention and removal settings. Presence opts into job inheritance (an empty object inherits all
+   * settings); absence keeps the exact legacy `holdDown` / `boardHold` machining behavior.
+   */
+  retentionSettings?: RetentionSettingsV1;
   /**
    * The hold points: screw or clamp and greatest spacing along an edge (mm). A screw: `d` its head's ⌀. A clamp: `d`
    * how far its toe reaches in from the edge, `w` its width along the edge. `height`: how far it stands above the stock's
@@ -172,6 +177,37 @@ export const partsHoldOf = (board: Pick<BoardV1, 'boardHold' | 'holdDown'>): Hol
       ? 'none'
       : board.holdDown;
 
+/** Effective retention settings, preserving legacy choices until the board explicitly adopts job inheritance. */
+export function retentionSettingsOf(
+  board: Pick<BoardV1, 'holdDown' | 'boardHold' | 'retentionSettings'>,
+  defaults: RetentionSettingsV1 = {}
+): Required<RetentionSettingsV1> {
+  if (board.retentionSettings !== undefined)
+    return {
+      retention: board.retentionSettings.retention ?? defaults.retention ?? kDefaultRetention.retention,
+      tapeAssisted: board.retentionSettings.tapeAssisted ?? defaults.tapeAssisted ?? kDefaultRetention.tapeAssisted,
+      guidedRemoval: board.retentionSettings.guidedRemoval ?? defaults.guidedRemoval ?? kDefaultRetention.guidedRemoval,
+    };
+  const hold = partsHoldOf(board);
+  return {
+    retention: hold === 'skin' || hold === 'fixture-tape' ? 'skin' : usesTabs(hold) ? 'tabs' : 'none',
+    // A legacy full-board fixture remains a separate strategy, not the weaker supplementary tape setting.
+    tapeAssisted: false,
+    guidedRemoval: hold === 'tabs-guided',
+  };
+}
+
+/** Resolve inherited choices before nesting and planning. Supplementary tape never changes primary retention. */
+export function resolveBoardRetention(board: BoardV1, defaults: RetentionSettingsV1 = {}): BoardV1 {
+  if (board.retentionSettings === undefined) return board;
+  const settings = retentionSettingsOf(board, defaults);
+  return {
+    ...board,
+    boardHold: 'points',
+    holdDown: settings.retention === 'tabs' && settings.guidedRemoval ? 'tabs-guided' : settings.retention,
+  };
+}
+
 /**
  * The stick-out to assume until it's measured: the deepest cut (through the stock, 0.3 mm into the spoilboard) plus
  * 10 mm, so the collet nut clears the board; at least the old fixed default.
@@ -204,6 +240,7 @@ export const nutAboveOf = (board: BoardV1, stickout?: number, cutBelow = 0.3) =>
 /** The board's hold-down settings, to copy to another board. */
 export const holdSettingsOf = (b: BoardV1): Partial<BoardV1> => ({
   holdDown: b.holdDown,
+  retentionSettings: b.retentionSettings && { ...b.retentionSettings },
   tabs: b.tabs,
   ...(b.boardHold && { boardHold: b.boardHold }),
   ...(b.holds && { holds: b.holds }),
@@ -211,10 +248,10 @@ export const holdSettingsOf = (b: BoardV1): Partial<BoardV1> => ({
 });
 
 /** "Tabs · screws", "Tape or fixture": the board list's short line. */
-export const holdLabel = (b: BoardV1) =>
+export const holdLabel = (b: BoardV1, defaults: RetentionSettingsV1 = {}) =>
   boardHoldOf(b) === 'tape'
     ? kBoardHoldLabels.tape
-    : `${kHoldDownLabels[partsHoldOf(b) as keyof typeof kHoldDownLabels]} · ${holdsOf(b).kind}s`;
+    : `${kHoldDownLabels[partsHoldOf(b) as keyof typeof kHoldDownLabels]} · ${holdsOf(b).kind}s${retentionSettingsOf(b, defaults).tapeAssisted ? ' · tape-assisted' : ''}`;
 
 export const kBoardHoldLabels: Record<BoardHold, string> = {
   points: 'Screws or clamps',
@@ -316,6 +353,7 @@ export function newBoard(
     material,
     size: { fit: true },
     holdDown: 'tabs',
+    retentionSettings: {},
     tabs: kDefaultTabs,
     items,
   };
@@ -649,7 +687,7 @@ export function boardRequest(
   board: BoardV1,
   nest: BoardNest,
   instances: PartInstance[],
-  hold: { tabFallback?: TabFallback; skin?: number } = {}
+  hold: { tabFallback?: TabFallback; skin?: number; tapeAssisted?: boolean } = {}
 ): BoardRequest {
   const byId = new Map(instances.map(i => [i.id, i]));
   return {
@@ -660,6 +698,7 @@ export function boardRequest(
     thickness: board.thickness,
     stockTop: stockTopOf(board),
     holdDown: partsHoldOf(board),
+    ...(hold.tapeAssisted && { tapeAssisted: true }),
     // Held by points: all of them, none too (then nothing holds it, which blocks the job, not "held at its edges").
     ...(boardHoldOf(board) === 'points' && { holdPoints: nest.holds }),
     tabs: board.tabs,

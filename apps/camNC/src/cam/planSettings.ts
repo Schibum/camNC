@@ -4,6 +4,24 @@ import { cuttingKey, resolveCutting, type CuttingData } from './cuttingData';
 
 export type MaterialKey = keyof typeof MATERIALS;
 
+/** The primary way parts stay attached while their outlines are cut. */
+export type PartRetention = 'tabs' | 'skin' | 'none';
+
+/** Job defaults or individual board overrides; missing board values inherit from the job. */
+export interface RetentionSettingsV1 {
+  retention?: PartRetention;
+  /** Supplemental holding, not a fixture guarantee or a substitute for tabs, skins or board fastening. */
+  tapeAssisted?: boolean;
+  /** Offer the guided tab removal program after the board is cut. */
+  guidedRemoval?: boolean;
+}
+
+export const kDefaultRetention: Required<RetentionSettingsV1> = {
+  retention: 'tabs',
+  tapeAssisted: false,
+  guidedRemoval: false,
+};
+
 /** What the Plan step lets you choose; stored with the job. */
 export interface PlanSettingsV1 {
   bit: LibraryTool;
@@ -24,6 +42,8 @@ export interface PlanSettingsV1 {
   tabFallback?: TabFallback;
   /** Bottom skin thickness, mm (default 1). */
   skin?: number;
+  /** Part retention and removal defaults for boards that opt into per-setting inheritance. */
+  retentionDefaults?: RetentionSettingsV1;
 }
 
 /** The built-in bit: no library values, so its cutting data shows as the defaults. */

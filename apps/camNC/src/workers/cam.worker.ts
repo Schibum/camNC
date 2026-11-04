@@ -172,7 +172,13 @@ const api = {
           ]).map(h => ({ x: h.x, y: h.y })),
         }
       : {};
-    plan = { ...plan, ...stability(flat, spec, settings), ...clashes, ...(release.length && { release }) };
+    plan = {
+      ...plan,
+      ...stability(flat, spec, settings),
+      ...clashes,
+      ...(release.length && { release }),
+      ...(board.tapeAssisted && { tapeAssisted: true }),
+    };
     // A skin (or the layer on the tape) holds every part until the end.
     if (board.holdDown === 'skin' || board.holdDown === 'fixture-tape')
       return {

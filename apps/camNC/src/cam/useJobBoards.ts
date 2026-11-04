@@ -1,5 +1,15 @@
 import { useMemo } from 'react';
-import { boardRequest, instancesOf, nestBoard, reconcileBoards, type BoardNest, type BoardV1, type PartInstance } from './boards';
+import {
+  boardRequest,
+  instancesOf,
+  nestBoard,
+  reconcileBoards,
+  resolveBoardRetention,
+  retentionSettingsOf,
+  type BoardNest,
+  type BoardV1,
+  type PartInstance,
+} from './boards';
 import type { BoardRequest, ModelImport } from './camTypes';
 import type { CamJobV1 } from './jobDb';
 import { kDefaultPlan } from './planSettings';
@@ -34,9 +44,18 @@ export function useJobBoards(job: CamJobV1 | null | undefined, model: ModelImpor
     return {
       instances,
       changed,
-      boards: boards.map(board => {
+      boards: boards.map(stored => {
+        const board = resolveBoardRetention(stored, plan.retentionDefaults);
         const nest = nestBoard(board, instances, plan.bit.diameter, { stickout: plan.bit.stickout });
-        return { board, nest, request: boardRequest(board, nest, instances, { tabFallback: plan.tabFallback, skin: plan.skin }) };
+        return {
+          board,
+          nest,
+          request: boardRequest(board, nest, instances, {
+            tabFallback: plan.tabFallback,
+            skin: plan.skin,
+            tapeAssisted: retentionSettingsOf(board, plan.retentionDefaults).tapeAssisted,
+          }),
+        };
       }),
     };
   }, [job, model]);

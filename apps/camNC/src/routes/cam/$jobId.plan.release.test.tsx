@@ -60,7 +60,7 @@ async function open(url: string, fileName: string, change: (b: BoardV1) => Board
     undefined,
     instancesOf(model.parts, () => true),
     'oak'
-  ).map(b => (b.name === 'A' ? change(b) : b));
+  ).map(b => (b.name === 'A' ? change({ ...b, retentionSettings: undefined }) : b));
   await saveJob({ ...job, boards });
   params.jobId = job.id;
   render(
@@ -145,6 +145,20 @@ describe('CAM plan step, the guided programs after the cutting', () => {
     const [cut] = (plans.last[0] as PlanResult).release!;
     expect(cut.pauses).toBe(0);
     expect(cut.safety).toEqual([]);
+  }, 120_000);
+
+  it('supplementary tape keeps tabs and guided operator pauses, and explains its limited role', async () => {
+    await open(stepUrl, 'kinderregal-eiche.step', b => ({
+      ...b,
+      retentionSettings: { retention: 'tabs', tapeAssisted: true, guidedRemoval: true },
+    }));
+    const list = await opList();
+    expect(row(list, /Remove the tabs/)).toBeTruthy();
+    const plan = plans.last[0] as PlanResult;
+    expect(plan.tapeAssisted).toBe(true);
+    expect(plan.taped).not.toBe(true);
+    expect(plan.release!.find(r => r.kind === 'tabs')!.pauses).toBeGreaterThan(0);
+    expect(screen.getByText(/Tape-assisted holding adds support/).textContent).toContain('operator pauses remain');
   }, 120_000);
 
   it('a flipped board: on side B, the board turned over, cutting from the new top; checked against that', async () => {

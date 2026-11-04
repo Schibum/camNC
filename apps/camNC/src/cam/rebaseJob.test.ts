@@ -58,4 +58,25 @@ describe('saving on top of the job as it is now', () => {
     const next = job([board('A', ['p'])]);
     expect(rebaseJob(noBoards, next, now).boards![0].items).toEqual(['q']);
   });
+
+  it('independent board retention edits from one render both survive', () => {
+    const before = job([board('A', ['p'], { retentionSettings: {} })]);
+    const taped = job([board('A', ['p'], { retentionSettings: { tapeAssisted: true } })]);
+    const guided = job([board('A', ['p'], { retentionSettings: { guidedRemoval: true } })]);
+    const out = rebaseJob(before, guided, taped);
+    expect(out.boards![0].retentionSettings).toEqual({ tapeAssisted: true, guidedRemoval: true });
+
+    const reset = job([board('A', ['p'], { retentionSettings: {} })]);
+    expect(rebaseJob(taped, reset, out).boards![0].retentionSettings).toEqual({ guidedRemoval: true });
+  });
+
+  it('job retention defaults merge independently without undoing a concurrent plan edit', () => {
+    const before = job([], { plan: { retentionDefaults: { retention: 'tabs' } } });
+    const taped = job([], { plan: { retentionDefaults: { retention: 'tabs', tapeAssisted: true }, skin: 0.8 } });
+    const guided = job([], { plan: { retentionDefaults: { retention: 'tabs', guidedRemoval: true } } });
+    expect(rebaseJob(before, guided, taped).plan).toEqual({
+      retentionDefaults: { retention: 'tabs', tapeAssisted: true, guidedRemoval: true },
+      skin: 0.8,
+    });
+  });
 });

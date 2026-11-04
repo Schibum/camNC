@@ -92,6 +92,23 @@ describe('the worker: holds on a real board with a second side', () => {
     expect(events[0].message).toMatch(/Nothing holds this board/);
   }, 120_000);
 
+  it('supplementary tape preserves mechanical-hold blockers, tab checks and guided-removal pauses', async () => {
+    const board: BoardV1 = { ...sheet, holdDown: 'tabs-guided' };
+    const plain = await plan(board, r => ({ ...r, holdPoints: [] }));
+    const assisted = await plan(board, r => ({ ...r, holdPoints: [], tapeAssisted: true }));
+    expect(assisted.tapeAssisted).toBe(true);
+    expect(assisted.taped).toBeUndefined();
+    expect(assisted.timeline).toEqual(plain.timeline);
+    expect(assisted.timeline?.some(e => e.kind === 'board' && e.block)).toBe(true);
+    expect(assisted.hold).toEqual(plain.hold);
+    expect(assisted.holding).toEqual(plain.holding);
+    expect(assisted.release).toEqual(plain.release);
+    const guided = await plan(board);
+    const guidedAssisted = await plan(board, r => ({ ...r, tapeAssisted: true }));
+    expect(guidedAssisted.release).toEqual(guided.release);
+    expect(guidedAssisted.release?.some(p => p.kind === 'tabs' && p.pauses > 0)).toBe(true);
+  }, 120_000);
+
   it('a clamp in the way: reported where it is on the board, from any program', async () => {
     const first = await plan(sheet);
     const [x, y] = readGcode(first.programs[0].gcode).find(m => !m.rapid && m.to[2] < first.size[2])!.to;

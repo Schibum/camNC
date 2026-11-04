@@ -574,6 +574,12 @@ function Checks({ plan, checked, releaseSafety }: { plan: PlanResult; checked: b
   const skins = (plan.holding ?? []).filter(h => h.how === 'skin');
   return (
     <div className="flex flex-col gap-1.5 text-[13px]">
+      {plan.tapeAssisted && (
+        <p className="text-muted-foreground">
+          Tape-assisted holding adds support and can ease final removal. Tabs, bottom skins, fastening checks and operator pauses remain in
+          effect.
+        </p>
+      )}
       {loose(plan).map(h => (
         <p key={h.part} className="flex gap-2 text-destructive">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" />

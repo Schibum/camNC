@@ -129,6 +129,8 @@ export interface PlanResult {
   skin?: number;
   /** The board is taped down: the skin is the layer on the tape, cut for all parts in one go at the end. */
   taped?: boolean;
+  /** Supplementary tape support; does not bypass primary retention checks or remove operator pauses. */
+  tapeAssisted?: boolean;
   /** The board's second side, after turning it over top to bottom: the programs for the parts' undersides. */
   sideB?: PlanResult;
   /** How side B lines up; for dowels, where the pins go (and why there's no room for them). */
@@ -151,6 +153,8 @@ export interface BoardRequest {
   /** The board turned over can lie at another angle than side A (camera registration); unset: as side A. */
   sideBRotationDeg?: number;
   holdDown: HoldDown;
+  /** Supplementary tape support alongside the primary retention and board fastening. */
+  tapeAssisted?: boolean;
   /** Where the board is screwed or clamped down (board frame). None: taped, or held at its edges. */
   holdPoints?: HoldPoint[];
   tabs: { width: number; height: number; minCount: number };

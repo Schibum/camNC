@@ -1,5 +1,5 @@
 import { TooltipProvider } from '@wbcnc/ui/components/tooltip';
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { kDefaultTabs, layoutSummary, type BoardNest, type BoardV1 } from './boards';
 import { BoardInspector } from './boards/BoardInspector';
@@ -63,13 +63,16 @@ describe('CAM controls explain themselves', () => {
         <BoardInspector board={board} nest={nest} stock={[]} bit={3.175} onChange={() => {}} onRelayout={() => {}} />
       </TooltipProvider>
     );
-    expect(description(screen.getByRole('radio', { name: 'Tape or fixture' }))).toMatch(/thin bottom skin/);
-    expect(description(screen.getByRole('radio', { name: 'Screws or clamps' }))).toMatch(/needs 3 around it/);
-    expect(description(screen.getByRole('radio', { name: 'Nothing (I watch them)' }))).toMatch(/free once its outline/);
+    expect(description(screen.getByRole('checkbox', { name: 'Tape-assisted holding' }))).toMatch(/less stable than mechanical fastening/);
+    expect(description(screen.getByRole('radio', { name: 'Screws' }))).toMatch(/needs 3 around it/);
+    expect(description(screen.getByRole('radio', { name: 'None (operator holds each part)' }))).toMatch(/free once its outline/);
+    fireEvent.click(screen.getByText(/Fastening details/, { selector: 'summary' }));
+    fireEvent.click(screen.getByText(/Stock & layout/, { selector: 'summary' }));
+    fireEvent.click(screen.getByText(/Tab dimensions & placement/, { selector: 'summary' }));
     expect(description(screen.getByLabelText('Size ⌀'))).toMatch(/screw head/);
     expect(description(screen.getByRole('radio', { name: 'Tabs' }))).toMatch(/bridges hold each part/);
-    expect(description(screen.getByRole('radio', { name: 'Tabs + guided removal' }))).toMatch(/stops at each tab/);
-    expect(description(screen.getByRole('radio', { name: 'Bottom skin + guided removal' }))).toMatch(/cuts them free one at a time/);
+    expect(description(screen.getByRole('checkbox', { name: 'Guide tab removal' }))).toMatch(/follow-up program stops at each part/);
+    expect(description(screen.getByRole('radio', { name: 'Bottom skin' }))).toMatch(/parts free one at a time/);
     expect(description(screen.getByLabelText('Edge margin'))).toMatch(/border inside the board edge/);
     expect(description(screen.getByLabelText('Gap between parts'))).toMatch(/outline cuts never meet/);
     expect(description(screen.getByLabelText('Stock thickness'))).toMatch(/caliper/);
@@ -86,12 +89,13 @@ describe('CAM controls explain themselves', () => {
         <BoardInspector board={board} nest={nest} stock={[]} bit={3.175} onChange={onChange} />
       </TooltipProvider>
     );
+    fireEvent.click(screen.getByRole('button', { name: 'Review board setup' }));
     expect(screen.getByText(/Too tight for tabs/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Widen for tabs' }));
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ margin: 6.7, gap: 10 }));
   });
 
-  it('the bottom skin hold-down: its thickness is set for the job, and a board can pass its hold-down to all', () => {
+  it('the bottom skin hold-down: its thickness is set for the job, and a board can pass its hold-down to all', async () => {
     const onTabHold = vi.fn();
     const onHoldDownAll = vi.fn();
     render(
@@ -108,13 +112,16 @@ describe('CAM controls explain themselves', () => {
         />
       </TooltipProvider>
     );
-    // No tabs on a skin board: no tab fields, no spacing warning.
-    expect(screen.queryByLabelText('Tab W')).toBeNull();
+    // Inactive controls stay mounted so an open disclosure cannot collapse the scroll extent.
+    expect(screen.getByLabelText('Tab W').matches(':disabled')).toBe(true);
     expect(screen.queryByText(/Too tight for tabs/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit job settings' }));
     const skin = screen.getByLabelText('Bottom skin (mm)');
     fireEvent.change(skin, { target: { value: '0.8' } });
     fireEvent.blur(skin);
     expect(onTabHold).toHaveBeenCalledWith({ skin: 0.8 });
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     fireEvent.click(screen.getByRole('button', { name: 'Use for all boards' }));
     expect(onHoldDownAll).toHaveBeenCalled();
   });
