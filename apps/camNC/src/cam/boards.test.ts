@@ -13,6 +13,7 @@ import {
   relayoutBoard,
   spacingProblem,
   edgeNote,
+  holdsOf,
   nutAboveOf,
   stockTopOf,
   type BoardV1,
@@ -332,6 +333,10 @@ describe('boards', () => {
     expect(nestBoard({ ...tabs, holds: { kind: 'clamp', d: 25 } }, parts, 3.175).margin).toBe(18);
     // The collet nut needs room beside a 30 mm clamp only while it gets that low: with the bit 45 mm out of the nut,
     // it stays above the clamp on the deepest cut (8.3 + 0.3) and only the bit's own clearance is left.
+    // Unset, the stick-out clears the deepest cut by 10 mm: the nut never starts out below the board.
+    expect(holdsOf({ ...tabs, thickness: 20 }).stickout).toBe(31);
+    expect(holdsOf({ ...tabs, thickness: 6 }).stickout).toBe(20);
+    expect(nutAboveOf({ ...tabs, thickness: 20 })).toBeGreaterThan(9);
     expect(nutAboveOf({ ...tabs, holds: { kind: 'clamp', d: 2, w: 20, height: 30, stickout: 45 } })).toBe(36.4);
     const long = nestBoard({ ...tabs, holds: { kind: 'clamp', d: 2, w: 20, height: 30, stickout: 45 } }, parts, 3.175);
     expect(long.margin).toBe(Math.ceil(2 + 1.5875 + 1.5 + 1.5875 + 1));

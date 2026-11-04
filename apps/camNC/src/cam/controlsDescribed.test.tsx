@@ -50,6 +50,7 @@ const nest: BoardNest = {
   keepOuts: [],
   holds: [],
   frame: 'kept',
+  frameWidth: 0,
   holdsMoved: false,
 };
 

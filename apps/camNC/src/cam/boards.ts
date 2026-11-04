@@ -129,7 +129,14 @@ export const partsHoldOf = (board: Pick<BoardV1, 'boardHold' | 'holdDown'>): Hol
       ? 'none'
       : board.holdDown;
 
-export const holdsOf = (board: Pick<BoardV1, 'holds'>) => {
+/**
+ * The stick-out to assume until it's measured: the deepest cut (through the stock, 0.3 mm into the spoilboard) plus
+ * 10 mm, so the collet nut clears the board; at least the old fixed default.
+ */
+export const defaultStickout = (board: Pick<BoardV1, 'thickness' | 'measuredThickness'>) =>
+  Math.max(kDefaultStickout, Math.ceil((board.measuredThickness ?? board.thickness + kStockAllowance) + 0.3 + 10));
+
+export const holdsOf = (board: Pick<BoardV1, 'holds' | 'thickness' | 'measuredThickness'>) => {
   const kind = board.holds?.kind ?? ('screw' as HoldKind);
   // Clamps saved before they had a width were sized as a round toe: start them afresh.
   const old = kind === 'clamp' && board.holds?.w === undefined;
@@ -139,7 +146,7 @@ export const holdsOf = (board: Pick<BoardV1, 'holds'>) => {
     ...(kind === 'clamp' && { w: board.holds?.w ?? kClampWidth }),
     height: board.holds?.height ?? kHoldHeights[kind],
     spacing: board.holds?.spacing ?? kHoldSpacing,
-    stickout: board.holds?.stickout ?? kDefaultStickout,
+    stickout: board.holds?.stickout ?? defaultStickout(board),
   };
 };
 
@@ -316,6 +323,8 @@ export interface BoardNest extends NestResult {
   holds: HoldPoint[];
   /** A frame of stock for the holds around the parts: kept, off, or left out because the parts don't fit with it. */
   frame: 'kept' | 'off' | 'no-room';
+  /** How wide the frame is, or would be when left out for lack of room, mm. */
+  frameWidth: number;
   /** The holds are the ones the user moved, not suggested. */
   holdsMoved: boolean;
 }
@@ -494,6 +503,7 @@ export function nestBoard(
     keepOuts,
     holds,
     frame,
+    frameWidth: framed,
     holdsMoved: !!moved,
   };
 }

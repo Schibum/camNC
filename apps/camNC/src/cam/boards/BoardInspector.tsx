@@ -410,7 +410,13 @@ export function BoardInspector({
                 min={1}
               />
             </div>
-            <HoldDiagram hold={hold} bit={bit} stockTop={stockTopOf(board)} nutAbove={nutAboveOf(board)} />
+            <HoldDiagram
+              hold={hold}
+              bit={bit}
+              stockTop={stockTopOf(board)}
+              nutAbove={nutAboveOf(board)}
+              leftOut={nest.frame === 'no-room'}
+            />
             <Hint
               text="A border of stock around all parts, wide enough for the holds: the board can never fall apart into pieces, and every tab lands in held stock. Left out on a fixed size board when the parts don't fit with it."
               id="hold-frame-hint"

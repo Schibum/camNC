@@ -14,7 +14,18 @@ import {
 import { cn } from '@wbcnc/ui/lib/utils';
 import { Check, GripVertical, MoreHorizontal, Pin, PinOff, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { boardHoldOf, boardSizeLabel, holdLabel, type BoardV1, type PartInstance, type StockBoardV1 } from '../boards';
+import { nutReaches } from '@wbcnc/cam/holdPoints';
+import {
+  boardHoldOf,
+  boardSizeLabel,
+  holdLabel,
+  holdsOf,
+  nutAboveOf,
+  stockTopOf,
+  type BoardV1,
+  type PartInstance,
+  type StockBoardV1,
+} from '../boards';
 import type { PlanResult } from '../camTypes';
 import { Hint } from '../Hint';
 import { numberProblem, parseDecimal } from '../numberFormat';
@@ -141,6 +152,11 @@ export function BoardList({
               {holdLabel(board)} · {bits.length || 1} {bits.length > 1 ? 'bits' : 'bit'}
               {nest.unplaced.length > 0 && <span className="text-destructive"> · {nest.unplaced.length} don’t fit</span>}
             </span>
+            {boardHoldOf(board) === 'points' && nutAboveOf(board) < 0 && (
+              <span role="alert" className="text-xs text-destructive">
+                {`The stick-out (${holdsOf(board).stickout} mm) is shorter than the deepest cut (${+(stockTopOf(board) + 0.3).toFixed(1)} mm): the collet nut would hit the board. Check it in the board's settings.`}
+              </span>
+            )}
             {usesTabs(board.holdDown) && (
               <HoldingNotes
                 holding={plans[i]?.holding}
@@ -148,6 +164,11 @@ export function BoardList({
                 itemOf={name => board.items.find(id => byId.get(id)?.name === name)}
                 onFallback={(ids, f) =>
                   onBoardChange({ ...board, tabFallbacks: { ...board.tabFallbacks, ...Object.fromEntries(ids.map(id => [id, f])) } })
+                }
+                noFrame={
+                  nest.frame === 'no-room'
+                    ? { width: nest.frameWidth, nut: nutReaches({ ...holdsOf(board), nutAbove: nutAboveOf(board) }) }
+                    : undefined
                 }
                 onFrame={
                   boardHoldOf(board) === 'points' && board.frame === false ? () => onBoardChange({ ...board, frame: true }) : undefined
@@ -440,6 +461,7 @@ export function HoldingNotes({
   itemOf,
   onFallback,
   onFrame,
+  noFrame,
 }: {
   holding: PlanResult['holding'];
   board: BoardV1;
@@ -449,6 +471,8 @@ export function HoldingNotes({
   onFallback: (itemIds: string[], f: TabFallback) => void;
   /** Turns the frame on, when it's off: the usual reason tabs have nothing to hold on to. */
   onFrame?: () => void;
+  /** The frame was left out: the parts don't fit this board with it. Its width, and whether room for the nut is in it. */
+  noFrame?: { width: number; nut: boolean };
 }) {
   const all = holding ?? [];
   const unheld = all.filter(h => h.how === 'unheld').map(h => h.name);
@@ -463,6 +487,11 @@ export function HoldingNotes({
     <ul aria-label={`Tabs on board ${board.name}`} className="flex flex-col gap-1 text-xs">
       {unheld.length > 0 && (
         <li className="flex flex-col gap-1 text-destructive" onClick={e => e.stopPropagation()}>
+          {noFrame && (
+            <span>
+              {`The frame for the holds (${fmt(noFrame.width)} mm${noFrame.nut ? ', with room for the collet nut' : ''}) doesn't fit on this board with all the parts, so it was left out. Without it, the board's edge is too close for tabs. A larger board, fewer parts on it${noFrame.nut ? ', or a stick-out long enough for the nut to clear the holds (see the drawing)' : ''} brings it back.`}
+            </span>
+          )}
           <span>
             {`${names(unheld)} ${one ? 'has' : 'have'} no two opposite edges where tabs would hold ${one ? 'it' : 'them'}, so ${
               one ? 'it' : 'they'

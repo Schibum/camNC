@@ -15,11 +15,14 @@ export function HoldDiagram({
   bit,
   stockTop,
   nutAbove,
+  leftOut,
 }: {
   hold: { kind: HoldKind; d: number; w?: number; height: number; stickout: number; spacing: number };
   bit: number;
   stockTop: number;
   nutAbove: number;
+  /** The board has no room for the frame with its parts, so it was left out. */
+  leftOut?: boolean;
 }) {
   const clamp = hold.kind === 'clamp';
   const h = { ...hold, nutAbove };
@@ -145,8 +148,12 @@ export function HoldDiagram({
         <text x={X(reach) + 3} y={dimY - 6} textAnchor="start" className={label}>
           {nut ? `nut room ${fmt(keep)}` : fmt(keep)}
         </text>
-        <text x={(X(0) + X(margin)) / 2} y={Y(yMin) + 24} textAnchor="middle" className="fill-foreground text-[11px] font-medium">
-          frame {margin} mm
+        <text
+          x={leftOut ? X(0) : (X(0) + X(margin)) / 2}
+          y={Y(yMin) + 24}
+          textAnchor={leftOut ? 'start' : 'middle'}
+          className={leftOut ? 'fill-destructive text-[11px] font-medium' : 'fill-foreground text-[11px] font-medium'}>
+          {leftOut ? `frame ${margin} mm: no room, left out` : `frame ${margin} mm`}
         </text>
         <text x={X(xMin) - 8} y={(holdTop + top) / 2 + 4} textAnchor="end" className={label}>
           {fmt(hold.height)}

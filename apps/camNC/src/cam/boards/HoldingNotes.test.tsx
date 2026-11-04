@@ -83,4 +83,21 @@ describe('tab notes per part', () => {
       screen.getByText(/Part 7 has no two opposite edges where tabs would hold it, so it would come loose. The job waits until you choose:/)
     ).toBeTruthy();
   });
+
+  it('says when the frame was left out for lack of room, and what brings it back', () => {
+    render(
+      <HoldingNotes
+        board={board}
+        itemOf={() => 'i7'}
+        onFallback={() => {}}
+        noFrame={{ width: 19, nut: true }}
+        holding={[{ name: 'Part 7', how: 'unheld', tabs: 0 }]}
+      />
+    );
+    expect(
+      screen.getByText(/The frame for the holds \(19 mm, with room for the collet nut\) doesn't fit on this board with all the parts/)
+    ).toBeTruthy();
+    expect(screen.getByText(/a stick-out long enough for the nut to clear the holds/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Keep a frame' })).toBeNull();
+  });
 });
