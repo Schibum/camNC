@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { kDefaultTabs, type BoardV1 } from '../boards';
-import { HoldingNotes } from './BoardList';
+import { HoldingNotes } from './HoldingNotes';
 
 const board: BoardV1 = {
   id: 'b',

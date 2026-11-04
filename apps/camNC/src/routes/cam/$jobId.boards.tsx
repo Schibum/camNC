@@ -4,23 +4,32 @@ import { CamPage } from '@/cam/CamPage';
 import { NoPartsToMill } from '@/cam/NoPartsToMill';
 import {
   autoFillFromStock,
+  boardHoldOf,
   changesCutBoard,
   cutLabel,
   dropPart,
   flipOf,
   holdLabel,
   holdSettingsOf,
+  holdsOf,
   isCut,
   layoutSummary,
   newBoard,
   relayoutBoard,
+  stockTopOf,
   type BoardV1,
   type PartDrop,
   type PartPosition,
 } from '@/cam/boards';
 import { BoardDrawings } from '@/cam/boards/BoardDrawings';
 import { BoardInspector } from '@/cam/boards/BoardInspector';
-import { BoardList } from '@/cam/boards/BoardList';
+import { HoldingNotes } from '@/cam/boards/HoldingNotes';
+import type { PartMenuProps } from '@/cam/boards/PartMenu';
+import { StockPopover } from '@/cam/boards/StockList';
+import type { JobBoard } from '@/cam/useJobBoards';
+import type { TabFallback } from '@wbcnc/cam';
+import { usesTabs } from '@wbcnc/cam/board';
+import { nutReaches } from '@wbcnc/cam/holdPoints';
 import { BitChip } from '@/cam/plan/BitPicker';
 import { camKeys, useBoardPlans, useCamJob, useCamModel, useSaveCamJob } from '@/cam/camQueries';
 import type { CamJobV1 } from '@/cam/jobDb';
@@ -283,42 +292,88 @@ function BoardsStep() {
     setSelectedId(b.id);
   };
 
+  const setTabFallback = (itemId: string, f: TabFallback | undefined) =>
+    saveBoards(
+      boards.map(({ board }) => {
+        if (!board.items.includes(itemId)) return board;
+        const own = { ...board.tabFallbacks };
+        if (f) own[itemId] = f;
+        else delete own[itemId];
+        return { ...board, tabFallbacks: own };
+      })
+    );
+  const planOf = (board: BoardV1) => plans[boards.findIndex(b => b.board.id === board.id)]?.data;
+  /** A body's menu on the drawings: move it, unpin it, what holds it where tabs can't. */
+  const partMenu = ({ board }: JobBoard, id: string): PartMenuProps => {
+    const name = byId.get(id)?.name ?? id;
+    return {
+      name,
+      targets: boards.filter(b => b.board.id !== board.id && b.board.thickness === board.thickness).map(b => b.board),
+      onMoveTo: target => (target === 'new' ? toNewBoard(id) : void move(id, target)),
+      pinned: !!board.pinned?.includes(id),
+      onUnpin: () => unpin(id),
+      holding: usesTabs(board.holdDown) ? planOf(board)?.holding?.find(h => h.name === name)?.how : undefined,
+      fallback: board.tabFallbacks?.[id],
+      onFallback: f => setTabFallback(id, f),
+      onTabsReset: board.tabsAt?.[id]
+        ? () => {
+            const rest = { ...board.tabsAt };
+            delete rest[id];
+            updateBoard({ ...board, tabsAt: Object.keys(rest).length ? rest : undefined });
+          }
+        : undefined,
+    };
+  };
+  // What needs a choice on the selected board: in its settings. The drawings' headers say which board has some.
+  const sel = selected.board,
+    selNest = selected.nest;
+  const unplacedNames = selNest.unplaced.map(id => byId.get(id)?.name ?? id);
+  const alerts = (
+    <>
+      {unplacedNames.length > 0 && (
+        <p role="alert" className="text-xs text-destructive">
+          {`${unplacedNames.join(', ')} ${unplacedNames.length === 1 ? 'doesn’t' : 'don’t'} fit on this board. Drag ${
+            unplacedNames.length === 1 ? 'it' : 'them'
+          } from under its drawing onto another ${sel.thickness} mm board or onto “New board”, or make this board larger.`}
+        </p>
+      )}
+      {boardHoldOf(sel) === 'points' && selNest.nutAbove < 0 && (
+        <p role="alert" className="text-xs text-destructive">
+          {`The bit's stick-out (${selNest.stickout} mm) is shorter than the deepest cut (${+(stockTopOf(sel) + 0.3).toFixed(1)} mm): the collet nut would hit the board. Check it below or with the bit.`}
+        </p>
+      )}
+      {usesTabs(sel.holdDown) && (
+        <HoldingNotes
+          holding={planOf(sel)?.holding}
+          board={sel}
+          itemOf={name => sel.items.find(id => byId.get(id)?.name === name)}
+          onFallback={(ids, f) =>
+            updateBoard({ ...sel, tabFallbacks: { ...sel.tabFallbacks, ...Object.fromEntries(ids.map(id => [id, f])) } })
+          }
+          noFrame={
+            selNest.frame === 'no-room'
+              ? { width: selNest.frameWidth, nut: nutReaches({ ...holdsOf(sel, selNest.stickout), nutAbove: selNest.nutAbove }) }
+              : undefined
+          }
+          onFrame={boardHoldOf(sel) === 'points' && sel.frame === false ? () => updateBoard({ ...sel, frame: true }) : undefined}
+        />
+      )}
+    </>
+  );
+
   const tabs = boards.some(b => b.board.holdDown === 'tabs' || b.board.holdDown === 'tabs-guided');
   const partArea = selected.nest.placements.length ? `Yield ${Math.round(selected.nest.yield * 100)} %` : '';
 
   return (
     <Shell bar={bar}>
-      <div className="grid flex-1 grid-cols-1 md:min-h-0 md:grid-cols-[320px_1fr_300px]">
-        <BoardList
-          boards={boards}
-          instances={instances}
-          plans={plans.map(p => p.data)}
-          selectedId={selected.board.id}
-          onSelect={setSelectedId}
-          onMove={move}
-          onNewBoard={toNewBoard}
-          onUnpin={unpin}
-          onTabFallback={(itemId, f) =>
-            saveBoards(
-              boards.map(({ board }) => {
-                if (!board.items.includes(itemId)) return board;
-                const own = { ...board.tabFallbacks };
-                if (f) own[itemId] = f;
-                else delete own[itemId];
-                return { ...board, tabFallbacks: own };
-              })
-            )
-          }
-          onBoardChange={updateBoard}
-          stock={job.stock ?? []}
-          onStockChange={stock => save.mutate({ ...job, stock })}
-        />
+      <div className="grid flex-1 grid-cols-1 md:min-h-0 md:grid-cols-[1fr_300px]">
         <main className="flex min-h-[320px] min-w-0 flex-col bg-muted/30">
           <div className="flex flex-wrap items-center gap-2 px-4 py-3">
             <span className="font-medium">Nest</span>
             <Button size="sm" variant="outline" onClick={addBoard}>
               <Plus /> New {selected.board.thickness} mm board
             </Button>
+            <StockPopover stock={job.stock ?? []} onChange={stock => save.mutate({ ...job, stock })} />
             <div className="flex">
               <Hint text="Puts the parts on boards from your stock list. Parts you moved by hand stay where they are.">
                 <Button size="sm" variant="outline" className="rounded-r-none" onClick={() => autoFill()}>
@@ -396,7 +451,7 @@ function BoardsStep() {
             selectedId={selected.board.id}
             onSelect={setSelectedId}
             onDrop={dropOn}
-            onMove={move}
+            partMenu={partMenu}
             onNewBoard={toNewBoard}
             onNudge={nudge}
             onHoldsMove={(id, holdPoints) => {
@@ -461,6 +516,7 @@ function BoardsStep() {
             });
           }}
           onChange={updateBoard}
+          alerts={alerts}
           onRelayout={() => relayout(selected.board)}
           tabHold={{ fallback: plan.tabFallback, skin: plan.skin }}
           onTabHold={h => save.mutate({ ...job, plan: { ...plan, tabFallback: h.fallback, skin: h.skin } })}

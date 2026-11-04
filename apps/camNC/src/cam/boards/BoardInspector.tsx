@@ -119,6 +119,7 @@ export function BoardInspector({
   onChange,
   onRelayout,
   onDelete,
+  alerts,
   flip,
   tabHold,
   onTabHold,
@@ -141,6 +142,8 @@ export function BoardInspector({
   /** Nest this board's parts afresh: unpins them and forgets where they were put by hand. */
   onRelayout?: () => void;
   onDelete?: () => void;
+  /** What needs a choice on this board (parts that don't fit, tabs that can't hold, the collet nut): under its title. */
+  alerts?: React.ReactNode;
 }) {
   const matching = stock.filter(s => +s.thickness.toFixed(1) === board.thickness);
   const sizeValue = board.size.fit
@@ -174,6 +177,7 @@ export function BoardInspector({
           </Hint>
         )}
       </div>
+      {alerts}
       <div className="grid grid-cols-2 gap-2">
         <NumberField
           id="board-w"

@@ -33,6 +33,7 @@ export function NestView({
   onPartPointerDown,
   onPartKeyDown,
   onPartFocus,
+  onPartContextMenu,
   onHoldsChange,
   onTabsChange,
 }: {
@@ -55,6 +56,8 @@ export function NestView({
   /** Arrow keys on a focused body. */
   onPartKeyDown?: (item: string, e: React.KeyboardEvent) => void;
   onPartFocus?: (item: string) => void;
+  /** Right-click on a body: its menu. */
+  onPartContextMenu?: (item: string, e: React.MouseEvent) => void;
   /** A hold point dragged to a new spot: all of the board's hold points, board frame (mm). */
   onHoldsChange?: (points: { x: number; y: number }[]) => void;
   /** A tab dragged along a part's outline: all of that body's tabs (instance id), part frame (mm). */
@@ -191,11 +194,12 @@ export function NestView({
               data-item={p.id}
               role={interactive ? 'button' : undefined}
               tabIndex={interactive ? 0 : undefined}
-              aria-label={interactive ? `${inst.name}: drag, or move with the arrow keys` : undefined}
+              aria-label={interactive ? `${inst.name}: drag, or move with the arrow keys; Enter opens its menu` : undefined}
               onPointerDown={onPartPointerDown && (e => onPartPointerDown(p.id, e))}
               onDoubleClick={onTabsChange && plan?.hold?.some(x => x.part === inst.name) ? e => addTab(inst.name, e) : undefined}
               onKeyDown={onPartKeyDown && (e => onPartKeyDown(p.id, e))}
               onFocus={onPartFocus && (() => onPartFocus(p.id))}
+              onContextMenu={onPartContextMenu && (e => onPartContextMenu(p.id, e))}
               className={cn(
                 interactive && 'cursor-grab outline-none active:cursor-grabbing [&:focus-visible>path:first-child]:stroke-primary',
                 dragging === p.id && 'opacity-30'
