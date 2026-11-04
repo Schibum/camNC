@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PlanResult, ReleaseProgram } from '../camTypes';
 import type { JobBoard } from '../useJobBoards';
 import { boardBlock, planBlock } from '../boardBlock';
@@ -15,6 +15,7 @@ import {
   rotationKey,
   takeOutAt,
   useCamMachine,
+  type BoardOverlay,
 } from './camMachine';
 
 const plan = (bits: number[]): PlanResult =>
@@ -342,6 +343,61 @@ describe('machine queue', () => {
     expect(useCamMachine.getState().pauseEachTab).toBe(true);
     useCamMachine.getState().setPauseEachTab(false);
     localStorage.removeItem('camnc-cam-machine');
+  });
+});
+
+describe('what’s saved of the overlay', () => {
+  const kKey = 'camnc-cam-machine';
+  const big = {
+    w: 100,
+    h: 50,
+    rotationDeg: 0,
+    tabs: [{ x: 1, y: 2 }],
+    path: [Array.from({ length: 1000 }, (_, i): [number, number, number] => [i, i, 0])],
+    parts: [{ name: 'part', shapes: [{ outline: [[0, 0] as [number, number]], holes: [] }], pockets: [] }],
+  } as unknown as BoardOverlay;
+  const saved = () => JSON.parse(localStorage.getItem(kKey)!).state.overlay;
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    useCamMachine.getState().setOverlay(null);
+    localStorage.removeItem(kKey);
+  });
+
+  it('keeps the path and parts on screen, but out of storage', () => {
+    useCamMachine.getState().setOverlay(big);
+    expect(useCamMachine.getState().overlay).toBe(big);
+    expect(saved()).toEqual({ w: 100, h: 50, rotationDeg: 0, tabs: [{ x: 1, y: 2 }] });
+  });
+
+  it('a save that doesn’t fit doesn’t throw, and what’s on screen still changes', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('exceeded the quota', 'QuotaExceededError');
+    });
+    expect(() => useCamMachine.getState().setOverlay(big)).not.toThrow();
+    expect(useCamMachine.getState().overlay).toBe(big);
+    expect(warn).toHaveBeenCalled();
+  });
+
+  it('frees what a browser already saved of them when the app starts', async () => {
+    // As large as this browser takes: its storage is full.
+    for (let size = 6e6; ; size -= 1e5) {
+      const overlay = { ...big, path: 'x'.repeat(size) };
+      try {
+        localStorage.setItem(kKey, JSON.stringify({ state: { jobId: 'job', done: ['A:bit:0#x'], overlay }, version: 1 }));
+        break;
+      } catch {
+        // Too large, a bit less.
+      }
+    }
+    expect(() => localStorage.setItem('camnc-test-full', 'x'.repeat(2e5))).toThrow();
+    await useCamMachine.persist.rehydrate();
+    localStorage.setItem('camnc-test-full', 'x'.repeat(2e5));
+    localStorage.removeItem('camnc-test-full');
+    expect(saved()).toEqual({ w: 100, h: 50, rotationDeg: 0, tabs: [{ x: 1, y: 2 }] });
+    expect(JSON.parse(localStorage.getItem(kKey)!)).toMatchObject({ version: 2, state: { jobId: 'job', done: ['A:bit:0#x'] } });
+    useCamMachine.getState().leave();
   });
 });
 

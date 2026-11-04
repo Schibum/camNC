@@ -1,7 +1,7 @@
 import type { SpindleSwitch } from '@wbcnc/cam';
 import { orderBoardQueue } from '@wbcnc/cam/board';
 import { create } from 'zustand';
-import { combine, persist } from 'zustand/middleware';
+import { combine, createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 import type { TabStop } from '@wbcnc/cam';
 import type { HoldPoint } from '@wbcnc/cam/holdPoints';
 import { boardBlock, type BlockContext } from '../boardBlock';
@@ -43,6 +43,19 @@ export interface BoardOverlay {
   parts?: GhostPart[];
 }
 
+/** A save that doesn't fit costs what's kept over a reload, never what's on screen: it must not throw into the UI. */
+const forgivingLocalStorage: StateStorage = {
+  getItem: name => localStorage.getItem(name),
+  setItem: (name, value) => {
+    try {
+      localStorage.setItem(name, value);
+    } catch (e) {
+      console.warn(`Couldn't save ${name}`, e);
+    }
+  },
+  removeItem: name => localStorage.removeItem(name),
+};
+
 /** The CAM job being cut at the machine: which program is loaded, what's done, how each board lies on the bed. */
 export const useCamMachine = create(
   persist(
@@ -82,8 +95,13 @@ export const useCamMachine = create(
       name: 'camnc-cam-machine',
       // Version 1: once per part became the default, with the hand off the part while tabs are cut. Browsers saved the old
       // default without anyone choosing it.
-      version: 1,
+      // Version 2: the overlay's path and parts aren't saved. A migration writes the state back, which frees what browsers
+      // already saved of them (megabytes, up to a full quota).
+      version: 2,
       migrate: (saved, version) => (version < 1 ? { ...(saved as object), pauseEachTab: false } : saved) as never,
+      storage: createJSONStorage(() => forgivingLocalStorage),
+      // The path and parts are megabytes, and made again from the job when the entry is shown after a reload.
+      partialize: state => ({ ...state, overlay: state.overlay && { ...state.overlay, path: undefined, parts: undefined } }),
     }
   )
 );
