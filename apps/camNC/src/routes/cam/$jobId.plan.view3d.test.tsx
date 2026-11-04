@@ -70,7 +70,7 @@ describe('CAM plan step, 3D view', () => {
     await quiet();
     for (const change of [
       () => within(within(view).getByRole('group', { name: 'View' })).getByRole('button', { name: 'Top' }),
-      () => within(view).getByRole('button', { name: 'Compare to model' }),
+      () => within(within(view).getByRole('group', { name: 'Show' })).getByRole('button', { name: 'Compare' }),
       () => within(view).getByRole('button', { name: 'Play' }),
     ]) {
       const before = draws.mock.calls.length;
@@ -156,13 +156,12 @@ describe('CAM plan step, 3D view', () => {
     // Every toggle and icon-only button says what it does.
     for (const name of [
       'Result',
+      'Compare',
       'Toolpath',
       '3D',
       'Top',
-      'Perspective',
       'Orthographic',
       'See through',
-      'Compare to model',
       'Show the whole board',
       'Play',
       'Pause',
@@ -185,23 +184,36 @@ describe('CAM plan step, 3D view', () => {
     fireEvent.click(within(view).getByRole('button', { name: 'Rapids' }));
     expect(usePlan3dView.getState().showRapids).toBe(false);
 
-    // Top view: orthographic unless changed; the projection toggle is per view.
-    const camera = within(view).getByRole('group', { name: 'View' });
-    // Result mode: colour the cut against the model, with a legend.
-    fireEvent.click(within(view).getByRole('button', { name: 'Result' }));
-    const compare = within(view).getByRole('button', { name: 'Compare to model' });
-    fireEvent.click(compare);
+    // Toolpath always shows through the board: no See through toggle there.
+    expect(within(view).queryByRole('button', { name: 'See through' })).toBeNull();
+
+    // Compare: the cut against the model, with a legend and the timeline; no See through or Rapids.
+    fireEvent.click(within(show).getByRole('button', { name: 'Compare' }));
+    expect(view.dataset.mode).toBe('compare');
     expect(within(view).getByRole('note', { name: 'Compared to the model' }).textContent).toMatch(
       /As designed.*Material left.*Cut too deep/
     );
-    fireEvent.click(compare);
-    fireEvent.click(within(view).getByRole('button', { name: 'Toolpath' }));
-    const projection = within(view).getByRole('group', { name: 'Projection' });
-    expect(pressed(projection)).toEqual(['Perspective']);
+    expect(within(view).getByRole('slider', { name: 'Playhead' })).toBeTruthy();
+    expect(within(view).queryByRole('button', { name: 'See through' })).toBeNull();
+    expect(within(view).queryByRole('button', { name: 'Rapids' })).toBeNull();
+    // Back to Toolpath: nothing of Compare is left on.
+    fireEvent.click(within(show).getByRole('button', { name: 'Toolpath' }));
+    expect(within(view).queryByRole('note', { name: 'Compared to the model' })).toBeNull();
+
+    // Camera: 3D can be orthographic; Top always is, so the toggle is only there in 3D.
+    const camera = within(view).getByRole('group', { name: 'View' });
+    const ortho = within(view).getByRole('button', { name: 'Orthographic' });
+    expect(ortho.getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(ortho);
+    expect(usePlan3dView.getState().ortho3d).toBe(true);
     fireEvent.click(within(camera).getByRole('button', { name: 'Top' }));
-    expect(pressed(projection)).toEqual(['Orthographic']);
+    expect(within(view).queryByRole('button', { name: 'Orthographic' })).toBeNull();
+
+    // Result: See through is its own toggle.
+    fireEvent.click(within(show).getByRole('button', { name: 'Result' }));
     fireEvent.click(within(view).getByRole('button', { name: 'See through' }));
     expect(within(view).getByRole('button', { name: 'See through' }).getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(within(show).getByRole('button', { name: 'Toolpath' }));
 
     // Remembered.
     expect(JSON.parse(localStorage.getItem('camnc-plan-3d-view')!).state).toMatchObject({
