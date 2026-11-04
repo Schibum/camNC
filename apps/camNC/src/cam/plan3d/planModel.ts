@@ -42,13 +42,14 @@ export interface PlanModel {
 }
 
 /** Toolpath point ranges per operation, from the `(OP i/n <name> - T<n> D=<d>)` markers the program carries. */
-export function opRanges(gcode: string, toolpath: ParsedToolpath): { from: number; to: number }[] {
-  const markers: number[] = [];
+export function opRanges(gcode: string, toolpath: ParsedToolpath): { from: number; to: number; tool: number }[] {
+  const markers: { line: number; tool: number }[] = [];
   gcode.split('\n').forEach((l, i) => {
-    if (/^\(OP \d+\/\d+ .+ - T\d+ D=[\d.]+\)$/.test(l)) markers.push(i + 1);
+    const marker = /^\(OP \d+\/\d+ .+ - T(\d+) D=[\d.]+\)$/.exec(l);
+    if (marker) markers.push({ line: i + 1, tool: +marker[1] });
   });
-  return markers.map((line, k) => {
-    const next = markers[k + 1] ?? Infinity;
+  return markers.map(({ line, tool }, k) => {
+    const next = markers[k + 1]?.line ?? Infinity;
     let from = -1;
     let to = -1;
     toolpath.lines.forEach((l, i) => {
@@ -57,7 +58,7 @@ export function opRanges(gcode: string, toolpath: ParsedToolpath): { from: numbe
         to = i;
       }
     });
-    return { from: Math.max(1, from), to: Math.max(from, to, 1) };
+    return { from: Math.max(1, from), to: Math.max(from, to, 1), tool };
   });
 }
 
@@ -84,15 +85,17 @@ export function buildPlanModel(plan: PlanResult, release: ReleaseProgram[] = [])
   const { times, total } = getJobTimeline(toolpath);
   const groups = groupOps(summaries).map((g, n) => ({ ...g, color: opColor(n) }));
   const groupOf = new Map(groups.flatMap((g, n) => g.members.map(m => [m, n] as const)));
-  const ops = opRanges(gcode, toolpath)
-    .slice(0, summaries.length)
-    .map((r, index) => ({
-      index,
-      ...r,
-      start: times[r.from - 1] ?? 0,
-      end: times[r.to] ?? total,
-      group: groupOf.get(index) ?? 0,
-    }));
+  const ranges = opRanges(gcode, toolpath);
+  // The programs carry no T words (bits are swapped between them): each move's bit, for the simulation, is its op's.
+  for (const { from, to, tool } of ranges) for (let i = from; i <= to; i++) toolpath.modals[i] = { ...toolpath.modals[i], tool };
+  const ops = ranges.slice(0, summaries.length).map(({ from, to }, index) => ({
+    index,
+    from,
+    to,
+    start: times[from - 1] ?? 0,
+    end: times[to] ?? total,
+    group: groupOf.get(index) ?? 0,
+  }));
   const bits = new Map([...plan.programs, ...release].map(p => [p.tool, p.diameter]));
   return { toolpath, total, times, ops, groups, summaries, pauses: pauseMarks(gcode, toolpath, times), bits };
 }

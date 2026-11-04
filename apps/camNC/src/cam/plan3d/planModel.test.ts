@@ -108,6 +108,29 @@ describe('guided programs after the cutting', () => {
     expect(m.bits.get(7)).toBe(6);
     expect(without.pauses).toEqual([]);
   });
+
+  it('each move has the bit of its op, for a program per bit in one preview', () => {
+    const small = ['(OP 1/2 a: Narrow - T2 D=3)', 'G0 X10 Y20', 'G1 Z4 F300', 'G1 X20 F800', 'G0 Z15', 'M2'].join('\n');
+    const big = ['(OP 2/2 a: Pocket - T1 D=6)', 'G0 X30 Y20', 'G1 Z4 F300', 'G1 X40 F800', 'G0 Z15', 'M2'].join('\n');
+    const m = buildPlanModel({
+      ...plan(),
+      gcode: [small, big].join('\n'),
+      ops: [op('a · Narrow'), op('a · Pocket')],
+      bits: [3, 6],
+      programs: [
+        { tool: 2, diameter: 3, gcode: small, timeMin: 1 },
+        { tool: 1, diameter: 6, gcode: big, timeMin: 1 },
+      ],
+    });
+    const diameterAt = (i: number) => m.bits.get(m.toolpath.modals[i].tool!);
+    for (const [o, diameter] of [
+      [m.ops[0], 3],
+      [m.ops[1], 6],
+    ] as const)
+      for (let i = o.from; i <= o.to; i++) expect(diameterAt(i)).toBe(diameter);
+    // And so does a preview of just one op.
+    expect(m.bits.get(onlyOps(m.toolpath, [m.ops[1]]).modals[m.ops[1].to].tool!)).toBe(6);
+  });
 });
 
 describe('plan model', () => {
