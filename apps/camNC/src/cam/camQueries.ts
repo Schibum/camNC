@@ -2,6 +2,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/rea
 import * as Comlink from 'comlink';
 import type { CamWorkerAPI } from '../workers/cam.worker';
 import type { BoardRequest, ModelImport, PlanResult } from './camTypes';
+import { useStore } from '@/store/store';
 import { useCamMachine } from './machine/camMachine';
 import { kDefaultPlan, toCamSettings } from './planSettings';
 import { rebaseJob } from './rebaseJob';
@@ -107,7 +108,7 @@ export const modelKey = (job: CamJobV1) => `${job.id}:${job.fileName}:${job.mode
 /** Toolpaths + G-code of one part with the job's plan settings; recomputed (~0.3s) when they change. */
 export function useCamPlan(job: CamJobV1 | null | undefined, partId: string | undefined, modelReady: boolean) {
   const saved = useCuttingData(s => s.saved);
-  const spindle = useCamMachine(s => s.spindle);
+  const spindle = useStore(s => s.machinePrefs.spindleSwitch ?? 'hand');
   const settings = { ...toCamSettings(job?.plan ?? kDefaultPlan, undefined, saved), spindle };
   return useQuery({
     queryKey: camKeys.plan(job ? modelKey(job) : '', partId ?? '', settings),
@@ -133,7 +134,7 @@ export function useBoardPlans(
   const plan = job?.plan ?? kDefaultPlan;
   const saved = useCuttingData(s => s.saved);
   const pauseEachTab = useCamMachine(s => s.pauseEachTab);
-  const spindle = useCamMachine(s => s.spindle);
+  const spindle = useStore(s => s.machinePrefs.spindleSwitch ?? 'hand');
   // Per board id, its last program (a changed setting is a new query: useQueries keeps no placeholder across keys).
   const last = useRef(new Map<string, PlanResult>());
   const results = useQueries({

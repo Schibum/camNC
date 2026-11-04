@@ -84,17 +84,6 @@ afterEach(() => {
 });
 
 describe('the machine queue card', () => {
-  it('asks who switches the spindle: by hand until told otherwise', () => {
-    setQueue([board('A')], [plan([3.175], 'a')]);
-    render(view());
-    const setting = screen.getByRole('combobox', { name: /Spindle switched/ });
-    expect((setting as HTMLSelectElement).value).toBe('hand');
-    expect(useCamMachine.getState().spindle).toBe('hand');
-    fireEvent.change(setting, { target: { value: 'controller' } });
-    expect(useCamMachine.getState().spindle).toBe('controller');
-    useCamMachine.getState().setSpindle('hand');
-  });
-
   it('shows why a board is blocked and refuses to load it', () => {
     const blocked = plan([3.175], 'a', { holdClash: [{ x: 1, y: 1 }] });
     setQueue([board('A')], [blocked]);
@@ -265,9 +254,9 @@ describe('the machine queue card', () => {
     setQueue([board('A')], [a]);
     const { rerender } = render(view());
     expect(card().getByText(/Refit the screws, clamps or tape/).parentElement!.textContent).toMatch(/clear of side B’s cuts/);
-    // Until corrected it lies like side A.
-    expect(card().getByLabelText<HTMLInputElement>('Rotation in degrees').value).toBe('1.0');
-    fireEvent.click(card().getByRole('button', { name: 'Turn 0.1° counterclockwise' }));
+    // Until corrected it lies like side A; turned (the knob in the top view), on its own.
+    expect(useCamMachine.getState().overlay?.rotationDeg).toBe(1);
+    useCamMachine.getState().setRotation('A:b', 1.1);
     expect(useCamMachine.getState().rotation).toEqual({ A: 1, 'A:b': 1.1 });
     setQueue([board('A')], [a]);
     rerender(view());
@@ -277,37 +266,22 @@ describe('the machine queue card', () => {
     useCamMachine.setState({ active: 'A:b:bit:0' });
     setQueue([board('A')], [a]);
     rerender(view());
-    expect(card().getByLabelText<HTMLInputElement>('Rotation in degrees').value).toBe('1.1');
+    expect(useCamMachine.getState().overlay?.rotationDeg).toBe(1.1);
     expect(entryByKey('A:b:bit:0').sideB).toBe(true);
   });
 
-  it('the angle can be typed, and straightened', () => {
-    useCamMachine.setState({ active: 'A:bit:0', rotation: {} });
-    setQueue([board('A')], [plan([3.175], 'a')]);
-    render(view());
-    const input = card().getByLabelText<HTMLInputElement>('Rotation in degrees');
-    fireEvent.change(input, { target: { value: '-2,5' } });
-    fireEvent.keyDown(input, { key: 'Enter' });
-    expect(useCamMachine.getState().rotation).toEqual({ A: -2.5 });
-    fireEvent.click(card().getByRole('button', { name: 'Straighten' }));
-    expect(useCamMachine.getState().rotation).toEqual({ A: 0 });
-  });
-
-  it('with pins or a fence side B lies where they put it: no rotation control, still the line about the holds', () => {
+  it('with pins or a fence side B lies where they put it: still the line about the holds', () => {
     const a = plan([3.175], 'a', { sideB: plan([3.175], 'b'), flip: { registration: 'dowels', dowelDiameter: 6 } });
     useCamMachine.setState({ active: 'A:flip' });
     setQueue([board('A')], [a]);
     render(view());
-    expect(card().queryByLabelText('Rotation in degrees')).toBeNull();
     expect(card().getByText(/Refit the screws, clamps or tape/)).toBeTruthy();
   });
 
   it('first step of a board: measure the stock, showing what’s assumed, and pass on what was measured', () => {
     setQueue([board('A')], [plan([3.175])]);
     const { rerender } = render(view());
-    expect(card().getByText(/1\. Measure the board’s thickness/).parentElement!.textContent).toMatch(
-      /Assumed: 8\.3 mm \(parts \+ 0\.3 mm\)/
-    );
+    expect(card().getByText(/1\. Measure its thickness/).parentElement!.textContent).toMatch(/assumed parts \+ 0\.3 mm/);
     const field = card().getByRole('textbox', { name: /Stock thickness of board A/ });
     fireEvent.change(field, { target: { value: '8,6' } });
     fireEvent.blur(field);
@@ -315,11 +289,12 @@ describe('the machine queue card', () => {
 
     setQueue([board('A', { measuredThickness: 8.6 })], [plan([3.175])]);
     rerender(view());
-    expect(card().getByText(/1\. Measure the board’s thickness/).parentElement!.textContent).toMatch(/Measured: 8\.6 mm/);
+    expect(card().getByText(/1\. Measure its thickness/)).toBeTruthy();
+    expect(card().getByRole<HTMLInputElement>('textbox', { name: /Stock thickness of board A/ }).value).toBe('8.6');
     // Not again for the next bit of the same board.
     useCamMachine.setState({ active: 'A:bit:1' });
     setQueue([board('A')], [plan([3.175, 6])]);
     rerender(view());
-    expect(card().queryByText(/Measure the board/)).toBeNull();
+    expect(card().queryByText(/Measure its/)).toBeNull();
   });
 });

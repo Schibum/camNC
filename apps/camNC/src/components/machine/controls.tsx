@@ -234,6 +234,24 @@ export function JogPanel() {
   );
 }
 
+/** Who switches the spindle: CAM programs pause for a router switched by hand, or let M3/M5 do it. */
+export function SpindleSetting() {
+  const spindle = useStore(s => s.machinePrefs.spindleSwitch ?? 'hand');
+  const setPrefs = useStore(s => s.setMachinePrefs);
+  return (
+    <Label className="text-sm flex flex-row gap-2 items-center">
+      Spindle switched
+      <select
+        className="rounded-md border bg-transparent px-1.5 py-0.5"
+        value={spindle}
+        onChange={e => setPrefs({ spindleSwitch: e.target.value as 'hand' | 'controller' })}>
+        <option value="hand">by hand (a router)</option>
+        <option value="controller">by the controller (M3/M5)</option>
+      </select>
+    </Label>
+  );
+}
+
 /** Touch plate thickness, how far to probe down and how fast. */
 export function ProbeSettings() {
   const prefs = useStore(s => s.machinePrefs);

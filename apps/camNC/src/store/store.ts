@@ -72,6 +72,8 @@ export interface MachinePrefs {
   probePlateThickness: number;
   probeMaxTravel: number;
   probeFeed: number;
+  /** Who switches the spindle: by hand (a router; a CAM program's pauses say when), or the controller (M3/M5). */
+  spindleSwitch: 'hand' | 'controller';
 }
 
 export const kDefaultMachinePrefs: MachinePrefs = {
@@ -84,6 +86,7 @@ export const kDefaultMachinePrefs: MachinePrefs = {
   probePlateThickness: 0,
   probeMaxTravel: 50,
   probeFeed: 100,
+  spindleSwitch: 'hand',
 };
 
 export interface PnPResult {

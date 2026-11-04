@@ -3,8 +3,9 @@ import { useStore } from '@/store/store';
 import { Button } from '@wbcnc/ui/components/button';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { cn } from '@wbcnc/ui/lib/utils';
-import { Hand, Minus, Plus, Undo2 } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { Plus, Undo2 } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
+import { useEffect, useRef, useState } from 'react';
 import { Vector3 } from 'three';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { cutLabel, isCut, placedRect, spotFree, type BoardV1 } from '../boards';
@@ -20,10 +21,8 @@ import {
   turnBoard,
   useBedEdit,
   type BedEdit,
-  type BedEditMode,
   type BedPart,
   type BedSelection,
-  type GhostBoard,
 } from './bedEdit';
 import { entryHolds, entryRotation, entrySide, rotationKey, useCamMachine } from './camMachine';
 import { useMachineBusy } from './useMachineBusy';
@@ -50,7 +49,6 @@ function Editor() {
   const { current, updateBoard, queue, done, instances, nestBit } = useMachineQueue();
   const rotation = useCamMachine(s => s.rotation);
   const setRotation = useCamMachine(s => s.setRotation);
-  const setActive = useCamMachine(s => s.setActive);
   const setBed = useBedEdit(s => s.setBed);
   const overlay = useCamMachine(s => s.overlay);
   const setOverlay = useCamMachine(s => s.setOverlay);
@@ -58,6 +56,8 @@ function Editor() {
   const side = current ? entrySide(current) : 'a';
   const busy = useMachineBusy();
   const undo = useRef<Undo[]>([]);
+  const [, setUndoCount] = useState(0);
+  const navigate = useNavigate();
   const board = current?.board.board;
 
   const save = (edit: BedEdit, silent = false) => {
@@ -68,14 +68,16 @@ function Editor() {
     const before = Object.fromEntries(Object.keys(edit.patch).map(k => [k, b[k as keyof BoardV1]])) as Partial<BoardV1>;
     updateBoard(edit.boardId, edit.patch);
     if (silent) return;
+    // Said next to what changed (`CamBedLayer`), not in a corner; Undo is in the toolbar and on ⌘Z.
     undo.current = [...undo.current.slice(-19), { boardId: edit.boardId, what: edit.what, before }];
-    toast(`${edit.what}: planning again`, { id: 'bed-edit', action: { label: 'Undo', onClick: undoLast } });
+    setUndoCount(undo.current.length);
   };
   const undoLast = () => {
     const last = undo.current.pop();
     if (!last) return;
     updateBoard(last.boardId, last.before);
-    toast(`Undone: ${last.what}`);
+    setUndoCount(undo.current.length);
+    toast(`Undone: ${last.what}`, { id: 'bed-edit' });
   };
 
   // The overlay saves through this while the top view shows this job.
@@ -126,24 +128,6 @@ function Editor() {
     board && (isCut(board) || cutHere)
       ? `Board ${board.name} is ${cutLabel(board).toLowerCase()}: its parts and holds stay as they are`
       : null;
-  const ghosts: GhostBoard[] = [];
-  for (const e of queue) {
-    const b = e.board.board;
-    if (b.id === board?.id || ghosts.some(g => g.id === b.id) || !e.board.nest.placements.length) continue;
-    const spot = b.bed?.a ?? b.bed?.b;
-    if (!spot) continue;
-    const all = queue.filter(x => x.board.board.id === b.id && x.plan);
-    ghosts.push({
-      id: b.id,
-      name: b.name,
-      x: spot.x,
-      y: spot.y,
-      deg: spot.deg ?? 0,
-      w: e.board.nest.board.w,
-      h: e.board.nest.board.h,
-      cut: all.length > 0 && all.every(x => done.includes(x.doneId)),
-    });
-  }
   const nest = current?.board.nest;
   const parts: BedPart[] =
     nest && side === 'a'
@@ -154,7 +138,7 @@ function Editor() {
           return { id: p.id, name: inst?.name ?? p.id, x: p.x, y: p.y, w: r.w, h: r.h, rotated: p.rotated, movable };
         })
       : [];
-  const bedKey = JSON.stringify([board?.id, parts, locked, ghosts, side, deg]);
+  const bedKey = JSON.stringify([board?.id, parts, locked, side, deg]);
   const ctx = useRef({ current, board, nest, instances, nestBit, side, deg });
   ctx.current = { current, board, nest, instances, nestBit, side, deg };
   useEffect(() => {
@@ -163,7 +147,6 @@ function Editor() {
       boardId: board.id,
       parts,
       locked,
-      ghosts,
       check: (item, at) => {
         const { nest: n, instances: all } = ctx.current;
         if (!n) return 'off';
@@ -175,11 +158,11 @@ function Editor() {
       },
       drop: (item, at) => {
         const { board: b, nest: n, instances: all, nestBit: bit } = ctx.current;
-        if (!b || !n) return;
+        if (!b || !n) return 'none';
         const edit = movePart(b, n, all, bit, item, at);
-        if (!edit)
-          return void toast.error(`${all.find(i => i.id === item)?.name ?? 'The part'} doesn’t fit there, nor anywhere else on the board.`);
+        if (!edit) return 'none';
         saveRef.current(edit);
+        return edit.exact ? 'exact' : 'moved';
       },
       // Turned (the knob, the panel): about its middle, so its XY zero moves too. Saved first, so the program goes to
       // the new spot when it's loaded at the new angle.
@@ -193,7 +176,16 @@ function Editor() {
         saveRef.current(turnBoard(b, sd, d, to), true);
         setRotation(rotationKey(c), d);
       },
-      show: id => setActive(`${id}:`),
+      openInCam: where => {
+        const id = ctx.current.board?.id;
+        const jobId = useCamMachine.getState().jobId;
+        if (!jobId || !id) return;
+        void navigate(
+          where === 'layout'
+            ? { to: '/cam/$jobId/boards', params: { jobId }, search: { board: id } }
+            : { to: '/cam/$jobId/plan', params: { jobId }, search: { board: id } }
+        );
+      },
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bedKey]);
@@ -227,7 +219,10 @@ function Editor() {
         rotated: p.rotated,
       });
       if (edit?.exact) save(edit);
-      else toast.error('No room there: it would come too close to another part, a hold or the edge.', { id: 'bed-edit' });
+      else
+        useBedEdit
+          .getState()
+          .setNote({ at: { x: p.x, y: p.y }, text: 'No room there: too close to a part, a hold or the edge', tone: 'warn' });
     } else if (!sel) {
       const s = useStore.getState();
       const at = { x: s.toolpathOffset.x + d.x, y: s.toolpathOffset.y + d.y };
@@ -290,43 +285,31 @@ function Editor() {
   const holdsHere = !!overlay.holds && overlay.side !== 'b';
   const clamp = (overlay.holdLike?.kind ?? overlay.holds?.[0]?.kind) === 'clamp';
   const name = clamp ? 'clamp' : 'screw';
-  const off = busy || !!locked;
-  const tool = (m: BedEditMode, label: string, icon: React.ReactNode, hint: string) => (
-    <Button
-      size="sm"
-      variant={mode === m ? 'default' : 'ghost'}
-      aria-pressed={mode === m}
-      title={hint}
-      disabled={off}
-      onClick={() => setMode(mode === m && m !== 'move' ? 'move' : m)}>
-      {icon}
-      {label}
-    </Button>
-  );
   const note = busy
     ? 'Locked while the program runs'
     : locked
       ? `${locked}. Start over in Boards to change them.`
       : mode === 'add'
-        ? `Tap the board to add a ${name}`
-        : mode === 'remove'
-          ? `Tap a ${name} to remove it`
-          : side === 'a'
-            ? selected
-              ? `${selected.kind === 'hold' ? `${clamp ? 'Clamp' : 'Screw'} ${selected.i + 1}` : (parts.find(p => p.id === selected.id)?.name ?? 'Part')} selected: arrow keys nudge it${selected.kind === 'hold' ? ', Delete removes it' : ''}, Esc deselects`
-              : `Drag the board, a part or a ${holdsHere ? name : 'hold'} (Shift: along X or Y only); the knob turns the board. ${jogKeys ? 'Arrow keys jog the machine (keyboard jog is on).' : 'Arrow keys nudge.'}`
-            : 'Drag the board to move it; the knob turns it';
+        ? `Tap the board where another ${name} goes`
+        : selected
+          ? `Drag the handle to move it${selected.kind === 'hold' ? ', Delete removes it' : ''}${jogKeys ? '' : ', arrow keys nudge it'}. Esc deselects.`
+          : `Drag to move the board (Shift: X or Y only), the knob turns it. Tap a ${holdsHere ? name : 'part'} to select it.`;
   return (
     <div
       role="toolbar"
       aria-label={`Edit board ${board.name}`}
       className="dark pointer-events-auto flex flex-wrap items-center gap-1 rounded-lg border bg-background/90 p-1 text-foreground shadow-md backdrop-blur">
       {holdsHere && (
-        <>
-          {tool('move', `Move`, <Hand />, `Drag a part or a ${name} to where it fits better: the program follows.`)}
-          {tool('add', `Add ${name}`, <Plus />, `Tap the board where another ${name} goes.`)}
-          {tool('remove', `Remove`, <Minus />, `Tap a ${name} to remove it.`)}
-        </>
+        <Button
+          size="sm"
+          variant={mode === 'add' ? 'default' : 'ghost'}
+          aria-pressed={mode === 'add'}
+          title={`Tap the board where another ${name} goes.`}
+          disabled={busy || !!locked}
+          onClick={() => setMode(mode === 'add' ? 'move' : 'add')}>
+          <Plus />
+          Add {name}
+        </Button>
       )}
       <Button size="sm" variant="ghost" title="Undo the last change here (⌘Z)" disabled={busy || !undo.current.length} onClick={undoLast}>
         <Undo2 />

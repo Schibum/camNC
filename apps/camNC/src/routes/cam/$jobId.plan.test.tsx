@@ -26,7 +26,10 @@ vi.mock('@tanstack/react-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
 }));
 vi.mock('@/components/page-header', () => ({ PageHeader: () => null }));
-vi.mock('@/store/store', () => ({ useStore: { getState: () => store }, selectMachineBounds: () => bed.bounds }));
+vi.mock('@/store/store', () => ({
+  useStore: Object.assign((pick: (s: object) => unknown) => pick({ machinePrefs: {} }), { getState: () => store }),
+  selectMachineBounds: () => bed.bounds,
+}));
 vi.mock('@/visualize/depthViewStore', () => ({ useDepthView: { getState: () => depth } }));
 
 const PlanStep = (Route as unknown as { options: { component: ComponentType } }).options.component;

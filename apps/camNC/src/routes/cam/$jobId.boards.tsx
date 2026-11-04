@@ -42,7 +42,9 @@ import { useToolLibrary } from '@/cam/toolLibrary';
 import { getMachineBounds } from '@/store/store';
 import { useJobBoards } from '@/cam/useJobBoards';
 import { useQueryClient } from '@tanstack/react-query';
-import { createFileRoute, Link, useParams } from '@tanstack/react-router';
+import { createFileRoute, Link, useParams, useSearch } from '@tanstack/react-router';
+import { zodValidator } from '@tanstack/zod-adapter';
+import { z } from 'zod';
 import { Button } from '@wbcnc/ui/components/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@wbcnc/ui/components/dropdown-menu';
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
@@ -52,6 +54,8 @@ import { useEffect, useState } from 'react';
 
 export const Route = createFileRoute('/cam/$jobId/boards')({
   component: BoardsStep,
+  // The board to show first (from the machine's top view: "Layout in CAM").
+  validateSearch: zodValidator(z.object({ board: z.string().optional() })),
 });
 
 /** Step 2: which parts go on which board, how they are nested and held down. */
@@ -69,7 +73,8 @@ function BoardsStep() {
     !!model.data,
     { keepShown: true }
   );
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { board: boardParam } = useSearch({ from: '/cam/$jobId/boards' });
+  const [selectedId, setSelectedId] = useState<string | null>(boardParam ?? null);
 
   // Persist the derived boards once (first visit, or parts changed in the Model step).
   useEffect(() => {

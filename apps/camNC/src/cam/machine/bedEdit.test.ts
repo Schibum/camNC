@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { newBoard, nestBoard, type BoardV1, type PartInstance } from '../boards';
 import {
   addHold,
+  pickAt,
   turnAboutMiddle,
   lockAxis,
   nearestAxis,
@@ -178,5 +179,16 @@ describe('turning about the middle', () => {
     const mid = boardToBed({ x: 100, y: 50 }, at, 90);
     expect(mid.x).toBeCloseTo(150, 6);
     expect(mid.y).toBeCloseTo(110, 6);
+  });
+});
+
+describe('a tap on the board', () => {
+  it('selects the hold within reach, else the part under it, else nothing (the board)', () => {
+    const holds = [screw(10, 10), screw(100, 10)];
+    const parts = [{ id: 'p1', x: 30, y: 30, w: 50, h: 50 }];
+    expect(pickAt({ x: 12, y: 14 }, holds, parts)).toEqual({ kind: 'hold', i: 0 });
+    expect(pickAt({ x: 98, y: 8 }, holds, parts)).toEqual({ kind: 'hold', i: 1 });
+    expect(pickAt({ x: 50, y: 50 }, holds, parts)).toEqual({ kind: 'part', id: 'p1' });
+    expect(pickAt({ x: 200, y: 200 }, holds, parts)).toBeNull();
   });
 });

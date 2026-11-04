@@ -3,7 +3,7 @@ import { isCamncJobFile } from '@/lib/machine/jobs';
 import { useStore } from '@/store/store';
 import { Html, Line } from '@react-three/drei';
 import { useMemo } from 'react';
-import { CamBedLayer, CamGhostBoards } from './CamBedLayer';
+import { CamBedLayer } from './CamBedLayer';
 import { CamHolds } from './CamHolds';
 import { CamPartGhost } from './CamPartGhost';
 import { currentTab, takeOutAt, useCamMachine } from './camMachine';
@@ -83,12 +83,11 @@ export function CamBoardOverlay() {
   const firstOfNext = nextTabPart ? overlay.tabs?.find(t => t.part === nextTabPart) : undefined;
   return (
     <>
-      <CamGhostBoards running={running} />
       <group position={[offset.x, offset.y, 0]}>
         <CamPartGhost overlay={overlay} running={running} />
         <Line points={outline} color={kOutline} lineWidth={2} dashed dashSize={6} gapSize={4} />
         <CamBedLayer overlay={overlay} offset={offset} running={running} />
-        <CamHolds overlay={overlay} offset={offset} running={running} />
+        <CamHolds overlay={overlay} />
         {overlay.tabs?.map(t => (
           <mesh key={t.index} position={[t.at.x, t.at.y, 0.3]}>
             <boxGeometry args={current(t) ? [9, 9, 0.1] : [5, 5, 0.1]} />

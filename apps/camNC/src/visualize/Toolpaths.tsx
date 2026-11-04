@@ -88,6 +88,8 @@ function ToolpathBackgroundPlane() {
   const { opacity } = useSpring({ opacity: isToolpathHovered ? 0.05 : 0.02 });
   const bounds = toolpath?.getBounds();
   const toolDiameter = useToolDiameter();
+  // A CAM board shown: its outline (turned with it) is what's lined up, not the program's box square to the axes.
+  const camBoard = useCamMachine(s => !!s.overlay);
   const boundingSize = useMemo(() => {
     if (!bounds) return null;
     const size = new Vector3();
@@ -96,7 +98,7 @@ function ToolpathBackgroundPlane() {
     return size;
   }, [bounds, toolDiameter]);
 
-  if (!boundingSize || !bounds) return null;
+  if (!boundingSize || !bounds || camBoard) return null;
 
   return (
     <group>

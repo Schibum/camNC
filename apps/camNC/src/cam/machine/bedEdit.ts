@@ -1,11 +1,11 @@
-import { edgeDir, holdClashes, snapClamp, type HoldPoint } from '@wbcnc/cam/holdPoints';
+import { edgeDir, holdBox, holdClashes, snapClamp, type HoldPoint } from '@wbcnc/cam/holdPoints';
 import { create } from 'zustand';
 import { dropPart, type BedSpot, type BoardNest, type BoardV1, type PartInstance, type PartPosition } from '../boards';
 
 type P2 = { x: number; y: number };
 
-/** What a tap or drag on the board in the top view does: move a hold, add one, remove one. */
-export type BedEditMode = 'move' | 'add' | 'remove';
+/** What a tap on the board in the top view does: select what's there, or add a hold there. */
+export type BedEditMode = 'move' | 'add';
 
 /** A change to a board made in the top view, as the board's new fields. */
 export type BoardPatch = Partial<Pick<BoardV1, 'holdPoints' | 'holdPointsOn' | 'bed' | 'size' | 'positions' | 'pinned'>>;
@@ -65,38 +65,30 @@ export interface BedPart {
   movable: boolean;
 }
 
-/** Another board of the job, where it was placed on the bed: drawn faint, a tap shows it. */
-export interface GhostBoard {
-  id: string;
-  name: string;
-  /** Machine X/Y of its XY zero, and its angle. */
-  x: number;
-  y: number;
-  deg: number;
-  w: number;
-  h: number;
-  /** Every program of it is cut. */
-  cut: boolean;
-}
-
 /** What the top view can do with the board shown, beyond its holds (`CamBedEditor` sets it). */
 export interface BedContext {
   boardId: string;
   parts: BedPart[];
   /** Why parts and holds can't be changed (the board is cut), or null. */
   locked: string | null;
-  /** While dragging a part: the spot is free, taken (it goes to a free spot instead), or off the board. */
+  /** While moving a part: the spot is free, taken (it goes to a free spot instead), or off the board. */
   check: (item: string, at: PartPosition) => 'free' | 'taken' | 'off';
-  /** A part dropped there. */
-  drop: (item: string, at: PartPosition) => void;
+  /** A part moved there: exactly, to the nearest free spot, or not at all (it fits nowhere). */
+  drop: (item: string, at: PartPosition) => 'exact' | 'moved' | 'none';
   /**
    * The board turned to `deg` about its middle (its XY zero moves), or with its XY zero at `at` when the caller moved
    * it already (the knob, while dragging).
    */
   rotate: (deg: number, at?: { x: number; y: number }) => void;
-  ghosts: GhostBoard[];
-  /** Another board shown: its next program loaded. */
-  show: (boardId: string) => void;
+  /** The selected item's board in the CAM job: its layout (Boards step) or its toolpaths (Plan step). */
+  openInCam: (where: 'layout' | 'toolpaths') => void;
+}
+
+/** A short note next to what was just moved or selected, in the board frame: gone after a moment. */
+export interface BedNote {
+  at: P2;
+  text: string;
+  tone: 'info' | 'warn' | 'bad';
 }
 
 /**
@@ -114,11 +106,15 @@ export const useBedEdit = create<{
   /** Tapped (or reached with Tab): the arrow keys nudge it, Delete removes a hold. Nothing: the keys nudge the board. */
   selected: BedSelection | null;
   setSelected: (selected: BedSelection | null) => void;
+  note: BedNote | null;
+  setNote: (note: BedNote | null) => void;
   /** The machine axis (+X, -X, +Y, -Y) that points most nearly the way an arrow key points on screen; set by the canvas. */
   arrowAxis: ((key: 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown') => P2) | null;
 }>(set => ({
   selected: null,
   setSelected: selected => set({ selected }),
+  note: null,
+  setNote: note => set({ note }),
   arrowAxis: null,
   mode: 'move',
   setMode: mode => set({ mode }),
@@ -276,4 +272,25 @@ export function hitsPath(h: HoldPoint, deg: number, path: [number, number, numbe
       stockTop
     ).length > 0
   );
+}
+
+/**
+ * What a tap at `q` (board frame) selects: a hold within `slack` mm of its footprint (the nearest), else the part
+ * under it, else nothing (the board).
+ */
+export function pickAt(
+  q: P2,
+  holds: HoldPoint[] | undefined,
+  parts: Pick<BedPart, 'id' | 'x' | 'y' | 'w' | 'h'>[],
+  slack = 6
+): BedSelection | null {
+  let best: { i: number; d: number } | null = null;
+  (holds ?? []).forEach((h, i) => {
+    const b = holdBox(h);
+    const d = Math.hypot(Math.max(b.x - q.x, 0, q.x - b.x - b.w), Math.max(b.y - q.y, 0, q.y - b.y - b.h));
+    if (d <= slack && (!best || d < best.d)) best = { i, d };
+  });
+  if (best) return { kind: 'hold', i: (best as { i: number }).i };
+  const part = parts.find(p => q.x >= p.x && q.x <= p.x + p.w && q.y >= p.y && q.y <= p.y + p.h);
+  return part ? { kind: 'part', id: part.id } : null;
 }

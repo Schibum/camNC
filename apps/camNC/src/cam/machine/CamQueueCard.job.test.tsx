@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TooltipProvider } from '@wbcnc/ui/components/tooltip';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import * as Comlink from 'comlink';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import stepUrl from '../../../../../packages/cam/test/fixtures/kinderregal-eiche.step?url';
 import { instancesOf, reconcileBoards } from '../boards';
 import { camKeys, camWorker, modelKey } from '../camQueries';
@@ -13,6 +13,9 @@ import { moveHold, useBedEdit } from './bedEdit';
 import { CamBedEditor } from './CamBedEditor';
 import { useCamMachine } from './camMachine';
 import { CamQueueCard } from './CamQueueCard';
+
+// The top view's editor opens the CAM job's steps; no router here.
+vi.mock('@tanstack/react-router', async orig => ({ ...(await orig<object>()), useNavigate: () => () => Promise.resolve() }));
 
 afterEach(() => {
   cleanup();
@@ -61,7 +64,7 @@ describe('the machine queue with a real plan', () => {
     expect(straight).toBeTruthy();
 
     // Turned, the plan fails no check of its own: the rectangle turned with it. It's loaded again by itself.
-    fireEvent.click(card().getByRole('button', { name: 'Turn 0.1° counterclockwise' }));
+    useCamMachine.getState().setRotation(boards.find(b => b.name === 'A')!.id, 0.1);
     expect(useCamMachine.getState().rotation[boards.find(b => b.name === 'A')!.id]).toBe(0.1);
     await waitFor(
       () => {
@@ -90,7 +93,7 @@ describe('the machine queue with a real plan', () => {
     await waitFor(() => expect(useCamMachine.getState().overlay?.holds?.length).toBeGreaterThan(0), { timeout: 60_000 });
     const offset = useStore.getState().toolpathOffset;
     expect([offset.x, offset.y]).toEqual([212, 98]);
-    expect(card().getByText(/fit one on each blue mark/)).toBeTruthy();
+    expect(card().getByText(/on the blue marks/)).toBeTruthy();
     const before = useStore.getState().toolpath?.gcode;
     const o = useCamMachine.getState().overlay!;
     const h = o.holds![0];
