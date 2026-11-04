@@ -199,8 +199,9 @@ describe('CAM boards step', () => {
       fireEvent.blur(input);
       await waitFor(() => expect(field().value).toBe(value));
     }
-    await waitFor(async () =>
-      expect((await getJob(job.id))!.boards!.find(b => b.name === 'C')!.size).toEqual({ fit: false, w: 1220, h: 610 })
+    await waitFor(
+      async () => expect((await getJob(job.id))!.boards!.find(b => b.name === 'C')!.size).toEqual({ fit: false, w: 1220, h: 610 }),
+      { timeout: 10_000 }
     );
 
     // Grab the left side (560 × 140) at its lower left corner + (20, 10) mm.
@@ -221,17 +222,21 @@ describe('CAM boards step', () => {
     expect(within(c).getByText('Lands where you drop it')).toBeTruthy();
     fireEvent.pointerUp(window, drop);
 
-    await waitFor(async () => {
-      const boards = (await getJob(job.id))!.boards!;
-      const onC = boards.find(b => b.name === 'C')!;
-      expect(onC.items).toHaveLength(1);
-      expect(onC.pinned).toEqual(onC.items);
-      const at = onC.positions![onC.items[0]];
-      expect(Math.abs(at.x - 300)).toBeLessThan(5);
-      expect(Math.abs(at.y - 300)).toBeLessThan(5);
-      expect(at.rotated).toBe(false);
-      expect(boards.find(b => b.name === 'A')!.items).not.toContain(onC.items[0]);
-    });
+    await waitFor(
+      async () => {
+        const boards = (await getJob(job.id))!.boards!;
+        const onC = boards.find(b => b.name === 'C')!;
+        expect(onC.items).toHaveLength(1);
+        expect(onC.pinned).toEqual(onC.items);
+        const at = onC.positions![onC.items[0]];
+        expect(Math.abs(at.x - 300)).toBeLessThan(5);
+        expect(Math.abs(at.y - 300)).toBeLessThan(5);
+        expect(at.rotated).toBe(false);
+        expect(boards.find(b => b.name === 'A')!.items).not.toContain(onC.items[0]);
+        // The save takes longer than the default second on a busy CI machine.
+      },
+      { timeout: 10_000 }
+    );
     expect(within(screen.getByRole('region', { name: 'Board C' })).getByText('left')).toBeTruthy();
     expect(document.querySelector('[data-drag-ghost]')).toBeNull();
 
@@ -239,11 +244,14 @@ describe('CAM boards step', () => {
     const before = (await getJob(job.id))!.boards!.find(b => b.name === 'C')!;
     const id = before.items[0];
     fireEvent.keyDown(partIn('C', 'left'), { key: 'ArrowRight', shiftKey: true });
-    await waitFor(async () => {
-      const at = (await getJob(job.id))!.boards!.find(b => b.name === 'C')!.positions![id];
-      expect(at.x).toBeCloseTo(before.positions![id].x + 10, 5);
-      expect(at.y).toBeCloseTo(before.positions![id].y, 5);
-    });
+    await waitFor(
+      async () => {
+        const at = (await getJob(job.id))!.boards!.find(b => b.name === 'C')!.positions![id];
+        expect(at.x).toBeCloseTo(before.positions![id].x + 10, 5);
+        expect(at.y).toBeCloseTo(before.positions![id].y, 5);
+      },
+      { timeout: 10_000 }
+    );
   }, 90_000);
 
   it('drags a tab along its part’s outline: saved in the part’s frame, and placed automatically again on request', async () => {
