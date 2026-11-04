@@ -65,6 +65,11 @@ const description = (el: Element) =>
     .trim();
 
 describe('CAM plan step', () => {
+  it('accepts the numeric return flag decoded from the rehearsal URL', () => {
+    const options = (Route as unknown as { options: { validateSearch: { parse: (search: unknown) => { rehearsed?: number } } } }).options;
+    expect(options.validateSearch.parse({ rehearsed: 1 }).rehearsed).toBe(1);
+  });
+
   it('makes one safe program per board, inner features before outlines, and hands it to the machine view', async () => {
     const bytes = await (await fetch(stepUrl)).arrayBuffer();
     const job = await createJob(new File([bytes], 'kinderregal-eiche.step'));

@@ -40,7 +40,7 @@ import { z } from 'zod';
 
 export const Route = createFileRoute('/cam/$jobId/plan')({
   component: PlanStep,
-  validateSearch: zodValidator(z.object({ board: z.string().optional(), rehearsed: z.string().optional() })),
+  validateSearch: zodValidator(z.object({ board: z.string().optional(), rehearsed: z.literal(1).optional() })),
 });
 
 const fmtMin = (m: number) => `${Math.floor(m)}:${String(Math.round((m % 1) * 60)).padStart(2, '0')}`;
