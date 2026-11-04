@@ -175,9 +175,9 @@ export const useStore = create(subscribeWithSelector(persist(immer(combine(
         if (!state.camSources[id]) return;
         state.camSources[id] = { ...state.camSources[id], ...changes };
       }),
-    setActiveCam: (id: string) =>
+    setActiveCam: (id: string | null) =>
       set(state => {
-        if (state.camSources[id]) {
+        if (id === null || state.camSources[id]) {
           state.activeCamId = id;
         }
       }),

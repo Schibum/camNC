@@ -19,6 +19,7 @@ export default defineConfig({
       'react-timeago-i18n',
       'react-hotkeys-hook',
       '@wbcnc/ui > @radix-ui/react-popover',
+      '@wbcnc/ui > @radix-ui/react-dropdown-menu',
     ],
   },
   test: {
