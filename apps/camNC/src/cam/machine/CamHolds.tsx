@@ -1,4 +1,5 @@
-import { Html, Line } from '@react-three/drei';
+import { Line } from '@react-three/drei';
+import { CanvasLabel } from '@/scene/CanvasLabel';
 import { holdBox, pathClearance } from '@wbcnc/cam/holdPoints';
 import { useBedEdit } from './bedEdit';
 import type { BoardOverlay } from './camMachine';
@@ -60,11 +61,11 @@ export function CamHolds({ overlay }: { overlay: BoardOverlay }) {
               <meshBasicMaterial color={color} transparent opacity={0.6} depthWrite={false} />
             </mesh>
             {bad && (
-              <Html position={[h.x, h.y, 0.5]} style={{ pointerEvents: 'none' }} zIndexRange={[10, 0]}>
-                <span className="ml-4 -mt-2.5 block w-max rounded bg-red-500 px-1.5 py-0.5 text-xs font-medium text-white shadow-[0_1px_3px_rgba(0,0,0,0.6)]">
+              <CanvasLabel position={[h.x, h.y, 0.5]} offset={[16, -10]}>
+                <span className="block max-w-full rounded bg-red-500 px-1.5 py-0.5 text-xs font-medium text-white shadow-[0_1px_3px_rgba(0,0,0,0.6)]">
                   {`${clamp ? 'Clamp' : 'Screw'} ${i + 1}: the bit would hit it`}
                 </span>
-              </Html>
+              </CanvasLabel>
             )}
           </group>
         );

@@ -15,6 +15,7 @@ import {
   useSidebar,
 } from '@wbcnc/ui/components/sidebar';
 import { useEffect } from 'react';
+import { cn } from '@wbcnc/ui/lib/utils';
 import { CamNcBrand } from './CamNcLogo';
 import { CamSourceSelector } from './CamSourceSelector';
 import { SidebarAuthStatus } from './sidebar-auth';
@@ -131,7 +132,7 @@ function NavRoutes({ routes, label }: { routes: NavRoute[]; label: string }) {
 
 type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {};
 
-export function AppSidebar({ ...props }: AppSidebarProps) {
+export function AppSidebar({ className, ...props }: AppSidebarProps) {
   const location = useLocation({ select: l => l.pathname });
   const { setOpenMobile: setOpen } = useSidebar();
   // Auto-close the sidebar when the location changes
@@ -139,7 +140,7 @@ export function AppSidebar({ ...props }: AppSidebarProps) {
     setOpen(false);
   }, [location, setOpen]);
   return (
-    <Sidebar variant="floating" {...props}>
+    <Sidebar variant="floating" className={cn('dark scheme-dark text-sidebar-foreground', className)} {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
