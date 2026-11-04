@@ -85,7 +85,11 @@ describe('CAM plan step, the guided programs after the cutting', () => {
     const list = await opList();
     const items = within(list).getAllByRole('listitem');
     // Last, one row for all the laps.
-    expect(items.at(-1)!.textContent).toMatch(/After the cutting.*Free the parts.*⌀3\.175 · \d+:\d\d sim.*5 pauses: take out each part/);
+    // Seen once under load with 6 pauses: if it comes back, say which parts it was.
+    const taken = (plans.last[0] as PlanResult).release?.[0]?.gcode.match(/^M0 \(MSG Take out [^,]*/gm);
+    expect(items.at(-1)!.textContent, JSON.stringify(taken)).toMatch(
+      /After the cutting.*Free the parts.*⌀3\.175 · \d+:\d\d sim.*5 pauses: take out each part/
+    );
     expect(items.filter(li => li.textContent!.includes('Free'))).toHaveLength(1);
 
     const view = screen.getByRole('region', { name: /^3D view of board/ });
