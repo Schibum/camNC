@@ -15,6 +15,8 @@ import { MachineZeroAxes } from '@/visualize/MachineZeroAxes';
 import { SnapPositionMarker } from '@/visualize/SnapPositionMarker';
 import { GCodeVisualizer } from '@/visualize/Toolpaths';
 import { CamBoardOverlay } from '@/cam/machine/CamBoardOverlay';
+import { CamBedEditor } from '@/cam/machine/CamBedEditor';
+import { CamMachineJobNav } from '@/cam/machine/CamMachineJobNav';
 import { MachineBedMesh } from '@/visualize/MachineBed';
 import { nearestPointOnToolpath } from '@/visualize/nearestPoint';
 import { VisualizeToolbar } from '@/visualize/toolbar/VisualizeToolbar';
@@ -276,8 +278,14 @@ function VisualizeComponent() {
             <div className="pl-2">
               <ViewSwitcher view={view} hasToolpath={!!toolpath} onSelect={selectView} />
             </div>
+            <CamMachineJobNav />
             <VisualizeToolbar />
           </PageHeader>
+          {isTop && (
+            <div className="pointer-events-none flex px-2 pt-2 [&>*]:pointer-events-auto">
+              <CamBedEditor />
+            </div>
+          )}
           {!isTop && toolpath && (
             <div className="relative min-h-0 flex-1">
               <div className="absolute top-2 right-2 bottom-12 flex flex-col items-end">

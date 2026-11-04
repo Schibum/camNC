@@ -81,6 +81,17 @@ export interface BoardV1 {
    * bodies around them. A spot that no longer works (off the board, on another part) is ignored.
    */
   positions?: Record<string, PartPosition>;
+  /**
+   * Where the board lies on the bed, set at the machine (dragging the outline): the machine X/Y of its XY zero (lower
+   * left corner), side A and, turned over, side B. Loading one of its programs puts the program there again.
+   */
+  bed?: { a?: BedSpot; b?: BedSpot };
+}
+
+/** A spot on the bed, machine coordinates, mm. */
+export interface BedSpot {
+  x: number;
+  y: number;
 }
 
 /** Where a body sits on its board: lower left corner of its (possibly turned) outline, board frame, mm. */
@@ -382,7 +393,8 @@ export function nestBoard(
   // Holds the user moved: parts keep clear of them, while the board keeps the size they were moved on.
   const sameSize = (b: { w: number; h: number }) =>
     !board.holdPointsOn || (Math.abs(board.holdPointsOn.w - b.w) < 0.5 && Math.abs(board.holdPointsOn.h - b.h) < 0.5);
-  let moved = points && board.holdPoints?.length && (!size || sameSize(size)) ? board.holdPoints : undefined;
+  // All of them removed by hand: none, not the suggested ones again.
+  let moved = points && board.holdPoints && (!size || sameSize(size)) ? board.holdPoints : undefined;
   const movedOn = board.holdPointsOn ?? size;
   const holdAt = (p: { x: number; y: number }, on?: { w: number; h: number }): HoldPoint => ({
     // A clamp grips at the edge, however far it reaches in now: its toe would otherwise be checked off the board.
@@ -392,10 +404,14 @@ export function nestBoard(
     height: hold.height,
     ...(hold.w !== undefined && { w: hold.w, ...(on && { dir: edgeDir(p, on) }) }),
   });
+  // Where the cut's edge may not come, less what the nest keeps between it and a part anyway (`gap`): a part only needs
+  // its outline cut (`bit` wide) clear of it, as for the suggested holds. Otherwise moving one hold (all of them then
+  // count as moved) pushes the parts beside every hold away, and on a sheet of fixed size some no longer fit.
   const keepOutOf = (h: HoldPoint): Rect => {
     const b = holdBox(h);
-    const keep = pathClearance(h, bit / 2) - bit / 2;
-    return { x: b.x - keep, y: b.y - keep, w: b.w + 2 * keep, h: b.h + 2 * keep };
+    const keep = pathClearance(h, bit / 2) - bit / 2 - (gap - bit);
+    const [kx, ky] = [Math.max(keep, -b.w / 2), Math.max(keep, -b.h / 2)];
+    return { x: b.x - kx, y: b.y - ky, w: b.w + 2 * kx, h: b.h + 2 * ky };
   };
   let keepOuts: Rect[] = (moved ?? []).map(p => keepOutOf(holdAt(p, movedOn)));
   // Packing picks the sheets without the frame: it's only kept where it costs no part (and so no extra board).

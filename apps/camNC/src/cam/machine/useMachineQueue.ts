@@ -1,3 +1,4 @@
+import type { BoardV1 } from '../boards';
 import { useBoardPlans, useCamJob, useCamModel, useSaveCamJob } from '../camQueries';
 import { kDefaultPlan } from '../planSettings';
 import { missingParts, useJobBoards } from '../useJobBoards';
@@ -38,7 +39,7 @@ export function useMachineQueue() {
       errors: plans.map(p => (p.isError ? p.error.message : undefined)),
     }
   );
-  const save = useSaveCamJob();
+  const save = useSaveCamJob(job);
   return {
     job,
     loading: !!jobId && !model.isError && !model.data,
@@ -49,6 +50,10 @@ export function useMachineQueue() {
     done,
     /** Boards (ids) whose shown programs are being replaced: never load those. */
     stale: new Set(boards.filter((_, i) => plans[i].isPlaceholderData).map(b => b.board.id)),
+    /** A change to a board (holds, its spot on the bed): saved to the job; holds plan it again. */
+    updateBoard: (boardId: string, patch: Partial<BoardV1>) => {
+      if (job) save.mutate({ ...job, boards: plain.map(b => (b.board.id === boardId ? { ...b.board, ...patch } : b.board)) });
+    },
     /** The measured stock thickness of a board: its programs are planned again from it. */
     setStockThickness: (boardId: string, measuredThickness: number) => {
       if (job) save.mutate({ ...job, boards: plain.map(b => (b.board.id === boardId ? { ...b.board, measuredThickness } : b.board)) });

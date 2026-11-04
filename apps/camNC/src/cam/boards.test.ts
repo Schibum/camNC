@@ -385,6 +385,9 @@ describe('boards', () => {
     expect(moved.holds.map(h => ({ x: h.x, y: h.y }))).toEqual([middle]);
     expect(moved.keepOuts).toHaveLength(1);
     expect(moved.unplaced).toEqual([]);
+    // All of them removed by hand: none, and the suggested ones don't come back.
+    const removed = nestBoard({ ...a, holdPoints: [], holdPointsOn: a.size.fit ? undefined : a.size }, parts, 3.175);
+    expect([removed.holds, removed.holdsMoved]).toEqual([[], true]);
   });
 
   it('a board held by points always says so, with none on it too; taped, it has none to say', () => {

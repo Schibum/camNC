@@ -8,10 +8,26 @@ import { Hint } from '../Hint';
 import { NumberInput } from '../NumberInput';
 import { clearMachineView, loadIntoMachineView } from '../showOnMachine';
 import { kStockAllowance, stockTopOf } from '../boards';
-import { entryProgram, entryRotation, entryTitle, nextEntry, rotationKey, useCamMachine, type QueueEntry } from './camMachine';
+import { Vector3 } from 'three';
+import {
+  entryHolds,
+  entryProgram,
+  entryRotation,
+  entrySide,
+  entryTitle,
+  nextEntry,
+  rotationKey,
+  useCamMachine,
+  type QueueEntry,
+} from './camMachine';
+import { useMachineBusy } from './useMachineBusy';
 import { useMachineQueue } from './useMachineQueue';
 
 const fmt = (v: number) => `${+v.toFixed(2)}`;
+
+/** "Clamp it", "Screw it down": what the board is held with. */
+const holdKindName = (e: QueueEntry) =>
+  (e.board.request.holdPoints?.[0]?.kind ?? e.board.board.holds?.kind) === 'clamp' ? 'Clamp it' : 'Screw it down';
 
 /** Turns the program of the current entry, to match a board lying askew. */
 function RotationControl({ deg, onTurn }: { deg: number; onTurn: (d: number) => void }) {
@@ -52,6 +68,10 @@ export function CamQueueCard() {
       if (force || useStore.getState().toolpath?.gcode !== gcode)
         loadIntoMachineView({ gcode, size: e.plan!.size, bits: [program.diameter] }, `${job?.name} ${entryTitle(e)}.gcode`);
     } else clearMachineView();
+    // Where this board was placed on the bed before: its program goes there again.
+    const spot = e.board.board.bed?.[entrySide(e)];
+    const offset = useStore.getState().toolpathOffset;
+    if (spot && (spot.x !== offset.x || spot.y !== offset.y)) useStore.getState().setToolpathOffset(new Vector3(spot.x, spot.y, offset.z));
     // The outline stays while there's no program: it shows where the board goes and at what angle.
     setOverlay(
       e.plan
@@ -60,6 +80,7 @@ export function CamQueueCard() {
             h: e.plan.size[1],
             rotationDeg: entryRotation(e, rotation),
             ...(gcode && { tabs: e.release?.tabs, tabsPerPart: !!e.release?.perPart, freeParts: e.release?.parts }),
+            ...entryHolds(e),
           }
         : null
     );
@@ -70,9 +91,11 @@ export function CamQueueCard() {
   };
   const gcode = current ? gcodeOf(current) : undefined;
   const shownDeg = current ? entryRotation(current, rotation) : 0;
-  // Planned again, turned, blocked, gone: what's loaded follows the active entry.
+  const busy = useMachineBusy();
+  // Planned again (a hold moved, the board turned), blocked, gone: what's loaded follows the active entry. Never while a
+  // program runs or is paused partway: it follows once that's done.
   useEffect(() => {
-    if (!jobId || !active) return;
+    if (!jobId || !active || busy) return;
     if (!current) {
       clearMachineView();
       setOverlay(null);
@@ -83,7 +106,7 @@ export function CamQueueCard() {
     if (current.key !== active && current.kind !== 'pending') setActive(current.key);
     show(current, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobId, active, current?.key, gcode, shownDeg, loading]);
+  }, [jobId, active, current?.key, gcode, shownDeg, loading, busy]);
   if (!jobId) return null;
   const next = () => {
     if (!current) return;
@@ -204,9 +227,17 @@ export function CamQueueCard() {
                 </p>
                 <RotationControl deg={deg} onTurn={turn} />
               </div>
+              {!!current.board.request.holdPoints && (
+                <p>
+                  <span className="font-medium">4. {holdKindName(current)}:</span> fit one on each blue mark in the camera view. Elsewhere
+                  works better? Drag the mark there, or add or remove marks in the top view: the program follows.
+                </p>
+              )}
               <p>
-                <span className="font-medium">4. {swap ? `${swapText}, then zero Z` : 'Zero Z'}</span> on the spoilboard: Z0 is the bottom
-                of the board (Zero section below).
+                <span className="font-medium">
+                  {current.board.request.holdPoints ? 5 : 4}. {swap ? `${swapText}, then zero Z` : 'Zero Z'}
+                </span>{' '}
+                on the spoilboard: Z0 is the bottom of the board (Zero section below).
               </p>
             </>
           )}

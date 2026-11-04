@@ -2,7 +2,9 @@ import { orderBoardQueue } from '@wbcnc/cam/board';
 import { create } from 'zustand';
 import { combine, persist } from 'zustand/middleware';
 import type { TabStop } from '@wbcnc/cam';
+import type { HoldPoint } from '@wbcnc/cam/holdPoints';
 import { boardBlock, type BlockContext } from '../boardBlock';
+import { holdsOf } from '../boards';
 import type { PlanResult, ReleaseProgram } from '../camTypes';
 import type { JobBoard } from '../useJobBoards';
 
@@ -16,6 +18,22 @@ export interface BoardOverlay {
   tabsPerPart?: boolean;
   /** Freeing bottom-skin parts: the parts in program order, a spot on each (program coordinates). */
   freeParts?: { name: string; at: { x: number; y: number } }[];
+  /** The board the outline is of, and which side lies up: holds are edited on it, its spot on the bed saved with it. */
+  boardId?: string;
+  side?: 'a' | 'b';
+  /** Side A: where the board is screwed or clamped (board frame, turned with the outline). */
+  holds?: HoldPoint[];
+  /** What a hold added here is like: the board's screw or clamp. */
+  holdLike?: Pick<HoldPoint, 'kind' | 'd' | 'w' | 'height'>;
+  /** The board's size as nested, mm: what the holds are placed on (edges a clamp grips), and saved with them. */
+  holdsOn?: { w: number; h: number };
+  /** Holds the program's bit would hit (board frame): drawn red. */
+  holdClash?: { x: number; y: number }[];
+  /** The program's bit, mm: how far its path stays from a hold. */
+  bit?: number;
+  /** The program's path (program coordinates) and stock top: a hold being dragged is checked against it at once. */
+  path?: [number, number, number][][];
+  stockTop?: number;
 }
 
 /** The CAM job being cut at the machine: which program is loaded, what's done, how each board lies on the bed. */
@@ -272,6 +290,35 @@ export function takeOutAt(gcode: string, percent: number): { part: number; pause
     } else if (/^G[0-3]\b/.test(line)) paused = false;
   }
   return paused ? { part: n - 1, paused } : { part: n, paused };
+}
+
+/** Which side of its board an entry's program is for: side B once the board is turned over. */
+export const entrySide = (e: QueueEntry): 'a' | 'b' => (rotationKey(e).endsWith(':b') ? 'b' : 'a');
+
+/**
+ * What the top view shows of an entry's board besides its outline: which board and side, and on side A its screws or
+ * clamps (and the ones the bit would hit), with the program's path to check a dragged one against.
+ */
+export function entryHolds(
+  e: QueueEntry
+): Pick<BoardOverlay, 'boardId' | 'side' | 'holds' | 'holdLike' | 'holdsOn' | 'holdClash' | 'bit' | 'path' | 'stockTop'> {
+  const side = entrySide(e);
+  const base = { boardId: e.board.board.id, side };
+  const holds = e.board.request.holdPoints;
+  if (side === 'b' || !holds) return base;
+  const like = holdsOf(e.board.board);
+  return {
+    ...base,
+    holds,
+    holdLike: { kind: like.kind, d: like.d, w: like.w, height: like.height },
+    holdsOn: { w: e.board.nest.board.w, h: e.board.nest.board.h },
+    ...(e.plan && {
+      holdClash: e.plan.holdClash,
+      bit: entryProgram(e)?.diameter ?? e.plan.bits[0],
+      path: e.plan.path,
+      stockTop: e.plan.size[2],
+    }),
+  };
 }
 
 /** "Board A · T2 ⌀6", "Board B · ⌀3.175", "Board A · remove tabs". */

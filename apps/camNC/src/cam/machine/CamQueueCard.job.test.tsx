@@ -8,6 +8,9 @@ import stepUrl from '../../../../../packages/cam/test/fixtures/kinderregal-eiche
 import { instancesOf, reconcileBoards } from '../boards';
 import { camKeys, camWorker, modelKey } from '../camQueries';
 import { createJob, saveJob, type CamJobV1 } from '../jobDb';
+import { getJob } from '../jobDb';
+import { moveHold, useBedEdit } from './bedEdit';
+import { CamBedEditor } from './CamBedEditor';
 import { useCamMachine } from './camMachine';
 import { CamQueueCard } from './CamQueueCard';
 
@@ -19,23 +22,25 @@ afterEach(() => {
     s.toolpath = null;
     s.toolpathName = null;
   });
+  useBedEdit.setState({ mode: 'move' });
 });
 
 /** A real job taken to the machine: the worker plans it, the card works on what comes back. */
-async function takeJob() {
+async function takeJob(edit: (boards: CamJobV1['boards'] & object) => CamJobV1['boards'] = b => b) {
   const bytes = await (await fetch(stepUrl)).arrayBuffer();
   const created = await createJob(new File([bytes], 'kinderregal-eiche.step'));
   const copy = new Uint8Array(bytes.slice(0));
   const model = await camWorker().importModel(Comlink.transfer(copy, [copy.buffer]), created.fileName, modelKey(created));
   const instances = instancesOf(model.parts, () => true);
   const boards = reconcileBoards(undefined, instances, 'oak');
-  const job = await saveJob({ ...created, boards });
+  const job = await saveJob({ ...created, boards: edit(boards) });
   const client = new QueryClient();
   useCamMachine.getState().start(job.id);
   render(
     <QueryClientProvider client={client}>
       <TooltipProvider>
         <CamQueueCard />
+        <CamBedEditor />
       </TooltipProvider>
     </QueryClientProvider>
   );
@@ -76,5 +81,47 @@ describe('the machine queue with a real plan', () => {
     });
     expect(useStore.getState().toolpath).toBeNull();
     expect(loadButton()).toHaveProperty('disabled', true);
+  }, 120_000);
+
+  it('a hold moved in the top view: saved with the job, planned again, still loadable; Undo brings it back', async () => {
+    // Board A was placed on the bed before: its program goes there again.
+    const { job } = await takeJob(boards => boards.map(b => (b.name === 'A' ? { ...b, bed: { a: { x: 212, y: 98 } } } : b)));
+    fireEvent.click(await entry(/Board A/));
+    await waitFor(() => expect(useCamMachine.getState().overlay?.holds?.length).toBeGreaterThan(0), { timeout: 60_000 });
+    const offset = useStore.getState().toolpathOffset;
+    expect([offset.x, offset.y]).toEqual([212, 98]);
+    expect(card().getByText(/fit one on each blue mark/)).toBeTruthy();
+    const before = useStore.getState().toolpath?.gcode;
+    const o = useCamMachine.getState().overlay!;
+    const h = o.holds![0];
+    // Along its edge, a little way: still in the frame of stock around the parts.
+    const to = { x: h.x + (h.x < o.holdsOn!.w / 2 ? 10 : -10), y: h.y };
+    useBedEdit.getState().apply!(moveHold(o.holds!, 0, to, o.holdsOn!, o.boardId!));
+    // Fitted to its parts until now: at the machine it's a real sheet, it keeps its size and layout.
+    await waitFor(
+      async () => {
+        const saved = (await getJob(job.id))?.boards?.find(b => b.name === 'A');
+        expect(saved?.holdPoints?.[0]?.x).toBeCloseTo(to.x, 0);
+        expect(saved?.size).toEqual({ fit: false, w: o.holdsOn!.w, h: o.holdsOn!.h });
+      },
+      { timeout: 10_000 }
+    );
+    await waitFor(
+      () => {
+        expect(useCamMachine.getState().overlay?.holds?.[0].x).toBeCloseTo(to.x, 0);
+        // Planned again with it: the parts stay put, still clear of it, and its program is loaded.
+        expect(card().queryByRole('alert')).toBeNull();
+        expect(useStore.getState().toolpath?.gcode).toBe(before);
+      },
+      { timeout: 60_000 }
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(
+      async () => {
+        const saved = (await getJob(job.id))?.boards?.find(b => b.name === 'A');
+        expect([saved?.holdPoints, saved?.size, saved?.positions]).toEqual([undefined, { fit: true }, undefined]);
+      },
+      { timeout: 10_000 }
+    );
   }, 120_000);
 });

@@ -23,6 +23,7 @@ vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (options: unknown) => ({ options }),
   useParams: () => params,
   useNavigate: () => () => undefined,
+  useSearch: () => ({}),
   Link: ({ children }: { children: ReactNode }) => <a>{children}</a>,
 }));
 vi.mock('@/components/page-header', () => ({ PageHeader: () => null }));

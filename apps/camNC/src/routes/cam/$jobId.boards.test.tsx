@@ -13,6 +13,8 @@ const toastSuccess = vi.hoisted(() => vi.fn());
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (options: unknown) => ({ options }),
   useParams: () => params,
+  useSearch: () => ({}),
+  useNavigate: () => () => undefined,
   Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
 }));
 vi.mock('@/components/page-header', () => ({ PageHeader: () => null }));

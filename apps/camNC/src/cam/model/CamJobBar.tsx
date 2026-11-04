@@ -1,4 +1,5 @@
-import { Link } from '@tanstack/react-router';
+import { openAtMachine } from '@/cam/machine/openAtMachine';
+import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@wbcnc/ui/components/tooltip';
 import { cn } from '@wbcnc/ui/lib/utils';
 import type { ReactNode } from 'react';
@@ -13,7 +14,7 @@ const kRoutes: Partial<Record<CamStep, '/cam/$jobId/model' | '/cam/$jobId/boards
   Plan: '/cam/$jobId/plan',
 };
 
-/** Job name, the prepare steps (Model → Boards → Plan → Check), and the step's actions. */
+/** Job name, the prepare steps (Model → Boards → Plan → Check), the way to the machine, and the step's actions. */
 export function CamJobBar({ jobId, fileName, step, actions }: { jobId: string; fileName: string; step: CamStep; actions?: ReactNode }) {
   return (
     <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b px-4 py-2">
@@ -38,13 +39,28 @@ export function CamJobBar({ jobId, fileName, step, actions }: { jobId: string; f
           );
         })}
         <span className="mx-2 h-5 w-px bg-border" />
-        <StepLink active={false} enabled={false}>
-          At the machine
-        </StepLink>
+        <AtTheMachine jobId={jobId} />
       </nav>
       <span className="grow" />
       {actions}
     </div>
+  );
+}
+
+/** The job on the bed, the board shown here selected (Plan step): place, clamp, zero and cut it, and come back. */
+function AtTheMachine({ jobId }: { jobId: string }) {
+  const navigate = useNavigate();
+  const { board } = useSearch({ strict: false }) as { board?: string };
+  return (
+    <button
+      type="button"
+      className="whitespace-nowrap rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted"
+      onClick={() => {
+        const to = openAtMachine(jobId, board);
+        void navigate(to === '/start' ? { to, search: { for: 'cam' } } : { to });
+      }}>
+      At the machine
+    </button>
   );
 }
 

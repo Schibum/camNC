@@ -3,6 +3,7 @@ import { isCamncJobFile } from '@/lib/machine/jobs';
 import { useStore } from '@/store/store';
 import { Html, Line } from '@react-three/drei';
 import { useMemo } from 'react';
+import { CamHolds } from './CamHolds';
 import { currentTab, takeOutAt, useCamMachine } from './camMachine';
 
 const kOutline = '#a78bfa';
@@ -25,6 +26,7 @@ function Label({ at, text, tone }: { at: { x: number; y: number }; text: string;
  * In the top view, with the toolpath: the board's outline (dashed, turned like the program) to drag onto the board
  * in the camera image, and during guided tab removal the tabs, the next one highlighted with where to hold the part
  * (or, pausing once per part, the part's tabs being cut); while freeing skin parts the part being freed. Labelled.
+ * Side A's screws and clamps too, to move, add or remove right there (`CamHolds`).
  */
 export function CamBoardOverlay() {
   'use no memo';
@@ -66,6 +68,7 @@ export function CamBoardOverlay() {
   return (
     <group position={[offset.x, offset.y, 0]}>
       <Line points={outline} color={kOutline} lineWidth={2} dashed dashSize={6} gapSize={4} />
+      <CamHolds overlay={overlay} offset={offset} running={running} />
       {overlay.tabs?.map(t => (
         <mesh key={t.index} position={[t.at.x, t.at.y, 0.3]}>
           <boxGeometry args={current(t) ? [9, 9, 0.1] : [5, 5, 0.1]} />
