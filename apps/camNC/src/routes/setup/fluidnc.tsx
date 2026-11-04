@@ -52,7 +52,7 @@ function RouteComponent() {
             <CardTitle>Spindle</CardTitle>
             <CardDescription>
               By hand: every pause in a CAM program tells you to switch the router off, and on again before Resume. By the controller: the
-              program's M3 and M5 do it, and the pauses don't mention it.
+              program&apos;s M3 and M5 do it, and the pauses don&apos;t mention it.
             </CardDescription>
           </CardHeader>
           <CardContent>
