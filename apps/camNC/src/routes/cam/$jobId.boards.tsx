@@ -30,6 +30,7 @@ import { Hint } from '@/cam/Hint';
 import { bitKey } from '@/cam/cuttingData';
 import { kDefaultPlan } from '@/cam/planSettings';
 import { useToolLibrary } from '@/cam/toolLibrary';
+import { getMachineBounds } from '@/store/store';
 import { useJobBoards } from '@/cam/useJobBoards';
 import { useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, useParams } from '@tanstack/react-router';
@@ -239,6 +240,11 @@ function BoardsStep() {
     }
     autoFill(free, before);
   };
+  // The machine's work area, when it is set up: no board from stock comes out bigger.
+  const machineSize = () => {
+    const b = getMachineBounds();
+    return b ? { w: b.max.x - b.min.x, h: b.max.y - b.min.y } : undefined;
+  };
   const autoFill = (start = boards.map(b => b.board), before = start) => {
     const stock = job.stock ?? [];
     if (!stock.length) return toast.error('Add the boards you have to the stock list first.');
@@ -251,14 +257,15 @@ function BoardsStep() {
       stock,
       plan.bit.diameter,
       plan.material,
-      job.nestObjective ?? 'boards'
+      job.nestObjective ?? 'boards',
+      machineSize()
     );
     res.boards = [...kept, ...res.boards];
     saveBoards(res.boards);
     const names = (ids: string[]) => ids.map(id => byId.get(id)?.name ?? id).join(', ');
     const problems = [
-      res.tooBig.length && `${names(res.tooBig)}: bigger than every stock board.`,
-      res.short.length && `${names(res.short)}: not enough stock left.`,
+      res.tooBig.length && `${names(res.tooBig)}: too big for every stock board${machineSize() ? ' and the machine' : ''}, even turned.`,
+      res.short.length && `${names(res.short)}: not enough stock left, put on more boards of the stock's sizes.`,
     ].filter(Boolean);
     const stockBoards = res.boards.filter(b => !b.size.fit && stock.some(s => +s.thickness.toFixed(1) === b.thickness)).length;
     const action = undoTo(before);

@@ -20,6 +20,7 @@ import {
   type BoardV1,
   type PartInstance,
   type StockBoardV1,
+  withinMachine,
 } from './boards';
 import { missingParts } from './useJobBoards';
 import type { NestObjective } from './autoNest';
@@ -68,6 +69,10 @@ const usage = (boards: BoardV1[]) => {
   return { area: stock.reduce((a, s) => a + s.w * s.h, 0), boards: stock.length };
 };
 
+/** Stock used for the parts that fit: not the board the ones too big for every stock board are left on. */
+const stockUsed = (res: ReturnType<typeof autoFillFromStock>) =>
+  usage(res.boards.filter(b => !b.items.some(id => res.tooBig.includes(id))));
+
 /** Not worse: no more stock area, and with the same area no more boards. */
 /** Not worse in the objective's order: fewest boards then area, or area then boards ("wood"). */
 const notWorse = (a: ReturnType<typeof usage>, b: ReturnType<typeof usage>, objective: NestObjective) =>
@@ -86,13 +91,21 @@ function random(seed: number) {
 }
 
 /** Every body is on exactly one board; on stock boards all of them fit; the rest is reported. */
-function expectAllPlaced(res: ReturnType<typeof autoFillFromStock>, instances: PartInstance[], bit: number) {
+function expectAllPlaced(res: ReturnType<typeof autoFillFromStock>, instances: PartInstance[], bit: number, stock: StockBoardV1[]) {
   const on = res.boards.flatMap(b => b.items);
   expect([...on].sort()).toEqual(instances.map(i => i.id).sort());
-  for (const b of res.boards.filter(b => !b.size.fit)) expect(nestBoard(b, instances, bit).unplaced).toEqual([]);
-  const reported = new Set([...res.tooBig, ...res.short]);
-  for (const b of res.boards.filter(b => b.size.fit && b.items.some(id => reported.has(id))))
-    expect(b.items.every(id => reported.has(id))).toBe(true);
+  // No board bigger than the stock: every board is a stock size.
+  for (const b of res.boards.filter(b => !b.pinned?.length && stock.some(s => s.thickness === b.thickness))) {
+    const size = b.size;
+    expect(!size.fit && stock.some(s => s.thickness === b.thickness && s.w === size.w && s.h === size.h)).toBe(true);
+  }
+  // All fit, but the ones too big for any stock board, which are on a board of their own.
+  const tooBig = new Set(res.tooBig);
+  for (const b of res.boards.filter(b => !b.items.some(id => tooBig.has(id)))) expect(nestBoard(b, instances, bit).unplaced).toEqual([]);
+  for (const b of res.boards.filter(b => b.items.some(id => tooBig.has(id)))) {
+    expect(b.items.every(id => tooBig.has(id))).toBe(true);
+    expect(nestBoard(b, instances, bit).unplaced.sort()).toEqual([...b.items].sort());
+  }
 }
 
 /** The most the 30-part nest may take, as a multiple of `referenceWork`: about 2.5 in this file now, so twice as slow fails. */
@@ -162,16 +175,21 @@ describe('boards', () => {
       const boards = reconcileBoards(undefined, parts, 'oak');
       const res = autoFillFromStock(boards, parts, stock, bit, 'oak', objective);
       const old = greedyFillFromStock(boards, parts, stock, bit);
-      expectAllPlaced(res, parts, bit);
+      expectAllPlaced(res, parts, bit, stock);
       expect(res.tooBig).toEqual(old.tooBig);
       console.info(
         `${objective} first, kinderregal, ${name}: greedy ${JSON.stringify(usage(old.boards))}, global ${JSON.stringify(usage(res.boards))}`
       );
-      expect(notWorse(usage(res.boards), usage(old.boards), objective)).toBe(true);
+      expect(notWorse(stockUsed(res), usage(old.boards), objective)).toBe(true);
     });
 
     it('fewest boards takes the full sheet where least wood takes offcuts', () => {
-      const stock = fixtures[2][1];
+      // Offcuts the five 8 mm parts don't fit on together, even turned.
+      const stock = [
+        { id: 'f', thickness: 8, w: 2440, h: 1220 },
+        { id: 'o', thickness: 8, w: 700, h: 500 },
+        { id: 'p', thickness: 8, w: 600, h: 320 },
+      ];
       const boards = reconcileBoards(undefined, parts, 'oak');
       // Greedy takes a whole 2440 x 1220 sheet for five small parts.
       expect(usage(greedyFillFromStock(boards, parts, stock, bit).boards).area).toBe(2440 * 1220);
@@ -217,11 +235,11 @@ describe('boards', () => {
           const t0 = performance.now();
           const res = autoFillFromStock(boards, instances, stock, bit, 'oak', objective);
           slowest = Math.max(slowest, performance.now() - t0);
-          expectAllPlaced(res, instances, bit);
+          expectAllPlaced(res, instances, bit, stock);
           // Greedy only tries the biggest sheet; a part may still fit a smaller one of another shape.
           for (const id of res.tooBig) expect(old.tooBig).toContain(id);
           if (res.tooBig.length < old.tooBig.length) continue;
-          const [a, b] = [usage(res.boards), usage(old.boards)];
+          const [a, b] = [stockUsed(res), usage(old.boards)];
           expect(notWorse(a, b, objective), `case ${c}`).toBe(true);
           if (a.area < b.area - 1e-6 || a.boards < b.boards) better++;
           total.global.area += a.area;
@@ -260,7 +278,7 @@ describe('boards', () => {
       console.info(
         `30 parts, 3 sheet sizes: ${ms.toFixed(0)} ms, reference ${reference.toFixed(1)} ms, ratio ${(ms / reference).toFixed(2)}, ${res.boards.length} boards`
       );
-      expectAllPlaced(res, instances, bit);
+      expectAllPlaced(res, instances, bit, stock);
       expect(ms / reference).toBeLessThan(kNestRatio);
     });
 
@@ -270,7 +288,7 @@ describe('boards', () => {
       const boards = [{ ...a, items: a.items.filter(id => id !== 'top') }, b, pinnedBoard];
       const stock = fixtures[1][1];
       const res = autoFillFromStock(boards, parts, stock, bit, 'oak');
-      expectAllPlaced(res, parts, bit);
+      expectAllPlaced(res, parts, bit, stock);
       const kept = res.boards.find(x => x.id === pinnedBoard.id)!;
       expect(kept.name).toBe(pinnedBoard.name);
       expect(kept.items).toEqual(['top']);
@@ -287,27 +305,61 @@ describe('boards', () => {
       // On a stock-size board, free parts fill the room left; the pinned one stays.
       const sized = { ...pinnedBoard, size: { fit: false as const, w: 1220, h: 610 } };
       const res2 = autoFillFromStock([boards[0], b, sized], parts, stock, bit, 'oak');
-      expectAllPlaced(res2, parts, bit);
+      expectAllPlaced(res2, parts, bit, stock);
       const kept2 = res2.boards.find(x => x.id === pinnedBoard.id)!;
       expect(kept2.items[0]).toBe('top');
       expect(kept2.items.length).toBeGreaterThan(1);
       expect(nestBoard(kept2, parts, bit).unplaced).toEqual([]);
     });
 
-    it('uses no more stock boards than there are; the rest goes on a fitted board', () => {
+    it('uses no more stock boards than there are; the rest goes on more boards of the stock size, to buy', () => {
       const stock = [{ id: 's', thickness: 8, w: 600, h: 400, quantity: 1 }];
       const res = autoFillFromStock(reconcileBoards(undefined, parts, 'oak'), parts, stock, bit, 'oak');
-      expectAllPlaced(res, parts, bit);
-      expect(res.boards.filter(b => b.thickness === 8 && !b.size.fit)).toHaveLength(1);
-      expect(res.short).toHaveLength(3);
-      expect(res.boards.find(b => b.size.fit && b.thickness === 8)!.items.sort()).toEqual([...res.short].sort());
+      expectAllPlaced(res, parts, bit, stock);
+      expect(res.short.length).toBeGreaterThan(0);
+      const on8 = res.boards.filter(b => b.thickness === 8);
+      expect(on8.length).toBeGreaterThan(1);
+      expect(
+        on8
+          .filter(b => b.items.some(id => res.short.includes(id)))
+          .flatMap(b => b.items)
+          .sort()
+      ).toEqual([...res.short].sort());
+    });
+
+    it('never makes a board bigger than the stock: parts too big for it go on a stock-size board, reported', () => {
+      // The eichenregal: long sides and shelves, oak 20.5 mm on 600 × 1200 boards.
+      const shelf = [
+        inst('top', 1250, 350, 20.5),
+        inst('sockel', 1250, 60, 20.5),
+        inst('left', 900, 350, 20.5),
+        inst('right', 900, 350, 20.5),
+        inst('boden', 615, 313, 20.5),
+      ];
+      const stock = [{ id: 's', thickness: 20.5, w: 600, h: 1200 }];
+      const res = autoFillFromStock(reconcileBoards(undefined, shelf, 'oak'), shelf, stock, bit, 'oak');
+      expect(res.tooBig.sort()).toEqual(['sockel', 'top']);
+      expectAllPlaced(res, shelf, bit, stock);
+      for (const b of res.boards) expect(b.size).toMatchObject({ fit: false, w: 600, h: 1200 });
+      // The ones that fit turned 90° are on stock boards, turned.
+      const left = res.boards.find(b => b.items.includes('left'))!;
+      expect(nestBoard(left, shelf, bit).placements.find(p => p.id === 'left')!.rotated).toBe(true);
+    });
+
+    it('cuts stock bigger than the machine down to its work area', () => {
+      const stock = [{ id: 'f', thickness: 8, w: 2440, h: 1220 }];
+      const res = autoFillFromStock(reconcileBoards(undefined, parts, 'oak'), parts, stock, bit, 'oak', 'boards', { w: 600, h: 1200 });
+      const on8 = res.boards.filter(b => b.thickness === 8);
+      for (const b of on8) expect(b.size).toMatchObject({ fit: false, w: 600, h: 1200 });
+      expect(res.tooBig).toEqual([]);
+      expect(withinMachine({ w: 500, h: 1100 }, { w: 1200, h: 600 })).toEqual({ w: 500, h: 1100 });
     });
 
     it('reports parts bigger than every stock board', () => {
       const stock = [{ id: 's', thickness: 8, w: 500, h: 400 }];
       const res = autoFillFromStock(reconcileBoards(undefined, parts, 'oak'), parts, stock, bit, 'oak');
       expect(res.tooBig.sort()).toEqual(['left', 'right']);
-      expectAllPlaced(res, parts, bit);
+      expectAllPlaced(res, parts, bit, stock);
     });
   });
 
@@ -631,6 +683,17 @@ describe('boards', () => {
       expect(back.board.positions).toEqual({});
     });
 
+    it('turns a dropped part 90° when it only fits that way', () => {
+      const wide = [...parts, inst('boden', 615, 313, 8)];
+      const board = sheet([], 600, 1200);
+      const drop = dropPart(board, wide, bit, 'boden', { x: 100, y: 100, rotated: false }, 10);
+      expect(drop.at).toMatchObject({ rotated: true });
+      expect(nestBoard(drop.board, wide, bit).unplaced).toEqual([]);
+      // Parts that fit as they are keep their grain direction.
+      const upright = dropPart(board, wide, bit, 'left', { x: 100, y: 100, rotated: false }, 10);
+      expect(upright.at).toMatchObject({ rotated: false });
+    });
+
     it('rejects a part that fits nowhere on the board', () => {
       // Two sides fill a 600 × 400 board: no room for the top shelf anywhere.
       const board = sheet(['left', 'right'], 600, 400);
@@ -656,7 +719,7 @@ describe('boards', () => {
       const boards = [{ ...a, items: a.items.filter(id => id !== 'top') }, b, placed];
       const stock = [{ id: 's', thickness: 8, w: 1220, h: 610 }];
       const res = autoFillFromStock(boards, parts, stock, bit, 'oak');
-      expectAllPlaced(res, parts, bit);
+      expectAllPlaced(res, parts, bit, stock);
       const kept = res.boards.find(x => x.id === placed.id)!;
       expect(kept.positions).toEqual(placed.positions);
       expect(kept.items[0]).toBe('top');

@@ -29,6 +29,8 @@ export interface NestOptions {
   keepOuts?: Rect[];
   /** Fixed board size; omitted = fit the board to the parts. */
   board?: { w: number; h: number };
+  /** Fixed board: don't retry with the big parts moved last when some don't fit (faster, may place less). */
+  quick?: boolean;
 }
 
 export interface Placement {
@@ -224,7 +226,7 @@ export function nestRects(items: NestItem[], opts: NestOptions): NestResult {
     let best: Packed | undefined;
     // When not everything fits, big parts first can block several smaller ones that would fill the board better:
     // also try with the first 1..6 parts of each order moved to the end.
-    for (let postpone = 0; postpone <= Math.min(6, items.length - 1) && (!postpone || best!.unplaced.length); postpone++)
+    for (let postpone = 0; postpone <= (opts.quick ? 0 : Math.min(6, items.length - 1)) && (!postpone || best!.unplaced.length); postpone++)
       for (const { sorted, h } of runs(items, postpone)) {
         const p = pack(sorted, bin, gap, keepOuts, h)!;
         // Most part area placed, then the most compact layout (leaves the biggest offcut).

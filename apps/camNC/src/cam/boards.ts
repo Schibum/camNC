@@ -499,9 +499,21 @@ export function nestBoard(
       fixedRects.push(r);
     }
     const items = ids.filter(id => !fixed.some(p => p.id === id)).map(id => ({ id, w: byId.get(id)!.size[0], h: byId.get(id)!.size[1] }));
-    const n = size
+    let n = size
       ? nestRects(items, { gap, margin, keepOuts: [...keepOuts, ...fixedRects], board: size })
       : fitCompact(items, gap, margin, [...keepOuts, ...fixedRects]);
+    // Parts keep their grain direction where they fit; the ones that don't may turn 90° into the room left.
+    if (size && n.unplaced.length) {
+      const placed = n.placements.map(p => placedRect(p, byId.get(p.id)!));
+      const rest = items.filter(i => n.unplaced.includes(i.id)).map(i => ({ ...i, canRotate: true }));
+      const turned = nestRects(rest, { gap, margin, keepOuts: [...keepOuts, ...fixedRects, ...placed], board: size, quick: opts.packing });
+      if (turned.placements.length) {
+        const order = new Map(items.map((it, i) => [it.id, i]));
+        const placements = [...n.placements, ...turned.placements].sort((a, b) => order.get(a.id)! - order.get(b.id)!);
+        const area = placements.reduce((a, p) => a + byId.get(p.id)!.size[0] * byId.get(p.id)!.size[1], 0);
+        n = { ...n, placements, unplaced: turned.unplaced, yield: area / (size.w * size.h) };
+      }
+    }
     return { n, fixed };
   };
 
@@ -670,10 +682,24 @@ export function boardRequest(
 }
 
 /**
+ * A stock board as much of it fits on the machine: whole when it fits (either way round), else cut down to the work
+ * area, lying the way that keeps the most of it.
+ */
+export function withinMachine<S extends { w: number; h: number }>(sheet: S, machine: { w: number; h: number }): S {
+  const fits = (w: number, h: number) => w <= machine.w + EPS && h <= machine.h + EPS;
+  if (fits(sheet.w, sheet.h) || fits(sheet.h, sheet.w)) return sheet;
+  const along = { w: Math.min(sheet.w, machine.w), h: Math.min(sheet.h, machine.h) };
+  const across = { w: Math.min(sheet.w, machine.h), h: Math.min(sheet.h, machine.w) };
+  const { w, h } = along.w * along.h >= across.w * across.h ? along : across;
+  return { ...sheet, w: Math.floor(w), h: Math.floor(h) };
+}
+
+/**
  * Put every body on boards from the stock list, per thickness, using as little stock as possible (see `autoNest`).
  * Bodies the user moved by hand (`pinned`) stay on their board (at their spot, if placed there), and free bodies fill the room left on such a board
- * first when it has a fixed size. Thicknesses without stock keep their boards. Bodies that fit on no stock board
- * (`tooBig`) or are left when the stock runs out (`short`) go on a fitted board of their own.
+ * first when it has a fixed size. Thicknesses without stock keep their boards. No board comes out bigger than the
+ * stock (nor the machine, when given): bodies left when the stock runs out (`short`) go on more boards of the stock's
+ * sizes, and bodies that fit on no stock board (`tooBig`) on one board of the biggest size, where they don't fit.
  */
 export function autoFillFromStock(
   boards: BoardV1[],
@@ -681,8 +707,11 @@ export function autoFillFromStock(
   stock: StockBoardV1[],
   bit: number,
   material: MaterialKey,
-  objective: NestObjective = 'boards'
+  objective: NestObjective = 'boards',
+  /** The machine's work area: stock boards bigger than it are used cut down to it. */
+  machine?: { w: number; h: number }
 ): { boards: BoardV1[]; tooBig: string[]; short: string[] } {
+  if (machine) stock = stock.map(s => withinMachine(s, machine));
   const out: BoardV1[] = [];
   const tooBig: string[] = [];
   const short: string[] = [];
@@ -737,7 +766,21 @@ export function autoFillFromStock(
       { objective }
     );
     out.push(...kept, ...res.boards.map(b => fresh(b.items, { fit: false, w: b.sheet.w, h: b.sheet.h })));
-    if (res.tooBig.length || res.short.length) out.push(fresh([...res.tooBig, ...res.short], { fit: true }));
+    // Never a board bigger than the stock: parts left when the stock ran out go on more boards of the stock's sizes
+    // (to buy), and parts too big for any of them on one board of the biggest size, where they show as not fitting.
+    if (res.short.length) {
+      const more = autoNest(
+        res.short.map(id => ({ id, w: byId.get(id)!.size[0], h: byId.get(id)!.size[1] })),
+        sheets.map(s => ({ id: s.id, w: s.w, h: s.h })),
+        pack,
+        { objective }
+      );
+      out.push(...more.boards.map(b => fresh(b.items, { fit: false, w: b.sheet.w, h: b.sheet.h })));
+    }
+    if (res.tooBig.length) {
+      const biggest = sheets.reduce((a, s) => (s.w * s.h > a.w * a.h ? s : a));
+      out.push(fresh(res.tooBig, { fit: false, w: biggest.w, h: biggest.h }));
+    }
     tooBig.push(...res.tooBig);
     short.push(...res.short);
   }
