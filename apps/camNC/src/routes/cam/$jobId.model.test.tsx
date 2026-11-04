@@ -104,6 +104,13 @@ describe('CAM model step', () => {
       { timeout: 60_000 }
     );
     expect((await getJob(job.id))?.modelRevision).toBe(1);
+    // Another model altogether: no part is found again, and one warning says so.
+    const warning = await screen.findByRole('alert');
+    expect(warning.textContent).toMatch(/^Model replaced: these parts did not keep a name or milled tick/);
+    expect(warning.textContent).toMatch(/\(new\)/);
+    expect(warning.textContent).toMatch(/\(gone\)/);
+    fireEvent.click(within(warning).getByRole('button', { name: 'Dismiss' }));
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
   }, 120_000);
 
   it('names each identical body, and renames a part in place', async () => {

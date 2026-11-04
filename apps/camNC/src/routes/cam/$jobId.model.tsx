@@ -126,6 +126,14 @@ function ModelStep() {
 
   return (
     <Shell bar={bar}>
+      {job.replaceWarning && (
+        <div role="alert" className="flex items-start gap-3 border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm">
+          <p className="grow">{job.replaceWarning}</p>
+          <Button size="sm" variant="ghost" onClick={() => save.mutate({ ...job, replaceWarning: undefined })}>
+            Dismiss
+          </Button>
+        </div>
+      )}
       <div className="grid flex-1 grid-cols-1 md:min-h-0 md:grid-cols-[320px_1fr_300px]">
         <PartList
           parts={parts}

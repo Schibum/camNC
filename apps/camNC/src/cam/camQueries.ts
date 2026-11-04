@@ -8,6 +8,7 @@ import { rebaseJob } from './rebaseJob';
 import { useCuttingData } from './cuttingData';
 import { getJob, getModelBytes, listJobs, saveJob, type CamJobV1 } from './jobDb';
 import { modelReadError } from './openModelFile';
+import { carriedParts, matchReplacedParts, partPrint, remapBoards, replaceWarning } from './partMatch';
 import { withPartNames } from './partNames';
 import { useCallback, useRef } from 'react';
 
@@ -34,7 +35,8 @@ export const useCamJob = (id: string) => useQuery({ queryKey: camKeys.job(id), q
 
 /**
  * The imported model of a job (parts + display meshes). Recomputed from the stored file per session; on the first
- * import the job's part list is filled in, later imports keep `milled` and the user's names by part id. The parts
+ * import the job's part list is filled in, later imports keep `milled` and the user's names by part id, and a replaced
+ * model's by what the parts are (`partMatch`). The parts
  * come named as the job names them (renames, one name per body: see `withPartNames`).
  */
 export function useCamModel(job: CamJobV1 | null | undefined) {
@@ -55,9 +57,9 @@ export function useCamModel(job: CamJobV1 | null | undefined) {
     queryFn: async (): Promise<ModelImport> => {
       // Onto the job as it is now, not as the import found it: the user may have changed it meanwhile (the import
       // takes a while). Like any save, only if no newer one was started.
-      const write = async (patch: Partial<CamJobV1>, drop?: 'readError') => {
+      const write = async (patch: Partial<CamJobV1>, drop?: 'readError', onto?: (now: CamJobV1) => Partial<CamJobV1>) => {
         const now = queryClient.getQueryData<CamJobV1>(camKeys.job(job!.id)) ?? job!;
-        const next = { ...now, ...patch };
+        const next = { ...now, ...patch, ...onto?.(now) };
         if (drop) delete next[drop];
         const save = (latestSave.get(next.id) ?? 0) + 1;
         latestSave.set(next.id, save);
@@ -77,14 +79,23 @@ export function useCamModel(job: CamJobV1 | null | undefined) {
         if (job!.readError !== readError) await write({ readError });
         throw new Error(readError, { cause: e });
       }
-      const known = new Map(job!.parts.map(p => [p.id, p]));
-      const parts = model.parts.map(p => ({
-        id: p.id,
-        name: known.get(p.id)?.name ?? p.name,
-        quantity: p.names.length,
-        milled: known.get(p.id)?.milled ?? !p.summary.notFlat,
-      }));
-      if (JSON.stringify(parts) !== JSON.stringify(job!.parts) || job!.readError) await write({ parts }, 'readError');
+      const revision = job!.modelRevision ?? 0;
+      const partsFrom = { revision, prints: Object.fromEntries(model.parts.map(p => [p.id, partPrint(p)])) };
+      const from = job!.partsFrom;
+      const replaced = !!from && from.revision !== revision;
+      const match = replaced
+        ? matchReplacedParts(
+            job!.parts.flatMap(p => (from.prints[p.id] ? [{ id: p.id, name: p.name, print: from.prints[p.id] }] : [])),
+            model.parts.map(p => ({ id: p.id, print: partsFrom.prints[p.id] }))
+          )
+        : null;
+      const parts = carriedParts(model.parts, job!.parts, match && { matched: match.matched, prints: from!.prints });
+      if (match)
+        await write({ parts, partsFrom, replaceWarning: replaceWarning(match.affected) }, 'readError', now => ({
+          ...(now.boards && { boards: remapBoards(now.boards, match.matched) }),
+        }));
+      else if (JSON.stringify(parts) !== JSON.stringify(job!.parts) || JSON.stringify(partsFrom) !== JSON.stringify(from) || job!.readError)
+        await write({ parts, partsFrom }, 'readError');
       return model;
     },
   });

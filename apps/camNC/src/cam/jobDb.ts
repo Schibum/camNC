@@ -1,5 +1,6 @@
 import type { BoardV1, StockBoardV1 } from './boards';
 import type { NestObjective } from './autoNest';
+import type { PartPrint } from './partMatch';
 import type { PlanSettingsV1 } from './planSettings';
 
 /**
@@ -28,6 +29,10 @@ export interface CamJobV1 {
   parts: CamJobPartV1[];
   /** Why the model file could not be read, for people (see `modelReadError`); unset once it has been read. */
   readError?: string;
+  /** Which revision of the model `parts` come from, and what each part was: to find them again in a replaced model. */
+  partsFrom?: { revision: number; prints: Record<string, PartPrint> };
+  /** What a replaced model didn't let `parts` keep, for people, until dismissed (see `replaceWarning`). */
+  replaceWarning?: string;
   /** Plan step choices (bit, material, ...); defaults until changed. */
   plan?: PlanSettingsV1;
   /** Boards the parts are nested on; derived per thickness until the user changes them. */
@@ -131,7 +136,7 @@ export async function saveJob(job: CamJobV1): Promise<CamJobV1> {
   return saved;
 }
 
-/** Swap the model file of a job; parts are re-derived on the next import, keeping `milled` by part id. */
+/** Swap the model file of a job; parts are re-derived on the next import, found again by what they are (`partMatch`). */
 export async function replaceModel(job: CamJobV1, file: File): Promise<CamJobV1> {
   const saved = { ...job, fileName: file.name, modelRevision: (job.modelRevision ?? 0) + 1, updatedAt: Date.now() };
   delete saved.readError;
