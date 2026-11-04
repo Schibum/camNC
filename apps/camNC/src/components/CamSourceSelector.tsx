@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@wbcnc/ui/components/dropdown-menu';
 import { cn } from '@wbcnc/ui/lib/utils';
-import { Check, ChevronsUpDown, List, Plus, Settings2 } from 'lucide-react';
+import { Check, ChevronsUpDown, List, Plus, Settings2, VideoOff } from 'lucide-react';
 
 /** Green when the camera is set up far enough to show the machine, amber while its setup is unfinished. */
 export function CameraStatusDot({ ready, className }: { ready: boolean; className?: string }) {
@@ -47,8 +47,8 @@ export function CamSourceSelector() {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" className="w-full justify-start gap-2 font-normal" aria-label="Camera">
-            {active && <CameraStatusDot ready={isCameraReady(active)} />}
-            <span className="truncate">{active?.name ?? 'Select camera'}</span>
+            {active ? <CameraStatusDot ready={isCameraReady(active)} /> : <VideoOff className="text-muted-foreground" />}
+            <span className="truncate">{active?.name ?? 'No camera'}</span>
             <ChevronsUpDown className="ml-auto size-4 opacity-50" />
           </Button>
         </DropdownMenuTrigger>
@@ -61,6 +61,14 @@ export function CamSourceSelector() {
               {id === activeCamId && <Check className="ml-auto" />}
             </DropdownMenuItem>
           ))}
+          <DropdownMenuItem onSelect={() => setActiveCam(null)}>
+            <VideoOff />
+            <span className="flex flex-col">
+              <span>No camera</span>
+              <span className="text-xs text-muted-foreground">Continue with toolpath only</span>
+            </span>
+            {!activeCamId && <Check className="ml-auto" />}
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           {activeCamId && (
             <DropdownMenuItem asChild>
