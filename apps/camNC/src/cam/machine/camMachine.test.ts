@@ -4,6 +4,8 @@ import type { JobBoard } from '../useJobBoards';
 import { boardBlock, planBlock } from '../boardBlock';
 import {
   currentEntry,
+  cutsToRecord,
+  doneEntries,
   currentTab,
   entryProgram,
   entryRotation,
@@ -340,5 +342,32 @@ describe('machine queue', () => {
     expect(useCamMachine.getState().pauseEachTab).toBe(true);
     useCamMachine.getState().setPauseEachTab(false);
     localStorage.removeItem('camnc-cam-machine');
+  });
+});
+
+describe('the job remembers the bed and what’s cut', () => {
+  const withBed = (bed: NonNullable<JobBoard['board']['bed']>, cut?: JobBoard['board']['cut']) => {
+    const b = board('A');
+    return { ...b, board: { ...b.board, bed, cut } } as JobBoard;
+  };
+
+  it('a board turned on another visit lies at the angle saved with the job, until turned here', () => {
+    const [a] = machineQueue([withBed({ a: { x: 10, y: 20, deg: 2.5 } })], [plan([6])]);
+    expect(entryRotation(a, {})).toBe(2.5);
+    expect(entryRotation(a, { A: -1 })).toBe(-1);
+  });
+
+  it('entries the job records as cut count as done here too; new ones are recorded once', () => {
+    const q = machineQueue([withBed({}, { at: 1, keys: [] })], [plan([3.175, 6])]);
+    expect(doneEntries(q, [])).toEqual([]);
+    const rec = cutsToRecord(q, [q[0].doneId], 5);
+    expect(rec).toEqual({ A: { at: 5, keys: [q[0].key] } });
+
+    const after = machineQueue([withBed({}, rec!.A)], [plan([3.175, 6])]);
+    expect(doneEntries(after, [])).toEqual([after[0].doneId]);
+    // Nothing new: nothing to record.
+    expect(cutsToRecord(after, [after[0].doneId], 9)).toBeNull();
+    // The last program done: every program is.
+    expect(cutsToRecord(after, [after[0].doneId, after[1].doneId], 9)).toEqual({ A: { at: 5, keys: [q[0].key, q[1].key], all: true } });
   });
 });

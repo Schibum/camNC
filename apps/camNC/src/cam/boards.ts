@@ -90,12 +90,53 @@ export interface BoardV1 {
    * left corner), side A and, turned over, side B. Loading one of its programs puts the program there again.
    */
   bed?: { a?: BedSpot; b?: BedSpot };
+  /**
+   * What of the board is cut, recorded at the machine: when cutting began and which of its programs ran (queue entry
+   * keys). Once cut, its layout and holds are locked (the wood is cut that way) until "Start over".
+   */
+  cut?: BoardCut;
 }
 
-/** A spot on the bed, machine coordinates, mm. */
+/** A spot on the bed, machine coordinates, mm, and the angle the board lies at there (degrees, counterclockwise). */
 export interface BedSpot {
   x: number;
   y: number;
+  deg?: number;
+}
+
+/** What of a board is cut. */
+export interface BoardCut {
+  /** When its first program was done, ms since the epoch. */
+  at: number;
+  /** The queue entries done (`QueueEntry.key`). */
+  keys: string[];
+  /** Every program of the board ran. */
+  all?: boolean;
+}
+
+/** The board has a program cut: its layout and holds stay as they are. */
+export const isCut = (board: Pick<BoardV1, 'cut'>) => !!board.cut?.keys.length;
+
+/** "Cut" or "Partly cut", for a cut board. */
+export const cutLabel = (board: Pick<BoardV1, 'cut'>) => (board.cut?.all ? 'Cut' : 'Partly cut');
+
+/**
+ * The fields a cut board keeps: everything that decides where its parts are and what holds it. What it may still
+ * change: its name, its spot on the bed, the measured thickness, what's cut.
+ */
+const kAfterCut = new Set<string>(['name', 'bed', 'cut', 'measuredThickness']);
+
+/** A change to a cut board that would change how it's cut (see `isCut`). */
+export function changesCutBoard(before: BoardV1, after: BoardV1 | undefined) {
+  if (!isCut(before)) return false;
+  if (!after) return true;
+  const strip = (b: BoardV1) =>
+    JSON.stringify(
+      Object.entries(b)
+        .filter(([k, v]) => v !== undefined && !kAfterCut.has(k))
+        .sort(([a], [b]) => a.localeCompare(b))
+    );
+  return strip(before) !== strip(after);
 }
 
 /** Where a body sits on its board: lower left corner of its (possibly turned) outline, board frame, mm. */
@@ -562,6 +603,18 @@ export function dropPart(board: BoardV1, instances: PartInstance[], bit: number,
     if (lands && lands.x === at.x && lands.y === at.y && !lost.length) return { at, exact: true, board: placed };
   }
   return snapped();
+}
+
+/**
+ * A body dragged to `at` on the board as nested: is that spot free (inside the margin, `gap` from the other parts and
+ * the keep-outs)? A quick check while dragging; `dropPart` decides on the drop.
+ */
+export function spotFree(nest: BoardNest, instances: PartInstance[], item: string, at: PartPosition): boolean {
+  const inst = instances.find(i => i.id === item);
+  if (!inst) return false;
+  const r = placedRect(at, inst);
+  const others = nest.placements.filter(p => p.id !== item).map(p => placedRect(p, instances.find(i => i.id === p.id)!));
+  return insideMargin(r, nest.margin, nest.board) && [...others, ...nest.keepOuts].every(o => apart(r, o, nest.gap));
 }
 
 /** The board's second side: as chosen, else re-align with the camera when a part on it has features underneath. */

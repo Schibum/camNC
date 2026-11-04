@@ -1,6 +1,7 @@
 import { frameMargin } from '@wbcnc/cam/holdPoints';
 import { describe, expect, it } from 'vitest';
 import {
+  changesCutBoard,
   autoFillFromStock,
   boardRequest,
   boardSizeLabel,
@@ -668,5 +669,16 @@ describe('boards', () => {
         ).find(x => x.id === placed.id)!.positions
       ).toEqual({});
     });
+  });
+});
+
+describe('a cut board', () => {
+  it('keeps its layout and holds; its name, spot on the bed and what’s cut may change', () => {
+    const b = { ...newBoard([], 18, 'oak', ['a']), cut: { at: 1, keys: ['x:bit:0'] } };
+    expect(changesCutBoard(b, { ...b, name: 'Z', bed: { a: { x: 1, y: 1 } } })).toBe(false);
+    expect(changesCutBoard(b, { ...b, items: [] })).toBe(true);
+    expect(changesCutBoard(b, { ...b, holdPoints: [] })).toBe(true);
+    expect(changesCutBoard(b, undefined)).toBe(true);
+    expect(changesCutBoard({ ...b, cut: undefined }, { ...b, items: [] })).toBe(false);
   });
 });

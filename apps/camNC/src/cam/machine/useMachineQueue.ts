@@ -2,7 +2,7 @@ import type { BoardV1 } from '../boards';
 import { useBoardPlans, useCamJob, useCamModel, useSaveCamJob } from '../camQueries';
 import { kDefaultPlan } from '../planSettings';
 import { missingParts, useJobBoards } from '../useJobBoards';
-import { currentEntry, machineQueue, useCamMachine } from './camMachine';
+import { currentEntry, doneEntries, machineQueue, useCamMachine } from './camMachine';
 
 /**
  * The CAM job at the machine: its queue (programs with each board's rotation baked in) and the active entry. All
@@ -11,12 +11,13 @@ import { currentEntry, machineQueue, useCamMachine } from './camMachine';
  * failed, stays in it too, as one entry saying so; one that fails a check has `blocked` on its entries.
  */
 export function useMachineQueue() {
-  const { jobId, rotation, active, done } = useCamMachine();
+  const { jobId, rotation, active, done: doneHere } = useCamMachine();
   const { data: job } = useCamJob(jobId ?? '');
   const model = useCamModel(jobId ? job : null);
   const { boards: plain, instances } = useJobBoards(job, model.data);
   const boards = plain.map(b => {
-    const [sideA, sideB] = [rotation[b.board.id], rotation[`${b.board.id}:b`]];
+    // As turned here, else as saved with the job.
+    const [sideA, sideB] = [rotation[b.board.id] ?? b.board.bed?.a?.deg, rotation[`${b.board.id}:b`] ?? b.board.bed?.b?.deg];
     // A board lying straight asks for what the Plan step asked for: the same plan.
     return {
       ...b,
@@ -40,6 +41,10 @@ export function useMachineQueue() {
     }
   );
   const save = useSaveCamJob(job);
+  const done = doneEntries(queue, doneHere);
+  const patchBoards = (patches: Record<string, Partial<BoardV1>>) => {
+    if (job) save.mutate({ ...job, boards: plain.map(b => (patches[b.board.id] ? { ...b.board, ...patches[b.board.id] } : b.board)) });
+  };
   return {
     job,
     loading: !!jobId && !model.isError && !model.data,
@@ -51,9 +56,13 @@ export function useMachineQueue() {
     /** Boards (ids) whose shown programs are being replaced: never load those. */
     stale: new Set(boards.filter((_, i) => plans[i].isPlaceholderData).map(b => b.board.id)),
     /** A change to a board (holds, its spot on the bed): saved to the job; holds plan it again. */
-    updateBoard: (boardId: string, patch: Partial<BoardV1>) => {
-      if (job) save.mutate({ ...job, boards: plain.map(b => (b.board.id === boardId ? { ...b.board, ...patch } : b.board)) });
-    },
+    updateBoard: (boardId: string, patch: Partial<BoardV1>) => patchBoards({ [boardId]: patch }),
+    /** Several boards changed at once (what's cut). */
+    patchBoards,
+    /** The job's parts, as nested on the boards. */
+    instances,
+    /** The bit the boards are nested for (gap and margin around it). */
+    nestBit: settings.bit.diameter,
     /** The measured stock thickness of a board: its programs are planned again from it. */
     setStockThickness: (boardId: string, measuredThickness: number) => {
       if (job) save.mutate({ ...job, boards: plain.map(b => (b.board.id === boardId ? { ...b.board, measuredThickness } : b.board)) });

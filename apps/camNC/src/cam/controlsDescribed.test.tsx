@@ -171,8 +171,8 @@ describe('CAM controls explain themselves', () => {
     );
     const card = within(screen.getByRole('region', { name: 'CAM job' }));
     expect(description(card.getByRole('button', { name: 'Leave the CAM job' }))).toMatch(/Closes the queue/);
-    expect(description(card.getByRole('button', { name: 'Turn 0.5° clockwise' }))).toMatch(/askew/);
-    expect(description(card.getByRole('button', { name: 'Turn 0.5° counterclockwise' }))).toMatch(/askew/);
+    expect(description(card.getByRole('button', { name: 'Turn 0.1° clockwise' }))).toMatch(/askew/);
+    expect(description(card.getByRole('button', { name: 'Turn 0.1° counterclockwise' }))).toMatch(/askew/);
     expect(description(card.getByRole('button', { name: 'Load program' }))).toMatch(/machine view/);
     expect(description(card.getByRole('button', { name: 'Done, next' }))).toMatch(/loads the next program/);
   });

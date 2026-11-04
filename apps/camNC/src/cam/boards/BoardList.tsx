@@ -16,6 +16,7 @@ import { Check, GripVertical, MoreHorizontal, Pin, PinOff, Plus, Trash2 } from '
 import { useState } from 'react';
 import { nutReaches } from '@wbcnc/cam/holdPoints';
 import {
+  isCut,
   boardHoldOf,
   boardSizeLabel,
   holdLabel,
@@ -31,6 +32,7 @@ import { Hint } from '../Hint';
 import { numberProblem, parseDecimal } from '../numberFormat';
 import type { JobBoard } from '../useJobBoards';
 import { kDragType, useBoardDrag } from './boardDrag';
+import { CutBadge } from './CutBadge';
 
 const fmt = (v: number) => `${+v.toFixed(1)}`;
 const sameThickness = (a: number, b: number) => +a.toFixed(1) === +b.toFixed(1);
@@ -117,6 +119,7 @@ export function BoardList({
               <span className="font-medium">
                 {board.name} · {MATERIALS[board.material].name[0].toUpperCase() + MATERIALS[board.material].name.slice(1)}{' '}
                 {fmt(board.thickness)} mm
+                {isCut(board) && <CutBadge board={board} />}
               </span>
               <span className="font-mono text-xs text-muted-foreground">
                 {fits ? 'Drop here' : dragging ? 'different thickness' : boardSizeLabel(board, nest)}

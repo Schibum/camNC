@@ -41,6 +41,8 @@ function bedPoint(e: ThreeEvent<PointerEvent>): P2 | null {
 export function CamHolds({ overlay, offset, running }: { overlay: BoardOverlay; offset: P2; running: boolean }) {
   'use no memo';
   const { mode, apply } = useBedEdit();
+  const selected = useBedEdit(s => s.selected);
+  const locked = useBedEdit(s => !!s.bed?.locked && s.bed.boardId === overlay.boardId);
   const controls = useThree(s => s.controls) as Controls;
   const [drag, setDrag] = useState<{ i: number; at: P2; moved: boolean } | null>(null);
   const start = useRef<P2 | null>(null);
@@ -48,7 +50,7 @@ export function CamHolds({ overlay, offset, running }: { overlay: BoardOverlay; 
   if (!holds || overlay.side === 'b' || !overlay.boardId) return null;
   const board = overlay.holdsOn ?? { w: overlay.w, h: overlay.h };
   const deg = overlay.rotationDeg;
-  const editable = !running && !!apply;
+  const editable = !running && !!apply && !locked;
   const r = (overlay.bit ?? 6) / 2;
   const clash = new Set((overlay.holdClash ?? []).map(p => `${Math.round(p.x * 10)},${Math.round(p.y * 10)}`));
   const isClash = (h: P2) => clash.has(`${Math.round(h.x * 10)},${Math.round(h.y * 10)}`);
@@ -68,6 +70,8 @@ export function CamHolds({ overlay, offset, running }: { overlay: BoardOverlay; 
     const d = drag;
     setDrag(null);
     if (d.moved && onBoard(d.at, board, 40)) apply?.(moveHold(holds, d.i, d.at, board, overlay.boardId!));
+    // A tap: the hold is selected, for the arrow keys and Delete.
+    if (!d.moved) useBedEdit.getState().setSelected({ kind: 'hold', i: d.i });
   };
 
   return (
@@ -90,7 +94,7 @@ export function CamHolds({ overlay, offset, running }: { overlay: BoardOverlay; 
         const keep = pathClearance(h, r) - r;
         const halo = { x: box.x - keep, y: box.y - keep, w: box.w + 2 * keep, h: box.h + 2 * keep };
         const bad = drag?.i === i ? live : isClash(holds[i]);
-        const color = bad ? kClash : kHold;
+        const color = bad ? kClash : selected?.kind === 'hold' && selected.i === i ? '#fbbf24' : kHold;
         const clamp = h.kind === 'clamp' && h.w !== undefined;
         const name = `${clamp ? 'Clamp' : 'Screw'} ${i + 1}`;
         return (

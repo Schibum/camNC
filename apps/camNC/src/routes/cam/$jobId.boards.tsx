@@ -4,10 +4,13 @@ import { CamPage } from '@/cam/CamPage';
 import { NoPartsToMill } from '@/cam/NoPartsToMill';
 import {
   autoFillFromStock,
+  changesCutBoard,
+  cutLabel,
   dropPart,
   flipOf,
   holdLabel,
   holdSettingsOf,
+  isCut,
   layoutSummary,
   newBoard,
   relayoutBoard,
@@ -22,6 +25,7 @@ import { BitChip } from '@/cam/plan/BitPicker';
 import { camKeys, useBoardPlans, useCamJob, useCamModel, useSaveCamJob } from '@/cam/camQueries';
 import type { CamJobV1 } from '@/cam/jobDb';
 import { CamJobBar } from '@/cam/model/CamJobBar';
+import { forgetCut } from '@/cam/machine/camMachine';
 import { Hint } from '@/cam/Hint';
 import { kDefaultPlan } from '@/cam/planSettings';
 import { useJobBoards } from '@/cam/useJobBoards';
@@ -101,7 +105,35 @@ function BoardsStep() {
 
   const plan = job.plan ?? kDefaultPlan;
   const selected = boards.find(b => b.board.id === selectedId) ?? boards[0];
-  const saveBoards = (next: BoardV1[]) => save.mutate({ ...job, boards: next });
+  // A cut board stays as it was cut: a change to its layout or holds is refused, until "Start over".
+  const saveBoards = (next: BoardV1[]) => {
+    const byNewId = new Map(next.map(b => [b.id, b]));
+    const cut = boards.find(b => changesCutBoard(b.board, byNewId.get(b.board.id)));
+    if (cut) {
+      toast.error(
+        `Board ${cut.board.name} is ${cutLabel(cut.board).toLowerCase()}: its parts and holds stay as they are. Start over to change them.`
+      );
+      return;
+    }
+    save.mutate({ ...job, boards: next });
+  };
+  const startOver = (board: BoardV1) => {
+    const { cut, ...rest } = board;
+    void cut;
+    save.mutate({ ...job, boards: boards.map(b => (b.board.id === board.id ? rest : b.board)) });
+    forgetCut(job.id, board.id);
+    toast.success(`Board ${board.name} can be changed again`, {
+      description: 'What was cut on it is forgotten: at the machine, all its programs are to cut again.',
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          const latest = queryClient.getQueryData<CamJobV1>(camKeys.job(job.id)) ?? job;
+          save.mutate({ ...latest, boards: (latest.boards ?? []).map(b => (b.id === board.id ? { ...b, cut } : b)) });
+        },
+      },
+      duration: 10_000,
+    });
+  };
   const updateBoard = (b: BoardV1) => saveBoards(boards.map(x => (x.board.id === b.id ? b : x.board)));
   const byId = new Map(instances.map(i => [i.id, i]));
 
@@ -198,7 +230,7 @@ function BoardsStep() {
   /** Everything unpinned, then nested from scratch: from the stock list when there is one. */
   const relayoutAll = () => {
     const before = boards.map(b => b.board);
-    const free = before.map(relayoutBoard);
+    const free = before.map(b => (isCut(b) ? b : relayoutBoard(b)));
     if (!(job.stock ?? []).length) {
       saveBoards(free);
       return toast.success('All boards laid out again', { action: undoTo(before), duration: 10_000 });
@@ -208,7 +240,18 @@ function BoardsStep() {
   const autoFill = (start = boards.map(b => b.board), before = start) => {
     const stock = job.stock ?? [];
     if (!stock.length) return toast.error('Add the boards you have to the stock list first.');
-    const res = autoFillFromStock(start, instances, stock, plan.bit.diameter, plan.material, job.nestObjective ?? 'boards');
+    // Cut boards stay as they are, with their parts: the rest is filled around them.
+    const kept = start.filter(isCut);
+    const onKept = new Set(kept.flatMap(b => b.items));
+    const res = autoFillFromStock(
+      start.filter(b => !isCut(b)),
+      instances.filter(i => !onKept.has(i.id)),
+      stock,
+      plan.bit.diameter,
+      plan.material,
+      job.nestObjective ?? 'boards'
+    );
+    res.boards = [...kept, ...res.boards];
     saveBoards(res.boards);
     const names = (ids: string[]) => ids.map(id => byId.get(id)?.name ?? id).join(', ');
     const problems = [
@@ -314,6 +357,26 @@ function BoardsStep() {
           <p role="status" aria-label="Layout result" className="-mt-1.5 px-4 pb-2 text-xs text-muted-foreground">
             {layoutSummary(boards)}
           </p>
+          {isCut(selected.board) && (
+            <div
+              role="note"
+              aria-label={`Board ${selected.board.name} is cut`}
+              className="mx-4 mb-2 flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
+              <span className="font-medium">
+                Board {selected.board.name}: {cutLabel(selected.board).toLowerCase()}
+              </span>
+              <span className="text-muted-foreground">
+                {selected.board.cut!.keys.length} {selected.board.cut!.keys.length === 1 ? 'program' : 'programs'} ran at the machine, since{' '}
+                {new Date(selected.board.cut!.at).toLocaleString()}. Its parts and holds stay as they were cut.
+              </span>
+              <span className="grow" />
+              <Hint text="Unlocks the board's layout and holds, and forgets what was cut: for a new sheet of the same parts.">
+                <Button size="sm" variant="outline" onClick={() => startOver(selected.board)}>
+                  Start over
+                </Button>
+              </Hint>
+            </div>
+          )}
           <BoardDrawings
             boards={boards}
             instances={instances}

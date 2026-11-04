@@ -4,7 +4,7 @@ import { combine, persist } from 'zustand/middleware';
 import type { TabStop } from '@wbcnc/cam';
 import type { HoldPoint } from '@wbcnc/cam/holdPoints';
 import { boardBlock, type BlockContext } from '../boardBlock';
-import { holdsOf } from '../boards';
+import { holdsOf, type BoardCut } from '../boards';
 import type { PlanResult, ReleaseProgram } from '../camTypes';
 import type { JobBoard } from '../useJobBoards';
 
@@ -238,6 +238,13 @@ export function currentEntry(queue: QueueEntry[], active: string | null, done: s
   return sameBoard.find(toCut) ?? queue.find(toCut) ?? null;
 }
 
+/** A board started over (Boards): what was marked done of it here is forgotten too, when it's this job at the machine. */
+export function forgetCut(jobId: string, boardId: string) {
+  const m = useCamMachine.getState();
+  if (m.jobId !== jobId) return;
+  useCamMachine.setState({ done: m.done.filter(d => !d.startsWith(`${boardId}:`)) });
+}
+
 /** What comes after `current`: the next entry to cut, or an earlier one left out. */
 export function nextEntry(queue: QueueEntry[], current: QueueEntry, done: string[]): QueueEntry | null {
   const i = queue.indexOf(current);
@@ -249,9 +256,44 @@ export function nextEntry(queue: QueueEntry[], current: QueueEntry, done: string
 export const rotationKey = (e: QueueEntry) =>
   e.sideB || e.kind === 'flip' || e.release?.turned ? `${e.board.board.id}:b` : e.board.board.id;
 
-/** The angle of an entry's program: until side B is corrected it lies like side A. */
-export const entryRotation = (e: QueueEntry, rotation: Record<string, number>) =>
-  rotation[rotationKey(e)] ?? rotation[e.board.board.id] ?? 0;
+/**
+ * The angle of an entry's program: as turned here, else as saved with the job (the board's spot on the bed). Until
+ * side B is corrected it lies like side A.
+ */
+export const entryRotation = (e: QueueEntry, rotation: Record<string, number>) => {
+  const { id, bed } = e.board.board;
+  const own = rotationKey(e) === id ? (rotation[id] ?? bed?.a?.deg) : (rotation[`${id}:b`] ?? bed?.b?.deg);
+  return own ?? rotation[id] ?? bed?.a?.deg ?? 0;
+};
+
+/**
+ * What's cut: the entries marked done here, and those the job says were cut (`BoardV1.cut`, kept with the job), also
+ * after leaving it or on another visit. A program that changed since it was done here counts as not cut.
+ */
+export function doneEntries(queue: QueueEntry[], done: string[]): string[] {
+  const fromJob = queue.filter(e => e.board.board.cut?.keys.includes(e.key) && !done.includes(e.doneId)).map(e => e.doneId);
+  return fromJob.length ? [...done, ...fromJob] : done;
+}
+
+/**
+ * What the job should record as cut for each board whose cut changed: the entries done (added to what it has), and
+ * whether every program of the board is. `null` when nothing changed.
+ */
+export function cutsToRecord(queue: QueueEntry[], done: string[], now = Date.now()): Record<string, BoardCut> | null {
+  const out: Record<string, BoardCut> = {};
+  const ids = [...new Set(queue.map(e => e.board.board.id))];
+  for (const id of ids) {
+    const mine = queue.filter(e => e.board.board.id === id);
+    const board = mine[0].board.board;
+    const programs = mine.filter(e => e.kind !== 'error' && e.kind !== 'pending');
+    const keys = [...new Set([...(board.cut?.keys ?? []), ...programs.filter(e => done.includes(e.doneId)).map(e => e.key)])];
+    if (!keys.length) continue;
+    const all = programs.length > 0 && programs.every(e => keys.includes(e.key));
+    if (board.cut && board.cut.keys.length === keys.length && !!board.cut.all === all) continue;
+    out[id] = { at: board.cut?.keys.length ? board.cut.at : now, keys, ...(all && { all }) };
+  }
+  return Object.keys(out).length ? out : null;
+}
 
 /**
  * The tab the guided removal program is at: the last "Tab k of N" pause read so far (FluidNC's SD percent). 0 before

@@ -4,11 +4,12 @@ import { MATERIALS } from '@wbcnc/cam/settings';
 import { Maximize, Minus, Plus } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { usesTabs } from '@wbcnc/cam/board';
-import { boardSizeLabel, dropPart, partsHoldOf, placedRect, type PartDrop, type PartInstance, type PartPosition } from '../boards';
+import { boardSizeLabel, dropPart, isCut, partsHoldOf, placedRect, type PartDrop, type PartInstance, type PartPosition } from '../boards';
 import type { CamPartInfo, PlanResult } from '../camTypes';
 import type { JobBoard } from '../useJobBoards';
 import { useBoardDrag } from './boardDrag';
 import { NestView } from './NestView';
+import { CutBadge } from './CutBadge';
 import { place, toD } from './outline';
 
 const fmt = (v: number) => `${+v.toFixed(1)}`;
@@ -399,6 +400,7 @@ export function BoardDrawings({
                 )}>
                 <div className="flex w-0 min-w-full flex-wrap items-center gap-x-2 px-1 text-sm">
                   <span className="font-medium">Board {board.name}</span>
+                  {isCut(board) && <CutBadge board={board} />}
                   <span className="whitespace-nowrap text-muted-foreground">
                     {MATERIALS[board.material].name[0].toUpperCase() + MATERIALS[board.material].name.slice(1)} {fmt(board.thickness)} mm ·{' '}
                     <span className="font-mono text-xs">{boardSizeLabel(board, nest)}</span>

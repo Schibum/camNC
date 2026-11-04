@@ -3,6 +3,7 @@ import { isCamncJobFile } from '@/lib/machine/jobs';
 import { useStore } from '@/store/store';
 import { Html, Line } from '@react-three/drei';
 import { useMemo } from 'react';
+import { CamBedLayer, CamGhostBoards } from './CamBedLayer';
 import { CamHolds } from './CamHolds';
 import { currentTab, takeOutAt, useCamMachine } from './camMachine';
 
@@ -80,48 +81,52 @@ export function CamBoardOverlay() {
   const nextTabPart = perPart.paused && overlay.tabsPerPart ? tabParts[perPart.part + 1] : undefined;
   const firstOfNext = nextTabPart ? overlay.tabs?.find(t => t.part === nextTabPart) : undefined;
   return (
-    <group position={[offset.x, offset.y, 0]}>
-      <Line points={outline} color={kOutline} lineWidth={2} dashed dashSize={6} gapSize={4} />
-      <CamHolds overlay={overlay} offset={offset} running={running} />
-      {overlay.tabs?.map(t => (
-        <mesh key={t.index} position={[t.at.x, t.at.y, 0.3]}>
-          <boxGeometry args={current(t) ? [9, 9, 0.1] : [5, 5, 0.1]} />
-          <meshBasicMaterial color={kTab} transparent opacity={past(t) ? 0.35 : 1} />
-        </mesh>
-      ))}
-      {next && <Label at={next.at} text={`Next: tab ${next.index} of ${overlay.tabs!.length}`} tone="tab" />}
-      {firstOfPart && (
-        <Label
-          at={firstOfPart.at}
-          text={perPart.paused ? `① Take out ${cutting}` : `Cutting ${cutting}’s tabs, then take it out`}
-          tone="tab"
-          big={perPart.paused}
-        />
-      )}
-      {firstOfNext && <Label at={firstOfNext.at} text={`② Next: ${nextTabPart}`} tone="hold" big />}
-      {freeing && (
-        <>
-          <Ring at={freeing.at} tone={perPart.paused ? 'tab' : 'hold'} />
+    <>
+      <CamGhostBoards running={running} />
+      <group position={[offset.x, offset.y, 0]}>
+        <Line points={outline} color={kOutline} lineWidth={2} dashed dashSize={6} gapSize={4} />
+        <CamBedLayer overlay={overlay} offset={offset} running={running} />
+        <CamHolds overlay={overlay} offset={offset} running={running} />
+        {overlay.tabs?.map(t => (
+          <mesh key={t.index} position={[t.at.x, t.at.y, 0.3]}>
+            <boxGeometry args={current(t) ? [9, 9, 0.1] : [5, 5, 0.1]} />
+            <meshBasicMaterial color={kTab} transparent opacity={past(t) ? 0.35 : 1} />
+          </mesh>
+        ))}
+        {next && <Label at={next.at} text={`Next: tab ${next.index} of ${overlay.tabs!.length}`} tone="tab" />}
+        {firstOfPart && (
           <Label
-            at={{ x: freeing.at.x + 18, y: freeing.at.y }}
-            text={perPart.paused ? `① Take out ${freeing.name}` : `Freeing ${freeing.name}: hold it down`}
-            tone={perPart.paused ? 'tab' : 'hold'}
+            at={firstOfPart.at}
+            text={perPart.paused ? `① Take out ${cutting}` : `Cutting ${cutting}’s tabs, then take it out`}
+            tone="tab"
             big={perPart.paused}
           />
-        </>
-      )}
-      {nextFree && (
-        <>
-          <Ring at={nextFree.at} tone="hold" />
-          <Label at={{ x: nextFree.at.x + 18, y: nextFree.at.y }} text={`② Hold ${nextFree.name} next`} tone="hold" big />
-        </>
-      )}
-      {next && (
-        <>
-          <Ring at={next.hold} tone="hold" />
-          <Label at={{ x: next.hold.x + 18, y: next.hold.y }} text="Hold here" tone="hold" />
-        </>
-      )}
-    </group>
+        )}
+        {firstOfNext && <Label at={firstOfNext.at} text={`② Next: ${nextTabPart}`} tone="hold" big />}
+        {freeing && (
+          <>
+            <Ring at={freeing.at} tone={perPart.paused ? 'tab' : 'hold'} />
+            <Label
+              at={{ x: freeing.at.x + 18, y: freeing.at.y }}
+              text={perPart.paused ? `① Take out ${freeing.name}` : `Freeing ${freeing.name}: hold it down`}
+              tone={perPart.paused ? 'tab' : 'hold'}
+              big={perPart.paused}
+            />
+          </>
+        )}
+        {nextFree && (
+          <>
+            <Ring at={nextFree.at} tone="hold" />
+            <Label at={{ x: nextFree.at.x + 18, y: nextFree.at.y }} text={`② Hold ${nextFree.name} next`} tone="hold" big />
+          </>
+        )}
+        {next && (
+          <>
+            <Ring at={next.hold} tone="hold" />
+            <Label at={{ x: next.hold.x + 18, y: next.hold.y }} text="Hold here" tone="hold" />
+          </>
+        )}
+      </group>
+    </>
   );
 }

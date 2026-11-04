@@ -61,8 +61,8 @@ describe('the machine queue with a real plan', () => {
     expect(straight).toBeTruthy();
 
     // Turned, the plan fails no check of its own: the rectangle turned with it. It's loaded again by itself.
-    fireEvent.click(card().getByRole('button', { name: 'Turn 0.5° counterclockwise' }));
-    expect(useCamMachine.getState().rotation[boards.find(b => b.name === 'A')!.id]).toBe(0.5);
+    fireEvent.click(card().getByRole('button', { name: 'Turn 0.1° counterclockwise' }));
+    expect(useCamMachine.getState().rotation[boards.find(b => b.name === 'A')!.id]).toBe(0.1);
     await waitFor(
       () => {
         expect(useStore.getState().toolpath?.gcode).toBeTruthy();
@@ -71,7 +71,7 @@ describe('the machine queue with a real plan', () => {
       { timeout: 60_000 }
     );
     expect(card().queryByRole('alert')).toBeNull();
-    expect(useCamMachine.getState().overlay?.rotationDeg).toBe(0.5);
+    expect(useCamMachine.getState().overlay?.rotationDeg).toBe(0.1);
 
     // Back on Boards: a gap too narrow for the bit.
     const moved: CamJobV1 = { ...job, boards: boards.map(b => (b.name === 'A' ? { ...b, gap: 1 } : b)) };

@@ -255,19 +255,31 @@ describe('the machine queue card', () => {
     const { rerender } = render(view());
     expect(card().getByText(/Refit the screws, clamps or tape/).parentElement!.textContent).toMatch(/clear of side B’s cuts/);
     // Until corrected it lies like side A.
-    expect(card().getByLabelText('Rotation').textContent).toBe('1.0°');
-    fireEvent.click(card().getByRole('button', { name: 'Turn 0.5° counterclockwise' }));
-    expect(useCamMachine.getState().rotation).toEqual({ A: 1, 'A:b': 1.5 });
+    expect(card().getByLabelText<HTMLInputElement>('Rotation in degrees').value).toBe('1.0');
+    fireEvent.click(card().getByRole('button', { name: 'Turn 0.1° counterclockwise' }));
+    expect(useCamMachine.getState().rotation).toEqual({ A: 1, 'A:b': 1.1 });
     setQueue([board('A')], [a]);
     rerender(view());
-    expect(useCamMachine.getState().overlay?.rotationDeg).toBe(1.5);
+    expect(useCamMachine.getState().overlay?.rotationDeg).toBe(1.1);
 
     // Where the outline can be dragged too: on side B's first step, its program loaded.
     useCamMachine.setState({ active: 'A:b:bit:0' });
     setQueue([board('A')], [a]);
     rerender(view());
-    expect(card().getByLabelText('Rotation').textContent).toBe('1.5°');
+    expect(card().getByLabelText<HTMLInputElement>('Rotation in degrees').value).toBe('1.1');
     expect(entryByKey('A:b:bit:0').sideB).toBe(true);
+  });
+
+  it('the angle can be typed, and straightened', () => {
+    useCamMachine.setState({ active: 'A:bit:0', rotation: {} });
+    setQueue([board('A')], [plan([3.175], 'a')]);
+    render(view());
+    const input = card().getByLabelText<HTMLInputElement>('Rotation in degrees');
+    fireEvent.change(input, { target: { value: '-2,5' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(useCamMachine.getState().rotation).toEqual({ A: -2.5 });
+    fireEvent.click(card().getByRole('button', { name: 'Straighten' }));
+    expect(useCamMachine.getState().rotation).toEqual({ A: 0 });
   });
 
   it('with pins or a fence side B lies where they put it: no rotation control, still the line about the holds', () => {
@@ -275,7 +287,7 @@ describe('the machine queue card', () => {
     useCamMachine.setState({ active: 'A:flip' });
     setQueue([board('A')], [a]);
     render(view());
-    expect(card().queryByLabelText('Rotation')).toBeNull();
+    expect(card().queryByLabelText('Rotation in degrees')).toBeNull();
     expect(card().getByText(/Refit the screws, clamps or tape/)).toBeTruthy();
   });
 

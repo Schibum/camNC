@@ -6,7 +6,8 @@ import type { BoardRequest, CamPartInfo, OpSummary, PlanResult, ReleaseProgram }
 import type { FlipRegistration } from '@wbcnc/cam';
 import { missingParts, useJobBoards, type MissingPart } from '@/cam/useJobBoards';
 import { layoutBlock, loose, planBlock, releaseProblems, unstable } from '@/cam/boardBlock';
-import { edgeNote, freezeSpacing, spacingProblem } from '@/cam/boards';
+import { edgeNote, freezeSpacing, isCut, spacingProblem } from '@/cam/boards';
+import { CutBadge } from '@/cam/boards/CutBadge';
 import { orderBoardQueue } from '@wbcnc/cam/board';
 import { CamJobBar } from '@/cam/model/CamJobBar';
 import { Hint } from '@/cam/Hint';
@@ -176,8 +177,17 @@ function PlanStep() {
     document.getElementById(tabId('settings'))?.focus();
   };
 
+  // Settings here are the job's: a change plans cut boards again too, which no longer match what's cut.
+  const cut = queue.filter(e => isCut(e.board));
   return (
     <Shell bar={bar}>
+      {cut.length > 0 && (
+        <p role="note" className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm">
+          {cut.length === 1 ? `Board ${cut[0].board.name} is` : `Boards ${cut.map(e => e.board.name).join(', ')} are`} already cut at the
+          machine. The bit, material and tab settings here are for the whole job: a change plans {cut.length === 1 ? 'it' : 'them'} again,
+          and the new programs no longer match what’s cut. Start over in Boards for a new sheet.
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2.5">
         <div role="tablist" aria-label="Boards in cutting order" className="flex flex-wrap gap-1">
           {queue.map((e, i) => (
@@ -191,6 +201,7 @@ function PlanStep() {
                 e === current ? 'bg-muted font-medium' : 'text-muted-foreground hover:bg-muted/60'
               )}>
               {i + 1} · {e.board.name} {e.board.thickness} mm
+              <CutBadge board={e.board} />
             </button>
           ))}
         </div>

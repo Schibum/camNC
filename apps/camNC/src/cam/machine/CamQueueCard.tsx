@@ -7,6 +7,9 @@ import { useEffect, useState } from 'react';
 import { SetupStep } from '@/components/machine/SetupStep';
 import { Hint } from '../Hint';
 import { NumberInput } from '../NumberInput';
+import { parseDecimal } from '../numberFormat';
+import { Input } from '@wbcnc/ui/components/input';
+import { useBedEdit } from './bedEdit';
 import { clearMachineView, loadIntoMachineView } from '../showOnMachine';
 import { kStockAllowance, stockTopOf } from '../boards';
 import { Vector3 } from 'three';
@@ -30,24 +33,52 @@ const fmt = (v: number) => `${+v.toFixed(2)}`;
 const holdKindName = (e: QueueEntry) =>
   (e.board.request?.holdPoints?.[0]?.kind ?? e.board.board.holds?.kind) === 'clamp' ? 'Clamp it' : 'Screw it down';
 
-/** Turns the program of the current entry, to match a board lying askew. */
-function RotationControl({ deg, onTurn }: { deg: number; onTurn: (d: number) => void }) {
+/**
+ * The board's angle, to match a board lying askew: typed, or in 0.1° steps. It turns about the board's middle (like
+ * the knob above the board in the top view), so the outline stays where it lies.
+ */
+function RotationControl({ deg, onSet }: { deg: number; onSet: (d: number) => void }) {
+  const [text, setText] = useState<string | null>(null);
+  const step = (d: number) => onSet(Math.round((deg + d) * 10) / 10);
+  const commit = () => {
+    if (text === null) return;
+    const v = parseDecimal(text);
+    setText(null);
+    if (v !== null && Number.isFinite(v)) onSet(Math.round(Math.max(-180, Math.min(180, v)) * 10) / 10);
+  };
   return (
-    <div className="flex items-center gap-1.5">
-      <Hint text="Turn the program 0.5° clockwise, to match a board that lies askew.">
-        <Button size="sm" variant="outline" aria-label="Turn 0.5° clockwise" onClick={() => onTurn(-0.5)}>
+    <div className="flex flex-wrap items-center gap-1.5">
+      <Hint text="Turn the board 0.1° clockwise, to match a board that lies askew.">
+        <Button size="sm" variant="outline" aria-label="Turn 0.1° clockwise" onClick={() => step(-0.1)}>
           <RotateCw />
         </Button>
       </Hint>
-      <span className="w-16 text-center font-mono" aria-label="Rotation">
-        {deg.toFixed(1)}°
-      </span>
-      <Hint text="Turn the program 0.5° counterclockwise, to match a board that lies askew.">
-        <Button size="sm" variant="outline" aria-label="Turn 0.5° counterclockwise" onClick={() => onTurn(0.5)}>
+      <div className="relative">
+        <Input
+          aria-label="Rotation in degrees"
+          inputMode="decimal"
+          className="h-8 w-20 pr-5 text-center font-mono"
+          value={text ?? deg.toFixed(1)}
+          onChange={e => setText(e.target.value)}
+          onFocus={e => e.target.select()}
+          onBlur={commit}
+          onKeyDown={e => {
+            if (e.key === 'Enter') commit();
+            if (e.key === 'Escape') setText(null);
+          }}
+        />
+        <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-xs text-muted-foreground">°</span>
+      </div>
+      <Hint text="Turn the board 0.1° counterclockwise, to match a board that lies askew.">
+        <Button size="sm" variant="outline" aria-label="Turn 0.1° counterclockwise" onClick={() => step(0.1)}>
           <RotateCcw />
         </Button>
       </Hint>
-      <span className="text-xs text-muted-foreground">about the XY zero (lower left)</span>
+      {deg !== 0 && (
+        <Button size="sm" variant="ghost" onClick={() => onSet(0)}>
+          Straighten
+        </Button>
+      )}
     </div>
   );
 }
@@ -123,7 +154,12 @@ export function CamQueueCard() {
   };
   const board = current?.board.board;
   const deg = current ? entryRotation(current, rotation) : 0;
-  const turn = (d: number) => current && setRotation(rotationKey(current), Math.round((deg + d) * 10) / 10);
+  // Through the top view's editor when it's there: about the board's middle, the spot saved with the job.
+  const setDeg = (d: number) => {
+    const bed = useBedEdit.getState().bed;
+    if (bed && current && bed.boardId === current.board.board.id) bed.rotate(d);
+    else if (current) setRotation(rotationKey(current), d);
+  };
   const bit = current && entryProgram(current)?.diameter;
   // The previous entry in the queue left another bit in the collet, on any kind of entry.
   const swap = bit !== undefined && bit !== current?.bitBefore;
@@ -228,9 +264,9 @@ export function CamQueueCard() {
               <div className="flex flex-col gap-1.5">
                 <p>
                   <span className="font-medium">3. Align:</span> drag the dashed board outline onto the board in the camera view. If it lies
-                  askew, turn the program:
+                  askew, turn it with the knob above it, or here:
                 </p>
-                <RotationControl deg={deg} onTurn={turn} />
+                <RotationControl deg={deg} onSet={setDeg} />
               </div>
               {!!current.board.request?.holdPoints && (
                 <p>
@@ -258,7 +294,7 @@ export function CamQueueCard() {
               {onCamera && (
                 <>
                   <p>If it lies at another angle now, turn side B’s program (dashed outline):</p>
-                  <RotationControl deg={deg} onTurn={turn} />
+                  <RotationControl deg={deg} onSet={setDeg} />
                 </>
               )}
               <p className="text-muted-foreground">
@@ -277,7 +313,7 @@ export function CamQueueCard() {
                     <span className="font-medium">Align:</span> drag the dashed board outline onto the turned board in the camera view. If
                     it lies askew, turn the program:
                   </p>
-                  <RotationControl deg={deg} onTurn={turn} />
+                  <RotationControl deg={deg} onSet={setDeg} />
                 </div>
               )}
             </SetupStep>
