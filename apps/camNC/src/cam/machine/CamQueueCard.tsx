@@ -123,6 +123,7 @@ export function CamQueueCard() {
           return (
             <li key={e.key}>
               <button
+                disabled={busy}
                 onClick={() => load(e)}
                 className={cn(
                   'flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-muted',
@@ -153,6 +154,7 @@ export function CamQueueCard() {
           );
         })}
       </ol>
+      {busy && <p className="text-xs text-muted-foreground">A program is running or paused: the queue goes on when it’s done.</p>}
 
       {current && board && (
         <div className="flex flex-col gap-2 text-[13px]">
@@ -293,7 +295,7 @@ export function CamQueueCard() {
                 <Button
                   size="sm"
                   variant={loadedGcode && loadedGcode === gcodeOf(current) ? 'outline' : 'default'}
-                  disabled={!gcodeOf(current)}
+                  disabled={busy || !gcodeOf(current)}
                   onClick={() => load(current)}>
                   Load {current.kind === 'tabs' ? 'tab removal' : current.kind === 'free' ? 'parts freeing' : 'program'}
                 </Button>
@@ -301,11 +303,11 @@ export function CamQueueCard() {
             )}
             <span className="grow" />
             <Hint text="Marks this one as cut and loads the next program in the queue.">
-              {/* Only for what could be loaded: a program not there yet, or blocked, wasn't cut. */}
+              {/* Only for what could be loaded: a program not there yet, or blocked, wasn't cut. Not while one runs: what's loaded stays. */}
               <Button
                 size="sm"
                 variant={current.kind === 'flip' ? 'default' : 'outline'}
-                disabled={!!current.blocked || !!stale?.has(current.board.board.id)}
+                disabled={busy || !!current.blocked || !!stale?.has(current.board.board.id)}
                 onClick={next}>
                 {current.kind === 'flip' ? 'Turned over, next' : 'Done, next'}
               </Button>

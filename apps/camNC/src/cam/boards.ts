@@ -108,7 +108,7 @@ export interface BedSpot {
 export interface BoardCut {
   /** When its first program was done, ms since the epoch. */
   at: number;
-  /** The queue entries done (`QueueEntry.key`). */
+  /** The programs done (`QueueEntry.doneId`): planned again into another program, that one isn't cut. */
   keys: string[];
   /** Every program of the board ran. */
   all?: boolean;
