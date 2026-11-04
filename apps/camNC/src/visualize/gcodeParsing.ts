@@ -66,7 +66,7 @@ function withoutMachineMoves(gcode: string) {
         i % 2 === 0 && [...piece.matchAll(word)].some(([, letter, value]) => letter.toUpperCase() === 'G' && Number(value) === 53)
     );
     if (!isMachineMove) return line;
-    return pieces
+    const filtered = pieces
       .map((piece, i) =>
         i % 2
           ? piece
@@ -75,6 +75,9 @@ function withoutMachineMoves(gcode: string) {
             )
       )
       .join('');
+    // A G53 block can inherit its motion mode. Keep even a block with only coordinates nonblank, since the
+    // interpreter drops blank lines and its callback indices must still match sourceLines.
+    return `(G53 machine coordinates omitted) ${filtered}`;
   });
 }
 

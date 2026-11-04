@@ -53,6 +53,12 @@ M30
     expect(toolpath.pathPoints.some(p => p.z === -5)).toBe(false);
   });
 
+  it('keeps source line numbers when the G53 block inherits its motion mode', () => {
+    const toolpath = parseGCode('G0 X0 Y0 Z5\nG53 Z-5\nX20');
+    expect(toolpath.lines.at(-1)).toBe(3);
+    expect(toolpath.pathPoints.at(-1)!.toArray()).toEqual([20, 0, 5]);
+  });
+
   it('handles compact words and comments before the G53 word without changing comment-only G53 mentions', () => {
     const toolpath = parseGCode('G0X0Y0Z5\nG1Z-1F100\n(lift)g53g0z-5 ; Z-20\nX20\nG1X30 (G53)\nX40 ; G53');
     const atX20 = toolpath.pathPoints.findIndex(p => p.x === 20);
