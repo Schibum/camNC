@@ -19,6 +19,7 @@ import {
   flipPart,
   holdCheck,
   holdOptionsOf,
+  holdsOnParts,
   jobHoldClashes,
   holdTimeline,
   sideBSpec,
@@ -165,11 +166,16 @@ const api = {
     // Holds in the way of any move of any program: side B and the turned programs find them in the same spots on the wood.
     const clashes = spec.holdPoints?.length
       ? {
-          holdClash: jobHoldClashes({ ...spec, sideBRotationDeg: board.sideBRotationDeg }, flat.stockTop, [
-            ...plan.programs,
-            ...(plan.sideB?.programs ?? []).map(p => ({ ...p, turned: true })),
-            ...release,
-          ]).map(h => ({ x: h.x, y: h.y })),
+          holdClash: [
+            ...new Set([
+              ...jobHoldClashes({ ...spec, sideBRotationDeg: board.sideBRotationDeg }, flat.stockTop, [
+                ...plan.programs,
+                ...(plan.sideB?.programs ?? []).map(p => ({ ...p, turned: true })),
+                ...release,
+              ]),
+              ...holdsOnParts(spec),
+            ]),
+          ].map(h => ({ x: h.x, y: h.y })),
         }
       : {};
     plan = { ...plan, ...stability(flat, spec, settings), ...clashes, ...(release.length && { release }) };

@@ -179,11 +179,11 @@ export function largestOffcut(b: SettleBoard, spots: Spots, fixtures: Fixture[])
   return best;
 }
 
-/** Kept clear for the probe: no fixture this close to the XY zero; a clamp stays on its edge. */
+/** Kept clear for the probe: no fixture this close to the XY zero. And a fixture stays on the board. */
 export function reserved(f: Fixture, b: Pick<SettleBoard, 'w' | 'h' | 'sizes'>) {
   const box = fixtureBox(f, b);
   if (Math.hypot(box.x + box.w / 2, box.y + box.h / 2) < kZeroClear) return true;
-  return f.kind === 'clamp' && (box.x < -1e-6 || box.y < -1e-6 || box.x + box.w > b.w + 1e-6 || box.y + box.h > b.h + 1e-6);
+  return box.x - box.r < -1e-6 || box.y - box.r < -1e-6 || box.x + box.w + box.r > b.w + 1e-6 || box.y + box.h + box.r > b.h + 1e-6;
 }
 
 const keepOf = (b: Pick<SettleBoard, 'keep'>, f: Fixture) => b.keep[f.kind];
@@ -469,8 +469,8 @@ export function clampPlay(b: SettleBoard, spots: Spots, f: Extract<Fixture, { ki
 /** A clamp at this spot along an edge: it fits as it is, parts have to move aside, or there's no room on this size. */
 export type EdgeFit = 'free' | 'moves' | 'none';
 
-/** Where clamps fit along the board's edges, every `step` mm: to show while placing one. */
-export function edgeBands(b: SettleBoard, spots: Spots, fixtures: Fixture[], step = 20) {
+/** Where clamps fit along the board's edges, every `step` mm: to show while placing one. `mayGrow`: a fitted board. */
+export function edgeBands(b: SettleBoard, spots: Spots, fixtures: Fixture[], mayGrow = false, step = 20) {
   const out: { side: BoardSide; at: number; step: number; fit: EdgeFit }[] = [];
   const cw = b.sizes.clampWidth;
   for (const side of ['left', 'right', 'bottom', 'top'] as const) {
@@ -481,7 +481,7 @@ export function edgeBands(b: SettleBoard, spots: Spots, fixtures: Fixture[], ste
         ? 'none'
         : fixtureFree(b, spots, f)
           ? 'free'
-          : settle(b, spots, [...fixtures, f], false, 40)
+          : settle(b, spots, [...fixtures, f], mayGrow, 40)
             ? 'moves'
             : 'none';
       out.push({ side, at, step, fit });

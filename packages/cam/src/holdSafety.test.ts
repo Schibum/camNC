@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readGcode } from './analyze';
-import { camBoard, holdOptionsOf, jobHoldClashes, rotateAboutOrigin, splitByBit, type BoardSpec } from './board';
+import { camBoard, holdOptionsOf, jobHoldClashes, rotateAboutOrigin, splitByBit, type BoardSpec, holdsOnParts } from './board';
 import type { PartFeatures } from './features';
 import { sideBSpec } from './flip';
 import { toGcode } from './gcode';
@@ -369,6 +369,15 @@ describe('held by points', () => {
     const around = { ...b, holdPoints: [screw(60, 15), screw(985, 15), screw(985, 485), screw(15, 485)] };
     expect(holdTimeline(camBoard(around, {}), around, holdOptionsOf(around))).toEqual([]);
     expect(holdCheck(camBoard(around, {}), around, holdOptionsOf(around)).every(p => p.ok)).toBe(true);
+  });
+
+  it('a hold on a part is found, though no cut comes near it; beside it, it is not', () => {
+    const b = (holdPoints: HoldPoint[]): Pick<BoardSpec, 'parts' | 'holdPoints'> => ({ holdPoints, parts: [plate(300, 200, 20, 20)] });
+    expect(holdsOnParts(b([screw(170, 120)]))).toHaveLength(1);
+    expect(holdsOnParts(b([screw(400, 120)]))).toEqual([]);
+    const turned = { ...plate(300, 200, 20, 20), rotated: true };
+    expect(holdsOnParts({ holdPoints: [screw(120, 300)], parts: [turned] })).toHaveLength(1);
+    expect(holdsOnParts({ holdPoints: [screw(280, 120)], parts: [turned] })).toEqual([]);
   });
 
   it('a piece cut off from the edge takes tabs only with enough holds on it', () => {

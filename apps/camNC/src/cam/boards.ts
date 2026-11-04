@@ -163,9 +163,10 @@ function outlineOf(part: CamPartInfo) {
 
 /** What the cutting program is told: how the parts are held, from what's chosen for the board. */
 export function holdDownOf(board: Pick<BoardV1, 'retention' | 'guidedTabs' | 'taped'>): HoldDown {
-  if (board.retention === 'tabs') return board.guidedTabs ? 'tabs-guided' : 'tabs';
   if (board.retention === 'skin') return board.taped ? 'fixture-tape' : 'skin';
-  return 'none';
+  if (board.retention === 'none') return 'none';
+  // Anything else gets tabs, which block the job if they can't hold: never parts cut loose by accident.
+  return board.guidedTabs ? 'tabs-guided' : 'tabs';
 }
 
 /**
@@ -313,7 +314,9 @@ export function reconcileBoards(boards: BoardV1[] | undefined, instances: PartIn
   const byId = new Map(instances.map(i => [i.id, i]));
   let out = (boards ?? []).map(b => {
     const items = b.items.filter(id => byId.get(id)?.thickness !== undefined && thicknessKey(byId.get(id)!.thickness) === b.thickness);
-    const kept = b.pinned ? { ...b, items, pinned: b.pinned.filter(id => items.includes(id)) } : { ...b, items };
+    // Saved before `retention`: tabs, which say so if they can't hold.
+    const held = { ...b, retention: b.retention ?? ('tabs' as const), items };
+    const kept = b.pinned ? { ...held, pinned: b.pinned.filter(id => items.includes(id)) } : held;
     // Saved before layouts were stored: its parts get new spots, so what was cut on it no longer applies.
     if (!b.layout) {
       const fresh = { ...kept };
@@ -467,7 +470,8 @@ export function nestBoard(board: BoardV1, instances: PartInstance[], bit: number
     const pos = stored?.at[id];
     if (!pos) continue;
     const r = placedRect(pos, byId.get(id)!);
-    if (!insideMargin(r, margin, on) || !fixedRects.every(o => apart(r, o, gap))) continue;
+    // A cut board's parts are where they were cut, whatever the spacing says now.
+    if (!isCut(board) && (!insideMargin(r, margin, on) || !fixedRects.every(o => apart(r, o, gap)))) continue;
     fixed.push({ id, x: pos.x, y: pos.y, rotated: pos.rotated });
     fixedRects.push(r);
   }
@@ -499,7 +503,11 @@ export function nestBoard(board: BoardV1, instances: PartInstance[], bit: number
     }
   } else {
     const roomOn = on && items.length ? nestRects(items, { gap, margin, keepOuts: around(on), board: on }) : undefined;
-    n = roomOn && !roomOn.unplaced.length ? roomOn : fitCompact(items, gap, margin, fixedRects);
+    // Growing up and to the right: fixtures on the other edges and screws stay where they are, so parts keep off them.
+    const staying = (board.fixtures ?? [])
+      .filter(f => f.kind === 'screw' || f.side === 'left' || f.side === 'bottom')
+      .map(f => keepOutOf(holdPointOf(f, { w: 0, h: 0 }, hw, nutAbove)));
+    n = roomOn && !roomOn.unplaced.length ? roomOn : fitCompact(items, gap, margin, [...fixedRects, ...staying]);
   }
 
   const order = new Map(ids.map((id, i) => [id, i]));
@@ -528,7 +536,8 @@ export function nestBoard(board: BoardV1, instances: PartInstance[], bit: number
 export function withLayout(board: BoardV1, nest: Pick<BoardNest, 'board' | 'placements'>): BoardV1 {
   const rest = { ...board };
   delete rest.layout;
-  if (!nest.placements.length) return rest;
+  // A cut board keeps one even with no part left: it's how a board saved before layouts is told apart.
+  if (!nest.placements.length && !isCut(board)) return rest;
   const at = Object.fromEntries(nest.placements.map(p => [p.id, { x: p.x, y: p.y, rotated: p.rotated }]));
   return { ...rest, layout: { w: nest.board.w, h: nest.board.h, at } };
 }
@@ -630,8 +639,39 @@ export function relayoutBoard(board: BoardV1, instances: PartInstance[], bit: nu
   const bare = { ...fresh };
   delete bare.fixtures;
   const tight = withLayout(bare, nestBoard(bare, instances, bit, { ...opts, holds: false }));
-  const settled = board.fixtures?.length ? settleBoard(tight, instances, bit, board.fixtures, { ...opts, budget: 600 }) : tight;
-  return settled ?? withLayout(fresh, nestBoard(fresh, instances, bit, opts));
+  if (!board.fixtures?.length || !tight.layout) return tight;
+  const hw = opts.hardware ?? kDefaultHardware;
+  // As small as it gets with the fixtures still on it.
+  const need = fixturesNeed(board.fixtures, hw);
+  const sized = board.size.fit
+    ? { ...tight, layout: { ...tight.layout, w: Math.max(tight.layout.w, need.w), h: Math.max(tight.layout.h, need.h) } }
+    : tight;
+  const fixtures = board.size.fit ? board.fixtures : fixturesOn(board.fixtures, sized.layout!, hw);
+  const settled = settleBoard(sized, instances, bit, fixtures, { ...opts, budget: 600 });
+  return settled ?? withLayout({ ...fresh, fixtures }, nestBoard({ ...fresh, fixtures }, instances, bit, opts));
+}
+
+/** The fixtures on a board of this size: clamps slid back along their edge, screws off it gone. */
+function fixturesOn(fixtures: Fixture[] | undefined, size: { w: number; h: number }, hw: HoldHardware): Fixture[] {
+  return (fixtures ?? []).flatMap((f): Fixture[] => {
+    if (f.kind === 'screw') {
+      const r = hw.screw.d / 2;
+      return f.x >= r && f.y >= r && f.x <= size.w - r && f.y <= size.h - r ? [f] : [];
+    }
+    const len = f.side === 'left' || f.side === 'right' ? size.h : size.w;
+    return [{ ...f, at: Math.max(hw.clamp.w / 2, Math.min(len - hw.clamp.w / 2, f.at)) }];
+  });
+}
+
+/** The size a fitted board can't get below without leaving a fixture off it. */
+function fixturesNeed(fixtures: Fixture[] | undefined, hw: HoldHardware) {
+  let [w, h] = [0, 0];
+  for (const f of fixtures ?? []) {
+    if (f.kind === 'screw') [w, h] = [Math.max(w, f.x + hw.screw.d / 2), Math.max(h, f.y + hw.screw.d / 2)];
+    else if (f.side === 'left' || f.side === 'right') h = Math.max(h, f.at + hw.clamp.w / 2);
+    else w = Math.max(w, f.at + hw.clamp.w / 2);
+  }
+  return { w: ceilMm(w), h: ceilMm(h) };
 }
 
 const spacingOf = (b: BoardV1) => JSON.stringify([b.size, b.margin, b.gap, b.retention]);
@@ -644,12 +684,12 @@ export function respaceBoard(prev: BoardV1, next: BoardV1, instances: PartInstan
   if (spacingOf(prev) === spacingOf(next) || !prev.layout) return next;
   if (next.size.fit && !prev.size.fit) return relayoutBoard({ ...next, pinned: prev.pinned }, instances, bit, opts);
   const size = next.size.fit ? { w: prev.layout.w, h: prev.layout.h } : { w: next.size.w, h: next.size.h };
-  const { input, spots } = settleInput(next, prev.layout.at, size, instances, bit, opts);
-  const r = settle(input, spots, next.fixtures ?? [], next.size.fit, 600);
-  if (r) return withSpots(next, prev.layout.at, r.spots, r.w, r.h);
-  const rest = { ...next };
-  delete rest.layout;
-  return rest;
+  const onIt = { ...next, fixtures: fixturesOn(next.fixtures, size, opts.hardware ?? kDefaultHardware) };
+  const { input, spots } = settleInput(onIt, prev.layout.at, size, instances, bit, opts);
+  const r = settle(input, spots, onIt.fixtures, next.size.fit, 600);
+  if (r) return withSpots(onIt, prev.layout.at, r.spots, r.w, r.h);
+  delete (onIt as Partial<BoardV1>).layout;
+  return onIt;
 }
 
 /** Suggested clamps for the board, on top of what's on it, with the parts nudged aside where needed. */

@@ -1,5 +1,6 @@
 import { edgeDir, holdBox, holdClashes, snapClamp, type HoldPoint } from '@wbcnc/cam/holdPoints';
 import { create } from 'zustand';
+import { useHoldHardware } from '../holdHardware';
 import { dropPart, fixtureOf, type BedSpot, type BoardNest, type BoardV1, type PartInstance, type PartPosition } from '../boards';
 
 type P2 = { x: number; y: number };
@@ -233,7 +234,7 @@ export function freezeAtMachine(board: BoardV1, nest: Pick<BoardNest, 'board' | 
  */
 export function movePart(
   board: BoardV1,
-  nest: Pick<BoardNest, 'board' | 'placements'>,
+  nest: Pick<BoardNest, 'board' | 'placements'> & Partial<Pick<BoardNest, 'stickout'>>,
   instances: PartInstance[],
   bit: number,
   item: string,
@@ -241,7 +242,7 @@ export function movePart(
 ): (BedEdit & { exact: boolean }) | null {
   const frozen = { ...board, ...freezeAtMachine(board, nest) };
   const at1 = { x: round(at.x), y: round(at.y), rotated: at.rotated };
-  const drop = dropPart(frozen, instances, bit, item, at1);
+  const drop = dropPart(frozen, instances, bit, item, at1, 0, { stickout: nest.stickout, hardware: useHoldHardware.getState().hardware });
   if (!drop.at) return null;
   const name = instances.find(i => i.id === item)?.name ?? item;
   const { size, layout, pinned } = drop.board;

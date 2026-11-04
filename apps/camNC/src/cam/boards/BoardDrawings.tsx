@@ -345,6 +345,14 @@ export function BoardDrawings({
     return () => window.removeEventListener('keydown', key);
   }, [tool]);
 
+  // Nothing to place on a cut board: the tool can't stay in hand with its buttons off.
+  useEffect(() => {
+    if (!canPlace) {
+      setTool(null);
+      setEdit(null);
+    }
+  }, [canPlace]);
+
   /** The fixture at a point: previewed on its board with the parts moved aside for it, or refused. */
   const preview = ({ board, nest }: JobBoard, kind: HoldKind, p: { x: number; y: number }, i: number | null) => {
     const f = fixtureAt(kind, p, board, nest, instances, bit, { ...nestOptions, exact: i !== null });
@@ -404,7 +412,7 @@ export function BoardDrawings({
     if (!bandsKey || !selectedBoard) return;
     const t = setTimeout(() => {
       const { input, spots } = settleInputOf(selectedBoard.board, selectedBoard.nest, instances, bit, nestOptions);
-      setBands(edgeBands(input, spots, selectedBoard.board.fixtures ?? []));
+      setBands(edgeBands(input, spots, selectedBoard.board.fixtures ?? [], selectedBoard.board.size.fit));
     }, 30);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -562,7 +570,7 @@ export function BoardDrawings({
             const holdingOf = (id: string) =>
               board.retention === 'tabs' ? plans[i]?.holding?.find(h => h.name === byId.get(id)?.name)?.how : undefined;
             const unheld = new Set(nest.placements.filter(p => holdingOf(p.id) === 'unheld').map(p => p.id));
-            const nutHits = shownFixtures.length > 0 && nest.nutAbove < 0;
+            const nutHits = nest.nutAbove < 0;
             const padPx = unit * 0.05 * pxPerMm;
             return (
               <section
@@ -642,7 +650,8 @@ export function BoardDrawings({
                       here
                         ? {
                             tool,
-                            preview: editing ? pointed : null,
+                            preview: editing && editing.i === null ? pointed : null,
+                            moving: editing?.i ?? null,
                             refused: editing?.settled === null,
                             selected: held,
                             bands: board.id === selectedId ? bands : undefined,

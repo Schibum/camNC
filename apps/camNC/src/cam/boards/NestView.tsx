@@ -19,9 +19,11 @@ type P2 = { x: number; y: number };
 export interface FixtureEditing {
   /** A fixture to place: a click puts it there, whatever is under the pointer. */
   tool: HoldKind | null;
-  /** The one in `nest.holds` being placed or dragged: a preview, it doesn't take the pointer. */
+  /** The one in `nest.holds` being placed: a preview, it doesn't take the pointer. */
   preview: number | null;
-  /** The preview has no room there. */
+  /** The one being dragged: it keeps the pointer it has captured. */
+  moving: number | null;
+  /** The one placed or dragged has no room there. */
   refused?: boolean;
   selected: number | null;
   /** Where clamps fit along the edges. */
@@ -227,6 +229,7 @@ export function NestView({
         {/* Where a clamp fits: outside the edge, while placing one. */}
         {fixtures?.tool === 'clamp' &&
           fixtures.preview === null &&
+          fixtures.moving === null &&
           fixtures.bands?.map(b => {
             const t = stroke * 5,
               off = stroke * 5,
@@ -461,7 +464,8 @@ export function NestView({
           })()}
         {nest.holds.map((hp, i) => {
           const isPreview = fixtures?.preview === i;
-          const bad = (clash.has(`${hp.x},${hp.y}`) && !isPreview) || (isPreview && !!fixtures?.refused);
+          const isMoving = fixtures?.moving === i;
+          const bad = (clash.has(`${hp.x},${hp.y}`) && !isPreview && !isMoving) || ((isPreview || isMoving) && !!fixtures?.refused);
           const r = hp.d / 2;
           const box = holdBox(hp);
           const interactive = !!fixtures && !isPreview;
@@ -570,7 +574,7 @@ export function NestView({
               {/* A bigger target than a 10 mm screw for the pointer. */}
               <circle cx={hp.x} cy={hp.y} r={Math.max(Math.max(box.w, box.h) / 2, u / 60)} className="fill-transparent" />
               <title>
-                {bad && !isPreview
+                {bad && !isPreview && !isMoving
                   ? 'The bit would hit this: move it into the waste.'
                   : hp.kind === 'clamp' && hp.w !== undefined
                     ? `Clamp: ${hp.w} mm wide, reaching ${hp.d} mm in`
@@ -582,6 +586,7 @@ export function NestView({
         {fixtures?.selected !== null &&
           fixtures?.selected !== undefined &&
           fixtures.preview === null &&
+          fixtures.moving === null &&
           nest.holds[fixtures.selected] &&
           (() => {
             const i = fixtures.selected;

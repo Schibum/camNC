@@ -68,6 +68,7 @@ export {
   camBoard,
   boardBits,
   holdOptionsOf,
+  holdsOnParts,
   jobHoldClashes,
   kTapeLayer,
   orderBoardQueue,

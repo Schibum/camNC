@@ -4,7 +4,7 @@ import { dowelOperations, partRect, type DowelSpec } from './flip';
 import { boardToPart, kDefaultSkin, planTabs, type PartHolding } from './tabPlan';
 import type { Vec3 } from './geom';
 import type { BottomLayer, HoldOptions } from './hold';
-import { holdClashes, holdHeight, type HoldPoint } from './holdPoints';
+import { holdBox, holdClashes, holdHeight, type HoldPoint } from './holdPoints';
 import {
   camPart,
   DEFAULT_SETTINGS,
@@ -220,6 +220,32 @@ export function jobHoldClashes(
       holdClashes([h], asLaid, stockTop).length > 0 ||
       holdClashes([{ ...h, y: board.h - h.y, ...(h.dir && { dir: { x: h.dir.x, y: -h.dir.y } }) }], turned, stockTop).length > 0
   );
+}
+
+/**
+ * Holds sitting on a part, inside its outline: no cut comes near one in the middle of a part, so `jobHoldClashes` can't
+ * see it, but it goes through the finished part.
+ */
+export function holdsOnParts(board: Pick<BoardSpec, 'parts' | 'holdPoints'>): HoldPoint[] {
+  return (board.holdPoints ?? []).filter(h => {
+    const b = holdBox(h);
+    const pts = [
+      { x: h.x, y: h.y },
+      { x: b.x, y: b.y },
+      { x: b.x + b.w, y: b.y },
+      { x: b.x, y: b.y + b.h },
+      { x: b.x + b.w, y: b.y + b.h },
+    ];
+    return board.parts.some(part =>
+      part.features.outlines.some(loop => {
+        const onBoard = loop.map(q => {
+          const [x, y] = partToBoard(part, [q.x, q.y, 0]);
+          return { x, y };
+        });
+        return pts.some(p => insideLoops(p, [onBoard]));
+      })
+    );
+  });
 }
 
 /** Tabs for hold-downs that use them. */

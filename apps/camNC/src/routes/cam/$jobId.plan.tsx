@@ -580,8 +580,8 @@ function Checks({ plan, checked, releaseSafety }: { plan: PlanResult; checked: b
       {(plan.holdClash ?? []).length > 0 && (
         <p className="flex gap-2 text-destructive">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-          {plan.holdClash!.length === 1 ? 'A screw or clamp is' : `${plan.holdClash!.length} screws or clamps are`} in the bit’s way (red on
-          the board). On the Boards step, drag {plan.holdClash!.length === 1 ? 'it' : 'them'} into the waste.
+          {plan.holdClash!.length === 1 ? 'A screw or clamp is' : `${plan.holdClash!.length} screws or clamps are`} in the bit’s way or on a
+          part (red on the board). On the Boards step, drag {plan.holdClash!.length === 1 ? 'it' : 'them'} into the waste.
         </p>
       )}
       {(plan.timeline ?? [])

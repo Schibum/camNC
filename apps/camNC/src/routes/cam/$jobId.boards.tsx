@@ -8,6 +8,7 @@ import {
   cutLabel,
   dropPart,
   flipOf,
+  freezeSpacing,
   holdSettingsOf,
   holdVerdict,
   isCut,
@@ -92,7 +93,15 @@ function BoardsStep() {
       actions={
         <>
           {/* The bit sets the margin and gap between parts: choose it before nesting. */}
-          <BitChip value={job.plan ?? kDefaultPlan} onChange={plan => save.mutate({ ...job, plan })} />
+          <BitChip
+            value={job.plan ?? kDefaultPlan}
+            onChange={plan => {
+              // A cut board keeps its spacing: its parts are where they were cut.
+              const was = (job.plan ?? kDefaultPlan).bit.diameter;
+              const frozen = job.boards?.map(b => (isCut(b) ? freezeSpacing([b], was)[0] : b));
+              save.mutate({ ...job, plan, ...(frozen && plan.bit.diameter !== was && { boards: frozen }) });
+            }}
+          />
           {model.data && !instances.length ? (
             <Hint text="No part is milled: tick parts in the Model step to plan their toolpaths." wrap>
               <Button size="sm" disabled>
@@ -130,10 +139,11 @@ function BoardsStep() {
       toast.error(
         `Board ${cut.board.name} is ${cutLabel(cut.board).toLowerCase()}: its parts and holds stay as they are. Start over to change them.`
       );
-      return;
+      return false;
     }
     history.current = [...history.current.slice(-49), boards.map(b => b.board)];
     save.mutate({ ...job, boards: next });
+    return true;
   };
   const nestOptions = { stickout: plan.bit.stickout, hardware };
   const startOver = (board: BoardV1) => {
@@ -239,7 +249,7 @@ function BoardsStep() {
   /** One board's parts nested afresh, around its fixtures: they stay on it, unpinned. */
   const relayout = (board: BoardV1) => {
     const before = boards.map(b => b.board);
-    saveBoards(before.map(b => (b.id === board.id ? relayoutBoard(b, instances, plan.bit.diameter, nestOptions) : b)));
+    if (!saveBoards(before.map(b => (b.id === board.id ? relayoutBoard(b, instances, plan.bit.diameter, nestOptions) : b)))) return;
     toast.success(`Board ${board.name} laid out again`, { action: undoTo(before), duration: 10_000 });
   };
   /** Everything unpinned, then nested from scratch: from the stock list when there is one. */
@@ -329,7 +339,7 @@ function BoardsStep() {
           } from under its drawing onto another ${sel.thickness} mm board or onto “New board”, or make this board larger.`}
         </p>
       )}
-      {(sel.fixtures?.length ?? 0) > 0 && selNest.nutAbove < 0 && (
+      {selNest.nutAbove < 0 && (
         <p role="alert" className="text-xs text-destructive">
           {`The bit's stick-out (${selNest.stickout} mm) is shorter than the deepest cut (${+(stockTopOf(sel) + 0.3).toFixed(1)} mm): the collet nut would hit the board. Check it under “Clamp and screw sizes” or with the bit.`}
         </p>

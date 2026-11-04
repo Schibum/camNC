@@ -43,7 +43,7 @@ export function planBlock(plan: PlanResult): string | null {
   const pivot = plan.timeline?.find(e => e.block);
   if (pivot) return pivot.message;
   const clashes = plan.holdClash?.length ?? 0;
-  if (clashes) return `${clashes === 1 ? 'A screw or clamp is' : `${clashes} screws or clamps are`} in the bit’s way.`;
+  if (clashes) return `${clashes === 1 ? 'A screw or clamp is' : `${clashes} screws or clamps are`} in the bit’s way or on a part.`;
   return null;
 }
 

@@ -365,6 +365,28 @@ describe('CAM boards step', () => {
     expect(screen.getByRole('button', { name: 'Clamp' }).getAttribute('aria-pressed')).toBe('false');
   }, 90_000);
 
+  it('drags a placed clamp: it stays a fixture all the way, lands where dropped, and parts make room', async () => {
+    const job = await openKinderregal();
+    fireEvent.click(drawing('A'));
+    fireEvent.click(screen.getByRole('button', { name: 'Suggest holds' }));
+    const saved = async () => (await getJob(job.id))!.boards!.find(b => b.name === 'A')!;
+    await waitFor(async () => expect((await saved()).fixtures?.length).toBeGreaterThanOrEqual(3), { timeout: 10_000 });
+    const before = (await saved()).fixtures!;
+    const i = before.findIndex(f => f.kind === 'clamp' && f.side === 'right');
+    const f = before[i] as { at: number };
+    const hold = () => drawing('A').querySelectorAll('[data-hold]')[i];
+    fireEvent.pointerDown(hold(), { ...clientOf('A', 574, f.at), button: 0, pointerId: 1 });
+    for (const dy of [10, 20, 30]) fireEvent.pointerMove(hold(), { ...clientOf('A', 574, f.at + dy), pointerId: 1 });
+    // Mid-drag it's still the real one, not a preview: the pointer stays with it.
+    expect(drawing('A').querySelector('[data-hold-preview]')).toBeNull();
+    fireEvent.pointerUp(hold(), { ...clientOf('A', 574, f.at + 30), pointerId: 1 });
+    await waitFor(async () => expect(((await saved()).fixtures![i] as { at: number }).at).toBeCloseTo(f.at + 30, -1), { timeout: 10_000 });
+    expect(((await saved()).fixtures![i] as { at: number }).at).not.toBe(f.at);
+    // Delete removes it, and the parts stay.
+    fireEvent.keyDown(hold(), { key: 'Delete' });
+    await waitFor(async () => expect((await saved()).fixtures).toHaveLength(before.length - 1), { timeout: 10_000 });
+  }, 90_000);
+
   it('keeps the stick-out with the job’s bit, not the board', async () => {
     const job = await openKinderregal();
     fireEvent.click(drawing('A'));

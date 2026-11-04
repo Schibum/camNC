@@ -75,9 +75,11 @@ describe('settle', () => {
     expect(grown.h).toBeLessThan(770);
   });
 
-  it('keeps the XY zero’s corner clear', () => {
+  it('keeps the XY zero’s corner clear, and fixtures on the board', () => {
     const { b, spots } = sample('kinderregal-standing');
     expect(settle(b, spots, [clamp('left', 15)], true)).toBeNull();
+    expect(settle(b, spots, [{ kind: 'screw', x: -20, y: 300 }], true)).toBeNull();
+    expect(settle(b, spots, [{ kind: 'screw', x: 2, y: 300 }], true)).toBeNull();
   });
 
   it('makes parts fit a wider gap and margin, moving as little as it can', () => {

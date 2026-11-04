@@ -14,6 +14,7 @@ import {
   relayoutBoard,
   spacingProblem,
   edgeNote,
+  holdDownOf,
   holdPointOf,
   fixtureOf,
   layoutChange,
@@ -534,6 +535,51 @@ describe('boards', () => {
       expect(respaceBoard(board, sheet, parts, bit).layout).toMatchObject({ w: nest.board.w + 200, at: board.layout!.at });
       const back = respaceBoard(sheet, { ...sheet, size: { fit: true } }, parts, bit);
       expect(back.layout!.w).toBe(nest.board.w);
+    });
+
+    it('a board saved without a retention gets tabs, never parts cut loose', () => {
+      const [a] = reconcileBoards(undefined, parts, 'oak');
+      const old = { ...a, retention: undefined } as unknown as BoardV1;
+      expect(reconcileBoards([old], parts, 'oak')[0].retention).toBe('tabs');
+      expect(holdDownOf(old)).toBe('tabs');
+      expect(holdDownOf({ retention: 'none' })).toBe('none');
+      expect(holdDownOf({ retention: 'skin', taped: true })).toBe('fixture-tape');
+      expect(holdDownOf({ retention: 'tabs', guidedTabs: true })).toBe('tabs-guided');
+    });
+
+    it('a cut board stays as cut: another bit moves nothing, and with no part left it stays cut', () => {
+      const cut = { ...stored(), cut: { at: 1, keys: ['x'] } };
+      const before = nestBoard(cut, parts, bit).placements;
+      expect(nestBoard(cut, parts, 10).placements).toEqual(before);
+      const empty = { ...cut, items: [] };
+      const kept = withLayout(empty, nestBoard(empty, parts, bit));
+      expect(reconcileBoards([kept], [], 'oak')[0].cut).toEqual(cut.cut);
+    });
+
+    it('tightening keeps fixtures on the board; a smaller fixed size slides clamps along and drops screws off it', () => {
+      const board = stored();
+      const far: BoardV1 = {
+        ...board,
+        layout: { ...board.layout!, w: 1000, h: 1000 },
+        fixtures: [clamp('left', 900), clamp('bottom', 800), { kind: 'screw', x: 950, y: 950 }],
+      };
+      const tight = relayoutBoard(far, parts, bit);
+      expect(tight.layout!.h).toBeGreaterThanOrEqual(912);
+      expect(tight.layout!.w).toBeGreaterThanOrEqual(812);
+      const smaller = { ...far, size: { fit: false as const, w: 700, h: 800 } };
+      expect(respaceBoard(far, smaller, parts, bit).fixtures).toEqual([clamp('left', 788), clamp('bottom', 688)]);
+    });
+
+    it('a fitted board growing for a new part keeps it off a screw', () => {
+      const [a] = reconcileBoards(undefined, parts, 'oak');
+      const few = { ...a, items: a.items.slice(0, 1) };
+      const placed = { ...withLayout(few, nestBoard(few, parts, bit)), items: a.items };
+      const screw = { kind: 'screw' as const, x: 300, y: placed.layout!.h + 60 };
+      const nest = nestBoard({ ...placed, fixtures: [screw] }, parts, bit);
+      for (const p of nest.placements) {
+        const [w, h] = parts.find(i => i.id === p.id)!.size;
+        expect(screw.x > p.x && screw.x < p.x + w && screw.y > p.y && screw.y < p.y + h).toBe(false);
+      }
     });
 
     it('re-lay out keeps fixtures, moving the parts only as far as they need', () => {
