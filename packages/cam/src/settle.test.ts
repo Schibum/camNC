@@ -9,6 +9,7 @@ import {
   settle,
   snapScrew,
   suggestHolds,
+  suggestHoldsGrowing,
   surrounds,
   type Fixture,
   type SettleBoard,
@@ -178,6 +179,98 @@ describe('suggestHolds', () => {
       keep: { clamp: 7.5, screw: 7.5 },
     };
     expect(suggestHolds(b, { back: { x: 7, y: 7 } }, []).fixtures).toEqual([]);
+  });
+});
+
+describe('suggestHoldsGrowing', () => {
+  const tight: SettleBoard = {
+    w: 414,
+    h: 394,
+    gap: 10,
+    margin: 7,
+    parts: [
+      {
+        id: 'back',
+        w: 400,
+        h: 380,
+        outer: [
+          [
+            [0, 0],
+            [400, 0],
+            [400, 380],
+            [0, 380],
+          ],
+        ],
+        holes: [],
+      },
+    ],
+    sizes: { clampReach: 3, clampWidth: 24, screwD: 10 },
+    keep: { clamp: 7.5, screw: 7.5 },
+  };
+  const start: Spots = { back: { x: 7, y: 7 } };
+
+  it('gives a tight board the smallest border that gets clamps around it', () => {
+    const r = suggestHoldsGrowing(tight, start, []);
+    // 3 reach + 7.5 keep + 5 comfort, less the 7 margin there is: 8.5, in whole mm.
+    expect(r.grew).toBe(9);
+    expect([r.w, r.h]).toEqual([432, 412]);
+    expect(r.spots.back).toEqual({ x: 16, y: 16 });
+    const bigger = { ...tight, w: r.w, h: r.h };
+    expect(r.fixtures.length).toBeGreaterThanOrEqual(3);
+    expect(fixturesAround(bigger, r.fixtures)).toBe(true);
+    for (const f of r.fixtures) expect(fixtureFree(bigger, r.spots, f)).toBe(true);
+  });
+
+  it('goes by the clearance of the real hardware', () => {
+    expect(suggestHoldsGrowing({ ...tight, keep: { clamp: 12, screw: 12 } }, start, []).grew).toBe(13);
+  });
+
+  it('comes out the same every time', () => {
+    expect(suggestHoldsGrowing(tight, start, [])).toEqual(suggestHoldsGrowing(tight, start, []));
+  });
+
+  it('leaves a board alone when clamps fit at its size', () => {
+    const { b, spots } = sample('kinderregal-standing');
+    const r = suggestHoldsGrowing(b, spots, []);
+    expect(r).toEqual({ ...suggestHolds(b, spots, []), w: b.w, h: b.h, grew: 0 });
+    expect(suggestHoldsGrowing(b, r.spots, r.fixtures).fixtures).toEqual(r.fixtures);
+  });
+
+  it('keeps the holds there are where they were relative to the work', () => {
+    const existing: Fixture[] = [clamp('right', 200), { kind: 'screw', x: 300, y: 200 }];
+    const r = suggestHoldsGrowing(tight, start, existing);
+    expect(r.grew).toBeGreaterThan(0);
+    expect(r.fixtures.slice(0, 2)).toEqual([clamp('right', 200 + r.grew), { kind: 'screw', x: 300 + r.grew, y: 200 + r.grew }]);
+    expect(r.fixtures.length).toBeGreaterThan(2);
+    expect(r.spots.back.x - 300 - r.grew).toBe(start.back.x - 300);
+  });
+
+  it('stays inside the machine, either way round, and within 30 % more board', () => {
+    const none = suggestHoldsGrowing(tight, start, [], { w: 420, h: 420 });
+    expect([none.grew, none.w, none.h, none.fixtures]).toEqual([0, 414, 394, []]);
+    expect(suggestHoldsGrowing(tight, start, [], { w: 412, h: 432 }).grew).toBe(9);
+    expect(suggestHoldsGrowing(tight, start, [], { w: 432, h: 412 }).grew).toBe(9);
+    const small: SettleBoard = {
+      ...tight,
+      w: 74,
+      h: 74,
+      parts: [
+        {
+          ...tight.parts[0],
+          w: 60,
+          h: 60,
+          outer: [
+            [
+              [0, 0],
+              [60, 0],
+              [60, 60],
+              [0, 60],
+            ],
+          ],
+        },
+      ],
+    };
+    expect(suggestHoldsGrowing(small, start, []).grew).toBe(0);
   });
 });
 

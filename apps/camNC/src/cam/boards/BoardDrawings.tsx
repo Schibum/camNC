@@ -88,6 +88,7 @@ export function BoardDrawings({
   onNote,
   onUndo,
   nestOptions,
+  machine,
   onTabsMove,
 }: {
   boards: JobBoard[];
@@ -113,6 +114,8 @@ export function BoardDrawings({
   onUndo?: () => void;
   /** The bit's stick-out and the clamps' and screws' sizes. */
   nestOptions: NestOptions;
+  /** The machine's work area, when it is set up: Suggest holds grows no board past it. */
+  machine?: { w: number; h: number };
   /** A tab dragged: all tabs of that body (instance id), part frame (mm). */
   onTabsMove?: (board: string, item: string, tabs: { x: number; y: number }[]) => void;
 }) {
@@ -385,8 +388,10 @@ export function BoardDrawings({
     if (!selectedBoard) return;
     const { board, nest } = selectedBoard;
     const before = board.fixtures?.length ?? 0;
-    const next = suggestFixtures(board, instances, bit, nestOptions);
+    const next = suggestFixtures(board, instances, bit, { ...nestOptions, machine });
     const added = (next.fixtures?.length ?? 0) - before;
+    const shown = nestBoard(next, instances, bit, nestOptions);
+    const grew = (shown.board.w - nest.board.w) / 2;
     setTool(null);
     if (!added) {
       onNote(
@@ -396,9 +401,12 @@ export function BoardDrawings({
       );
       return;
     }
+    const clamps = `${added} clamp${added > 1 ? 's' : ''}`;
     onBoardEdit(
       next,
-      `Suggested ${added} clamp${added > 1 ? 's' : ''}. ${layoutChange(nest, nestBoard(next, instances, bit, nestOptions), instances)} Drag or remove any of them.`
+      grew > 0
+        ? `No edge had room, so the board grew ${grew} mm on each side, to ${shown.board.w} × ${shown.board.h}. Suggested ${clamps}. Parts and holds moved with it. Drag or remove any of them.`
+        : `Suggested ${clamps}. ${layoutChange(nest, shown, instances)} Drag or remove any of them.`
     );
   };
   // Where clamps fit on the selected board, once its layout has settled: a moment's work, so not on every render.
@@ -486,7 +494,7 @@ export function BoardDrawings({
             </Button>
           </Hint>
         ))}
-        <Hint text="Adds clamps around the board’s middle, spread out, where they need the least moved. Drag or remove any of them.">
+        <Hint text="Adds clamps around the board’s middle, spread out, where they need the least moved. A board fitted to its parts gets a small border if no edge has room. Drag or remove any of them.">
           <Button size="sm" variant="outline" disabled={!canPlace} onClick={suggest}>
             Suggest holds
           </Button>
@@ -602,13 +610,18 @@ export function BoardDrawings({
                   )}
                   {nutHits && <span className="text-xs font-medium whitespace-nowrap text-destructive">collet nut hits</span>}
                   <span className="grow" />
+                  {fetching[i] && <LoadingSpinner className="size-3" />}
+                  <DropStatus dragging={!!dragging} fits={!!fits} target={target} from={dragging?.from === board.id} />
+                </div>
+                {/* Its own row on every board, so selecting one doesn't move the drawing. */}
+                <div
+                  className="h-4 w-0 min-w-full shrink-0 truncate px-1 font-mono text-xs leading-4 text-muted-foreground"
+                  data-offcut-row>
                   {board.id === selectedId && (
-                    <span className="font-mono text-xs whitespace-nowrap text-muted-foreground" data-offcut-label>
+                    <span data-offcut-label>
                       {offcut ? `Offcut ${Math.round(offcut.w)} × ${Math.round(offcut.h)}` : 'No offcut over 60 mm'}
                     </span>
                   )}
-                  {fetching[i] && <LoadingSpinner className="size-3" />}
-                  <DropStatus dragging={!!dragging} fits={!!fits} target={target} from={dragging?.from === board.id} />
                 </div>
                 <div className="relative shrink-0">
                   <NestView

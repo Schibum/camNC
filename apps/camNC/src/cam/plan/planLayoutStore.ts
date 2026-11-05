@@ -1,5 +1,6 @@
+import { demoStorage } from '@/lib/demo/demo-storage';
 import { create } from 'zustand';
-import { combine, persist } from 'zustand/middleware';
+import { combine, createJSONStorage, persist } from 'zustand/middleware';
 
 /** The Plan step's sidebar: the board's operations, or the job's bit and cutting settings. */
 export type PlanTab = 'operations' | 'settings';
@@ -13,6 +14,6 @@ export const usePlanLayout = create(
       setTab: (tab: PlanTab) => set({ tab }),
       setOpsView: (opsView: PlanOpsView) => set({ opsView }),
     })),
-    { name: 'camnc-plan-layout' }
+    { storage: createJSONStorage(() => demoStorage), name: 'camnc-plan-layout' }
   )
 );

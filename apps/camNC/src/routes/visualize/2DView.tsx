@@ -1,4 +1,4 @@
-import { isDemoMode } from '@/lib/demo/demo-mode';
+import { getRehearsalId, isDemoMode } from '@/lib/demo/demo-mode';
 import { cn } from '@wbcnc/ui/lib/utils';
 import { UnprojectVideoMesh } from '@/calibration/Unproject';
 import { LoadingVideoOverlay } from '@/components/LoadingVideoOverlay';
@@ -298,7 +298,7 @@ function VisualizeComponent() {
                 </div>
                 {simEnabled ? (
                   // Leaves room for the axis gizmo in the bottom right corner, and for the demo banner.
-                  <div className={cn('absolute left-2 right-36', isDemoMode() ? 'bottom-16' : 'bottom-2')}>
+                  <div className={cn('absolute left-2 right-36', getRehearsalId() ? 'bottom-36' : isDemoMode() ? 'bottom-16' : 'bottom-2')}>
                     <SimTimeline toolpath={toolpath} />
                   </div>
                 ) : (

@@ -5,9 +5,11 @@ import {
   fixturesAround,
   partDist,
   settle,
+  fitsMachine,
   simplifyLoops,
   snapScrew,
   suggestHolds,
+  suggestHoldsGrowing,
   type BoardSide,
   type Fixture,
   type SettleBoard,
@@ -692,13 +694,24 @@ export function respaceBoard(prev: BoardV1, next: BoardV1, instances: PartInstan
   return onIt;
 }
 
-/** Suggested clamps for the board, on top of what's on it, with the parts nudged aside where needed. */
-export function suggestFixtures(board: BoardV1, instances: PartInstance[], bit: number, opts: NestOptions = {}): BoardV1 {
+/**
+ * Suggested clamps for the board, on top of what's on it, with the parts nudged aside where needed. A board fitted to its
+ * parts gets a border when no edge has room (see `suggestHoldsGrowing`); a fixed one stays its size.
+ */
+export function suggestFixtures(
+  board: BoardV1,
+  instances: PartInstance[],
+  bit: number,
+  opts: NestOptions & { machine?: { w: number; h: number } } = {}
+): BoardV1 {
   const nest = nestBoard(board, instances, bit, { ...opts, holds: false });
   const at = withLayout(board, nest).layout?.at ?? {};
   const { input, spots } = settleInput(board, at, nest.board, instances, bit, opts);
-  const r = suggestHolds(input, spots, board.fixtures ?? []);
-  return { ...withSpots(board, at, r.spots, nest.board.w, nest.board.h), fixtures: r.fixtures };
+  const existing = board.fixtures ?? [];
+  const r = board.size.fit
+    ? suggestHoldsGrowing(input, spots, existing, opts.machine)
+    : { ...suggestHolds(input, spots, existing), ...nest.board };
+  return { ...withSpots(board, at, r.spots, r.w, r.h), fixtures: r.fixtures };
 }
 
 /** A fixture at a point: a clamp grips the nearest edge there, a new screw lands on the most forgiving spot nearby. */
@@ -871,8 +884,7 @@ export function boardRequest(board: BoardV1, nest: BoardNest, instances: PartIns
  * area, lying the way that keeps the most of it.
  */
 export function withinMachine<S extends { w: number; h: number }>(sheet: S, machine: { w: number; h: number }): S {
-  const fits = (w: number, h: number) => w <= machine.w + EPS && h <= machine.h + EPS;
-  if (fits(sheet.w, sheet.h) || fits(sheet.h, sheet.w)) return sheet;
+  if (fitsMachine(machine, sheet.w, sheet.h)) return sheet;
   const along = { w: Math.min(sheet.w, machine.w), h: Math.min(sheet.h, machine.h) };
   const across = { w: Math.min(sheet.w, machine.h), h: Math.min(sheet.h, machine.w) };
   const { w, h } = along.w * along.h >= across.w * across.h ? along : across;

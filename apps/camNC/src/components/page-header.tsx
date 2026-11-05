@@ -27,7 +27,7 @@ export function PageHeader({ title, className, children }: { title: string; clas
       </div>
       {children}
       {/* The desktop app has no sign-in (no Clerk). */}
-      {!isDesktopApp() && <AccountButtons />}
+      {!isDesktopApp() && !isDemoMode() && <AccountButtons />}
     </header>
   );
 }

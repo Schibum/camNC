@@ -1,3 +1,4 @@
+import { isDemoMode } from '@/lib/demo/demo-mode';
 import type { BoardV1, StockBoardV1 } from './boards';
 import type { NestObjective } from './autoNest';
 import type { PartPrint } from './partMatch';
@@ -18,6 +19,8 @@ export interface CamJobPartV1 {
 
 export interface CamJobV1 {
   v: 1;
+  /** Where a new job started; it remains a normal editable document. */
+  origin?: { kind: 'sample'; id: string; revision: number };
   id: string;
   name: string;
   fileName: string;
@@ -46,6 +49,9 @@ export interface CamJobV1 {
 const kDbName = 'camnc-cam';
 const kJobs = 'jobs';
 const kModels = 'models';
+
+const demoJobs = new Map<string, CamJobV1>();
+const demoModels = new Map<string, Uint8Array>();
 
 let dbPromise: Promise<IDBDatabase> | undefined;
 
@@ -93,19 +99,30 @@ export function uniqueJobName(name: string, taken: string[]): string {
   return `${name} (${k})`;
 }
 
-export async function createJob(file: File): Promise<CamJobV1> {
+export type NewJobDefaults = Pick<
+  Partial<CamJobV1>,
+  'name' | 'origin' | 'plan' | 'boards' | 'stock' | 'parts' | 'partsFrom' | 'modelRevision' | 'nestObjective'
+>;
+
+export async function createJob(file: File, defaults: NewJobDefaults = {}): Promise<CamJobV1> {
   const now = Date.now();
   const taken = (await listJobs()).map(j => j.name);
   const job: CamJobV1 = {
+    ...structuredClone(defaults),
     v: 1,
     id: crypto.randomUUID(),
-    name: uniqueJobName(file.name.replace(kModelFile, ''), taken),
+    name: uniqueJobName(defaults.name ?? file.name.replace(kModelFile, ''), taken),
     fileName: file.name,
     createdAt: now,
     updatedAt: now,
-    parts: [],
+    parts: structuredClone(defaults.parts ?? []),
   };
   const bytes = await file.arrayBuffer();
+  if (isDemoMode()) {
+    demoJobs.set(job.id, structuredClone(job));
+    demoModels.set(job.id, new Uint8Array(bytes));
+    return job;
+  }
   await tx([kJobs, kModels], 'readwrite', t => {
     t.objectStore(kJobs).put(job);
     t.objectStore(kModels).put(bytes, job.id);
@@ -114,17 +131,20 @@ export async function createJob(file: File): Promise<CamJobV1> {
 }
 
 export async function listJobs(): Promise<CamJobV1[]> {
+  if (isDemoMode()) return structuredClone([...demoJobs.values()]).sort((a, b) => b.updatedAt - a.updatedAt);
   const db = await openDb();
   const jobs = await request(db.transaction(kJobs).objectStore(kJobs).getAll() as IDBRequest<CamJobV1[]>);
   return jobs.sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 export async function getJob(id: string): Promise<CamJobV1 | null> {
+  if (isDemoMode()) return structuredClone(demoJobs.get(id) ?? null);
   const db = await openDb();
   return (await request(db.transaction(kJobs).objectStore(kJobs).get(id) as IDBRequest<CamJobV1 | undefined>)) ?? null;
 }
 
 export async function getModelBytes(id: string): Promise<Uint8Array | null> {
+  if (isDemoMode()) return demoModels.get(id)?.slice() ?? null;
   const db = await openDb();
   const buf = await request(db.transaction(kModels).objectStore(kModels).get(id) as IDBRequest<ArrayBuffer | undefined>);
   return buf ? new Uint8Array(buf) : null;
@@ -132,6 +152,10 @@ export async function getModelBytes(id: string): Promise<Uint8Array | null> {
 
 export async function saveJob(job: CamJobV1): Promise<CamJobV1> {
   const saved = { ...job, updatedAt: Date.now() };
+  if (isDemoMode()) {
+    demoJobs.set(job.id, structuredClone(saved));
+    return saved;
+  }
   await tx([kJobs], 'readwrite', t => t.objectStore(kJobs).put(saved));
   return saved;
 }
@@ -141,6 +165,11 @@ export async function replaceModel(job: CamJobV1, file: File): Promise<CamJobV1>
   const saved = { ...job, fileName: file.name, modelRevision: (job.modelRevision ?? 0) + 1, updatedAt: Date.now() };
   delete saved.readError;
   const bytes = await file.arrayBuffer();
+  if (isDemoMode()) {
+    demoJobs.set(job.id, structuredClone(saved));
+    demoModels.set(job.id, new Uint8Array(bytes));
+    return saved;
+  }
   await tx([kJobs, kModels], 'readwrite', t => {
     t.objectStore(kJobs).put(saved);
     t.objectStore(kModels).put(bytes, job.id);
@@ -149,6 +178,11 @@ export async function replaceModel(job: CamJobV1, file: File): Promise<CamJobV1>
 }
 
 export async function deleteJob(id: string): Promise<void> {
+  if (isDemoMode()) {
+    demoJobs.delete(id);
+    demoModels.delete(id);
+    return;
+  }
   await tx([kJobs, kModels], 'readwrite', t => {
     t.objectStore(kJobs).delete(id);
     t.objectStore(kModels).delete(id);

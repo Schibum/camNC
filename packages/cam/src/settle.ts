@@ -572,3 +572,43 @@ export function suggestHolds(b: SettleBoard, start: Spots, existing: Fixture[]):
   }
   return { spots, fixtures };
 }
+
+/** Does a board of this size fit on the machine, either way round? */
+export const fitsMachine = (machine: { w: number; h: number }, w: number, h: number) =>
+  (w <= machine.w + 1e-6 && h <= machine.h + 1e-6) || (h <= machine.w + 1e-6 && w <= machine.h + 1e-6);
+
+/** Room to slide a clamp around, on top of what it needs, tried in turn when growing a board: mm. */
+const kGrowComfort = [5, 10, 15];
+/** A border isn't worth more board than this, times the area it had. */
+const kGrowArea = 1.3;
+
+/**
+ * `suggestHolds` for a board cut to its parts. When that doesn't surround the middle, the smallest border all round that
+ * does, within 30 % more board and the machine. The XY zero stays the lower left corner, so parts and screws shift up and
+ * to the right by the border, clamps along their edge: all stay where they were relative to the work. No border helps:
+ * what `suggestHolds` found at this size, `grew` 0.
+ */
+export function suggestHoldsGrowing(
+  b: SettleBoard,
+  start: Spots,
+  existing: Fixture[],
+  machine?: { w: number; h: number }
+): { spots: Spots; fixtures: Fixture[]; w: number; h: number; grew: number } {
+  const here = { ...suggestHolds(b, start, existing), w: b.w, h: b.h, grew: 0 };
+  const placed = b.parts.filter(p => start[p.id]);
+  if (!placed.length || fixturesAround(b, here.fixtures)) return here;
+  const least = Math.min(...placed.flatMap(p => [start[p.id].x, start[p.id].y, b.w - start[p.id].x - p.w, b.h - start[p.id].y - p.h]));
+  for (const comfort of kGrowComfort) {
+    const grew = Math.ceil(b.sizes.clampReach + b.keep.clamp + comfort - least - 1e-6);
+    if (grew <= 0) continue;
+    const [w, h] = [b.w + 2 * grew, b.h + 2 * grew];
+    if (w * h > b.w * b.h * kGrowArea || (machine && !fitsMachine(machine, w, h))) break;
+    const bigger = { ...b, w, h };
+    const spots = Object.fromEntries(Object.entries(start).map(([id, at]) => [id, { x: at.x + grew, y: at.y + grew }]));
+    const shifted = existing.map((f): Fixture => (f.kind === 'screw' ? { ...f, x: f.x + grew, y: f.y + grew } : { ...f, at: f.at + grew }));
+    const r = suggestHolds(bigger, spots, shifted);
+    // A border that only re-centres the holds there are adds nothing to hold the board.
+    if (r.fixtures.length > existing.length && fixturesAround(bigger, r.fixtures)) return { ...r, w, h, grew };
+  }
+  return here;
+}

@@ -1,10 +1,11 @@
+import { RehearsalBanner } from '../rehearsal/RehearsalBanner';
 import { useStore } from '@/store/store';
 import { useNavigate } from '@tanstack/react-router';
 import { Button } from '@wbcnc/ui/components/button';
 import { cn } from '@wbcnc/ui/lib/utils';
 import { CircleHelp, FlaskConical, LogOut, Wrench } from 'lucide-react';
 import { useState } from 'react';
-import { exitDemo, isDemoMode } from './demo-mode';
+import { exitDemo, getRehearsalId, isDemoMode } from './demo-mode';
 import { getDemoMachine } from './demo-machine';
 import { DemoTour } from './DemoTour';
 import { openDemoTour } from './tour-events';
@@ -39,6 +40,7 @@ export function DemoBanner() {
   const navigate = useNavigate();
   const hasToolpath = useStore(s => !!s.toolpath);
   if (!isDemoMode()) return null;
+  if (getRehearsalId()) return <RehearsalBanner />;
   return (
     <>
       <DemoTour />

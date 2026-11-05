@@ -1,3 +1,4 @@
+import { isDemoMode } from '../demo/demo-mode';
 import { describeAlarm, parseSoftLimitMessage, type Position } from '@wbcnc/fluidnc';
 
 /** An alarm as camNC saw it: the code plus everything that helps to resolve it. */
@@ -148,6 +149,7 @@ const kStorageKey = 'camnc-last-alarm';
 
 /** The last alarm per controller, kept for this browser tab so that it survives a reload or reconnect. */
 export function saveLastAlarm(host: string, alarm: AlarmRecord) {
+  if (isDemoMode()) return;
   try {
     sessionStorage.setItem(`${kStorageKey}:${host}`, JSON.stringify(alarm));
   } catch {
@@ -156,6 +158,7 @@ export function saveLastAlarm(host: string, alarm: AlarmRecord) {
 }
 
 export function loadLastAlarm(host: string): AlarmRecord | null {
+  if (isDemoMode()) return null;
   try {
     const raw = sessionStorage.getItem(`${kStorageKey}:${host}`);
     return raw ? (JSON.parse(raw) as AlarmRecord) : null;
