@@ -554,11 +554,12 @@ export function nestBoard(board: BoardV1, instances: PartInstance[], bit: number
   const nutAbove = nutAboveOf(board, opts.stickout);
   const size = board.size.fit ? undefined : { w: board.size.w, h: board.size.h };
   const machine = board.size.fit ? opts.machine : undefined;
-  // A fitted layout bigger than the machine (stored before the machine was known): nested again, within it.
-  const stored =
-    board.layout && (!machine || isCut(board) || fitsMachine(machine, board.layout.w, board.layout.h)) ? board.layout : undefined;
+  // A fitted layout bigger than the machine (stored before the machine was known): nested again, within it, around the
+  // parts placed by hand that are on the machine.
+  const oversize = !!board.layout && !!machine && !isCut(board) && !fitsMachine(machine, board.layout.w, board.layout.h);
+  const stored = oversize ? { at: onlyFor(board.layout!.at, board.pinned ?? []) } : board.layout;
   // The size to place on: fixed, or as the layout left it. A fitted board may still grow.
-  const on = size ?? (stored && { w: stored.w, h: stored.h });
+  const on = size ?? (stored && !oversize ? { w: board.layout!.w, h: board.layout!.h } : undefined);
   const holdsOn = (b: { w: number; h: number }) => (board.fixtures ?? []).map(f => holdPointOf(f, b, hw, nutAbove));
 
   const fixed: Placement[] = [];
@@ -569,6 +570,7 @@ export function nestBoard(board: BoardV1, instances: PartInstance[], bit: number
     const r = placedRect(pos, byId.get(id)!);
     // A cut board's parts are where they were cut, whatever the spacing says now.
     if (!isCut(board) && (!insideMargin(r, margin, on) || !fixedRects.every(o => apart(r, o, gap)))) continue;
+    if (oversize && !insideMargin(r, margin, machine)) continue;
     fixed.push({ id, x: pos.x, y: pos.y, rotated: pos.rotated });
     fixedRects.push(r);
   }

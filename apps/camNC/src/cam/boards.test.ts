@@ -443,6 +443,16 @@ describe('boards', () => {
       // A layout stored before the machine was known is nested again within it.
       const stored = withLayout(a, nestBoard(a, parts, bit));
       expect(fits(nestBoard(stored, parts, bit, { machine }).board, machine)).toBe(true);
+      // Except where a part placed by hand sits, when that's on the machine.
+      const top = stored.layout!.at.top;
+      const pinned = {
+        ...stored,
+        pinned: ['top'],
+        layout: { ...stored.layout!, at: { ...stored.layout!.at, top: { x: 100, y: 100, rotated: top.rotated } } },
+      };
+      const again = nestBoard(pinned, parts, bit, { machine });
+      expect(again.placements.find(p => p.id === 'top')).toMatchObject({ x: 100, y: 100, rotated: top.rotated });
+      expect(fits(again.board, machine)).toBe(true);
     });
 
     it('parts that don’t fit move onto another board, made as needed', () => {
