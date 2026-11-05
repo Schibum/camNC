@@ -1,3 +1,4 @@
+import { CamJobRehearsal } from '@/start/CamJobRehearsal';
 import { MachineConnectionForm } from '@/components/machine/MachineConnectionForm';
 import { PageHeader } from '@/components/page-header';
 import { isDesktopApp } from '@/lib/desktop/is-desktop';
@@ -12,19 +13,19 @@ import { z } from 'zod';
 import { Button } from '@wbcnc/ui/components/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@wbcnc/ui/components/card';
 import { toast } from '@wbcnc/ui/components/sonner';
-import { Camera, HardDriveUpload } from 'lucide-react';
+import { Box, Camera, HardDriveUpload } from 'lucide-react';
 import { useState } from 'react';
 
 export const Route = createFileRoute('/start')({
   component: StartComponent,
   // `for=cam`: sent here from the CAM Plan step to pick a bed before seeing the program on it.
-  validateSearch: zodValidator(z.object({ for: z.enum(['cam']).optional() })),
+  validateSearch: zodValidator(z.object({ for: z.enum(['cam']).optional(), job: z.string().optional(), board: z.string().optional() })),
 });
 
 /** Getting started without a camera: connect FluidNC (or pick a bed size), and the top view works on a drawn bed. */
 function StartComponent() {
   const navigate = useNavigate();
-  const { for: purpose } = useSearch({ from: '/start' });
+  const { for: purpose, job: jobId, board: boardId } = useSearch({ from: '/start' });
   const setMachineBounds = useStore(s => s.setMachineBounds);
   const [customSize, setCustomSize] = useState(false);
 
@@ -39,7 +40,7 @@ function StartComponent() {
 
   return (
     <div className="w-full h-full">
-      <PageHeader title="Get started" />
+      <PageHeader title={purpose === 'cam' ? 'Open your CAM job at the machine' : 'Get started'} />
       <div className="flex justify-center p-1 flex-row">
         <div className="max-w-xl gap-4 flex flex-1 flex-col pb-8">
           {purpose === 'cam' && (
@@ -48,10 +49,27 @@ function StartComponent() {
               or choose a bed size.
             </p>
           )}
-          <p className="text-sm text-muted-foreground px-1">
-            See your G-code on your machine, jog and run jobs. No camera needed to start: camNC draws your bed, and you can add a camera any
-            time later.
-          </p>
+          {purpose !== 'cam' && (
+            <p className="text-sm text-muted-foreground px-1">
+              See your G-code on your machine, jog and run jobs. No camera needed to start: camNC draws your bed, and you can add a camera
+              any time later.
+            </p>
+          )}
+          {purpose !== 'cam' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Make a cutting plan</CardTitle>
+                <CardDescription>Open your STEP or STL model, or start with an editable sample. No machine needed.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button asChild>
+                  <Link to="/cam">
+                    <Box /> Open CAM
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
           <Card>
             <CardHeader>
               <CardTitle>Connect your FluidNC</CardTitle>
@@ -93,19 +111,44 @@ function StartComponent() {
               {customSize && <MachineBoundsForm submitLabel="Open workspace" onConfirmed={openWorkspace} />}
             </CardContent>
           </Card>
-          <TryDemoCard />
-          <p className="text-sm text-muted-foreground px-1 flex flex-row items-center gap-2">
-            <Camera className="size-4" /> Have a camera above your machine?{' '}
-            <Link to="/setup/url-entry" className="underline">
-              Set it up now
-            </Link>
-          </p>
-          <p className="text-sm text-muted-foreground px-1 flex flex-row items-center gap-2">
-            <HardDriveUpload className="size-4" /> Already set up camNC {isDesktopApp() ? 'in the browser' : 'elsewhere'}?{' '}
-            <Link to="/settings/backup" className="underline">
-              Restore a backup
-            </Link>
-          </p>
+          {purpose === 'cam' ? (
+            jobId ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Try this job on a demo machine</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <CamJobRehearsal jobId={jobId} boardId={boardId} />
+                </CardContent>
+              </Card>
+            ) : (
+              <p className="text-sm">
+                To rehearse your job,{' '}
+                <Link to="/cam" className="underline">
+                  open its CAM plan
+                </Link>{' '}
+                and choose “Try on demo machine”.
+              </p>
+            )
+          ) : (
+            <TryDemoCard />
+          )}
+          {purpose !== 'cam' && (
+            <>
+              <p className="text-sm text-muted-foreground px-1 flex flex-row items-center gap-2">
+                <Camera className="size-4" /> Have a camera above your machine?{' '}
+                <Link to="/setup/url-entry" className="underline">
+                  Set it up now
+                </Link>
+              </p>
+              <p className="text-sm text-muted-foreground px-1 flex flex-row items-center gap-2">
+                <HardDriveUpload className="size-4" /> Already set up camNC {isDesktopApp() ? 'in the browser' : 'elsewhere'}?{' '}
+                <Link to="/settings/backup" className="underline">
+                  Restore a backup
+                </Link>
+              </p>
+            </>
+          )}
         </div>
       </div>
     </div>

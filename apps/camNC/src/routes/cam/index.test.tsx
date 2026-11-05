@@ -11,6 +11,7 @@ const picked = vi.hoisted(() => ({ file: null as File | null }));
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (options: unknown) => ({ options }),
   useNavigate: () => () => undefined,
+  useSearch: () => ({}),
   Link: ({ children, className }: { children: ReactNode; className?: string }) => <a className={className}>{children}</a>,
 }));
 vi.mock('@/components/page-header', () => ({ PageHeader: () => null }));

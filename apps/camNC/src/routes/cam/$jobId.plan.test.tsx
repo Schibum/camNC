@@ -65,6 +65,11 @@ const description = (el: Element) =>
     .trim();
 
 describe('CAM plan step', () => {
+  it('accepts the numeric return flag decoded from the rehearsal URL', () => {
+    const options = (Route as unknown as { options: { validateSearch: { parse: (search: unknown) => { rehearsed?: number } } } }).options;
+    expect(options.validateSearch.parse({ rehearsed: 1 }).rehearsed).toBe(1);
+  });
+
   it('makes one safe program per board, inner features before outlines, and hands it to the machine view', async () => {
     const bytes = await (await fetch(stepUrl)).arrayBuffer();
     const job = await createJob(new File([bytes], 'kinderregal-eiche.step'));
@@ -137,7 +142,7 @@ describe('CAM plan step', () => {
     // No bed yet (no machine connected, no size picked): pick one first, then the program shows on it.
     bed.bounds = null;
     fireEvent.click(await showOnMachineItem());
-    expect(navigate).toHaveBeenLastCalledWith({ to: '/start', search: { for: 'cam' } });
+    expect(navigate).toHaveBeenLastCalledWith({ to: '/start', search: { for: 'cam', job: job.id, board: expect.any(String) } });
     bed.bounds = {};
     // The machine view gets the board's setup: stock top 8 + 0.3 allowance, Z0 at the bottom, the 1/8" flat bit.
     expect(store.setStockHeight).toHaveBeenCalledWith(8.3);
@@ -295,6 +300,8 @@ describe('CAM plan step', () => {
       await screen.findByText(/back has no two opposite edges where tabs would hold it, so it would come loose/, {}, { timeout: 60_000 })
     ).toBeTruthy();
     expect(screen.getByRole('button', { name: /Take the job to the machine/ })).toHaveProperty('disabled', true);
+    // The moves are fine, but no "passed" next to a part that comes loose.
+    expect(screen.queryByText(/Safety checks passed/)).toBeNull();
     first.unmount();
     // The board on a bottom skin, chosen on the Boards step.
     await saveJob({ ...job, parts, boards: boards.map(b => ({ ...b, retention: 'skin' as const })) });

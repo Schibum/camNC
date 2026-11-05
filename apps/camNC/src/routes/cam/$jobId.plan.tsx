@@ -1,3 +1,5 @@
+import { RehearsalButton } from '@/lib/rehearsal/RehearsalButton';
+import { freezeRehearsalBoard } from '@/lib/rehearsal/boardSnapshot';
 import { PageHeader } from '@/components/page-header';
 import { CamPage } from '@/cam/CamPage';
 import { NoPartsToMill } from '@/cam/NoPartsToMill';
@@ -34,12 +36,12 @@ import {
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
 import { cn } from '@wbcnc/ui/lib/utils';
 import { AlertTriangle, Download, Factory, MoreHorizontal, Play, ShieldCheck } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { z } from 'zod';
 
 export const Route = createFileRoute('/cam/$jobId/plan')({
   component: PlanStep,
-  validateSearch: zodValidator(z.object({ board: z.string().optional() })),
+  validateSearch: zodValidator(z.object({ board: z.string().optional(), rehearsed: z.literal(1).optional() })),
 });
 
 const fmtMin = (m: number) => `${Math.floor(m)}:${String(Math.round((m % 1) * 60)).padStart(2, '0')}`;
@@ -50,7 +52,7 @@ const fmtMin = (m: number) => `${Math.floor(m)}:${String(Math.round((m % 1) * 60
  */
 function PlanStep() {
   const { jobId } = useParams({ from: '/cam/$jobId/plan' });
-  const { board: boardParam } = useSearch({ from: '/cam/$jobId/plan' });
+  const { board: boardParam, rehearsed } = useSearch({ from: '/cam/$jobId/plan' });
   const navigate = useNavigate();
   const { data: job, isPending } = useCamJob(jobId);
   const model = useCamModel(job);
@@ -65,9 +67,13 @@ function PlanStep() {
     { keepShown: true }
   );
 
+  useEffect(() => {
+    if (rehearsed && !isPending && !job) void navigate({ to: '/cam' });
+  }, [rehearsed, isPending, job, navigate]);
+
   if (isPending) return <Shell />;
   if (!job) return <Shell message="This job doesn't exist (any more)." />;
-  const bar = <CamJobBar jobId={job.id} fileName={job.fileName} step="Plan" />;
+  const bar = <CamJobBar jobId={job.id} fileName={job.fileName} origin={job.origin} step="Plan" />;
   if (model.isError) return <Shell bar={bar} message={model.error.message} />;
   if (!model.data) return <Shell bar={bar} loading={`Reading ${job.fileName}…`} />;
   if (!active.length)
@@ -135,11 +141,15 @@ function PlanStep() {
     if (!result || !safe) return;
     const first = result.programs[0];
     loadIntoMachineView({ ...result, gcode: first.gcode, bits: [first.diameter] }, programName(first));
-    toMachineView();
+    toMachineView(current.board.id);
   };
   // Without a bed (no machine connected, no size picked) the machine view can't show the program: pick one first.
-  const toMachineView = () =>
-    void navigate(selectMachineBounds(useStore.getState()) ? { to: '/visualize/2DView' } : { to: '/start', search: { for: 'cam' } });
+  const toMachineView = (boardId?: string) =>
+    void navigate(
+      selectMachineBounds(useStore.getState())
+        ? { to: '/visualize/2DView' }
+        : { to: '/start', search: { for: 'cam', job: job.id, board: boardId } }
+    );
   // All boards, in queue order, in the machine panel: place, align, zero, cut, swap bits, remove tabs.
   const takeToMachine = () => {
     if (!allReady) return;
@@ -181,6 +191,11 @@ function PlanStep() {
   const cut = queue.filter(e => isCut(e.board));
   return (
     <Shell bar={bar}>
+      {rehearsed && (
+        <p role="status" className="border-b bg-primary/5 px-4 py-2 text-sm">
+          Back in your saved project. Rehearsal progress was discarded; your cut history is unchanged.
+        </p>
+      )}
       {cut.length > 0 && (
         <p role="note" className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm">
           {cut.length === 1 ? `Board ${cut[0].board.name} is` : `Boards ${cut.map(e => e.board.name).join(', ')} are`} already cut at the
@@ -210,6 +225,7 @@ function PlanStep() {
           Job: {queue.length} {queue.length === 1 ? 'board' : 'boards'} · {swaps} bit {swaps === 1 ? 'swap' : 'swaps'} · ≈{' '}
           {fmtMin(totalMin)} min cutting
         </span>
+        <RehearsalButton job={job} boards={boards.map(b => freezeRehearsalBoard(b.board, b.nest))} ready={allReady} />
         <BitChip value={settings} onChange={savePlan} onOpen={openSettings} />
         <Hint
           wrap
@@ -305,9 +321,10 @@ function PlanStep() {
           )
         }
         checks={
-          result && (
+          result &&
+          sideA && (
             <>
-              <Checks plan={result} checked={!empty && !blocked} releaseSafety={releaseSafety} />
+              <Checks plan={result} board={sideA} checked={!empty && !blocked} releaseSafety={releaseSafety} />
               <p className="text-xs text-muted-foreground">
                 {result.programs.length > 1
                   ? 'One program per bit: run them in order, swap the bit and zero Z in between; the board stays put.'
@@ -564,29 +581,43 @@ function MissingBanner({
   );
 }
 
-/** `checked`: false while the job is blocked (missing parts, nothing to cut): no "passed" for an incomplete job. */
-function Checks({ plan, checked, releaseSafety }: { plan: PlanResult; checked: boolean; releaseSafety: string[] }) {
+/**
+ * `plan`: the side shown. `board`: its side A, which has what holds the parts, for both sides. `checked`: false while the
+ * job is blocked by its layout (missing parts, nothing to cut): no "passed" for an incomplete job, nor for a blocked board.
+ */
+function Checks({
+  plan,
+  board,
+  checked,
+  releaseSafety,
+}: {
+  plan: PlanResult;
+  board: PlanResult;
+  checked: boolean;
+  releaseSafety: string[];
+}) {
   const failed = [...plan.safety, ...releaseSafety];
   const skins = (plan.holding ?? []).filter(h => h.how === 'skin');
+  const moves = 'no rapid moves in the stock, stays on the board, never deeper than the cut-through depth.';
   return (
     <div className="flex flex-col gap-1.5 text-[13px]">
-      {loose(plan).map(h => (
+      {loose(board).map(h => (
         <p key={h.part} className="flex gap-2 text-destructive">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" />
           {h.part}: {h.anchored === 0 ? 'none' : `only ${h.anchored}`} of its {h.tabs.length} tabs would hold it, so it would come loose. On
           the Boards step, switch the board to a bottom skin, or give it more room.
         </p>
       ))}
-      {(plan.holdClash ?? []).length > 0 && (
+      {(board.holdClash ?? []).length > 0 && (
         <p className="flex gap-2 text-destructive">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-          {plan.holdClash!.length === 1 ? 'A screw or clamp is' : `${plan.holdClash!.length} screws or clamps are`} in the bit’s way or on a
-          part (red on the board). On the Boards step, drag {plan.holdClash!.length === 1 ? 'it' : 'them'} into the waste.
+          {board.holdClash!.length === 1 ? 'A screw or clamp is' : `${board.holdClash!.length} screws or clamps are`} in the bit’s way or on
+          a part (red on the board). On the Boards step, drag {board.holdClash!.length === 1 ? 'it' : 'them'} into the waste.
         </p>
       )}
-      {(plan.timeline ?? [])
+      {(board.timeline ?? [])
         // A part whose tabs don't hold is already listed above.
-        .filter(e => !(e.kind === 'loose' && loose(plan).some(h => h.part === e.what)))
+        .filter(e => !(e.kind === 'loose' && loose(board).some(h => h.part === e.what)))
         .map(e => (
           <p
             key={`${e.kind}-${e.what}-${e.step}`}
@@ -607,17 +638,19 @@ function Checks({ plan, checked, releaseSafety }: { plan: PlanResult; checked: b
           parts free” step cuts {skins.length === 1 ? 'it' : 'them'} free one at a time.
         </p>
       )}
-      {!checked ? null : failed.length === 0 ? (
-        <p className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
-          <ShieldCheck className="size-4" /> Safety checks passed: no rapid moves in the stock, stays on the board, never deeper than the
-          cut-through depth.
-        </p>
-      ) : (
+      {!checked ? null : failed.length > 0 ? (
         failed.map(s => (
           <p key={s} className="flex gap-2 text-destructive">
             <AlertTriangle className="mt-0.5 size-4 shrink-0" /> {s}
           </p>
         ))
+      ) : planBlock(board) ? null : (board.timeline ?? []).some(e => e.kind === 'loose') ? (
+        // Parts cut loose as the user chose: only the moves passed.
+        <p className="text-muted-foreground">The moves pass the safety checks, but nothing holds the parts: {moves}</p>
+      ) : (
+        <p className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+          <ShieldCheck className="size-4" /> Safety checks passed: {moves}
+        </p>
       )}
       {[...new Set(plan.warnings.map(friendly))].map(w => (
         <p key={w} className="flex gap-2 text-amber-700 dark:text-amber-400">

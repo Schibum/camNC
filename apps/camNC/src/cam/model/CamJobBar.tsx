@@ -1,3 +1,5 @@
+import { isDemoMode } from '@/lib/demo/demo-mode';
+import type { CamJobV1 } from '../jobDb';
 import { openAtMachine } from '@/cam/machine/openAtMachine';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
@@ -12,12 +14,29 @@ const kRoutes: Record<CamStep, '/cam/$jobId/model' | '/cam/$jobId/boards' | '/ca
 };
 
 /** Job name, the prepare steps (Model → Boards → Plan), the way to the machine, and the step's actions. */
-export function CamJobBar({ jobId, fileName, step, actions }: { jobId: string; fileName: string; step: CamStep; actions?: ReactNode }) {
+export function CamJobBar({
+  jobId,
+  fileName,
+  step,
+  actions,
+  origin,
+}: {
+  jobId: string;
+  fileName: string;
+  step: CamStep;
+  actions?: ReactNode;
+  origin?: CamJobV1['origin'];
+}) {
   return (
     <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b px-4 py-2">
       <span className="max-w-64 truncate text-sm text-muted-foreground" title={fileName}>
         {fileName}
       </span>
+      {origin?.kind === 'sample' && (
+        <span className="text-xs text-muted-foreground">
+          {isDemoMode() ? 'Temporary rehearsal copy' : 'Sample copy · saved in this browser'}
+        </span>
+      )}
       <nav aria-label="Steps" className="flex flex-wrap items-center gap-1">
         {kSteps.map((s, i) =>
           s === step ? (
@@ -56,7 +75,7 @@ function AtTheMachine({ jobId }: { jobId: string }) {
       className="whitespace-nowrap rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted"
       onClick={() => {
         const to = openAtMachine(jobId, board);
-        void navigate(to === '/start' ? { to, search: { for: 'cam' } } : { to });
+        void navigate(to === '/start' ? { to, search: { for: 'cam', job: jobId, board } } : { to });
       }}>
       At the machine
     </button>

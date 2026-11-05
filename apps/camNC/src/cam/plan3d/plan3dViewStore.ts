@@ -1,5 +1,6 @@
+import { demoStorage } from '@/lib/demo/demo-storage';
 import { create } from 'zustand';
-import { combine, persist } from 'zustand/middleware';
+import { combine, createJSONStorage, persist } from 'zustand/middleware';
 import type { Projection, ViewKind } from './framing';
 
 /**
@@ -35,6 +36,7 @@ export const usePlan3dView = create(
       })
     ),
     {
+      storage: createJSONStorage(() => demoStorage),
       name: 'camnc-plan-3d-view',
       version: 1,
       // v0 had a Compare toggle and a projection per view.
