@@ -1,4 +1,4 @@
-import type { FlipRegistration, TabFallback } from '@wbcnc/cam';
+import type { FlipRegistration } from '@wbcnc/cam';
 import type { HoldDown, HoldPoint, PartSummary, TabStop } from '@wbcnc/cam';
 
 /** Closed polygons as [x, y] point lists, in the part's flat frame (mm). */
@@ -122,9 +122,8 @@ export interface PlanResult {
   }[];
   /** Hold points the bit would hit (blocks the job). */
   holdClash?: { x: number; y: number }[];
-  /** With tabs: how each part is held: tabs where they hold, or its fallback (a bottom skin, tabs anyway, by hand). */
-  /** Per part: tabs placed (`tabs` of them; `wanted` when fewer fit than asked), or its fallback. */
-  holding?: { name: string; how: 'placed' | TabFallback | 'unheld'; tabs: number; wanted?: number; moved?: boolean }[];
+  /** Per part: tabs placed (`tabs` of them; `wanted` when fewer fit than asked), a bottom skin, or nothing that holds it. */
+  holding?: { name: string; how: 'placed' | 'skin' | 'unheld'; tabs: number; wanted?: number; moved?: boolean }[];
   /** Bottom skin thickness, mm, for the parts that have one. */
   skin?: number;
   /** The board is taped down: the skin is the layer on the tape, cut for all parts in one go at the end. */
@@ -151,7 +150,9 @@ export interface BoardRequest {
   /** The board turned over can lie at another angle than side A (camera registration); unset: as side A. */
   sideBRotationDeg?: number;
   holdDown: HoldDown;
-  /** Where the board is screwed or clamped down (board frame). None: taped, or held at its edges. */
+  /** Tape under the board. */
+  taped?: boolean;
+  /** Where the board is screwed or clamped down (board frame). None: tape, or held down by hand. */
   holdPoints?: HoldPoint[];
   tabs: { width: number; height: number; minCount: number };
   parts: {
@@ -161,13 +162,11 @@ export interface BoardRequest {
     x: number;
     y: number;
     rotated: boolean;
-    tabFallback?: TabFallback;
     /** Tabs dragged into place, part frame, mm. */
     tabsAt?: { x: number; y: number }[];
   }[];
   /** A second side for the parts' undersides, and how it lines up after turning the board over. */
   flip?: { registration: FlipRegistration; dowelDiameter?: number };
-  /** With tabs: what parts without a spot for tabs that hold get (each part may choose its own), and the skin. */
-  tabFallback?: TabFallback;
+  /** Bottom skin thickness, mm. */
   skin?: number;
 }

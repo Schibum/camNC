@@ -1,6 +1,7 @@
 import { edgeDir, holdBox, holdClashes, snapClamp, type HoldPoint } from '@wbcnc/cam/holdPoints';
 import { create } from 'zustand';
-import { dropPart, type BedSpot, type BoardNest, type BoardV1, type PartInstance, type PartPosition } from '../boards';
+import { useHoldHardware } from '../holdHardware';
+import { dropPart, fixtureOf, type BedSpot, type BoardNest, type BoardV1, type PartInstance, type PartPosition } from '../boards';
 
 type P2 = { x: number; y: number };
 
@@ -8,7 +9,7 @@ type P2 = { x: number; y: number };
 export type BedEditMode = 'move' | 'add';
 
 /** A change to a board made in the top view, as the board's new fields. */
-export type BoardPatch = Partial<Pick<BoardV1, 'holdPoints' | 'holdPointsOn' | 'bed' | 'size' | 'positions' | 'pinned'>>;
+export type BoardPatch = Partial<Pick<BoardV1, 'fixtures' | 'bed' | 'size' | 'layout' | 'pinned'>>;
 
 export interface BedEdit {
   boardId: string;
@@ -152,10 +153,10 @@ export const onBoard = (p: P2, board: { w: number; h: number }, slack = 0) =>
 
 const kindName = (h: Pick<HoldPoint, 'kind'>) => (h.kind === 'clamp' ? 'Clamp' : 'Screw');
 
-/** The board's holds with one moved: its new fields, kept on the size they were moved on. */
+/** The board's holds with one moved: its new fields. */
 export function moveHold(holds: HoldPoint[], i: number, to: P2, board: { w: number; h: number }, boardId: string): BedEdit {
   const points = holds.map((h, j) => (j === i ? placeHold(h, to, board) : h));
-  return { boardId, what: `${kindName(holds[i])} ${i + 1} moved`, patch: holdPatch(points, board) };
+  return { boardId, what: `${kindName(holds[i])} ${i + 1} moved`, patch: holdPatch(points) };
 }
 
 /** The board's holds with one more, like the others (or a clamp, the first). */
@@ -167,19 +168,19 @@ export function addHold(
   boardId: string
 ): BedEdit {
   const points = [...holds, placeHold(like, at, board)];
-  return { boardId, what: `${kindName(like)} ${points.length} added`, patch: holdPatch(points, board) };
+  return { boardId, what: `${kindName(like)} ${points.length} added`, patch: holdPatch(points) };
 }
 
-/** The board's holds without one. The last one gone, the board has none (not the suggested ones again). */
-export function removeHold(holds: HoldPoint[], i: number, board: { w: number; h: number }, boardId: string): BedEdit {
+/** The board's holds without one. */
+export function removeHold(holds: HoldPoint[], i: number, boardId: string): BedEdit {
   const points = holds.filter((_, j) => j !== i);
-  return { boardId, what: `${kindName(holds[i])} ${i + 1} removed`, patch: holdPatch(points, board) };
+  return { boardId, what: `${kindName(holds[i])} ${i + 1} removed`, patch: holdPatch(points) };
 }
 
 const round = (v: number) => Math.round(v * 10) / 10;
 
-function holdPatch(points: P2[], board: { w: number; h: number }): BoardPatch {
-  return { holdPoints: points.map(p => ({ x: round(p.x), y: round(p.y) })), holdPointsOn: { w: board.w, h: board.h } };
+function holdPatch(points: HoldPoint[]): BoardPatch {
+  return { fixtures: points.map(fixtureOf) };
 }
 
 /** The board's spot on the bed for one side: saved so that its programs go there again. */
@@ -217,15 +218,13 @@ export function snapAngle(deg: number): number {
 
 /**
  * At the machine the board is a real sheet: once something is changed on it there, it keeps its size (when fitted to
- * its parts) and every part stays where it is (pinned), unless the change moves that part. The board doesn't grow
- * around a hold (which would bring the suggested holds back) and the parts don't shuffle.
+ * its parts) and every part stays where it is, unless the change moves that part.
  */
 export function freezeAtMachine(board: BoardV1, nest: Pick<BoardNest, 'board' | 'placements'>): BoardPatch {
-  const positions = Object.fromEntries(nest.placements.map(p => [p.id, { x: p.x, y: p.y, rotated: p.rotated }]));
+  const at = Object.fromEntries(nest.placements.map(p => [p.id, { x: p.x, y: p.y, rotated: p.rotated }]));
   return {
     ...(board.size.fit && { size: { fit: false, w: nest.board.w, h: nest.board.h } }),
-    positions: { ...positions, ...board.positions },
-    pinned: [...new Set([...(board.pinned ?? []), ...Object.keys(positions)])],
+    layout: { w: nest.board.w, h: nest.board.h, at },
   };
 }
 
@@ -235,7 +234,7 @@ export function freezeAtMachine(board: BoardV1, nest: Pick<BoardNest, 'board' | 
  */
 export function movePart(
   board: BoardV1,
-  nest: Pick<BoardNest, 'board' | 'placements'>,
+  nest: Pick<BoardNest, 'board' | 'placements'> & Partial<Pick<BoardNest, 'stickout'>>,
   instances: PartInstance[],
   bit: number,
   item: string,
@@ -243,15 +242,15 @@ export function movePart(
 ): (BedEdit & { exact: boolean }) | null {
   const frozen = { ...board, ...freezeAtMachine(board, nest) };
   const at1 = { x: round(at.x), y: round(at.y), rotated: at.rotated };
-  const drop = dropPart(frozen, instances, bit, item, at1);
+  const drop = dropPart(frozen, instances, bit, item, at1, 0, { stickout: nest.stickout, hardware: useHoldHardware.getState().hardware });
   if (!drop.at) return null;
   const name = instances.find(i => i.id === item)?.name ?? item;
-  const { size, positions, pinned } = drop.board;
+  const { size, layout, pinned } = drop.board;
   return {
     boardId: board.id,
     what: drop.exact ? `${name} moved` : `${name} moved to a free spot`,
     exact: drop.exact,
-    patch: { size, positions: { ...positions, [item]: drop.at }, pinned },
+    patch: { size, layout, pinned },
   };
 }
 

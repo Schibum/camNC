@@ -13,7 +13,7 @@ export interface BlockContext {
 /** Broken safety rules of the guided programs after the board's cutting. */
 export const releaseProblems = (plan: PlanResult | undefined) => plan?.release?.flatMap(r => r.safety) ?? [];
 
-/** Parts that would come loose: their tabs don't hold, and they have no fallback (tabs anyway, or held by hand). */
+/** Parts that would come loose: tabs were placed for them, but too few hold. */
 export function loose(plan: PlanResult | undefined) {
   if (!plan?.hold) return [];
   return plan.hold.filter(h => !h.ok && (plan.holding?.find(x => x.name === h.part)?.how ?? 'placed') === 'placed');
@@ -43,7 +43,7 @@ export function planBlock(plan: PlanResult): string | null {
   const pivot = plan.timeline?.find(e => e.block);
   if (pivot) return pivot.message;
   const clashes = plan.holdClash?.length ?? 0;
-  if (clashes) return `${clashes === 1 ? 'A screw or clamp is' : `${clashes} screws or clamps are`} in the bit’s way.`;
+  if (clashes) return `${clashes === 1 ? 'A screw or clamp is' : `${clashes} screws or clamps are`} in the bit’s way or on a part.`;
   return null;
 }
 

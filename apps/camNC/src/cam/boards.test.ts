@@ -1,4 +1,4 @@
-import { frameMargin } from '@wbcnc/cam/holdPoints';
+import type { Fixture } from '@wbcnc/cam/settle';
 import { describe, expect, it } from 'vitest';
 import {
   changesCutBoard,
@@ -14,8 +14,15 @@ import {
   relayoutBoard,
   spacingProblem,
   edgeNote,
-  holdsOf,
+  holdDownOf,
+  holdPointOf,
+  fixtureOf,
+  layoutChange,
   nutAboveOf,
+  respaceBoard,
+  settleBoard,
+  suggestFixtures,
+  withLayout,
   stockTopOf,
   type BoardV1,
   type PartInstance,
@@ -365,45 +372,17 @@ describe('boards', () => {
 
   it('fitted boards keep a small edge margin (bit + 2) and gap (bit + 4), with tabs room for a strip that holds them; both editable', () => {
     const [tabs] = reconcileBoards(undefined, parts, 'oak');
-    const withTabs = nestBoard({ ...tabs, frame: false }, parts, 3.175);
-    // 3.5 mm of stock left beside the cut at the edge, and between the cuts of two neighbours.
+    const withTabs = nestBoard(tabs, parts, 3.175);
+    // 3.5 mm of stock left beside the cut at the edge, and between the cuts of two neighbours. No frame around them.
     expect([withTabs.margin, withTabs.gap]).toEqual([6.7, 10]);
-    // Held by screws, by default with a frame of stock for them: a wider margin.
-    expect(nestBoard(tabs, parts, 3.175).margin).toBe(frameMargin(10, 3.175));
-    // Clamps grip at the edge: the frame is their reach in (2 mm) plus the cut, not a round toe's size. Their toes
-    // lie against an edge, 20 mm along it, and stay clear of the parts.
-    const clamped = nestBoard({ ...tabs, holds: { kind: 'clamp', d: 2, w: 20, height: 5 } }, parts, 3.175);
-    expect(clamped.margin).toBe(frameMargin(2, 3.175, 'clamp', 5));
-    expect(clamped.margin).toBe(8);
-    // By default the low M6 edge clamp (2.5 mm above the stock): below the collet nut, no room kept for it.
-    expect(nestBoard({ ...tabs, holds: { kind: 'clamp', d: 2, w: 20 } }, parts, 3.175).margin).toBe(8);
-    // A taller clamp: room for the collet nut beside it too.
-    expect(nestBoard({ ...tabs, holds: { kind: 'clamp', d: 2, w: 20, height: 30 } }, parts, 3.175).margin).toBe(18);
-    expect(clamped.holds.length).toBeGreaterThanOrEqual(4);
-    for (const h of clamped.holds) {
-      expect(h).toMatchObject({ kind: 'clamp', d: 2, w: 20 });
-      expect(Math.min(h.x, h.y, clamped.board.w - h.x, clamped.board.h - h.y)).toBeCloseTo(1, 5);
-    }
-    // A clamp saved before clamps had a width (sized as a round toe) starts afresh: the edge clamp's 3 mm lip.
-    expect(nestBoard({ ...tabs, holds: { kind: 'clamp', d: 25 } }, parts, 3.175).margin).toBe(9);
-    // The collet nut needs room beside a 30 mm clamp only while it gets that low: with the bit 45 mm out of the nut,
-    // it stays above the clamp on the deepest cut (8.3 + 0.3) and only the bit's own clearance is left.
+    expect(withTabs.holds).toEqual([]);
     // Unset, the stick-out clears the deepest cut by 10 mm: the nut never starts out below the board.
-    expect(holdsOf({ ...tabs, thickness: 20 }).stickout).toBe(31);
-    expect(holdsOf({ ...tabs, thickness: 6 }).stickout).toBe(20);
+    expect(nestBoard({ ...tabs, thickness: 20 }, parts, 3.175).stickout).toBe(31);
+    expect(nestBoard({ ...tabs, thickness: 6 }, parts, 3.175).stickout).toBe(20);
     expect(nutAboveOf({ ...tabs, thickness: 20 })).toBeGreaterThan(9);
-    // The bit's own stick-out wins over one an older job saved with the board.
-    const legacy = { ...tabs, holds: { kind: 'clamp' as const, d: 2, w: 20, height: 30, stickout: 20 } };
-    expect(holdsOf(legacy, 45).stickout).toBe(45);
-    expect(nutAboveOf(legacy, 45)).toBe(36.4);
-    expect(nestBoard(legacy, parts, 3.175, { stickout: 45 })).toMatchObject({ stickout: 45, nutAbove: 36.4 });
-    expect(nutAboveOf({ ...tabs, holds: { kind: 'clamp', d: 2, w: 20, height: 30, stickout: 45 } })).toBe(36.4);
-    const long = nestBoard({ ...tabs, holds: { kind: 'clamp', d: 2, w: 20, height: 30, stickout: 45 } }, parts, 3.175);
-    expect(long.margin).toBe(Math.ceil(2 + 1.5875 + 1.5 + 1.5875 + 1));
-    expect(long.holds.every(h => h.nutAbove === 36.4)).toBe(true);
-    // 20 mm out: the nut comes down to 11.4 mm, beside the clamp.
-    expect(nestBoard({ ...tabs, holds: { kind: 'clamp', d: 2, w: 20, height: 30, stickout: 20 } }, parts, 3.175).margin).toBe(18);
-    const a = { ...tabs, holdDown: 'fixture-tape' as const };
+    expect(nutAboveOf(tabs, 45)).toBe(36.4);
+    expect(nestBoard(tabs, parts, 3.175, { stickout: 45 })).toMatchObject({ stickout: 45, nutAbove: 36.4 });
+    const a = { ...tabs, retention: 'skin' as const };
     const nest = nestBoard(a, parts, 3.175);
     expect(nest.margin).toBe(5.2);
     expect(nest.gap).toBe(8);
@@ -421,13 +400,11 @@ describe('boards', () => {
   });
 
   it('fitted boards are whole mm, rounded up; an empty one shows no size', () => {
-    const a = { ...reconcileBoards(undefined, parts, 'oak')[0], holdDown: 'fixture-tape' as const };
-    for (const board of [a, { ...a, holdDown: 'clamps' as const }, { ...a, margin: 5.37, gap: 7.9 }]) {
+    const a = { ...reconcileBoards(undefined, parts, 'oak')[0], retention: 'skin' as const };
+    for (const board of [a, { ...a, retention: 'none' as const }, { ...a, margin: 5.37, gap: 7.9 }]) {
       const nest = nestBoard(board, parts, 3.175);
       expect(Number.isInteger(nest.board.w) && Number.isInteger(nest.board.h)).toBe(true);
       expect(boardSizeLabel(board, nest)).toBe(`${nest.board.w} × ${nest.board.h}`);
-      // The holds are on the board as rounded.
-      for (const h of nest.holds) expect(h.x > 0 && h.y > 0 && h.x < nest.board.w && h.y < nest.board.h).toBe(true);
     }
     // 570.4 × 738.9 before: 571 × 739.
     expect(nestBoard(a, parts, 3.175).board).toEqual({ w: 571, h: 739 });
@@ -451,62 +428,170 @@ describe('boards', () => {
     expect(stockTopOf({ ...a, measuredThickness: 8.12 })).toBe(8.12);
   });
 
-  it('screws or clamps: suggested in the frame around the parts, clear of them, none on the XY zero; moved ones keep parts away', () => {
-    const [a] = reconcileBoards(undefined, parts, 'oak');
-    for (const board of [a, { ...a, holdDown: 'clamps' as const }, { ...a, holds: { kind: 'clamp' as const, d: 20 } }]) {
-      const nest = nestBoard(board, parts, 3.175);
-      expect(nest.unplaced).toEqual([]);
-      expect(nest.frame).toBe('kept');
-      expect(nest.holds.length).toBeGreaterThanOrEqual(8);
-      // The lower left corner is the XY zero, where the probe goes: no hold there.
-      expect(nest.holds.every(h => Math.hypot(h.x, h.y) >= 40)).toBe(true);
-      const size = new Map(parts.map(p => [p.id, p.size]));
-      for (const p of nest.placements)
-        for (const h of nest.holds) {
-          const [w, hh] = size.get(p.id)!;
-          const pw = p.rotated ? hh : w,
-            ph = p.rotated ? w : hh;
-          const dx = Math.max(p.x - h.x, 0, h.x - p.x - pw),
-            dy = Math.max(p.y - h.y, 0, h.y - p.y - ph);
-          expect(Math.hypot(dx, dy)).toBeGreaterThanOrEqual(h.d / 2 + 3.175);
-        }
-    }
-    // Taped: no holds, no frame.
-    const taped = nestBoard({ ...a, boardHold: 'tape', holdDown: 'fixture-tape' }, parts, 3.175);
-    expect([taped.holds, taped.frame]).toEqual([[], 'off']);
-    // A hold moved into the middle of the board: used as is, and the parts nest around it.
-    const middle = { x: 280, y: 370 };
-    const moved = nestBoard({ ...a, holdPoints: [middle] }, parts, 3.175);
-    expect(moved.holdsMoved).toBe(true);
-    expect(moved.holds.map(h => ({ x: h.x, y: h.y }))).toEqual([middle]);
-    expect(moved.keepOuts).toHaveLength(1);
-    expect(moved.unplaced).toEqual([]);
-    // All of them removed by hand: none, and the suggested ones don't come back.
-    const removed = nestBoard({ ...a, holdPoints: [], holdPointsOn: a.size.fit ? undefined : a.size }, parts, 3.175);
-    expect([removed.holds, removed.holdsMoved]).toEqual([[], true]);
-  });
+  describe('parts first, fixtures second', () => {
+    const bit = 3.175;
+    const clamp = (side: 'left' | 'right' | 'bottom' | 'top', at: number): Fixture => ({ kind: 'clamp', side, at });
+    const stored = () => {
+      const [a] = reconcileBoards(undefined, parts, 'oak');
+      return withLayout(a, nestBoard(a, parts, bit));
+    };
 
-  it('a board held by points always says so, with none on it too; taped, it has none to say', () => {
-    const [a] = reconcileBoards(undefined, parts, 'oak');
-    const none = { ...nestBoard(a, parts, 3.175), holds: [] };
-    expect(boardRequest(a, none, parts).holdPoints).toEqual([]);
-    const taped = { ...a, boardHold: 'tape' as const, holdDown: 'fixture-tape' as const };
-    expect('holdPoints' in boardRequest(taped, nestBoard(taped, parts, 3.175), parts)).toBe(false);
-  });
+    it('a board has no fixtures until they are placed: the parts nest tight, and tape or nothing is fine', () => {
+      const [a] = reconcileBoards(undefined, parts, 'oak');
+      const nest = nestBoard(a, parts, bit);
+      expect(nest.holds).toEqual([]);
+      expect(boardRequest(a, nest, parts).holdPoints).toEqual([]);
+      expect(boardRequest({ ...a, taped: true }, nest, parts)).toMatchObject({ taped: true, holdPoints: [], holdDown: 'tabs' });
+    });
 
-  it('holds carry their height; a moved clamp stays against its edge when its reach changes', () => {
-    const [a] = reconcileBoards(undefined, parts, 'oak');
-    expect(nestBoard(a, parts, 3.175).holds[0].height).toBe(3);
-    const clamps = { ...a, holds: { kind: 'clamp' as const, d: 2, w: 20 } };
-    const on = nestBoard(clamps, parts, 3.175);
-    expect(on.holds[0].height).toBe(2.5);
-    // A fixed size, or the larger frame would lay it out afresh, and suggest them afresh.
-    const size = { fit: false as const, w: on.board.w, h: on.board.h };
-    const moved = { ...clamps, size, frame: false, holdPoints: [{ x: 100, y: 1 }], holdPointsOn: on.board };
-    const reach = (d: number) => nestBoard({ ...moved, holds: { ...moved.holds, d } }, parts, 3.175).holds[0];
-    // Reaches 2 in: centre 1 in. Reaches 30 in: centre 15 in, the toe from the edge to 30, not off the board.
-    expect(reach(2)).toMatchObject({ x: 100, y: 1 });
-    expect(reach(30)).toMatchObject({ x: 100, y: 15 });
+    it('a stored layout stays as it is: nothing moves on a reload, a new part only takes free room', () => {
+      const board = stored();
+      const nest = nestBoard(board, parts, bit);
+      expect(withLayout(board, nest)).toEqual(board);
+      const at = board.layout!.at;
+      const without = {
+        ...board,
+        items: board.items.slice(0, -1),
+        layout: { ...board.layout!, at: Object.fromEntries(Object.entries(at).slice(0, -1)) },
+      };
+      const back = nestBoard({ ...without, items: board.items }, parts, bit);
+      for (const p of back.placements.slice(0, -1)) expect(p).toMatchObject(at[p.id]);
+      expect(back.unplaced).toEqual([]);
+    });
+
+    it('placing a clamp moves only the parts in its way; the board stays, and the clamp stays where it was dropped', () => {
+      const board = stored();
+      const before = nestBoard(board, parts, bit);
+      const top = before.placements.reduce((a, b) => (b.y > a.y ? b : a));
+      const settled = settleBoard(board, parts, bit, [clamp('right', top.y + 50)])!;
+      const after = nestBoard(settled, parts, bit);
+      expect(after.holds).toHaveLength(1);
+      expect(after.holds[0]).toMatchObject({ kind: 'clamp', y: top.y + 50 });
+      expect(after.board.h).toBe(before.board.h);
+      // Fixing it there doesn't change on the next read.
+      expect(withLayout(settled, nestBoard(settled, parts, bit)).layout).toEqual(settled.layout);
+    });
+
+    it('a fixed board refuses what has no room; a fitted one grows', () => {
+      const board = stored();
+      const nest = nestBoard(board, parts, bit);
+      const fixed = { ...board, size: { fit: false as const, ...nest.board } };
+      const middle = clamp('bottom', Math.round(nest.board.w / 2));
+      expect(settleBoard(fixed, parts, bit, [middle])).toBeNull();
+      const grown = nestBoard(settleBoard(board, parts, bit, [middle])!, parts, bit);
+      expect(grown.board.h).toBeGreaterThan(nest.board.h);
+      expect(layoutChange(nest, grown, parts)).toMatch(/Board grows to/);
+    });
+
+    it('fixtures carry their hardware; clamps grip their edge, also after a board size change', () => {
+      const hw = { clamp: { d: 2, w: 20, height: 30 }, screw: { d: 8, height: 4 } };
+      expect(holdPointOf(clamp('right', 100), { w: 500, h: 300 }, hw, 9)).toMatchObject({
+        kind: 'clamp',
+        x: 499,
+        y: 100,
+        d: 2,
+        w: 20,
+        height: 30,
+        dir: { x: -1, y: 0 },
+        nutAbove: 9,
+      });
+      expect(holdPointOf(clamp('top', 100), { w: 500, h: 300 }, hw, 9)).toMatchObject({ x: 100, y: 299, dir: { x: 0, y: -1 } });
+      expect(holdPointOf({ kind: 'screw', x: 3, y: 4 }, { w: 500, h: 300 }, hw, 9)).toMatchObject({
+        kind: 'screw',
+        x: 3,
+        y: 4,
+        d: 8,
+        height: 4,
+      });
+      expect(fixtureOf(holdPointOf(clamp('left', 50), { w: 500, h: 300 }, hw, 9))).toEqual(clamp('left', 50));
+      expect(fixtureOf(holdPointOf({ kind: 'screw', x: 3, y: 4 }, { w: 500, h: 300 }, hw, 9))).toEqual({ kind: 'screw', x: 3, y: 4 });
+    });
+
+    it('a taller clamp keeps the parts farther: room for the collet nut', () => {
+      const board = stored();
+      const nest = nestBoard(board, parts, bit);
+      const top = nest.placements.reduce((a, b) => (b.y > a.y ? b : a));
+      const low = settleBoard(board, parts, bit, [clamp('left', top.y + 50)])!;
+      const tall = settleBoard(board, parts, bit, [clamp('left', top.y + 50)], {
+        hardware: { clamp: { d: 3, w: 24, height: 30 }, screw: { d: 10, height: 3 } },
+      })!;
+      expect(tall.layout!.at[top.id].x).toBeGreaterThan(low.layout!.at[top.id].x);
+    });
+
+    it('suggested clamps surround the board without growing it, and can be moved like any other', () => {
+      const board = stored();
+      const nest = nestBoard(board, parts, bit);
+      const next = suggestFixtures(board, parts, bit);
+      expect(next.fixtures!.length).toBeGreaterThanOrEqual(3);
+      expect(nestBoard(next, parts, bit).board).toEqual(nest.board);
+    });
+
+    it('a wider margin moves only what it has to; back to "fit" lays it out again', () => {
+      const board = stored();
+      const wider = respaceBoard(board, { ...board, margin: 12 }, parts, bit);
+      expect(Object.values(wider.layout!.at).every(p => p.x >= 12 && p.y >= 12)).toBe(true);
+      const nest = nestBoard(board, parts, bit);
+      const sheet = { ...board, size: { fit: false as const, w: nest.board.w + 200, h: nest.board.h } };
+      expect(respaceBoard(board, sheet, parts, bit).layout).toMatchObject({ w: nest.board.w + 200, at: board.layout!.at });
+      const back = respaceBoard(sheet, { ...sheet, size: { fit: true } }, parts, bit);
+      expect(back.layout!.w).toBe(nest.board.w);
+    });
+
+    it('a board saved without a retention gets tabs, never parts cut loose', () => {
+      const [a] = reconcileBoards(undefined, parts, 'oak');
+      const old = { ...a, retention: undefined } as unknown as BoardV1;
+      expect(reconcileBoards([old], parts, 'oak')[0].retention).toBe('tabs');
+      expect(holdDownOf(old)).toBe('tabs');
+      expect(holdDownOf({ retention: 'none' })).toBe('none');
+      expect(holdDownOf({ retention: 'skin', taped: true })).toBe('fixture-tape');
+      expect(holdDownOf({ retention: 'tabs', guidedTabs: true })).toBe('tabs-guided');
+    });
+
+    it('a cut board stays as cut: another bit moves nothing, and with no part left it stays cut', () => {
+      const cut = { ...stored(), cut: { at: 1, keys: ['x'] } };
+      const before = nestBoard(cut, parts, bit).placements;
+      expect(nestBoard(cut, parts, 10).placements).toEqual(before);
+      const empty = { ...cut, items: [] };
+      const kept = withLayout(empty, nestBoard(empty, parts, bit));
+      expect(reconcileBoards([kept], [], 'oak')[0].cut).toEqual(cut.cut);
+    });
+
+    it('tightening keeps fixtures on the board; a smaller fixed size slides clamps along and drops screws off it', () => {
+      const board = stored();
+      const far: BoardV1 = {
+        ...board,
+        layout: { ...board.layout!, w: 1000, h: 1000 },
+        fixtures: [clamp('left', 900), clamp('bottom', 800), { kind: 'screw', x: 950, y: 950 }],
+      };
+      const tight = relayoutBoard(far, parts, bit);
+      expect(tight.layout!.h).toBeGreaterThanOrEqual(912);
+      expect(tight.layout!.w).toBeGreaterThanOrEqual(812);
+      const smaller = { ...far, size: { fit: false as const, w: 700, h: 800 } };
+      expect(respaceBoard(far, smaller, parts, bit).fixtures).toEqual([clamp('left', 788), clamp('bottom', 688)]);
+    });
+
+    it('a fitted board growing for a new part keeps it off a screw', () => {
+      const [a] = reconcileBoards(undefined, parts, 'oak');
+      const few = { ...a, items: a.items.slice(0, 1) };
+      const placed = { ...withLayout(few, nestBoard(few, parts, bit)), items: a.items };
+      const screw = { kind: 'screw' as const, x: 300, y: placed.layout!.h + 60 };
+      const nest = nestBoard({ ...placed, fixtures: [screw] }, parts, bit);
+      for (const p of nest.placements) {
+        const [w, h] = parts.find(i => i.id === p.id)!.size;
+        expect(screw.x > p.x && screw.x < p.x + w && screw.y > p.y && screw.y < p.y + h).toBe(false);
+      }
+    });
+
+    it('re-lay out keeps fixtures, moving the parts only as far as they need', () => {
+      const board = stored();
+      const nest = nestBoard(board, parts, bit);
+      const top = nest.placements.reduce((a, b) => (b.y > a.y ? b : a));
+      const placed = settleBoard(board, parts, bit, [clamp('left', top.y + 50)])!;
+      const again = relayoutBoard({ ...placed, pinned: ['left'] }, parts, bit);
+      expect(again.fixtures).toEqual(placed.fixtures);
+      expect(again.pinned).toBeUndefined();
+      expect(nestBoard(again, parts, bit).unplaced).toEqual([]);
+    });
   });
 
   it('second side: on by default (camera) when a part has features underneath, as chosen otherwise', () => {
@@ -523,7 +608,7 @@ describe('boards', () => {
     const sides = parts.slice(0, 2);
     const stock: BoardV1 = {
       ...reconcileBoards(undefined, sides, 'oak')[0],
-      holdDown: 'fixture-tape',
+      retention: 'skin',
       size: { fit: false, w: 600, h: 300 },
     };
     const job = (board: BoardV1, bit: number) => {
@@ -547,7 +632,7 @@ describe('boards', () => {
     });
 
     it('an edge margin narrower than the bit is a note, not a problem: the cut runs past the edge, into air', () => {
-      const edge: BoardV1 = { ...stock, margin: 2, gap: 8, frame: false, boardHold: 'points', holdDown: 'tabs' };
+      const edge: BoardV1 = { ...stock, margin: 2, gap: 8, retention: 'tabs', fixtures: [{ kind: 'clamp', side: 'right', at: 150 }] };
       const nest = nestBoard(edge, sides, 6);
       expect(nest.margin).toBe(2);
       expect(spacingProblem(edge, nest, 6)).toBeNull();
@@ -555,12 +640,10 @@ describe('boards', () => {
       expect(edgeNote(edge, nest, 6)).toBe(
         'Board A: the outline cuts run past the board edge (2 mm margin, ⌀6 bit). Keep screws and clamps clear of it: the job is blocked if the bit would hit one.'
       );
-      expect(edgeNote({ ...edge, boardHold: 'tape' }, nest, 6)).toBe(
+      expect(edgeNote({ ...edge, fixtures: [] }, nest, 6)).toBe(
         'Board A: the outline cuts run past the board edge (2 mm margin, ⌀6 bit). Fine if nothing is clamped or screwed there.'
       );
       expect(edgeNote(edge, nest, 2)).toBeNull();
-      // The frame (the default) would leave no room for both sides on this 600 x 300 board: it's left off, and said so.
-      expect(nestBoard({ ...edge, frame: undefined }, sides, 6)).toMatchObject({ frame: 'no-room', margin: 2 });
     });
   });
 
@@ -569,11 +652,10 @@ describe('boards', () => {
 
     it('re-lay out: the parts stay on the board, unpinned, nested like a fresh board', () => {
       const fresh = { ...newBoard([], 8, 'oak', ['left', 'right']), size: { fit: false as const, w: 1220, h: 610 } };
-      const placed: BoardV1 = { ...fresh, pinned: ['left'], positions: { left: { x: 600, y: 300, rotated: false } } };
-      const again = relayoutBoard(placed);
+      const placed: BoardV1 = { ...fresh, pinned: ['left'], layout: { w: 1220, h: 610, at: { left: { x: 600, y: 300, rotated: false } } } };
+      const again = relayoutBoard(placed, parts, bit);
       expect(again.items).toEqual(['left', 'right']);
       expect(again.pinned).toBeUndefined();
-      expect(again.positions).toBeUndefined();
       expect(nestBoard(again, parts, bit).placements).toEqual(nestBoard(fresh, parts, bit).placements);
       expect(nestBoard(placed, parts, bit).placements).not.toEqual(nestBoard(fresh, parts, bit).placements);
     });
@@ -606,19 +688,20 @@ describe('boards', () => {
     };
 
     it('nests positioned parts first, at their spot, and the rest around them', () => {
-      const board = { ...sheet(['left', 'right', 'top', 'bottom']), positions: { top: { x: 300, y: 200, rotated: false } } };
+      const spots = (at: Record<string, { x: number; y: number; rotated: boolean }>) => ({ layout: { w: 1220, h: 610, at } });
+      const board = { ...sheet(['left', 'right', 'top', 'bottom']), ...spots({ top: { x: 300, y: 200, rotated: false } }) };
       const nest = nestBoard(board, parts, bit);
       expect(nest.unplaced).toEqual([]);
       expect(nest.placements.map(p => p.id)).toEqual(['left', 'right', 'top', 'bottom']);
       expect(nest.placements.find(p => p.id === 'top')).toEqual({ id: 'top', x: 300, y: 200, rotated: false });
       expectClear(nest);
       // A spot off the board (it got smaller) is ignored: the part is nested like the others.
-      const off = nestBoard({ ...board, positions: { top: { x: 1000, y: 200, rotated: false } } }, parts, bit);
+      const off = nestBoard({ ...board, ...spots({ top: { x: 1000, y: 200, rotated: false } }) }, parts, bit);
       expect(off.placements.find(p => p.id === 'top')!.x).not.toBe(1000);
       expectClear(off);
       // Two positioned parts on top of each other: the second one is nested.
       const clash = nestBoard(
-        { ...board, positions: { left: { x: 100, y: 100, rotated: false }, right: { x: 120, y: 110, rotated: false } } },
+        { ...board, ...spots({ left: { x: 100, y: 100, rotated: false }, right: { x: 120, y: 110, rotated: false } }) },
         parts,
         bit
       );
@@ -626,13 +709,14 @@ describe('boards', () => {
       expectClear(clash);
     });
 
-    it('a fitted board grows to take in a positioned part', () => {
+    it('a fitted board grows for a part with no room left, and keeps its other parts where they are', () => {
       const [a] = reconcileBoards(undefined, parts, 'oak');
-      const nest = nestBoard({ ...a, positions: { left: { x: 700, y: 400, rotated: false } } }, parts, bit);
-      expect(nest.placements.find(p => p.id === 'left')).toMatchObject({ x: 700, y: 400 });
-      expect(nest.board.w).toBeGreaterThanOrEqual(700 + 560 + nest.margin);
-      expect(nest.board.h).toBeGreaterThanOrEqual(400 + 140 + nest.margin);
+      const small = { ...a, items: a.items.slice(0, 2) };
+      const placed = withLayout(small, nestBoard(small, parts, bit));
+      const nest = nestBoard({ ...placed, items: a.items }, parts, bit);
+      for (const id of small.items) expect(nest.placements.find(p => p.id === id)).toMatchObject(placed.layout!.at[id]);
       expect(nest.unplaced).toEqual([]);
+      expect(nest.board.h).toBeGreaterThanOrEqual(placed.layout!.h);
       expectClear(nest);
     });
 
@@ -644,14 +728,14 @@ describe('boards', () => {
       expect(drop.at).toEqual({ x: spot.x, y: spot.y, rotated: false });
       expect(drop.board.items).toEqual(['left', 'right', 'top']);
       expect(drop.board.pinned).toEqual(['top']);
-      expect(drop.board.positions?.top).toBeUndefined();
+      expect(drop.board.layout!.at.top).toEqual(drop.at);
     });
 
     it('drops a part exactly where there is room, positioned and pinned', () => {
       const board = sheet(['left', 'right']);
       const drop = dropPart(board, parts, bit, 'top', { x: 700, y: 400, rotated: false }, 10);
       expect(drop).toMatchObject({ exact: true, at: { x: 700, y: 400, rotated: false } });
-      expect(drop.board.positions).toEqual({ top: { x: 700, y: 400, rotated: false } });
+      expect(drop.board.layout!.at.top).toEqual({ x: 700, y: 400, rotated: false });
       expect(drop.board.pinned).toEqual(['top']);
       const nest = nestBoard(drop.board, parts, bit);
       expect(nest.placements.find(p => p.id === 'top')).toMatchObject({ x: 700, y: 400 });
@@ -666,7 +750,7 @@ describe('boards', () => {
         const d = dropPart(board, parts, bit, 'top', at, 10);
         expect(d.exact).toBe(false);
         expect(d.at).not.toBeNull();
-        expect(d.board.positions?.top).toBeUndefined();
+        expect(d.board.layout!.at.top).toEqual(d.at);
       }
     });
 
@@ -676,11 +760,7 @@ describe('boards', () => {
       expect(drop.exact).toBe(true);
       expect(drop.board.items).toEqual(['left', 'right', 'top']);
       expect(drop.board.pinned).toEqual(['top']);
-      // Dropped close to the nest's spot again: the position goes.
-      const spot = nestBoard(board, parts, bit).placements.find(p => p.id === 'top')!;
-      const back = dropPart(drop.board, parts, bit, 'top', { x: spot.x + 1, y: spot.y + 1, rotated: false }, 10);
-      expect(back.exact).toBe(false);
-      expect(back.board.positions).toEqual({});
+      expect(nestBoard(drop.board, parts, bit).placements.find(p => p.id === 'top')).toMatchObject({ x: 650, y: 420 });
     });
 
     it('turns a dropped part 90° when it only fits that way', () => {
@@ -714,27 +794,27 @@ describe('boards', () => {
         ...sheet(['top']),
         name: 'C',
         pinned: ['top'],
-        positions: { top: { x: 600, y: 300, rotated: false } },
+        layout: { w: 1220, h: 610, at: { top: { x: 600, y: 300, rotated: false } } },
       };
       const boards = [{ ...a, items: a.items.filter(id => id !== 'top') }, b, placed];
       const stock = [{ id: 's', thickness: 8, w: 1220, h: 610 }];
       const res = autoFillFromStock(boards, parts, stock, bit, 'oak');
       expectAllPlaced(res, parts, bit, stock);
       const kept = res.boards.find(x => x.id === placed.id)!;
-      expect(kept.positions).toEqual(placed.positions);
+      expect(kept.layout!.at.top).toEqual(placed.layout!.at.top);
       expect(kept.items[0]).toBe('top');
       expect(kept.items.length).toBeGreaterThan(1);
       const nest = nestBoard(kept, parts, bit);
       expect(nest.placements.find(p => p.id === 'top')).toEqual({ id: 'top', x: 600, y: 300, rotated: false });
       expect(nest.unplaced).toEqual([]);
       expectClear(nest);
-      // A position goes with its part when the part isn't milled any more.
+      // A spot goes with its part when the part isn't milled any more.
       expect(
         reconcileBoards(
           boards,
           parts.filter(p => p.id !== 'top'),
           'oak'
-        ).find(x => x.id === placed.id)!.positions
+        ).find(x => x.id === placed.id)!.layout!.at
       ).toEqual({});
     });
   });
@@ -745,7 +825,7 @@ describe('a cut board', () => {
     const b = { ...newBoard([], 18, 'oak', ['a']), cut: { at: 1, keys: ['x:bit:0'] } };
     expect(changesCutBoard(b, { ...b, name: 'Z', bed: { a: { x: 1, y: 1 } } })).toBe(false);
     expect(changesCutBoard(b, { ...b, items: [] })).toBe(true);
-    expect(changesCutBoard(b, { ...b, holdPoints: [] })).toBe(true);
+    expect(changesCutBoard(b, { ...b, fixtures: [] })).toBe(true);
     expect(changesCutBoard(b, undefined)).toBe(true);
     expect(changesCutBoard({ ...b, cut: undefined }, { ...b, items: [] })).toBe(false);
   });

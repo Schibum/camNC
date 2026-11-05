@@ -1,4 +1,5 @@
 import { Html, Line } from '@react-three/drei';
+import { CanvasLabel } from '@/scene/CanvasLabel';
 import { useThree, type ThreeEvent } from '@react-three/fiber';
 import { cn } from '@wbcnc/ui/lib/utils';
 import { Move, Pencil, Trash2 } from 'lucide-react';
@@ -101,16 +102,16 @@ function useWindowDrag() {
 /** A note beside a spot (board frame): what just happened there. */
 function Note({ note }: { note: BedNote }) {
   return (
-    <Html position={[note.at.x, note.at.y, 0.5]} style={{ pointerEvents: 'none' }} zIndexRange={[20, 0]}>
+    <CanvasLabel position={[note.at.x, note.at.y, 0.5]} offset={[16, -12]} zIndexRange={[20, 0]}>
       <span
         style={{ background: kTone[note.tone] }}
         className={cn(
-          'ml-4 -mt-3 block w-max max-w-64 rounded px-2 py-1 text-xs font-medium shadow-[0_1px_3px_rgba(0,0,0,0.6)]',
+          'block max-w-full rounded px-2 py-1 text-xs font-medium shadow-[0_1px_3px_rgba(0,0,0,0.6)]',
           note.tone === 'bad' ? 'text-white' : 'text-black'
         )}>
         {note.text}
       </span>
-    </Html>
+    </CanvasLabel>
   );
 }
 
@@ -314,19 +315,19 @@ export function CamBedLayer({ overlay, offset, running }: { overlay: BoardOverla
 
       {/* Its bar: remove it, or change it in the CAM job. */}
       {selected && box && name && !item && (
-        <Html position={[box.x, box.y, 0.6]} zIndexRange={[30, 0]}>
+        <CanvasLabel position={[box.x, box.y, 0.6]} offset={[0, 12]} maxWidth={384} interactive zIndexRange={[30, 0]}>
           <div
             role="toolbar"
             aria-label={name}
             onPointerDown={e => e.stopPropagation()}
-            className="dark mt-3 flex w-max items-center gap-0.5 rounded-md border bg-background/95 p-0.5 text-xs text-foreground shadow-md">
+            className="dark flex max-w-full flex-wrap items-center gap-0.5 rounded-md border bg-background/95 p-0.5 text-xs text-foreground shadow-md">
             <span className="px-1.5 font-medium">{name}</span>
             {hold && editable && selected.kind === 'hold' && (
               <button
                 title="Remove it (Delete)"
                 className="flex items-center gap-1 rounded px-1.5 py-1 hover:bg-muted"
                 onClick={() => {
-                  apply?.(removeHold(holds, selected.i, holdsOn, bed.boardId));
+                  apply?.(removeHold(holds, selected.i, bed.boardId));
                   useBedEdit.getState().setSelected(null);
                 }}>
                 <Trash2 className="size-3.5" /> Remove
@@ -345,7 +346,7 @@ export function CamBedLayer({ overlay, offset, running }: { overlay: BoardOverla
               <Pencil className="size-3.5" /> Toolpaths in CAM
             </button>
           </div>
-        </Html>
+        </CanvasLabel>
       )}
 
       {note && <Note note={note} />}

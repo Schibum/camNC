@@ -133,8 +133,7 @@ export function remapBoards(boards: BoardV1[], matched: PartMatch['matched']): B
     ...b,
     items: ids(b.items),
     ...(b.pinned && { pinned: ids(b.pinned) }),
-    ...(b.positions && { positions: keys(b.positions) }),
-    ...(b.tabFallbacks && { tabFallbacks: keys(b.tabFallbacks) }),
+    ...(b.layout && { layout: { ...b.layout, at: keys(b.layout.at) } }),
     ...(b.tabsAt && { tabsAt: keys(b.tabsAt) }),
   }));
 }

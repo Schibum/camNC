@@ -4,9 +4,12 @@
 
 **See your CNC toolpath on the real machine bed. Then cut it.**
 
-[![Try the demo](https://img.shields.io/badge/try-the%20demo-7c3aed)](https://run.camnc.app/demo)
+[![Launch web app](https://img.shields.io/badge/Launch-web%20app-7c3aed?style=for-the-badge)](https://run.camnc.app/)
+
 [![Desktop app](https://img.shields.io/badge/desktop-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2ea44f)](#desktop-app-recommended)
 [![FluidNC](https://img.shields.io/badge/FluidNC-3.9.9%20%C2%B7%204.1.x-555)](#run-the-job-from-the-same-screen)
+
+[Explore demo](https://run.camnc.app/demo)
 
 | Camera image (wide-angle lens, rotated to match)                                                                       | camNC top view of the same frame, with the toolpath                                                                                    |
 | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
@@ -78,7 +81,7 @@ https://github.com/user-attachments/assets/0c16f067-9cb2-4bc9-9941-f04e23f4bc24
 
 ## Getting started
 
-**Try it first:** the [demo](https://run.camnc.app/demo) runs in your browser with a recorded machine camera, a sample
+**Explore the demo:** the [demo](https://run.camnc.app/demo) runs in your browser with a recorded machine camera, a sample
 job and a simulated FluidNC. You can load your own G-code, and nothing is saved.
 
 To use camNC with your own machine, pick one of these:

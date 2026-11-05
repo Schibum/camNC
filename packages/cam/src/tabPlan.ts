@@ -14,19 +14,13 @@ import {
 
 type P2 = { x: number; y: number };
 
-/**
- * A part whose tabs can't reach stock that holds: a bottom skin (the outline stops above the board's bottom; freed at
- * the machine), tabs where they would go anyway (they may not hold), or none (you hold it down: tape, clamps).
- */
-export type TabFallback = 'skin' | 'tabs' | 'self';
-
-/** How a part on a board is held: tabs placed where they hold, or its fallback. */
+/** How a part on a board is held: tabs placed where they hold, a bottom skin, or (`unheld`) nothing. */
 export interface PartHolding {
   /** Board part id. */
   id: string;
   name: string;
-  /** `unheld`: no tabs that hold and no fallback chosen: cut without tabs, and the job is blocked until one is. */
-  how: 'placed' | TabFallback | 'unheld';
+  /** `unheld`: no edge where tabs would hold: cut without tabs, and the job is blocked until it's moved or on a skin. */
+  how: 'placed' | 'skin' | 'unheld';
   /** Placed tabs, board coordinates. */
   tabs: P2[];
   /** Placed: how many it should have had (Min #, or more on long sides), when fewer fit. */
@@ -40,7 +34,7 @@ export const kDefaultSkin = 1;
 /**
  * Where each part's tabs go: only on straight runs of its outer edges (no notch, curve or corner: room for the tab and
  * the bit, and a saw gets at it) whose far side is stock that holds (wide enough all the way to the board's edge, see
- * the hold check), a few on two opposite sides (`pickTabs`). A part that can't be held like that gets its fallback.
+ * the hold check), a few on two opposite sides (`pickTabs`). A part that can't be held like that is `unheld`.
  */
 export function planTabs(
   board: BoardSpec,
@@ -69,10 +63,8 @@ export function planTabs(
   for (const part of board.parts) {
     const outline = cuts.get(part.id)!.find(o => o.feature === 'outline');
     const final = outline?.passes.at(-1);
-    // Not chosen: nothing is switched behind the user's back; the part is cut without tabs and the job says so.
-    const fallback = part.tabFallback ?? board.tabFallback ?? 'unheld';
     if (!outline || !final) {
-      out.set(part.id, { id: part.id, name: part.name, how: fallback, tabs: [] });
+      out.set(part.id, { id: part.id, name: part.name, how: 'unheld', tabs: [] });
       continue;
     }
     const r = outline.tool.diameter / 2;
@@ -118,7 +110,7 @@ export function planTabs(
       part.id,
       picked.length >= minTabs
         ? { id: part.id, name: part.name, how: 'placed', tabs: picked, ...(picked.length < wanted && { wanted }) }
-        : { id: part.id, name: part.name, how: fallback, tabs: [] }
+        : { id: part.id, name: part.name, how: 'unheld', tabs: [] }
     );
   }
   return out;
@@ -179,7 +171,7 @@ function outward(c: { at: P2; dir: P2 }, r: number, ccw: boolean): { far: P2; si
  * its ends), one per side, two on sides of `kTwoTabEdge` mm or more, at least `minCount` in all; spread evenly along
  * each side, each the spot that holds nearest its place. The ends instead when the part's centre of mass would be
  * outside the tabs on the long sides. A part held on one side only pivots about it on the last pass: no opposite pair,
- * no tabs (its fallback).
+ * no tabs (it is unheld).
  */
 function pickTabs(
   spots: Spot[],

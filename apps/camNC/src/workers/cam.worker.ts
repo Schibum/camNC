@@ -19,6 +19,7 @@ import {
   flipPart,
   holdCheck,
   holdOptionsOf,
+  holdsOnParts,
   jobHoldClashes,
   holdTimeline,
   sideBSpec,
@@ -165,11 +166,16 @@ const api = {
     // Holds in the way of any move of any program: side B and the turned programs find them in the same spots on the wood.
     const clashes = spec.holdPoints?.length
       ? {
-          holdClash: jobHoldClashes({ ...spec, sideBRotationDeg: board.sideBRotationDeg }, flat.stockTop, [
-            ...plan.programs,
-            ...(plan.sideB?.programs ?? []).map(p => ({ ...p, turned: true })),
-            ...release,
-          ]).map(h => ({ x: h.x, y: h.y })),
+          holdClash: [
+            ...new Set([
+              ...jobHoldClashes({ ...spec, sideBRotationDeg: board.sideBRotationDeg }, flat.stockTop, [
+                ...plan.programs,
+                ...(plan.sideB?.programs ?? []).map(p => ({ ...p, turned: true })),
+                ...release,
+              ]),
+              ...holdsOnParts(spec),
+            ]),
+          ].map(h => ({ x: h.x, y: h.y })),
         }
       : {};
     plan = { ...plan, ...stability(flat, spec, settings), ...clashes, ...(release.length && { release }) };
@@ -194,18 +200,24 @@ function stability(flat: PartCam, spec: BoardSpec, settings: Partial<CamSettings
   if (spec.holdDown === 'fixture-tape') return {};
   const how = (part: string) => flat.holding?.find(h => h.name === part)?.how;
   // Nothing holds the parts, as the user chose: say so, don't block.
-  const watched = spec.holdDown === 'none' || spec.holdDown === 'clamps';
+  const watched = spec.holdDown === 'none';
   const after = (op: string) => {
     const [, part] = op.match(/^(.+): [^:]*$/) ?? [];
     return part ? `the outline of ${part}` : op;
   };
-  const timeline = holdTimeline(flat, spec, holdOptionsOf(spec, settings)).map(ev => {
-    const block = ev.kind !== 'loose' || (!watched && how(ev.what) !== 'self' && how(ev.what) !== 'tabs');
+  // With no fixture at all, the one note about the board says it: not one more per piece of stock.
+  const events = holdTimeline(flat, spec, holdOptionsOf(spec, settings)).filter(ev => spec.holdPoints?.length || ev.kind !== 'pivot');
+  const timeline = events.map(ev => {
+    // What can turn or lift is the user's call (tape, a hand on it): said, never blocked. A part with nothing holding it
+    // and a pocket through its tabs or skin aren't.
+    const block = ev.kind === 'pocket' || (ev.kind === 'loose' && !watched);
     if (ev.kind === 'board')
       return {
         ...ev,
         block,
-        message: `Nothing holds this board: it has ${ev.holds === 0 ? 'no' : `only ${ev.holds}`} screw${ev.holds === 1 ? '' : 's'} or clamp${ev.holds === 1 ? '' : 's'} where it needs 3 around its middle. On the Boards step, leave room for them (a frame or a bigger board) or tape it down.`,
+        message: ev.holds
+          ? `This board has only ${ev.holds} screw${ev.holds === 1 ? '' : 's'} or clamp${ev.holds === 1 ? '' : 's'} around its middle, so it can still turn. One on the other side of the middle stops that.`
+          : 'Nothing fastens this board. If that’s the plan, hold it down by hand or tape it.',
       };
     if (ev.kind === 'pocket')
       return {
@@ -219,9 +231,9 @@ function stability(flat: PartCam, spec: BoardSpec, settings: Partial<CamSettings
             (ev.holds ?? 0) >= 3
               ? `has ${ev.holds} screws or clamps, but all to one side of it`
               : `is held by ${ev.holds === 0 ? 'no' : `only ${ev.holds}`} screw${ev.holds === 1 ? '' : 's'} or clamp${ev.holds === 1 ? '' : 's'}`
-          }, so it can turn or lift. It needs 3 around its middle: drag one there (ringed on the board), or keep a frame on the Boards step.`
+          }, so it can turn or lift. Keep an eye on it, or add one (ringed on the board).`
         : how(ev.what) === 'unheld'
-          ? `${ev.what} has no two opposite edges where tabs would hold it, so it would come loose when its outline is cut through. On the Boards step, keep a frame around the parts, or choose for it: a bottom skin, tabs anyway, or you hold it down.`
+          ? `${ev.what} has no two opposite edges where tabs would hold it, so it would come loose when its outline is cut through. On the Boards step, move it, or switch the board to a bottom skin.`
           : `${ev.what} comes loose when its outline is cut through${watched ? ', as you chose: nothing holds the parts. Keep an eye on it.' : ': no tabs into stock that is held.'}`;
     return { ...ev, block, message };
   });
@@ -367,7 +379,6 @@ function boardSpec(key: string, board: BoardRequest): BoardSpec {
         x: p.x,
         y: p.y,
         rotated: p.rotated,
-        tabFallback: p.tabFallback,
         ...(p.tabsAt && { tabsAt: p.tabsAt }),
       };
     }),

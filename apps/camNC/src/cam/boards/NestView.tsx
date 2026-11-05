@@ -1,9 +1,10 @@
 import { cn } from '@wbcnc/ui/lib/utils';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import type { BoardNest, PartInstance, PartPosition } from '../boards';
 import type { CamPartInfo, PlanResult } from '../camTypes';
 import { place, toD } from './outline';
-import { edgeDir, holdBox, snapClamp } from '@wbcnc/cam/holdPoints';
+import { holdBox, pathClearance, type HoldKind } from '@wbcnc/cam/holdPoints';
+import type { BoardSide, EdgeFit } from '@wbcnc/cam/settle';
 
 /** Where a dragged part would land on this board; `fits` false: it fits nowhere, drawn in red at the pointer. */
 export interface NestPreview {
@@ -12,9 +13,35 @@ export interface NestPreview {
   fits: boolean;
 }
 
+type P2 = { x: number; y: number };
+
+/** Placing and moving the board's fixtures on its drawing. */
+export interface FixtureEditing {
+  /** A fixture to place: a click puts it there, whatever is under the pointer. */
+  tool: HoldKind | null;
+  /** The one in `nest.holds` being placed: a preview, it doesn't take the pointer. */
+  preview: number | null;
+  /** The one being dragged: it keeps the pointer it has captured. */
+  moving: number | null;
+  /** The one placed or dragged has no room there. */
+  refused?: boolean;
+  selected: number | null;
+  /** Where clamps fit along the edges. */
+  bands?: { side: BoardSide; at: number; step: number; fit: EdgeFit }[];
+  offcut?: { x: number; y: number; w: number; h: number } | null;
+  /** How far off the previewed or selected fixture can be: a clamp along its edge, a screw all round. */
+  play?: { kind: 'clamp'; lo: number; hi: number; side: BoardSide } | { kind: 'screw'; x: number; y: number; r: number } | null;
+  onHover: (p: P2 | null) => void;
+  onPlace: (p: P2) => void;
+  onSelect: (i: number | null) => void;
+  onDrag: (i: number, p: P2) => void;
+  onDrop: (i: number) => void;
+  onRemove: (i: number) => void;
+}
+
 /**
- * Top view of a board: its parts at their nested positions (outline, pockets, holes), its hold points (screws or
- * clamps, draggable), tabs from the generated program, what comes loose during the job, XY zero at the lower left. Y up, like the machine. With `pxPerMm`, drawn at that scale (so
+ * Top view of a board: its parts at their positions (outline, pockets, holes), its hold points (screws or
+ * clamps, placed and dragged here), tabs from the generated program, what comes loose during the job, XY zero at the lower left. Y up, like the machine. With `pxPerMm`, drawn at that scale (so
  * several boards can share one); `unit` then sets the padding, line and text size for all of them.
  */
 export function NestView({
@@ -34,7 +61,8 @@ export function NestView({
   onPartKeyDown,
   onPartFocus,
   onPartContextMenu,
-  onHoldsChange,
+  unheld,
+  fixtures,
   onTabsChange,
 }: {
   nest: BoardNest;
@@ -58,8 +86,9 @@ export function NestView({
   onPartFocus?: (item: string) => void;
   /** Right-click on a body: its menu. */
   onPartContextMenu?: (item: string, e: React.MouseEvent) => void;
-  /** A hold point dragged to a new spot: all of the board's hold points, board frame (mm). */
-  onHoldsChange?: (points: { x: number; y: number }[]) => void;
+  /** Bodies (instance id) whose tabs can't hold them: drawn red. */
+  unheld?: Set<string>;
+  fixtures?: FixtureEditing;
   /** A tab dragged along a part's outline: all of that body's tabs (instance id), part frame (mm). */
   onTabsChange?: (item: string, tabs: { x: number; y: number }[]) => void;
 }) {
@@ -76,16 +105,9 @@ export function NestView({
   const interactive = !!onPartPointerDown;
   const previewInst = preview && byInst.get(preview.item);
   const previewPart = previewInst && byPart.get(previewInst.partId);
-  // A hold point being dragged: its index and where it is now.
-  const [holdDrag, setHoldDrag] = useState<{ i: number; x: number; y: number } | null>(null);
-  // A clamp being moved slides along the nearest edge, pushed against it.
-  const holds = nest.holds.map((h, i) =>
-    holdDrag?.i !== i
-      ? h
-      : h.kind === 'clamp' && h.w !== undefined
-        ? { ...h, ...snapClamp(holdDrag, h.d, nest.board), dir: edgeDir(holdDrag, nest.board) }
-        : { ...h, x: holdDrag.x, y: holdDrag.y }
-  );
+  // The fixture being dragged, once it has moved.
+  const [holdDrag, setHoldDrag] = useState<{ i: number; moved: boolean; start: P2 } | null>(null);
+  const hatch = useId();
   // A tab being dragged: its part, which of its tabs, and where it is now (on the part's outline).
   const [tabDrag, setTabDrag] = useState<{ part: string; i: number; x: number; y: number } | null>(null);
   const placedOf = (name: string) => {
@@ -152,14 +174,48 @@ export function NestView({
     const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
     return { x: Math.round(Math.min(w, Math.max(0, p.x)) * 10) / 10, y: Math.round(Math.min(h, Math.max(0, p.y)) * 10) / 10 };
   };
+  /** Pointer -> board frame, off the board too: a clamp grips the nearest edge from outside it. */
+  const toBoard = (e: React.MouseEvent<SVGSVGElement>) => {
+    const m = e.currentTarget.querySelector<SVGGraphicsElement>('[data-board-frame]')?.getScreenCTM();
+    if (!m) return null;
+    const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
+    return { x: p.x, y: p.y };
+  };
+  const onHold = (e: React.MouseEvent) => !!(e.target as Element).closest('[data-hold],[data-remove]');
   return (
     <svg
+      onPointerMove={
+        fixtures?.tool
+          ? e => {
+              // Over a fixture that's there, the tool steps aside: its hand cursor, and a drag moves it.
+              const p = onHold(e) ? null : toBoard(e);
+              fixtures.onHover(p);
+            }
+          : undefined
+      }
+      onPointerLeave={fixtures?.tool ? () => fixtures.onHover(null) : undefined}
+      onClick={
+        fixtures?.tool
+          ? e => {
+              if (onHold(e)) return;
+              const p = toBoard(e);
+              if (p) fixtures.onPlace(p);
+            }
+          : undefined
+      }
+      style={fixtures?.tool ? { cursor: 'crosshair' } : undefined}
       viewBox={`${-pad} ${-h - pad} ${w + 2 * pad} ${h + 2 * pad}`}
       width={pxPerMm && (w + 2 * pad) * pxPerMm}
       height={pxPerMm && (h + 2 * pad) * pxPerMm}
       className={className}
       role={interactive ? 'group' : 'img'}
       aria-label={label ?? `Board ${w} by ${h} mm with ${nest.placements.length} parts`}>
+      <defs>
+        <pattern id={hatch} width={u / 120} height={u / 120} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <rect width={u / 120} height={u / 120} className="fill-red-500/10" />
+          <line x1={0} y1={0} x2={0} y2={u / 120} className="stroke-red-500/60" strokeWidth={u / 400} />
+        </pattern>
+      </defs>
       <g transform="scale(1,-1)" data-board-frame>
         <rect
           x={0}
@@ -170,15 +226,42 @@ export function NestView({
           strokeWidth={stroke}
           strokeDasharray={`${stroke * 6} ${stroke * 4}`}
         />
-        {nest.frame === 'kept' && nest.holds.length > 0 && (
+        {/* Where a clamp fits: outside the edge, while placing one. */}
+        {fixtures?.tool === 'clamp' &&
+          fixtures.preview === null &&
+          fixtures.moving === null &&
+          fixtures.bands?.map(b => {
+            const t = stroke * 5,
+              off = stroke * 5,
+              a = b.at - b.step / 2;
+            const r =
+              b.side === 'left'
+                ? { x: -off - t, y: a, width: t, height: b.step }
+                : b.side === 'right'
+                  ? { x: w + off, y: a, width: t, height: b.step }
+                  : b.side === 'bottom'
+                    ? { x: a, y: -off - t, width: b.step, height: t }
+                    : { x: a, y: h + off, width: b.step, height: t };
+            return (
+              <rect
+                key={`${b.side}-${b.at}`}
+                {...r}
+                data-edge-fit={b.fit}
+                className={cn(
+                  'pointer-events-none',
+                  b.fit === 'free' ? 'fill-emerald-500/80' : b.fit === 'moves' ? 'fill-amber-400/80' : 'fill-red-500/70'
+                )}
+              />
+            );
+          })}
+        {/* The largest piece left over: worth keeping in one piece. */}
+        {fixtures?.offcut && (
           <rect
-            x={nest.margin / 2}
-            y={nest.margin / 2}
-            width={Math.max(0, w - nest.margin)}
-            height={Math.max(0, h - nest.margin)}
-            className="pointer-events-none fill-none stroke-emerald-600/40 dark:stroke-emerald-400/40"
+            data-offcut
+            {...{ x: fixtures.offcut.x, y: fixtures.offcut.y, width: fixtures.offcut.w, height: fixtures.offcut.h }}
+            className="pointer-events-none fill-emerald-500/5 stroke-emerald-500/70"
             strokeWidth={stroke}
-            strokeDasharray={`${stroke * 3} ${stroke * 3}`}
+            strokeDasharray={`${stroke * 6} ${stroke * 4}`}
           />
         )}
         {nest.placements.map(p => {
@@ -207,9 +290,11 @@ export function NestView({
               <path
                 d={toD(part.shape.outlines, f)}
                 className={
-                  selected
-                    ? 'fill-violet-500/25 stroke-violet-500'
-                    : 'fill-amber-600/30 stroke-violet-500 dark:fill-amber-400/40 dark:stroke-violet-400'
+                  unheld?.has(p.id)
+                    ? 'fill-red-500/30 stroke-red-600'
+                    : selected
+                      ? 'fill-violet-500/25 stroke-violet-500'
+                      : 'fill-amber-600/30 stroke-violet-500 dark:fill-amber-400/40 dark:stroke-violet-400'
                 }
                 strokeWidth={stroke * 1.5}
               />
@@ -327,45 +412,139 @@ export function NestView({
             <title>{ev.message}</title>
           </g>
         ))}
-        {holds.map((hp, i) => {
-          const bad = clash.has(`${hp.x},${hp.y}`) && holdDrag?.i !== i;
+        {/* Where the bit can't come, and how far off a fixture can be. */}
+        {fixtures &&
+          nest.holds.map((hp, i) => {
+            const keep = pathClearance(hp, nest.bit / 2) + nest.bit / 2;
+            const box = holdBox(hp);
+            return hp.kind === 'screw' ? (
+              <circle
+                key={`zone-${i}`}
+                data-blocked
+                cx={hp.x}
+                cy={hp.y}
+                r={hp.d / 2 + keep}
+                fill={`url(#${hatch})`}
+                className="pointer-events-none stroke-red-500/40"
+                strokeWidth={stroke / 2}
+              />
+            ) : (
+              <rect
+                key={`zone-${i}`}
+                data-blocked
+                x={box.x - keep}
+                y={box.y - keep}
+                width={box.w + 2 * keep}
+                height={box.h + 2 * keep}
+                fill={`url(#${hatch})`}
+                className="pointer-events-none stroke-red-500/40"
+                strokeWidth={stroke / 2}
+              />
+            );
+          })}
+        {fixtures?.play?.kind === 'screw' && fixtures.play.r > 0 && (
+          <circle
+            data-play
+            cx={fixtures.play.x}
+            cy={fixtures.play.y}
+            r={fixtures.play.r}
+            className="pointer-events-none fill-none stroke-emerald-500"
+            strokeWidth={stroke * 1.5}
+          />
+        )}
+        {fixtures?.play?.kind === 'clamp' &&
+          (() => {
+            const { lo, hi, side } = fixtures.play;
+            const off = stroke * 22;
+            const line =
+              side === 'left' || side === 'right'
+                ? { x1: side === 'left' ? -off : w + off, x2: side === 'left' ? -off : w + off, y1: lo, y2: hi }
+                : { y1: side === 'bottom' ? -off : h + off, y2: side === 'bottom' ? -off : h + off, x1: lo, x2: hi };
+            return <line data-play {...line} className="pointer-events-none stroke-emerald-500" strokeWidth={stroke * 2.5} />;
+          })()}
+        {nest.holds.map((hp, i) => {
+          const isPreview = fixtures?.preview === i;
+          const isMoving = fixtures?.moving === i;
+          const bad = (clash.has(`${hp.x},${hp.y}`) && !isPreview && !isMoving) || ((isPreview || isMoving) && !!fixtures?.refused);
           const r = hp.d / 2;
           const box = holdBox(hp);
+          const interactive = !!fixtures && !isPreview;
+          const post = u / 45;
+          // The clamp's body, beside the board.
+          const body =
+            hp.kind !== 'clamp' || !hp.dir
+              ? null
+              : hp.dir.x === 1
+                ? { x: -post, y: box.y - 3, width: post, height: box.h + 6 }
+                : hp.dir.x === -1
+                  ? { x: w, y: box.y - 3, width: post, height: box.h + 6 }
+                  : hp.dir.y === 1
+                    ? { x: box.x - 3, y: -post, width: box.w + 6, height: post }
+                    : { x: box.x - 3, y: h, width: box.w + 6, height: post };
           return (
             <g
               key={`hold-${i}`}
-              data-hold={hp.kind}
-              role={onHoldsChange ? 'button' : undefined}
-              aria-label={onHoldsChange ? `${hp.kind === 'screw' ? 'Screw' : 'Clamp'} ${i + 1}: drag to move` : undefined}
-              className={cn(onHoldsChange && 'cursor-move')}
+              data-hold={isPreview ? undefined : hp.kind}
+              data-hold-preview={isPreview ? hp.kind : undefined}
+              role={interactive ? 'button' : undefined}
+              tabIndex={interactive ? 0 : undefined}
+              aria-label={interactive ? `${hp.kind === 'screw' ? 'Screw' : 'Clamp'} ${i + 1}: drag to move, Delete removes it` : undefined}
+              className={cn(interactive && 'cursor-grab outline-none active:cursor-grabbing', isPreview && 'opacity-85')}
+              // A preview follows the pointer: if it took the click, nothing could be placed where the pointer is.
+              style={isPreview ? { pointerEvents: 'none' } : undefined}
               onPointerDown={
-                onHoldsChange &&
-                (e => {
-                  e.stopPropagation();
-                  e.preventDefault();
-                  (e.currentTarget as SVGGElement).setPointerCapture(e.pointerId);
-                  setHoldDrag({ i, x: hp.x, y: hp.y });
-                })
+                interactive
+                  ? e => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      (e.currentTarget as SVGGElement).setPointerCapture(e.pointerId);
+                      const p = toFrame(e);
+                      setHoldDrag({ i, moved: false, start: p ?? { x: hp.x, y: hp.y } });
+                      fixtures!.onSelect(i);
+                    }
+                  : undefined
               }
               onPointerMove={
-                onHoldsChange &&
-                (e => {
-                  if (holdDrag?.i !== i) return;
-                  const p = toFrame(e);
-                  if (p) setHoldDrag({ i, ...p });
-                })
+                interactive
+                  ? e => {
+                      if (holdDrag?.i !== i) return;
+                      const p = toFrame(e);
+                      if (!p || (!holdDrag.moved && Math.hypot(p.x - holdDrag.start.x, p.y - holdDrag.start.y) < u / 300)) return;
+                      if (!holdDrag.moved) setHoldDrag({ ...holdDrag, moved: true });
+                      fixtures!.onDrag(i, p);
+                    }
+                  : undefined
               }
               onPointerUp={
-                onHoldsChange &&
-                (e => {
-                  if (holdDrag?.i !== i) return;
-                  e.stopPropagation();
-                  const moved = holds.map(q => ({ x: q.x, y: q.y }));
-                  setHoldDrag(null);
-                  if (moved[i].x !== nest.holds[i].x || moved[i].y !== nest.holds[i].y) onHoldsChange(moved);
-                })
+                interactive
+                  ? e => {
+                      if (holdDrag?.i !== i) return;
+                      e.stopPropagation();
+                      const { moved } = holdDrag;
+                      setHoldDrag(null);
+                      if (moved) fixtures!.onDrop(i);
+                    }
+                  : undefined
               }
+              onKeyDown={
+                interactive
+                  ? e => {
+                      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+                      e.preventDefault();
+                      fixtures!.onRemove(i);
+                    }
+                  : undefined
+              }
+              onFocus={interactive ? () => fixtures!.onSelect(i) : undefined}
               onClick={e => e.stopPropagation()}>
+              {body && (
+                <rect
+                  {...body}
+                  rx={post / 5}
+                  className={bad ? 'fill-red-500/50 stroke-red-600' : 'fill-muted-foreground/40 stroke-foreground'}
+                  strokeWidth={stroke}
+                />
+              )}
               {hp.kind === 'clamp' ? (
                 <rect
                   x={box.x}
@@ -395,7 +574,7 @@ export function NestView({
               {/* A bigger target than a 10 mm screw for the pointer. */}
               <circle cx={hp.x} cy={hp.y} r={Math.max(Math.max(box.w, box.h) / 2, u / 60)} className="fill-transparent" />
               <title>
-                {bad
+                {bad && !isPreview && !isMoving
                   ? 'The bit would hit this: move it into the waste.'
                   : hp.kind === 'clamp' && hp.w !== undefined
                     ? `Clamp: ${hp.w} mm wide, reaching ${hp.d} mm in`
@@ -404,6 +583,37 @@ export function NestView({
             </g>
           );
         })}
+        {fixtures?.selected !== null &&
+          fixtures?.selected !== undefined &&
+          fixtures.preview === null &&
+          fixtures.moving === null &&
+          nest.holds[fixtures.selected] &&
+          (() => {
+            const i = fixtures.selected;
+            const hp = nest.holds[i];
+            const size = u / 70;
+            const inwards = hp.dir ?? { x: 0, y: 1 };
+            const [x, y] = [hp.x + inwards.x * size * 2.4, hp.y + inwards.y * size * 2.4];
+            return (
+              <g
+                data-remove
+                role="button"
+                aria-label={`Remove ${hp.kind === 'screw' ? 'screw' : 'clamp'} ${i + 1}`}
+                className="cursor-pointer"
+                onPointerDown={e => e.stopPropagation()}
+                onClick={e => {
+                  e.stopPropagation();
+                  fixtures.onRemove(i);
+                }}>
+                <circle cx={x} cy={y} r={size} className="fill-red-700 stroke-white" strokeWidth={stroke} />
+                <path
+                  d={`M${x - size * 0.4},${y - size * 0.4}L${x + size * 0.4},${y + size * 0.4}M${x + size * 0.4},${y - size * 0.4}L${x - size * 0.4},${y + size * 0.4}`}
+                  className="stroke-white"
+                  strokeWidth={stroke * 1.5}
+                />
+              </g>
+            );
+          })()}
         {preview && previewInst && previewPart && (
           <path
             data-preview={preview.fits ? 'fits' : 'no-room'}
@@ -433,6 +643,27 @@ export function NestView({
           </text>
         );
       })}
+      {fixtures?.offcut && (
+        <text
+          x={fixtures.offcut.x + fixtures.offcut.w / 2}
+          y={-(fixtures.offcut.y + fixtures.offcut.h / 2)}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize={u / 50}
+          className="pointer-events-none fill-emerald-600 font-mono dark:fill-emerald-400">
+          {Math.round(fixtures.offcut.w)} × {Math.round(fixtures.offcut.h)}
+        </text>
+      )}
+      {fixtures?.play?.kind === 'screw' && fixtures.play.r > 0 && (
+        <text
+          x={fixtures.play.x}
+          y={-(fixtures.play.y + fixtures.play.r + u / 100)}
+          textAnchor="middle"
+          fontSize={u / 55}
+          className="pointer-events-none fill-emerald-600 font-mono dark:fill-emerald-400">
+          ±{Math.round(fixtures.play.r)} mm
+        </text>
+      )}
       <text x={0} y={pad * 0.8} fontSize={u / 50} className="pointer-events-none fill-emerald-700 dark:fill-emerald-400">
         XY zero · lower left
       </text>

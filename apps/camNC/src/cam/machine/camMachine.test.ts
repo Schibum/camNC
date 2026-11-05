@@ -35,9 +35,9 @@ const release = (kind: ReleaseProgram['kind']) => ({ kind, gcode: `(${kind})`, t
 
 const board = (name: string, holdDown: 'tabs' | 'tabs-guided' = 'tabs'): JobBoard =>
   ({
-    board: { id: name, name, holdDown },
+    board: { id: name, name },
     nest: {},
-    request: { parts: [{ id: 'p' }] },
+    request: { parts: [{ id: 'p' }], holdDown },
   }) as unknown as JobBoard;
 
 describe('machine queue', () => {
@@ -417,13 +417,30 @@ describe('the job remembers the bed and what’s cut', () => {
     const q = machineQueue([withBed({}, { at: 1, keys: [] })], [plan([3.175, 6])]);
     expect(doneEntries(q, [])).toEqual([]);
     const rec = cutsToRecord(q, [q[0].doneId], 5);
-    expect(rec).toEqual({ A: { at: 5, keys: [q[0].key] } });
+    expect(rec).toEqual({ A: { at: 5, keys: [q[0].doneId] } });
 
     const after = machineQueue([withBed({}, rec!.A)], [plan([3.175, 6])]);
     expect(doneEntries(after, [])).toEqual([after[0].doneId]);
     // Nothing new: nothing to record.
     expect(cutsToRecord(after, [after[0].doneId], 9)).toBeNull();
     // The last program done: every program is.
-    expect(cutsToRecord(after, [after[0].doneId, after[1].doneId], 9)).toEqual({ A: { at: 5, keys: [q[0].key, q[1].key], all: true } });
+    expect(cutsToRecord(after, [after[0].doneId, after[1].doneId], 9)).toEqual({
+      A: { at: 5, keys: [q[0].doneId, q[1].doneId], all: true },
+    });
+  });
+
+  it('a new program in the spot of a cut one is not cut: planned again with a smaller bit, nothing is skipped', () => {
+    const [cut] = machineQueue([withBed({})], [plan([6])]);
+    const rec = cutsToRecord([cut], [cut.doneId], 5);
+    expect(rec!.A.all).toBe(true);
+
+    const replanned = plan([2, 6]);
+    replanned.programs[0].gcode = 'G0 X1 (the ⌀2 program, never run)';
+    const after = machineQueue([withBed({}, rec!.A)], [replanned]);
+    expect(after[0].key).toBe(cut.key);
+    expect(doneEntries(after, [])).not.toContain(after[0].doneId);
+    expect(currentEntry(after, null, doneEntries(after, []))).toBe(after[0]);
+    // The board stays marked as cut, no longer all of it.
+    expect(cutsToRecord(after, [], 9)).toEqual({ A: { at: 5, keys: rec!.A.keys } });
   });
 });

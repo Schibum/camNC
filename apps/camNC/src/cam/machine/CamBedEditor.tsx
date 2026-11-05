@@ -64,7 +64,7 @@ function Editor() {
     if (!current || current.board.board.id !== edit.boardId) return;
     const b = current.board.board;
     // A real sheet at the machine: a hold edited there leaves the board's size and the other parts as they are.
-    if (edit.patch.holdPoints) edit = { ...edit, patch: { ...freezeAtMachine(b, current.board.nest), ...edit.patch } };
+    if (edit.patch.fixtures) edit = { ...edit, patch: { ...freezeAtMachine(b, current.board.nest), ...edit.patch } };
     const before = Object.fromEntries(Object.keys(edit.patch).map(k => [k, b[k as keyof BoardV1]])) as Partial<BoardV1>;
     updateBoard(edit.boardId, edit.patch);
     if (silent) return;
@@ -73,6 +73,8 @@ function Editor() {
     setUndoCount(undo.current.length);
   };
   const undoLast = () => {
+    // A board cut since, or being cut: its parts and holds stay as they are.
+    if (busy || locked) return;
     const last = undo.current.pop();
     if (!last) return;
     updateBoard(last.boardId, last.before);
@@ -245,7 +247,7 @@ function Editor() {
       const o = useCamMachine.getState().overlay;
       if (sel?.kind !== 'hold' || !o?.holds || !board || locked) return;
       e.preventDefault();
-      save(removeHold(o.holds, sel.i, o.holdsOn ?? { w: o.w, h: o.h }, board.id));
+      save(removeHold(o.holds, sel.i, board.id));
       setSelected(null);
     },
     keyOpts,
@@ -275,11 +277,15 @@ function Editor() {
     setSelected(null);
   });
   // Undo for edits made here; the board's own fields are what's restored.
-  useHotkeys('mod+z', e => {
-    if (!undo.current.length) return;
-    e.preventDefault();
-    undoLast();
-  });
+  useHotkeys(
+    'mod+z',
+    e => {
+      if (!undo.current.length || busy || locked) return;
+      e.preventDefault();
+      undoLast();
+    },
+    [busy, locked]
+  );
 
   if (!overlay || !current || !board || overlay.boardId !== board.id) return null;
   const holdsHere = !!overlay.holds && overlay.side !== 'b';
@@ -311,7 +317,12 @@ function Editor() {
           Add {name}
         </Button>
       )}
-      <Button size="sm" variant="ghost" title="Undo the last change here (⌘Z)" disabled={busy || !undo.current.length} onClick={undoLast}>
+      <Button
+        size="sm"
+        variant="ghost"
+        title="Undo the last change here (⌘Z)"
+        disabled={busy || !!locked || !undo.current.length}
+        onClick={undoLast}>
         <Undo2 />
         Undo
       </Button>

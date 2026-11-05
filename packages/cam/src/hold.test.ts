@@ -56,8 +56,16 @@ describe('do the tabs hold?', () => {
       { id: 'a', name: 'a', features: plain(), size: [200, 100, 8], x: 5.2, y: 5.2, rotated: false },
       { id: 'b', name: 'b', features: plain(), size: [200, 100, 8], x: 5.2, y: 113.2, rotated: false },
     ];
-    // "Tabs anyway": where they'd go without looking (the fallback when there's no spot that holds).
-    const board = { ...spec(parts, 210.4, 218.4), tabFallback: 'tabs' as const };
+    // Tabs put there by hand: the planner would not.
+    const tabsAt = [50, 150].flatMap(x => [
+      { x, y: 0 },
+      { x, y: 100 },
+    ]);
+    const board = spec(
+      parts.map(p => ({ ...p, tabsAt })),
+      210.4,
+      218.4
+    );
     const holds = holdCheck(camBoard(board, {}), board);
     expect(holds).toHaveLength(2);
     for (const h of holds) {
@@ -93,11 +101,15 @@ describe('do the tabs hold?', () => {
     expect(holds).toHaveLength(5);
     expect(holds.every(h => h.ok && h.anchored === h.tabs.length)).toBe(true);
     expect(cam.holding!.every(h => h.how === 'placed')).toBe(true);
-    // The old default spacing: a strip of 1.7 mm between neighbours holds nothing, so parts held on one side only get
-    // their fallback, here a bottom skin. Whatever has tabs is held by them.
-    const tight = { ...board(8, 5.2), tabFallback: 'skin' as const };
+    // The old default spacing: a strip of 1.7 mm between neighbours holds nothing, so parts held on one side only are
+    // unheld. Whatever has tabs is held by them.
+    const tight = board(8, 5.2);
     const tc = camBoard(tight, {});
-    expect(holdCheck(tc, tight).every(h => h.ok)).toBe(true);
-    expect(tc.holding!.every(h => h.how === 'placed' || h.how === 'skin')).toBe(true);
+    expect(
+      holdCheck(tc, tight)
+        .filter(h => h.tabs.length)
+        .every(h => h.ok)
+    ).toBe(true);
+    expect(tc.holding!.some(h => h.how === 'unheld')).toBe(true);
   }, 120_000);
 });

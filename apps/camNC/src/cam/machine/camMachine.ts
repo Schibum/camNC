@@ -5,7 +5,8 @@ import { combine, createJSONStorage, persist, type StateStorage } from 'zustand/
 import type { TabStop } from '@wbcnc/cam';
 import type { HoldPoint } from '@wbcnc/cam/holdPoints';
 import { boardBlock, type BlockContext } from '../boardBlock';
-import { holdsOf, type BoardCut } from '../boards';
+import type { BoardCut } from '../boards';
+import { useHoldHardware } from '../holdHardware';
 import type { PlanResult, ReleaseProgram } from '../camTypes';
 import type { JobBoard } from '../useJobBoards';
 import type { GhostPart, ShowInTopView } from './partGhost';
@@ -296,10 +297,10 @@ export const entryRotation = (e: QueueEntry, rotation: Record<string, number>) =
 
 /**
  * What's cut: the entries marked done here, and those the job says were cut (`BoardV1.cut`, kept with the job), also
- * after leaving it or on another visit. A program that changed since it was done here counts as not cut.
+ * after leaving it or on another visit. A program that changed since it was done counts as not cut, wherever it was marked.
  */
 export function doneEntries(queue: QueueEntry[], done: string[]): string[] {
-  const fromJob = queue.filter(e => e.board.board.cut?.keys.includes(e.key) && !done.includes(e.doneId)).map(e => e.doneId);
+  const fromJob = queue.filter(e => e.board.board.cut?.keys.includes(e.doneId) && !done.includes(e.doneId)).map(e => e.doneId);
   return fromJob.length ? [...done, ...fromJob] : done;
 }
 
@@ -314,9 +315,9 @@ export function cutsToRecord(queue: QueueEntry[], done: string[], now = Date.now
     const mine = queue.filter(e => e.board.board.id === id);
     const board = mine[0].board.board;
     const programs = mine.filter(e => e.kind !== 'error' && e.kind !== 'pending');
-    const keys = [...new Set([...(board.cut?.keys ?? []), ...programs.filter(e => done.includes(e.doneId)).map(e => e.key)])];
+    const keys = [...new Set([...(board.cut?.keys ?? []), ...programs.filter(e => done.includes(e.doneId)).map(e => e.doneId)])];
     if (!keys.length) continue;
-    const all = programs.length > 0 && programs.every(e => keys.includes(e.key));
+    const all = programs.length > 0 && programs.every(e => keys.includes(e.doneId));
     if (board.cut && board.cut.keys.length === keys.length && !!board.cut.all === all) continue;
     out[id] = { at: board.cut?.keys.length ? board.cut.at : now, keys, ...(all && { all }) };
   }
@@ -376,11 +377,12 @@ export function entryHolds(
   const base = { boardId: e.board.board.id, side };
   const holds = e.board.request?.holdPoints;
   if (side === 'b' || !holds) return base;
-  const like = holdsOf(e.board.board);
+  // A hold added here is like the others, or a clamp.
+  const { clamp } = useHoldHardware.getState().hardware;
   return {
     ...base,
     holds,
-    holdLike: { kind: like.kind, d: like.d, w: like.w, height: like.height },
+    holdLike: holds.at(-1) ?? { kind: 'clamp', d: clamp.d, w: clamp.w, height: clamp.height },
     holdsOn: { w: e.board.nest.board.w, h: e.board.nest.board.h },
     ...(e.plan && {
       holdClash: e.plan.holdClash,

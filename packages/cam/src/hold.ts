@@ -29,8 +29,9 @@ export interface HoldOptions {
   /** Anchored tabs a part needs. Default 2. */
   minTabs?: number;
   /**
-   * Where the board is screwed or clamped down (board coordinates): a piece of stock holds when enough of them are on
-   * it (see `heldByPoints`), not because it reaches the board's edge.
+   * Where the board is screwed or clamped down (board coordinates): a piece of stock can't turn or lift when enough of
+   * them are on it (see `heldByPoints`). Tabs hold on to stock that reaches the board's edge whatever is on it; a piece
+   * cut off from the edge needs enough of these.
    */
   points?: P2[];
   /** The board is taped or in a fixture: every piece of stock stays put. */
@@ -116,8 +117,8 @@ export function beyond(at: P2, dir: P2, r: number, interior: PathsD): P2 {
 }
 
 /**
- * The board after every through cut: each part's interior and tabs, and `held(p)`: whether p lies in stock that is at
- * least `minWeb` wide all the way to the board's edge (or an anchor).
+ * The board after every through cut: each part's interior and tabs, the stock's pieces, and `held(p)`: whether p lies in
+ * stock that takes tabs: at least `minWeb` wide all the way to the board's edge, or held by enough hold points.
  */
 export function holdState(cam: PartCam, board: { w: number; h: number }, opts: HoldOptions = {}) {
   const minWeb = opts.minWeb ?? 3;
@@ -195,14 +196,20 @@ export function holdState(cam: PartCam, board: { w: number; h: number }, opts: H
   const stock = pieces(sturdy).map(piece => {
     const area = polyArea(piece);
     const on = (opts.points ?? []).filter(p => inside(p, piece));
-    const held = opts.taped
-      ? true
-      : opts.points
-        ? heldByPoints(on, centroid(piece), piece.flat())
-        : polyArea(union(difference(piece, difference(piece, edge)), [])) > 1e-6;
-    return { piece, area, centre: centroid(piece), holds: on.length, held };
+    const fixed = heldByPoints(on, centroid(piece), piece.flat());
+    const atEdge = polyArea(union(difference(piece, difference(piece, edge)), [])) > 1e-6;
+    return {
+      piece,
+      area,
+      centre: centroid(piece),
+      holds: on.length,
+      // Can't turn or lift.
+      held: !!opts.taped || (opts.points ? fixed : atEdge),
+      // Takes tabs.
+      anchors: !!opts.taped || fixed || atEdge,
+    };
   });
-  const anchored = stock.filter(s => s.held).map(s => s.piece);
+  const anchored = stock.filter(s => s.anchors).map(s => s.piece);
   // Many spots are asked about (every tab candidate): a bounding box per piece rules most of them out cheaply.
   const boxes = anchored.map(piece => {
     const pts = piece.flat();

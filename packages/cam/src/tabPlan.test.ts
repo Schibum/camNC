@@ -180,14 +180,13 @@ describe('tab placement', () => {
     expect(at(2).wanted).toBeUndefined();
   });
 
-  it('held on one side only is not held: the part gets its fallback', () => {
+  it('held on one side only is not held', () => {
     // Against the lower left corner (5.2 mm margins hold nothing), free stock only to the right and above.
     const b = roomy([{ id: 'a', name: 'a', features: plain(), size: [200, 100, 8], x: 5.2, y: 5.2, rotated: false }], 400, 300);
     expect(planTabs(b, {}).get('a')!.how).toBe('unheld');
   });
 
-  it('a part with no spot that holds gets the fallback chosen: a bottom skin, tabs anyway, or none; unheld if none is', () => {
-    // Not chosen: nothing switched behind the user's back. Cut without tabs; the job blocks until one is chosen.
+  it('a part with no spot that holds is cut without tabs, and says so', () => {
     expect([...planTabs(tight(), {}).values()].map(h => h.how)).toEqual(['unheld', 'unheld']);
     const bare = camBoard(tight(), {});
     // No tab bumps: the last pass is at one depth all the way round.
@@ -195,14 +194,6 @@ describe('tab placement', () => {
       const zs = o.passes.at(-1)!.pts.map(q => q[2]);
       expect(Math.max(...zs) - Math.min(...zs)).toBeLessThan(1e-6);
     }
-    expect([...planTabs(tight({ tabFallback: 'skin' }), {}).values()].map(h => h.how)).toEqual(['skin', 'skin']);
-    const cam = camBoard(tight({ skin: 1.2, tabFallback: 'skin' }), {});
-    const finals = cam.operations.filter(o => o.feature === 'outline').map(o => Math.min(...o.passes.at(-1)!.pts.map(q => q[2])));
-    expect(finals).toEqual([1.2, 1.2]);
-    expect([...planTabs(tight({ tabFallback: 'self' }), {}).values()].map(h => h.how)).toEqual(['self', 'self']);
-    const own = tight();
-    own.parts[0] = { ...own.parts[0], tabFallback: 'tabs' };
-    expect([...planTabs(own, {}).values()].map(h => h.how)).toEqual(['tabs', 'unheld']);
   });
 
   it('the bottom skin hold-down: every part keeps a skin, no tabs, freed at the machine', () => {
@@ -222,7 +213,7 @@ describe('tab placement', () => {
   });
 
   it('frees skin parts one at a time: cut through, bit up, spindle off, pause; spindle on again before the next', () => {
-    const cam = camBoard(tight({ tabFallback: 'skin' }), {});
+    const cam = camBoard(tight({ holdDown: 'skin' }), {});
     const free = freePartsProgram(cam, { feed: 900, plungeFeed: 480, finalZ: -0.3 });
     expect(free.parts.map(p => p.name)).toEqual(['a', 'b']);
     // One lap round each part, once through the skin.

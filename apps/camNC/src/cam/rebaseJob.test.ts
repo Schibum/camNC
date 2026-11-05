@@ -8,7 +8,7 @@ const board = (id: string, items: string[], over = {}) => ({
   thickness: 8,
   material: 'oak',
   size: { fit: true },
-  holdDown: 'tabs',
+  retention: 'tabs',
   tabs: {},
   items,
   ...over,

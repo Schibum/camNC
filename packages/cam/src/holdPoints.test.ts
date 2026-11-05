@@ -3,8 +3,6 @@ import { camBoard, type BoardSpec } from './board';
 import type { PartFeatures } from './features';
 import { holdTimeline } from './hold';
 import {
-  edgeDir,
-  frameMargin,
   heldByPoints,
   holdBox,
   holdClashes,
@@ -12,10 +10,8 @@ import {
   kColletClearance,
   kHoldDefaults,
   kHoldHeights,
-  kZeroClear,
   nutReaches,
   snapClamp,
-  suggestHoldPoints,
 } from './holdPoints';
 import { DEFAULT_TABS, freePartsProgram } from './index';
 
@@ -110,55 +106,10 @@ describe('hold points', () => {
     ).toBe(true);
   });
 
-  it('suggested on a board with a frame: corners and along every edge, at most the spacing apart, clear of the parts', () => {
-    const d = 10,
-      bit = 6;
-    const m = frameMargin(d, bit);
-    const parts = [
-      { x: m, y: m, w: 571 - 2 * m, h: 300 },
-      { x: m, y: m + 310, w: 571 - 2 * m, h: 779 - 2 * m - 310 },
-    ];
-    const holds = suggestHoldPoints({ w: 571, h: 779 }, parts, { d, bit, spacing: 250 });
-    // 4 corners, 2 more on each 571 edge... at least 3 per side in all.
-    expect(holds.length).toBeGreaterThanOrEqual(10);
-    // The lower left corner is the XY zero: kept clear for finding it.
-    expect(holds.every(h => Math.hypot(h.x, h.y) >= kZeroClear)).toBe(true);
-    for (const corner of [
-      { x: 571, y: 0 },
-      { x: 571, y: 779 },
-      { x: 0, y: 779 },
-    ])
-      expect(holds.some(h => Math.hypot(h.x - corner.x, h.y - corner.y) < 15)).toBe(true);
-    for (const h of holds)
-      for (const r of parts) {
-        const dx = Math.max(r.x - h.x, 0, h.x - r.x - r.w),
-          dy = Math.max(r.y - h.y, 0, h.y - r.y - r.h);
-        expect(Math.hypot(dx, dy)).toBeGreaterThanOrEqual(d / 2 + bit);
-      }
-    // Neighbours along an edge no farther apart than the spacing (plus the room to dodge a part).
-    const bottom = holds.filter(h => h.y < 20).sort((a, b) => a.x - b.x);
-    for (let i = 1; i < bottom.length; i++) expect(bottom[i].x - bottom[i - 1].x).toBeLessThanOrEqual(250 + 1);
-  });
-
-  it('clamps grip at the edge: a low toe 2 mm in and 20 mm along it needs a narrow frame, and only the toe clashes', () => {
-    const bit = 6;
-    const m = frameMargin(2, bit, 'clamp', 5);
-    expect(m).toBe(11);
-    expect(frameMargin(10, bit)).toBe(21);
-    const parts = [{ x: m, y: m, w: 571 - 2 * m, h: 779 - 2 * m }];
-    const holds = suggestHoldPoints({ w: 571, h: 779 }, parts, { kind: 'clamp', d: 2, w: 20, height: 5, bit });
-    expect(holds.length).toBeGreaterThanOrEqual(10);
-    for (const h of holds) {
-      expect(h).toMatchObject({ kind: 'clamp', d: 2, w: 20, height: 5 });
-      const box = holdBox(h);
-      // Against an edge, 2 deep and 20 along it.
-      const atEdge = Math.min(box.x, box.y, 571 - box.x - box.w, 779 - box.y - box.h);
-      expect(atEdge).toBeCloseTo(0, 5);
-      expect([box.w, box.h].sort((a, b) => a - b)).toEqual([2, 20]);
-      expect(h.dir).toEqual(edgeDir(h, { w: 571, h: 779 }));
-    }
+  it('clamps grip at the edge: only the toe clashes', () => {
     // The outline cut runs 3 + 1.5 clear of the toe: no clash. 1 mm closer: clash.
-    const left = holds.find(h => h.dir!.x === 1)!;
+    const left = { x: 1, y: 300, kind: 'clamp' as const, d: 2, w: 20, height: 5, dir: { x: 1, y: 0 } };
+    expect(holdBox(left)).toEqual({ x: 0, y: 290, w: 2, h: 20 });
     const cut = (x: number) => [
       {
         r: 3,
@@ -181,11 +132,6 @@ describe('hold points', () => {
     expect(kHoldHeights.clamp).toBe(2.5);
     const hold = { kind: 'clamp' as const, height: kHoldHeights.clamp };
     expect(nutReaches(hold)).toBe(false);
-    // A 6 mm bit: the lip, 3 + 1.5 clear of it, the cut and 1 mm; no room kept for the nut.
-    expect(frameMargin(kHoldDefaults.clamp, 6, 'clamp', kHoldHeights.clamp)).toBe(12);
-    const holds = suggestHoldPoints({ w: 600, h: 400 }, [{ x: 12, y: 12, w: 576, h: 376 }], { kind: 'clamp', bit: 6 });
-    expect(holds.length).toBeGreaterThanOrEqual(4);
-    for (const h of holds) expect([holdBox(h).w, holdBox(h).h].sort((a, b) => a - b)).toEqual([3, 24]);
   });
 
   it('a hold in the way of a cut clashes', () => {

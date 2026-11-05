@@ -506,10 +506,7 @@ const jobMinutes = (plan: PlanResult | undefined) =>
   (plan?.timeMin ?? 0) + (plan?.sideB?.timeMin ?? 0) + (plan?.release ?? []).reduce((t, r) => t + r.timeMin, 0);
 
 /** What `Checks` shows in amber. */
-const hasWarnings = (plan: PlanResult) =>
-  plan.warnings.length > 0 ||
-  (plan.timeline ?? []).some(e => !e.block) ||
-  (plan.hold ?? []).some(h => !h.ok && plan.holding?.find(x => x.name === h.part)?.how === 'tabs');
+const hasWarnings = (plan: PlanResult) => plan.warnings.length > 0 || (plan.timeline ?? []).some(e => !e.block);
 
 /** Parts the job would silently not cut, and spacing too tight for the bit: fix on Boards or leave them out. */
 function MissingBanner({
@@ -586,7 +583,6 @@ function MissingBanner({
 /** `checked`: false while the job is blocked (missing parts, nothing to cut): no "passed" for an incomplete job. */
 function Checks({ plan, checked, releaseSafety }: { plan: PlanResult; checked: boolean; releaseSafety: string[] }) {
   const failed = [...plan.safety, ...releaseSafety];
-  const how = (part: string) => plan.holding?.find(h => h.name === part)?.how;
   const skins = (plan.holding ?? []).filter(h => h.how === 'skin');
   return (
     <div className="flex flex-col gap-1.5 text-[13px]">
@@ -594,14 +590,14 @@ function Checks({ plan, checked, releaseSafety }: { plan: PlanResult; checked: b
         <p key={h.part} className="flex gap-2 text-destructive">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" />
           {h.part}: {h.anchored === 0 ? 'none' : `only ${h.anchored}`} of its {h.tabs.length} tabs would hold it, so it would come loose. On
-          the Boards step, give it a bottom skin (its ⋯ menu), or more room around it.
+          the Boards step, switch the board to a bottom skin, or give it more room.
         </p>
       ))}
       {(plan.holdClash ?? []).length > 0 && (
         <p className="flex gap-2 text-destructive">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-          {plan.holdClash!.length === 1 ? 'A screw or clamp is' : `${plan.holdClash!.length} screws or clamps are`} in the bit’s way (red on
-          the board). On the Boards step, drag {plan.holdClash!.length === 1 ? 'it' : 'them'} into the waste.
+          {plan.holdClash!.length === 1 ? 'A screw or clamp is' : `${plan.holdClash!.length} screws or clamps are`} in the bit’s way or on a
+          part (red on the board). On the Boards step, drag {plan.holdClash!.length === 1 ? 'it' : 'them'} into the waste.
         </p>
       )}
       {(plan.timeline ?? [])
@@ -615,21 +611,6 @@ function Checks({ plan, checked, releaseSafety }: { plan: PlanResult; checked: b
             {e.message}
           </p>
         ))}
-      {(plan.hold ?? [])
-        .filter(h => !h.ok && how(h.part) === 'tabs')
-        .map(h => (
-          <p key={h.part} className="flex gap-2 text-amber-700 dark:text-amber-400">
-            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-            {h.part}: tabs anyway, as you chose: {h.anchored} of {h.tabs.length} hold. Keep an eye on it on the last pass.
-          </p>
-        ))}
-      {(plan.holding ?? [])
-        .filter(h => h.how === 'self')
-        .map(h => (
-          <p key={h.name} className="flex gap-2 text-muted-foreground">
-            {h.name}: no tabs, cut free: hold it down yourself (tape, clamps), as you chose.
-          </p>
-        ))}
       {skins.length > 0 && plan.taped && (
         <p className="text-muted-foreground">
           Every outline stops {plan.skin ?? 0.5} mm above the bottom, so the parts stay on the tape while the board is cut. The last
@@ -638,11 +619,8 @@ function Checks({ plan, checked, releaseSafety }: { plan: PlanResult; checked: b
       )}
       {skins.length > 0 && !plan.taped && (
         <p className="text-muted-foreground">
-          {/* Without a hold check, the board is held by skins (its hold-down), not tabs. */}
-          {plan.hold
-            ? `${skins.map(h => h.name).join(', ')}: no edge where tabs would hold, so ${skins.length === 1 ? 'it keeps' : 'they keep'} a ${plan.skin ?? 1} mm bottom skin.`
-            : `Every part keeps a ${plan.skin ?? 1} mm bottom skin, so nothing comes loose while the board is cut.`}{' '}
-          At the machine, the “Cut the parts free” step cuts {skins.length === 1 ? 'it' : 'them'} free one at a time.
+          Every part keeps a {plan.skin ?? 1} mm bottom skin, so nothing comes loose while the board is cut. At the machine, the “Cut the
+          parts free” step cuts {skins.length === 1 ? 'it' : 'them'} free one at a time.
         </p>
       )}
       {!checked ? null : failed.length === 0 ? (
