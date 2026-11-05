@@ -36,8 +36,7 @@ import { Hint } from '@/cam/Hint';
 import { bitKey } from '@/cam/cuttingData';
 import { kDefaultPlan } from '@/cam/planSettings';
 import { useToolLibrary } from '@/cam/toolLibrary';
-import { getMachineBounds } from '@/store/store';
-import { useJobBoards } from '@/cam/useJobBoards';
+import { useJobBoards, useMachineArea } from '@/cam/useJobBoards';
 import { useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, useParams, useSearch } from '@tanstack/react-router';
 import { zodValidator } from '@tanstack/zod-adapter';
@@ -73,6 +72,8 @@ function BoardsStep() {
   const { board: boardParam } = useSearch({ from: '/cam/$jobId/boards' });
   const [selectedId, setSelectedId] = useState<string | null>(boardParam ?? null);
   const hardware = useHoldHardware(s => s.hardware);
+  // The machine's work area, when it is set up: no board comes out bigger (stock cut down, fitted boards and borders).
+  const machine = useMachineArea();
   // What just happened on the drawing, and the boards before each change, to go back to.
   const [note, setNote] = useState('');
   const history = useRef<BoardV1[][]>([]);
@@ -146,7 +147,7 @@ function BoardsStep() {
     save.mutate({ ...job, boards: next });
     return true;
   };
-  const nestOptions = { stickout: plan.bit.stickout, hardware };
+  const nestOptions = { stickout: plan.bit.stickout, hardware, machine };
   const startOver = (board: BoardV1) => {
     const { cut, ...rest } = board;
     void cut;
@@ -263,11 +264,6 @@ function BoardsStep() {
     }
     autoFill(free, before);
   };
-  // The machine's work area, when it is set up: no board from stock or a suggested border comes out bigger.
-  const machineSize = () => {
-    const b = getMachineBounds();
-    return b ? { w: b.max.x - b.min.x, h: b.max.y - b.min.y } : undefined;
-  };
   const autoFill = (start = boards.map(b => b.board), before = start) => {
     const stock = job.stock ?? [];
     if (!stock.length) return toast.error('Add the boards you have to the stock list first.');
@@ -281,13 +277,13 @@ function BoardsStep() {
       plan.bit.diameter,
       plan.material,
       job.nestObjective ?? 'boards',
-      machineSize()
+      machine
     );
     res.boards = [...kept, ...res.boards];
     saveBoards(res.boards);
     const names = (ids: string[]) => ids.map(id => byId.get(id)?.name ?? id).join(', ');
     const problems = [
-      res.tooBig.length && `${names(res.tooBig)}: too big for every stock board${machineSize() ? ' and the machine' : ''}, even turned.`,
+      res.tooBig.length && `${names(res.tooBig)}: too big for every stock board${machine ? ' and the machine' : ''}, even turned.`,
       res.short.length && `${names(res.short)}: not enough stock left, put on more boards of the stock's sizes.`,
     ].filter(Boolean);
     const stockBoards = res.boards.filter(b => !b.size.fit && stock.some(s => +s.thickness.toFixed(1) === b.thickness)).length;
@@ -442,7 +438,7 @@ function BoardsStep() {
           )}
           <BoardDrawings
             nestOptions={nestOptions}
-            machine={machineSize()}
+            machine={machine}
             onNote={setNote}
             onBoardEdit={(b, text) => {
               setNote(text);

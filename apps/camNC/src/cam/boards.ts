@@ -360,6 +360,11 @@ export interface NestOptions {
   holds?: boolean;
   stickout?: number;
   hardware?: HoldHardware;
+  /**
+   * The machine's work area (X × Y, mm): a board fitted to its parts stays within it and lies with its long side along
+   * the machine's long axis. Parts that don't fit then are `unplaced` (see `keepWithinMachine`).
+   */
+  machine?: { w: number; h: number };
 }
 
 const kMaxElongation = 2.5;
@@ -395,6 +400,93 @@ function fitCompact(items: { id: string; w: number; h: number }[], gap: number, 
       return { ...n, board, yield: partArea / (board.w * board.h) };
   }
   return fit;
+}
+
+/** The items turned 90°: nested so, each is placed the other way round. */
+const turnedItems = (items: { id: string; w: number; h: number }[]) => items.map(i => ({ id: i.id, w: i.h, h: i.w }));
+const turnedBack = (n: NestResult): NestResult => ({ ...n, placements: n.placements.map(p => ({ ...p, rotated: !p.rotated })) });
+
+/**
+ * On a board of this size: parts keep their grain direction where they fit, the ones that don't may turn 90° into the
+ * room left.
+ */
+function nestOnSize(
+  items: { id: string; w: number; h: number }[],
+  size: { w: number; h: number },
+  gap: number,
+  margin: number,
+  keepOuts: Rect[]
+) {
+  const n = nestRects(items, { gap, margin, keepOuts, board: size });
+  if (!n.unplaced.length) return n;
+  const placed = n.placements.map(p => {
+    const i = items.find(x => x.id === p.id)!;
+    return { x: p.x, y: p.y, ...placedSize(i, p.rotated) };
+  });
+  const rest = items.filter(i => n.unplaced.includes(i.id)).map(i => ({ ...i, canRotate: true }));
+  const turned = nestRects(rest, { gap, margin, keepOuts: [...keepOuts, ...placed], board: size });
+  if (!turned.placements.length) return n;
+  const order = new Map(items.map((it, i) => [it.id, i]));
+  return {
+    ...n,
+    placements: [...n.placements, ...turned.placements].sort((a, b) => order.get(a.id)! - order.get(b.id)!),
+    unplaced: turned.unplaced,
+  };
+}
+
+/** The extent of the placed parts, plus the margin: what a fitted board is cut to. */
+function usedSize(n: NestResult, items: { id: string; w: number; h: number }[], margin: number, fixed: Rect[]) {
+  const rects = [
+    ...n.placements.map(p => {
+      const i = items.find(x => x.id === p.id)!;
+      return { x: p.x, y: p.y, ...placedSize(i, p.rotated) };
+    }),
+    ...fixed,
+  ];
+  return {
+    w: Math.max(2 * margin, ...rects.map(r => r.x + r.w + margin)),
+    h: Math.max(2 * margin, ...rects.map(r => r.y + r.h + margin)),
+  };
+}
+
+/** Up to whole mm, but never rounded past the machine it fits on. */
+function wholeMm(b: { w: number; h: number }, machine?: { w: number; h: number }) {
+  const up = { w: ceilMm(b.w), h: ceilMm(b.h) };
+  if (!machine || fitsMachine(machine, up.w, up.h) || !fitsMachine(machine, b.w, b.h)) return up;
+  const [mw, mh] = fitsAsIs(machine, b) ? [machine.w, machine.h] : [machine.h, machine.w];
+  return { w: Math.min(up.w, Math.max(b.w, Math.floor(mw))), h: Math.min(up.h, Math.max(b.h, Math.floor(mh))) };
+}
+
+/** The machine's long axis is X. */
+const wideMachine = (m: { w: number; h: number }) => m.w >= m.h;
+const fitsAsIs = (m: { w: number; h: number }, b: { w: number; h: number }) => b.w <= m.w + EPS && b.h <= m.h + EPS;
+
+/**
+ * Fit a board to its parts on this machine: as `fitCompact`, lying with its long side along the machine's long axis (the
+ * whole layout turned when that's the way it fits). Too big either way: nested on the work area, the board cut to what's
+ * on it, and the parts left over `unplaced`. Bodies placed by hand (`fixed`) stay, so the layout isn't turned then.
+ */
+function fitOnMachine(
+  items: { id: string; w: number; h: number }[],
+  gap: number,
+  margin: number,
+  fixed: Rect[],
+  machine: { w: number; h: number }
+): NestResult {
+  const area = (n: NestResult) =>
+    n.placements.reduce((a, p) => a + items.find(i => i.id === p.id)!.w * items.find(i => i.id === p.id)!.h, 0);
+  const straight = fitCompact(items, gap, margin, fixed);
+  const turned = fixed.length || !items.length ? undefined : turnedBack(fitCompact(turnedItems(items), gap, margin, fixed));
+  const lying = (n: NestResult) => n.board.w >= n.board.h === wideMachine(machine) || n.board.w === n.board.h;
+  const fits = [straight, ...(turned ? [turned] : [])].filter(n => fitsAsIs(machine, n.board));
+  if (fits.length) return fits.find(lying) ?? fits[0];
+  // Too big for the machine: as much as fits on the work area, then cut down to it.
+  const on = (its: typeof items) => nestOnSize(its, machine, gap, margin, fixed);
+  const options = [on(items), ...(fixed.length ? [] : [turnedBack(on(turnedItems(items)))])];
+  const best = options.reduce((a, b) => (area(b) > area(a) ? b : a));
+  const board = usedSize(best, items, margin, fixed);
+  const total = items.reduce((a, i) => a + i.w * i.h, 0);
+  return { ...best, board, yield: total && area(best) / (board.w * board.h) };
 }
 
 const EPS = 1e-6;
@@ -464,9 +556,13 @@ export function nestBoard(board: BoardV1, instances: PartInstance[], bit: number
   const hw = opts.hardware ?? kDefaultHardware;
   const nutAbove = nutAboveOf(board, opts.stickout);
   const size = board.size.fit ? undefined : { w: board.size.w, h: board.size.h };
-  const stored = board.layout;
+  const machine = board.size.fit ? opts.machine : undefined;
+  // A fitted layout bigger than the machine (stored before the machine was known): nested again, within it, around the
+  // parts placed by hand that are on the machine.
+  const oversize = !!board.layout && !!machine && !isCut(board) && !fitsMachine(machine, board.layout.w, board.layout.h);
+  const stored = oversize ? { at: onlyFor(board.layout!.at, board.pinned ?? []) } : board.layout;
   // The size to place on: fixed, or as the layout left it. A fitted board may still grow.
-  const on = size ?? (stored && { w: stored.w, h: stored.h });
+  const on = size ?? (stored && !oversize ? { w: board.layout!.w, h: board.layout!.h } : undefined);
   const holdsOn = (b: { w: number; h: number }) => (board.fixtures ?? []).map(f => holdPointOf(f, b, hw, nutAbove));
 
   const fixed: Placement[] = [];
@@ -477,6 +573,7 @@ export function nestBoard(board: BoardV1, instances: PartInstance[], bit: number
     const r = placedRect(pos, byId.get(id)!);
     // A cut board's parts are where they were cut, whatever the spacing says now.
     if (!isCut(board) && (!insideMargin(r, margin, on) || !fixedRects.every(o => apart(r, o, gap)))) continue;
+    if (oversize && !insideMargin(r, margin, machine)) continue;
     fixed.push({ id, x: pos.x, y: pos.y, rotated: pos.rotated });
     fixedRects.push(r);
   }
@@ -491,38 +588,32 @@ export function nestBoard(board: BoardV1, instances: PartInstance[], bit: number
   const around = (b: { w: number; h: number }) => [...fixedRects, ...holdsOn(b).map(keepOutOf)];
   let n: NestResult;
   if (size) {
-    n = nestRects(items, { gap, margin, keepOuts: around(size), board: size });
-    // Parts keep their grain direction where they fit; the ones that don't may turn 90° into the room left.
-    if (n.unplaced.length) {
-      const placed = n.placements.map(p => placedRect(p, byId.get(p.id)!));
-      const rest = items.filter(i => n.unplaced.includes(i.id)).map(i => ({ ...i, canRotate: true }));
-      const turned = nestRects(rest, { gap, margin, keepOuts: [...around(size), ...placed], board: size });
-      if (turned.placements.length) {
-        const order = new Map(items.map((it, i) => [it.id, i]));
-        n = {
-          ...n,
-          placements: [...n.placements, ...turned.placements].sort((a, b) => order.get(a.id)! - order.get(b.id)!),
-          unplaced: turned.unplaced,
-        };
-      }
-    }
+    n = nestOnSize(items, size, gap, margin, around(size));
   } else {
     const roomOn = on && items.length ? nestRects(items, { gap, margin, keepOuts: around(on), board: on }) : undefined;
     // Growing up and to the right: fixtures on the other edges and screws stay where they are, so parts keep off them.
     const staying = (board.fixtures ?? [])
       .filter(f => f.kind === 'screw' || f.side === 'left' || f.side === 'bottom')
       .map(f => keepOutOf(holdPointOf(f, { w: 0, h: 0 }, hw, nutAbove)));
-    n = roomOn && !roomOn.unplaced.length ? roomOn : fitCompact(items, gap, margin, [...fixedRects, ...staying]);
+    const keep = [...fixedRects, ...staying];
+    n =
+      roomOn && !roomOn.unplaced.length
+        ? roomOn
+        : machine
+          ? fitOnMachine(items, gap, margin, keep, machine)
+          : fitCompact(items, gap, margin, keep);
   }
 
   const order = new Map(ids.map((id, i) => [id, i]));
   const placements = [...fixed, ...n.placements].sort((a, b) => order.get(a.id)! - order.get(b.id)!);
   const area = placements.reduce((a, p) => a + byId.get(p.id)!.size[0] * byId.get(p.id)!.size[1], 0);
-  // A fitted board is cut from a sheet: whole mm, rounded up (570.4 × 738.9 -> 571 × 739). It never shrinks on its own.
-  const out = size ?? {
-    w: ceilMm(Math.max(n.board.w, placements.length && on ? on.w : 0)),
-    h: ceilMm(Math.max(n.board.h, placements.length && on ? on.h : 0)),
+  // A fitted board is cut from a sheet: whole mm, rounded up (570.4 × 738.9 -> 571 × 739), though not past the
+  // machine. It never shrinks on its own.
+  const fitted = {
+    w: Math.max(n.board.w, placements.length && on ? on.w : 0),
+    h: Math.max(n.board.h, placements.length && on ? on.h : 0),
   };
+  const out = size ?? wholeMm(fitted, machine);
   return {
     ...n,
     board: out,
@@ -535,6 +626,48 @@ export function nestBoard(board: BoardV1, instances: PartInstance[], bit: number
     stickout: opts.stickout ?? defaultStickout(board),
     nutAbove,
   };
+}
+
+/**
+ * No fitted board bigger than the machine: parts that don't fit on theirs within the work area move to another fitted
+ * board of their thickness with room for them, else onto a new board (with the same hold settings), made as often as
+ * needed. Cut boards, fixed-size boards and parts placed by hand stay; a part too big for the machine on its own stays
+ * where it is (it shows as not fitting).
+ */
+export function keepWithinMachine(boards: BoardV1[], instances: PartInstance[], bit: number, opts: NestOptions): BoardV1[] {
+  const machine = opts.machine;
+  if (!machine) return boards;
+  const nest = (b: BoardV1) => nestBoard(b, instances, bit, { ...opts, holds: false });
+  const movable = (b: BoardV1) => b.size.fit && !isCut(b);
+  let out = [...boards];
+  for (let i = 0; i < out.length; i++) {
+    const b = out[i];
+    if (!movable(b)) continue;
+    const over = nest(b).unplaced.filter(id => !b.pinned?.includes(id));
+    // Alone on a board it still doesn't fit: moving it wouldn't help.
+    const spill = over.filter(id => !nest({ ...b, items: [id], pinned: [], layout: undefined, fixtures: [] }).unplaced.length);
+    if (!spill.length) continue;
+    out[i] = { ...b, items: b.items.filter(id => !spill.includes(id)) };
+    let rest = spill;
+    for (let j = 0; j < out.length && rest.length; j++) {
+      const o = out[j];
+      if (j === i || !movable(o) || o.thickness !== b.thickness) continue;
+      const before = nest(o);
+      if (before.unplaced.length) continue;
+      const placed = new Set(nest({ ...o, items: [...o.items, ...rest] }).placements.map(p => p.id));
+      // Only what fits with everything already on it.
+      const take = rest.filter(id => placed.has(id));
+      if (!take.length || !o.items.every(id => placed.has(id))) continue;
+      out[j] = { ...o, items: [...o.items, ...take] };
+      rest = rest.filter(id => !take.includes(id));
+    }
+    if (!rest.length) continue;
+    // The same id every time for the same overflow (see `reconcileBoards`): this one is nested in turn, and spills on.
+    let id = `${b.id}+`;
+    while (out.some(o => o.id === id)) id += '+';
+    out = [...out.slice(0, i + 1), { ...newBoard(out, b.thickness, b.material, rest, id), ...holdSettingsOf(b) }, ...out.slice(i + 1)];
+  }
+  return out;
 }
 
 /** The board with its nest stored: from then on its parts stay where they are. */
