@@ -25,10 +25,15 @@ vi.mock('comlink', async importOriginal => ({
 
 // Delay the import's return after its transaction commits: a field can save before that response is published.
 const publication = vi.hoisted(() => ({ blocked: false, releases: [] as (() => void)[] }));
+const edits = vi.hoisted(() => ({ blocked: false, releases: [] as (() => void)[] }));
 vi.mock('./jobDb', async importOriginal => {
   const original = await importOriginal<typeof import('./jobDb')>();
   return {
     ...original,
+    saveJob: async (...args: Parameters<typeof original.saveJob>) => {
+      if (edits.blocked) await new Promise<void>(resolve => edits.releases.push(resolve));
+      return original.saveJob(...args);
+    },
     updateJobForModel: async (...args: Parameters<typeof original.updateJobForModel>) => {
       const saved = await original.updateJobForModel(...args);
       if (publication.blocked) await new Promise<void>(resolve => publication.releases.push(resolve));
@@ -81,6 +86,8 @@ afterEach(() => {
   imports.length = 0;
   publication.blocked = false;
   publication.releases.splice(0).forEach(release => release());
+  edits.blocked = false;
+  edits.releases.splice(0).forEach(release => release());
 });
 
 describe.each([false, true])('model import completion (demo: %s)', demo => {
@@ -197,5 +204,45 @@ describe.each([false, true])('model import completion (demo: %s)', demo => {
     expect(saved?.parts).toEqual(edited.parts);
     expect(saved?.plan).toEqual(edited.plan);
     expect(client.getQueryData(camKeys.job(job.id))).toEqual(saved);
+  });
+
+  it.each([false, true])('refreshes a stale job cache when storage already has the import (pending edit: %s)', async pendingEdit => {
+    const { job, client, wrapper, result } = await begin();
+    // Another tab finishes importing first; this tab still has the empty job it started from.
+    const imported = model('Imported part');
+    const stored = await saveJob({
+      ...job,
+      parts: [{ id: 'part-0', name: 'Imported part', quantity: 1, milled: true }],
+      partsFrom: {
+        revision: 0,
+        prints: { 'part-0': { modelName: 'Imported part', size: [8, 20, 40], area: 800, volume: 6400 } },
+      },
+    });
+    const now = Date.now;
+    vi.spyOn(Date, 'now').mockImplementation(() => now() + 1000);
+    const save = renderHook(() => useSaveCamJob(job), { wrapper });
+    if (pendingEdit) {
+      edits.blocked = true;
+      await act(async () => save.result.current.mutate({ ...job, name: 'Pending job name' }));
+      await vi.waitFor(() => expect(edits.releases).toHaveLength(1));
+    }
+    publication.blocked = true;
+    await act(async () => imports[0].resolve(imported));
+    await vi.waitFor(() => expect(publication.releases).toHaveLength(1));
+    // Refreshing the cache is not a new document write, including when it carries an optimistic edit.
+    expect(await getJob(job.id)).toEqual(stored);
+    expect(client.getQueryData(camKeys.job(job.id))).toEqual({ ...stored, ...(pendingEdit && { name: 'Pending job name' }) });
+    if (pendingEdit) {
+      await act(async () => edits.releases[0]());
+      await vi.waitFor(() => expect(save.result.current.isSuccess).toBe(true));
+      const saved = await getJob(job.id);
+      expect(saved?.name).toBe('Pending job name');
+      expect(saved?.parts).toEqual(stored.parts);
+      expect(saved?.partsFrom).toEqual(stored.partsFrom);
+      expect(client.getQueryData(camKeys.job(job.id))).toEqual(saved);
+    }
+    await act(async () => publication.releases[0]());
+    await vi.waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(client.getQueryData(camKeys.job(job.id))).toEqual(await getJob(job.id));
   });
 });

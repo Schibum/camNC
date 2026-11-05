@@ -68,13 +68,15 @@ export function useCamModel(job: CamJobV1 | null | undefined) {
         const saved = await updateJobForModel(job!, current => {
           const now = queryClient.getQueryData<CamJobV1 | null>(key);
           if (now === null || (now && modelKey(now) !== modelKey(job!))) return null;
-          const next = update(now ? rebaseJob(job!, now, current) : current);
+          const merged = now ? rebaseJob(job!, now, current) : current;
+          const next = update(merged);
           if (next) {
-            // Before returning to the event loop: subsequent edits rebase onto the imported fields too.
             save = (latestSave.get(next.id) ?? 0) + 1;
             latestSave.set(next.id, save);
-            queryClient.setQueryData(key, next);
           }
+          // Before returning to the event loop: subsequent edits rebase onto the imported fields too. Another tab
+          // may have already saved this import; refresh the cache then without writing the same document again.
+          queryClient.setQueryData(key, next ?? merged);
           return next;
         });
         if (!saved) return;
