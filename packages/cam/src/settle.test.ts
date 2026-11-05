@@ -122,14 +122,21 @@ function expectSuggestionSpeed<T>(label: string, work: () => T): T {
     const out = run();
     return { out, ms: performance.now() - t };
   };
+  work();
   referenceWork();
-  // A busy runner slows both pieces of work. Interleave fixed samples and use their minima to reduce scheduler noise,
-  // as boards.test.ts does for nesting. At the measured CI reference speed of 41.2 ms, a ratio of 6 is under 300 ms.
-  const runs = Array.from({ length: 7 }, () => ({ suggestion: timed(work), reference: timed(referenceWork) }));
-  const ms = Math.min(...runs.map(r => r.suggestion.ms));
-  const reference = Math.min(...runs.map(r => r.reference.ms));
-  console.info(`${label}: ${ms.toFixed(1)} ms, reference ${reference.toFixed(1)} ms, ratio ${(ms / reference).toFixed(2)}`);
-  expect(ms / reference).toBeLessThan(kSuggestRatio);
+  // Pair nearby samples and alternate their order so changing runner load does not favor either piece of work.
+  // The median ratio tolerates isolated pauses without combining minima from unrelated load conditions.
+  const runs = Array.from({ length: 7 }, (_, i) => {
+    const run =
+      i % 2 ? { reference: timed(referenceWork), suggestion: timed(work) } : { suggestion: timed(work), reference: timed(referenceWork) };
+    return { ...run, ratio: run.suggestion.ms / run.reference.ms };
+  });
+  const ratio = runs.map(r => r.ratio).sort((a, b) => a - b)[3];
+  const samples = runs.map(
+    (r, i) => `${i % 2 ? 'R first' : 'W first'}: W ${r.suggestion.ms.toFixed(1)}/R ${r.reference.ms.toFixed(1)} ms=${r.ratio.toFixed(2)}`
+  );
+  console.info(`${label}: median ratio ${ratio.toFixed(2)}, samples ${samples.join(', ')}`);
+  expect(ratio).toBeLessThan(kSuggestRatio);
   return runs[0].suggestion.out;
 }
 
