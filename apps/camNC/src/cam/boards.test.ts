@@ -29,6 +29,7 @@ import {
   type PartInstance,
   type StockBoardV1,
   withinMachine,
+  keepWithinMachine,
 } from './boards';
 import { missingParts } from './useJobBoards';
 import type { NestObjective } from './autoNest';
@@ -414,6 +415,78 @@ describe('boards', () => {
     // A fixed size stays as given, even empty.
     const sheet = { ...empty, size: { fit: false as const, w: 600.5, h: 300 } };
     expect(boardSizeLabel(sheet, nestBoard(sheet, parts, 3.175))).toBe('600.5 × 300');
+  });
+
+  describe('fitted boards on the machine', () => {
+    const bit = 3.175;
+    const a = { ...reconcileBoards(undefined, parts, 'oak')[0], retention: 'skin' as const };
+    const fits = (b: { w: number; h: number }, m: { w: number; h: number }) => b.w <= m.w && b.h <= m.h;
+
+    it('lie with the long side along the machine’s long axis', () => {
+      // 571 × 739 on its own: fits a wide machine only turned, so it's nested lying along X; upright on a deep one.
+      const wide = nestBoard(a, parts, bit, { machine: { w: 800, h: 600 } });
+      expect(wide.board.w).toBeGreaterThan(wide.board.h);
+      expect(fits(wide.board, { w: 800, h: 600 })).toBe(true);
+      expect(wide.unplaced).toEqual([]);
+      expect(nestBoard(a, parts, bit, { machine: { w: 600, h: 800 } }).board).toEqual({ w: 571, h: 739 });
+      // The parts turned with it, nothing overlapping.
+      expect(wide.placements.some(p => p.rotated)).toBe(true);
+      expect(layoutRects(wide).every((r, i, all) => all.every((o, j) => i === j || apart(r, o)))).toBe(true);
+    });
+
+    it('never come out bigger than the machine: what doesn’t fit is left over', () => {
+      const machine = { w: 600, h: 400 };
+      const nest = nestBoard(a, parts, bit, { machine });
+      expect(fits(nest.board, machine)).toBe(true);
+      expect(nest.unplaced.length).toBeGreaterThan(0);
+      expect(nest.placements.length + nest.unplaced.length).toBe(a.items.length);
+      // A layout stored before the machine was known is nested again within it.
+      const stored = withLayout(a, nestBoard(a, parts, bit));
+      expect(fits(nestBoard(stored, parts, bit, { machine }).board, machine)).toBe(true);
+    });
+
+    it('parts that don’t fit move onto another board, made as needed', () => {
+      const machine = { w: 600, h: 400 };
+      const boards = reconcileBoards(undefined, parts, 'oak').map(b => ({ ...b, retention: 'skin' as const }));
+      const out = keepWithinMachine(boards, parts, bit, { machine });
+      const eight = out.filter(b => b.thickness === 8);
+      expect(eight.length).toBeGreaterThan(1);
+      expect(eight.flatMap(b => b.items).sort()).toEqual(boards[0].items.sort());
+      for (const b of eight) {
+        const nest = nestBoard(b, parts, bit, { machine });
+        expect(nest.unplaced).toEqual([]);
+        expect(fits(nest.board, machine)).toBe(true);
+        expect(b.retention).toBe('skin');
+      }
+      expect(new Set(out.map(b => b.name)).size).toBe(out.length);
+      // The same boards every time (same ids), and nothing more to move once they fit.
+      expect(keepWithinMachine(boards, parts, bit, { machine }).map(b => b.id)).toEqual(out.map(b => b.id));
+      expect(keepWithinMachine(out, parts, bit, { machine })).toEqual(out);
+    });
+
+    it('a part too big for the machine on its own stays where it is', () => {
+      const huge = [inst('huge', 900, 300, 8)];
+      const boards = reconcileBoards(undefined, huge, 'oak');
+      expect(keepWithinMachine(boards, huge, bit, { machine: { w: 600, h: 400 } })).toEqual(boards);
+      expect(nestBoard(boards[0], huge, bit, { machine: { w: 600, h: 400 } }).unplaced).toEqual(['huge']);
+    });
+
+    it('cut and fixed-size boards are left alone; without a machine nothing changes', () => {
+      const boards = reconcileBoards(undefined, parts, 'oak');
+      const cut = boards.map(b => ({ ...withLayout(b, nestBoard(b, parts, bit)), cut: { at: 1, keys: ['x'] } }));
+      expect(keepWithinMachine(cut, parts, bit, { machine: { w: 600, h: 400 } })).toEqual(cut);
+      expect(keepWithinMachine(boards, parts, bit, {})).toEqual(boards);
+    });
+
+    function layoutRects(n: { placements: { id: string; x: number; y: number; rotated: boolean }[] }) {
+      return n.placements.map(p => {
+        const i = parts.find(x => x.id === p.id)!;
+        const [w, h] = p.rotated ? [i.size[1], i.size[0]] : [i.size[0], i.size[1]];
+        return { x: p.x, y: p.y, w, h };
+      });
+    }
+    const apart = (r: { x: number; y: number; w: number; h: number }, o: typeof r) =>
+      r.x + r.w <= o.x + 1e-6 || o.x + o.w <= r.x + 1e-6 || r.y + r.h <= o.y + 1e-6 || o.y + o.h <= r.y + 1e-6;
   });
 
   it('boards made for a job that has none yet keep their ids: the same boards each time, not new ones', () => {
