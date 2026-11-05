@@ -87,7 +87,7 @@ export function RealtimeButtons({ compact = false }: { compact?: boolean }) {
   const holding = state === 'Hold' || state === 'Door';
   const size = compact ? 'icon' : 'sm';
   return (
-    <div className="flex flex-row gap-1 items-center">
+    <div className="flex flex-row flex-wrap gap-1 items-center">
       {holding ? (
         <Button size={size} variant="outline" title="Resume (~)" onClick={() => report(api.resume(), 'Resume')}>
           <Play /> {!compact && 'Resume'}

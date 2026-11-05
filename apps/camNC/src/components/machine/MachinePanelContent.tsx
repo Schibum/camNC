@@ -104,8 +104,9 @@ export function MachinePanelContent({ onClose, className }: { onClose?: () => vo
           {api.firmware.value && <span>FluidNC {api.firmware.value.version}</span>}
         </div>
         {connected && (
-          <div className="flex flex-row items-center justify-between gap-2">
-            <RealtimeButtons compact />
+          <div className="flex flex-row flex-wrap items-center justify-between gap-2">
+            {/* Labelled: Reset must be easy to find. */}
+            <RealtimeButtons />
             <div className="flex flex-row rounded-md border p-0.5 text-xs" role="tablist">
               {(['setup', 'running'] as const).map(v => (
                 <button

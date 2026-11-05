@@ -42,6 +42,8 @@ export class FakeFluidnc {
 
   state = 'Idle';
   mpos: Vec = { x: 3, y: 3, z: 3 };
+  /** Where `$H` leaves the machine. FluidNC 3.9 can end one step outside the travel, e.g. X at 2.99. */
+  homedMpos: Vec = { x: 3, y: 3, z: 3 };
   wco: Vec = { x: 0, y: 0, z: 0 };
   ov = { feed: 100, rapid: 100, spindle: 100 };
   job: { file: string; percent: number } | null = null;
@@ -238,9 +240,11 @@ export class FakeFluidnc {
     }
     if (line === '$H') {
       if (this.state !== 'Idle' && this.state !== 'Alarm') return this.error('Command requires idle state');
-      this.mpos = { x: 3, y: 3, z: 3 };
+      this.mpos = { ...this.homedMpos };
       this.state = 'Idle';
-      return this.ok();
+      this.ok();
+      // FluidNC auto-reports the status once homing is done.
+      return this.pushStatus();
     }
     if (line.startsWith('$J=')) return this.jog(line.slice(3));
     if (line.startsWith('$')) return this.ok();

@@ -11,7 +11,7 @@ export function machineView({ state, jobActive }: { state: string | null; jobAct
 }
 
 export interface ChecklistItem {
-  id: 'homed' | 'bounds' | 'travel' | 'xy-zero' | 'z-zero' | 'tool-change';
+  id: 'homed' | 'bounds' | 'travel' | 'position' | 'xy-zero' | 'z-zero' | 'tool-change';
   ok: boolean;
   label: string;
   /** Per-axis details, e.g. for the travel check. */
@@ -30,7 +30,12 @@ const fmt = (n: number) => n.toFixed(2).replace(/\.?0+$/, '');
 const kTravelEpsilon = 0.001;
 
 /** Machine-coordinate targets of `G53` moves, per axis (`G53` words are not offset by the work zero). */
-export const kHomeFirst = 'Home the machine first: this program lifts Z in machine coordinates (G53), which needs a homed machine.';
+/**
+ * Not a block: camNC may have connected after the machine was homed, and only the controller knows. On an unhomed
+ * machine the closing `G53` lift goes to a Z that means nothing.
+ */
+export const kHomeFirst =
+  'Not homed since camNC connected: this program parks Z in machine coordinates (G53), so home first unless the machine was homed before.';
 
 export function g53Targets(gcode: string): { axis: 'x' | 'y' | 'z'; value: number }[] {
   const out: { axis: 'x' | 'y' | 'z'; value: number }[] = [];
@@ -103,6 +108,57 @@ export function checkTravel(input: {
   };
 }
 
+/** An axis the machine already sits outside of, and the jog (mm, relative) that brings it back inside. */
+export interface OutsideTravel {
+  axis: 'x' | 'y' | 'z';
+  at: number;
+  min: number;
+  max: number;
+  softLimits: boolean;
+  /** Relative jog into the travel: half a millimetre past the limit. */
+  jog: number;
+}
+
+/** How far into the travel {@link outsideTravel} jogs an axis back. */
+export const kIntoTravel = 0.5;
+
+/**
+ * Axes whose machine position is outside the travel. FluidNC 3.9 checks the soft limits of every axis on every move,
+ * named in the line or not: with X one step below its minimum (as it can end after homing), even `G0 Z5` stops with
+ * "Soft limit on X target:2.990". FluidNC 4 tolerates one step.
+ */
+export function outsideTravel(mpos: Position, travel: MachineTravel): OutsideTravel[] {
+  const out: OutsideTravel[] = [];
+  for (const axis of ['x', 'y', 'z'] as const) {
+    const limits = travel[axis];
+    if (!limits) continue;
+    const at = mpos[axis];
+    if (at < limits.min - kTravelEpsilon) out.push({ axis, at, ...limits, jog: limits.min - at + kIntoTravel });
+    else if (at > limits.max + kTravelEpsilon) out.push({ axis, at, ...limits, jog: limits.max - at - kIntoTravel });
+  }
+  return out;
+}
+
+/** Whether the machine can start a move from where it is: see {@link outsideTravel}. */
+export function checkPosition(mpos: Position, travel: MachineTravel): ChecklistItem {
+  const outside = outsideTravel(mpos, travel);
+  if (!outside.length) return { id: 'position', ok: true, label: 'The machine is within its travel' };
+  const blocking = outside.some(o => o.softLimits);
+  return {
+    id: 'position',
+    ok: false,
+    blocking,
+    label: blocking
+      ? 'The machine sits outside its travel: the controller would stop the first move, even a Z lift, with a soft limit alarm'
+      : 'The machine sits outside its travel (soft limits are off)',
+    details: outside.map(o => {
+      const name = o.axis.toUpperCase();
+      const side = o.at < o.min ? `${fmt(o.min - o.at)} mm below` : `${fmt(o.at - o.max)} mm above`;
+      return `${name} is at ${fmt(o.at)}, ${side} the ${name} travel ${fmt(o.min)} to ${fmt(o.max)}. Move ${name} into the travel first.`;
+    }),
+  };
+}
+
 interface Rect {
   min: { x: number; y: number };
   max: { x: number; y: number };
@@ -125,6 +181,8 @@ export interface ChecklistInput {
   workOffset?: Position | null;
   /** Machine travel from the controller, when known. */
   travel?: MachineTravel | null;
+  /** Current machine position, when known. */
+  machinePosition?: Position | null;
 }
 
 /** Pre-job checks. Failed items are shown as warnings; only `blocking` ones prevent the run. */
@@ -136,7 +194,6 @@ export function getJobChecklist(input: ChecklistInput): ChecklistItem[] {
     id: 'homed',
     ok: input.homed,
     label: input.homed ? 'Homed' : needsHoming ? kHomeFirst : 'Not homed since connecting',
-    ...(needsHoming && { blocking: true }),
   });
 
   if (toolpathBounds && machineBounds) {
@@ -150,6 +207,10 @@ export function getJobChecklist(input: ChecklistInput): ChecklistItem[] {
 
   if (input.toolpathBounds3 && input.workOffset && input.travel) {
     items.push(checkTravel({ toolpathBounds: input.toolpathBounds3, workOffset: input.workOffset, travel: input.travel, gcode }));
+  }
+  if (input.machinePosition && input.travel) {
+    const position = checkPosition(input.machinePosition, input.travel);
+    if (!position.ok) items.push(position);
   }
 
   const zeroMatches =

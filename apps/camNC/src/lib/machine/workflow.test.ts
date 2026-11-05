@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkTravel, g53Targets, getJobChecklist, kHomeFirst, machineView } from './workflow';
+import { checkPosition, checkTravel, g53Targets, getJobChecklist, kHomeFirst, machineView, outsideTravel } from './workflow';
 
 describe('machineView', () => {
   it('switches to running while a job is active or the machine is running/held', () => {
@@ -38,9 +38,10 @@ describe('getJobChecklist', () => {
     expect(items.filter(i => !i.ok).map(i => i.id)).toEqual(['homed', 'bounds', 'xy-zero', 'z-zero', 'tool-change']);
   });
 
-  it('only a program with moves in machine coordinates needs homing to run', () => {
+  it('warns, without blocking, when a program with moves in machine coordinates runs unhomed', () => {
     const home = (gcode: string, homed: boolean) => getJobChecklist({ ...base, gcode, homed }).find(i => i.id === 'homed')!;
-    expect(home('G1 X10\nM5\nG53 G0 Z-5\nM30', false)).toEqual({ id: 'homed', ok: false, label: kHomeFirst, blocking: true });
+    // camNC may have connected after the machine was homed.
+    expect(home('G1 X10\nM5\nG53 G0 Z-5\nM30', false)).toEqual({ id: 'homed', ok: false, label: kHomeFirst });
     expect(home('G1 X10\nM5\nG53 G0 Z-5\nM30', true).blocking).toBeUndefined();
     expect(home('G1 X10', false).blocking).toBeUndefined();
     // A comment mentioning it doesn't count.
@@ -103,5 +104,41 @@ describe('checkTravel', () => {
       { axis: 'x', value: 10.5 },
       { axis: 'y', value: -2 },
     ]);
+  });
+});
+
+describe('checkPosition', () => {
+  // The LowRider's X homes to mpos_mm 3, its travel minimum: FluidNC 3.9.1 left it at 2.99 and every job then stopped
+  // with "Soft limit on X target:2.990" on its first move, a Z lift.
+  const travel = {
+    x: { min: 3, max: 1223, softLimits: true },
+    y: { min: 3, max: 2443, softLimits: true },
+    z: { min: -297, max: 3, softLimits: false },
+  };
+
+  it('blocks a run while an axis with soft limits sits outside the travel', () => {
+    const item = checkPosition({ x: 2.99, y: 120, z: -10 }, travel);
+    expect(item.ok).toBe(false);
+    expect(item.blocking).toBe(true);
+    expect(item.details).toEqual(['X is at 2.99, 0.01 mm below the X travel 3 to 1223. Move X into the travel first.']);
+  });
+
+  it('jogs each axis half a millimetre past the limit it is outside of', () => {
+    const out = outsideTravel({ x: 2.99, y: 120, z: 3.2 }, travel);
+    expect(out.map(o => [o.axis, Number(o.jog.toFixed(3))])).toEqual([
+      ['x', 0.51],
+      ['z', -0.7],
+    ]);
+  });
+
+  it('only warns without soft limits, and passes inside the travel', () => {
+    expect(checkPosition({ x: 100, y: 100, z: 3.2 }, travel).blocking).toBe(false);
+    expect(checkPosition({ x: 3, y: 3, z: 3 }, travel).ok).toBe(true);
+  });
+
+  it('is part of the pre-job checklist only when it fails', () => {
+    const base = { gcode: 'G1 X10', homed: true, zZeroed: true, toolpathOffset: { x: 0, y: 0 }, machineZero: { x: 0, y: 0 }, travel };
+    expect(getJobChecklist({ ...base, machinePosition: { x: 3, y: 3, z: 0 } }).some(i => i.id === 'position')).toBe(false);
+    expect(getJobChecklist({ ...base, machinePosition: { x: 2.99, y: 3, z: 0 } }).find(i => i.id === 'position')?.blocking).toBe(true);
   });
 });

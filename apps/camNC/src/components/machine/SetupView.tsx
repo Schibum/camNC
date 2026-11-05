@@ -17,7 +17,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@wbcnc/ui/c
 import { Input } from '@wbcnc/ui/components/input';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { cn } from '@wbcnc/ui/lib/utils';
-import { AlertTriangle, Check, ChevronRight, CirclePlay, FolderOpen, Home, Pencil, Wrench } from 'lucide-react';
+import { AlertTriangle, Check, ChevronRight, CirclePlay, FolderOpen, Home, MoveRight, Pencil, Wrench } from 'lucide-react';
 import { useState } from 'react';
 import { AlarmCard } from './AlarmCard';
 import { JogPanel, ProbeSettings } from './controls';
@@ -183,6 +183,7 @@ function RunFooter() {
   const idle = api.isConnected.value && api.state.value === 'Idle';
   const warnings = checklist.filter(item => !item.ok);
   const blocked = checklist.some(item => item.blocking);
+  const outside = checklist.some(item => item.id === 'position' && !item.ok);
   if (!hasToolpath) return null;
   const others = warnings.filter(w => !kShownInSteps.has(w.id));
   const open = warnings.filter(w => kShownInSteps.has(w.id));
@@ -215,10 +216,21 @@ function RunFooter() {
       <Button size="lg" disabled={!idle || blocked} onClick={() => setConfirmOpen(true)}>
         <CirclePlay /> Run job
       </Button>
+      {outside && (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!idle}
+          title="Jog the axes outside the travel 0.5 mm into it"
+          onClick={() => report(api.moveIntoTravel(), 'Moving into the travel')}>
+          <MoveRight /> Move into the travel
+        </Button>
+      )}
       {blocked && (
         <p className="text-xs text-red-700 dark:text-red-400">
-          {checklist.find(item => item.id === 'homed' && item.blocking)?.label ??
-            'Fix the travel problem above first: with soft limits on, the controller would stop this job with an alarm.'}
+          {outside
+            ? 'Move the machine into its travel first: FluidNC 3.9 stops any move from outside it, even a Z lift.'
+            : 'Fix the travel problem above first: with soft limits on, the controller would stop this job with an alarm.'}
         </p>
       )}
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>

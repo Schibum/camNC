@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { uploadAndRun } from './jobs';
-import { kHomeFirst } from './workflow';
 
 const h = vi.hoisted(() => ({
   api: {
     homed: { value: false },
     uploadGcode: vi.fn(async () => {}),
     runFile: vi.fn(async () => {}),
-    status: { value: null },
+    status: { value: null as null | { mpos: { x: number; y: number; z: number } } },
+    travel: { value: null as null | Record<'x' | 'y' | 'z', { min: number; max: number; softLimits: boolean }> },
     host: { value: null },
   },
   state: { toolpath: { gcode: '' } as { gcode: string }, toolpathName: 'Board A' },
@@ -18,18 +18,31 @@ vi.mock('@/lib/fluidnc/machine', () => ({ getCncApi: () => h.api }));
 vi.mock('@/store/store', () => ({ useStore: { getState: () => h.state }, getMachineBounds: () => null }));
 vi.mock('@wbcnc/ui/components/sonner', () => ({ toast: { error: h.toastError, promise: vi.fn() } }));
 
-describe('uploadAndRun and homing', () => {
+describe('uploadAndRun, homing and travel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     h.api.homed.value = false;
+    h.api.status.value = null;
+    h.api.travel.value = null;
     h.state.toolpath = { gcode: 'G1 X10 F100\nM5\nG53 G0 Z-5\nM30' };
   });
 
-  it('refuses a program with moves in machine coordinates on a machine not homed: nothing goes to the controller', async () => {
-    await expect(uploadAndRun()).rejects.toThrow(kHomeFirst);
-    expect(h.toastError).toHaveBeenCalledWith(kHomeFirst);
+  it('runs a program with moves in machine coordinates unhomed too: camNC may have connected after homing', async () => {
+    await uploadAndRun();
+    expect(h.api.runFile).toHaveBeenCalledOnce();
+  });
+
+  it('refuses to start while the machine sits outside its travel: nothing goes to the controller', async () => {
+    h.api.homed.value = true;
+    h.api.status.value = { mpos: { x: 2.99, y: 120, z: -10 } };
+    h.api.travel.value = {
+      x: { min: 3, max: 1223, softLimits: true },
+      y: { min: 3, max: 2443, softLimits: true },
+      z: { min: -297, max: 3, softLimits: true },
+    };
+    await expect(uploadAndRun()).rejects.toThrow('X is at 2.99, 0.01 mm below the X travel 3 to 1223');
+    expect(h.toastError).toHaveBeenCalledOnce();
     expect(h.api.uploadGcode).not.toHaveBeenCalled();
-    expect(h.api.runFile).not.toHaveBeenCalled();
   });
 
   it('runs it once homed', async () => {
