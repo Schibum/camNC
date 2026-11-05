@@ -17,6 +17,8 @@ import {
   placedRect,
   settleBoard,
   settleInputOf,
+  holdsSurroundWork,
+  nudgeFixtures,
   suggestFixtures,
   type BoardNest,
   type BoardV1,
@@ -26,6 +28,7 @@ import {
   type PartPosition,
 } from '../boards';
 import type { CamPartInfo, PlanResult } from '../camTypes';
+import { kDefaultHardware } from '../holdHardware';
 import type { JobBoard } from '../useJobBoards';
 import { PartBadges, PartMenuContent, type PartMenuProps } from './PartMenu';
 import { Hint } from '../Hint';
@@ -336,6 +339,7 @@ export function BoardDrawings({
   const [selectedHold, setSelectedHold] = useState<{ board: string; i: number } | null>(null);
   const selectedBoard = boards.find(b => b.board.id === selectedId);
   const canPlace = !!selectedBoard && !isCut(selectedBoard.board);
+  const holdCount = selectedBoard?.board.fixtures?.length ?? 0;
   // Esc puts the tool down.
   useEffect(() => {
     if (!tool) return;
@@ -392,22 +396,45 @@ export function BoardDrawings({
     const added = (next.fixtures?.length ?? 0) - before;
     const shown = nestBoard(next, instances, bit, nestOptions);
     const grew = (shown.board.w - nest.board.w) / 2;
+    const around = holdsSurroundWork(next.fixtures ?? [], shown, nestOptions.hardware ?? kDefaultHardware, instances);
     setTool(null);
     if (!added) {
       onNote(
-        before
-          ? 'These holds already surround the middle, so there’s nothing to add.'
-          : 'No clamp spot has room on this layout. Try a bigger board, tape or screws.'
+        !before
+          ? 'No clamp spot has room on this layout. Try a bigger board, tape or screws.'
+          : around
+            ? 'These holds already surround the work’s middle, so there’s nothing to add.'
+            : 'These holds don’t surround the work’s middle, and no clamp spot here would fix that. Try a bigger board, tape or screws.'
       );
       return;
     }
     const clamps = `${added} clamp${added > 1 ? 's' : ''}`;
+    const short = around
+      ? ''
+      : ' They don’t surround the work’s middle, so they aren’t enough on their own: try a bigger board, tape or screws.';
     onBoardEdit(
       next,
       grew > 0
-        ? `No edge had room, so the board grew ${grew} mm on each side, to ${shown.board.w} × ${shown.board.h}. Suggested ${clamps}. Parts and holds moved with it. Drag or remove any of them.`
-        : `Suggested ${clamps}. ${layoutChange(nest, shown, instances)} Drag or remove any of them.`
+        ? `No edge had room, so the board grew ${grew} mm on each side, to ${shown.board.w} × ${shown.board.h}. Suggested ${clamps}.${short} Parts and holds moved with it. Drag or remove any of them.`
+        : `Suggested ${clamps}.${short} ${layoutChange(nest, shown, instances)} Drag or remove any of them.`
     );
+  };
+  /** Exactly one clamp more or fewer than the board has; everything else stays. */
+  const nudgeHolds = (more: boolean) => {
+    if (!selectedBoard) return;
+    const { board } = selectedBoard;
+    const next = nudgeFixtures(board, instances, bit, more, nestOptions);
+    setTool(null);
+    if ((next.fixtures?.length ?? 0) === (board.fixtures?.length ?? 0)) {
+      onNote(
+        more
+          ? 'No clear spot for another clamp: none left with room to slide, a quarter of the work from the next on its edge.'
+          : 'Taking any clamp away would leave the work not surrounded, so they all stay.'
+      );
+      return;
+    }
+    setSelectedHold(null);
+    onBoardEdit(next, `One clamp ${more ? 'more' : 'fewer'}. Everything else stays where it is.`);
   };
   // Where clamps fit on the selected board, once its layout has settled: a moment's work, so not on every render.
   const [bands, setBands] = useState<ReturnType<typeof edgeBands> | undefined>();
@@ -494,9 +521,19 @@ export function BoardDrawings({
             </Button>
           </Hint>
         ))}
-        <Hint text="Adds clamps around the board’s middle, spread out, where they need the least moved. A board fitted to its parts gets a small border if no edge has room. Drag or remove any of them.">
+        <Hint text="Compares whole clamp patterns around the work and adds the best, moving parts only where no spot is clear. Holds already on the board stay. A board fitted to its parts gets a small border if no edge has room. Drag or remove any of them.">
           <Button size="sm" variant="outline" disabled={!canPlace} onClick={suggest}>
             Suggest holds
+          </Button>
+        </Hint>
+        <Hint text="Takes one clamp away, the one the rest do best without, and leaves everything else. None goes if that would leave the work not surrounded, and never below 3 holds.">
+          <Button size="sm" variant="outline" disabled={!canPlace || holdCount <= 3} onClick={() => nudgeHolds(false)}>
+            Fewer
+          </Button>
+        </Hint>
+        <Hint text="Adds one clamp where it helps most and leaves everything else where it is.">
+          <Button size="sm" variant="outline" disabled={!canPlace || !holdCount} onClick={() => nudgeHolds(true)}>
+            More
           </Button>
         </Hint>
         <Button size="sm" variant="outline" disabled={!onUndo} onClick={onUndo}>

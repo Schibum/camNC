@@ -1,7 +1,8 @@
-import { boardRequest, instancesOf, nestBoard, reconcileBoards, withLayout } from '@/cam/boards';
+import { boardRequest, instancesOf, nestBoard, reconcileBoards, settleInputOf, suggestFixtures, withLayout } from '@/cam/boards';
 import { camWorker, modelKey } from '@/cam/camQueries';
 import { createJob, getModelBytes, saveJob } from '@/cam/jobDb';
 import { usePlanLayout } from '@/cam/plan/planLayoutStore';
+import { fixtureFree } from '@wbcnc/cam/settle';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import * as Comlink from 'comlink';
@@ -42,6 +43,33 @@ afterEach(() => {
 });
 
 describe('varied STEP boards, end to end', () => {
+  it.each([
+    ['frame-01', frameUrl],
+    ['gear-02', gearUrl],
+    ['round-02', ringsUrl],
+    ['tray-02', trayUrl],
+  ])(
+    '%s gets its holds in under 300 ms, clear of every cut at the app’s real clearances',
+    async (id, url) => {
+      const bytes = await (await fetch(url)).arrayBuffer();
+      const job = await createJob(new File([bytes], `${id}.step`));
+      const stored = (await getModelBytes(job.id))!;
+      const model = await camWorker().importModel(Comlink.transfer(stored, [stored.buffer as ArrayBuffer]), job.fileName, modelKey(job));
+      const instances = instancesOf(model.parts, () => true);
+      const [board] = reconcileBoards(undefined, instances, 'oak');
+      const laid = withLayout(board, nestBoard(board, instances, 3.175));
+      const t = performance.now();
+      const next = suggestFixtures(laid, instances, 3.175);
+      const ms = performance.now() - t;
+      console.info(`${id}: ${ms.toFixed(0)} ms, ${next.fixtures?.length} holds`);
+      expect(ms).toBeLessThan(300);
+      const nest = nestBoard(next, instances, 3.175);
+      const { input, spots } = settleInputOf(next, nest, instances, 3.175);
+      for (const f of next.fixtures ?? []) expect(fixtureFree(input, spots, f)).toBe(true);
+    },
+    120_000
+  );
+
   it.each([
     // Knobs and gears have no straight runs for tabs: the job is blocked until the board changes.
     ['frame-01', frameUrl, 11, false],

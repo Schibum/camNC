@@ -2,14 +2,17 @@ import type { FlipRegistration, HoldDown } from '@wbcnc/cam';
 import { edgeDir, holdBox, kDefaultStickout, pathClearance, type HoldKind, type HoldPoint } from '@wbcnc/cam/holdPoints';
 import { nestRects, placedSize, type NestResult, type Placement, type Rect } from '@wbcnc/cam/nest';
 import {
+  fewerHolds,
   fixturesAround,
   partDist,
   settle,
   fitsMachine,
+  moreHolds,
   simplifyLoops,
   snapScrew,
   suggestHolds,
   suggestHoldsGrowing,
+  workBox,
   type BoardSide,
   type Fixture,
   type SettleBoard,
@@ -714,6 +717,19 @@ export function suggestFixtures(
   return { ...withSpots(board, at, r.spots, r.w, r.h), fixtures: r.fixtures };
 }
 
+/**
+ * Exactly one clamp more or fewer than the board has, as a nudge from what Suggest holds gave: no part or other hold moves
+ * and the board doesn't grow. No room for another, or none can go and leave the work surrounded: the board as it is.
+ */
+export function nudgeFixtures(board: BoardV1, instances: PartInstance[], bit: number, more: boolean, opts: NestOptions = {}): BoardV1 {
+  const nest = nestBoard(board, instances, bit, { ...opts, holds: false });
+  const at = withLayout(board, nest).layout?.at ?? {};
+  const { input, spots } = settleInput(board, at, nest.board, instances, bit, opts);
+  const existing = board.fixtures ?? [];
+  const fixtures = (more ? moreHolds : fewerHolds)(input, spots, existing);
+  return { ...withSpots(board, at, spots, nest.board.w, nest.board.h), fixtures };
+}
+
 /** A fixture at a point: a clamp grips the nearest edge there, a new screw lands on the most forgiving spot nearby. */
 export function fixtureAt(
   kind: HoldKind,
@@ -993,22 +1009,41 @@ export function autoFillFromStock(
   return { boards: named, tooBig, short };
 }
 
-/** Whether the whole board is fastened: the one thing the Boards step says about holding. */
+/** Do these holds stand around the middle of the placed parts? */
+export function holdsSurroundWork(
+  fixtures: Fixture[],
+  nest: Pick<BoardNest, 'board' | 'placements'>,
+  hw: HoldHardware,
+  instances: PartInstance[]
+) {
+  const parts = nest.placements.flatMap(p => {
+    const inst = instances.find(i => i.id === p.id);
+    return inst ? [{ id: p.id, ...placedRect(p, inst) }] : [];
+  });
+  const work = workBox({ ...nest.board, parts }, Object.fromEntries(parts.map(p => [p.id, p])));
+  return fixturesAround({ ...nest.board, sizes: { clampReach: hw.clamp.d, clampWidth: hw.clamp.w, screwD: hw.screw.d } }, work, fixtures);
+}
+
+/** Whether the holds stand around the work: the one thing the Boards step says about holding. It checks where, not force. */
 export function holdVerdict(
   board: Pick<BoardV1, 'fixtures' | 'taped'>,
-  nest: Pick<BoardNest, 'board'>,
-  hw: HoldHardware
+  nest: Pick<BoardNest, 'board' | 'placements'>,
+  hw: HoldHardware,
+  instances: PartInstance[]
 ): { tone: 'ok' | 'warn' | 'none'; text: string } {
   const fixtures = board.fixtures ?? [];
   const names = fixtureCount(fixtures);
   if (board.taped) return { tone: 'ok', text: names ? `${names} and tape.` : 'Tape holds this board.' };
   if (!fixtures.length) return { tone: 'none', text: 'Nothing fastens this board. If that’s the plan, you hold it down by hand.' };
-  const around = fixturesAround({ ...nest.board, sizes: { clampReach: hw.clamp.d, clampWidth: hw.clamp.w, screwD: hw.screw.d } }, fixtures);
+  const around = holdsSurroundWork(fixtures, nest, hw, instances);
   return around
-    ? { tone: 'ok', text: `${names} around the middle: the whole board can’t turn or lift. The Plan step checks each piece as it’s cut.` }
+    ? {
+        tone: 'ok',
+        text: `${names} around the work’s middle, which should stop it turning. Force isn’t checked here. The Plan step checks each piece as it’s cut.`,
+      }
     : {
         tone: 'warn',
-        text: `${names}: the board can still turn. A hold on the other side of the middle would stop that. This is a note, not a block.`,
+        text: `${names}: the board can still turn. A hold on the other side of the work’s middle would help. This is a note, not a block.`,
       };
 }
 

@@ -330,7 +330,7 @@ function BoardsStep() {
     selNest = selected.nest;
   const unplacedNames = selNest.unplaced.map(id => byId.get(id)?.name ?? id);
   const cantHold = sel.retention === 'tabs' ? (planOf(sel)?.holding ?? []).filter(h => h.how === 'unheld').map(h => h.name) : [];
-  const verdict = holdVerdict(sel, selNest, hardware);
+  const verdict = holdVerdict(sel, selNest, hardware, instances);
   const alerts = (
     <>
       {unplacedNames.length > 0 && (
