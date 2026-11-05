@@ -6,35 +6,23 @@
  * Demo mode must never touch a real user's settings. The settings storage, the sync gate and the
  * settings API all check {@link isDemoMode}.
  */
-const kDemoFlag = 'camnc-demo';
-/** `/demo?camera=off`: the demo without its camera, showing the drawn bed like a new user without a camera. */
-const kNoCameraFlag = 'camnc-demo-no-camera';
+import { detectDemoContext, kDemoFlag, kNoCameraFlag, kRehearsalFlag } from './demo-context';
 
-function detect(): boolean {
-  if (typeof location === 'undefined') return false;
-  const onDemoPath = location.pathname === '/demo' || location.pathname.startsWith('/demo/');
-  try {
-    if (onDemoPath) sessionStorage.setItem(kDemoFlag, '1');
-    return onDemoPath || sessionStorage.getItem(kDemoFlag) === '1';
-  } catch {
-    // Blocked storage: stay in demo mode for this page load only.
-    return onDemoPath;
-  }
-}
-
-function detectNoCamera(): boolean {
-  if (typeof location === 'undefined') return false;
-  const param = new URLSearchParams(location.search).get('camera');
-  try {
-    if (param !== null) sessionStorage.setItem(kNoCameraFlag, param === 'off' ? '1' : '0');
-    return sessionStorage.getItem(kNoCameraFlag) === '1';
-  } catch {
-    return param === 'off';
-  }
-}
-
-let demoMode = detect();
-const demoWithoutCamera = demoMode && detectNoCamera();
+const context =
+  typeof location === 'undefined'
+    ? { demo: false, rehearsalId: null, noCamera: false }
+    : detectDemoContext(
+        new URL(location.href),
+        (() => {
+          try {
+            return sessionStorage;
+          } catch {
+            return null;
+          }
+        })()
+      );
+let demoMode = context.demo;
+export const getRehearsalId = () => context.rehearsalId;
 
 export function isDemoMode() {
   return demoMode;
@@ -42,7 +30,7 @@ export function isDemoMode() {
 
 /** Whether the demo runs without its camera, see {@link kNoCameraFlag}. */
 export function isDemoWithoutCamera() {
-  return demoWithoutCamera;
+  return context.noCamera;
 }
 
 /** Switch demo mode on or off without a page load. For tests. */
@@ -53,10 +41,29 @@ export function setDemoModeForTest(value: boolean) {
 /** Leave the demo and reload with the visitor's own settings, which the demo never touched. */
 export function exitDemo(to = '/') {
   try {
+    sessionStorage.removeItem(kRehearsalFlag);
     sessionStorage.removeItem(kDemoFlag);
     sessionStorage.removeItem(kNoCameraFlag);
   } catch {
     // Nothing to clear.
   }
-  location.assign(to);
+  location.replace(to);
 }
+
+// A restored browser-history document keeps its old JS context. Do not let a cached normal page inherit a demo
+// token, or revive a disposed rehearsal after returning to the source job.
+if (typeof window !== 'undefined')
+  window.addEventListener('pageshow', event => {
+    if (!event.persisted) return;
+    if (context.rehearsalId) return exitDemo('/cam?notice=rehearsal-expired');
+    try {
+      if (!demoMode && sessionStorage.getItem(kDemoFlag) === '1') {
+        sessionStorage.removeItem(kDemoFlag);
+        sessionStorage.removeItem(kRehearsalFlag);
+        sessionStorage.removeItem(kNoCameraFlag);
+        location.reload();
+      }
+    } catch {
+      /* Context remains fixed for this document when storage is unavailable. */
+    }
+  });

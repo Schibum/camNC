@@ -5,6 +5,9 @@ import { CncApi } from './cnc-api';
 import { hostBlockedReason, machineSupport } from './machine-support';
 
 let cncApi: CncApi | null = null;
+/** Inspect an existing connection without starting one (e.g. while offering a hardware-free rehearsal). */
+export const getExistingCncApi = () => cncApi;
+
 let simulated: { WebSocket: typeof WebSocket; fetch: typeof fetch } | null = null;
 
 /** Demo mode: connect to a simulated controller living in the page instead of a real one. Call before {@link getCncApi}. */

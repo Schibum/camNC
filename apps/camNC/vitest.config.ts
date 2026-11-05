@@ -23,6 +23,7 @@ export default defineConfig({
       '@wbcnc/ui > @radix-ui/react-popover',
       '@wbcnc/ui > @radix-ui/react-dropdown-menu',
       'occt-import-js',
+      'three/examples/jsm/utils/BufferGeometryUtils.js',
       // Only a dependency of @wbcnc/cam, so not resolvable from here by its bare name: unresolved, Vite discovers it
       // mid-run and reloads the page, failing whichever test file is running.
       '@wbcnc/cam > clipper2-ts',

@@ -11,23 +11,26 @@ export function TryDemoCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>New here? Try the demo</CardTitle>
+        <CardTitle>Explore a demo machine</CardTitle>
         <CardDescription>
-          See camNC on a real machine camera with a simulated controller, in one click and without any setup. Bring your own G-code if you
-          like.
+          Practice machine controls with a simulated FluidNC and a recorded camera example. Bring your own G-code if you like. Demo changes
+          are discarded.
         </CardDescription>
       </CardHeader>
       <CardContent>
         {/* A full page load, so that demo mode is decided before the app starts. */}
         <div className="flex flex-row flex-wrap items-center gap-2">
           <Button asChild>
-            <a href="/demo">
+            <a href="/demo?machine=1">
               <FlaskConical /> Open the demo
             </a>
           </Button>
-          <Button asChild variant="ghost">
-            <a href="/demo?camera=off">Without a camera</a>
-          </Button>
+          <details>
+            <summary className="cursor-pointer text-sm text-muted-foreground">Camera options</summary>
+            <Button asChild variant="ghost">
+              <a href="/demo?camera=off">Without a camera</a>
+            </Button>
+          </details>
         </div>
       </CardContent>
     </Card>

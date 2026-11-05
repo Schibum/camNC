@@ -4,6 +4,7 @@ import { useEffect, useMemo } from 'react';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
 import type { BodyMesh, CamPartInfo } from '../camTypes';
+import { modelGeometry } from './modelGeometry';
 import { centerAssembled, layoutFlat } from './layoutFlat';
 import { kOrbitDamping } from '@/lib/orbitDamping';
 
@@ -25,24 +26,7 @@ function Body({
   opacity: number;
   onSelect: () => void;
 }) {
-  const geometry = useMemo(() => {
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(mesh.positions, 3));
-    g.setIndex(new THREE.BufferAttribute(mesh.indices, 1));
-    g.computeVertexNormals();
-    // Shade by height above the bottom face in the flat frame, so pocket floors read darker than the top even where
-    // they face the light the same way.
-    const flat = new THREE.Matrix4().fromArray(mesh.flat);
-    const v = new THREE.Vector3();
-    const n = mesh.positions.length / 3;
-    const zs = new Float32Array(n);
-    let top = 0;
-    for (let i = 0; i < n; i++) top = Math.max(top, (zs[i] = v.fromArray(mesh.positions, i * 3).applyMatrix4(flat).z));
-    const colors = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) colors.fill(0.55 + 0.45 * (top > 0 ? zs[i] / top : 1), i * 3, i * 3 + 3);
-    g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    return g;
-  }, [mesh]);
+  const geometry = useMemo(() => modelGeometry(mesh), [mesh]);
   return (
     <mesh
       geometry={geometry}

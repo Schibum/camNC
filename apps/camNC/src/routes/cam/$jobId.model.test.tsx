@@ -1,3 +1,4 @@
+import { createSampleJob } from '@/cam/samples/createSampleJob';
 import { camWorker } from '@/cam/camQueries';
 import { getJob, createJob, saveJob } from '@/cam/jobDb';
 import * as Comlink from 'comlink';
@@ -42,6 +43,22 @@ beforeAll(async () => {
 }, 120_000);
 
 describe('CAM model step', () => {
+  it('introduces the shelf sample as assembled, with an explicit switch to machining orientation', async () => {
+    const job = await createSampleJob();
+    params.jobId = job.id;
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ModelStep />
+      </QueryClientProvider>
+    );
+    const assembled = await screen.findByRole('button', { name: 'As modeled' }, { timeout: 60_000 });
+    expect(assembled.getAttribute('aria-pressed')).toBe('true');
+    const flat = screen.getByRole('button', { name: 'Laid flat' });
+    fireEvent.click(flat);
+    expect(flat.getAttribute('aria-pressed')).toBe('true');
+    expect(assembled.getAttribute('aria-pressed')).toBe('false');
+  }, 60_000);
+
   it('reads a STEP model in seconds once the CAD kernel is loaded', async () => {
     const bytes = new Uint8Array(await (await fetch(stepUrl)).arrayBuffer());
     const t0 = performance.now();
