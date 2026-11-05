@@ -41,6 +41,19 @@ describe('identical parts', () => {
     expect(groupIdentical([shallow, deep]).map(g => g.names)).toEqual([['shallow'], ['deep']]);
   });
 
+  it('keeps original group members when different pocket depths share the same body name', () => {
+    const shallow = pocketedBoard('Part', 5);
+    const deep = pocketedBoard('Part', 2);
+    const copy = pocketedBoard('Part', 5);
+    const groups = groupIdentical([shallow, deep, copy]);
+    expect(groups.map(g => g.names)).toEqual([['Part', 'Part'], ['Part']]);
+    expect(groups[0].members).toHaveLength(2);
+    expect(groups[0].members[0]).toBe(shallow);
+    expect(groups[0].members[1]).toBe(copy);
+    expect(groups[1].members).toHaveLength(1);
+    expect(groups[1].members[0]).toBe(deep);
+  });
+
   it('compares coordinates within tolerance across rounding boundaries', () => {
     const a = pocketedBoard('below boundary', 4.005 - 1e-5);
     const b = pocketedBoard('above boundary', 4.005 + 1e-5);

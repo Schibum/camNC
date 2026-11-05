@@ -98,6 +98,8 @@ generated, don't edit it). New cameras go through the setup wizard:
 `packages/cam` imports STEP/STL geometry, detects flat parts and generates
 board toolpaths and FluidNC G-code. Part grouping verifies geometry including
 depth; bounding boxes and vertex moments only narrow the candidates.
+Groups retain their source body references, so repeated CAD names cannot
+associate a display mesh with another machining part.
 Toolpaths carry absolute safe/retract Z values, derived from the stock top,
 configured clearance and any hold-down hardware, through program splitting
 and guided tab removal.
@@ -109,6 +111,9 @@ results must still belong to an existing job with that model identity. The
 identity check and update share a read/write transaction, so an old import
 cannot overwrite a replacement or recreate a deleted job. React Query holds
 the open job and model results; cache publication also respects newer edits.
+An import already saved by another tab refreshes the cache without another
+database write. Changed part fingerprints trigger shape matching and board
+remapping even if an importer update leaves the file revision unchanged.
 User saves carry the snapshot they edited, so the database transaction applies
 only their changes onto the current job and retains import results committed
 meanwhile. Demo jobs use an isolated in-memory equivalent.

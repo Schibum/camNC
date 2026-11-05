@@ -327,9 +327,12 @@ function moments(p: FlatPart) {
   return [Math.abs(mx / n), Math.abs(my / n), mxy / n].map(m => (Math.abs(m) < 0.05 ? 0 : m).toFixed(1));
 }
 
-/** Group bodies that are the same board (e.g. two identical shelves); mirrored boards stay separate. */
-export function groupIdentical(parts: FlatPart[]): { part: FlatPart; names: string[] }[] {
-  const groups: { part: FlatPart; names: string[] }[] = [];
+/**
+ * Group bodies that are the same board (e.g. two identical shelves); mirrored boards stay separate.
+ * `members` keeps the original parts, including the representative: body names need not be unique.
+ */
+export function groupIdentical(parts: FlatPart[]): { part: FlatPart; names: string[]; members: FlatPart[] }[] {
+  const groups: { part: FlatPart; names: string[]; members: FlatPart[] }[] = [];
   // Bounds and moments only find candidates: e.g. changing a pocket's depth changes none of their XY moments.
   const key = (p: FlatPart) => [...p.size.map(s => s.toFixed(2)), p.mesh.indices.length, ...moments(p)].join('|');
   type Geometry = { vertices: Vec3[]; boundary: Set<string> };
@@ -413,8 +416,10 @@ export function groupIdentical(parts: FlatPart[]): { part: FlatPart; names: stri
     const g = groups.find(
       g => key(g.part) === key(p) && (sameGeometry(signature(g.part), signature(p)) || sameGeometry(signature(g.part), signature(p, true)))
     );
-    if (g) g.names.push(p.name);
-    else groups.push({ part: p, names: [p.name] });
+    if (g) {
+      g.names.push(p.name);
+      g.members.push(p);
+    } else groups.push({ part: p, names: [p.name], members: [p] });
   }
   return groups;
 }

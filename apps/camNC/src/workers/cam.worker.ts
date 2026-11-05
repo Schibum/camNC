@@ -77,7 +77,7 @@ const api = {
     models.set(key, cache);
     const parts: CamPartInfo[] = groups.map((g, i) => {
       const id = `part-${i}`;
-      g.names.forEach(n => partOf.set(flat.find(f => f.name === n && !partOf.has(f))!, id));
+      g.members.forEach(part => partOf.set(part, id));
       const notFlat = g.part.slopedShare > kMaxSlopedShare;
       // 3D parts (350k triangles of knife slots take ~30s) are only analysed if milled anyway (see loaded()).
       const features = notFlat ? emptyFeatures(g.part) : extractFeatures(g.part.mesh, g.part.thickness);

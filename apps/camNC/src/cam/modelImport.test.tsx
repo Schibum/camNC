@@ -7,6 +7,7 @@ import type { ModelImport } from './camTypes';
 import { createJob, deleteJob, getJob, replaceModel, saveJob } from './jobDb';
 import { setDemoModeForTest } from '@/lib/demo/demo-mode';
 import { kDefaultPlan } from './planSettings';
+import { partPrint } from './partMatch';
 
 const imports = vi.hoisted(
   () =>
@@ -203,6 +204,75 @@ describe.each([false, true])('model import completion (demo: %s)', demo => {
     expect(saved?.name).toBe('Renamed job');
     expect(saved?.parts).toEqual(edited.parts);
     expect(saved?.plan).toEqual(edited.plan);
+    expect(client.getQueryData(camKeys.job(job.id))).toEqual(saved);
+  });
+
+  it('remaps saved parts and boards when importing splits a group at the same model revision', async () => {
+    const { job, client, result, rerender } = await begin();
+    const pocketed = (name: string, id: string, depth: number) => {
+      const part = { ...model(name).parts[0], id };
+      const region: [number, number][][] = [
+        [
+          [5, 5],
+          [15, 5],
+          [15, 15],
+          [5, 15],
+        ],
+      ];
+      return {
+        ...part,
+        shape: { ...part.shape, pockets: [{ depth, region }] },
+      };
+    };
+    const shallow = pocketed('shallow', 'part-0', 3);
+    const deep = pocketed('deep', 'part-1', 6);
+    const plain = { ...model('plain').parts[0], id: 'part-2' };
+    // The old XY-only grouping treated shallow + deep as part-0; the unrelated plain board was part-1.
+    const stored = await saveJob({
+      ...job,
+      parts: [
+        { id: 'part-0', name: 'My pocketed board', quantity: 2, milled: false },
+        { id: 'part-1', name: 'My plain board', quantity: 1, milled: false },
+      ],
+      partsFrom: { revision: 0, prints: { 'part-0': partPrint(shallow), 'part-1': partPrint(plain) } },
+      boards: [
+        {
+          id: 'board-a',
+          name: 'A',
+          thickness: 8,
+          material: 'oak',
+          size: { fit: false, w: 100, h: 80 },
+          retention: 'tabs',
+          tabs: { width: 5, height: 2, minCount: 3 },
+          items: ['part-1#0'],
+          pinned: ['part-1#0'],
+          layout: { w: 100, h: 80, at: { 'part-1#0': { x: 20, y: 10, rotated: false } } },
+          tabsAt: { 'part-1#0': [{ x: 10, y: 0 }] },
+        },
+      ],
+    });
+    act(() => {
+      client.setQueryData(camKeys.job(job.id), stored);
+      rerender({ job: stored });
+    });
+    await act(async () => imports[0].resolve({ ...model('shallow'), parts: [shallow, deep, plain] }));
+    await vi.waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const saved = await getJob(job.id);
+    expect(saved?.parts).toEqual([
+      { id: 'part-0', name: 'My pocketed board', quantity: 1, milled: false },
+      { id: 'part-1', name: 'deep', quantity: 1, milled: true },
+      { id: 'part-2', name: 'My plain board', quantity: 1, milled: false },
+    ]);
+    expect(saved?.boards?.[0]).toEqual({
+      ...stored.boards![0],
+      items: ['part-2#0'],
+      pinned: ['part-2#0'],
+      layout: { w: 100, h: 80, at: { 'part-2#0': { x: 20, y: 10, rotated: false } } },
+      tabsAt: { 'part-2#0': [{ x: 10, y: 0 }] },
+    });
+    expect(saved?.partsFrom?.revision).toBe(0);
+    expect(saved?.partsFrom?.prints).toEqual({ 'part-0': partPrint(shallow), 'part-1': partPrint(deep), 'part-2': partPrint(plain) });
+    expect(saved?.replaceWarning).toContain('deep (new)');
     expect(client.getQueryData(camKeys.job(job.id))).toEqual(saved);
   });
 

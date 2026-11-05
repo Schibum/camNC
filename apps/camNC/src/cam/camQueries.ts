@@ -99,7 +99,8 @@ export function useCamModel(job: CamJobV1 | null | undefined) {
         const revision = now.modelRevision ?? 0;
         const partsFrom = { revision, prints: Object.fromEntries(model.parts.map(p => [p.id, partPrint(p)])) };
         const from = now.partsFrom;
-        const replaced = !!from && from.revision !== revision;
+        // An importer update can split or reorder groups without replacing the stored model file.
+        const replaced = !!from && (from.revision !== revision || JSON.stringify(from.prints) !== JSON.stringify(partsFrom.prints));
         const match = replaced
           ? matchReplacedParts(
               now.parts.flatMap(p => (from.prints[p.id] ? [{ id: p.id, name: p.name, print: from.prints[p.id] }] : [])),
