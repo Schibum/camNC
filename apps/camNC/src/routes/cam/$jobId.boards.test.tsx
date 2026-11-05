@@ -1,6 +1,8 @@
 import { createJob, getJob, saveJob } from '@/cam/jobDb';
+import { useStore } from '@/store/store';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { Box2, Vector2 } from 'three';
 import type { ComponentType } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import stepUrl from '../../../../../packages/cam/test/fixtures/kinderregal-eiche.step?url';
@@ -386,6 +388,80 @@ describe('CAM boards step', () => {
     fireEvent.keyDown(hold(), { key: 'Delete' });
     await waitFor(async () => expect((await saved()).fixtures).toHaveLength(before.length - 1), { timeout: 10_000 });
   }, 90_000);
+
+  describe('Suggest holds on the back, which fills its fitted board', () => {
+    const boardB = async (id: string) => (await getJob(id))!.boards!.find(b => b.name === 'B')!;
+    const status = () => screen.getByLabelText('Board B status').textContent;
+    const noRoom = /No clamp spot has room on this layout/;
+
+    afterEach(() => useStore.setState({ machineBounds: null }));
+
+    it('grows it and says by how much, moves the holds there with the part, and Undo restores it', async () => {
+      const job = await openKinderregal();
+      fireEvent.click(drawing('B'));
+      await waitFor(async () => expect((await boardB(job.id)).layout).toBeTruthy(), { timeout: 10_000 });
+      // A screw the user put there first: a single clamp would already give the board the room for more.
+      cleanup();
+      const saved = (await getJob(job.id))!;
+      const screw = { kind: 'screw' as const, x: 200, y: 200 };
+      await saveJob({ ...saved, boards: saved.boards!.map(b => (b.name === 'B' ? { ...b, fixtures: [screw] } : b)) });
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <BoardsStep />
+        </QueryClientProvider>
+      );
+      await screen.findByRole('region', { name: 'Board B drawing' }, { timeout: 60_000 });
+      fireEvent.click(drawing('B'));
+      const before = await boardB(job.id);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Suggest holds' }));
+      await waitFor(async () => expect((await boardB(job.id)).fixtures!.length).toBeGreaterThanOrEqual(3), { timeout: 10_000 });
+      const after = await boardB(job.id);
+      const grew = (after.layout!.w - before.layout!.w) / 2;
+      expect(grew).toBeGreaterThan(0);
+      expect(after.layout!.h - before.layout!.h).toBe(2 * grew);
+      const [id] = after.items;
+      expect(after.layout!.at[id].x).toBeCloseTo(before.layout!.at[id].x + grew);
+      expect(after.layout!.at[id].y).toBeCloseTo(before.layout!.at[id].y + grew);
+      expect(after.fixtures![0]).toEqual({ kind: 'screw', x: 200 + grew, y: 200 + grew });
+      expect(status()).toContain(`the board grew ${grew} mm on each side, to ${after.layout!.w} × ${after.layout!.h}`);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+      await waitFor(async () => expect(await boardB(job.id)).toStrictEqual(before), { timeout: 10_000 });
+    }, 90_000);
+
+    it('leaves a fixed board its size', async () => {
+      const job = await openKinderregal();
+      fireEvent.click(drawing('B'));
+      await waitFor(async () => expect((await boardB(job.id)).layout).toBeTruthy(), { timeout: 10_000 });
+      const { w } = (await boardB(job.id)).layout!;
+      const input = screen.getByLabelText('Width', { selector: '[id^="board-"]' }) as HTMLInputElement;
+      fireEvent.change(input, { target: { value: String(w + 1) } });
+      fireEvent.blur(input);
+      await waitFor(async () => expect((await boardB(job.id)).size.fit).toBe(false), { timeout: 10_000 });
+      const before = await boardB(job.id);
+      fireEvent.click(screen.getByRole('button', { name: 'Suggest holds' }));
+      // One mm over the part's fit: clamps on that side only, if any, and no border for the others.
+      await waitFor(() => expect(status()).toMatch(/Suggested|No clamp spot/));
+      expect(status()).not.toContain('grew');
+      const after = await boardB(job.id);
+      expect([after.layout!.w, after.layout!.h]).toEqual([before.layout!.w, before.layout!.h]);
+    }, 90_000);
+
+    it('grows it no further than the machine', async () => {
+      const job = await openKinderregal();
+      fireEvent.click(drawing('B'));
+      await waitFor(async () => expect((await boardB(job.id)).layout).toBeTruthy(), { timeout: 10_000 });
+      const before = await boardB(job.id);
+      useStore.setState({ machineBounds: new Box2(new Vector2(0, 0), new Vector2(before.layout!.w + 2, before.layout!.h + 2)) });
+      // The store's bounds are read as the page renders: selecting the board again brings them in.
+      fireEvent.click(drawing('A'));
+      fireEvent.click(drawing('B'));
+      fireEvent.click(screen.getByRole('button', { name: 'Suggest holds' }));
+      await waitFor(() => expect(status()).toMatch(noRoom));
+      expect(await boardB(job.id)).toStrictEqual(before);
+    }, 90_000);
+  });
 
   it('keeps the stick-out with the job’s bit, not the board', async () => {
     const job = await openKinderregal();

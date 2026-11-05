@@ -262,7 +262,7 @@ function BoardsStep() {
     }
     autoFill(free, before);
   };
-  // The machine's work area, when it is set up: no board from stock comes out bigger.
+  // The machine's work area, when it is set up: no board from stock or a suggested border comes out bigger.
   const machineSize = () => {
     const b = getMachineBounds();
     return b ? { w: b.max.x - b.min.x, h: b.max.y - b.min.y } : undefined;
@@ -441,6 +441,7 @@ function BoardsStep() {
           )}
           <BoardDrawings
             nestOptions={nestOptions}
+            machine={machineSize()}
             onNote={setNote}
             onBoardEdit={(b, text) => {
               setNote(text);

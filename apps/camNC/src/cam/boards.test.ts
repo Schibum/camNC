@@ -1,4 +1,4 @@
-import type { Fixture } from '@wbcnc/cam/settle';
+import { fixtureFree, type Fixture } from '@wbcnc/cam/settle';
 import { describe, expect, it } from 'vitest';
 import {
   changesCutBoard,
@@ -21,6 +21,7 @@ import {
   nutAboveOf,
   respaceBoard,
   settleBoard,
+  settleInputOf,
   suggestFixtures,
   withLayout,
   stockTopOf,
@@ -524,6 +525,71 @@ describe('boards', () => {
       const next = suggestFixtures(board, parts, bit);
       expect(next.fixtures!.length).toBeGreaterThanOrEqual(3);
       expect(nestBoard(next, parts, bit).board).toEqual(nest.board);
+    });
+
+    describe('suggested clamps on a board with no room', () => {
+      // The back alone: it fills its fitted board, margin all round.
+      const back = () => {
+        const b = { ...newBoard([], 3, 'oak', ['back']), retention: 'skin' as const };
+        return withLayout(b, nestBoard(b, parts, bit));
+      };
+      const spot = (b: BoardV1) => b.layout!.at.back;
+
+      it('a fitted board gets a border, with the parts shifted and the XY zero at its lower left', () => {
+        const board = back();
+        const next = suggestFixtures(board, parts, bit);
+        const grew = next.layout!.w - board.layout!.w;
+        expect(grew).toBeGreaterThan(0);
+        expect(next.layout!.h - board.layout!.h).toBe(grew);
+        expect(spot(next)).toEqual({ ...spot(board), x: spot(board).x + grew / 2, y: spot(board).y + grew / 2 });
+        expect(next.fixtures!.length).toBeGreaterThanOrEqual(3);
+        // As stored, so it's what the board is from now on, also for the program.
+        const nest = nestBoard(next, parts, bit);
+        expect(nest.board).toEqual({ w: next.layout!.w, h: next.layout!.h });
+        expect(nest.placements[0]).toMatchObject({ x: spot(next).x, y: spot(next).y });
+        expect(next.size).toEqual({ fit: true });
+      });
+
+      it('a fixed board stays its size', () => {
+        const board = back();
+        const fixed = { ...board, size: { fit: false as const, w: board.layout!.w, h: board.layout!.h } };
+        const next = suggestFixtures(fixed, parts, bit);
+        expect(next.layout).toEqual(fixed.layout);
+        expect(next.fixtures).toEqual([]);
+      });
+
+      it('holds there already move with the part', () => {
+        const board = back();
+        const held = { ...board, fixtures: [clamp('right', 100), { kind: 'screw' as const, x: 200, y: 200 }] };
+        const next = suggestFixtures(held, parts, bit);
+        const d = spot(next).x - spot(board).x;
+        expect(d).toBeGreaterThan(0);
+        expect(next.fixtures!.slice(0, 2)).toEqual([clamp('right', 100 + d), { kind: 'screw', x: 200 + d, y: 200 + d }]);
+      });
+
+      it('stays inside the machine', () => {
+        const board = back();
+        const next = suggestFixtures(board, parts, bit, { machine: { w: board.layout!.w + 2, h: board.layout!.h + 2 } });
+        expect(next.layout).toEqual(board.layout);
+        expect(next.fixtures).toEqual([]);
+      });
+
+      it('Tighten layout after the border stays valid, the holds still on the board', () => {
+        const next = suggestFixtures(back(), parts, bit);
+        const again = relayoutBoard(next, parts, bit);
+        expect(again.fixtures).toEqual(next.fixtures);
+        const nest = nestBoard(again, parts, bit);
+        expect(nest.unplaced).toEqual([]);
+        const [p] = nest.placements;
+        expect(p.x).toBeGreaterThanOrEqual(nest.margin - 1e-6);
+        expect(p.y).toBeGreaterThanOrEqual(nest.margin - 1e-6);
+        expect(p.x + 400).toBeLessThanOrEqual(nest.board.w - nest.margin + 1e-6);
+        expect(p.y + 380).toBeLessThanOrEqual(nest.board.h - nest.margin + 1e-6);
+        const { input, spots } = settleInputOf(again, nest, parts, bit);
+        for (const f of again.fixtures!) expect(fixtureFree(input, spots, f)).toBe(true);
+        // Suggesting again finds it held: no second border.
+        expect(suggestFixtures(again, parts, bit).layout).toEqual(again.layout);
+      });
     });
 
     it('a wider margin moves only what it has to; back to "fit" lays it out again', () => {
