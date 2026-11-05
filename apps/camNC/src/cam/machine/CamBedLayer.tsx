@@ -327,7 +327,7 @@ export function CamBedLayer({ overlay, offset, running }: { overlay: BoardOverla
                 title="Remove it (Delete)"
                 className="flex items-center gap-1 rounded px-1.5 py-1 hover:bg-muted"
                 onClick={() => {
-                  apply?.(removeHold(holds, selected.i, holdsOn, bed.boardId));
+                  apply?.(removeHold(holds, selected.i, bed.boardId));
                   useBedEdit.getState().setSelected(null);
                 }}>
                 <Trash2 className="size-3.5" /> Remove

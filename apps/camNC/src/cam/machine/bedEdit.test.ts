@@ -43,30 +43,29 @@ describe('bed edit', () => {
     expect(placeHold(screw(0, 0), { x: 120, y: 80 }, board)).toMatchObject({ x: 120, y: 80 });
   });
 
-  it('moving, adding and removing save all of the board’s holds, on the size they were placed on', () => {
+  it('moving, adding and removing save all of the board’s fixtures', () => {
     const holds = [clamp(100, 1), clamp(500, 1)];
     const moved = moveHold(holds, 1, { x: 450, y: 20 }, board, 'A');
     expect(moved).toEqual({
       boardId: 'A',
       what: 'Clamp 2 moved',
       patch: {
-        holdPoints: [
-          { x: 100, y: 1 },
-          { x: 450, y: 1 },
+        fixtures: [
+          { kind: 'clamp', side: 'bottom', at: 100 },
+          { kind: 'clamp', side: 'bottom', at: 450 },
         ],
-        holdPointsOn: board,
       },
     });
     const added = addHold(holds, holds[0], { x: 300, y: 395 }, board, 'A');
     expect(added.what).toBe('Clamp 3 added');
-    expect(added.patch.holdPoints).toEqual([
-      { x: 100, y: 1 },
-      { x: 500, y: 1 },
-      { x: 300, y: 399 },
+    expect(added.patch.fixtures).toEqual([
+      { kind: 'clamp', side: 'bottom', at: 100 },
+      { kind: 'clamp', side: 'bottom', at: 500 },
+      { kind: 'clamp', side: 'top', at: 300 },
     ]);
-    const removed = removeHold(holds, 0, board, 'A');
-    expect(removed).toMatchObject({ what: 'Clamp 1 removed', patch: { holdPoints: [{ x: 500, y: 1 }] } });
-    expect(removeHold([screw(10, 10)], 0, board, 'A').patch.holdPoints).toEqual([]);
+    const removed = removeHold(holds, 0, 'A');
+    expect(removed).toMatchObject({ what: 'Clamp 1 removed', patch: { fixtures: [{ kind: 'clamp', side: 'bottom', at: 500 }] } });
+    expect(removeHold([screw(10, 10)], 0, 'A').patch.fixtures).toEqual([]);
   });
 
   it('counts a spot just past the edge as on the board, for a clamp gripping it', () => {
@@ -108,7 +107,7 @@ describe('bed edit', () => {
 describe('the whole bed', () => {
   const part = (id: string, w: number, h: number): PartInstance => ({ id, partId: id, name: id, size: [w, h, 18], thickness: 18 });
   const instances = [part('p1', 100, 100), part('p2', 100, 100)];
-  const fitBoard = (): BoardV1 => ({ ...newBoard([], 18, 'oak', ['p1', 'p2']), boardHold: 'tape' });
+  const fitBoard = (): BoardV1 => newBoard([], 18, 'oak', ['p1', 'p2']);
 
   it('turning snaps onto quarter turns and keeps the spot', () => {
     expect(snapAngle(1.2)).toBe(0);
@@ -130,8 +129,8 @@ describe('the whole bed', () => {
     // Somewhere the other part isn't.
     const edit = movePart(b, nest, instances, 6, 'p1', free)!;
     if (edit.exact) {
-      expect(edit.patch.positions!.p1).toEqual(free);
-      expect(edit.patch.positions!.p2).toEqual({ x: other.x, y: other.y, rotated: other.rotated });
+      expect(edit.patch.layout!.at.p1).toEqual(free);
+      expect(edit.patch.layout!.at.p2).toEqual({ x: other.x, y: other.y, rotated: other.rotated });
     }
     expect(edit.patch.size).toEqual({ fit: false, w: nest.board.w, h: nest.board.h });
     const after = nestBoard({ ...b, ...edit.patch }, instances, 6);

@@ -32,7 +32,7 @@ describe('programs for boards lying askew', () => {
   }, 120_000);
 
   it('pass the checks when turned: side A and the guided programs, each against the turned rectangle', async () => {
-    const straight = request(shelf, b => ({ ...b, holdDown: 'tabs-guided' }));
+    const straight = request(shelf, b => ({ ...b, guidedTabs: true }));
     const turned = await camWorker().generateBoard('worker-shelf', { ...straight, rotationDeg: 10 }, settings);
     expect(turned.safety).toEqual([]);
     expect(turned.release?.length).toBeGreaterThan(0);
@@ -44,7 +44,7 @@ describe('programs for boards lying askew', () => {
   }, 120_000);
 
   it('side B lies at its own angle when corrected, and what runs turned over goes with it; side A stays', async () => {
-    const straight = request(box, b => ({ ...b, flip: 'camera', holdDown: 'tabs-guided' }) as BoardV1);
+    const straight = request(box, b => ({ ...b, flip: 'camera', guidedTabs: true }) as BoardV1);
     const asA = await camWorker().generateBoard('worker-box', { ...straight, rotationDeg: 1 }, settings);
     expect(asA.sideB).toBeTruthy();
     const corrected = await camWorker().generateBoard('worker-box', { ...straight, rotationDeg: 1, sideBRotationDeg: 3 }, settings);

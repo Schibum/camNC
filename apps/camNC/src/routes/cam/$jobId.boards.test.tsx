@@ -41,9 +41,12 @@ const drawing = (board: string) => screen.getByRole('region', { name: `Board ${b
 /** Pointer drag of a part (its outline, or its chip where it doesn't fit) to the middle of another board's drawing. */
 function drag(part: Element, board: string) {
   const start = part.getBoundingClientRect();
-  const frame = drawing(board).querySelector('svg')!.getBoundingClientRect();
-  const to = { clientX: frame.x + frame.width / 2, clientY: frame.y + frame.height / 2 };
   fireEvent.pointerDown(part, { clientX: start.x + 3, clientY: start.y + 3, button: 0 });
+  // Once it's moving: its board selected, and the "New board" target showing, things have moved.
+  fireEvent.pointerMove(window, { clientX: start.x + 13, clientY: start.y + 13 });
+  drawing(board).scrollIntoView({ block: 'center' });
+  const frame = drawing(board).querySelector('[data-board-frame]')!.closest('svg')!.getBoundingClientRect();
+  const to = { clientX: frame.x + frame.width / 2, clientY: frame.y + frame.height / 2 };
   fireEvent.pointerMove(window, to);
   fireEvent.pointerUp(window, to);
 }
@@ -162,9 +165,11 @@ describe('CAM boards step', () => {
     // The left side onto board C (pointer events, so touch works too).
     const left = partIn('A', 'left');
     const start = left.getBoundingClientRect();
-    const frame = drawing('C').querySelector('svg')!.getBoundingClientRect();
-    const to = { clientX: frame.x + frame.width / 2, clientY: frame.y + frame.height / 2 };
     fireEvent.pointerDown(left, { clientX: start.x + 5, clientY: start.y + 5, button: 0 });
+    fireEvent.pointerMove(window, { clientX: start.x + 15, clientY: start.y + 15 });
+    drawing('C').scrollIntoView({ block: 'center' });
+    const frame = drawing('C').querySelector('[data-board-frame]')!.closest('svg')!.getBoundingClientRect();
+    const to = { clientX: frame.x + frame.width / 2, clientY: frame.y + frame.height / 2 };
     fireEvent.pointerMove(window, to);
     // While dragging, the board under the pointer says where it lands; the 3 mm board doesn't take it.
     expect(within(drawing('C')).getByText(/^(Lands where you drop it|Snaps into the nest)$/)).toBeTruthy();
@@ -182,11 +187,13 @@ describe('CAM boards step', () => {
       ]);
     });
 
-    // Screwed or clamped down by default: the holds are drawn on the board; taped down there are none.
+    // No fixtures until they are placed: Suggest holds places some, Undo takes them back.
     fireEvent.click(drawing('A'));
     const holdsOnA = () => screen.getByRole('region', { name: 'Board A drawing' }).querySelectorAll('[data-hold]').length;
-    expect(holdsOnA()).toBeGreaterThanOrEqual(3);
-    fireEvent.click(screen.getByLabelText('Tape or fixture'));
+    expect(holdsOnA()).toBe(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Suggest holds' }));
+    await waitFor(() => expect(holdsOnA()).toBeGreaterThanOrEqual(3));
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
     await waitFor(() => expect(holdsOnA()).toBe(0));
   }, 90_000);
 
@@ -236,7 +243,7 @@ describe('CAM boards step', () => {
         const onC = boards.find(b => b.name === 'C')!;
         expect(onC.items).toHaveLength(1);
         expect(onC.pinned).toEqual(onC.items);
-        const at = onC.positions![onC.items[0]];
+        const at = onC.layout!.at[onC.items[0]];
         expect(Math.abs(at.x - 300)).toBeLessThan(5);
         expect(Math.abs(at.y - 300)).toBeLessThan(5);
         expect(at.rotated).toBe(false);
@@ -254,9 +261,9 @@ describe('CAM boards step', () => {
     fireEvent.keyDown(partIn('C', 'left'), { key: 'ArrowRight', shiftKey: true });
     await waitFor(
       async () => {
-        const at = (await getJob(job.id))!.boards!.find(b => b.name === 'C')!.positions![id];
-        expect(at.x).toBeCloseTo(before.positions![id].x + 10, 5);
-        expect(at.y).toBeCloseTo(before.positions![id].y, 5);
+        const at = (await getJob(job.id))!.boards!.find(b => b.name === 'C')!.layout!.at[id];
+        expect(at.x).toBeCloseTo(before.layout!.at[id].x + 10, 5);
+        expect(at.y).toBeCloseTo(before.layout!.at[id].y, 5);
       },
       { timeout: 10_000 }
     );
@@ -322,6 +329,64 @@ describe('CAM boards step', () => {
     await waitFor(async () => expect((await saved()).tabsAt).toBeUndefined());
   }, 150_000);
 
+  it('places a clamp with the tool: a click on its own preview counts, parts make room, and the status says so', async () => {
+    const job = await openKinderregal();
+    fireEvent.click(drawing('A'));
+    fireEvent.click(screen.getByRole('button', { name: 'Clamp' }));
+    const svg = drawing('A').querySelector('[data-board-frame]')!.closest('svg')!;
+    // The left edge beside the upper stack: the pointer stays right on the preview under it.
+    const at = clientOf('A', 1, 380);
+    fireEvent.pointerMove(svg, at);
+    const preview = await waitFor(() => {
+      const g = drawing('A').querySelector('[data-hold-preview="clamp"]');
+      expect(g).toBeTruthy();
+      return g!;
+    });
+    // A preview doesn't take the pointer: what's under it gets the click.
+    expect(getComputedStyle(preview).pointerEvents).toBe('none');
+    expect(screen.getByLabelText('Board A status').textContent).toMatch(
+      /Part 1a, Part 1b, Part 2 move \d+ mm right\. Board size unchanged\./
+    );
+    fireEvent.click(svg, clientOf('A', 1, 380));
+    await waitFor(
+      async () => {
+        const a = (await getJob(job.id))!.boards!.find(b => b.name === 'A')!;
+        expect(a.fixtures).toEqual([{ kind: 'clamp', side: 'left', at: expect.closeTo(380, -1) }]);
+        expect(a.layout!.w).toBe(574);
+        expect(a.layout!.h).toBe(750);
+      },
+      { timeout: 10_000 }
+    );
+    expect(screen.getByLabelText('Board A status').textContent).toMatch(/1 clamp: the board can still turn/);
+    // Placed: now a real fixture, with its hand cursor; the tool steps aside over it.
+    fireEvent.pointerMove(svg, at);
+    expect(drawing('A').querySelector('[data-hold="clamp"]')).toBeTruthy();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.getByRole('button', { name: 'Clamp' }).getAttribute('aria-pressed')).toBe('false');
+  }, 90_000);
+
+  it('drags a placed clamp: it stays a fixture all the way, lands where dropped, and parts make room', async () => {
+    const job = await openKinderregal();
+    fireEvent.click(drawing('A'));
+    fireEvent.click(screen.getByRole('button', { name: 'Suggest holds' }));
+    const saved = async () => (await getJob(job.id))!.boards!.find(b => b.name === 'A')!;
+    await waitFor(async () => expect((await saved()).fixtures?.length).toBeGreaterThanOrEqual(3), { timeout: 10_000 });
+    const before = (await saved()).fixtures!;
+    const i = before.findIndex(f => f.kind === 'clamp' && f.side === 'right');
+    const f = before[i] as { at: number };
+    const hold = () => drawing('A').querySelectorAll('[data-hold]')[i];
+    fireEvent.pointerDown(hold(), { ...clientOf('A', 574, f.at), button: 0, pointerId: 1 });
+    for (const dy of [10, 20, 30]) fireEvent.pointerMove(hold(), { ...clientOf('A', 574, f.at + dy), pointerId: 1 });
+    // Mid-drag it's still the real one, not a preview: the pointer stays with it.
+    expect(drawing('A').querySelector('[data-hold-preview]')).toBeNull();
+    fireEvent.pointerUp(hold(), { ...clientOf('A', 574, f.at + 30), pointerId: 1 });
+    await waitFor(async () => expect(((await saved()).fixtures![i] as { at: number }).at).toBeCloseTo(f.at + 30, -1), { timeout: 10_000 });
+    expect(((await saved()).fixtures![i] as { at: number }).at).not.toBe(f.at);
+    // Delete removes it, and the parts stay.
+    fireEvent.keyDown(hold(), { key: 'Delete' });
+    await waitFor(async () => expect((await saved()).fixtures).toHaveLength(before.length - 1), { timeout: 10_000 });
+  }, 90_000);
+
   it('keeps the stick-out with the job’s bit, not the board', async () => {
     const job = await openKinderregal();
     fireEvent.click(drawing('A'));
@@ -332,7 +397,6 @@ describe('CAM boards step', () => {
     await waitFor(async () => {
       const saved = (await getJob(job.id))!;
       expect(saved.plan?.bit.stickout).toBe(42);
-      expect(saved.boards!.every(b => b.holds?.stickout === undefined)).toBe(true);
     });
     // Every board of the job shows it.
     fireEvent.click(drawing('B'));
@@ -383,7 +447,7 @@ describe('CAM boards step', () => {
 
     // One board: select C's drawing, re-lay it out from its inspector.
     fireEvent.click(await screen.findByRole('region', { name: 'Board C drawing' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Re-lay out' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Tighten layout' }));
     await waitFor(async () => expect(await pinnedBoards()).toEqual([]), { timeout: 10_000 });
     expect(toastSuccess.mock.calls.at(-1)![0]).toBe('Board C laid out again');
     // Part 2 is still on board C.
@@ -431,15 +495,14 @@ describe('CAM boards step', () => {
     await waitFor(async () => expect((await getJob(job.id))!.plan?.bit).toMatchObject({ diameter: 6, name: '6 mm upcut' }), {
       timeout: 10_000,
     });
-    // The margin leaves a frame for the screws (10 + 2, clearance 1.5, the cut 6, 1 more); the gap follows the bit,
-    // with room for a strip that holds the tabs: 2 × 6 + 3.5.
-    await waitFor(() => expect(screen.getByText(/edge margin 21 mm · gap 16 mm/)).toBeTruthy(), { timeout: 10_000 });
+    // Margin and gap follow the bit, with room for a strip that holds the tabs: 6 + 3.5 and 2 × 6 + 3.5.
+    await waitFor(() => expect(screen.getByText(/edge margin 9.5 mm · gap 16 mm/)).toBeTruthy(), { timeout: 10_000 });
   }, 90_000);
 
   it('labels the stock fields, takes comma decimals, says what is wrong, and shows no size for an empty board', async () => {
     const job = await openKinderregal();
     // Fitted boards are whole mm.
-    expect(within(drawing('A')).getByText('596 × 773')).toBeTruthy();
+    expect(within(drawing('A')).getByText('574 × 750')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /New 8 mm board/ }));
     const c = await screen.findByRole('region', { name: 'Board C drawing' });
     expect(within(c).getByText('–')).toBeTruthy();

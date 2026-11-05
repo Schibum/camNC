@@ -211,7 +211,7 @@ describe('CAM plan step', () => {
   it('names parts that don\u2019t fit their board and blocks the job until they fit or are left out', async () => {
     const bytes = await (await fetch(stepUrl)).arrayBuffer();
     const job = await createJob(new File([bytes], 'kinderregal-eiche.step'));
-    // Board A as a 640 x 340 stock board: room for two of its five 8 mm bodies, and a frame for the screws holding it.
+    // Board A as a 640 x 340 stock board: room for two of its five 8 mm bodies.
     const copy = new Uint8Array(bytes.slice(0));
     const model = await camWorker().importModel(Comlink.transfer(copy, [copy.buffer]), job.fileName, modelKey(job));
     const boards = reconcileBoards(
@@ -275,18 +275,16 @@ describe('CAM plan step', () => {
     ).map(b => ({
       ...b,
       margin: 4,
-      frame: false,
       size: { fit: false as const, w: 444, h: 424 },
-      positions: { [b.items[0]]: { x: 4, y: 4, rotated: false } },
-      holdPoints: [
-        { x: 430, y: 8 },
-        { x: 430, y: 414 },
-        { x: 8, y: 414 },
+      layout: { w: 444, h: 424, at: { [b.items[0]]: { x: 4, y: 4, rotated: false } } },
+      fixtures: [
+        { kind: 'screw' as const, x: 430, y: 8 },
+        { kind: 'screw' as const, x: 430, y: 414 },
+        { kind: 'screw' as const, x: 8, y: 414 },
       ],
-      holdPointsOn: { w: 444, h: 424 },
     }));
     params.jobId = job.id;
-    // Nothing chosen for it: not switched to a skin behind your back. The job is blocked and says what to do.
+    // Not switched to a skin behind your back: the job is blocked and says what to do.
     await saveJob({ ...job, parts, boards });
     const first = render(
       <QueryClientProvider client={new QueryClient()}>
@@ -298,8 +296,8 @@ describe('CAM plan step', () => {
     ).toBeTruthy();
     expect(screen.getByRole('button', { name: /Take the job to the machine/ })).toHaveProperty('disabled', true);
     first.unmount();
-    // A bottom skin for it, chosen on the Boards step.
-    await saveJob({ ...job, parts, boards: boards.map(b => ({ ...b, tabFallbacks: { [b.items[0]]: 'skin' as const } })) });
+    // The board on a bottom skin, chosen on the Boards step.
+    await saveJob({ ...job, parts, boards: boards.map(b => ({ ...b, retention: 'skin' as const })) });
     // Last time this viewer left the Plan step on its settings: it opens there again.
     localStorage.setItem('camnc-plan-layout', JSON.stringify({ state: { tab: 'settings', opsView: 'list' }, version: 0 }));
     await usePlanLayout.persist.rehydrate();
@@ -313,7 +311,9 @@ describe('CAM plan step', () => {
     // Arrow keys move between the tabs.
     fireEvent.keyDown(sidebarTab('Settings'), { key: 'ArrowRight' });
     expect(sidebarTab('Operations').getAttribute('aria-selected')).toBe('true');
-    expect((await screen.findByText(/1 mm bottom skin/, {}, { timeout: 60_000 })).textContent).toMatch(/^back: .*Cut the parts free/);
+    expect((await screen.findByText(/1 mm bottom skin/, {}, { timeout: 60_000 })).textContent).toMatch(
+      /^Every part keeps .*Cut the parts free/
+    );
     // Held by the skin: nothing comes loose, nothing blocks.
     expect(screen.queryByText(/tabs would hold it/)).toBeNull();
     await waitFor(() => expect(screen.getByRole('button', { name: /Take the job to the machine/ })).toHaveProperty('disabled', false), {

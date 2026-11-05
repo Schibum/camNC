@@ -1,10 +1,10 @@
 import { readGcode } from './analyze';
 import { openPocketRegion, type PartFeatures } from './features';
 import { dowelOperations, partRect, type DowelSpec } from './flip';
-import { boardToPart, kDefaultSkin, planTabs, type PartHolding, type TabFallback } from './tabPlan';
+import { boardToPart, kDefaultSkin, planTabs, type PartHolding } from './tabPlan';
 import type { Vec3 } from './geom';
 import type { BottomLayer, HoldOptions } from './hold';
-import { holdClashes, holdHeight, type HoldPoint } from './holdPoints';
+import { holdBox, holdClashes, holdHeight, type HoldPoint } from './holdPoints';
 import {
   camPart,
   DEFAULT_SETTINGS,
@@ -17,13 +17,13 @@ import {
 } from './toolpaths';
 
 /**
- * How the parts are held while cutting. `tabs` / `tabs-guided`: tabs into held stock (removed by hand, or by a guided
- * program). `skin`: every outline stops a skin above the board's bottom, and the parts are cut free one at a time at
- * the machine. `fixture-tape`: the board is taped down (or in a fixture); every outline stops a thin layer above the
- * bottom, cut for all parts together at the very end. `none`: nothing holds them once cut (`clamps`: the same, from
- * before hold points). How the board itself is held: `BoardSpec.holdPoints` (screws or clamps), or tape.
+ * How the parts are held while cutting. `tabs` / `tabs-guided`: tabs into stock that reaches the board's edge (removed
+ * by hand, or by a guided program). `skin`: every outline stops a skin above the board's bottom, and the parts are cut
+ * free one at a time at the machine. `fixture-tape`: a skin on a taped board: every outline stops a thin layer above the
+ * bottom, cut for all parts together at the very end. `none`: nothing holds them once cut. How the board itself is held:
+ * `BoardSpec.holdPoints` (screws or clamps), `BoardSpec.taped`, or by hand.
  */
-export type HoldDown = 'fixture-tape' | 'tabs' | 'tabs-guided' | 'skin' | 'none' | 'clamps';
+export type HoldDown = 'fixture-tape' | 'tabs' | 'tabs-guided' | 'skin' | 'none';
 
 /** Layer left on the tape under every outline until the end, mm. */
 export const kTapeLayer = 0.5;
@@ -42,8 +42,6 @@ export interface BoardPart {
   underside?: PartFeatures;
   /** Part size laid flat (before turning). */
   size: Vec3;
-  /** Where its tabs can't hold: this instead of the board's fallback. */
-  tabFallback?: TabFallback;
   /**
    * Tabs the user placed, part frame (as laid flat, before turning), mm: used instead of picked ones, each moved onto
    * the bit's path round the outline.
@@ -73,29 +71,32 @@ export interface BoardSpec {
   parts: BoardPart[];
   /** A flip on dowel pins: side A drills the pin holes (board and spoilboard) before anything else. */
   dowels?: DowelSpec;
-  /** With tabs: parts without spots for tabs that hold get this, unless they have their own. Default: a bottom skin. */
-  tabFallback?: TabFallback;
+  /** Tape under the board: all of it stays put, whatever the hold points. */
+  taped?: boolean;
   /**
-   * Bottom skin thickness, mm (default 1): for the `skin` hold-down, and parts whose tabs can't hold. The layer left on
-   * the tape for `fixture-tape` (default `kTapeLayer`).
+   * Bottom skin thickness, mm (default 1): for the `skin` hold-down. The layer left on the tape for `fixture-tape`
+   * (default `kTapeLayer`).
    */
   skin?: number;
   /**
-   * Where the board is screwed or clamped down. Empty: it should be, but nothing does: it isn't held. Not given: held at
-   * its edges (a fence, a fixture), or taped (`fixture-tape`).
+   * Where the board is screwed or clamped down. Empty: nothing fastens it, the user holds it down. Not given: held at
+   * its edges (a fence, a fixture).
    */
   holdPoints?: HoldPoint[];
 }
 
 /** What holds the stock, for the hold checks: the hold points (none: nothing), the tape, or (neither) the board's edge. */
 export function holdOptionsOf(
-  board: Pick<BoardSpec, 'holdDown' | 'holdPoints'> & Partial<Pick<BoardSpec, 'parts' | 'h' | 'stockTop'>>,
+  board: Pick<BoardSpec, 'holdDown' | 'holdPoints'> & Partial<Pick<BoardSpec, 'parts' | 'h' | 'stockTop' | 'taped'>>,
   settings: Partial<CamSettings> = {}
 ): HoldOptions {
-  if (board.holdDown === 'fixture-tape') return { taped: true };
   const layer =
     board.parts && board.h !== undefined ? bottomLayer({ parts: board.parts, h: board.h, stockTop: board.stockTop }, settings) : undefined;
-  return { ...(board.holdPoints && { points: board.holdPoints.map(p => ({ x: p.x, y: p.y })) }), ...(layer && { layer }) };
+  return {
+    ...(board.holdPoints && { points: board.holdPoints.map(p => ({ x: p.x, y: p.y })) }),
+    ...(layer && { layer }),
+    ...((board.taped || board.holdDown === 'fixture-tape') && { taped: true }),
+  };
 }
 
 /**
@@ -221,6 +222,32 @@ export function jobHoldClashes(
   );
 }
 
+/**
+ * Holds sitting on a part, inside its outline: no cut comes near one in the middle of a part, so `jobHoldClashes` can't
+ * see it, but it goes through the finished part.
+ */
+export function holdsOnParts(board: Pick<BoardSpec, 'parts' | 'holdPoints'>): HoldPoint[] {
+  return (board.holdPoints ?? []).filter(h => {
+    const b = holdBox(h);
+    const pts = [
+      { x: h.x, y: h.y },
+      { x: b.x, y: b.y },
+      { x: b.x + b.w, y: b.y },
+      { x: b.x, y: b.y + b.h },
+      { x: b.x + b.w, y: b.y + b.h },
+    ];
+    return board.parts.some(part =>
+      part.features.outlines.some(loop => {
+        const onBoard = loop.map(q => {
+          const [x, y] = partToBoard(part, [q.x, q.y, 0]);
+          return { x, y };
+        });
+        return pts.some(p => insideLoops(p, [onBoard]));
+      })
+    );
+  });
+}
+
 /** Tabs for hold-downs that use them. */
 export const usesTabs = (holdDown: HoldDown) => holdDown === 'tabs' || holdDown === 'tabs-guided';
 
@@ -252,7 +279,7 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
   const turn = rotateAboutOrigin(board.rotationDeg ?? 0);
   const warnings: string[] = [];
   const ops: { op: Operation; part: BoardPart; index: number }[] = [];
-  // Tabs only where they hold; the other parts get their fallback (a bottom skin by default).
+  // Tabs only where they hold; the others are cut without, and the job is blocked until that's dealt with.
   const holding = tabs
     ? planTabs(board, settings)
     : releasesAtEnd(board.holdDown)
@@ -266,7 +293,7 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
         ? { tabs: { ...tabs, centers: h.tabs.map(q => boardToPart(part, q)) } }
         : h?.how === 'skin'
           ? { tabs: false, outlineFloor: layer }
-          : h?.how === 'self' || h?.how === 'unheld'
+          : h?.how === 'unheld'
             ? { tabs: false }
             : {};
     const cam = camPart(part.features, { ...settings, tabs, stockTop, ...own });

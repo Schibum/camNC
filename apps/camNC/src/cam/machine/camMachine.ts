@@ -4,7 +4,8 @@ import { combine, createJSONStorage, persist, type StateStorage } from 'zustand/
 import type { TabStop } from '@wbcnc/cam';
 import type { HoldPoint } from '@wbcnc/cam/holdPoints';
 import { boardBlock, type BlockContext } from '../boardBlock';
-import { holdsOf, type BoardCut } from '../boards';
+import type { BoardCut } from '../boards';
+import { useHoldHardware } from '../holdHardware';
 import type { PlanResult, ReleaseProgram } from '../camTypes';
 import type { JobBoard } from '../useJobBoards';
 import type { GhostPart, ShowInTopView } from './partGhost';
@@ -375,11 +376,12 @@ export function entryHolds(
   const base = { boardId: e.board.board.id, side };
   const holds = e.board.request?.holdPoints;
   if (side === 'b' || !holds) return base;
-  const like = holdsOf(e.board.board);
+  // A hold added here is like the others, or a clamp.
+  const { clamp } = useHoldHardware.getState().hardware;
   return {
     ...base,
     holds,
-    holdLike: { kind: like.kind, d: like.d, w: like.w, height: like.height },
+    holdLike: holds.at(-1) ?? { kind: 'clamp', d: clamp.d, w: clamp.w, height: clamp.height },
     holdsOn: { w: e.board.nest.board.w, h: e.board.nest.board.h },
     ...(e.plan && {
       holdClash: e.plan.holdClash,

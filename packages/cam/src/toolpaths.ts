@@ -134,7 +134,7 @@ export interface PartCam {
   stockTop: number;
   operations: Operation[];
   warnings: string[];
-  /** Boards with tabs: how each part is held (tabs where they hold, or its fallback). */
+  /** Boards with tabs or a skin: how each part is held (tabs where they hold, a skin, or nothing). */
   holding?: PartHolding[];
   /** Boards with hold points: absolute Z of moves between operations, above the tallest hold (`toGcode`'s default otherwise). */
   safeZ?: number;

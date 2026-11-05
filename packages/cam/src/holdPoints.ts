@@ -1,7 +1,6 @@
 /**
- * Hold points: where the board is screwed or clamped to the bed. The app suggests them after nesting (in the waste,
- * clear of every cut), the user can move them, and the hold checks count a piece of stock as held when enough of them
- * are on it.
+ * Hold points: where the board is screwed or clamped to the bed. The user places them (see `settle`), and the hold
+ * checks count a piece of stock as held when enough of them are on it.
  */
 
 type P2 = { x: number; y: number };
@@ -42,8 +41,6 @@ export const kDefaultStickout = 20;
 export const kHoldDefaults: Record<HoldKind, number> = { screw: 10, clamp: 3 };
 /** A clamp toe's starting width along the edge, mm: the M6 edge clamp's lip. */
 export const kClampWidth = 24;
-/** Holds along an edge at most this far apart, mm. */
-export const kHoldSpacing = 250;
 /** No hold this close to the lower left corner, mm: the XY zero, where the probe or the camera finds the corner. */
 export const kZeroClear = 40;
 /** The bit's cut stays this far from a hold's footprint, mm. */
@@ -73,13 +70,6 @@ export const nutReaches = (h: Pick<HoldPoint, 'kind' | 'height' | 'nutAbove'>) =
 /** How close the path of a bit of radius `r` may come to the hold's footprint: its edge, or the collet nut beside a tall hold. */
 export const pathClearance = (h: Pick<HoldPoint, 'kind' | 'height' | 'nutAbove'>, r: number) =>
   Math.max(r + kHoldClearance, nutReaches(h) ? kColletClearance : 0);
-
-/**
- * Edge margin that leaves a frame of stock for holds around the parts: the hold, a little stock on its outer side, the
- * clearance and the outline cut (`bit`).
- */
-export const frameMargin = (d: number, bit: number, kind: HoldKind = 'screw', height?: number, nutAbove?: number) =>
-  Math.ceil(d + (kind === 'clamp' ? 0 : 2) + pathClearance({ kind, height, nutAbove }, bit / 2) + bit / 2 + 1);
 
 /** The edge nearest to p, as the direction into the board: where a clamp there grips. */
 export function edgeDir(p: P2, board: { w: number; h: number }): P2 {
@@ -115,101 +105,8 @@ export function holdDist(h: HoldPoint, p: P2): number {
   return Math.max(0, Math.hypot(p.x - h.x, p.y - h.y) - h.d / 2);
 }
 
-const rectGap = (a: Rect, b: Rect) =>
-  Math.hypot(Math.max(0, b.x - a.x - a.w, a.x - b.x - b.w), Math.max(0, b.y - a.y - a.h, a.y - b.y - b.h));
-
 /** Distance from a point to a rectangle (0 inside). */
 const toRect = (p: P2, r: Rect) => Math.hypot(Math.max(r.x - p.x, 0, p.x - r.x - r.w), Math.max(r.y - p.y, 0, p.y - r.y - r.h));
-
-/**
- * Suggested hold spots for a board: the corners (the lower left one moved off the XY zero) and along every edge at
- * most `spacing` apart, each moved along
- * the edge (and a little inwards) to the nearest spot clear of the parts (`parts`: their rectangles; the outline cut
- * `bit` wide runs outside them). Spots with no room nearby are left out: the hold check then says which stock lacks
- * holds.
- */
-export function suggestHoldPoints(
-  board: { w: number; h: number },
-  parts: Rect[],
-  opts: { kind?: HoldKind; d?: number; w?: number; height?: number; nutAbove?: number; bit: number; spacing?: number }
-): HoldPoint[] {
-  const kind = opts.kind ?? 'screw';
-  const d = opts.d ?? kHoldDefaults[kind];
-  const clamp = kind === 'clamp';
-  const w = clamp ? (opts.w ?? kClampWidth) : d;
-  const spacing = opts.spacing ?? kHoldSpacing;
-  const keep = pathClearance({ kind, height: opts.height, nutAbove: opts.nutAbove }, opts.bit / 2) + opts.bit / 2;
-  const hold = (p: P2, dir: P2): HoldPoint => ({
-    x: p.x,
-    y: p.y,
-    kind,
-    d,
-    ...(clamp && { w, dir }),
-    ...(opts.height !== undefined && { height: opts.height }),
-    ...(opts.nutAbove !== undefined && { nutAbove: opts.nutAbove }),
-  });
-  // A clamp grips at the edge, its toe reaching d in; a screw needs a little stock around it.
-  const deep0 = d / 2 + (clamp ? 0 : 2);
-  const side = clamp ? w / 2 : deep0;
-  const free = (h: HoldPoint) => {
-    const box = holdBox(h);
-    return (
-      box.x >= -1e-6 &&
-      box.y >= -1e-6 &&
-      box.x + box.w <= board.w + 1e-6 &&
-      box.y + box.h <= board.h + 1e-6 &&
-      Math.hypot(h.x, h.y) >= kZeroClear + Math.max(w, d) / 2 &&
-      parts.every(r => (clamp ? rectGap(box, r) : toRect(h, r) - d / 2) >= keep)
-    );
-  };
-  const out: HoldPoint[] = [];
-  // Each edge: its line deep0 in, from `side` past its start to `side` before its end.
-  const edges: { a: P2; b: P2; n: P2 }[] = [
-    { a: { x: side, y: deep0 }, b: { x: board.w - side, y: deep0 }, n: { x: 0, y: 1 } },
-    { a: { x: board.w - deep0, y: side }, b: { x: board.w - deep0, y: board.h - side }, n: { x: -1, y: 0 } },
-    { a: { x: board.w - side, y: board.h - deep0 }, b: { x: side, y: board.h - deep0 }, n: { x: 0, y: -1 } },
-    { a: { x: deep0, y: board.h - side }, b: { x: deep0, y: side }, n: { x: 1, y: 0 } },
-  ];
-  for (const { a, b, n } of edges) {
-    const len = Math.hypot(b.x - a.x, b.y - a.y);
-    if (len < 1e-6) continue;
-    const dir = { x: (b.x - a.x) / len, y: (b.y - a.y) / len };
-    const segs = Math.max(1, Math.ceil(len / spacing));
-    // Each edge's own start corner and the spots along it; its end corner is the next edge's start.
-    for (let k = 0; k < segs; k++) {
-      const t = (k / segs) * len;
-      const reach = Math.min(spacing / 3, len / segs / 2);
-      // Nearest first: the first spot that is free is the one.
-      let best: HoldPoint | undefined;
-      // A clamp stays at the edge; a screw may move in a little.
-      for (const [along, deep] of offsets(reach, clamp ? 0 : Math.min(30, spacing / 5))) {
-        const at = Math.min(len, Math.max(0, t + along));
-        const h = hold({ x: +(a.x + dir.x * at + n.x * deep).toFixed(1), y: +(a.y + dir.y * at + n.y * deep).toFixed(1) }, n);
-        if (free(h)) {
-          best = h;
-          break;
-        }
-      }
-      if (best && out.every(q => Math.hypot(q.x - best.x, q.y - best.y) >= Math.max(w + 4, spacing / 4))) out.push(best);
-    }
-  }
-  return out;
-}
-
-/** Moves along an edge and inwards, cheapest first (inwards counts double). */
-function offsets(reach: number, depth: number): [number, number][] {
-  const key = `${reach}:${depth}`;
-  const known = kOffsets.get(key);
-  if (known) return known;
-  const out: [number, number][] = [];
-  for (let along = -reach; along <= reach + 1e-9; along += 2.5)
-    for (let deep = 0; deep <= depth + 1e-9; deep += 2.5) out.push([along, deep]);
-  out.sort((p, q) => Math.abs(p[0]) + 2 * p[1] - (Math.abs(q[0]) + 2 * q[1]));
-  if (kOffsets.size > 64) kOffsets.clear();
-  kOffsets.set(key, out);
-  return out;
-}
-const kOffsets = new Map<string, [number, number][]>();
 
 /**
  * Is a piece of stock (the hold points on it, its centre and its outline) held? At least 3 holds, not in a line, with

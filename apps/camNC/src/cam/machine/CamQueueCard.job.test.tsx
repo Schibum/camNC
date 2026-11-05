@@ -88,7 +88,10 @@ describe('the machine queue with a real plan', () => {
 
   it('a hold moved in the top view: saved with the job, planned again, still loadable; Undo brings it back', async () => {
     // Board A was placed on the bed before: its program goes there again.
-    const { job } = await takeJob(boards => boards.map(b => (b.name === 'A' ? { ...b, bed: { a: { x: 212, y: 98 } } } : b)));
+    const placed = [{ kind: 'clamp' as const, side: 'left' as const, at: 100 }];
+    const { job } = await takeJob(boards =>
+      boards.map(b => (b.name === 'A' ? { ...b, margin: 30, fixtures: placed, bed: { a: { x: 212, y: 98 } } } : b))
+    );
     fireEvent.click(await entry(/Board A/));
     await waitFor(() => expect(useCamMachine.getState().overlay?.holds?.length).toBeGreaterThan(0), { timeout: 60_000 });
     const offset = useStore.getState().toolpathOffset;
@@ -97,21 +100,24 @@ describe('the machine queue with a real plan', () => {
     const before = useStore.getState().toolpath?.gcode;
     const o = useCamMachine.getState().overlay!;
     const h = o.holds![0];
-    // Along its edge, a little way: still in the frame of stock around the parts.
-    const to = { x: h.x + (h.x < o.holdsOn!.w / 2 ? 10 : -10), y: h.y };
+    // Along its edge, a little way.
+    const to = h.dir!.x
+      ? { x: h.x, y: h.y + (h.y < o.holdsOn!.h / 2 ? 10 : -10) }
+      : { x: h.x + (h.x < o.holdsOn!.w / 2 ? 10 : -10), y: h.y };
+    const along = h.dir!.x ? to.y : to.x;
     useBedEdit.getState().apply!(moveHold(o.holds!, 0, to, o.holdsOn!, o.boardId!));
     // Fitted to its parts until now: at the machine it's a real sheet, it keeps its size and layout.
     await waitFor(
       async () => {
         const saved = (await getJob(job.id))?.boards?.find(b => b.name === 'A');
-        expect(saved?.holdPoints?.[0]?.x).toBeCloseTo(to.x, 0);
+        expect(saved?.fixtures?.[0]).toMatchObject({ at: expect.closeTo(along, 0) });
         expect(saved?.size).toEqual({ fit: false, w: o.holdsOn!.w, h: o.holdsOn!.h });
       },
       { timeout: 10_000 }
     );
     await waitFor(
       () => {
-        expect(useCamMachine.getState().overlay?.holds?.[0].x).toBeCloseTo(to.x, 0);
+        expect(useCamMachine.getState().overlay?.holds?.[0][h.dir!.x ? 'y' : 'x']).toBeCloseTo(along, 0);
         // Planned again with it: the parts stay put, still clear of it, and its program is loaded.
         expect(card().queryByRole('alert')).toBeNull();
         expect(useStore.getState().toolpath?.gcode).toBe(before);
@@ -122,7 +128,8 @@ describe('the machine queue with a real plan', () => {
     await waitFor(
       async () => {
         const saved = (await getJob(job.id))?.boards?.find(b => b.name === 'A');
-        expect([saved?.holdPoints, saved?.size, saved?.positions]).toEqual([undefined, { fit: true }, undefined]);
+        expect(saved?.fixtures).toEqual(placed);
+        expect(saved?.size).toEqual({ fit: true });
       },
       { timeout: 10_000 }
     );

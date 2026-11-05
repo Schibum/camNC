@@ -5,7 +5,15 @@ import { bodyNames, isGenericName, withPartNames } from './partNames';
 import { uniqueJobName } from './jobDb';
 
 const part = (id: string, names: string[]): CamPartInfo =>
-  ({ id, name: names[0], names, size: [100, 50, 8], thickness: 8, summary: {} }) as unknown as CamPartInfo;
+  ({
+    id,
+    name: names[0],
+    names,
+    size: [100, 50, 8],
+    thickness: 8,
+    summary: {},
+    shape: { outlines: [], holes: [], pockets: [] },
+  }) as unknown as CamPartInfo;
 
 describe('part names', () => {
   it('tells generic CAD names from real ones', () => {

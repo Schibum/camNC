@@ -1,4 +1,4 @@
-import type { CamSettings, LibraryTool, TabFallback } from '@wbcnc/cam';
+import type { CamSettings, LibraryTool } from '@wbcnc/cam';
 import { DEFAULT_TABS, MATERIALS } from '@wbcnc/cam/settings';
 import { cuttingKey, resolveCutting, type CuttingData } from './cuttingData';
 
@@ -20,8 +20,6 @@ export interface PlanSettingsV1 {
   cutting?: Partial<CuttingData>;
   /** Parts that don't fit on their board, left out of the job on purpose (instance ids). */
   leaveOut?: string[];
-  /** With tabs: what parts get whose tabs can't hold (each may choose its own on the Boards step). Default: a skin. */
-  tabFallback?: TabFallback;
   /** Bottom skin thickness, mm (default 1). */
   skin?: number;
 }
