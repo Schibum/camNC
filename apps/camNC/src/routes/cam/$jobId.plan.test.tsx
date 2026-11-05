@@ -300,6 +300,8 @@ describe('CAM plan step', () => {
       await screen.findByText(/back has no two opposite edges where tabs would hold it, so it would come loose/, {}, { timeout: 60_000 })
     ).toBeTruthy();
     expect(screen.getByRole('button', { name: /Take the job to the machine/ })).toHaveProperty('disabled', true);
+    // The moves are fine, but no "passed" next to a part that comes loose.
+    expect(screen.queryByText(/Safety checks passed/)).toBeNull();
     first.unmount();
     // The board on a bottom skin, chosen on the Boards step.
     await saveJob({ ...job, parts, boards: boards.map(b => ({ ...b, retention: 'skin' as const })) });

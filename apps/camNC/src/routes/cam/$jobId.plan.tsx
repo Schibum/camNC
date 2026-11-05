@@ -321,9 +321,10 @@ function PlanStep() {
           )
         }
         checks={
-          result && (
+          result &&
+          sideA && (
             <>
-              <Checks plan={result} checked={!empty && !blocked} releaseSafety={releaseSafety} />
+              <Checks plan={result} board={sideA} checked={!empty && !blocked} releaseSafety={releaseSafety} />
               <p className="text-xs text-muted-foreground">
                 {result.programs.length > 1
                   ? 'One program per bit: run them in order, swap the bit and zero Z in between; the board stays put.'
@@ -580,29 +581,43 @@ function MissingBanner({
   );
 }
 
-/** `checked`: false while the job is blocked (missing parts, nothing to cut): no "passed" for an incomplete job. */
-function Checks({ plan, checked, releaseSafety }: { plan: PlanResult; checked: boolean; releaseSafety: string[] }) {
+/**
+ * `plan`: the side shown. `board`: its side A, which has what holds the parts, for both sides. `checked`: false while the
+ * job is blocked by its layout (missing parts, nothing to cut): no "passed" for an incomplete job, nor for a blocked board.
+ */
+function Checks({
+  plan,
+  board,
+  checked,
+  releaseSafety,
+}: {
+  plan: PlanResult;
+  board: PlanResult;
+  checked: boolean;
+  releaseSafety: string[];
+}) {
   const failed = [...plan.safety, ...releaseSafety];
   const skins = (plan.holding ?? []).filter(h => h.how === 'skin');
+  const moves = 'no rapid moves in the stock, stays on the board, never deeper than the cut-through depth.';
   return (
     <div className="flex flex-col gap-1.5 text-[13px]">
-      {loose(plan).map(h => (
+      {loose(board).map(h => (
         <p key={h.part} className="flex gap-2 text-destructive">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" />
           {h.part}: {h.anchored === 0 ? 'none' : `only ${h.anchored}`} of its {h.tabs.length} tabs would hold it, so it would come loose. On
           the Boards step, switch the board to a bottom skin, or give it more room.
         </p>
       ))}
-      {(plan.holdClash ?? []).length > 0 && (
+      {(board.holdClash ?? []).length > 0 && (
         <p className="flex gap-2 text-destructive">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-          {plan.holdClash!.length === 1 ? 'A screw or clamp is' : `${plan.holdClash!.length} screws or clamps are`} in the bit’s way or on a
-          part (red on the board). On the Boards step, drag {plan.holdClash!.length === 1 ? 'it' : 'them'} into the waste.
+          {board.holdClash!.length === 1 ? 'A screw or clamp is' : `${board.holdClash!.length} screws or clamps are`} in the bit’s way or on
+          a part (red on the board). On the Boards step, drag {board.holdClash!.length === 1 ? 'it' : 'them'} into the waste.
         </p>
       )}
-      {(plan.timeline ?? [])
+      {(board.timeline ?? [])
         // A part whose tabs don't hold is already listed above.
-        .filter(e => !(e.kind === 'loose' && loose(plan).some(h => h.part === e.what)))
+        .filter(e => !(e.kind === 'loose' && loose(board).some(h => h.part === e.what)))
         .map(e => (
           <p
             key={`${e.kind}-${e.what}-${e.step}`}
@@ -623,17 +638,19 @@ function Checks({ plan, checked, releaseSafety }: { plan: PlanResult; checked: b
           parts free” step cuts {skins.length === 1 ? 'it' : 'them'} free one at a time.
         </p>
       )}
-      {!checked ? null : failed.length === 0 ? (
-        <p className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
-          <ShieldCheck className="size-4" /> Safety checks passed: no rapid moves in the stock, stays on the board, never deeper than the
-          cut-through depth.
-        </p>
-      ) : (
+      {!checked ? null : failed.length > 0 ? (
         failed.map(s => (
           <p key={s} className="flex gap-2 text-destructive">
             <AlertTriangle className="mt-0.5 size-4 shrink-0" /> {s}
           </p>
         ))
+      ) : planBlock(board) ? null : (board.timeline ?? []).some(e => e.kind === 'loose') ? (
+        // Parts cut loose as the user chose: only the moves passed.
+        <p className="text-muted-foreground">The moves pass the safety checks, but nothing holds the parts: {moves}</p>
+      ) : (
+        <p className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+          <ShieldCheck className="size-4" /> Safety checks passed: {moves}
+        </p>
       )}
       {[...new Set(plan.warnings.map(friendly))].map(w => (
         <p key={w} className="flex gap-2 text-amber-700 dark:text-amber-400">

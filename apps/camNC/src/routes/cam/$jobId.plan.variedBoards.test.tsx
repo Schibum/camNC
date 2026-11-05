@@ -43,13 +43,14 @@ afterEach(() => {
 
 describe('varied STEP boards, end to end', () => {
   it.each([
-    ['frame-01', frameUrl, 11],
-    ['gear-02', gearUrl, 4],
-    ['round-02', ringsUrl, 12],
-    ['tray-02', trayUrl, 60],
+    // Knobs and gears have no straight runs for tabs: the job is blocked until the board changes.
+    ['frame-01', frameUrl, 11, false],
+    ['gear-02', gearUrl, 4, false],
+    ['round-02', ringsUrl, 12, true],
+    ['tray-02', trayUrl, 60, true],
   ])(
     '%s goes from a new job to a laid out board and a plan',
-    async (id, url, parts) => {
+    async (id, url, parts, held) => {
       const bytes = await (await fetch(url)).arrayBuffer();
       const job = await createJob(new File([bytes], `${id}.step`));
       const stored = (await getModelBytes(job.id))!;
@@ -77,7 +78,13 @@ describe('varied STEP boards, end to end', () => {
       );
       const ops = await screen.findByRole('table', { name: 'Operations for board A' }, { timeout: 90_000 });
       expect(within(ops).getAllByRole('row').length).toBeGreaterThan(1);
-      expect(screen.getByText(/Safety checks passed/)).toBeTruthy();
+      if (held) {
+        expect(screen.getByText(/Safety checks passed/)).toBeTruthy();
+      } else {
+        expect(screen.getAllByText(/would come loose when its outline is cut through/).length).toBeGreaterThan(0);
+        expect(screen.queryByText(/Safety checks passed/)).toBeNull();
+        expect(screen.getByRole('button', { name: /Take the job to the machine/ })).toHaveProperty('disabled', true);
+      }
     },
     120_000
   );
