@@ -1,4 +1,5 @@
 import { isDemoMode } from '@/lib/demo/demo-mode';
+import { rebaseJob } from './rebaseJob';
 import type { BoardV1, StockBoardV1 } from './boards';
 import type { NestObjective } from './autoNest';
 import type { PartPrint } from './partMatch';
@@ -150,13 +151,51 @@ export async function getModelBytes(id: string): Promise<Uint8Array | null> {
   return buf ? new Uint8Array(buf) : null;
 }
 
-export async function saveJob(job: CamJobV1): Promise<CamJobV1> {
+/** Save a document, or rebase an edit from `base` within the guarded transaction. */
+export async function saveJob(job: CamJobV1, base?: CamJobV1): Promise<CamJobV1> {
+  if (base) {
+    const saved = await updateJobForModel(base, current => rebaseJob(base, job, current));
+    if (!saved) throw new Error('This job or its model changed. Open it again before editing.');
+    return saved;
+  }
   const saved = { ...job, updatedAt: Date.now() };
   if (isDemoMode()) {
     demoJobs.set(job.id, structuredClone(saved));
     return saved;
   }
   await tx([kJobs], 'readwrite', t => t.objectStore(kJobs).put(saved));
+  return saved;
+}
+
+/** One version of a job's model: what its parts and programs are computed from. */
+export const modelKey = (job: CamJobV1) => `${job.id}:${job.fileName}:${job.modelRevision ?? 0}`;
+
+/**
+ * Commit an update only while its model still belongs to an existing job. Reading and writing in one transaction
+ * keeps a late worker response from restoring a deleted job or putting old parts onto a replaced model.
+ * `update` runs synchronously against the current job; null means there is nothing to save.
+ */
+export async function updateJobForModel(source: CamJobV1, update: (current: CamJobV1) => CamJobV1 | null): Promise<CamJobV1 | null> {
+  const apply = (current: CamJobV1 | undefined) => {
+    if (!current || modelKey(current) !== modelKey(source)) return null;
+    const next = update(current);
+    return next && { ...next, updatedAt: Date.now() };
+  };
+  if (isDemoMode()) {
+    const current = demoJobs.get(source.id);
+    const saved = apply(current && structuredClone(current));
+    if (saved) demoJobs.set(source.id, structuredClone(saved));
+    return saved;
+  }
+  let saved: CamJobV1 | null = null;
+  await tx([kJobs], 'readwrite', t => {
+    const store = t.objectStore(kJobs);
+    const req = store.get(source.id) as IDBRequest<CamJobV1 | undefined>;
+    req.onsuccess = () => {
+      saved = apply(req.result);
+      if (saved) store.put(saved);
+    };
+  });
   return saved;
 }
 

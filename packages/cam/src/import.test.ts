@@ -2,7 +2,104 @@ import { statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
 import { readStep } from './fixtures';
+import type { Mesh } from './geom';
 import { detectFlat, groupIdentical, loadStep } from './import';
+
+/** A closed 100 x 80 x 8 board with a rectangular pocket, with identical tessellation at every pocket depth. */
+function pocketedBoard(name: string, floor: number) {
+  const rect = (x0: number, y0: number, x1: number, y1: number, z: number) => [x0, y0, z, x1, y0, z, x1, y1, z, x0, y1, z];
+  const positions = Float64Array.from([
+    ...rect(0, 0, 100, 80, 0),
+    ...rect(0, 0, 100, 80, 8),
+    ...rect(15, 10, 55, 50, 8),
+    ...rect(15, 10, 55, 50, floor),
+  ]);
+  const indices: number[] = [];
+  const face = (a: number, b: number, c: number, d: number) => indices.push(a, b, c, a, c, d);
+  face(0, 3, 2, 1);
+  face(12, 13, 14, 15);
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4;
+    face(i, j, j + 4, i + 4);
+    face(i + 4, j + 4, j + 8, i + 8);
+    face(i + 8, j + 8, j + 12, i + 12);
+  }
+  const mesh: Mesh = {
+    positions,
+    indices: Uint32Array.from(indices),
+    faceRanges: Array.from({ length: indices.length / 3 }, (_, i) => ({ first: i, last: i })),
+  };
+  return detectFlat({ name, mesh });
+}
+
+describe('identical parts', () => {
+  it('keeps different pocket depths separate, even with the same bounds, XY vertices and triangle count', () => {
+    const shallow = pocketedBoard('shallow', 5);
+    const deep = pocketedBoard('deep', 2);
+    expect(shallow.size).toEqual(deep.size);
+    expect(shallow.mesh.indices.length).toBe(deep.mesh.indices.length);
+    expect(groupIdentical([shallow, deep]).map(g => g.names)).toEqual([['shallow'], ['deep']]);
+  });
+
+  it('compares coordinates within tolerance across rounding boundaries', () => {
+    const a = pocketedBoard('below boundary', 4.005 - 1e-5);
+    const b = pocketedBoard('above boundary', 4.005 + 1e-5);
+    const different = pocketedBoard('different depth', 4.025);
+    expect(groupIdentical([a, b, different]).map(g => g.names)).toEqual([['below boundary', 'above boundary'], ['different depth']]);
+  });
+
+  it('ignores duplicated face vertices when checking the same surface', () => {
+    const part = pocketedBoard('original', 4);
+    const count = part.mesh.positions.length / 3;
+    const copy = {
+      ...part,
+      name: 'duplicated vertices',
+      mesh: {
+        ...part.mesh,
+        positions: Float64Array.from([...part.mesh.positions, ...part.mesh.positions]),
+        indices: Uint32Array.from(part.mesh.indices, (v, i) => v + (i % 2 ? count : 0)),
+      },
+    };
+    expect(groupIdentical([part, copy]).map(g => g.names)).toEqual([['original', 'duplicated vertices']]);
+  });
+
+  it('groups a reindexed 180-degree copy but keeps its mirror separate', () => {
+    const part = pocketedBoard('original', 4);
+    const positions = new Float64Array(part.mesh.positions.length);
+    const count = positions.length / 3;
+    for (let i = 0; i < count; i++) {
+      positions[(count - i - 1) * 3] = part.size[0] - part.mesh.positions[i * 3];
+      positions[(count - i - 1) * 3 + 1] = part.size[1] - part.mesh.positions[i * 3 + 1];
+      positions[(count - i - 1) * 3 + 2] = part.mesh.positions[i * 3 + 2];
+    }
+    const turned = {
+      ...part,
+      name: 'turned',
+      mesh: { ...part.mesh, positions, indices: Uint32Array.from(part.mesh.indices, i => count - i - 1).reverse() },
+    };
+    const mirror = {
+      ...part,
+      name: 'mirror',
+      mesh: { ...part.mesh, positions: Float64Array.from(part.mesh.positions, (v, i) => (i % 3 === 0 ? part.size[0] - v : v)) },
+    };
+    expect(groupIdentical([part, turned, mirror]).map(g => g.names)).toEqual([['original', 'turned'], ['mirror']]);
+  });
+
+  it('ignores a different planar-face diagonal, but checks connectivity when it changes the surface', () => {
+    const part = pocketedBoard('original', 4);
+    const indices = part.mesh.indices.slice();
+    // The pocket floor's two triangles, using its other diagonal.
+    indices.set([12, 13, 15, 13, 14, 15], 6);
+    const other = { ...part, name: 'other diagonal', mesh: { ...part.mesh, indices } };
+    expect(groupIdentical([part, other]).map(g => g.names)).toEqual([['original', 'other diagonal']]);
+    // With one corner lifted, those two diagonals describe different surfaces despite an identical vertex cloud.
+    const positions = part.mesh.positions.slice();
+    positions[12 * 3 + 2] += 1;
+    const warped = { ...part, mesh: { ...part.mesh, positions } };
+    const warpedOther = { ...other, mesh: { ...other.mesh, positions } };
+    expect(groupIdentical([warped, warpedOther]).map(g => g.names)).toEqual([['original'], ['other diagonal']]);
+  });
+});
 
 describe('spike 1: STEP import + flat detection', () => {
   it('loads kinderregal and finds the six flat parts', async () => {

@@ -89,6 +89,8 @@ export class FluidncSocket {
   private lastDataAt = 0;
   private timers: ReturnType<typeof setInterval>[] = [];
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+  private connectionGeneration = 0;
+  private cancelPendingOpen: (() => void) | undefined;
   private backoff: number;
   /** Connection rounds that failed in a row. */
   private failedRounds = 0;
@@ -123,7 +125,9 @@ export class FluidncSocket {
 
   stop() {
     this.running = false;
+    this.connectionGeneration++;
     clearTimeout(this.reconnectTimer);
+    this.cancelPendingOpen?.();
     this.teardown('stopped');
     this.setState('idle');
   }
@@ -165,9 +169,11 @@ export class FluidncSocket {
     this.ws!.send(bytes);
   }
 
-  /** Drop a partial line, e.g. binary handshake bytes left over from XMODEM. */
-  resetLineBuffer() {
+  /** Drop raw-transfer bytes and resume line parsing with any unconsumed response bytes. */
+  resetLineBuffer(remainder?: Uint8Array) {
+    this.decoder = new TextDecoder();
     this.partial = '';
+    if (remainder) this.pushText(this.decoder.decode(remainder, { stream: true }));
   }
 
   private setState(state: SocketState) {
@@ -185,19 +191,21 @@ export class FluidncSocket {
 
   private async connectRound() {
     if (!this.running) return;
+    const generation = ++this.connectionGeneration;
     this.setState('connecting');
     let lastError = 'unreachable';
     for (const variant of this.candidates()) {
       try {
         const url = socketUrl(this.opts.host, variant);
         const ws = await this.tryOpen(url);
-        if (!this.running) {
+        if (!this.running || generation !== this.connectionGeneration) {
           ws.close();
           return;
         }
         this.attach(ws, variant, url);
         return;
       } catch (err) {
+        if (!this.running || generation !== this.connectionGeneration) return;
         lastError = err instanceof Error ? err.message : String(err);
       }
     }
@@ -227,14 +235,22 @@ export class FluidncSocket {
       };
       const onFail = () => {
         cleanup();
+        ws.close();
         reject(new Error('unreachable'));
+      };
+      const cancel = () => {
+        cleanup();
+        ws.close();
+        reject(new Error('stopped'));
       };
       const cleanup = () => {
         clearTimeout(timer);
         ws.removeEventListener('open', onOpen);
         ws.removeEventListener('error', onFail);
         ws.removeEventListener('close', onFail);
+        if (this.cancelPendingOpen === cancel) this.cancelPendingOpen = undefined;
       };
+      this.cancelPendingOpen = cancel;
       ws.addEventListener('open', onOpen);
       ws.addEventListener('error', onFail);
       ws.addEventListener('close', onFail);

@@ -104,7 +104,8 @@ describe('rapids and links over holds', () => {
     expect(over(18.3 + 2)).toHaveLength(1);
     // Without holds: the plain heights.
     const none = camBoard({ ...board([]), holdPoints: undefined }, {});
-    expect([none.safeZ, none.retractZ]).toEqual([undefined, undefined]);
+    expect(none.safeZ).toBeCloseTo(none.stockTop + 5, 6);
+    expect(none.retractZ).toBeCloseTo(none.stockTop + 2, 6);
   });
 
   it('every program of the board keeps the heights: per bit, freeing, tab removal', () => {

@@ -93,6 +93,26 @@ generated, don't edit it). New cameras go through the setup wizard:
   the machine panel (DRO, jog, zero, probe, overrides, job, SD files, macros,
   console, config).
 
+### Built-in CAM
+
+`packages/cam` imports STEP/STL geometry, detects flat parts and generates
+board toolpaths and FluidNC G-code. Part grouping verifies geometry including
+depth; bounding boxes and vertex moments only narrow the candidates.
+Toolpaths carry absolute safe/retract Z values, derived from the stock top,
+configured clearance and any hold-down hardware, through program splitting
+and guided tab removal.
+
+`src/cam/jobDb.ts` stores CAM jobs and their model bytes in IndexedDB, separate
+from app settings. A model's identity includes the job id, filename and model
+revision. Imports run asynchronously in `workers/cam.worker.ts`; their saved
+results must still belong to an existing job with that model identity. The
+identity check and update share a read/write transaction, so an old import
+cannot overwrite a replacement or recreate a deleted job. React Query holds
+the open job and model results; cache publication also respects newer edits.
+User saves carry the snapshot they edited, so the database transaction applies
+only their changes onto the current job and retains import results committed
+meanwhile. Demo jobs use an isolated in-memory equivalent.
+
 ### Rendering
 
 `scene/PresentCanvas.tsx` sets up an orthographic react-three-fiber canvas in
@@ -140,6 +160,12 @@ over their data channel once connected. The CNC controller is reached directly.
   to `/upload` (FluidNC sends no CORS headers), verified with `$SD/ListJSON`;
   XMODEM over the socket is the fallback. Only one tab holds the connection
   (Web Locks), and nothing is re-sent after a reconnect.
+
+Connection attempts belong to a generation: stopping cancels pending sockets,
+and a completed handshake from an older generation cannot attach after a
+restart. During XMODEM, the transfer owns the raw byte stream and command slot.
+Any text received after its final binary ACK is returned to the line parser
+before the command queue resumes.
 
 ## Desktop app
 

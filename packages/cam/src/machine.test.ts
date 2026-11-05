@@ -44,6 +44,20 @@ const board = (over: Partial<BoardSpec> = {}): BoardSpec => ({
 const cuts = (gcode: string) => readGcode(gcode).filter(m => !m.rapid);
 
 describe('at the machine', () => {
+  it.each([undefined, [], [{ kind: 'screw' as const, x: 10, y: 10, d: 10, height: 9 }]])(
+    'keeps configured board clearances above the stock and any holds: %j',
+    holdPoints => {
+      const cam = camBoard(board({ stockTop: 10, holdPoints }), { safeHeight: 12, retractHeight: 7 });
+      const holdTop = 10 + (holdPoints?.[0]?.height ?? 0);
+      const gcode = toGcode(splitByBit(cam)[0]);
+      const rapids = readGcode(gcode).filter(m => m.rapid);
+      expect(rapids[0].to[2]).toBe(holdTop + 12);
+      expect(rapids.some(m => m.to[2] === holdTop + 7)).toBe(true);
+      for (const move of rapids.filter(m => Math.hypot(m.to[0] - m.from[0], m.to[1] - m.from[1]) > 1e-6))
+        expect(Math.min(move.from[2], move.to[2])).toBeGreaterThanOrEqual(holdTop + 7);
+    }
+  );
+
   it('cuts from a thicker stock top (allowance or measured), floors and through depth unchanged', () => {
     const cam = camBoard(board({ stockTop: 8.3 }), {});
     expect(cam.stockTop).toBe(8.3);

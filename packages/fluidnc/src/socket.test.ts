@@ -1,5 +1,81 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeHost, socketUrl } from './socket';
+import { FluidncSocket, normalizeHost, socketUrl } from './socket';
+
+class PendingSocket extends EventTarget {
+  readyState = 0;
+  binaryType = 'blob';
+
+  close() {
+    this.readyState = 3;
+  }
+}
+
+function pendingConnection() {
+  const attempts: PendingSocket[] = [];
+  class WebSocketImpl extends PendingSocket {
+    constructor(_url: string) {
+      super();
+      attempts.push(this);
+    }
+  }
+  const socket = new FluidncSocket({ host: 'fluidnc.local', WebSocketImpl: WebSocketImpl as unknown as typeof WebSocket });
+  return { socket, attempts };
+}
+
+describe('connection cancellation', () => {
+  it('ignores a resolved handshake whose continuation belongs to an earlier start', async () => {
+    const { socket, attempts } = pendingConnection();
+    try {
+      socket.start();
+      attempts[0]!.readyState = 1;
+      attempts[0]!.dispatchEvent(new Event('open'));
+      // The handshake resolved, but connectRound has not attached it yet.
+      socket.stop();
+      socket.start();
+      await Promise.resolve();
+      expect(attempts[0]!.readyState).toBe(3);
+      expect(socket.state).toBe('connecting');
+      attempts[1]!.readyState = 1;
+      attempts[1]!.dispatchEvent(new Event('open'));
+      await Promise.resolve();
+      attempts[0]!.dispatchEvent(new Event('close'));
+      expect(socket.isOpen()).toBe(true);
+    } finally {
+      socket.stop();
+    }
+  });
+
+  it('closes a pending handshake on stop and leaves a restart independent', async () => {
+    const { socket, attempts } = pendingConnection();
+    try {
+      socket.start();
+      socket.stop();
+      expect(attempts[0]!.readyState).toBe(3);
+      socket.start();
+      expect(attempts).toHaveLength(2);
+      attempts[1]!.readyState = 1;
+      attempts[1]!.dispatchEvent(new Event('open'));
+      await Promise.resolve();
+      expect(socket.isOpen()).toBe(true);
+    } finally {
+      socket.stop();
+    }
+  });
+
+  it('does not try another variant after a stopped handshake fails', async () => {
+    const { socket, attempts } = pendingConnection();
+    try {
+      socket.start();
+      socket.stop();
+      attempts[0]!.dispatchEvent(new Event('error'));
+      await Promise.resolve();
+      expect(attempts).toHaveLength(1);
+      expect(socket.state).toBe('idle');
+    } finally {
+      socket.stop();
+    }
+  });
+});
 
 describe('socketUrl', () => {
   it('maps 4.x to the HTTP port with an independent session', () => {

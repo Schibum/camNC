@@ -330,9 +330,89 @@ function moments(p: FlatPart) {
 /** Group bodies that are the same board (e.g. two identical shelves); mirrored boards stay separate. */
 export function groupIdentical(parts: FlatPart[]): { part: FlatPart; names: string[] }[] {
   const groups: { part: FlatPart; names: string[] }[] = [];
+  // Bounds and moments only find candidates: e.g. changing a pocket's depth changes none of their XY moments.
   const key = (p: FlatPart) => [...p.size.map(s => s.toFixed(2)), p.mesh.indices.length, ...moments(p)].join('|');
+  type Geometry = { vertices: Vec3[]; boundary: Set<string> };
+  const edgeKey = (a: number, b: number) => (a < b ? `${a},${b}` : `${b},${a}`);
+  const geometry = new WeakMap<FlatPart, Geometry[]>();
+  const signature = (p: FlatPart, turned = false) => {
+    let cached = geometry.get(p);
+    if (!cached) geometry.set(p, (cached = []));
+    const orientation = turned ? 1 : 0;
+    if (cached[orientation] !== undefined) return cached[orientation];
+    // Weld duplicated face vertices at the STL importer's precision. Keep full coordinates for tolerant comparisons:
+    // float32 STL exports can land on opposite sides of a rounding boundary despite describing the same surface.
+    const vertices: Vec3[] = [];
+    const welded = new Map<string, number>();
+    const indices = Array.from({ length: p.mesh.positions.length / 3 }, (_, i) => {
+      const x = p.mesh.positions[i * 3],
+        y = p.mesh.positions[i * 3 + 1],
+        z = p.mesh.positions[i * 3 + 2];
+      const key = [x, y, z].map(v => Math.round(v * 1e4)).join(',');
+      let index = welded.get(key);
+      if (index === undefined) {
+        welded.set(key, (index = vertices.length));
+        vertices.push([turned ? p.size[0] - x : x, turned ? p.size[1] - y : y, z]);
+      }
+      return index;
+    });
+    const edges = new Map<string, { normal: Vec3; count: number; planar: boolean }>();
+    for (let i = 0; i < p.mesh.indices.length; i += 3) {
+      const normal = triangleNormal2A(...triangle(p.mesh, i / 3));
+      if (length(normal) < 1e-12) continue;
+      const unit = normalize(normal);
+      for (let j = 0; j < 3; j++) {
+        const a = indices[p.mesh.indices[i + j]],
+          b = indices[p.mesh.indices[i + ((j + 1) % 3)]];
+        if (a === b) continue;
+        const edge = edgeKey(a, b);
+        const prior = edges.get(edge);
+        if (prior) {
+          prior.count++;
+          prior.planar &&= 1 - Math.abs(dot(prior.normal, unit)) < 1e-8;
+        } else edges.set(edge, { normal: unit, count: 1, planar: true });
+      }
+    }
+    // Internal diagonals of planar faces may differ between otherwise identical copies.
+    const boundary = new Set([...edges].filter(([, e]) => e.count !== 2 || !e.planar).map(([edge]) => edge));
+    return (cached[orientation] = { vertices, boundary });
+  };
+  const sameGeometry = (a: Geometry, b: Geometry) => {
+    if (a.vertices.length !== b.vertices.length || a.boundary.size !== b.boundary.size) return false;
+    const tolerance = 0.01;
+    const grid = new Map<string, number[]>();
+    a.vertices.forEach((v, i) => {
+      const key = v.map(c => Math.floor(c / tolerance)).join(',');
+      const cell = grid.get(key);
+      if (cell) cell.push(i);
+      else grid.set(key, [i]);
+    });
+    const used = new Set<number>();
+    const mapping: number[] = [];
+    for (const v of b.vertices) {
+      const cell = v.map(c => Math.floor(c / tolerance));
+      let best = -1,
+        distance = tolerance;
+      for (let x = -1; x <= 1; x++)
+        for (let y = -1; y <= 1; y++)
+          for (let z = -1; z <= 1; z++)
+            for (const i of grid.get(`${cell[0] + x},${cell[1] + y},${cell[2] + z}`) ?? []) {
+              const d = length(sub(v, a.vertices[i]));
+              if (!used.has(i) && d <= distance) [best, distance] = [i, d];
+            }
+      if (best < 0) return false;
+      mapping.push(best);
+      used.add(best);
+    }
+    return [...b.boundary].every(edge => {
+      const [x, y] = edge.split(',').map(Number);
+      return a.boundary.has(edgeKey(mapping[x], mapping[y]));
+    });
+  };
   for (const p of parts) {
-    const g = groups.find(g => key(g.part) === key(p));
+    const g = groups.find(
+      g => key(g.part) === key(p) && (sameGeometry(signature(g.part), signature(p)) || sameGeometry(signature(g.part), signature(p, true)))
+    );
     if (g) g.names.push(p.name);
     else groups.push({ part: p, names: [p.name] });
   }

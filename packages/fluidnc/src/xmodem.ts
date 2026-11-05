@@ -43,6 +43,9 @@ class ByteReader {
     this.buffer.push(...bytes);
     this.waiter?.();
   }
+  takeRemaining(): Uint8Array {
+    return new Uint8Array(this.buffer.splice(0));
+  }
   async next(timeoutMs: number): Promise<number | null> {
     const deadline = Date.now() + timeoutMs;
     while (!this.buffer.length) {
@@ -71,7 +74,7 @@ export async function xmodemUpload(
   content: Uint8Array,
   onProgress?: (fraction: number) => void
 ): Promise<void> {
-  await protocol.sendAndTakeStream(`$Xmodem/Receive=${path}`, async subscribe => {
+  await protocol.sendAndTakeStream(`$Xmodem/Receive=${path}`, async (subscribe, returnRemainder) => {
     const reader = new ByteReader();
     subscribe(bytes => reader.push(bytes));
 
@@ -105,5 +108,6 @@ export async function xmodemUpload(
       if (reply === ACK) break;
       if (retries > 5) throw new Error('XMODEM: no ACK for EOT');
     }
+    returnRemainder(reader.takeRemaining());
   });
 }
