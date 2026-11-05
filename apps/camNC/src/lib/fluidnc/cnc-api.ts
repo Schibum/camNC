@@ -24,7 +24,7 @@ import {
 } from '@wbcnc/fluidnc';
 import { AlarmRecord, loadLastAlarm, saveLastAlarm } from '../machine/alarms';
 import { Macro, macroCommands } from '../machine/macros';
-import { kIntoTravel, outsideTravel } from '../machine/workflow';
+import { kIntoTravel, OutsideTravel, outsideTravel } from '../machine/workflow';
 import { waitForSignal } from '../signals-helper';
 import { isLoopbackPage, localNetworkPermission } from './machine-support';
 
@@ -424,7 +424,8 @@ export class CncApi {
     const travel = await waitForSignal(() => this.travel.value, 5000);
     const outside = outsideTravel(status.mpos, travel).filter(o => o.softLimits);
     if (!outside.length || outside.some(o => Math.abs(o.jog) > kHomingSlip + kIntoTravel + 1e-6)) return;
-    await this.moveIntoTravel();
+    // Only these axes: anything else outside the travel is for the user to move (the pre-job check says so).
+    await this.jogInto(outside);
   }
 
   /** Jog every axis the machine sits outside of back into the travel (relative, see `outsideTravel`). */
@@ -432,8 +433,12 @@ export class CncApi {
     const mpos = this.status.value?.mpos;
     const travel = this.travel.value;
     if (!mpos || !travel) throw new Error('The machine position or travel is not known yet');
+    return this.jogInto(outsideTravel(mpos, travel));
+  }
+
+  private jogInto(outside: OutsideTravel[]) {
     const delta: { x?: number; y?: number; z?: number } = {};
-    for (const o of outsideTravel(mpos, travel)) delta[o.axis] = o.jog;
+    for (const o of outside) delta[o.axis] = o.jog;
     return this.jogRelative(delta, kIntoTravelFeed);
   }
 
