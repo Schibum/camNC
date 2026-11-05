@@ -50,15 +50,20 @@ export { planTabs, freePartsProgram, kDefaultSkin } from './tabPlan';
 export type { PartHolding } from './tabPlan';
 export {
   clampPlay,
+  defaultHolds,
   edgeBands,
+  fewerHolds,
   fixtureBox,
   fixtureFree,
   fixturesAround,
   largestOffcut,
+  moreHolds,
   screwPlay,
   settle,
   snapScrew,
   suggestHolds,
+  suggestHoldsGrowing,
+  workBox,
 } from './settle';
 export type { BoardSide, EdgeFit, Fixture, SettleBoard, SettlePart, Settled, Spots } from './settle';
 export { sideBSpec, dowelClearance, dowelProblem, dowelSpots, dowelOperations } from './flip';

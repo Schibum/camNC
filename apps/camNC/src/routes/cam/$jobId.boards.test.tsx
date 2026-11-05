@@ -367,6 +367,29 @@ describe('CAM boards step', () => {
     expect(screen.getByRole('button', { name: 'Clamp' }).getAttribute('aria-pressed')).toBe('false');
   }, 90_000);
 
+  it('Fewer and More nudge the suggestion: one more keeps the others put, and Fewer stops at 3', async () => {
+    const job = await openKinderregal();
+    fireEvent.click(drawing('A'));
+    const saved = async () => (await getJob(job.id))!.boards!.find(b => b.name === 'A')!;
+    const button = (name: string) => screen.getByRole('button', { name }) as HTMLButtonElement;
+    // Nothing to nudge until there are holds.
+    expect(button('Fewer').disabled).toBe(true);
+    expect(button('More').disabled).toBe(true);
+    fireEvent.click(button('Suggest holds'));
+    await waitFor(async () => expect((await saved()).fixtures?.length).toBeGreaterThanOrEqual(3), { timeout: 10_000 });
+    const before = (await saved()).fixtures!;
+    await waitFor(() => expect(button('More').disabled).toBe(false));
+    fireEvent.click(button('More'));
+    await waitFor(async () => expect((await saved()).fixtures).toHaveLength(before.length + 1), { timeout: 10_000 });
+    expect((await saved()).fixtures!.slice(0, before.length)).toEqual(before);
+    for (let n = before.length + 1; n > 3; n--) {
+      await waitFor(() => expect(button('Fewer').disabled).toBe(false));
+      fireEvent.click(button('Fewer'));
+      await waitFor(async () => expect((await saved()).fixtures).toHaveLength(n - 1), { timeout: 10_000 });
+    }
+    await waitFor(() => expect(button('Fewer').disabled).toBe(true));
+  }, 90_000);
+
   it('drags a placed clamp: it stays a fixture all the way, lands where dropped, and parts make room', async () => {
     const job = await openKinderregal();
     fireEvent.click(drawing('A'));

@@ -17,6 +17,7 @@ import {
   placedRect,
   settleBoard,
   settleInputOf,
+  nudgeFixtures,
   suggestFixtures,
   type BoardNest,
   type BoardV1,
@@ -336,6 +337,7 @@ export function BoardDrawings({
   const [selectedHold, setSelectedHold] = useState<{ board: string; i: number } | null>(null);
   const selectedBoard = boards.find(b => b.board.id === selectedId);
   const canPlace = !!selectedBoard && !isCut(selectedBoard.board);
+  const holdCount = selectedBoard?.board.fixtures?.length ?? 0;
   // Esc puts the tool down.
   useEffect(() => {
     if (!tool) return;
@@ -396,7 +398,7 @@ export function BoardDrawings({
     if (!added) {
       onNote(
         before
-          ? 'These holds already surround the middle, so there’s nothing to add.'
+          ? 'These holds already surround the work’s middle, so there’s nothing to add.'
           : 'No clamp spot has room on this layout. Try a bigger board, tape or screws.'
       );
       return;
@@ -407,6 +409,21 @@ export function BoardDrawings({
       grew > 0
         ? `No edge had room, so the board grew ${grew} mm on each side, to ${shown.board.w} × ${shown.board.h}. Suggested ${clamps}. Parts and holds moved with it. Drag or remove any of them.`
         : `Suggested ${clamps}. ${layoutChange(nest, shown, instances)} Drag or remove any of them.`
+    );
+  };
+  /** One more or fewer than the board has. */
+  const nudgeHolds = (more: boolean) => {
+    if (!selectedBoard) return;
+    const { board, nest } = selectedBoard;
+    const next = nudgeFixtures(board, instances, bit, more, nestOptions);
+    setTool(null);
+    if ((next.fixtures?.length ?? 0) === (board.fixtures?.length ?? 0)) {
+      onNote(more ? 'No room for another clamp on this layout.' : 'No clamp can go and leave the work surrounded.');
+      return;
+    }
+    onBoardEdit(
+      next,
+      `${more ? 'One clamp more.' : 'One clamp fewer.'} ${layoutChange(nest, nestBoard(next, instances, bit, nestOptions), instances)}`
     );
   };
   // Where clamps fit on the selected board, once its layout has settled: a moment's work, so not on every render.
@@ -494,9 +511,19 @@ export function BoardDrawings({
             </Button>
           </Hint>
         ))}
-        <Hint text="Adds clamps around the board’s middle, spread out, where they need the least moved. A board fitted to its parts gets a small border if no edge has room. Drag or remove any of them.">
+        <Hint text="Compares whole clamp patterns around the work and adds the best, moving parts only where no spot is clear. Holds already on the board stay. A board fitted to its parts gets a small border if no edge has room. Drag or remove any of them.">
           <Button size="sm" variant="outline" disabled={!canPlace} onClick={suggest}>
             Suggest holds
+          </Button>
+        </Hint>
+        <Hint text="Takes one clamp away, the one the rest do best without. Never below 3 holds.">
+          <Button size="sm" variant="outline" disabled={!canPlace || holdCount <= 3} onClick={() => nudgeHolds(false)}>
+            Fewer
+          </Button>
+        </Hint>
+        <Hint text="Adds one clamp where it helps most and leaves the others where they are.">
+          <Button size="sm" variant="outline" disabled={!canPlace || !holdCount} onClick={() => nudgeHolds(true)}>
+            More
           </Button>
         </Hint>
         <Button size="sm" variant="outline" disabled={!onUndo} onClick={onUndo}>

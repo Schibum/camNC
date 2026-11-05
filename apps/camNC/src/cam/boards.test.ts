@@ -22,6 +22,8 @@ import {
   respaceBoard,
   settleBoard,
   settleInputOf,
+  holdVerdict,
+  nudgeFixtures,
   suggestFixtures,
   withLayout,
   stockTopOf,
@@ -525,6 +527,34 @@ describe('boards', () => {
       const next = suggestFixtures(board, parts, bit);
       expect(next.fixtures!.length).toBeGreaterThanOrEqual(3);
       expect(nestBoard(next, parts, bit).board).toEqual(nest.board);
+    });
+
+    it('one clamp more leaves the others where they are, one fewer goes back, and not below 3', () => {
+      const board = suggestFixtures(stored(), parts, bit);
+      const more = nudgeFixtures(board, parts, bit, true);
+      expect(more.fixtures!.length).toBe(board.fixtures!.length + 1);
+      expect(more.fixtures!.slice(0, board.fixtures!.length)).toEqual(board.fixtures);
+      expect(nestBoard(more, parts, bit).board).toEqual(nestBoard(board, parts, bit).board);
+      const fewer = nudgeFixtures(more, parts, bit, false);
+      expect(fewer.fixtures!.length).toBe(board.fixtures!.length);
+      let least = fewer;
+      for (let i = 0; i < 6; i++) least = nudgeFixtures(least, parts, bit, false);
+      expect(least.fixtures!.length).toBe(3);
+    });
+
+    it('says the holds stand around the work’s middle, without claiming more than it checks', () => {
+      const hw = { clamp: { d: 3, w: 24, height: 2.5 }, screw: { d: 10, height: 3 } };
+      const part = { ...parts[0], id: 'p', size: [100, 100, 3] as [number, number, number] };
+      // Around the board's middle, but the work is in a corner, outside what these three surround.
+      const fixtures = [clamp('left', 500), clamp('right', 300), clamp('right', 700)];
+      const nest = { board: { w: 1000, h: 1000 }, placements: [{ id: 'p', x: 10, y: 10, rotated: false }] };
+      const off = holdVerdict({ fixtures }, nest, hw, [part]);
+      expect(off.tone).toBe('warn');
+      expect(off.text).toContain('work’s middle');
+      const on = holdVerdict({ fixtures }, { ...nest, placements: [{ id: 'p', x: 450, y: 450, rotated: false }] }, hw, [part]);
+      expect(on.tone).toBe('ok');
+      expect(on.text).toContain('Force isn’t checked');
+      expect(on.text).not.toContain('can’t');
     });
 
     describe('suggested clamps on a board with no room', () => {
