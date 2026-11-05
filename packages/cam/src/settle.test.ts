@@ -102,6 +102,44 @@ const filledSheet = (n: number) => {
 };
 const clampsOn = (fixtures: Fixture[], side: string) => fixtures.filter(f => f.kind === 'clamp' && f.side === side) as { at: number }[];
 
+/** About 3 reference runs per suggestion now, so roughly twice as much work fails. */
+const kSuggestRatio = 6;
+
+/** Fixed arithmetic, allocation and sorting work, independent of the suggestion implementation. */
+function referenceWork() {
+  let sum = 0;
+  for (let k = 0; k < 400; k++) {
+    const rects = Array.from({ length: 400 }, (_, i) => ({ x: (i * 7919 + k) % 1009, w: (i * 104729) % 613 }));
+    rects.sort((a, b) => a.x - b.x || a.w - b.w);
+    for (const r of rects) sum += Math.min(r.x + r.w, 1000);
+  }
+  return sum;
+}
+
+function expectSuggestionSpeed<T>(label: string, work: () => T): T {
+  const timed = <R>(run: () => R) => {
+    const t = performance.now();
+    const out = run();
+    return { out, ms: performance.now() - t };
+  };
+  work();
+  referenceWork();
+  // Pair nearby samples and alternate their order so changing runner load does not favor either piece of work.
+  // The median ratio tolerates isolated pauses without combining minima from unrelated load conditions.
+  const runs = Array.from({ length: 7 }, (_, i) => {
+    const run =
+      i % 2 ? { reference: timed(referenceWork), suggestion: timed(work) } : { suggestion: timed(work), reference: timed(referenceWork) };
+    return { ...run, ratio: run.suggestion.ms / run.reference.ms };
+  });
+  const ratio = runs.map(r => r.ratio).sort((a, b) => a - b)[3];
+  const samples = runs.map(
+    (r, i) => `${i % 2 ? 'R first' : 'W first'}: W ${r.suggestion.ms.toFixed(1)}/R ${r.reference.ms.toFixed(1)} ms=${r.ratio.toFixed(2)}`
+  );
+  console.info(`${label}: median ratio ${ratio.toFixed(2)}, samples ${samples.join(', ')}`);
+  expect(ratio).toBeLessThan(kSuggestRatio);
+  return runs[0].suggestion.out;
+}
+
 // Both boards from the sample models the user corrected the search on, with their real outlines.
 describe('settle', () => {
   it('slides the shelf’s upper stack right together, at no cost in board size', () => {
@@ -294,24 +332,18 @@ describe('suggestHolds', () => {
     for (const f of r.fixtures) expect(fixtureFree(wide, r.spots, f)).toBe(true);
   });
 
-  it('takes under 300 ms on real outlines, from cold', () => {
+  it('suggests holds on real outlines within a fixed multiple of reference work', () => {
     for (const key of ['besteckkasten', 'kinderregal-standing'] as const) {
       const { b, spots } = sample(key);
-      const t = performance.now();
-      suggestHolds(b, spots, []);
-      expect(performance.now() - t).toBeLessThan(300);
+      expectSuggestionSpeed(key, () => suggestHolds(b, spots, []));
     }
   });
 
-  it.each([32, 72, 144, 288])('takes under 300 ms on a full sheet of %i parts, where nothing fits and it falls back', n => {
+  it.each([32, 72, 144, 288])('falls back on a full sheet of %i parts within a fixed multiple of reference work', n => {
     const { b, spots } = filledSheet(n);
-    let t = performance.now();
-    const r = suggestHolds(b, spots, []);
-    expect(performance.now() - t).toBeLessThan(300);
+    const r = expectSuggestionSpeed(`${n} parts`, () => suggestHolds(b, spots, []));
     expect(r.fixtures.length).toBeLessThanOrEqual(defaultHolds(workBox(b, spots)));
-    t = performance.now();
-    suggestHoldsGrowing(b, spots, [], { w: b.w, h: b.h });
-    expect(performance.now() - t).toBeLessThan(300);
+    expectSuggestionSpeed(`${n} parts, growing`, () => suggestHoldsGrowing(b, spots, [], { w: b.w, h: b.h }));
   });
 
   it('adds no more to a fallback that can’t surround the work, and suggesting again changes nothing', () => {

@@ -136,7 +136,7 @@ export interface PartCam {
   warnings: string[];
   /** Boards with tabs or a skin: how each part is held (tabs where they hold, a skin, or nothing). */
   holding?: PartHolding[];
-  /** Boards with hold points: absolute Z of moves between operations, above the tallest hold (`toGcode`'s default otherwise). */
+  /** Absolute Z of moves between operations, above the stock and any holds. */
   safeZ?: number;
   /** The same for retract links between passes. */
   retractZ?: number;
@@ -1029,5 +1029,5 @@ export function camPart(features: PartFeatures, settings: Partial<CamSettings> =
     .map((op, i) => ({ op, i }))
     .sort((a, b) => a.op.tool.diameter - b.op.tool.diameter || a.i - b.i)
     .map(x => x.op);
-  return { stockTop: top, operations, warnings };
+  return { stockTop: top, safeZ: top + s.safeHeight, retractZ: top + s.retractHeight, operations, warnings };
 }

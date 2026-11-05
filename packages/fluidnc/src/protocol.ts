@@ -222,8 +222,12 @@ export class FluidncProtocol {
   /**
    * Send a line and hand the raw byte stream to `fn` until it returns (XMODEM receive).
    * The command stays in flight until its own `ok`, so nothing else is interleaved.
+   * `returnRemainder` hands back response bytes received alongside the final binary acknowledgement.
    */
-  async sendAndTakeStream<T>(line: string, fn: (subscribe: (handler: (bytes: Uint8Array) => void) => void) => Promise<T>) {
+  async sendAndTakeStream<T>(
+    line: string,
+    fn: (subscribe: (handler: (bytes: Uint8Array) => void) => void, returnRemainder: (bytes: Uint8Array) => void) => Promise<T>
+  ) {
     await this.drain();
     if (!this.isConnected()) throw new FluidncAbortError('not connected', line);
     let handler: ((bytes: Uint8Array) => void) | null = null;
@@ -235,19 +239,25 @@ export class FluidncProtocol {
     this.emitConsole('sent', line);
     this.socket.send(line + '\n');
     let result: T;
+    let remainder: Uint8Array | undefined;
     try {
-      result = await fn(h => {
-        handler = h;
-      });
+      result = await fn(
+        h => {
+          handler = h;
+        },
+        bytes => {
+          remainder = bytes;
+        }
+      );
     } catch (err) {
       this.rawHandler = null;
       this.socket.resetLineBuffer();
-      // The receiver gives up on its own after a timeout and answers with an error.
-      this.finish(cmd => cmd.reject(err as Error));
+      // The receiver may still be in binary mode, and its eventual error must not acknowledge queued G-code.
+      this.socket.reconnect('binary transfer failed');
       throw err;
     }
     this.rawHandler = null;
-    this.socket.resetLineBuffer();
+    this.socket.resetLineBuffer(remainder);
     await done;
     return result;
   }

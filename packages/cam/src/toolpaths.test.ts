@@ -69,6 +69,17 @@ describe('stepdown', () => {
 });
 
 describe('spike 3/4: toolpaths + gcode', () => {
+  it('uses configured clearance heights above the measured stock top', () => {
+    const cam = camPart(board(), { stockTop: 10, safeHeight: 12, retractHeight: 7 });
+    const rapids = readGcode(toGcode(cam)).filter(m => m.rapid);
+    expect(rapids[0].to[2]).toBe(22);
+    expect(rapids.some(m => m.to[2] === 17)).toBe(true);
+    for (const move of rapids.filter(m => Math.hypot(m.to[0] - m.from[0], m.to[1] - m.from[1]) > 1e-6))
+      expect(Math.min(move.from[2], move.to[2])).toBeGreaterThanOrEqual(17);
+    // Explicit postprocessor overrides still take precedence over the toolpath settings.
+    expect(readGcode(toGcode(cam, { safeZ: 25, retractZ: 20 }))[0].to[2]).toBe(25);
+  });
+
   it('orders pocket, hole, outline and steps down as configured', () => {
     const cam = camPart(board());
     expect(cam.operations.map(o => o.name)).toEqual(['Pocket 1 z=4', 'Hole 1', 'Outline 1']);

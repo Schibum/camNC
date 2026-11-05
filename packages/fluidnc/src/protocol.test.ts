@@ -141,6 +141,54 @@ describe.each(['v3-81', 'v4'] as const)('FluidncProtocol on %s', variant => {
     await until(() => protocol.status?.job === undefined && protocol.status?.state === 'Idle');
   });
 
+  it.each(['complete', 'split'] as const)('keeps the %s command response after a coalesced final XMODEM ACK', async response => {
+    const fake = new FakeFluidnc(variant);
+    const protocol = await connect(fake);
+    const sendRaw = protocol.sendRaw.bind(protocol);
+    // The final binary ACK and textual command response can share a WebSocket frame.
+    protocol.sendRaw = bytes => {
+      if (bytes.length !== 1 || bytes[0] !== 0x04) return sendRaw(bytes);
+      const encoder = new TextEncoder();
+      const restore: (() => void)[] = [];
+      for (const socket of fake.openSockets) {
+        const deliver = socket.deliverBytes.bind(socket);
+        socket.deliverBytes = () => {};
+        restore.push(() => {
+          socket.deliverBytes = deliver;
+        });
+      }
+      sendRaw(bytes);
+      restore.forEach(fn => fn());
+      for (const socket of fake.openSockets) {
+        socket.deliverBytes(encoder.encode(response === 'complete' ? '\x06ok\n' : '\x06o'));
+        if (response === 'split') setTimeout(() => socket.deliverBytes(encoder.encode('k\n')), 10);
+      }
+    };
+    const { xmodemUpload } = await import('./xmodem');
+    await xmodemUpload(protocol, '/sd/coalesced.nc', new TextEncoder().encode('G0 X1'));
+    // The transfer no longer owns the command queue after its own ok.
+    expect(await protocol.send('$G')).toHaveLength(1);
+  });
+
+  it('rejects queued commands when a binary transfer fails before the receiver exits', async () => {
+    const fake = new FakeFluidnc(variant);
+    const protocol = await connect(fake);
+    fake.respond = line => (line.startsWith('$Xmodem/Receive=') ? [] : undefined);
+    let queued: Promise<unknown> | undefined;
+    const sent: string[] = [];
+    protocol.on('console', line => {
+      if (line.kind === 'sent') sent.push(line.text);
+    });
+    await expect(
+      protocol.sendAndTakeStream('$Xmodem/Receive=/sd/failed.nc', async () => {
+        queued = protocol.send('G0 X100').catch(err => err);
+        throw new Error('transfer cancelled');
+      })
+    ).rejects.toThrow('transfer cancelled');
+    expect(await queued).toBeInstanceOf(FluidncAbortError);
+    expect(sent).not.toContain('G0 X100');
+  });
+
   it('resolves $SD/Run once the job runs, although 4.x only acknowledges it at the end', async () => {
     const fake = new FakeFluidnc(variant);
     const protocol = await connect(fake);

@@ -174,16 +174,15 @@ function insideLoops(p: { x: number; y: number }, loops: { x: number; y: number 
 }
 
 /**
- * Clearance heights of a board's programs: rapids and retract links pass above the tallest hold, wherever they go (and
- * wherever the machine starts from). Without holds, `toGcode`'s defaults.
+ * Clearance heights of a board's programs: rapids and retract links pass above the stock and tallest hold, wherever
+ * they go (and wherever the machine starts from), by the configured heights.
  */
 function aboveHolds(
   board: Pick<BoardSpec, 'holdPoints'>,
   stockTop: number,
   settings: Partial<CamSettings>
 ): Pick<PartCam, 'safeZ' | 'retractZ'> {
-  if (!board.holdPoints?.length) return {};
-  const top = stockTop + Math.max(...board.holdPoints.map(holdHeight));
+  const top = stockTop + Math.max(0, ...(board.holdPoints ?? []).map(holdHeight));
   return {
     safeZ: top + (settings.safeHeight ?? DEFAULT_SETTINGS.safeHeight),
     retractZ: top + (settings.retractHeight ?? DEFAULT_SETTINGS.retractHeight),

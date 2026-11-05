@@ -7,11 +7,13 @@ import { useCamMachine } from './machine/camMachine';
 import { kDefaultPlan, toCamSettings } from './planSettings';
 import { rebaseJob } from './rebaseJob';
 import { useCuttingData } from './cuttingData';
-import { getJob, getModelBytes, listJobs, saveJob, type CamJobV1 } from './jobDb';
+import { getJob, getModelBytes, listJobs, modelKey, saveJob, updateJobForModel, type CamJobV1 } from './jobDb';
 import { modelReadError } from './openModelFile';
 import { carriedParts, matchReplacedParts, partPrint, remapBoards, replaceWarning } from './partMatch';
 import { withPartNames } from './partNames';
 import { useCallback, useRef } from 'react';
+
+export { modelKey } from './jobDb';
 
 let worker: Comlink.Remote<CamWorkerAPI> | undefined;
 /** One long-lived worker, started on the first model: occt's wasm is 2.3 MB brotli. */
@@ -56,17 +58,30 @@ export function useCamModel(job: CamJobV1 | null | undefined) {
     // A file that can't be read fails the same way again: say so now, not after three slow retries.
     retry: false,
     queryFn: async (): Promise<ModelImport> => {
-      // Onto the job as it is now, not as the import found it: the user may have changed it meanwhile (the import
-      // takes a while). Like any save, only if no newer one was started.
-      const write = async (patch: Partial<CamJobV1>, drop?: 'readError', onto?: (now: CamJobV1) => Partial<CamJobV1>) => {
-        const now = queryClient.getQueryData<CamJobV1>(camKeys.job(job!.id)) ?? job!;
-        const next = { ...now, ...patch, ...onto?.(now) };
-        if (drop) delete next[drop];
-        const save = (latestSave.get(next.id) ?? 0) + 1;
-        latestSave.set(next.id, save);
-        queryClient.setQueryData(camKeys.job(next.id), next);
-        const saved = await saveJob(next);
-        if (save === latestSave.get(saved.id)) queryClient.setQueryData(camKeys.job(saved.id), saved);
+      // Importing can outlive a replacement or deletion. The storage transaction checks model identity and existence;
+      // the save counter and cache check also protect edits started while that transaction is running.
+      const write = async (update: (current: CamJobV1) => CamJobV1 | null) => {
+        const key = camKeys.job(job!.id);
+        const cached = queryClient.getQueryData<CamJobV1 | null>(key);
+        if (cached === null || (cached && modelKey(cached) !== modelKey(job!))) return;
+        let save: number | undefined;
+        const saved = await updateJobForModel(job!, current => {
+          const now = queryClient.getQueryData<CamJobV1 | null>(key);
+          if (now === null || (now && modelKey(now) !== modelKey(job!))) return null;
+          const merged = now ? rebaseJob(job!, now, current) : current;
+          const next = update(merged);
+          if (next) {
+            save = (latestSave.get(next.id) ?? 0) + 1;
+            latestSave.set(next.id, save);
+          }
+          // Before returning to the event loop: subsequent edits rebase onto the imported fields too. Another tab
+          // may have already saved this import; refresh the cache then without writing the same document again.
+          queryClient.setQueryData(key, next ?? merged);
+          return next;
+        });
+        if (!saved) return;
+        if (save === latestSave.get(saved.id))
+          queryClient.setQueryData<CamJobV1 | null>(key, now => (now === null || (now && modelKey(now) !== modelKey(saved)) ? now : saved));
         void queryClient.invalidateQueries({ queryKey: camKeys.jobs });
       };
       let model: ModelImport;
@@ -77,33 +92,45 @@ export function useCamModel(job: CamJobV1 | null | undefined) {
       } catch (e) {
         // Kept on the job, so the job list shows it failed.
         const readError = modelReadError(job!.fileName, e);
-        if (job!.readError !== readError) await write({ readError });
+        await write(now => (now.readError === readError ? null : { ...now, readError }));
         throw new Error(readError, { cause: e });
       }
-      const revision = job!.modelRevision ?? 0;
-      const partsFrom = { revision, prints: Object.fromEntries(model.parts.map(p => [p.id, partPrint(p)])) };
-      const from = job!.partsFrom;
-      const replaced = !!from && from.revision !== revision;
-      const match = replaced
-        ? matchReplacedParts(
-            job!.parts.flatMap(p => (from.prints[p.id] ? [{ id: p.id, name: p.name, print: from.prints[p.id] }] : [])),
-            model.parts.map(p => ({ id: p.id, print: partsFrom.prints[p.id] }))
-          )
-        : null;
-      const parts = carriedParts(model.parts, job!.parts, match && { matched: match.matched, prints: from!.prints });
-      if (match)
-        await write({ parts, partsFrom, replaceWarning: replaceWarning(match.affected) }, 'readError', now => ({
-          ...(now.boards && { boards: remapBoards(now.boards, match.matched) }),
-        }));
-      else if (JSON.stringify(parts) !== JSON.stringify(job!.parts) || JSON.stringify(partsFrom) !== JSON.stringify(from) || job!.readError)
-        await write({ parts, partsFrom }, 'readError');
+      await write(now => {
+        const revision = now.modelRevision ?? 0;
+        const partsFrom = { revision, prints: Object.fromEntries(model.parts.map(p => [p.id, partPrint(p)])) };
+        const from = now.partsFrom;
+        // An importer update can split or reorder groups without replacing the stored model file.
+        const replaced = !!from && (from.revision !== revision || JSON.stringify(from.prints) !== JSON.stringify(partsFrom.prints));
+        const match = replaced
+          ? matchReplacedParts(
+              now.parts.flatMap(p => (from.prints[p.id] ? [{ id: p.id, name: p.name, print: from.prints[p.id] }] : [])),
+              model.parts.map(p => ({ id: p.id, print: partsFrom.prints[p.id] }))
+            )
+          : null;
+        const parts = carriedParts(model.parts, now.parts, match && { matched: match.matched, prints: from!.prints });
+        if (
+          !match &&
+          JSON.stringify(parts) === JSON.stringify(now.parts) &&
+          JSON.stringify(partsFrom) === JSON.stringify(from) &&
+          !now.readError
+        )
+          return null;
+        const next = {
+          ...now,
+          parts,
+          partsFrom,
+          ...(match && {
+            replaceWarning: replaceWarning(match.affected),
+            ...(now.boards && { boards: remapBoards(now.boards, match.matched) }),
+          }),
+        };
+        delete next.readError;
+        return next;
+      });
       return model;
     },
   });
 }
-
-/** One version of a job's model: what its parts and programs are computed from. */
-export const modelKey = (job: CamJobV1) => `${job.id}:${job.fileName}:${job.modelRevision ?? 0}`;
 
 /** Toolpaths + G-code of one part with the job's plan settings; recomputed (~0.3s) when they change. */
 export function useCamPlan(job: CamJobV1 | null | undefined, partId: string | undefined, modelReady: boolean) {
@@ -171,8 +198,8 @@ export function useBoardPlans(
 export function useSaveCamJob(rendered?: CamJobV1 | null) {
   const queryClient = useQueryClient();
   const mutation = useMutation({
-    mutationFn: saveJob,
-    onMutate: job => {
+    mutationFn: ({ job, base }: { job: CamJobV1; base?: CamJobV1 }) => saveJob(job, base),
+    onMutate: ({ job }) => {
       const save = (latestSave.get(job.id) ?? 0) + 1;
       latestSave.set(job.id, save);
       return { save };
@@ -185,14 +212,17 @@ export function useSaveCamJob(rendered?: CamJobV1 | null) {
   });
   const base = useRef(rendered);
   base.current = rendered;
+  const edit = (job: CamJobV1) => {
+    const current = queryClient.getQueryData<CamJobV1>(camKeys.job(job.id));
+    const next = base.current && current ? rebaseJob(base.current, job, current) : job;
+    // Now, not in onMutate (a tick later): the next save may come before that.
+    queryClient.setQueryData(camKeys.job(next.id), next);
+    // The transaction rebases too: an import may commit after this snapshot but before this save reaches IndexedDB.
+    return { job: next, base: current ?? base.current ?? undefined };
+  };
   return {
     ...mutation,
-    mutate: (job: CamJobV1) => {
-      const current = queryClient.getQueryData<CamJobV1>(camKeys.job(job.id));
-      const next = base.current && current ? rebaseJob(base.current, job, current) : job;
-      // Now, not in onMutate (a tick later): the next save may come before that.
-      queryClient.setQueryData(camKeys.job(next.id), next);
-      mutation.mutate(next);
-    },
+    mutate: (job: CamJobV1) => mutation.mutate(edit(job)),
+    mutateAsync: (job: CamJobV1) => mutation.mutateAsync(edit(job)),
   };
 }
