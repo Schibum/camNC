@@ -128,6 +128,38 @@ describe('CncApi', () => {
     expect(api.homed.value).toBe(false);
   });
 
+  it('jogs back into the travel when homing ends a step outside it (FluidNC 3.9 then rejects every move)', async () => {
+    const fake = new FakeFluidnc('v3-81');
+    fake.homedMpos = { x: 2.99, y: 3, z: 3 };
+    fake.respond = line => (/^\$\/axes\/[xyz]\/soft_limits$/.test(line) ? [`${line}=true`, 'ok'] : undefined);
+    const api = await connected(fake);
+    await api.home();
+    expect(fake.received).toContain('$J=G91 G21 X0.510 F600');
+    expect(fake.mpos.x).toBeCloseTo(3.5);
+  });
+
+  it('after homing, jogs only the axes that slipped a step out, never one outside without soft limits', async () => {
+    const fake = new FakeFluidnc('v3-81');
+    fake.homedMpos = { x: 2.99, y: 3, z: 3 };
+    fake.respond = line => (/^\$\/axes\/x\/soft_limits$/.test(line) ? [`${line}=true`, 'ok'] : undefined);
+    const api = await connected(fake);
+    // Z left above its travel (no soft limits there): not camNC's to move unasked.
+    fake.homedMpos = { x: 2.99, y: 3, z: 10 };
+    await api.home();
+    expect(fake.received).toContain('$J=G91 G21 X0.510 F600');
+    expect(fake.mpos.z).toBe(10);
+  });
+
+  it('leaves an axis far outside the travel for the pre-job check to explain', async () => {
+    const fake = new FakeFluidnc('v3-81');
+    fake.homedMpos = { x: -20, y: 3, z: 3 };
+    fake.respond = line => (/^\$\/axes\/[xyz]\/soft_limits$/.test(line) ? [`${line}=true`, 'ok'] : undefined);
+    const api = await connected(fake);
+    await api.home();
+    await until(() => api.travel.value !== null);
+    expect(fake.received.some(line => line.startsWith('$J='))).toBe(false);
+  });
+
   it('rejects commands immediately while disconnected, instead of throwing', async () => {
     const api = new CncApi();
     await expect(api.jogRelative({ x: 1 }, 100)).rejects.toThrow('not connected');

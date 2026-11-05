@@ -3,7 +3,7 @@ import { explainAlarm, kUnknownAlarmHelp, TravelBounds } from '@/lib/machine/ala
 import { useMachineBoundsOrNull } from '@/store/store';
 import { Button } from '@wbcnc/ui/components/button';
 import { toast } from '@wbcnc/ui/components/sonner';
-import { Home, LockOpen } from 'lucide-react';
+import { Home, LockOpen, OctagonX } from 'lucide-react';
 
 function report(promise: Promise<unknown>, what: string) {
   return promise.catch(err => toast.error(`${what} failed`, { description: err instanceof Error ? err.message : String(err) }));
@@ -12,7 +12,7 @@ function report(promise: Promise<unknown>, what: string) {
 const fmt = (n: number) => n.toFixed(2);
 
 /**
- * Shown while the controller is in Alarm: what happened, where, and how to resolve it, with Home and Unlock.
+ * Shown while the controller is in Alarm: what happened, where, and how to resolve it, with Reset, Home and Unlock.
  * If camNC did not see the alarm happen (before this page or connection), it explains the likely cases instead.
  */
 export function AlarmCard({ onShowConsole }: { onShowConsole?: () => void }) {
@@ -63,6 +63,15 @@ export function AlarmCard({ onShowConsole }: { onShowConsole?: () => void }) {
         </ul>
       )}
       <div className="flex flex-row flex-wrap gap-2 items-center">
+        {/* FluidNC answers some alarms (soft limits among them) with "Reset to continue": Unlock alone is refused then. */}
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={!connected}
+          title="Soft reset (Ctrl-X): clears the alarm's lock-out and the planner"
+          onClick={() => api.softReset()}>
+          <OctagonX /> Reset
+        </Button>
         <Button size="sm" variant="secondary" disabled={!connected} onClick={() => report(api.home(), 'Homing')}>
           <Home /> Home all
         </Button>

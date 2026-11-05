@@ -12,9 +12,12 @@ const alarm = (code: number, messages: string[], extra: Partial<AlarmRecord> = {
 
 describe('explainAlarm', () => {
   it('explains a 3.9.1 soft limit with the travel camNC knows (recorded on a Jackpot2)', () => {
-    const help = explainAlarm(alarm(2, ['INFO: Soft limit on X target:2.990', 'INFO: ALARM: Soft Limit']), {
-      X: { min: 3, max: 1223 },
-    });
+    const help = explainAlarm(
+      alarm(2, ['INFO: Soft limit on X target:2.990', 'INFO: ALARM: Soft Limit'], { mpos: { x: 40, y: 120, z: -10 } }),
+      {
+        X: { min: 3, max: 1223 },
+      }
+    );
     expect(help.title).toBe('ALARM:2 Soft limit: the move would exceed machine travel');
     expect(help.cause).toBe(
       'The job in camnc.gcode at 42.5 % moved X to 2.99 (machine coordinates), outside the X travel 3 to 1223. The toolpath reaches past the X minimum, or the work zero is too close to it.'
@@ -22,6 +25,19 @@ describe('explainAlarm', () => {
     expect(help.fix).toBe(
       'Move the X zero at least 0.02 mm away from the minimum, or shrink the job. Then Unlock: the position is still correct.'
     );
+  });
+
+  it('tells when the machine already sat outside the travel: the move that stopped did not move that axis', () => {
+    const help = explainAlarm(
+      alarm(2, ['INFO: Soft limit on X target:2.990', 'INFO: ALARM: Soft Limit'], { job: { file: '/sd/camnc.gcode', percent: 0.2 } }),
+      {
+        X: { min: 3, max: 1223 },
+      }
+    );
+    expect(help.cause).toBe(
+      'The machine was already at X 2.99 (machine coordinates), outside the X travel 3 to 1223, so the controller stopped the next move in camnc.gcode at 0.2 %, even one that does not move X. This can happen right after homing, one step outside the travel.'
+    );
+    expect(help.fix).toBe('Reset, then Unlock, jog X up by 1 mm and run again. Homing in camNC moves it back into the travel by itself.');
   });
 
   it('uses the limits FluidNC 4.x reports itself', () => {

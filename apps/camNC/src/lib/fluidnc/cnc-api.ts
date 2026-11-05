@@ -24,6 +24,7 @@ import {
 } from '@wbcnc/fluidnc';
 import { AlarmRecord, loadLastAlarm, saveLastAlarm } from '../machine/alarms';
 import { Macro, macroCommands } from '../machine/macros';
+import { kIntoTravel, OutsideTravel, outsideTravel } from '../machine/workflow';
 import { waitForSignal } from '../signals-helper';
 import { isLoopbackPage, localNetworkPermission } from './machine-support';
 
@@ -53,6 +54,13 @@ const kAlarmContextBeforeMs = 3000;
 const kAlarmContextAfterMs = 1500;
 /** Click-to-jog feed when the controller does not report its max rate. */
 const kFallbackJogFeed = 3000;
+/** Feed (mm/min) for the short jog back into the travel. */
+const kIntoTravelFeed = 600;
+/**
+ * After homing, an axis this little outside its travel (mm) is the controller's own step rounding, not a wrong
+ * config: camNC jogs it back in right away (see {@link CncApi.home}).
+ */
+const kHomingSlip = 0.1;
 
 /** Jogs only start from these states. */
 export function canJog(state: string | undefined | null) {
@@ -285,9 +293,11 @@ export class CncApi {
       this.lastMessage.value = message;
       const now = Date.now();
       this.recentMessages = [...this.recentMessages.filter(m => now - m.at < kAlarmContextBeforeMs), { text: message, at: now }];
-      // Messages right after the alarm belong to it too.
+      // Messages right after the alarm belong to it too, except the program's own (MSG, …) texts: FluidNC still prints
+      // those of the lines it parses before the job stops ("Spindle starts …"), which reads as if the job went on.
       const alarm = this.lastAlarm.value;
-      if (alarm && now - alarm.at < kAlarmContextAfterMs) this.updateLastAlarm(host, { ...alarm, messages: [...alarm.messages, message] });
+      if (alarm && now - alarm.at < kAlarmContextAfterMs && !/^INFO:\s*MSG,/i.test(message))
+        this.updateLastAlarm(host, { ...alarm, messages: [...alarm.messages, message] });
     });
     protocol.on('modals', modals => {
       this.modals.value = new Set(modals.words);
@@ -394,9 +404,42 @@ export class CncApi {
   }
 
   async home() {
+    const before = this.status.value;
     const lines = await this.api.send('$H', { timeoutMs: 0 });
     this.homed.value = true;
+    await this.pullIntoTravelAfterHoming(before).catch(() => {});
     return lines;
+  }
+
+  /**
+   * FluidNC 3.9 can end homing one step outside the soft limits (X at 2.99 with a travel from 3), and then rejects every
+   * move, even a Z lift, with a soft limit alarm. Jog such an axis half a millimetre into the travel.
+   */
+  private async pullIntoTravelAfterHoming(before: typeof this.status.value) {
+    const status = await waitForSignal(() => {
+      const s = this.status.value;
+      return s && s !== before && s.state === 'Idle' ? s : null;
+    }, 3000);
+    this.ensureTravel();
+    const travel = await waitForSignal(() => this.travel.value, 5000);
+    const outside = outsideTravel(status.mpos, travel).filter(o => o.softLimits);
+    if (!outside.length || outside.some(o => Math.abs(o.jog) > kHomingSlip + kIntoTravel + 1e-6)) return;
+    // Only these axes: anything else outside the travel is for the user to move (the pre-job check says so).
+    await this.jogInto(outside);
+  }
+
+  /** Jog every axis the machine sits outside of back into the travel (relative, see `outsideTravel`). */
+  async moveIntoTravel() {
+    const mpos = this.status.value?.mpos;
+    const travel = this.travel.value;
+    if (!mpos || !travel) throw new Error('The machine position or travel is not known yet');
+    return this.jogInto(outsideTravel(mpos, travel));
+  }
+
+  private jogInto(outside: OutsideTravel[]) {
+    const delta: { x?: number; y?: number; z?: number } = {};
+    for (const o of outside) delta[o.axis] = o.jog;
+    return this.jogRelative(delta, kIntoTravelFeed);
   }
 
   /** Set feed/rapid/spindle override to `target` percent with the realtime override bytes. */

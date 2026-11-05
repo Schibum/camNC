@@ -6,7 +6,7 @@ import { JobRecord, saveJobRecord } from './jobRecord';
 import { applyRecord, InterruptedJob, interruptedJob, noteJobStopRequested, runningJobName } from './jobRecovery';
 import type { Macro } from './macros';
 import { buildResumeProgram, parseProgram, programBounds } from './resume';
-import { checkTravel, g53Targets, getJobChecklist, kHomeFirst } from './workflow';
+import { checkPosition, checkTravel, getJobChecklist } from './workflow';
 
 export function errorText(err: unknown) {
   return err instanceof Error ? err.message : String(err);
@@ -88,14 +88,27 @@ export async function uploadAndRun() {
   const api = getCncApi();
   const { toolpath, toolpathName } = useStore.getState();
   if (!toolpath?.gcode) throw new Error('No toolpath loaded');
-  if (!api.homed.value && g53Targets(toolpath.gcode).length > 0) {
-    toast.error(kHomeFirst);
-    throw new Error(kHomeFirst);
-  }
+  assertInsideTravel();
   await step(api.uploadGcode(toolpath.gcode, kJobFileName), 'Uploading…', 'Uploaded and verified');
   runningJobName.value = toolpathName;
   await step(api.runFile(kJobFileName), 'Starting job…', 'Job started');
   recordJob({ gcode: toolpath.gcode, sdFile: kJobFileName, toolpathName });
+}
+
+/**
+ * FluidNC 3.9 checks every axis on every move: from a position outside the travel even the first Z lift stops with a
+ * soft limit alarm. Refuse to start then, with what to do instead.
+ */
+function assertInsideTravel() {
+  const api = getCncApi();
+  const mpos = api.status.value?.mpos;
+  const travel = api.travel.value;
+  if (!mpos || !travel) return;
+  const check = checkPosition(mpos, travel);
+  if (!check.blocking) return;
+  const message = [check.label, ...(check.details ?? [])].join('. ');
+  toast.error(message);
+  throw new Error(message);
 }
 
 /** Machine Z to retract to before moving over the restart point: just below the top of the Z travel. */
@@ -125,6 +138,7 @@ export async function runResume(job: InterruptedJob, line: number) {
   const api = getCncApi();
   const resume = prepareResume(job, line);
   if (resume.travel?.blocking) throw new Error(resume.travel.details?.join(' ') ?? resume.travel.label);
+  assertInsideTravel();
   const name = `${job.record.toolpathName ?? 'Job'} (from line ${line + 1})`;
   // Show what runs now, placed like the original.
   applyRecord(api, { ...job.record, gcode: resume.gcode, toolpathName: name }, { machineState: false });
@@ -174,5 +188,6 @@ export function useJobChecklist() {
     toolpathBounds3: { min: bounds.min, max: bounds.max },
     workOffset,
     travel,
+    machinePosition: api.status.value?.mpos ?? null,
   });
 }

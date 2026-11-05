@@ -56,6 +56,16 @@ export function explainAlarm(alarm: AlarmRecord, travel: TravelBounds = {}): Ala
       const range = limits ? `, outside the ${violation.axis} travel ${fmt(limits.min!)} to ${fmt(limits.max!)}` : '';
       const over = limits ? (violation.target < limits.min! ? limits.min! - violation.target : violation.target - limits.max!) : null;
       const side = limits ? (violation.target < limits.min! ? 'minimum' : 'maximum') : 'edge';
+      // FluidNC 3.9 checks every axis on every move: an axis already outside the travel stops a move that does not
+      // even touch it, e.g. X one step below its minimum after homing stops the first Z lift of a job.
+      const at = alarm.mpos?.[violation.axis.toLowerCase() as 'x' | 'y' | 'z'];
+      if (at !== undefined && Math.abs(at - violation.target) < 0.005) {
+        return {
+          title,
+          cause: `The machine was already at ${violation.axis} ${fmt(violation.target)} (machine coordinates)${range}, so the controller stopped the next move${where}, even one that does not move ${violation.axis}. This can happen right after homing, one step outside the travel.`,
+          fix: `Reset, then Unlock, jog ${violation.axis} ${side === 'maximum' ? 'down' : 'up'} by 1 mm and run again. Homing in camNC moves it back into the travel by itself.`,
+        };
+      }
       return {
         title,
         cause: `The job${where} moved ${violation.axis} to ${fmt(violation.target)} (machine coordinates)${range}. The toolpath reaches past the ${violation.axis} ${side}, or the work zero is too close to it.`,
