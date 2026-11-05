@@ -529,7 +529,7 @@ describe('boards', () => {
       expect(nestBoard(next, parts, bit).board).toEqual(nest.board);
     });
 
-    it('one clamp more leaves the others where they are, one fewer goes back, and not below 3', () => {
+    it('one clamp more leaves the others where they are, one fewer leaves the rest, and not below 3', () => {
       const board = suggestFixtures(stored(), parts, bit);
       const more = nudgeFixtures(board, parts, bit, true);
       expect(more.fixtures!.length).toBe(board.fixtures!.length + 1);
@@ -537,9 +537,11 @@ describe('boards', () => {
       expect(nestBoard(more, parts, bit).board).toEqual(nestBoard(board, parts, bit).board);
       const fewer = nudgeFixtures(more, parts, bit, false);
       expect(fewer.fixtures!.length).toBe(board.fixtures!.length);
+      for (const f of fewer.fixtures!) expect(more.fixtures).toContainEqual(f);
+      expect(fewer.layout).toEqual(more.layout);
       let least = fewer;
       for (let i = 0; i < 6; i++) least = nudgeFixtures(least, parts, bit, false);
-      expect(least.fixtures!.length).toBe(3);
+      expect(least.fixtures!.length).toBeGreaterThanOrEqual(3);
     });
 
     it('says the holds stand around the work’s middle, without claiming more than it checks', () => {

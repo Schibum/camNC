@@ -9,6 +9,7 @@ import {
   fixtureFree,
   largestOffcut,
   moreHolds,
+  reserved,
   settle,
   snapScrew,
   suggestHolds,
@@ -44,9 +45,12 @@ const sample = (key: keyof typeof boards) => {
 const clamp = (side: 'left' | 'right' | 'bottom' | 'top', at: number): Fixture => ({ kind: 'clamp', side, at });
 const moved = (from: Spots, to: Spots) => Object.keys(from).filter(id => Math.hypot(from[id].x - to[id].x, from[id].y - to[id].y) > 0.5);
 const around = (b: SettleBoard, r: { spots: Spots; fixtures: Fixture[] }) => fixturesAround(b, workBox(b, r.spots), r.fixtures);
-/** What no suggestion may break: clear of every cut, no two parts on each other, on the board, around the work's middle. */
+/** What no suggestion may break: clear of every cut, off the XY zero, parts a gap apart and on the board, around the work's middle. */
 const expectHardRules = (b: SettleBoard, r: { spots: Spots; fixtures: Fixture[] }) => {
-  for (const f of r.fixtures) expect(fixtureFree(b, r.spots, f)).toBe(true);
+  for (const f of r.fixtures) {
+    expect(fixtureFree(b, r.spots, f)).toBe(true);
+    expect(reserved(f, b)).toBe(false);
+  }
   b.parts.forEach((p, i) => {
     const at = r.spots[p.id];
     expect(at.x).toBeGreaterThanOrEqual(b.margin - 1e-6);
@@ -55,8 +59,8 @@ const expectHardRules = (b: SettleBoard, r: { spots: Spots; fixtures: Fixture[] 
     expect(at.y + p.h).toBeLessThanOrEqual(b.h - b.margin + 1e-6);
     for (const q of b.parts.slice(i + 1)) {
       const o = r.spots[q.id];
-      const clear = at.x + p.w <= o.x + 1e-6 || o.x + q.w <= at.x + 1e-6 || at.y + p.h <= o.y + 1e-6 || o.y + q.h <= at.y + 1e-6;
-      expect(clear).toBe(true);
+      const g = b.gap - 1e-6;
+      expect(at.x + p.w + g <= o.x || o.x + q.w + g <= at.x || at.y + p.h + g <= o.y || o.y + q.h + g <= at.y).toBe(true);
     }
   });
   expect(around(b, r)).toBe(true);
@@ -84,6 +88,18 @@ const open = (w: number, h: number, parts: SettleBoard['parts']): SettleBoard =>
   sizes: { clampReach: 3, clampWidth: 24, screwD: 10 },
   keep: { clamp: 7.5, screw: 7.5 },
 });
+/** A sheet filled edge to edge with rectangles: no clamp has room, whatever moves. */
+const filledSheet = (n: number) => {
+  const [w, h, gap, margin] = [2440, 1220, 10, 7];
+  const cols = Math.round(Math.sqrt((n * w) / h));
+  const rows = Math.ceil(n / cols);
+  const [pw, ph] = [(w - 2 * margin - gap * (cols - 1)) / cols, (h - 2 * margin - gap * (rows - 1)) / rows];
+  const parts = Array.from({ length: n }, (_, i) => square(`p${i}`, pw, ph));
+  const spots: Spots = Object.fromEntries(
+    parts.map((p, i) => [p.id, { x: margin + (i % cols) * (pw + gap), y: margin + Math.floor(i / cols) * (ph + gap) }])
+  );
+  return { b: { ...open(w, h, parts), gap, margin }, spots };
+};
 const clampsOn = (fixtures: Fixture[], side: string) => fixtures.filter(f => f.kind === 'clamp' && f.side === side) as { at: number }[];
 
 // Both boards from the sample models the user corrected the search on, with their real outlines.
@@ -278,13 +294,31 @@ describe('suggestHolds', () => {
     for (const f of r.fixtures) expect(fixtureFree(wide, r.spots, f)).toBe(true);
   });
 
-  it('takes under 300 ms on real outlines', () => {
+  it('takes under 300 ms on real outlines, from cold', () => {
     for (const key of ['besteckkasten', 'kinderregal-standing'] as const) {
       const { b, spots } = sample(key);
-      suggestHolds(b, spots, []);
       const t = performance.now();
       suggestHolds(b, spots, []);
       expect(performance.now() - t).toBeLessThan(300);
+    }
+  });
+
+  it.each([32, 72, 144, 288])('takes under 300 ms on a full sheet of %i parts, where nothing fits and it falls back', n => {
+    const { b, spots } = filledSheet(n);
+    let t = performance.now();
+    const r = suggestHolds(b, spots, []);
+    expect(performance.now() - t).toBeLessThan(300);
+    expect(r.fixtures.length).toBeLessThanOrEqual(defaultHolds(workBox(b, spots)));
+    t = performance.now();
+    suggestHoldsGrowing(b, spots, [], { w: b.w, h: b.h });
+    expect(performance.now() - t).toBeLessThan(300);
+  });
+
+  it('adds no more to a fallback that can’t surround the work, and suggesting again changes nothing', () => {
+    for (const n of [32, 144]) {
+      const { b, spots } = filledSheet(n);
+      const first = suggestHolds(b, spots, []);
+      expect(suggestHolds(b, first.spots, first.fixtures)).toEqual(first);
     }
   });
 
@@ -411,24 +445,47 @@ describe('suggestHolds', () => {
       }
     });
 
-    it('replans when no clamp can go: one on each edge has no three that surround the middle', () => {
+    it('leaves a hand-placed cross alone: without one of them the rest would hardly surround the middle', () => {
       const b = open(800, 800, [square('p', 500, 500)]);
       const spots = { p: { x: 150, y: 150 } };
       const cross = [clamp('left', 400), clamp('right', 400), clamp('bottom', 400), clamp('top', 400)];
-      const fewer = fewerHolds(b, spots, cross);
-      expect(fewer.length).toBe(3);
-      expect(around(b, { spots, fixtures: fewer })).toBe(true);
+      expect(fewerHolds(b, spots, cross)).toEqual(cross);
     });
 
-    it('leaves no end of long work unheld: taking one of four there means a new pattern', () => {
-      const b = open(2400, 200, [square('rail', 2300, 100)]);
-      const spots = { rail: { x: 50, y: 50 } };
-      const r = suggestHolds(b, spots, []);
-      const fewer = fewerHolds(b, spots, r.fixtures);
-      expect(fewer.length).toBe(3);
-      const xs = fewer.map(f => (f.kind === 'clamp' ? (f.side === 'left' ? 0 : f.side === 'right' ? 2400 : f.at) : f.x));
-      expect(Math.min(...xs)).toBeLessThan(800);
-      expect(Math.max(...xs)).toBeGreaterThan(1600);
+    it('takes exactly one and moves no other', () => {
+      const b = open(800, 800, [square('p', 500, 500)]);
+      const spots = { p: { x: 150, y: 150 } };
+      const hand = [clamp('left', 250), clamp('left', 550), clamp('right', 250), clamp('right', 550), clamp('top', 400)];
+      const fewer = fewerHolds(b, spots, hand);
+      expect(fewer.length).toBe(4);
+      for (const f of fewer) expect(hand).toContainEqual(f);
+    });
+
+    it('still takes one from holds that never surrounded the work', () => {
+      const b = open(800, 800, [square('p', 500, 500)]);
+      const oneSided = [clamp('left', 200), clamp('left', 400), clamp('left', 600), clamp('bottom', 400)];
+      expect(fewerHolds(b, { p: { x: 150, y: 150 } }, oneSided).length).toBe(3);
+    });
+
+    it('adds exactly one to holds that don’t surround the work, on the side that fixes it', () => {
+      const b = open(800, 800, [square('p', 500, 500)]);
+      const spots = { p: { x: 150, y: 150 } };
+      const one = moreHolds(b, spots, [clamp('left', 400)]);
+      expect(one.length).toBe(2);
+      expect(one[0]).toEqual(clamp('left', 400));
+      const lopsided = [clamp('left', 250), clamp('left', 550), clamp('bottom', 400), clamp('top', 400)];
+      const more = moreHolds(b, spots, lopsided);
+      expect(more.length).toBe(5);
+      expect(more.slice(0, 4)).toEqual(lopsided);
+    });
+
+    it('makes the most of the holds there: one more gets one-sided holds around the work', () => {
+      const b = open(800, 800, [square('p', 500, 500)]);
+      const spots = { p: { x: 150, y: 150 } };
+      const oneSided = [clamp('left', 250), clamp('left', 550), clamp('bottom', 200)];
+      const more = moreHolds(b, spots, oneSided);
+      expect(fixturesAround(b, workBox(b, spots), oneSided)).toBe(false);
+      expect(fixturesAround(b, workBox(b, spots), more)).toBe(true);
     });
 
     it('never goes below 3, nor takes a screw', () => {

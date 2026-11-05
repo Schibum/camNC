@@ -367,7 +367,33 @@ describe('CAM boards step', () => {
     expect(screen.getByRole('button', { name: 'Clamp' }).getAttribute('aria-pressed')).toBe('false');
   }, 90_000);
 
-  it('Fewer and More nudge the suggestion: one more keeps the others put, and Fewer stops at 3', async () => {
+  it('says plainly when holds there don’t surround the work and Suggest can’t fix it', async () => {
+    const job = await openKinderregal();
+    fireEvent.click(drawing('B'));
+    const boardB = async () => (await getJob(job.id))!.boards!.find(b => b.name === 'B')!;
+    await waitFor(async () => expect((await boardB()).layout).toBeTruthy(), { timeout: 10_000 });
+    const saved = (await getJob(job.id))!;
+    // The back fills its board, and this size is fixed: no edge has room for what's missing.
+    const { w, h } = (await boardB()).layout!;
+    const hold = { kind: 'clamp' as const, side: 'left' as const, at: h / 2 };
+    await saveJob({
+      ...saved,
+      boards: saved.boards!.map(b => (b.name === 'B' ? { ...b, size: { fit: false as const, w, h }, fixtures: [hold] } : b)),
+    });
+    cleanup();
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <BoardsStep />
+      </QueryClientProvider>
+    );
+    await screen.findByRole('region', { name: 'Board B drawing' }, { timeout: 60_000 });
+    fireEvent.click(drawing('B'));
+    fireEvent.click(screen.getByRole('button', { name: 'Suggest holds' }));
+    await waitFor(() => expect(document.body.textContent).toMatch(/These holds don’t surround the work’s middle/), { timeout: 10_000 });
+    expect(document.body.textContent).not.toMatch(/already surround/);
+  }, 90_000);
+
+  it('Fewer and More change one clamp and leave the others put', async () => {
     const job = await openKinderregal();
     fireEvent.click(drawing('A'));
     const saved = async () => (await getJob(job.id))!.boards!.find(b => b.name === 'A')!;
@@ -382,12 +408,12 @@ describe('CAM boards step', () => {
     fireEvent.click(button('More'));
     await waitFor(async () => expect((await saved()).fixtures).toHaveLength(before.length + 1), { timeout: 10_000 });
     expect((await saved()).fixtures!.slice(0, before.length)).toEqual(before);
-    for (let n = before.length + 1; n > 3; n--) {
-      await waitFor(() => expect(button('Fewer').disabled).toBe(false));
-      fireEvent.click(button('Fewer'));
-      await waitFor(async () => expect((await saved()).fixtures).toHaveLength(n - 1), { timeout: 10_000 });
-    }
-    await waitFor(() => expect(button('Fewer').disabled).toBe(true));
+    // Fewer takes that one back, or a clamp the rest do without: what stays, stays where it was.
+    const more = (await saved()).fixtures!;
+    await waitFor(() => expect(button('Fewer').disabled).toBe(more.length <= 3));
+    fireEvent.click(button('Fewer'));
+    await waitFor(async () => expect((await saved()).fixtures).toHaveLength(more.length - 1), { timeout: 10_000 });
+    for (const f of (await saved()).fixtures!) expect(more).toContainEqual(f);
   }, 90_000);
 
   it('drags a placed clamp: it stays a fixture all the way, lands where dropped, and parts make room', async () => {

@@ -718,8 +718,8 @@ export function suggestFixtures(
 }
 
 /**
- * One hold more or fewer than the board has, as a nudge from what Suggest holds gave: no part moves, the board doesn't
- * grow, and More leaves every hold where it is. No room for another, or down to 3 holds: the board as it is.
+ * Exactly one clamp more or fewer than the board has, as a nudge from what Suggest holds gave: no part or other hold moves
+ * and the board doesn't grow. No room for another, or none can go and leave the work surrounded: the board as it is.
  */
 export function nudgeFixtures(board: BoardV1, instances: PartInstance[], bit: number, more: boolean, opts: NestOptions = {}): BoardV1 {
   const nest = nestBoard(board, instances, bit, { ...opts, holds: false });
@@ -1009,6 +1009,21 @@ export function autoFillFromStock(
   return { boards: named, tooBig, short };
 }
 
+/** Do these holds stand around the middle of the placed parts? */
+export function holdsSurroundWork(
+  fixtures: Fixture[],
+  nest: Pick<BoardNest, 'board' | 'placements'>,
+  hw: HoldHardware,
+  instances: PartInstance[]
+) {
+  const parts = nest.placements.flatMap(p => {
+    const inst = instances.find(i => i.id === p.id);
+    return inst ? [{ id: p.id, ...placedRect(p, inst) }] : [];
+  });
+  const work = workBox({ ...nest.board, parts }, Object.fromEntries(parts.map(p => [p.id, p])));
+  return fixturesAround({ ...nest.board, sizes: { clampReach: hw.clamp.d, clampWidth: hw.clamp.w, screwD: hw.screw.d } }, work, fixtures);
+}
+
 /** Whether the holds stand around the work: the one thing the Boards step says about holding. It checks where, not force. */
 export function holdVerdict(
   board: Pick<BoardV1, 'fixtures' | 'taped'>,
@@ -1020,16 +1035,7 @@ export function holdVerdict(
   const names = fixtureCount(fixtures);
   if (board.taped) return { tone: 'ok', text: names ? `${names} and tape.` : 'Tape holds this board.' };
   if (!fixtures.length) return { tone: 'none', text: 'Nothing fastens this board. If that’s the plan, you hold it down by hand.' };
-  const parts = nest.placements.flatMap(p => {
-    const inst = instances.find(i => i.id === p.id);
-    return inst ? [{ id: p.id, ...placedRect(p, inst) }] : [];
-  });
-  const work = workBox({ ...nest.board, parts }, Object.fromEntries(parts.map(p => [p.id, p])));
-  const around = fixturesAround(
-    { ...nest.board, sizes: { clampReach: hw.clamp.d, clampWidth: hw.clamp.w, screwD: hw.screw.d } },
-    work,
-    fixtures
-  );
+  const around = holdsSurroundWork(fixtures, nest, hw, instances);
   return around
     ? {
         tone: 'ok',

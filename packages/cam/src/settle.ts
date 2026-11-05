@@ -340,6 +340,34 @@ export function settle(b: SettleBoard, base: Spots, fixtures: Fixture[], fit: bo
     return out.filter(x => x !== null);
   };
 
+  const less = (x: number[], y: number[]) => {
+    for (let i = 0; i < x.length; i++) {
+      if (x[i] < y[i] - 1e-9) return true;
+      if (x[i] > y[i] + 1e-9) return false;
+    }
+    return false;
+  };
+
+  const queue: Node[] = [{ spots: base, w: b.w, h: b.h, n: 0, last: [] }];
+  const seen = new Set<string>();
+  const done: Node[] = [];
+  for (let nodes = 0; queue.length && nodes < budget; nodes++) {
+    const nd = queue.shift()!;
+    const why = violation(nd);
+    if (!why) {
+      done.push(nd);
+      continue;
+    }
+    if (nd.n >= 7) continue;
+    for (const c of expand(nd, why)) {
+      const key = `${c.w}|${c.h}|` + parts.map(p => `${c.spots[p.id].x.toFixed(1)},${c.spots[p.id].y.toFixed(1)}`).join(';');
+      if (!seen.has(key)) {
+        seen.add(key);
+        queue.push(c);
+      }
+    }
+  }
+  if (!done.length) return null;
   /** Neighbours whose edges lined up before. */
   const lined = parts.flatMap((p, i) =>
     parts.slice(i + 1).flatMap(q => {
@@ -374,34 +402,6 @@ export function settle(b: SettleBoard, base: Spots, fixtures: Fixture[], fit: bo
       dist,
     ];
   };
-  const less = (x: number[], y: number[]) => {
-    for (let i = 0; i < x.length; i++) {
-      if (x[i] < y[i] - 1e-9) return true;
-      if (x[i] > y[i] + 1e-9) return false;
-    }
-    return false;
-  };
-
-  const queue: Node[] = [{ spots: base, w: b.w, h: b.h, n: 0, last: [] }];
-  const seen = new Set<string>();
-  const done: Node[] = [];
-  for (let nodes = 0; queue.length && nodes < budget; nodes++) {
-    const nd = queue.shift()!;
-    const why = violation(nd);
-    if (!why) {
-      done.push(nd);
-      continue;
-    }
-    if (nd.n >= 7) continue;
-    for (const c of expand(nd, why)) {
-      const key = `${c.w}|${c.h}|` + parts.map(p => `${c.spots[p.id].x.toFixed(1)},${c.spots[p.id].y.toFixed(1)}`).join(';');
-      if (!seen.has(key)) {
-        seen.add(key);
-        queue.push(c);
-      }
-    }
-  }
-  if (!done.length) return null;
   const smallest = Math.min(...done.map(nd => Math.round(nd.w * nd.h)));
   const small = done.filter(nd => Math.round(nd.w * nd.h) === smallest);
   const offcut = (nd: Node) => {
@@ -621,7 +621,20 @@ const kRoomCap = 40;
 /** Samples along an edge, mm. */
 const kEdgeStep = 5;
 /** Calls to `settle` one search may make: it's the slow part, and a count, unlike a clock, gives the same result every time. */
-const kSettleCalls = 48;
+const kSettleCalls = 32;
+/** The same when no pattern fits and clamps go one at a time. */
+const kOneByOneCalls = 12;
+/**
+ * How much of that a board gets, 0 to 1: a layout `settle` looks at costs about the square of the parts on the board and
+ * the points of their outlines, so above these calls go down with its square and layouts per call with it. A count again,
+ * not a clock.
+ */
+const settleEffort = (parts: SettlePart[]) => {
+  const n = Math.max(1, parts.length);
+  const points = parts.reduce((m, p) => m + [...p.outer, ...p.holes].reduce((c, l) => c + l.length, 0), 0) / n;
+  return Math.min(1, 40 / n) * Math.min(1, 100 / Math.max(1, points));
+};
+
 /** How far along an edge a slot's clamp may be from its target, of the edge's length. */
 const kSlotReach = 0.15;
 
@@ -700,11 +713,15 @@ function edgeTable(b: SettleBoard) {
     lo: Float64Array;
     hi: Float64Array;
   };
+  const toEdge = (p: SettlePart, at: P2, side: BoardSide) =>
+    side === 'left' ? at.x : side === 'bottom' ? at.y : side === 'right' ? b.w - at.x - p.w : b.h - at.y - p.h;
   const ofLayout = new Map<Spots, Record<BoardSide, Edge>>();
   const edge = (spots: Spots, side: BoardSide): Edge => {
     const n = count(side);
     const room = new Float64Array(n).fill(Infinity);
     for (const p of b.parts) {
+      // Too far in for any clamp on this edge to care, even at the most clearance that counts.
+      if (toEdge(p, spots[p.id], side) > b.sizes.clampReach + Math.max(kRoomCap, b.keep.clamp)) continue;
       const r = partRoom(p, spots[p.id], side);
       for (let i = 0; i < n; i++) room[i] = Math.min(room[i], r[i]);
     }
@@ -731,6 +748,47 @@ function edgeTable(b: SettleBoard) {
   return { atOf, indexOf, count, rooms };
 }
 
+/** Off what's there: a second clamp on an edge has to add coverage, side by side it holds no better than one. */
+function spacedOff(b: SettleBoard, work: Rect, fixtures: Fixture[], f: Clamp) {
+  const box = fixtureBox(f, b);
+  const along = f.side === 'left' || f.side === 'right' ? work.h : work.w;
+  return !fixtures.some(g =>
+    g.kind === 'clamp'
+      ? g.side === f.side && Math.abs(g.at - f.at) < Math.max(b.sizes.clampWidth + 10, 0.25 * along)
+      : ptRect(g.x, g.y, box) < b.sizes.screwD / 2
+  );
+}
+
+/**
+ * The most useful clear spot for one more clamp, leaving the others be: one that gets the work surrounded first. `added`:
+ * the clamps whose clearance counts, besides it. None: null.
+ */
+function bestExtra(
+  b: SettleBoard,
+  table: ReturnType<typeof edgeTable>,
+  from: Spots,
+  spots: Spots,
+  work: Rect,
+  fixtures: Fixture[],
+  added: Clamp[]
+) {
+  const rooms = table.rooms(spots);
+  const wasAround = fixturesAround(b, work, fixtures);
+  let best: Clamp | null = null,
+    bestScore = -Infinity;
+  for (const side of kSides)
+    for (let i = 0; i < table.count(side); i++) {
+      const f: Clamp = { kind: 'clamp', side, at: table.atOf(i) };
+      const e = rooms[side];
+      if (e.room[i] < b.keep.clamp - 1e-6 || e.hi[i] - e.lo[i] < kSuggestPlay || !spacedOff(b, work, fixtures, f)) continue;
+      const room = Math.min(kRoomCap, e.room[i], ...added.map(g => rooms[g.side].room[table.indexOf(g.at)]));
+      const next = [...fixtures, f];
+      const score = patternScore(b, from, spots, next, room) + (!wasAround && fixturesAround(b, work, next) ? 10 : 0);
+      if (score > bestScore) [best, bestScore] = [f, score];
+    }
+  return best;
+}
+
 /**
  * Compare complete patterns: each fills its slots with a clear spot near the slot's target, moves parts only for a slot
  * with none, and the highest score wins. `count`: holds in all, as near as what fits allows. `mayMove`: false, and every
@@ -751,18 +809,11 @@ function searchPatterns(b: SettleBoard, start: Spots, existing: Fixture[], count
   };
   const leastRoom = (spots: Spots, clamps: Clamp[]) =>
     Math.min(kRoomCap, ...clamps.map(f => table.rooms(spots)[f.side].room[table.indexOf(f.at)]));
-  /** Off what's there: a second clamp on an edge has to add coverage, side by side it holds no better than one. */
-  const spaced = (fixtures: Fixture[], f: Clamp) => {
-    const box = fixtureBox(f, b);
-    return !fixtures.some(g =>
-      g.kind === 'clamp'
-        ? g.side === f.side && Math.abs(g.at - f.at) < Math.max(cw + 10, 0.25 * workLen(f.side))
-        : ptRect(g.x, g.y, box) < b.sizes.screwD / 2
-    );
-  };
+  const spaced = (fixtures: Fixture[], f: Clamp) => spacedOff(b, startWork, fixtures, f);
 
   // Patterns share their first slots.
-  let settles = 0;
+  const effort = settleEffort(b.parts);
+  let calls = Math.ceil(kSettleCalls * effort ** 2);
   const settled = new Map<string, Spots | null>();
   const layoutIds = new Map<Spots, number>();
   const moveFor = (spots: Spots, fixtures: Fixture[], budget: number) => {
@@ -770,9 +821,9 @@ function searchPatterns(b: SettleBoard, start: Spots, existing: Fixture[], count
     if (!layoutIds.has(spots)) layoutIds.set(spots, layoutIds.size);
     const key = `${layoutIds.get(spots)}|${fixtures.map(f => (isClamp(f) ? f.side + f.at : `${f.x},${f.y}`)).join()}`;
     if (settled.has(key)) return settled.get(key)!;
-    if (settles >= kSettleCalls) return null;
-    settles++;
-    const r = settle(b, spots, fixtures, false, budget, kSuggestMove);
+    if (calls <= 0) return null;
+    calls--;
+    const r = settle(b, spots, fixtures, false, Math.max(8, Math.floor(budget * effort)), kSuggestMove);
     const out = r && !movedFar(b, start, r.spots) && offcutArea(b, r.spots, existing) >= floor ? r.spots : null;
     settled.set(key, out);
     return out;
@@ -830,21 +881,6 @@ function searchPatterns(b: SettleBoard, start: Spots, existing: Fixture[], count
     if (here !== opposite.length || !here) return plain;
     return opposite.reduce((m, f) => (Math.abs(f.at - plain) < Math.abs(m - plain) ? f.at : m), opposite[0].at);
   };
-  /** More than the pattern has: the most useful clear spot, leaving the others be. */
-  const addExtras = (spots: Spots, fixtures: Fixture[]) => {
-    while (fixtures.length < count) {
-      let best: { f: Clamp; score: number } | null = null;
-      for (const side of kSides)
-        for (let i = 0; i < table.count(side); i++) {
-          const f: Clamp = { kind: 'clamp', side, at: table.atOf(i) };
-          if (!clearOn(spots, side, i) || !spaced(fixtures, f)) continue;
-          const score = patternScore(b, start, spots, [...fixtures, f], leastRoom(spots, [...added(fixtures), f]));
-          if (!best || score > best.score) best = { f, score };
-        }
-      if (!best) return;
-      fixtures.push(best.f);
-    }
-  };
   const tryPattern = (open: Pattern) => {
     let spots = start;
     const placed = [...existing];
@@ -857,7 +893,12 @@ function searchPatterns(b: SettleBoard, start: Spots, existing: Fixture[], count
       if (!f) return null;
       placed.push(f);
     }
-    addExtras(spots, placed);
+    // More than the pattern has.
+    while (placed.length < count) {
+      const extra = bestExtra(b, table, start, spots, startWork, placed, added(placed));
+      if (!extra) break;
+      placed.push(extra);
+    }
     // A clamp may have left the spot that made a part move: moves come from where the clamps ended up.
     if (spots !== start) {
       const redo = moveFor(start, placed, 60);
@@ -903,44 +944,48 @@ function searchPatterns(b: SettleBoard, start: Spots, existing: Fixture[], count
   return null;
 }
 
-/** One clamp at a time, each as far as possible from the holds so far: when no whole pattern fits, what can still be found. */
-function holdsOneByOne(b: SettleBoard, start: Spots, existing: Fixture[]): Suggested {
-  const target = Math.max(3, Math.min(8, Math.ceil((2 * (b.w + b.h)) / 600)));
+/**
+ * One clamp at a time when no pattern fits, each as far as possible from the holds so far, a spot where nothing moves
+ * counting for more than one where parts have to move aside. Up to `want` holds, surrounding the work or not.
+ */
+function holdsOneByOne(b: SettleBoard, start: Spots, existing: Fixture[], want: number): Suggested {
+  const table = edgeTable(b);
   const slide = canSlide(b, start);
   const centre = middleOf(workBox(b, start));
   const floor = offcutFloor(b, start, existing);
+  const effort = settleEffort(b.parts);
+  let calls = Math.ceil(kOneByOneCalls * effort ** 2);
   let spots = start;
   let fixtures = [...existing];
-  while (fixtures.length < target + 2) {
+  while (fixtures.length < want) {
     const pts = fixtures.map(f => centreOf(f, b));
-    if (pts.length >= target && surrounds(pts, centre)) break;
-    const options: { f: Clamp; free: boolean; score: number }[] = [];
-    for (const side of kSides) {
-      const len = edgeLen(b, side);
-      for (let at = b.sizes.clampWidth / 2; at <= len - b.sizes.clampWidth / 2; at += 20) {
-        const f = { kind: 'clamp' as const, side, at };
+    const rooms = table.rooms(spots);
+    const options: { f: Clamp; i: number; free: boolean; score: number }[] = [];
+    for (const side of kSides)
+      for (let i = 0; i < table.count(side); i += 4) {
+        const f: Clamp = { kind: 'clamp', side, at: table.atOf(i) };
         if (reserved(f, b)) continue;
         const p = centreOf(f, b);
         const d = pts.length ? Math.min(...pts.map(q => Math.hypot(p.x - q.x, p.y - q.y))) : Math.hypot(p.x - centre.x, p.y - centre.y);
         if (pts.length && d < kSuggestApart) continue;
-        const free = fixtureFree(b, spots, f);
+        const free = rooms[side].room[i] >= b.keep.clamp - 1e-6;
         if (!free && !slide) continue;
-        options.push({ f, free, score: d * (free ? 1 : 0.7) });
+        options.push({ f, i, free, score: d * (free ? 1 : 0.7) });
       }
-    }
     options.sort((x, y) => y.score - x.score);
     let chosen: Suggested | null = null;
     let tries = 0;
-    for (const { f, free } of options) {
-      if (!free && ++tries > 25) continue;
-      const r = free ? { spots, w: b.w, h: b.h } : settle(b, spots, [...fixtures, f], false, 60, kSuggestMove);
-      if (!r || r.w !== b.w || r.h !== b.h) continue;
-      if (movedFar(b, spots, r.spots)) continue;
-      const play = clampPlay(b, r.spots, f);
-      if (play.hi - play.lo < kSuggestPlay) continue;
-      const next: Fixture[] = [...fixtures, { ...f, at: Math.round((play.lo + play.hi) / 2) }];
-      if (offcutArea(b, r.spots, next) < floor) continue;
-      chosen = { spots: r.spots, fixtures: next };
+    for (const { f, i, free } of options) {
+      if (!free && (++tries > 6 || calls <= 0)) continue;
+      if (!free) calls--;
+      const r = free ? spots : settle(b, spots, [...fixtures, f], false, Math.max(8, Math.floor(40 * effort)), kSuggestMove)?.spots;
+      if (!r || movedFar(b, spots, r)) continue;
+      const e = table.rooms(r)[f.side];
+      // As far as a clamp can slide from here, up to 60 mm each way.
+      const [lo, hi] = [Math.max(e.lo[i], f.at - 60), Math.min(e.hi[i], f.at + 60)];
+      if (hi - lo < kSuggestPlay) continue;
+      if (!free && offcutArea(b, r, fixtures) < floor) continue;
+      chosen = { spots: r, fixtures: [...fixtures, { ...f, at: table.atOf(table.indexOf((lo + hi) / 2)) }] };
       break;
     }
     if (!chosen) break;
@@ -951,73 +996,59 @@ function holdsOneByOne(b: SettleBoard, start: Spots, existing: Fixture[]): Sugge
 
 /**
  * Suggest clamps, on request, on top of what's there: those stay put and count, and no part moves onto them. Complete
- * patterns are compared, aimed at the work rather than the board; when none fits, clamps one at a time. The board never
- * grows, the offcut stays within 15 %. The result is ordinary fixtures to drag or remove. A part filling its whole board
- * gets none: no edge has room. `count`: holds in all, in place of what the size of the work calls for; what fits if that
+ * patterns are compared, aimed at the work rather than the board; when none fits, clamps one at a time, no more than the
+ * work calls for even if they don't surround it. The board never grows, the offcut stays within 15 %. The result is
+ * ordinary fixtures to drag or remove. A part filling its whole board gets none: no edge has room. Suggesting again on
+ * the result changes nothing. `count`: holds in all, in place of what the size of the work calls for; what fits if that
  * many don't, and no falling back on one at a time.
  */
 export function suggestHolds(input: SettleBoard, start: Spots, existing: Fixture[], count?: number): Suggested {
   const b = ordered(input, start);
-  const work = workBox(b, start);
-  const want = count ?? defaultHolds(work);
-  if (existing.length >= want && fixturesAround(b, work, existing)) return { spots: start, fixtures: existing };
-  return (
-    searchPatterns(b, start, existing, want) ??
-    (count === undefined ? holdsOneByOne(b, start, existing) : { spots: start, fixtures: existing })
-  );
+  const want = count ?? defaultHolds(workBox(b, start));
+  let r: Suggested = { spots: start, fixtures: existing };
+  // What clamps one at a time leave can fit a pattern that wouldn't fit before: go on until nothing changes.
+  for (let round = 0; round < 3; round++) {
+    if (r.fixtures.length >= want && fixturesAround(b, workBox(b, r.spots), r.fixtures)) break;
+    const next = searchPatterns(b, r.spots, r.fixtures, want) ?? (count === undefined ? holdsOneByOne(b, r.spots, r.fixtures, want) : r);
+    if (next.fixtures.length === r.fixtures.length || movedFar(b, start, next.spots)) break;
+    r = next;
+  }
+  return r;
 }
 
-/** One clamp more where it helps most, with every hold and part left where it is. No room: the fixtures as they are. */
+/** Exactly one clamp more, where it helps most, with every hold and part left where it is. No room: the fixtures as they are. */
 export function moreHolds(input: SettleBoard, spots: Spots, fixtures: Fixture[]): Fixture[] {
-  return searchPatterns(ordered(input, spots), spots, fixtures, fixtures.length + 1, false)?.fixtures ?? fixtures;
+  const b = ordered(input, spots);
+  const f = bestExtra(b, edgeTable(b), spots, spots, workBox(b, spots), fixtures, []);
+  return f ? [...fixtures, f] : fixtures;
 }
 
-/** Around the point with room to spare: no gap of more than 160°. Three clamps can surround a point by a hair and hold nothing. */
+/** Around the point with room to spare: no gap of more than 175°. Three clamps can surround a point by a hair and hold nothing. */
 function wellAround(points: P2[], c: P2) {
   const turns = points.map(q => Math.atan2(q.y - c.y, q.x - c.x)).sort((m, n) => m - n);
-  return turns.every((t, i) => (i + 1 < turns.length ? turns[i + 1] : turns[0] + 2 * Math.PI) - t <= (160 * Math.PI) / 180);
+  return turns.every((t, i) => (i + 1 < turns.length ? turns[i + 1] : turns[0] + 2 * Math.PI) - t <= (175 * Math.PI) / 180);
 }
 
 /**
- * One clamp less, down to 3 holds: the one the rest do best without. When none can go and leave the work well surrounded,
- * a new pattern of one less, or failing that the best that still surrounds it. Parts stay where they are, screws too.
- * Nothing to take: the fixtures as they are.
+ * Exactly one clamp less, the one the rest do best without, down to 3 holds; every other hold and part stays. Holds that
+ * surround the work keep doing so, by more than a hair, or nothing goes: the fixtures as they are. So do screws.
  */
 export function fewerHolds(input: SettleBoard, spots: Spots, fixtures: Fixture[]): Fixture[] {
   if (fixtures.length <= 3) return fixtures;
   const b = ordered(input, spots);
   const work = workBox(b, spots);
-  const mid = middleOf(work);
-  const best = (keep: (rest: Fixture[]) => boolean) => {
-    let found: Fixture[] | null = null,
-      bestScore = -Infinity;
-    for (const f of fixtures.filter(isClamp)) {
-      const rest = fixtures.filter(g => g !== f);
-      if (!keep(rest)) continue;
-      const room = b.parts.flatMap(p => rest.filter(isClamp).map(g => partDist(fixtureBox(g, b), p, spots[p.id])));
-      const score = patternScore(b, spots, spots, rest, Math.min(kRoomCap, ...room));
-      if (score > bestScore) [found, bestScore] = [rest, score];
-    }
-    return found;
-  };
-  const replanned = searchPatterns(
-    b,
-    spots,
-    fixtures.filter(f => !isClamp(f)),
-    fixtures.length - 1,
-    false
-  )?.fixtures;
-  return (
-    best(rest =>
-      wellAround(
-        rest.map(f => centreOf(f, b)),
-        mid
-      )
-    ) ??
-    (replanned && replanned.length < fixtures.length ? replanned : null) ??
-    best(rest => !fixturesAround(b, work, fixtures) || fixturesAround(b, work, rest)) ??
-    fixtures
-  );
+  const pointsOf = (l: Fixture[]) => l.map(f => centreOf(f, b));
+  const wasAround = surrounds(pointsOf(fixtures), middleOf(work));
+  let best = fixtures,
+    bestScore = -Infinity;
+  for (const f of fixtures.filter(isClamp)) {
+    const rest = fixtures.filter(g => g !== f);
+    if (wasAround && !(surrounds(pointsOf(rest), middleOf(work)) && wellAround(pointsOf(rest), middleOf(work)))) continue;
+    const room = b.parts.flatMap(p => rest.filter(isClamp).map(g => partDist(fixtureBox(g, b), p, spots[p.id])));
+    const score = patternScore(b, spots, spots, rest, Math.min(kRoomCap, ...room));
+    if (score > bestScore) [best, bestScore] = [rest, score];
+  }
+  return best;
 }
 
 /** Does a board of this size fit on the machine, either way round? */
