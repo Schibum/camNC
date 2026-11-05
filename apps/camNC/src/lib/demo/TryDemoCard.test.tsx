@@ -1,8 +1,11 @@
 import { useStore } from '@/store/store';
 import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { setDemoModeForTest } from './demo-mode';
 import { TryDemoCard } from './TryDemoCard';
+
+// The store is shared with the other tests in this page: start with no camera, whatever they left behind.
+beforeEach(() => useStore.setState({ camSources: {}, activeCamId: null }));
 
 afterEach(() => {
   cleanup();

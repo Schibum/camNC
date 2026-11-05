@@ -41,7 +41,7 @@ describe('CAM setup rehearsal', () => {
     expect(boards.length).toBeGreaterThan(0);
     for (const board of boards) {
       expect(board.size.fit).toBe(false);
-      expect(Object.keys(board.positions).sort()).toEqual(board.items.toSorted());
+      expect(Object.keys(board.layout.at).sort()).toEqual(board.items.toSorted());
       expect(board.pinned.toSorted()).toEqual(board.items.toSorted());
     }
     expect(useCamMachine.getState().jobId).toBe('previous-unrelated-job');

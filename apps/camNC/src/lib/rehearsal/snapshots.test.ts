@@ -19,7 +19,7 @@ async function fixture() {
     thickness: 12,
     material: 'plywood' as const,
     size: { fit: true as const },
-    holdDown: 'tabs' as const,
+    retention: 'tabs' as const,
     tabs: DEFAULT_TABS,
     items: [],
     cut: { at: 123, keys: ['cut'], all: true },

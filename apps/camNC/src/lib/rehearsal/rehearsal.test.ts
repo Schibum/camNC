@@ -49,7 +49,7 @@ describe('rehearsal isolation', () => {
           thickness: 12,
           material: 'plywood',
           size: { fit: false, w: 400, h: 300 },
-          holdDown: 'tabs',
+          retention: 'tabs',
           tabs: DEFAULT_TABS,
           items: [],
           cut: { at: 1, keys: ['already-cut'] },

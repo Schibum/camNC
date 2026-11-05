@@ -44,7 +44,7 @@ describe('rehearsal board snapshot', () => {
         'plywood',
         parts.map(p => p.id)
       ),
-      positions: { 'part-0': { x: 18, y: 18, rotated: true } },
+      layout: { w: 600, h: 600, at: { 'part-0': { x: 18, y: 18, rotated: true } } },
       pinned: ['part-0'],
     };
     const before = structuredClone(board);
@@ -53,8 +53,24 @@ describe('rehearsal board snapshot', () => {
     const restored = nestBoard(copied, parts, 3.175);
     expect(restored.placements.find(p => p.id === 'part-0')?.rotated).toBe(true);
     expect(boardRequest(copied, restored, parts)).toEqual(boardRequest(board, nest, parts));
-    copied.positions!['part-0'].x += 1;
+    copied.layout!.at['part-0'].x += 1;
     expect(board).toEqual(before);
+  });
+
+  it('keeps the fixtures placed on the board', () => {
+    const board = {
+      ...newBoard(
+        [],
+        12,
+        'plywood',
+        parts.map(p => p.id)
+      ),
+      fixtures: [{ kind: 'clamp' as const, side: 'right' as const, at: 100 }],
+    };
+    const nest = nestBoard(board, parts, 3.175);
+    const copied = freezeRehearsalBoard(board, nest);
+    expect(copied.fixtures).toEqual(board.fixtures);
+    expect(boardRequest(copied, nestBoard(copied, parts, 3.175), parts).holdPoints).toEqual(nest.holds);
   });
 
   it('retains the existing fixed-board packing behavior', () => {
