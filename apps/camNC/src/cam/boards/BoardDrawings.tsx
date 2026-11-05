@@ -602,13 +602,18 @@ export function BoardDrawings({
                   )}
                   {nutHits && <span className="text-xs font-medium whitespace-nowrap text-destructive">collet nut hits</span>}
                   <span className="grow" />
+                  {fetching[i] && <LoadingSpinner className="size-3" />}
+                  <DropStatus dragging={!!dragging} fits={!!fits} target={target} from={dragging?.from === board.id} />
+                </div>
+                {/* Its own row on every board, so selecting one doesn't move the drawing. */}
+                <div
+                  className="h-4 w-0 min-w-full shrink-0 truncate px-1 font-mono text-xs leading-4 text-muted-foreground"
+                  data-offcut-row>
                   {board.id === selectedId && (
-                    <span className="font-mono text-xs whitespace-nowrap text-muted-foreground" data-offcut-label>
+                    <span data-offcut-label>
                       {offcut ? `Offcut ${Math.round(offcut.w)} × ${Math.round(offcut.h)}` : 'No offcut over 60 mm'}
                     </span>
                   )}
-                  {fetching[i] && <LoadingSpinner className="size-3" />}
-                  <DropStatus dragging={!!dragging} fits={!!fits} target={target} from={dragging?.from === board.id} />
                 </div>
                 <div className="relative shrink-0">
                   <NestView
