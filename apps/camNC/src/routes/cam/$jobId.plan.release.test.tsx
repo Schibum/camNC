@@ -179,6 +179,32 @@ describe('CAM plan step, the guided programs after the cutting', () => {
     expect(operationsTab().querySelector('[data-mark]')!.getAttribute('data-mark')).toBe('problem');
   }, 150_000);
 
+  it('nothing holds the parts, as chosen: the job can start, but the checks don’t say it passed', async () => {
+    await open(stepUrl, 'kinderregal-eiche.step', b => ({ ...b, retention: 'none' as const }));
+    await opList();
+    expect(screen.getAllByText(/comes loose when its outline is cut through, as you chose/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/The moves pass the safety checks, but nothing holds the parts/)).toBeTruthy();
+    expect(screen.queryByText(/Safety checks passed/)).toBeNull();
+    await waitFor(() => expect(screen.getByRole('button', { name: /Take the job to the machine/ })).toHaveProperty('disabled', false), {
+      timeout: 60_000,
+    });
+  }, 150_000);
+
+  it('a part that comes loose shows on side B too, with no "passed" there', async () => {
+    plans.tamper = p => {
+      const plan = p as PlanResult;
+      const at = { x: 0, y: 0 };
+      const loose = { step: 0, after: 'x', kind: 'loose' as const, what: 'x', at, block: true, message: 'x would come loose' };
+      return plan.sideB ? { ...plan, timeline: [loose] } : plan;
+    };
+    await open(besteckUrl, 'besteckkasten.step', b => ({ ...b, size: { fit: false as const, w: 1220, h: 610 } }));
+    const sides = await screen.findByRole('group', { name: 'Board side' }, { timeout: 90_000 });
+    fireEvent.click(within(sides).getByRole('button', { name: 'Side B (turned over)' }));
+    expect(await screen.findByText('x would come loose')).toBeTruthy();
+    expect(screen.queryByText(/Safety checks passed/)).toBeNull();
+    expect(screen.getByRole('button', { name: /Take the job to the machine/ })).toHaveProperty('disabled', true);
+  }, 150_000);
+
   it('a guided program that breaks a safety rule blocks the job and flags the Operations tab; warnings get an amber mark', async () => {
     plans.tamper = p => {
       const plan = p as PlanResult;
