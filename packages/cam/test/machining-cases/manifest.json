@@ -19,8 +19,8 @@
       "programs": [
         {
           "file": "concave-pocket.nc",
-          "sha256": "adc50badda567849a52708af76de501b20020f6ec3fe11bd219aa99ac39bb220",
-          "bytes": 4196,
+          "sha256": "c6053e189b115e356322cda0512b3e0f4d60aa28d377e0603372bcb230f47ef0",
+          "bytes": 4515,
           "operations": 1,
           "passes": 8,
           "toolNumbers": [
@@ -28,7 +28,7 @@
           ],
           "setup": {
             "schemaVersion": 1,
-            "planFingerprint": "cam-plan-v1-ce0bdd9ba42b596f",
+            "planFingerprint": "cam-plan-v1-2cb240550f985aa9",
             "programName": "concave-pocket",
             "units": "mm",
             "origin": {
@@ -47,7 +47,7 @@
             "post": {
               "profileId": "fluidnc",
               "arcs": true,
-              "arcTolerance": 0.02033089966334346,
+              "arcTolerance": 0.033884832772239096,
               "spindleDwell": 3
             },
             "accuracy": {
@@ -55,9 +55,9 @@
               "budget": {
                 "total": 0.05,
                 "import": 0,
-                "offset": 0.01355393310889564,
-                "smoothing": 0.011294944257413033,
-                "fitting": 0.02033089966334346,
+                "offset": 0.004517977702965213,
+                "smoothing": 0.00677696655444782,
+                "fitting": 0.033884832772239096,
                 "polygonRounding": 0.002262741699796952,
                 "outputRounding": 0.0008660254037844386,
                 "controllerRounding": 0.0016914558667664816
@@ -88,7 +88,7 @@
                   360,
                   480,
                   700,
-                  709.766,
+                  703.842,
                   720,
                   800,
                   1800
@@ -107,13 +107,13 @@
                   ]
                 },
                 "roles": {
-                  "approach": 5,
-                  "ramp": 122,
-                  "cut": 153,
-                  "corner": 307,
-                  "link": 6,
-                  "lead-in": 28,
-                  "lead-out": 28
+                  "approach": 4,
+                  "ramp": 147,
+                  "corner": 387,
+                  "cut": 233,
+                  "link": 8,
+                  "lead-in": 34,
+                  "lead-out": 34
                 }
               }
             ],
@@ -133,17 +133,17 @@
               "pocket z=3: 2.7mm² left in corners/narrow spots with D=3.175"
             ],
             "statistics": {
-              "bytes": 4196,
-              "executableBlocks": 200,
-              "motionBlocks": 192,
-              "arcBlocks": 57,
-              "cuttingLineBlocks": 118,
-              "feedChanges": 81,
+              "bytes": 4515,
+              "executableBlocks": 204,
+              "motionBlocks": 196,
+              "arcBlocks": 62,
+              "cuttingLineBlocks": 120,
+              "feedChanges": 83,
               "tinyCuttingLines": 1,
               "tinySegmentThresholdMm": 0.1,
               "unresolvedCuttingLines": 0,
-              "minimumCuttingLineMm": 0.04401136216933124,
-              "averageCuttingLineMm": 4.021758180926888,
+              "minimumCuttingLineMm": 0.08417244204607593,
+              "averageCuttingLineMm": 3.9794511053937756,
               "maximumLineBytes": 73
             }
           }
@@ -163,8 +163,8 @@
       "programs": [
         {
           "file": "controlled-pocket-island.nc",
-          "sha256": "c5d099ff6b454ef561625c74bfa95ca9aa48866c4787fa41cabaab0b97c35a7e",
-          "bytes": 2481,
+          "sha256": "586b6678753a5c4e139ba9f3cda27ccab70e75a563dc4a9088f122fc8d92273f",
+          "bytes": 2122,
           "operations": 1,
           "passes": 2,
           "toolNumbers": [
@@ -172,7 +172,7 @@
           ],
           "setup": {
             "schemaVersion": 1,
-            "planFingerprint": "cam-plan-v1-9895fafd9a8bacf1",
+            "planFingerprint": "cam-plan-v1-d920a53d5d654249",
             "programName": "controlled-pocket-island",
             "units": "mm",
             "origin": {
@@ -191,7 +191,7 @@
             "post": {
               "profileId": "fluidnc",
               "arcs": true,
-              "arcTolerance": 0.02033089966334346,
+              "arcTolerance": 0.033884832772239096,
               "spindleDwell": 3
             },
             "accuracy": {
@@ -199,9 +199,9 @@
               "budget": {
                 "total": 0.05,
                 "import": 0,
-                "offset": 0.01355393310889564,
-                "smoothing": 0.011294944257413033,
-                "fitting": 0.02033089966334346,
+                "offset": 0.004517977702965213,
+                "smoothing": 0.00677696655444782,
+                "fitting": 0.033884832772239096,
                 "polygonRounding": 0.002262741699796952,
                 "outputRounding": 0.0008660254037844386,
                 "controllerRounding": 0.0016914558667664816
@@ -249,7 +249,7 @@
                 "roles": {
                   "approach": 2,
                   "ramp": 39,
-                  "finish": 96,
+                  "finish": 140,
                   "corner": 16
                 }
               }
@@ -273,17 +273,17 @@
               "Planar material-rate limits exclude axial removal in 40 descending moves; ramp/plunge feed and stepdown apply separately"
             ],
             "statistics": {
-              "bytes": 2481,
-              "executableBlocks": 127,
-              "motionBlocks": 119,
-              "arcBlocks": 4,
-              "cuttingLineBlocks": 107,
+              "bytes": 2122,
+              "executableBlocks": 96,
+              "motionBlocks": 88,
+              "arcBlocks": 8,
+              "cuttingLineBlocks": 72,
               "feedChanges": 5,
-              "tinyCuttingLines": 1,
+              "tinyCuttingLines": 0,
               "tinySegmentThresholdMm": 0.1,
               "unresolvedCuttingLines": 0,
-              "minimumCuttingLineMm": 0.08130190649671142,
-              "averageCuttingLineMm": 0.5621942214300031,
+              "minimumCuttingLineMm": 0.49600000000000044,
+              "averageCuttingLineMm": 0.7563373203241938,
               "maximumLineBytes": 127
             }
           }
@@ -300,8 +300,8 @@
       "programs": [
         {
           "file": "pocket-island.nc",
-          "sha256": "1813b11338edede0530d27a3a1a559b70209576dfabd4832004a7cf7a84d4457",
-          "bytes": 9642,
+          "sha256": "8e6681f34724acd03986227df3001908cd8274d9f1b4f78588252b20d7b8e22e",
+          "bytes": 9573,
           "operations": 1,
           "passes": 16,
           "toolNumbers": [
@@ -309,7 +309,7 @@
           ],
           "setup": {
             "schemaVersion": 1,
-            "planFingerprint": "cam-plan-v1-de9469f6293f915a",
+            "planFingerprint": "cam-plan-v1-979441379f4b5ff3",
             "programName": "pocket-island",
             "units": "mm",
             "origin": {
@@ -328,7 +328,7 @@
             "post": {
               "profileId": "fluidnc",
               "arcs": true,
-              "arcTolerance": 0.02033089966334346,
+              "arcTolerance": 0.033884832772239096,
               "spindleDwell": 3
             },
             "accuracy": {
@@ -336,9 +336,9 @@
               "budget": {
                 "total": 0.05,
                 "import": 0,
-                "offset": 0.01355393310889564,
-                "smoothing": 0.011294944257413033,
-                "fitting": 0.02033089966334346,
+                "offset": 0.004517977702965213,
+                "smoothing": 0.00677696655444782,
+                "fitting": 0.033884832772239096,
                 "polygonRounding": 0.002262741699796952,
                 "outputRounding": 0.0008660254037844386,
                 "controllerRounding": 0.0016914558667664816
@@ -388,11 +388,11 @@
                 },
                 "roles": {
                   "approach": 16,
-                  "ramp": 639,
-                  "corner": 556,
-                  "cut": 517,
-                  "lead-in": 56,
-                  "lead-out": 56
+                  "ramp": 909,
+                  "corner": 730,
+                  "cut": 848,
+                  "lead-in": 68,
+                  "lead-out": 68
                 }
               }
             ],
@@ -412,17 +412,17 @@
               "pocket z=3: 2.2mm² left in corners/narrow spots with D=3.175"
             ],
             "statistics": {
-              "bytes": 9642,
-              "executableBlocks": 445,
-              "motionBlocks": 437,
-              "arcBlocks": 154,
-              "cuttingLineBlocks": 233,
-              "feedChanges": 133,
-              "tinyCuttingLines": 14,
+              "bytes": 9573,
+              "executableBlocks": 421,
+              "motionBlocks": 413,
+              "arcBlocks": 171,
+              "cuttingLineBlocks": 192,
+              "feedChanges": 130,
+              "tinyCuttingLines": 0,
               "tinySegmentThresholdMm": 0.1,
               "unresolvedCuttingLines": 0,
-              "minimumCuttingLineMm": 0.01679285562374524,
-              "averageCuttingLineMm": 4.1763626761655885,
+              "minimumCuttingLineMm": 0.11920151005754885,
+              "averageCuttingLineMm": 5.041566083093162,
               "maximumLineBytes": 73
             }
           }
@@ -442,8 +442,8 @@
       "programs": [
         {
           "file": "polished-profiles.nc",
-          "sha256": "6d4fbfeb94929c903802fb6a2b7b035e25a2a48dd0563aff0081778c708ec02c",
-          "bytes": 3843,
+          "sha256": "b25137932831fb3236b4c87779a2b7fcc7e33087e204eaa2571e0efa05313152",
+          "bytes": 4218,
           "operations": 2,
           "passes": 23,
           "toolNumbers": [
@@ -451,7 +451,7 @@
           ],
           "setup": {
             "schemaVersion": 1,
-            "planFingerprint": "cam-plan-v1-053fb32b47319f0f",
+            "planFingerprint": "cam-plan-v1-11bde6c02dac2054",
             "programName": "polished-profiles",
             "units": "mm",
             "origin": {
@@ -470,7 +470,7 @@
             "post": {
               "profileId": "fluidnc",
               "arcs": true,
-              "arcTolerance": 0.019430899663343458,
+              "arcTolerance": 0.032384832772239094,
               "spindleDwell": 3
             },
             "accuracy": {
@@ -478,9 +478,9 @@
               "budget": {
                 "total": 0.05,
                 "import": 0.002,
-                "offset": 0.012953933108895638,
-                "smoothing": 0.010794944257413033,
-                "fitting": 0.019430899663343458,
+                "offset": 0.004317977702965214,
+                "smoothing": 0.006476966554447819,
+                "fitting": 0.032384832772239094,
                 "polygonRounding": 0.002262741699796952,
                 "outputRounding": 0.0008660254037844386,
                 "controllerRounding": 0.0016914558667664816
@@ -527,11 +527,11 @@
                 },
                 "roles": {
                   "approach": 6,
-                  "lead-in": 20,
+                  "lead-in": 25,
                   "link": 6,
                   "cut": 260,
                   "finish": 519,
-                  "lead-out": 4
+                  "lead-out": 5
                 }
               },
               {
@@ -558,10 +558,10 @@
                 },
                 "roles": {
                   "approach": 6,
-                  "lead-in": 30,
+                  "lead-in": 40,
                   "link": 5,
-                  "cut": 156,
-                  "finish": 311
+                  "cut": 260,
+                  "finish": 503
                 }
               }
             ],
@@ -584,17 +584,17 @@
               "Vertical exit blends are only supported inside holes; outside profiles retain their complete final contour lap"
             ],
             "statistics": {
-              "bytes": 3843,
-              "executableBlocks": 168,
-              "motionBlocks": 150,
-              "arcBlocks": 41,
-              "cuttingLineBlocks": 71,
+              "bytes": 4218,
+              "executableBlocks": 175,
+              "motionBlocks": 157,
+              "arcBlocks": 40,
+              "cuttingLineBlocks": 79,
               "feedChanges": 24,
-              "tinyCuttingLines": 24,
+              "tinyCuttingLines": 30,
               "tinySegmentThresholdMm": 0.1,
               "unresolvedCuttingLines": 0,
-              "minimumCuttingLineMm": 0.04093897898091665,
-              "averageCuttingLineMm": 8.292519512159672,
+              "minimumCuttingLineMm": 0.03258834147360068,
+              "averageCuttingLineMm": 7.459367773493441,
               "maximumLineBytes": 120
             }
           }
@@ -609,8 +609,8 @@
       "programs": [
         {
           "file": "profile-tab-shoulders.nc",
-          "sha256": "426487b964dca8925ae4ea4425705ca7b0d7bb42b44c79ff1caf97f456806fbf",
-          "bytes": 4816,
+          "sha256": "a9cb5922348f34b6f43e566752a84d50735380eefd6bec953e182fab49ac89f3",
+          "bytes": 4909,
           "operations": 1,
           "passes": 18,
           "toolNumbers": [
@@ -618,7 +618,7 @@
           ],
           "setup": {
             "schemaVersion": 1,
-            "planFingerprint": "cam-plan-v1-7b8fc1928a1b7f8e",
+            "planFingerprint": "cam-plan-v1-82a4133ccfa44198",
             "programName": "profile-tab-shoulders",
             "units": "mm",
             "origin": {
@@ -637,7 +637,7 @@
             "post": {
               "profileId": "fluidnc",
               "arcs": true,
-              "arcTolerance": 0.02033089966334346,
+              "arcTolerance": 0.033884832772239096,
               "spindleDwell": 3
             },
             "accuracy": {
@@ -645,9 +645,9 @@
               "budget": {
                 "total": 0.05,
                 "import": 0,
-                "offset": 0.01355393310889564,
-                "smoothing": 0.011294944257413033,
-                "fitting": 0.02033089966334346,
+                "offset": 0.004517977702965213,
+                "smoothing": 0.00677696655444782,
+                "fitting": 0.033884832772239096,
                 "polygonRounding": 0.002262741699796952,
                 "outputRounding": 0.0008660254037844386,
                 "controllerRounding": 0.0016914558667664816
@@ -696,11 +696,11 @@
                 },
                 "roles": {
                   "approach": 4,
-                  "ramp": 781,
+                  "ramp": 1314,
                   "link": 14,
-                  "cut": 309,
+                  "cut": 517,
                   "tab": 24,
-                  "finish": 367
+                  "finish": 627
                 }
               }
             ],
@@ -718,17 +718,17 @@
             },
             "warnings": [],
             "statistics": {
-              "bytes": 4816,
+              "bytes": 4909,
               "executableBlocks": 229,
               "motionBlocks": 221,
-              "arcBlocks": 79,
-              "cuttingLineBlocks": 134,
+              "arcBlocks": 82,
+              "cuttingLineBlocks": 131,
               "feedChanges": 35,
               "tinyCuttingLines": 0,
               "tinySegmentThresholdMm": 0.1,
               "unresolvedCuttingLines": 0,
               "minimumCuttingLineMm": 1,
-              "averageCuttingLineMm": 10.977337068454698,
+              "averageCuttingLineMm": 11.151816161245033,
               "maximumLineBytes": 73
             }
           }
@@ -743,7 +743,7 @@
       "programs": [
         {
           "file": "split-physical-tools.1.nc",
-          "sha256": "e83c8002db80ccd734d2e09663126e362e5cce4521b066e59044f5953a2db1d6",
+          "sha256": "5d2136114dd45c91c0134ee23965620d74928c76db43275d445a7fa319e7bc03",
           "bytes": 1483,
           "operations": 1,
           "passes": 6,
@@ -752,7 +752,7 @@
           ],
           "setup": {
             "schemaVersion": 1,
-            "planFingerprint": "cam-plan-v1-e1b2eb11f9286725",
+            "planFingerprint": "cam-plan-v1-5410fce7403a1443",
             "programName": "split-physical-tools",
             "units": "mm",
             "origin": {
@@ -771,7 +771,7 @@
             "post": {
               "profileId": "fluidnc",
               "arcs": true,
-              "arcTolerance": 0.02033089966334346,
+              "arcTolerance": 0.033884832772239096,
               "spindleDwell": 3
             },
             "accuracy": {
@@ -779,9 +779,9 @@
               "budget": {
                 "total": 0.05,
                 "import": 0,
-                "offset": 0.01355393310889564,
-                "smoothing": 0.011294944257413033,
-                "fitting": 0.02033089966334346,
+                "offset": 0.004517977702965213,
+                "smoothing": 0.00677696655444782,
+                "fitting": 0.033884832772239096,
                 "polygonRounding": 0.002262741699796952,
                 "outputRounding": 0.0008660254037844386,
                 "controllerRounding": 0.0016914558667664816
@@ -870,7 +870,7 @@
         },
         {
           "file": "split-physical-tools.2.nc",
-          "sha256": "224b74f98bb3164c34786207f88d4dd36e5b7cba167b80761c2f8fbec0e4ecea",
+          "sha256": "cdfe90da9509fa3557f45de2fbdf4854904bc92df88dd4f8b72426e781699769",
           "bytes": 1512,
           "operations": 1,
           "passes": 6,
@@ -879,7 +879,7 @@
           ],
           "setup": {
             "schemaVersion": 1,
-            "planFingerprint": "cam-plan-v1-53564e89d75d7c25",
+            "planFingerprint": "cam-plan-v1-c1acce6315d04ca7",
             "programName": "split-physical-tools",
             "units": "mm",
             "origin": {
@@ -898,7 +898,7 @@
             "post": {
               "profileId": "fluidnc",
               "arcs": true,
-              "arcTolerance": 0.02033089966334346,
+              "arcTolerance": 0.033884832772239096,
               "spindleDwell": 3
             },
             "accuracy": {
@@ -906,9 +906,9 @@
               "budget": {
                 "total": 0.05,
                 "import": 0,
-                "offset": 0.01355393310889564,
-                "smoothing": 0.011294944257413033,
-                "fitting": 0.02033089966334346,
+                "offset": 0.004517977702965213,
+                "smoothing": 0.00677696655444782,
+                "fitting": 0.033884832772239096,
                 "polygonRounding": 0.002262741699796952,
                 "outputRounding": 0.0008660254037844386,
                 "controllerRounding": 0.0016914558667664816
@@ -1008,7 +1008,7 @@
       "programs": [
         {
           "file": "tangent-fallback.nc",
-          "sha256": "8a1dc21e656e71bf13a0f3f858f2783424de33d03626482e5abdf1917b1256f6",
+          "sha256": "4dc8e124f34c4307ad64b30955df5eaffa519760e568c6707b3acb415e453d61",
           "bytes": 1622,
           "operations": 1,
           "passes": 9,
@@ -1017,7 +1017,7 @@
           ],
           "setup": {
             "schemaVersion": 1,
-            "planFingerprint": "cam-plan-v1-bd9cad7fbccdb2b3",
+            "planFingerprint": "cam-plan-v1-5005b14bb6673d0f",
             "programName": "tangent-fallback",
             "units": "mm",
             "origin": {
@@ -1036,7 +1036,7 @@
             "post": {
               "profileId": "fluidnc",
               "arcs": true,
-              "arcTolerance": 0.019430899663343458,
+              "arcTolerance": 0.032384832772239094,
               "spindleDwell": 3
             },
             "accuracy": {
@@ -1044,9 +1044,9 @@
               "budget": {
                 "total": 0.05,
                 "import": 0.002,
-                "offset": 0.012953933108895638,
-                "smoothing": 0.010794944257413033,
-                "fitting": 0.019430899663343458,
+                "offset": 0.004317977702965214,
+                "smoothing": 0.006476966554447819,
+                "fitting": 0.032384832772239094,
                 "polygonRounding": 0.002262741699796952,
                 "outputRounding": 0.0008660254037844386,
                 "controllerRounding": 0.0016914558667664816
@@ -1141,7 +1141,7 @@
       "programs": [
         {
           "file": "tool-width-threshold.nc",
-          "sha256": "637aa912cf0ca5685468daa673932c008a0a31253fe02a115e0198d02c80137d",
+          "sha256": "5781765c2475c43928f0e709c09308f4c098d03ab416ef2d11a81e8a27a6970e",
           "bytes": 889,
           "operations": 1,
           "passes": 1,
@@ -1150,7 +1150,7 @@
           ],
           "setup": {
             "schemaVersion": 1,
-            "planFingerprint": "cam-plan-v1-bb6cc177b1ce768b",
+            "planFingerprint": "cam-plan-v1-f9a4edca618fc05e",
             "programName": "tool-width-threshold",
             "units": "mm",
             "origin": {
@@ -1169,7 +1169,7 @@
             "post": {
               "profileId": "fluidnc",
               "arcs": true,
-              "arcTolerance": 0.02033089966334346,
+              "arcTolerance": 0.033884832772239096,
               "spindleDwell": 3
             },
             "accuracy": {
@@ -1177,9 +1177,9 @@
               "budget": {
                 "total": 0.05,
                 "import": 0,
-                "offset": 0.01355393310889564,
-                "smoothing": 0.011294944257413033,
-                "fitting": 0.02033089966334346,
+                "offset": 0.004517977702965213,
+                "smoothing": 0.00677696655444782,
+                "fitting": 0.033884832772239096,
                 "polygonRounding": 0.002262741699796952,
                 "outputRounding": 0.0008660254037844386,
                 "controllerRounding": 0.0016914558667664816

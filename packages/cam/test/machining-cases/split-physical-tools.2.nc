@@ -1,6 +1,6 @@
 (camNC CAM)
 (split-physical-tools)
-(Plan: cam-plan-v1-53564e89d75d7c25)
+(Plan: cam-plan-v1-c1acce6315d04ca7)
 (Post: fluidnc. Safe Z9. Retract Z6)
 (Planned bounds: X23.588..30.413 Y5.588..12.413 Z-0.3..4)
 (Stock: 36 x 20 x 4 mm)

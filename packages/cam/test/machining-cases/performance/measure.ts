@@ -5,13 +5,20 @@ import { estimateProgramTime, LOWRIDER_V4_REFERENCE_PROFILE } from '../../../src
 import { DEFAULT_SETTINGS } from '../../../src/toolpaths';
 import { generateMachiningCase, sha256, type MachiningCaseInput } from '../build';
 
-export const PERFORMANCE_INPUT_TEXT = readFileSync(new URL('./cases.json', import.meta.url), 'utf8');
-export const performanceCases = JSON.parse(PERFORMANCE_INPUT_TEXT) as MachiningCaseInput[];
+export const ORIGINAL_PERFORMANCE_INPUT_TEXT = readFileSync(new URL('./cases.json', import.meta.url), 'utf8');
+export const ROUND_OPEN_INPUT_TEXT = readFileSync(new URL('./round-open.cases.json', import.meta.url), 'utf8');
+export const PERFORMANCE_INPUT_TEXT = ORIGINAL_PERFORMANCE_INPUT_TEXT + ROUND_OPEN_INPUT_TEXT;
+export const performanceCases = [
+  ...JSON.parse(ORIGINAL_PERFORMANCE_INPUT_TEXT),
+  ...JSON.parse(ROUND_OPEN_INPUT_TEXT),
+] as MachiningCaseInput[];
 export interface PerformanceLimits {
   executableBlocks: number;
   tinyFeedLineBlocks: number;
   retracts: number;
   estimatedAutomaticSeconds: number;
+  feedLineBlocks?: number;
+  minimumArcBlocks?: number;
 }
 export const performanceLimits = JSON.parse(readFileSync(new URL('./limits.json', import.meta.url), 'utf8')) as Record<
   string,
@@ -31,6 +38,8 @@ export function measurePerformanceCase(input: MachiningCaseInput) {
       bytes: statistics.bytes,
       executableBlocks: statistics.executableBlocks,
       motionBlocks: statistics.motionBlocks,
+      arcBlocks: statistics.arcBlocks,
+      feedChanges: statistics.feedChanges,
       tinyFeedLineBlocks: statistics.tinyCuttingLines,
       feedLineBlocks: statistics.cuttingLineBlocks,
       retracts: moves.filter(move => move.rapid && move.to[2] > move.from[2] + 1e-6).length,

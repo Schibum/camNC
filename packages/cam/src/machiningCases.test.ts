@@ -1,11 +1,13 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { CASE_DIRECTORY, generateMachiningCase, readMachiningCases, sha256 } from '../test/machining-cases/build';
+import { CASE_DIRECTORY, generateMachiningCase, readMachiningCases, sha256, shapePath } from '../test/machining-cases/build';
 import {
   measurePerformanceCase,
   performanceCases,
   performanceLimits,
   PERFORMANCE_INPUT_TEXT,
+  ORIGINAL_PERFORMANCE_INPUT_TEXT,
+  ROUND_OPEN_INPUT_TEXT,
 } from '../test/machining-cases/performance/measure';
 import { DepthMap, readGcode } from './analyze';
 import { validateFluidNCOutput } from './gcode';
@@ -55,7 +57,12 @@ const performanceManifest = {
   tinyFeedLineThresholdMm: 0.1,
   retractDefinition: 'initial clearance command and subsequent positive-Z work-coordinate G0 moves; machine-coordinate parking excluded',
   timingProfile: 'lowrider-v4-reference',
-  cases: performanceGenerated.map(({ input, resolvedSettings, metrics }) => ({ id: input.id, resolvedSettings, metrics })),
+  cases: performanceGenerated.map(({ input, resolvedSettings, metrics, result }) => ({
+    id: input.id,
+    resolvedSettings,
+    accuracy: result.cam.accuracy,
+    metrics,
+  })),
 };
 if (update) {
   for (const { result } of generated) for (const { file, gcode } of result.programs) writeFileSync(`${CASE_DIRECTORY}/${file}`, gcode);
@@ -198,8 +205,12 @@ describe('default machining output cost', () => {
     expect(JSON.parse(readFileSync(`${CASE_DIRECTORY}/performance/manifest.json`, 'utf8'))).toEqual(performanceManifest);
     const before = JSON.parse(readFileSync(`${CASE_DIRECTORY}/performance/baseline-before.json`, 'utf8'));
     expect(before.sourceCommit).toBe('f5c76b20287b84f736d3e5bb19e01029281796d5');
-    expect(before.inputSha256).toBe(performanceManifest.inputSha256);
-    expect(before.cases.map((c: { input: unknown }) => c.input)).toEqual(performanceCases);
+    expect(before.inputSha256).toBe(sha256(ORIGINAL_PERFORMANCE_INPUT_TEXT));
+    expect(before.cases.map((c: { input: unknown }) => c.input)).toEqual(JSON.parse(ORIGINAL_PERFORMANCE_INPUT_TEXT));
+    const curvedOpenBefore = JSON.parse(readFileSync(`${CASE_DIRECTORY}/performance/baseline-round-open-before.json`, 'utf8'));
+    expect(curvedOpenBefore.sourceCommit).toBe('850731a3706d0cd1bda6f8bfa74db87433025196');
+    expect(curvedOpenBefore.inputSha256).toBe(sha256(ROUND_OPEN_INPUT_TEXT));
+    expect(curvedOpenBefore.cases.map((entry: { input: unknown }) => entry.input)).toEqual(JSON.parse(ROUND_OPEN_INPUT_TEXT));
     expect(Object.keys(performanceLimits).sort()).toEqual(performanceCases.map(input => input.id).sort());
     for (const entry of before.cases) {
       const limit = performanceLimits[entry.id],
@@ -209,11 +220,21 @@ describe('default machining output cost', () => {
       expect(observed.estimatedAutomaticSeconds).toBeGreaterThan(limit.estimatedAutomaticSeconds);
       if (entry.input.mode !== 'profiles') expect(observed.tinyFeedLineBlocks).toBeGreaterThan(limit.tinyFeedLineBlocks);
     }
+    for (const entry of curvedOpenBefore.cases) {
+      const limit = performanceLimits[entry.id],
+        observed = entry.metrics[0];
+      if (entry.input.pockets[0].boundary.type === 'polygon')
+        for (const field of ['executableBlocks', 'tinyFeedLineBlocks', 'retracts', 'estimatedAutomaticSeconds', 'feedLineBlocks'] as const)
+          expect(observed[field], `historical ${entry.id} ${field}`).toBeGreaterThan(limit[field]!);
+      else if (entry.input.pockets[0].boundary.segments < 512) expect(observed.feedLineBlocks).toBeGreaterThan(limit.feedLineBlocks!);
+    }
   });
 
   for (const { input, result, metrics } of performanceGenerated)
     it(`${input.id}: bounded blocks, tiny moves, retracts and modeled time with retained geometry`, () => {
       expect(result.programs).toHaveLength(1);
+      expect(result.cam.accuracy?.budget.total).toBe(0.05);
+      expect(result.cam.accuracy?.scope).toBe('features');
       const roles = result.cam.operations.flatMap(operation => operation.passes.flatMap(pass => pass.roles ?? []));
       for (const role of input.expected.requiredRoles ?? []) expect(roles, role).toContain(role);
       const limit = performanceLimits[input.id];
@@ -221,6 +242,8 @@ describe('default machining output cost', () => {
       for (const metric of metrics) {
         for (const field of ['executableBlocks', 'tinyFeedLineBlocks', 'retracts', 'estimatedAutomaticSeconds'] as const)
           expect(metric[field], `${input.id} ${field}`).toBeLessThanOrEqual(limit[field]);
+        if (limit.feedLineBlocks !== undefined) expect(metric.feedLineBlocks).toBeLessThanOrEqual(limit.feedLineBlocks);
+        if (limit.minimumArcBlocks !== undefined) expect(metric.arcBlocks).toBeGreaterThanOrEqual(limit.minimumArcBlocks);
         expect(metric.timingSkippedMotionCount).toBeLessThanOrEqual(3);
       }
       const { gcode, cam } = result.programs[0];
@@ -256,20 +279,72 @@ describe('default machining output cost', () => {
           [(x0 + x1) / 2, y1 + radius, 0],
         ] as Vec3[])
           expect(floor.some(move => pointToSegment(point, move.from, move.to) < 0.05)).toBe(true);
+      } else if (input.pockets[0].boundary.type === 'circle') {
+        const source = input.pockets[0].boundary;
+        const polygon = shapePath(source);
+        const edges = polygon.map((a, i) => {
+          const b = polygon[(i + 1) % polygon.length];
+          return { a, dx: b.x - a.x, dy: b.y - a.y, length: Math.hypot(b.x - a.x, b.y - a.y) };
+        });
+        let clearance = Infinity;
+        for (const cut of cuts)
+          for (const point of [cut.from, cut.to])
+            for (const edge of edges)
+              clearance = Math.min(clearance, (edge.dx * (point[1] - edge.a.y) - edge.dy * (point[0] - edge.a.x)) / edge.length);
+        // Test the actual supplied polygon's half-planes, rather than granting ideal-circle space to a coarse source.
+        expect(clearance).toBeGreaterThanOrEqual(radius - (input.settings.geometryTolerance ?? 0.05));
+        const [cx, cy] = source.center;
+        for (const x of [-24, -12, 0, 12, 24])
+          for (const y of [-24, -12, 0, 12, 24])
+            if (Math.hypot(x, y) < source.radius - 1)
+              expect(
+                floor.some(move => pointToSegment([cx + x, cy + y, 0], move.from, move.to) <= radius + 0.01),
+                `floor ${x},${y}`
+              ).toBe(true);
+        const wallRadius = source.radius * Math.cos(Math.PI / source.segments) - radius;
+        for (let i = 0; i < 8; i++) {
+          const angle = ((2 * Math.floor((i * source.segments) / 8) + 1) * Math.PI) / source.segments;
+          const point: Vec3 = [cx + wallRadius * Math.cos(angle), cy + wallRadius * Math.sin(angle), 0];
+          expect(
+            floor.some(move => pointToSegment(point, move.from, move.to) <= 0.05),
+            `wall angle ${angle}`
+          ).toBe(true);
+        }
       } else {
-        // A convex rectangle permits an analytical whole-cutter envelope check for every posted feed chord.
+        const polygon = input.pockets[0].boundary.points;
+        const x0 = Math.min(...polygon.map(point => point[0])),
+          y0 = Math.min(...polygon.map(point => point[1])),
+          x1 = Math.max(...polygon.map(point => point[0])),
+          y1 = Math.max(...polygon.map(point => point[1]));
+        const open = y0 === 0;
+        if (open) {
+          const retained: [number, number, number, number][] = [
+            [0, 0, x0, input.stockSize[1]],
+            [x1, 0, input.stockSize[0], input.stockSize[1]],
+            [x0, y1, x1, input.stockSize[1]],
+          ];
+          let clearance = Infinity;
+          for (const cut of cuts) for (const box of retained) clearance = Math.min(clearance, segmentToRectangle(cut.from, cut.to, box));
+          expect(clearance).toBeGreaterThanOrEqual(radius - 0.05);
+        }
+        // Closed rectangular cavities permit an analytical envelope check on every posted feed chord.
         for (const cut of cuts)
           for (const point of [cut.from, cut.to]) {
-            expect(point[0]).toBeGreaterThanOrEqual(10 + radius - 0.05);
-            expect(point[0]).toBeLessThanOrEqual(160 - radius + 0.05);
-            expect(point[1]).toBeGreaterThanOrEqual(10 + radius - 0.05);
-            expect(point[1]).toBeLessThanOrEqual(130 - radius + 0.05);
+            if (!open) {
+              expect(point[0]).toBeGreaterThanOrEqual(x0 + radius - 0.05);
+              expect(point[0]).toBeLessThanOrEqual(x1 - radius + 0.05);
+              expect(point[1]).toBeGreaterThanOrEqual(y0 + radius - 0.05);
+              expect(point[1]).toBeLessThanOrEqual(y1 - radius + 0.05);
+            }
           }
         // Retain floor coverage across the cavity, rather than accepting fewer blocks by leaving most of it uncut.
-        for (const x of [15, 35, 85, 135, 155])
-          for (const y of [15, 40, 70, 100, 125])
+        const fractions = [0, 0.2, 0.5, 0.8, 1];
+        const xs = fractions.map(t => x0 + radius + 1 + t * (x1 - x0 - 2 * (radius + 1)));
+        const ys = fractions.map(t => y0 + (open ? 1 : radius + 1) + t * (y1 - y0 - (open ? radius + 2 : 2 * (radius + 1))));
+        for (const x of xs)
+          for (const y of ys)
             expect(
-              floor.some(move => pointToSegment([x, y, 0], move.from, move.to) <= radius + 0.001),
+              floor.some(move => pointToSegment([x, y, 0], move.from, move.to) <= radius + 0.01),
               `floor ${x},${y}`
             ).toBe(true);
       }

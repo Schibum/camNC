@@ -1,0 +1,817 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "850731a3706d0cd1bda6f8bfa74db87433025196",
+  "inputSha256": "389075e1bdfe8bd5e6a6db534f198707521b4d6fe9530ae59ab9b067c524f493",
+  "cases": [
+    {
+      "id": "default-open-pocket-400x12x9-d6",
+      "input": {
+        "schemaVersion": 1,
+        "mode": "part",
+        "settings": {
+          "tools": [
+            {
+              "number": 1,
+              "diameter": 6,
+              "name": "synthetic flat end mill"
+            }
+          ],
+          "cutThrough": false
+        },
+        "id": "default-open-pocket-400x12x9-d6",
+        "description": "Default D6 open-edge cavity 400 mm long, 12 mm wide and 9 mm deep; bottom edge opens at stock Y0.",
+        "stockSize": [
+          500,
+          100,
+          18
+        ],
+        "outline": {
+          "type": "polygon",
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              500,
+              0
+            ],
+            [
+              500,
+              100
+            ],
+            [
+              0,
+              100
+            ]
+          ]
+        },
+        "pockets": [
+          {
+            "boundary": {
+              "type": "polygon",
+              "points": [
+                [
+                  50,
+                  0
+                ],
+                [
+                  450,
+                  0
+                ],
+                [
+                  450,
+                  12
+                ],
+                [
+                  50,
+                  12
+                ]
+              ]
+            },
+            "floorZ": 9
+          }
+        ],
+        "expected": {
+          "minimumZ": 9,
+          "programs": 1
+        }
+      },
+      "resolvedSettings": {
+        "tools": [
+          {
+            "number": 1,
+            "diameter": 6,
+            "name": "synthetic flat end mill"
+          }
+        ],
+        "material": {
+          "name": "oak",
+          "stepdownFactor": 0.5
+        },
+        "feed": 1800,
+        "plungeFeed": 480,
+        "stepoverFactor": 0.4,
+        "profileRoughBottom": 1,
+        "leaveStock": 0.1,
+        "pocketWallAllowance": 0,
+        "pocketFinishFeedFactor": 1,
+        "innerCornerRadius": 0.3,
+        "finalZ": -0.3,
+        "finalFeedFactor": 0.5,
+        "climb": true,
+        "rampAngleDeg": 3,
+        "profileEntry": "ramp",
+        "pocketStrategy": "offset",
+        "geometryTolerance": 0.05,
+        "safeHeight": 5,
+        "retractHeight": 2,
+        "tabs": false,
+        "cutThrough": false
+      },
+      "accuracy": {
+        "scope": "features",
+        "budget": {
+          "total": 0.05,
+          "import": 0,
+          "offset": 0.01355393310889564,
+          "smoothing": 0.011294944257413033,
+          "fitting": 0.02033089966334346,
+          "polygonRounding": 0.002262741699796952,
+          "outputRounding": 0.0008660254037844386,
+          "controllerRounding": 0.0016914558667664816
+        }
+      },
+      "metrics": [
+        {
+          "file": "default-open-pocket-400x12x9-d6.nc",
+          "sha256": "b6b17332872536bd6e4697e34ee102e6e53415d42410992f9fa83bb756b6019b",
+          "bytes": 3343,
+          "executableBlocks": 196,
+          "motionBlocks": 188,
+          "tinyFeedLineBlocks": 12,
+          "feedLineBlocks": 108,
+          "retracts": 19,
+          "estimatedAutomaticSeconds": 324.015,
+          "motionLowerBoundSeconds": 301.689,
+          "fullStopAutomaticSeconds": 336.248,
+          "timingSkippedMotionCount": 3,
+          "timingUncertainty": [
+            "Axis limits are a reference configuration, not measurements of the connected machine.",
+            "The estimate assumes a filled planner buffer and models acceleration and junction speeds; it is not measured machine time.",
+            "The full-stop scenario stops at every interpolated segment; controller starvation or external waits can still take longer.",
+            "Operator pauses, tool changes, transport latency, and spindle spin-up without an explicit dwell have no assigned duration.",
+            "Unresolved motion is excluded; all reported times cover only the interpreted portion of the program."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "default-open-pocket-400x40x3-d6",
+      "input": {
+        "schemaVersion": 1,
+        "mode": "part",
+        "settings": {
+          "tools": [
+            {
+              "number": 1,
+              "diameter": 6,
+              "name": "synthetic flat end mill"
+            }
+          ],
+          "cutThrough": false
+        },
+        "id": "default-open-pocket-400x40x3-d6",
+        "description": "Default D6 open-edge cavity 400 mm long, 40 mm wide and 3 mm deep; bottom edge opens at stock Y0.",
+        "stockSize": [
+          500,
+          100,
+          18
+        ],
+        "outline": {
+          "type": "polygon",
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              500,
+              0
+            ],
+            [
+              500,
+              100
+            ],
+            [
+              0,
+              100
+            ]
+          ]
+        },
+        "pockets": [
+          {
+            "boundary": {
+              "type": "polygon",
+              "points": [
+                [
+                  50,
+                  0
+                ],
+                [
+                  450,
+                  0
+                ],
+                [
+                  450,
+                  40
+                ],
+                [
+                  50,
+                  40
+                ]
+              ]
+            },
+            "floorZ": 15
+          }
+        ],
+        "expected": {
+          "minimumZ": 15,
+          "programs": 1
+        }
+      },
+      "resolvedSettings": {
+        "tools": [
+          {
+            "number": 1,
+            "diameter": 6,
+            "name": "synthetic flat end mill"
+          }
+        ],
+        "material": {
+          "name": "oak",
+          "stepdownFactor": 0.5
+        },
+        "feed": 1800,
+        "plungeFeed": 480,
+        "stepoverFactor": 0.4,
+        "profileRoughBottom": 1,
+        "leaveStock": 0.1,
+        "pocketWallAllowance": 0,
+        "pocketFinishFeedFactor": 1,
+        "innerCornerRadius": 0.3,
+        "finalZ": -0.3,
+        "finalFeedFactor": 0.5,
+        "climb": true,
+        "rampAngleDeg": 3,
+        "profileEntry": "ramp",
+        "pocketStrategy": "offset",
+        "geometryTolerance": 0.05,
+        "safeHeight": 5,
+        "retractHeight": 2,
+        "tabs": false,
+        "cutThrough": false
+      },
+      "accuracy": {
+        "scope": "features",
+        "budget": {
+          "total": 0.05,
+          "import": 0,
+          "offset": 0.01355393310889564,
+          "smoothing": 0.011294944257413033,
+          "fitting": 0.02033089966334346,
+          "polygonRounding": 0.002262741699796952,
+          "outputRounding": 0.0008660254037844386,
+          "controllerRounding": 0.0016914558667664816
+        }
+      },
+      "metrics": [
+        {
+          "file": "default-open-pocket-400x40x3-d6.nc",
+          "sha256": "e1f9a2f03c7a822dd9dd06d2bda93db898ada2796a0fe49f6a6f5b402141df10",
+          "bytes": 3177,
+          "executableBlocks": 185,
+          "motionBlocks": 177,
+          "tinyFeedLineBlocks": 4,
+          "feedLineBlocks": 99,
+          "retracts": 19,
+          "estimatedAutomaticSeconds": 284.9,
+          "motionLowerBoundSeconds": 265.013,
+          "fullStopAutomaticSeconds": 296.607,
+          "timingSkippedMotionCount": 3,
+          "timingUncertainty": [
+            "Axis limits are a reference configuration, not measurements of the connected machine.",
+            "The estimate assumes a filled planner buffer and models acceleration and junction speeds; it is not measured machine time.",
+            "The full-stop scenario stops at every interpolated segment; controller starvation or external waits can still take longer.",
+            "Operator pauses, tool changes, transport latency, and spindle spin-up without an explicit dwell have no assigned duration.",
+            "Unresolved motion is excluded; all reported times cover only the interpreted portion of the program."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "default-round-pocket-d60x6-d6-n64",
+      "input": {
+        "schemaVersion": 1,
+        "mode": "part",
+        "settings": {
+          "tools": [
+            {
+              "number": 1,
+              "diameter": 6,
+              "name": "synthetic flat end mill"
+            }
+          ],
+          "cutThrough": false
+        },
+        "id": "default-round-pocket-d60x6-d6-n64",
+        "description": "Default D6 pocket from a regular 64-sided polygon inscribed in a 60 mm circle; source uncertainty is undeclared and tolerance begins at supplied polygon features.",
+        "stockSize": [
+          80,
+          80,
+          12
+        ],
+        "outline": {
+          "type": "polygon",
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              80,
+              0
+            ],
+            [
+              80,
+              80
+            ],
+            [
+              0,
+              80
+            ]
+          ]
+        },
+        "pockets": [
+          {
+            "boundary": {
+              "type": "circle",
+              "center": [
+                40,
+                40
+              ],
+              "radius": 30,
+              "segments": 64
+            },
+            "floorZ": 6
+          }
+        ],
+        "expected": {
+          "minimumZ": 6,
+          "programs": 1
+        }
+      },
+      "resolvedSettings": {
+        "tools": [
+          {
+            "number": 1,
+            "diameter": 6,
+            "name": "synthetic flat end mill"
+          }
+        ],
+        "material": {
+          "name": "oak",
+          "stepdownFactor": 0.5
+        },
+        "feed": 1800,
+        "plungeFeed": 480,
+        "stepoverFactor": 0.4,
+        "profileRoughBottom": 1,
+        "leaveStock": 0.1,
+        "pocketWallAllowance": 0,
+        "pocketFinishFeedFactor": 1,
+        "innerCornerRadius": 0.3,
+        "finalZ": -0.3,
+        "finalFeedFactor": 0.5,
+        "climb": true,
+        "rampAngleDeg": 3,
+        "profileEntry": "ramp",
+        "pocketStrategy": "offset",
+        "geometryTolerance": 0.05,
+        "safeHeight": 5,
+        "retractHeight": 2,
+        "tabs": false,
+        "cutThrough": false
+      },
+      "accuracy": {
+        "scope": "features",
+        "budget": {
+          "total": 0.05,
+          "import": 0,
+          "offset": 0.01355393310889564,
+          "smoothing": 0.011294944257413033,
+          "fitting": 0.02033089966334346,
+          "polygonRounding": 0.002262741699796952,
+          "outputRounding": 0.0008660254037844386,
+          "controllerRounding": 0.0016914558667664816
+        }
+      },
+      "metrics": [
+        {
+          "file": "default-round-pocket-d60x6-d6-n64.nc",
+          "sha256": "45bae29a58fe74658232b5582d79ca7410758eacd1d9ea0fec065191d0f5f30e",
+          "bytes": 19704,
+          "executableBlocks": 1146,
+          "motionBlocks": 1138,
+          "tinyFeedLineBlocks": 172,
+          "feedLineBlocks": 1090,
+          "retracts": 3,
+          "estimatedAutomaticSeconds": 99.433,
+          "motionLowerBoundSeconds": 91.768,
+          "fullStopAutomaticSeconds": 330.361,
+          "timingSkippedMotionCount": 3,
+          "timingUncertainty": [
+            "Axis limits are a reference configuration, not measurements of the connected machine.",
+            "The estimate assumes a filled planner buffer and models acceleration and junction speeds; it is not measured machine time.",
+            "The full-stop scenario stops at every interpolated segment; controller starvation or external waits can still take longer.",
+            "Operator pauses, tool changes, transport latency, and spindle spin-up without an explicit dwell have no assigned duration.",
+            "Unresolved motion is excluded; all reported times cover only the interpreted portion of the program."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "default-round-pocket-d60x6-d6-n128",
+      "input": {
+        "schemaVersion": 1,
+        "mode": "part",
+        "settings": {
+          "tools": [
+            {
+              "number": 1,
+              "diameter": 6,
+              "name": "synthetic flat end mill"
+            }
+          ],
+          "cutThrough": false
+        },
+        "id": "default-round-pocket-d60x6-d6-n128",
+        "description": "Default D6 pocket from a regular 128-sided polygon inscribed in a 60 mm circle; source uncertainty is undeclared and tolerance begins at supplied polygon features.",
+        "stockSize": [
+          80,
+          80,
+          12
+        ],
+        "outline": {
+          "type": "polygon",
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              80,
+              0
+            ],
+            [
+              80,
+              80
+            ],
+            [
+              0,
+              80
+            ]
+          ]
+        },
+        "pockets": [
+          {
+            "boundary": {
+              "type": "circle",
+              "center": [
+                40,
+                40
+              ],
+              "radius": 30,
+              "segments": 128
+            },
+            "floorZ": 6
+          }
+        ],
+        "expected": {
+          "minimumZ": 6,
+          "programs": 1
+        }
+      },
+      "resolvedSettings": {
+        "tools": [
+          {
+            "number": 1,
+            "diameter": 6,
+            "name": "synthetic flat end mill"
+          }
+        ],
+        "material": {
+          "name": "oak",
+          "stepdownFactor": 0.5
+        },
+        "feed": 1800,
+        "plungeFeed": 480,
+        "stepoverFactor": 0.4,
+        "profileRoughBottom": 1,
+        "leaveStock": 0.1,
+        "pocketWallAllowance": 0,
+        "pocketFinishFeedFactor": 1,
+        "innerCornerRadius": 0.3,
+        "finalZ": -0.3,
+        "finalFeedFactor": 0.5,
+        "climb": true,
+        "rampAngleDeg": 3,
+        "profileEntry": "ramp",
+        "pocketStrategy": "offset",
+        "geometryTolerance": 0.05,
+        "safeHeight": 5,
+        "retractHeight": 2,
+        "tabs": false,
+        "cutThrough": false
+      },
+      "accuracy": {
+        "scope": "features",
+        "budget": {
+          "total": 0.05,
+          "import": 0,
+          "offset": 0.01355393310889564,
+          "smoothing": 0.011294944257413033,
+          "fitting": 0.02033089966334346,
+          "polygonRounding": 0.002262741699796952,
+          "outputRounding": 0.0008660254037844386,
+          "controllerRounding": 0.0016914558667664816
+        }
+      },
+      "metrics": [
+        {
+          "file": "default-round-pocket-d60x6-d6-n128.nc",
+          "sha256": "9c2a77b38667ab5adb9f320e7b1ad6bfea1b87af88d4655568e6335d3f10e4a3",
+          "bytes": 26435,
+          "executableBlocks": 1541,
+          "motionBlocks": 1533,
+          "tinyFeedLineBlocks": 3,
+          "feedLineBlocks": 1462,
+          "retracts": 6,
+          "estimatedAutomaticSeconds": 103.259,
+          "motionLowerBoundSeconds": 94.673,
+          "fullStopAutomaticSeconds": 393.363,
+          "timingSkippedMotionCount": 3,
+          "timingUncertainty": [
+            "Axis limits are a reference configuration, not measurements of the connected machine.",
+            "The estimate assumes a filled planner buffer and models acceleration and junction speeds; it is not measured machine time.",
+            "The full-stop scenario stops at every interpolated segment; controller starvation or external waits can still take longer.",
+            "Operator pauses, tool changes, transport latency, and spindle spin-up without an explicit dwell have no assigned duration.",
+            "Unresolved motion is excluded; all reported times cover only the interpreted portion of the program."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "default-round-pocket-d60x6-d6-n256",
+      "input": {
+        "schemaVersion": 1,
+        "mode": "part",
+        "settings": {
+          "tools": [
+            {
+              "number": 1,
+              "diameter": 6,
+              "name": "synthetic flat end mill"
+            }
+          ],
+          "cutThrough": false
+        },
+        "id": "default-round-pocket-d60x6-d6-n256",
+        "description": "Default D6 pocket from a regular 256-sided polygon inscribed in a 60 mm circle; source uncertainty is undeclared and tolerance begins at supplied polygon features.",
+        "stockSize": [
+          80,
+          80,
+          12
+        ],
+        "outline": {
+          "type": "polygon",
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              80,
+              0
+            ],
+            [
+              80,
+              80
+            ],
+            [
+              0,
+              80
+            ]
+          ]
+        },
+        "pockets": [
+          {
+            "boundary": {
+              "type": "circle",
+              "center": [
+                40,
+                40
+              ],
+              "radius": 30,
+              "segments": 256
+            },
+            "floorZ": 6
+          }
+        ],
+        "expected": {
+          "minimumZ": 6,
+          "programs": 1
+        }
+      },
+      "resolvedSettings": {
+        "tools": [
+          {
+            "number": 1,
+            "diameter": 6,
+            "name": "synthetic flat end mill"
+          }
+        ],
+        "material": {
+          "name": "oak",
+          "stepdownFactor": 0.5
+        },
+        "feed": 1800,
+        "plungeFeed": 480,
+        "stepoverFactor": 0.4,
+        "profileRoughBottom": 1,
+        "leaveStock": 0.1,
+        "pocketWallAllowance": 0,
+        "pocketFinishFeedFactor": 1,
+        "innerCornerRadius": 0.3,
+        "finalZ": -0.3,
+        "finalFeedFactor": 0.5,
+        "climb": true,
+        "rampAngleDeg": 3,
+        "profileEntry": "ramp",
+        "pocketStrategy": "offset",
+        "geometryTolerance": 0.05,
+        "safeHeight": 5,
+        "retractHeight": 2,
+        "tabs": false,
+        "cutThrough": false
+      },
+      "accuracy": {
+        "scope": "features",
+        "budget": {
+          "total": 0.05,
+          "import": 0,
+          "offset": 0.01355393310889564,
+          "smoothing": 0.011294944257413033,
+          "fitting": 0.02033089966334346,
+          "polygonRounding": 0.002262741699796952,
+          "outputRounding": 0.0008660254037844386,
+          "controllerRounding": 0.0016914558667664816
+        }
+      },
+      "metrics": [
+        {
+          "file": "default-round-pocket-d60x6-d6-n256.nc",
+          "sha256": "990a95a84bb2ccf22101ebd7b35136eb7491d0d7a8e4de9bea34246348a46c53",
+          "bytes": 15991,
+          "executableBlocks": 874,
+          "motionBlocks": 866,
+          "tinyFeedLineBlocks": 4,
+          "feedLineBlocks": 786,
+          "retracts": 6,
+          "estimatedAutomaticSeconds": 103.974,
+          "motionLowerBoundSeconds": 94.737,
+          "fullStopAutomaticSeconds": 459.255,
+          "timingSkippedMotionCount": 3,
+          "timingUncertainty": [
+            "Axis limits are a reference configuration, not measurements of the connected machine.",
+            "The estimate assumes a filled planner buffer and models acceleration and junction speeds; it is not measured machine time.",
+            "The full-stop scenario stops at every interpolated segment; controller starvation or external waits can still take longer.",
+            "Operator pauses, tool changes, transport latency, and spindle spin-up without an explicit dwell have no assigned duration.",
+            "Unresolved motion is excluded; all reported times cover only the interpreted portion of the program."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "default-round-pocket-d60x6-d6-n512",
+      "input": {
+        "schemaVersion": 1,
+        "mode": "part",
+        "settings": {
+          "tools": [
+            {
+              "number": 1,
+              "diameter": 6,
+              "name": "synthetic flat end mill"
+            }
+          ],
+          "cutThrough": false
+        },
+        "id": "default-round-pocket-d60x6-d6-n512",
+        "description": "Default D6 pocket from a regular 512-sided polygon inscribed in a 60 mm circle; source uncertainty is undeclared and tolerance begins at supplied polygon features.",
+        "stockSize": [
+          80,
+          80,
+          12
+        ],
+        "outline": {
+          "type": "polygon",
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              80,
+              0
+            ],
+            [
+              80,
+              80
+            ],
+            [
+              0,
+              80
+            ]
+          ]
+        },
+        "pockets": [
+          {
+            "boundary": {
+              "type": "circle",
+              "center": [
+                40,
+                40
+              ],
+              "radius": 30,
+              "segments": 512
+            },
+            "floorZ": 6
+          }
+        ],
+        "expected": {
+          "minimumZ": 6,
+          "programs": 1
+        }
+      },
+      "resolvedSettings": {
+        "tools": [
+          {
+            "number": 1,
+            "diameter": 6,
+            "name": "synthetic flat end mill"
+          }
+        ],
+        "material": {
+          "name": "oak",
+          "stepdownFactor": 0.5
+        },
+        "feed": 1800,
+        "plungeFeed": 480,
+        "stepoverFactor": 0.4,
+        "profileRoughBottom": 1,
+        "leaveStock": 0.1,
+        "pocketWallAllowance": 0,
+        "pocketFinishFeedFactor": 1,
+        "innerCornerRadius": 0.3,
+        "finalZ": -0.3,
+        "finalFeedFactor": 0.5,
+        "climb": true,
+        "rampAngleDeg": 3,
+        "profileEntry": "ramp",
+        "pocketStrategy": "offset",
+        "geometryTolerance": 0.05,
+        "safeHeight": 5,
+        "retractHeight": 2,
+        "tabs": false,
+        "cutThrough": false
+      },
+      "accuracy": {
+        "scope": "features",
+        "budget": {
+          "total": 0.05,
+          "import": 0,
+          "offset": 0.01355393310889564,
+          "smoothing": 0.011294944257413033,
+          "fitting": 0.02033089966334346,
+          "polygonRounding": 0.002262741699796952,
+          "outputRounding": 0.0008660254037844386,
+          "controllerRounding": 0.0016914558667664816
+        }
+      },
+      "metrics": [
+        {
+          "file": "default-round-pocket-d60x6-d6-n512.nc",
+          "sha256": "d3a4f804d997984cf71360720311971854186bf25d768acef35531f3c3159ab5",
+          "bytes": 4128,
+          "executableBlocks": 116,
+          "motionBlocks": 108,
+          "tinyFeedLineBlocks": 4,
+          "feedLineBlocks": 28,
+          "retracts": 5,
+          "estimatedAutomaticSeconds": 102.404,
+          "motionLowerBoundSeconds": 93.601,
+          "fullStopAutomaticSeconds": 455.01,
+          "timingSkippedMotionCount": 3,
+          "timingUncertainty": [
+            "Axis limits are a reference configuration, not measurements of the connected machine.",
+            "The estimate assumes a filled planner buffer and models acceleration and junction speeds; it is not measured machine time.",
+            "The full-stop scenario stops at every interpolated segment; controller starvation or external waits can still take longer.",
+            "Operator pauses, tool changes, transport latency, and spindle spin-up without an explicit dwell have no assigned duration.",
+            "Unresolved motion is excluded; all reported times cover only the interpreted portion of the program."
+          ]
+        }
+      ]
+    }
+  ]
+}
