@@ -13,7 +13,10 @@ type Rect = { x: number; y: number; w: number; h: number };
 export type BoardSide = 'left' | 'right' | 'bottom' | 'top';
 
 /** A clamp grips an edge at `at` along it (x on the bottom and top edge, y on the others); a screw sits anywhere. */
-export type Fixture = { kind: 'clamp'; side: BoardSide; at: number } | { kind: 'screw'; x: number; y: number };
+/** Where it is. The sizes are its own when it has them, else the ones `SettleBoard.sizes` and `keep` give for its kind. */
+export type Fixture =
+  | { kind: 'clamp'; side: BoardSide; at: number; d?: number; w?: number; height?: number }
+  | { kind: 'screw'; x: number; y: number; d?: number; height?: number };
 
 export interface SettlePart {
   id: string;
@@ -35,14 +38,16 @@ export interface SettleBoard {
   sizes: { clampReach: number; clampWidth: number; screwD: number };
   /** How far a part's outline stays from the footprint, mm (the bit's cut, its clearance, room for the collet nut). */
   keep: { clamp: number; screw: number };
+  /** That distance for a fixture with a height of its own. */
+  keepAt?: (kind: Fixture['kind'], height: number) => number;
 }
 
 export type Spots = Record<string, P2>;
 
 /** The footprint as a box, and a screw's radius around it. */
 export function fixtureBox(f: Fixture, b: Pick<SettleBoard, 'w' | 'h' | 'sizes'>): Rect & { r: number } {
-  if (f.kind === 'screw') return { x: f.x, y: f.y, w: 0, h: 0, r: b.sizes.screwD / 2 };
-  const { clampReach: d, clampWidth: cw } = b.sizes;
+  if (f.kind === 'screw') return { x: f.x, y: f.y, w: 0, h: 0, r: (f.d ?? b.sizes.screwD) / 2 };
+  const [d, cw] = [f.d ?? b.sizes.clampReach, f.w ?? b.sizes.clampWidth];
   if (f.side === 'left') return { x: 0, y: f.at - cw / 2, w: d, h: cw, r: 0 };
   if (f.side === 'right') return { x: b.w - d, y: f.at - cw / 2, w: d, h: cw, r: 0 };
   if (f.side === 'bottom') return { x: f.at - cw / 2, y: 0, w: cw, h: d, r: 0 };
@@ -198,7 +203,8 @@ export function reserved(f: Fixture, b: Pick<SettleBoard, 'w' | 'h' | 'sizes'>) 
   return box.x - box.r < -1e-6 || box.y - box.r < -1e-6 || box.x + box.w + box.r > b.w + 1e-6 || box.y + box.h + box.r > b.h + 1e-6;
 }
 
-const keepOf = (b: Pick<SettleBoard, 'keep'>, f: Fixture) => b.keep[f.kind];
+const keepOf = (b: Pick<SettleBoard, 'keep' | 'keepAt'>, f: Fixture) =>
+  f.height !== undefined && b.keepAt ? b.keepAt(f.kind, f.height) : b.keep[f.kind];
 
 /** Is every part at its spot clear of this fixture? */
 export function fixtureFree(b: SettleBoard, spots: Spots, f: Fixture) {
@@ -429,7 +435,7 @@ function roomAt(b: SettleBoard, spots: Spots, x: number, y: number) {
 
 /** How far off a screw at this spot can be when it's driven in, mm. 0: none, or it's on a part. */
 export function screwPlay(b: SettleBoard, spots: Spots, f: Extract<Fixture, { kind: 'screw' }>) {
-  return Math.max(0, roomAt(b, spots, f.x, f.y) - b.sizes.screwD / 2 - b.keep.screw);
+  return Math.max(0, roomAt(b, spots, f.x, f.y) - (f.d ?? b.sizes.screwD) / 2 - keepOf(b, f));
 }
 
 const kSnapReach = 45;
@@ -467,7 +473,7 @@ export function snapScrew(b: SettleBoard, spots: Spots, x: number, y: number): P
 /** How far a clamp can slide along its edge and stay clear, each way, up to 60 mm. */
 export function clampPlay(b: SettleBoard, spots: Spots, f: Extract<Fixture, { kind: 'clamp' }>) {
   const len = f.side === 'left' || f.side === 'right' ? b.h : b.w;
-  const cw = b.sizes.clampWidth;
+  const cw = f.w ?? b.sizes.clampWidth;
   const ok = (at: number) => {
     if (at < cw / 2 || at > len - cw / 2) return false;
     const g = { ...f, at };
@@ -754,8 +760,8 @@ function spacedOff(b: SettleBoard, work: Rect, fixtures: Fixture[], f: Clamp) {
   const along = f.side === 'left' || f.side === 'right' ? work.h : work.w;
   return !fixtures.some(g =>
     g.kind === 'clamp'
-      ? g.side === f.side && Math.abs(g.at - f.at) < Math.max(b.sizes.clampWidth + 10, 0.25 * along)
-      : ptRect(g.x, g.y, box) < b.sizes.screwD / 2
+      ? g.side === f.side && Math.abs(g.at - f.at) < Math.max((g.w ?? b.sizes.clampWidth) + 10, 0.25 * along)
+      : ptRect(g.x, g.y, box) < (g.d ?? b.sizes.screwD) / 2
   );
 }
 

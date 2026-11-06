@@ -34,3 +34,13 @@ export function tabBar(segments: Segment[], at: { x: number; y: number }): Segme
     for (const s of segments) if (!bar.includes(s) && s.some(p => bar[k].some(q => near(p, q)))) bar.push(s);
   return bar;
 }
+
+/** Board frame -> the body's own frame (as laid flat), the inverse of `place`. */
+export const toPartFrame = (p: { x: number; y: number; rotated: boolean }, size: number[], q: { x: number; y: number }) =>
+  p.rotated
+    ? { x: +(q.y - p.y).toFixed(1), y: +(p.x + size[1] - q.x).toFixed(1) }
+    : { x: +(q.x - p.x).toFixed(1), y: +(q.y - p.y).toFixed(1) };
+
+/** A body's tabs as the program has them (one per spot, though each pass through lists it), board frame. */
+export const tabSpots = (tabs: { at: { x: number; y: number } }[]) =>
+  tabs.map(t => t.at).filter((q, k, list) => !list.slice(0, k).some(o => Math.hypot(o.x - q.x, o.y - q.y) < 1));

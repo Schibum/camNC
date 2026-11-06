@@ -2,7 +2,7 @@ import { cn } from '@wbcnc/ui/lib/utils';
 import { useId, useState } from 'react';
 import type { BoardNest, PartInstance, PartPosition } from '../boards';
 import type { CamPartInfo, PlanResult } from '../camTypes';
-import { place, tabBar, toD } from './outline';
+import { place, tabBar, tabSpots, toD, toPartFrame } from './outline';
 import { holdBox, pathClearance, type HoldKind } from '@wbcnc/cam/holdPoints';
 import type { BoardSide, EdgeFit } from '@wbcnc/cam/settle';
 
@@ -66,6 +66,9 @@ export function NestView({
   unheld,
   fixtures,
   onTabsChange,
+  tabTool,
+  selectedTab,
+  onTabSelect,
 }: {
   nest: BoardNest;
   instances: PartInstance[];
@@ -93,6 +96,10 @@ export function NestView({
   fixtures?: FixtureEditing;
   /** A tab dragged along a part's outline: all of that body's tabs (instance id), part frame (mm). */
   onTabsChange?: (item: string, tabs: { x: number; y: number }[]) => void;
+  /** A click on an outline places a tab. */
+  tabTool?: boolean;
+  selectedTab?: { part: string; i: number } | null;
+  onTabSelect?: (part: string, i: number) => void;
 }) {
   const { w, h } = nest.board;
   const u = unit ?? Math.max(w, h);
@@ -112,17 +119,14 @@ export function NestView({
   const hatch = useId();
   // A tab being dragged: its part, which of its tabs, and where it is now (on the part's outline).
   const [tabDrag, setTabDrag] = useState<{ part: string; i: number; x: number; y: number } | null>(null);
+  // With the tab tool: where a click would put one.
+  const [tabGhost, setTabGhost] = useState<{ part: string; x: number; y: number } | null>(null);
   const placedOf = (name: string) => {
     const p = nest.placements.find(q => byInst.get(q.id)?.name === name);
     const inst = p && byInst.get(p.id);
     const part = inst && byPart.get(inst.partId);
     return p && inst && part ? { p, inst, part } : undefined;
   };
-  // Board frame -> the body's own frame (as laid flat), the inverse of `place`.
-  const toPart = (p: PartPosition, size: number[], q: { x: number; y: number }) =>
-    p.rotated
-      ? { x: +(q.y - p.y).toFixed(1), y: +(p.x + size[1] - q.x).toFixed(1) }
-      : { x: +(q.x - p.x).toFixed(1), y: +(q.y - p.y).toFixed(1) };
   // The point of the body's outlines nearest to `q`, board frame: where a dragged tab goes.
   const onOutline = (name: string, q: { x: number; y: number }) => {
     const at = placedOf(name);
@@ -144,15 +148,13 @@ export function NestView({
       }
     return best;
   };
-  // A body's tabs as the program has them (one per spot, though each pass through lists it), board frame.
-  const tabsOf = (h: NonNullable<PlanResult['hold']>[number]) =>
-    h.tabs.map(t => t.at).filter((q, k, list) => !list.slice(0, k).some(o => Math.hypot(o.x - q.x, o.y - q.y) < 1));
+  const tabsOf = (h: NonNullable<PlanResult['hold']>[number]) => tabSpots(h.tabs);
   const saveTabs = (name: string, tabs: { x: number; y: number }[]) => {
     const at = placedOf(name);
     if (at && onTabsChange)
       onTabsChange(
         at.p.id,
-        tabs.map(q => toPart(at.p, at.inst.size, q))
+        tabs.map(q => toPartFrame(at.p, at.inst.size, q))
       );
   };
   // Never the last one: a part with none is cut free; "I hold it down" says that.
@@ -183,6 +185,17 @@ export function NestView({
     const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
     return { x: p.x, y: p.y };
   };
+  /** With the tab tool: the point of the nearest outline, when the pointer is near one. */
+  const tabSpotAt = (p: { x: number; y: number }) => {
+    let best: { part: string; x: number; y: number } | null = null,
+      d = u / 12;
+    for (const { part } of plan?.hold ?? []) {
+      const q = onOutline(part, p);
+      const e = Math.hypot(q.x - p.x, q.y - p.y);
+      if (e < d) [best, d] = [{ part, x: q.x, y: q.y }, e];
+    }
+    return best;
+  };
   const onHold = (e: React.MouseEvent) => !!(e.target as Element).closest('[data-hold],[data-remove]');
   return (
     <svg
@@ -193,9 +206,14 @@ export function NestView({
               const p = onHold(e) ? null : toBoard(e);
               fixtures.onHover(p);
             }
-          : undefined
+          : tabTool
+            ? e => {
+                const p = toBoard(e);
+                setTabGhost(p && tabSpotAt(p));
+              }
+            : undefined
       }
-      onPointerLeave={fixtures?.tool ? () => fixtures.onHover(null) : undefined}
+      onPointerLeave={fixtures?.tool ? () => fixtures.onHover(null) : tabTool ? () => setTabGhost(null) : undefined}
       onClick={
         fixtures?.tool
           ? e => {
@@ -203,9 +221,16 @@ export function NestView({
               const p = toBoard(e);
               if (p) fixtures.onPlace(p);
             }
-          : undefined
+          : tabTool
+            ? e => {
+                const p = toBoard(e);
+                const spot = p && tabSpotAt(p);
+                const h = spot && plan?.hold?.find(x => x.part === spot.part);
+                if (spot && h) saveTabs(spot.part, [...tabsOf(h), { x: spot.x, y: spot.y }]);
+              }
+            : undefined
       }
-      style={fixtures?.tool ? { cursor: 'crosshair' } : undefined}
+      style={fixtures?.tool || tabTool ? { cursor: 'crosshair' } : undefined}
       viewBox={`${-pad} ${-h - pad} ${w + 2 * pad} ${h + 2 * pad}`}
       width={pxPerMm && (w + 2 * pad) * pxPerMm}
       height={pxPerMm && (h + 2 * pad) * pxPerMm}
@@ -335,6 +360,16 @@ export function NestView({
               </circle>
             ))
         )}
+        {tabTool && tabGhost && (
+          <circle
+            data-tab-preview
+            cx={tabGhost.x}
+            cy={tabGhost.y}
+            r={stroke * 6}
+            className="pointer-events-none fill-amber-500/50 stroke-amber-600 dark:stroke-amber-500"
+            strokeWidth={stroke * 1.5}
+          />
+        )}
         {/* Tabs to drag along the outline (the planner puts each on the bit's path nearest to where it's dropped). */}
         {onTabsChange &&
           plan?.hold?.flatMap(h => {
@@ -365,7 +400,10 @@ export function NestView({
                     if (!dragged) return;
                     e.stopPropagation();
                     setTabDrag(null);
-                    if (Math.hypot(tabDrag.x - t.at.x, tabDrag.y - t.at.y) < 0.5) return;
+                    if (Math.hypot(tabDrag.x - t.at.x, tabDrag.y - t.at.y) < 0.5) {
+                      onTabSelect?.(h.part, i);
+                      return;
+                    }
                     const from = t.at;
                     saveTabs(
                       h.part,
@@ -373,6 +411,7 @@ export function NestView({
                     );
                   }}
                   onClick={e => e.stopPropagation()}
+                  onFocus={() => onTabSelect?.(h.part, i)}
                   onDoubleClick={e => {
                     e.stopPropagation();
                     remove(h, i);
@@ -410,7 +449,9 @@ export function NestView({
                     r={stroke * 6}
                     className={cn(
                       'stroke-amber-600 group-focus-visible:stroke-primary dark:stroke-amber-500',
-                      dragged ? 'fill-amber-500/70' : 'fill-amber-500/0 group-hover:fill-amber-500/40'
+                      dragged || (selectedTab?.part === h.part && selectedTab.i === i)
+                        ? 'fill-amber-500/70'
+                        : 'fill-amber-500/0 group-hover:fill-amber-500/40'
                     )}
                     strokeWidth={stroke * 1.5}
                   />
@@ -613,37 +654,6 @@ export function NestView({
             </g>
           );
         })}
-        {fixtures?.selected !== null &&
-          fixtures?.selected !== undefined &&
-          fixtures.preview === null &&
-          fixtures.moving === null &&
-          nest.holds[fixtures.selected] &&
-          (() => {
-            const i = fixtures.selected;
-            const hp = nest.holds[i];
-            const size = u / 70;
-            const inwards = hp.dir ?? { x: 0, y: 1 };
-            const [x, y] = [hp.x + inwards.x * size * 2.4, hp.y + inwards.y * size * 2.4];
-            return (
-              <g
-                data-remove
-                role="button"
-                aria-label={`Remove ${hp.kind === 'screw' ? 'screw' : 'clamp'} ${i + 1}`}
-                className="cursor-pointer"
-                onPointerDown={e => e.stopPropagation()}
-                onClick={e => {
-                  e.stopPropagation();
-                  fixtures.onRemove(i);
-                }}>
-                <circle cx={x} cy={y} r={size} className="fill-red-700 stroke-white" strokeWidth={stroke} />
-                <path
-                  d={`M${x - size * 0.4},${y - size * 0.4}L${x + size * 0.4},${y + size * 0.4}M${x + size * 0.4},${y - size * 0.4}L${x - size * 0.4},${y + size * 0.4}`}
-                  className="stroke-white"
-                  strokeWidth={stroke * 1.5}
-                />
-              </g>
-            );
-          })()}
         {preview && previewInst && previewPart && (
           <path
             data-preview={preview.fits ? 'fits' : 'no-room'}

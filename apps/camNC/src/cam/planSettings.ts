@@ -27,6 +27,14 @@ export interface PlanSettingsV1 {
 /** The built-in bit: no library values, so its cutting data shows as the defaults. */
 export const kDefaultBit: LibraryTool = { number: 1, diameter: 3.175, name: '1/8″ flat' };
 
+/** The bits offered without importing anything: the default, and common flat end mills with feeds that have proven themselves. */
+export const kBuiltInBits: LibraryTool[] = [
+  kDefaultBit,
+  { number: 2, diameter: 3.175, name: '1/8″ compression', flutes: 2, fluteLength: 25, feed: 2400, plungeFeed: 360, rpm: 15000 },
+  { number: 3, diameter: 6, name: '6 mm flat', flutes: 2, fluteLength: 32, feed: 1800, plungeFeed: 330, rpm: 30000 },
+  { number: 4, diameter: 8, name: '8 mm flat', flutes: 2, fluteLength: 32, feed: 3000, plungeFeed: 480, rpm: 30000 },
+];
+
 export const kDefaultPlan: PlanSettingsV1 = {
   bit: kDefaultBit,
   material: 'oak',

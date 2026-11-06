@@ -180,7 +180,8 @@ export function removeHold(holds: HoldPoint[], i: number, boardId: string): BedE
 const round = (v: number) => Math.round(v * 10) / 10;
 
 function holdPatch(points: HoldPoint[]): BoardPatch {
-  return { fixtures: points.map(fixtureOf) };
+  const { hardware } = useHoldHardware.getState();
+  return { fixtures: points.map(p => fixtureOf(p, hardware)) };
 }
 
 /** The board's spot on the bed for one side: saved so that its programs go there again. */

@@ -522,8 +522,8 @@ const insideMargin = (r: Rect, margin: number, board?: { w: number; h: number })
 
 /** The fixture as a hold point on a board of this size. */
 export function holdPointOf(f: Fixture, board: { w: number; h: number }, hw: HoldHardware, nutAbove: number): HoldPoint {
-  if (f.kind === 'screw') return { x: f.x, y: f.y, kind: 'screw', d: hw.screw.d, height: hw.screw.height, nutAbove };
-  const { d, w, height } = hw.clamp;
+  if (f.kind === 'screw') return { x: f.x, y: f.y, kind: 'screw', d: f.d ?? hw.screw.d, height: f.height ?? hw.screw.height, nutAbove };
+  const [d, w, height] = [f.d ?? hw.clamp.d, f.w ?? hw.clamp.w, f.height ?? hw.clamp.height];
   const [at, dir] =
     f.side === 'left'
       ? [
@@ -547,12 +547,22 @@ export function holdPointOf(f: Fixture, board: { w: number; h: number }, hw: Hol
   return { ...at, kind: 'clamp', d, w, height, dir, nutAbove };
 }
 
-/** The hold point as a fixture: the edge it grips, or where it sits. */
-export function fixtureOf(h: Pick<HoldPoint, 'kind' | 'x' | 'y' | 'dir'>): Fixture {
+/** The hold point as a fixture: the edge it grips, or where it sits, and the sizes it has apart from `hw`'s. */
+export function fixtureOf(h: Pick<HoldPoint, 'kind' | 'x' | 'y' | 'dir' | 'd' | 'w' | 'height'>, hw: HoldHardware): Fixture {
   const round = (v: number) => Math.round(v * 10) / 10;
-  if (h.kind === 'screw') return { kind: 'screw', x: round(h.x), y: round(h.y) };
+  const own = <K extends string>(key: K, v: number | undefined, base: number) =>
+    v !== undefined && v !== base ? ({ [key]: v } as Record<K, number>) : {};
+  if (h.kind === 'screw')
+    return { kind: 'screw', x: round(h.x), y: round(h.y), ...own('d', h.d, hw.screw.d), ...own('height', h.height, hw.screw.height) };
   const side: BoardSide = h.dir?.x === 1 ? 'left' : h.dir?.x === -1 ? 'right' : h.dir?.y === 1 ? 'bottom' : 'top';
-  return { kind: 'clamp', side, at: round(side === 'left' || side === 'right' ? h.y : h.x) };
+  return {
+    kind: 'clamp',
+    side,
+    at: round(side === 'left' || side === 'right' ? h.y : h.x),
+    ...own('d', h.d, hw.clamp.d),
+    ...own('w', h.w, hw.clamp.w),
+    ...own('height', h.height, hw.clamp.height),
+  };
 }
 
 /**
@@ -731,6 +741,7 @@ function settleInput(
       parts,
       sizes: { clampReach: hw.clamp.d, clampWidth: hw.clamp.w, screwD: hw.screw.d },
       keep: { clamp: keep('clamp', hw.clamp.height), screw: keep('screw', hw.screw.height) },
+      keepAt: keep,
     },
   };
 }
@@ -805,11 +816,12 @@ export function relayoutBoard(board: BoardV1, instances: PartInstance[], bit: nu
 function fixturesOn(fixtures: Fixture[] | undefined, size: { w: number; h: number }, hw: HoldHardware): Fixture[] {
   return (fixtures ?? []).flatMap((f): Fixture[] => {
     if (f.kind === 'screw') {
-      const r = hw.screw.d / 2;
+      const r = (f.d ?? hw.screw.d) / 2;
       return f.x >= r && f.y >= r && f.x <= size.w - r && f.y <= size.h - r ? [f] : [];
     }
     const len = f.side === 'left' || f.side === 'right' ? size.h : size.w;
-    return [{ ...f, at: Math.max(hw.clamp.w / 2, Math.min(len - hw.clamp.w / 2, f.at)) }];
+    const half = (f.w ?? hw.clamp.w) / 2;
+    return [{ ...f, at: Math.max(half, Math.min(len - half, f.at)) }];
   });
 }
 
@@ -817,9 +829,11 @@ function fixturesOn(fixtures: Fixture[] | undefined, size: { w: number; h: numbe
 function fixturesNeed(fixtures: Fixture[] | undefined, hw: HoldHardware) {
   let [w, h] = [0, 0];
   for (const f of fixtures ?? []) {
-    if (f.kind === 'screw') [w, h] = [Math.max(w, f.x + hw.screw.d / 2), Math.max(h, f.y + hw.screw.d / 2)];
-    else if (f.side === 'left' || f.side === 'right') h = Math.max(h, f.at + hw.clamp.w / 2);
-    else w = Math.max(w, f.at + hw.clamp.w / 2);
+    if (f.kind === 'screw') {
+      const r = (f.d ?? hw.screw.d) / 2;
+      [w, h] = [Math.max(w, f.x + r), Math.max(h, f.y + r)];
+    } else if (f.side === 'left' || f.side === 'right') h = Math.max(h, f.at + (f.w ?? hw.clamp.w) / 2);
+    else w = Math.max(w, f.at + (f.w ?? hw.clamp.w) / 2);
   }
   return { w: ceilMm(w), h: ceilMm(h) };
 }

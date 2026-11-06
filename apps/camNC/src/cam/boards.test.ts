@@ -1,4 +1,5 @@
-import { fixtureFree, type Fixture } from '@wbcnc/cam/settle';
+import { fixtureBox, fixtureFree, type Fixture } from '@wbcnc/cam/settle';
+import { kDefaultHardware } from './holdHardware';
 import { describe, expect, it } from 'vitest';
 import {
   changesCutBoard,
@@ -609,8 +610,8 @@ describe('boards', () => {
         d: 8,
         height: 4,
       });
-      expect(fixtureOf(holdPointOf(clamp('left', 50), { w: 500, h: 300 }, hw, 9))).toEqual(clamp('left', 50));
-      expect(fixtureOf(holdPointOf({ kind: 'screw', x: 3, y: 4 }, { w: 500, h: 300 }, hw, 9))).toEqual({ kind: 'screw', x: 3, y: 4 });
+      expect(fixtureOf(holdPointOf(clamp('left', 50), { w: 500, h: 300 }, hw, 9), hw)).toEqual(clamp('left', 50));
+      expect(fixtureOf(holdPointOf({ kind: 'screw', x: 3, y: 4 }, { w: 500, h: 300 }, hw, 9), hw)).toEqual({ kind: 'screw', x: 3, y: 4 });
     });
 
     it('a taller clamp keeps the parts farther: room for the collet nut', () => {
@@ -764,6 +765,32 @@ describe('boards', () => {
       const tall = { ...board, size: { fit: false as const, w: nest.board.w, h: nest.board.h + 100 } };
       const moved = movedBottomEdge(tall, { ...nest, board: { ...nest.board, h: nest.board.h + 100 } }, parts, nest.board.h + 40);
       expect(moved.layout!.at[id].y).toBeCloseTo(y, 3);
+    });
+
+    it('a fixture’s own sizes reach its hold point and what parts keep clear of, moved or not', () => {
+      const hw = kDefaultHardware;
+      const own = { kind: 'clamp', side: 'left', at: 100, w: 60, d: 40, height: 50 } as const;
+      expect(holdPointOf(own, { w: 500, h: 400 }, hw, 10)).toMatchObject({ x: 20, y: 100, w: 60, d: 40, height: 50 });
+      expect(holdPointOf({ kind: 'clamp', side: 'left', at: 100 }, { w: 500, h: 400 }, hw, 10)).toMatchObject(hw.clamp);
+      expect(holdPointOf({ kind: 'screw', x: 5, y: 6, d: 14, height: 9 }, { w: 500, h: 400 }, hw, 10)).toMatchObject({ d: 14, height: 9 });
+      expect(fixtureBox(own, { w: 500, h: 400, sizes: { clampReach: 1, clampWidth: 1, screwD: 1 } })).toMatchObject({ w: 40, h: 60 });
+
+      // Back from a hold point (an edit at the machine): what's its own stays, what isn't doesn't become so.
+      expect(fixtureOf(holdPointOf(own, { w: 500, h: 400 }, hw, 10), hw)).toEqual(own);
+      expect(fixtureOf(holdPointOf({ kind: 'screw', x: 5, y: 6, d: 14 }, { w: 500, h: 400 }, hw, 10), hw)).toEqual({
+        kind: 'screw',
+        x: 5,
+        y: 6,
+        d: 14,
+      });
+
+      // A sheet with room: the reach of a big clamp pushes the part further in than a small one does.
+      const sheet = { ...stored(), size: { fit: false as const, w: 1400, h: 1400 } };
+      const small = settleBoard(sheet, parts, bit, [{ kind: 'clamp', side: 'left', at: 700 }]);
+      const big = settleBoard(sheet, parts, bit, [{ kind: 'clamp', side: 'left', at: 700, d: 200, w: 1300 }]);
+      const lowest = (b: BoardV1 | null) => Math.min(...Object.values(b!.layout!.at).map(p => p.x));
+      expect(lowest(big)).toBeGreaterThan(lowest(small));
+      expect(big!.fixtures![0]).toMatchObject({ d: 200, w: 1300 });
     });
 
     it('a board saved without a retention gets tabs, never parts cut loose', () => {

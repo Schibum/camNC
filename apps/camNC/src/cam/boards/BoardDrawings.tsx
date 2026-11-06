@@ -3,7 +3,7 @@ import { cn } from '@wbcnc/ui/lib/utils';
 import { MATERIALS } from '@wbcnc/cam/settings';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@wbcnc/ui/components/dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '@wbcnc/ui/components/popover';
-import { CircleHelp, Maximize, Minus, MoreHorizontal, Plus } from 'lucide-react';
+import { CircleHelp, Maximize, Minus, MoreHorizontal, Plus, Ruler, Trash2, WandSparkles } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { clampPlay, largestOffcut, reserved, screwPlay } from '@wbcnc/cam/settle';
 import {
@@ -29,12 +29,14 @@ import type { JobBoard } from '../useJobBoards';
 import { BoardHeadingFields } from './BoardHeadingFields';
 import { BoardOverlay } from './BoardOverlay';
 import { BoardRail } from './BoardRail';
+import { SelectionBar } from './SelectionBar';
 import { fittedScale } from './fittedScale';
 import { PartBadges, PartMenuContent, type PartMenuProps } from './PartMenu';
 import { NestView } from './NestView';
 import { CutBadge } from './CutBadge';
-import { place, toD } from './outline';
-import type { HoldEditing } from './useHoldEditing';
+import { place, tabSpots, toD, toPartFrame } from './outline';
+import type { HoldEditing, HoldSizeKey } from './useHoldEditing';
+import { NumberInput } from '../NumberInput';
 
 const fmt = (v: number) => `${+v.toFixed(1)}`;
 const sameThickness = (a: number, b: number) => +a.toFixed(1) === +b.toFixed(1);
@@ -108,6 +110,9 @@ export function BoardDrawings({
   railClosed,
   onRailToggle,
   status,
+  onAll,
+  railTools,
+  onTabSize,
 }: {
   boards: JobBoard[];
   instances: PartInstance[];
@@ -148,6 +153,12 @@ export function BoardDrawings({
   onRailToggle?: () => void;
   /** What needs attention, over the drawing: it takes no room, so it never rescales it. */
   status?: React.ReactNode;
+  /** Show every board. */
+  onAll: () => void;
+  /** The tools in the board list, as they fit. */
+  railTools?: (strip: boolean) => React.ReactNode;
+  /** A size of the tabs on the selected board. */
+  onTabSize: (key: 'width' | 'height', value: number) => void;
 }) {
   const focus = view === 'board';
   const shown = focus ? boards.filter(b => b.board.id === selectedId) : boards;
@@ -239,8 +250,12 @@ export function BoardDrawings({
   const panned = useRef(false);
   const onBackgroundDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const t = e.target as Element;
-    if (t.closest('[data-item],[data-hold],[data-remove],[data-tab],[data-resize],button,input,[role="button"]')) return;
+    // A menu of what's on the drawing is elsewhere in the page: its events only pass through here.
+    if (!e.currentTarget.contains(t)) return;
+    if (t.closest('[data-item],[data-hold],[data-tab],[data-resize],[data-selection-bar],[data-armed-bar],button,input,[role="button"]'))
+      return;
     setActive(null);
+    setSelectedHold(null);
     if (e.pointerType === 'touch') {
       touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (touches.current.size === 2) {
@@ -378,7 +393,24 @@ export function BoardDrawings({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!drag]);
 
-  const { tool, edit, setEdit, selectedHold, setSelectedHold, bands, preview, commit } = holds;
+  const { tool, edit, setEdit, selectedHold, setSelectedHold, selectedTab, setSelectedTab, bands, preview, commit } = holds;
+  // What's placed as a fixture; the tab tool works on the outlines.
+  const holdTool = tool === 'tab' ? null : tool;
+  // The selected thing's Delete, for the key when the focus is elsewhere.
+  const deleteSelected = useRef<(() => void) | undefined>(undefined);
+  deleteSelected.current = undefined;
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if ((e.key !== 'Delete' && e.key !== 'Backspace') || e.defaultPrevented) return;
+      if ((e.target as HTMLElement | null)?.closest?.('input,textarea,select,[contenteditable="true"],[role="menu"],[role="dialog"]'))
+        return;
+      if (!deleteSelected.current) return;
+      e.preventDefault();
+      deleteSelected.current();
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, []);
   // A fixture's menu, from a right-click on it.
   const [holdMenu, setHoldMenu] = useState<number | null>(null);
 
@@ -388,6 +420,7 @@ export function BoardDrawings({
     (e.currentTarget as SVGGElement).focus({ preventScroll: true });
     onSelect(board.board.id);
     setActive(item);
+    setSelectedHold(null);
     const placed = board.nest.placements.find(p => p.id === item);
     const inst = byId.get(item);
     const frame = (e.currentTarget as SVGGElement).closest('svg')?.querySelector<SVGGraphicsElement>('[data-board-frame]');
@@ -435,22 +468,68 @@ export function BoardDrawings({
   const anyHolds = boards.some(b => b.nest.holds.length > 0);
   return (
     <div className="relative flex min-h-0 flex-1">
-      {focus && (
-        <BoardRail
-          boards={boards}
-          instances={instances}
-          parts={parts}
-          selectedId={selectedId}
-          hardware={nestOptions.hardware ?? kDefaultHardware}
-          closed={railClosed}
-          dragging={!!dragging}
-          dropOn={overRail}
-          pointerX={dragging?.pointer.x}
-          onOpen={onOpen}
-          onToggle={onRailToggle}
-        />
-      )}
+      <BoardRail
+        boards={boards}
+        instances={instances}
+        parts={parts}
+        selectedId={selectedId}
+        hardware={nestOptions.hardware ?? kDefaultHardware}
+        closed={railClosed}
+        dragging={!!dragging}
+        dropOn={overRail}
+        pointerX={dragging?.pointer.x}
+        onOpen={onOpen}
+        onToggle={onRailToggle}
+        all={!focus}
+        onAll={onAll}
+        tools={railTools}
+      />
       <div className="relative flex min-w-0 flex-1 flex-col">
+        {focus && tool && (
+          <div
+            data-armed-bar
+            className="absolute top-2 left-1/2 z-20 flex max-w-[calc(100%-1rem)] -translate-x-1/2 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border bg-background px-3 py-1.5 text-xs shadow-lg">
+            <span className="whitespace-nowrap">
+              {tool === 'clamp' ? 'Click near an edge.' : tool === 'screw' ? 'Click in the waste.' : 'Click on a part’s outline.'} Esc to
+              stop.
+            </span>
+            {tool !== 'tab' &&
+              (tool === 'clamp'
+                ? ([
+                    ['w', 'Width'],
+                    ['d', 'Reach'],
+                    ['height', 'Height'],
+                  ] as const)
+                : ([
+                    ['d', 'Head ⌀'],
+                    ['height', 'Height'],
+                  ] as const)
+              ).map(([key, label]) => {
+                const hw = nestOptions.hardware ?? kDefaultHardware;
+                const base = tool === 'clamp' ? hw.clamp[key] : hw.screw[key as 'd' | 'height'];
+                return (
+                  <label key={key} className="flex items-center gap-1 whitespace-nowrap text-muted-foreground">
+                    {label}
+                    <NumberInput
+                      id={`new-${tool}-${key}`}
+                      value={holds.newSizes[tool][key] ?? base}
+                      digits={1}
+                      min={0.1}
+                      unit="mm"
+                      className="h-6 w-14 px-1 text-right font-mono text-xs"
+                      onCommit={value => holds.setNewSizes({ ...holds.newSizes, [tool]: { ...holds.newSizes[tool], [key]: value } })}
+                    />
+                    mm
+                  </label>
+                );
+              })}
+            {tool !== 'tab' && (
+              <button type="button" className="whitespace-nowrap text-primary hover:underline" onClick={onHoldSizes}>
+                Clamp and screw sizes…
+              </button>
+            )}
+          </div>
+        )}
         <div
           ref={scroller}
           data-board-scroller
@@ -588,7 +667,7 @@ export function BoardDrawings({
                       fixtures={
                         here
                           ? {
-                              tool,
+                              tool: holdTool,
                               preview: editing && editing.i === null ? pointed : null,
                               moving: editing?.i ?? null,
                               refused: editing?.settled === null,
@@ -597,14 +676,17 @@ export function BoardDrawings({
                               offcut,
                               play,
                               onHover: p => {
-                                if (p && tool) preview(b, tool, p, null);
+                                if (p && holdTool) preview(b, holdTool, p, null);
                                 else if (edit?.i === null) setEdit(null);
                               },
                               onPlace: p => {
-                                if (!tool) return;
+                                if (!holdTool) return;
                                 onSelect(board.id);
                                 // A click without hovering first (a finger): where it landed.
-                                const f = fixtureAt(tool, p, board, b.nest, instances, bit, nestOptions);
+                                const f = {
+                                  ...fixtureAt(holdTool, p, board, b.nest, instances, bit, nestOptions),
+                                  ...holds.newSizes[holdTool],
+                                };
                                 const fixtures = [...(board.fixtures ?? []), f];
                                 const settled = settleBoard(board, instances, bit, fixtures, nestOptions);
                                 setEdit(null);
@@ -639,8 +721,11 @@ export function BoardDrawings({
                             }
                           : undefined
                       }
+                      tabTool={here && tool === 'tab'}
+                      selectedTab={selectedTab?.board === board.id ? selectedTab : null}
+                      onTabSelect={(part, k) => setSelectedTab({ board: board.id, part, i: k })}
                       onTabsChange={
-                        onTabsMove && focus && board.retention === 'tabs' && !tool
+                        onTabsMove && focus && board.retention === 'tabs' && !holdTool
                           ? (item, tabs) => onTabsMove(board.id, item, tabs)
                           : undefined
                       }
@@ -659,6 +744,127 @@ export function BoardDrawings({
                         onGap={gap => onBoardChange({ ...board, gap })}
                       />
                     )}
+                    {here &&
+                      !tool &&
+                      !dragging &&
+                      !editing &&
+                      held !== null &&
+                      nest.holds[held] &&
+                      (() => {
+                        const hp = nest.holds[held];
+                        const kind = hp.kind;
+                        const name = kind === 'clamp' ? 'clamp' : 'screw';
+                        const onBoard = holds.countOf(kind, false);
+                        const onAllBoards = holds.countOf(kind, true);
+                        const remove = () => {
+                          setSelectedHold(null);
+                          onBoardEdit(
+                            { ...board, fixtures: (board.fixtures ?? []).filter((_, j) => j !== held) },
+                            'Removed. Parts stay where they are; Tighten layout closes the gaps.'
+                          );
+                        };
+                        deleteSelected.current = remove;
+                        return (
+                          <SelectionBar<HoldSizeKey>
+                            key={`hold-${held}`}
+                            id={`hold-${held}`}
+                            title={
+                              kind === 'clamp'
+                                ? `Clamp · ${shownFixtures[held]?.kind === 'clamp' ? (shownFixtures[held] as { side: string }).side : ''} edge`
+                                : 'Screw'
+                            }
+                            at={{ x: hp.x * pxPerMm + padPx, y: (nest.board.h - hp.y) * pxPerMm + padPx }}
+                            fields={
+                              kind === 'clamp'
+                                ? [
+                                    { key: 'w', label: 'Width', value: hp.w ?? 0 },
+                                    { key: 'd', label: 'Reach', value: hp.d },
+                                    { key: 'height', label: 'Height', value: hp.height ?? 0 },
+                                  ]
+                                : [
+                                    { key: 'd', label: 'Head ⌀', value: hp.d },
+                                    { key: 'height', label: 'Height', value: hp.height ?? 0 },
+                                  ]
+                            }
+                            onField={(key, value) => holds.setHoldSize(held, key, value)}
+                            scopes={[
+                              ...(onBoard > 1 ? [{ id: 'board', label: `all ${onBoard} on this board` }] : []),
+                              ...(onAllBoards > onBoard ? [{ id: 'all', label: `all ${onAllBoards} on all boards` }] : []),
+                            ]}
+                            onApply={(scope, key, value) => holds.applyHoldSize(kind, key, value, scope === 'all')}
+                            onDelete={remove}
+                            deleteLabel={`Delete this ${name}`}
+                            menu={[
+                              {
+                                label: `Delete all ${name}s on this board`,
+                                icon: <Trash2 className="size-4" />,
+                                onSelect: () => holds.removeAllHolds(kind),
+                              },
+                              { label: 'Clamp and screw sizes…', icon: <Ruler className="size-4" />, onSelect: onHoldSizes },
+                            ]}
+                          />
+                        );
+                      })()}
+                    {here &&
+                      !tool &&
+                      !dragging &&
+                      !editing &&
+                      selectedTab?.board === board.id &&
+                      (() => {
+                        const hold = plans[i]?.hold?.find(h => h.part === selectedTab.part);
+                        const tab = hold?.tabs[selectedTab.i];
+                        const p = nest.placements.find(q => byId.get(q.id)?.name === selectedTab.part);
+                        const inst = p && byId.get(p.id);
+                        if (!hold || !tab || !p || !inst) return null;
+                        const spots = tabSpots(hold.tabs);
+                        const remove =
+                          spots.length > 1 && onTabsMove
+                            ? () => {
+                                const rest = spots.filter(q => Math.hypot(q.x - tab.at.x, q.y - tab.at.y) >= 1);
+                                setSelectedTab(null);
+                                onTabsMove(
+                                  board.id,
+                                  p.id,
+                                  rest.map(q => toPartFrame(p, inst.size, q))
+                                );
+                              }
+                            : undefined;
+                        deleteSelected.current = remove;
+                        const reset = partMenu(b, p.id).onTabsReset;
+                        const others = boards.filter(x => x.board.retention === 'tabs' && !isCut(x.board)).length;
+                        return (
+                          <SelectionBar<'width' | 'height'>
+                            key={`tab-${selectedTab.part}-${selectedTab.i}`}
+                            id="tab"
+                            title={`Tab · ${selectedTab.part}`}
+                            note="Size: all tabs on this board"
+                            at={{ x: tab.at.x * pxPerMm + padPx, y: (nest.board.h - tab.at.y) * pxPerMm + padPx }}
+                            fields={[
+                              { key: 'width', label: 'Length', value: board.tabs.width },
+                              { key: 'height', label: 'Height', value: board.tabs.height },
+                            ]}
+                            onField={onTabSize}
+                            scopes={others > 1 ? [{ id: 'all', label: `tabs on all ${others} boards` }] : []}
+                            onApply={(_, key, value) => holds.setTabSize(key, value, true)}
+                            onDelete={remove}
+                            deleteLabel="Delete this tab"
+                            menu={
+                              reset
+                                ? [
+                                    {
+                                      label: 'Place this part’s tabs automatically',
+                                      icon: <WandSparkles className="size-4" />,
+                                      onSelect: () => {
+                                        setSelectedTab(null);
+                                        reset();
+                                      },
+                                    },
+                                  ]
+                                : []
+                            }
+                          />
+                        );
+                      })()}
                     {here && holdMenu !== null && nest.holds[holdMenu] && (
                       <DropdownMenu modal={false} open onOpenChange={open => !open && setHoldMenu(null)}>
                         <DropdownMenuTrigger asChild>
