@@ -39,4 +39,4 @@ Set `DEBUG_MACHINING_CASES=1` to print generation time per case. The optional pa
 node packages/cam/test/machining-cases/check-fluidnc.mjs
 ```
 
-The checker verifies the simulator identity and enables check mode before submitting programs. This validates command acceptance independently of the geometry assertions. The ordinary test suite requires no simulator or network connection.
+The checker verifies the loopback URL and simulated board configuration before submitting programs. It enables check mode or reuses check mode left by an interrupted run. Parser errors and transport disconnects fail at the affected file and line; it never reconnects or skips blocks. Check-mode exit resets the simulator, so cleanup waits for its disable message rather than an acknowledgement that reset may discard. This validates command acceptance independently of the geometry assertions. The ordinary test suite requires no simulator or network connection.

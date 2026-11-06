@@ -15,7 +15,7 @@ if (!files.length) throw new Error('No generated programs to check');
 const socket = new WebSocket(url);
 socket.binaryType = 'arraybuffer';
 const encoder = new TextEncoder(), decoder = new TextDecoder();
-let partial = '', pending;
+let partial = '', pending, closedError;
 socket.addEventListener('message', event => {
   const text = typeof event.data === 'string' ? event.data : decoder.decode(event.data, { stream: true });
   const lines = (partial + text).split('\n');
@@ -23,25 +23,28 @@ socket.addEventListener('message', event => {
   for (const raw of lines) {
     const line = raw.trim();
     if (!pending) continue;
-    if (line === 'ok' || /^(error:|ALARM:)/.test(line)) {
+    if (line === 'ok' || /^(error:|ALARM:)/.test(line) || pending.complete?.test(line)) {
+      if (line === 'ok' && pending.complete) continue;
       const current = pending;
       pending = undefined;
       clearTimeout(current.timer);
-      if (line === 'ok') current.resolve(current.lines);
-      else current.reject(new Error(`${current.command}: ${line}`));
+      if (/^(error:|ALARM:)/.test(line)) current.reject(new Error(`${current.command}: ${line}`));
+      else current.resolve([...current.lines, line]);
     } else pending.lines.push(line);
   }
 });
-socket.addEventListener('close', () => {
-  if (pending) { clearTimeout(pending.timer); pending.reject(new Error('Simulator connection closed')); pending = undefined; }
+socket.addEventListener('close', event => {
+  closedError = new Error(`Simulator connection closed (code ${event.code}, clean ${event.wasClean}, reason ${JSON.stringify(event.reason)})`);
+  if (pending) { clearTimeout(pending.timer); pending.reject(closedError); pending = undefined; }
 });
 
-function send(command) {
+function send(command, complete, realtime = false) {
   if (pending) throw new Error('Only one parser command may be in flight');
+  if (socket.readyState !== WebSocket.OPEN) return Promise.reject(closedError ?? new Error('Simulator connection is not open'));
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => { pending = undefined; reject(new Error(`Simulator timed out: ${command}`)); }, 5000);
-    pending = { command, lines: [], timer, resolve, reject };
-    socket.send(encoder.encode(`${command}\n`));
+    pending = { command, lines: [], timer, resolve, reject, complete };
+    socket.send(encoder.encode(realtime ? command : `${command}\n`));
   });
 }
 
@@ -56,8 +59,12 @@ try {
   if (!config.some(line => /board:.*\(simulated\)/.test(line))) throw new Error('The connected endpoint is not the repository simulator');
   const version = await send('$I');
   console.log(version.find(line => line.startsWith('[VER:')) ?? 'FluidNC version unavailable');
-  const enabled = await send('$C');
-  if (!enabled.some(line => /Enabled/.test(line))) throw new Error('Simulator did not confirm G-code check mode');
+  const state = await send('?', /^<[^|>]+[|>]/, true);
+  if (!state.some(line => /^<Check[|>]/.test(line))) {
+    if (!state.some(line => /^<Idle[|>]/.test(line))) throw new Error('Simulator must be idle or already in G-code check mode');
+    const enabled = await send('$C');
+    if (!enabled.some(line => /Enabled/.test(line))) throw new Error('Simulator did not confirm G-code check mode');
+  }
   checkMode = true;
   for (const file of files) {
     const lines = readFileSync(file, 'utf8').split(/\r?\n/);
@@ -67,6 +74,7 @@ try {
   }
   console.log(`Accepted ${files.length} programs and ${checked} blocks in simulator check mode`);
 } finally {
-  if (checkMode && socket.readyState === WebSocket.OPEN) await send('$C').catch(() => {});
+  // Disabling check mode resets the controller; its acknowledgement may be discarded by that reset.
+  if (checkMode && socket.readyState === WebSocket.OPEN) await send('$C', /Disabled/).catch(() => {});
   socket.close();
 }
