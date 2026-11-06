@@ -34,6 +34,35 @@ export interface FeedPolicy {
 const cutting = (role: MotionRole) => role === 'cut' || role === 'finish';
 const xy = (a: Vec3, b: Vec3) => Math.hypot(b[0] - a[0], b[1] - a[1]);
 
+/** Remove redundant straight cutting vertices without crossing a feed or semantic boundary. */
+function compactCuttingMoves<T extends MotionPath & { roles: MotionRole[] }>(pass: T): T {
+  const pts: Vec3[] = [],
+    feeds: number[] = [],
+    roles: MotionRole[] = [];
+  for (let i = 0; i < pass.pts.length; i++) {
+    pts.push(pass.pts[i]);
+    feeds.push(pass.feeds[i]);
+    roles.push(pass.roles[i]);
+    while (pts.length >= 3) {
+      const last = pts.length - 1;
+      if (feeds[last - 1] !== feeds[last] || roles[last - 1] !== roles[last]) break;
+      if (!cutting(roles[last]) && roles[last] !== 'corner') break;
+      const a = pts[last - 2],
+        b = pts[last - 1],
+        c = pts[last];
+      const direction = c.map((value, axis) => value - a[axis]);
+      const length2 = direction.reduce((sum, value) => sum + value * value, 0);
+      if (length2 < 1e-18) break;
+      const t = direction.reduce((sum, value, axis) => sum + (b[axis] - a[axis]) * value, 0) / length2;
+      if (t < 0 || t > 1 || Math.hypot(...b.map((value, axis) => value - a[axis] - t * direction[axis])) > 1e-9) break;
+      pts.splice(last - 1, 1);
+      feeds.splice(last - 1, 1);
+      roles.splice(last - 1, 1);
+    }
+  }
+  return { ...pass, pts, feeds, roles };
+}
+
 /** Feed scheduling changes only segment endpoints along existing lines, never the path's geometry. */
 export function applyFeedPolicy<T extends MotionPath>(
   pass: T,
@@ -57,13 +86,13 @@ export function applyFeedPolicy<T extends MotionPath>(
   });
   const result = { ...pass, pts: [...pass.pts], feeds, roles };
   const settings = policy.cornerFeed;
-  if (!settings || !policy.materialSide || pass.pts.length < 3) return result;
+  if (!settings || !policy.materialSide || pass.pts.length < 3) return compactCuttingMoves(result);
 
   const pts = pass.pts;
   const cumulative = [0];
   for (let i = 1; i < pts.length; i++) cumulative.push(cumulative[i - 1] + xy(pts[i - 1], pts[i]));
   const total = cumulative.at(-1)!;
-  if (total < 1e-8) return result;
+  if (total < 1e-8) return compactCuttingMoves(result);
   const closed = xy(pts[0], pts.at(-1)!) < 1e-7 && Math.abs(pts[0][2] - pts.at(-1)![2]) < 1e-7;
   const sign = policy.materialSide === 'right' ? 1 : -1;
   const turns: { at: number; angle: number; radius: number }[] = [];
@@ -99,8 +128,16 @@ export function applyFeedPolicy<T extends MotionPath>(
     if (closed && turn.at < settings.distance) intervals.push([total + turn.at - settings.distance, total]);
     if (closed && total - turn.at < settings.distance) intervals.push([0, turn.at + settings.distance - total]);
   }
-  if (!intervals.length) return result;
-  const limits = [...new Set(intervals.flat())].sort((a, b) => a - b);
+  if (!intervals.length) return compactCuttingMoves(result);
+  // Adjacent chords of one curved corner create overlapping zones. Only the union's
+  // outer boundaries can change the feed; internal boundaries add no information.
+  const merged: [number, number][] = [];
+  for (const [start, end] of intervals.sort((a, b) => a[0] - b[0])) {
+    const previous = merged.at(-1);
+    if (previous && start <= previous[1] + 1e-8) previous[1] = Math.max(previous[1], end);
+    else merged.push([start, end]);
+  }
+  const limits = [...new Set(merged.flat())].sort((a, b) => a - b);
   const outPts: Vec3[] = [pts[0]];
   const outFeeds = [feeds[0]],
     outRoles = [roles[0]];
@@ -108,7 +145,8 @@ export function applyFeedPolicy<T extends MotionPath>(
     const start = cumulative[i - 1],
       end = cumulative[i],
       len = end - start;
-    if (len < 1e-9) {
+    const reducedFeed = Math.min(feeds[i], policy.reducedFeed ?? feeds[i] * settings.factor);
+    if (len < 1e-9 || !cutting(roles[i]) || reducedFeed === feeds[i]) {
       outPts.push(pts[i]);
       outFeeds.push(feeds[i]);
       outRoles.push(roles[i]);
@@ -120,12 +158,12 @@ export function applyFeedPolicy<T extends MotionPath>(
       const t = (at - start) / len;
       const p: Vec3 = at === end ? [...pts[i]] : (pts[i - 1].map((v, axis) => v + t * (pts[i][axis] - v)) as Vec3);
       const middle = (previous + at) / 2;
-      const reduce = cutting(roles[i]) && intervals.some(([a, b]) => middle >= a && middle <= b);
+      const reduce = merged.some(([a, b]) => middle >= a && middle <= b);
       outPts.push(p);
-      outFeeds.push(reduce ? Math.min(feeds[i], policy.reducedFeed ?? feeds[i] * settings.factor) : feeds[i]);
+      outFeeds.push(reduce ? reducedFeed : feeds[i]);
       outRoles.push(reduce ? 'corner' : roles[i]);
       previous = at;
     }
   }
-  return { ...pass, pts: outPts, feeds: outFeeds, roles: outRoles };
+  return compactCuttingMoves({ ...pass, pts: outPts, feeds: outFeeds, roles: outRoles });
 }

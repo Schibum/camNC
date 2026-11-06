@@ -97,6 +97,58 @@ describe('semantic motion and feed scheduling', () => {
     expect(applyFeedPolicy(arc(0.2), policy).roles).toContain('corner');
     expect(applyFeedPolicy(arc(5), policy).roles).not.toContain('corner');
   });
+
+  it('unions overlapping zones around a chorded corner without fragmenting its straight approaches', () => {
+    const arc: Vec3[] = Array.from({ length: 91 }, (_, i) => {
+      const angle = -Math.PI / 2 + (i * Math.PI) / 180;
+      return [Math.cos(angle), 1 + Math.sin(angle), 2];
+    });
+    const original = path([[-10, 0, 2], ...arc, [1, 11, 2]]);
+    const result = applyFeedPolicy(original, {
+      ...policy,
+      cornerFeed: { ...policy.cornerFeed, maxRadius: 2 },
+    });
+    // One feed boundary on each straight, regardless of the number of curved chords.
+    expect(result.pts).toHaveLength(original.pts.length + 2);
+    const straightMoves = result.pts.slice(1).flatMap((point, i) => {
+      const previous = result.pts[i];
+      return Math.abs(point[1]) < 1e-8 && Math.abs(previous[1]) < 1e-8 ? [Math.hypot(point[0] - previous[0], point[1] - previous[1])] : [];
+    });
+    expect(straightMoves).toHaveLength(2);
+    expect(Math.min(...straightMoves)).toBeGreaterThan(1);
+    expect(result.roles).toContain('corner');
+  });
+
+  it('does not insert corner boundaries when the finish feed is already the reduced feed', () => {
+    const original = path(
+      [
+        [0, 0, 2],
+        [20, 0, 2],
+        [20, 20, 2],
+      ],
+      500
+    );
+    original.roles = ['approach', 'finish', 'finish'];
+    const result = applyFeedPolicy(original, { ...policy, reducedFeed: 500 });
+    expect(result.pts).toEqual(original.pts);
+    expect(result.roles).toEqual(original.roles);
+    expect(result.feeds.slice(1)).toEqual([500, 500]);
+  });
+
+  it('compacts collinear cuts while retaining feed, finish, tab, and reversal boundaries', () => {
+    const original = path(Array.from({ length: 7 }, (_, i) => [i, 0, 2] as Vec3));
+    original.feeds = [1000, 1000, 1000, 900, 900, 900, 900];
+    original.roles = ['approach', 'cut', 'cut', 'cut', 'finish', 'tab', 'tab'];
+    const result = applyFeedPolicy(original, { ...policy, cornerFeed: false });
+    expect(result.pts.map(point => point[0])).toEqual([0, 2, 3, 4, 5, 6]);
+    expect(result.roles).toEqual(['approach', 'cut', 'cut', 'finish', 'tab', 'tab']);
+    const reversal = path([
+      [0, 0, 2],
+      [2, 0, 2],
+      [1, 0, 2],
+    ]);
+    expect(applyFeedPolicy(reversal, { ...policy, cornerFeed: false }).pts).toEqual(reversal.pts);
+  });
 });
 
 describe('contained tangent leads', () => {
