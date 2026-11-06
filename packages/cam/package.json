@@ -17,6 +17,7 @@
   },
   "scripts": {
     "test": "vitest",
+    "test:performance": "vitest run --config vitest.performance.config.ts",
     "check-types": "tsc --noEmit"
   },
   "license": "Apache-2.0",

@@ -332,14 +332,14 @@ describe('suggestHolds', () => {
     for (const f of r.fixtures) expect(fixtureFree(wide, r.spots, f)).toBe(true);
   });
 
-  it('suggests holds on real outlines within a fixed multiple of reference work', () => {
+  it('[performance] suggests holds on real outlines within a fixed multiple of reference work', () => {
     for (const key of ['besteckkasten', 'kinderregal-standing'] as const) {
       const { b, spots } = sample(key);
       expectSuggestionSpeed(key, () => suggestHolds(b, spots, []));
     }
   });
 
-  it.each([32, 72, 144, 288])('falls back on a full sheet of %i parts within a fixed multiple of reference work', n => {
+  it.each([32, 72, 144, 288])('[performance] falls back on a full sheet of %i parts within a fixed multiple of reference work', n => {
     const { b, spots } = filledSheet(n);
     const r = expectSuggestionSpeed(`${n} parts`, () => suggestHolds(b, spots, []));
     expect(r.fixtures.length).toBeLessThanOrEqual(defaultHolds(workBox(b, spots)));

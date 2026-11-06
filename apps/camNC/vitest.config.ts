@@ -30,6 +30,8 @@ export default defineConfig({
     ],
   },
   test: {
+    // Root tests run these CPU-sensitive gates afterwards, without competing suites or packages.
+    testNamePattern: /^(?!.*\[performance\]).*$/,
     globals: false,
     // Worker tests run in workerd, see vitest.worker.config.ts.
     exclude: ['**/node_modules/**', 'worker/**'],

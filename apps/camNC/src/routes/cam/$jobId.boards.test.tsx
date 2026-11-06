@@ -1,4 +1,6 @@
 import { createJob, getJob, saveJob } from '@/cam/jobDb';
+// Pointer coordinates and fitted SVG dimensions must use the page's real layout, including the fixed-height status.
+import '@/style.css';
 import { useStore } from '@/store/store';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -323,6 +325,8 @@ describe('CAM boards step', () => {
     await openMenu('A', part);
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Place its tabs automatically again' }));
     await waitFor(async () => expect((await saved()).tabsAt).toBeUndefined());
+    // The menu keeps the page aria-hidden through its closing animation, independently of the save finishing.
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
     // And for the whole board, from its settings.
     fireEvent.doubleClick(outline, clientOf('A', box.x + box.width / 2, box.y + 1));
     await waitFor(async () => expect((await saved()).tabsAt).toBeTruthy(), { timeout: 60_000 });
@@ -337,8 +341,7 @@ describe('CAM boards step', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Clamp' }));
     const svg = drawing('A').querySelector('[data-board-frame]')!.closest('svg')!;
     // The left edge beside the upper stack: the pointer stays right on the preview under it.
-    const at = clientOf('A', 1, 380);
-    fireEvent.pointerMove(svg, at);
+    fireEvent.pointerMove(svg, clientOf('A', 1, 380));
     const preview = await waitFor(() => {
       const g = drawing('A').querySelector('[data-hold-preview="clamp"]');
       expect(g).toBeTruthy();
@@ -349,11 +352,37 @@ describe('CAM boards step', () => {
     expect(screen.getByLabelText('Board A status').textContent).toMatch(
       /Part 1a, Part 1b, Part 2 move \d+ mm right\. Board size unchanged\./
     );
-    fireEvent.click(svg, clientOf('A', 1, 380));
+    // ResizeObserver applies the fitted drawing scale after the new status has been laid out.
+    await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    // Preview the same integer CSS pixels used by the click rather than assuming their inverse is exactly 380 mm
+    // at every fitted drawing scale.
+    const click = new MouseEvent('click', { ...clientOf('A', 1, 380), bubbles: true, cancelable: true });
+    const at = { clientX: click.clientX, clientY: click.clientY };
+    fireEvent.pointerMove(svg, at);
+    const frame = drawing('A').querySelector<SVGGraphicsElement>('[data-board-frame]')!;
+    const toe = [...drawing('A').querySelector('[data-hold-preview="clamp"]')!.querySelectorAll('rect')].at(-1)!;
+    const previewAt = +toe.getAttribute('y')! + +toe.getAttribute('height')! / 2;
+    // Capture the delivered click in the current frame: ResizeObserver may apply a final fitted-scale update when
+    // React flushes the gesture. The position is still required to match both the target and preview within a pixel.
+    let placed!: DOMPoint,
+      pixelMm = 0;
+    svg.addEventListener(
+      'click',
+      event => {
+        const inverse = frame.getScreenCTM()!.inverse();
+        placed = new DOMPoint(event.clientX, event.clientY).matrixTransform(inverse);
+        pixelMm = Math.abs(new DOMPoint(0, 1).matrixTransform(inverse).y - new DOMPoint(0, 0).matrixTransform(inverse).y);
+      },
+      { capture: true, once: true }
+    );
+    fireEvent(svg, click);
+    expect(placed.x).toBeLessThan(10);
+    expect(Math.abs(placed.y - 380)).toBeLessThanOrEqual(pixelMm);
+    expect(Math.abs(previewAt - Math.round(placed.y))).toBeLessThanOrEqual(pixelMm + 1);
     await waitFor(
       async () => {
         const a = (await getJob(job.id))!.boards!.find(b => b.name === 'A')!;
-        expect(a.fixtures).toEqual([{ kind: 'clamp', side: 'left', at: expect.closeTo(380, -1) }]);
+        expect(a.fixtures).toEqual([{ kind: 'clamp', side: 'left', at: Math.round(placed.y) }]);
         expect(a.layout!.w).toBe(574);
         expect(a.layout!.h).toBe(750);
       },
