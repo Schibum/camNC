@@ -1,9 +1,9 @@
-import { createJob, getJob, saveJob } from '@/cam/jobDb';
+import { createJob, getJob, saveJob, type CamJobV1 } from '@/cam/jobDb';
 // Pointer coordinates and fitted SVG dimensions must use the page's real layout, including the fixed-height status.
 import '@/style.css';
 import { useStore } from '@/store/store';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Box2, Vector2 } from 'three';
 import type { ComponentType } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -74,12 +74,12 @@ function clientOf(board: string, x: number, y: number) {
   return { clientX: p.x, clientY: p.y };
 }
 
-async function openKinderregal() {
+async function openKinderregal(client = new QueryClient()) {
   const bytes = await (await fetch(stepUrl)).arrayBuffer();
   const job = await createJob(new File([bytes], 'kinderregal-eiche.step'));
   params.jobId = job.id;
   render(
-    <QueryClientProvider client={new QueryClient()}>
+    <QueryClientProvider client={client}>
       <BoardsStep />
     </QueryClientProvider>
   );
@@ -274,7 +274,41 @@ describe('CAM boards step', () => {
   }, 90_000);
 
   it('drags a tab along its part’s outline: saved in the part’s frame, and placed automatically again on request', async () => {
-    const job = await openKinderregal();
+    const client = new QueryClient();
+    const job = await openKinderregal(client);
+    // Wait for the actual transactions started by this gesture. A busy worker can outlast a polling assertion's
+    // default second; an optimistic render is also too early to assert what IndexedDB has committed.
+    const commit = async (label: string, action: () => void) => {
+      const cache = client.getMutationCache();
+      const previous = new Set(cache.getAll().map(mutation => mutation.mutationId));
+      action();
+      const writes = cache.getAll().filter(mutation => {
+        const variables = mutation.state.variables as { job?: CamJobV1 } | undefined;
+        return !previous.has(mutation.mutationId) && variables?.job?.id === job.id;
+      });
+      expect(writes.length, `${label}: starts a save for this job`).toBeGreaterThan(0);
+      await act(async () => {
+        await Promise.all(
+          writes.map(
+            mutation =>
+              new Promise<void>((resolve, reject) => {
+                let unsubscribe = () => {};
+                const changed = () => {
+                  if (mutation.state.status === 'success') {
+                    unsubscribe();
+                    resolve();
+                  } else if (mutation.state.status === 'error') {
+                    unsubscribe();
+                    reject(new Error(`${label}: job save failed`, { cause: mutation.state.error }));
+                  }
+                };
+                unsubscribe = cache.subscribe(changed);
+                changed();
+              })
+          )
+        );
+      });
+    };
     const drawingA = () => drawing('A');
     // The board's program comes back with its tabs.
     const tab = await waitFor(
@@ -290,7 +324,7 @@ describe('CAM boards step', () => {
     // 30 mm along the board's x, and a little off the outline: it lands on the outline.
     fireEvent.pointerDown(tab, { ...clientOf('A', cx, cy), button: 0, pointerId: 1 });
     fireEvent.pointerMove(tab, { ...clientOf('A', cx + 30, cy + 2), pointerId: 1 });
-    fireEvent.pointerUp(tab, { ...clientOf('A', cx + 30, cy + 2), pointerId: 1 });
+    await commit('drag tab', () => fireEvent.pointerUp(tab, { ...clientOf('A', cx + 30, cy + 2), pointerId: 1 }));
     const saved = async () => (await getJob(job.id))!.boards!.find(b => b.name === 'A')!;
     await waitFor(async () => {
       const b = await saved();
@@ -312,27 +346,43 @@ describe('CAM boards step', () => {
       return b.tabsAt![b.items.find(id => b.tabsAt?.[id])!].length;
     };
     const before = await count();
-    const outline = drawingA().querySelector<SVGGElement>(`[data-item][data-part="${part}"]`)!;
-    const box = outline.getBBox();
-    fireEvent.doubleClick(outline, clientOf('A', box.x + box.width / 2, box.y + 1));
+    const outline = () => drawingA().querySelector<SVGGElement>(`[data-item][data-part="${part}"]`)!;
+    const edgePoint = () => {
+      const box = outline().getBBox();
+      return clientOf('A', box.x + box.width / 2, box.y + 1);
+    };
+    await commit('add tab', () => fireEvent.doubleClick(outline(), edgePoint()));
     await waitFor(async () => expect(await count()).toBe(before + 1));
     await waitFor(() => expect(drawingA().querySelectorAll(`[data-tab="${part}"]`).length).toBeGreaterThanOrEqual(before + 1), {
       timeout: 60_000,
     });
-    fireEvent.doubleClick(drawingA().querySelector(`[data-tab="${part}"]`)!);
+    await commit('remove tab', () => fireEvent.doubleClick(drawingA().querySelector(`[data-tab="${part}"]`)!));
     await waitFor(async () => expect(await count()).toBe(before));
     // Back to picked tabs: for the part, from its menu.
     await openMenu('A', part);
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Place its tabs automatically again' }));
-    await waitFor(async () => expect((await saved()).tabsAt).toBeUndefined());
-    // The menu keeps the page aria-hidden through its closing animation, independently of the save finishing.
+    const menu = screen.getByRole('menu');
+    const resetPart = await screen.findByRole('menuitem', { name: 'Place its tabs automatically again' });
+    await commit('part reset', () => fireEvent.click(resetPart));
+    expect((await saved()).tabsAt, 'part reset: persisted tabs use automatic placement').toBeUndefined();
+    // Radix retains a closed menu, including its accessibility isolation, until its native exit animation ends.
+    // Observe that lifecycle rather than assuming compositor events arrive within waitFor's default second.
+    if (menu.isConnected) expect(menu.getAttribute('data-state')).toBe('closed');
+    await act(async () => {
+      await Promise.allSettled(menu.getAnimations().map(animation => animation.finished));
+    });
     await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    expect(drawingA(), 'part reset: board is accessible after menu dismissal').toBeTruthy();
     // And for the whole board, from its settings.
-    fireEvent.doubleClick(outline, clientOf('A', box.x + box.width / 2, box.y + 1));
-    await waitFor(async () => expect((await saved()).tabsAt).toBeTruthy(), { timeout: 60_000 });
+    await commit('add tab after part reset', () => fireEvent.doubleClick(outline(), edgePoint()));
+    expect((await saved()).tabsAt, 'board reset: starts with a saved manual tab').toBeTruthy();
     fireEvent.click(drawingA());
-    fireEvent.click(await screen.findByRole('button', { name: 'Place tabs automatically again' }));
-    await waitFor(async () => expect((await saved()).tabsAt).toBeUndefined());
+    const resetBoard = await screen.findByRole('button', { name: 'Place tabs automatically again' });
+    await commit('board reset', () => fireEvent.click(resetBoard));
+    expect(
+      screen.queryByRole('button', { name: 'Place tabs automatically again' }),
+      'board reset: manual-tab control disappears'
+    ).toBeNull();
+    expect((await saved()).tabsAt, 'board reset: persisted tabs use automatic placement').toBeUndefined();
   }, 150_000);
 
   it('places a clamp with the tool: a click on its own preview counts, parts make room, and the status says so', async () => {
