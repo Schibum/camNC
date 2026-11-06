@@ -213,6 +213,8 @@ export function zeroGhost(input: {
 }): ZeroGhost | null {
   const { toolpathBounds: b, workOffset: w, toolpathOffset: placed, travel } = input;
   if (Math.abs(w.x - placed.x) < 0.01 && Math.abs(w.y - placed.y) < 0.01) return null;
+  // A program without moves has empty bounds: nothing to outline.
+  if (![b.min.x, b.min.y, b.max.x, b.max.y].every(Number.isFinite)) return null;
   const min = { x: b.min.x + w.x, y: b.min.y + w.y };
   const max = { x: b.max.x + w.x, y: b.max.y + w.y };
   const past: ZeroGhost['past'] = [];
@@ -221,11 +223,11 @@ export function zeroGhost(input: {
     const limits = travel?.[axis];
     if (!limits) continue;
     if (min[axis] < limits.min - kTravelEpsilon) {
-      past.push({ min, max: { ...max, [axis]: limits.min } });
+      past.push({ min, max: { ...max, [axis]: Math.min(max[axis], limits.min) } });
       over.push(`${fmt(limits.min - min[axis])} mm past the ${axis.toUpperCase()} limit`);
     }
     if (max[axis] > limits.max + kTravelEpsilon) {
-      past.push({ min: { ...min, [axis]: limits.max }, max });
+      past.push({ min: { ...min, [axis]: Math.max(min[axis], limits.max) }, max });
       over.push(`${fmt(max[axis] - limits.max)} mm past the ${axis.toUpperCase()} limit`);
     }
   }
@@ -290,7 +292,8 @@ export function getJobChecklist(input: ChecklistInput): ChecklistItem[] {
         gcode,
         toolpathOffset,
         xyPending: !zeroMatches,
-        zPending: !input.zZeroed,
+        // G-code that sets Z itself has no zero step left to do: the Z offset it starts from is what counts.
+        zPending: !input.zZeroed && !hasProbeOrZeroCommand(gcode),
       })
     );
   }

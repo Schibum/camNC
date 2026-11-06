@@ -242,7 +242,7 @@ export function CamQueueCard() {
             <SetupStep
               key={board.id}
               state="todo"
-              startFolded
+              startFolded={board.measuredThickness !== undefined}
               label="Board"
               title={<span className="whitespace-nowrap">{`Board ${board.name} on the bed`}</span>}
               summary={`${fmt(current.plan.size[0])} × ${fmt(current.plan.size[1])} × ${fmt(stockTopOf(board))} mm`}>

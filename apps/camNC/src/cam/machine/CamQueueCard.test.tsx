@@ -315,9 +315,6 @@ describe('the machine queue card', () => {
   it('first step of a board: measure the stock, showing what’s assumed, and pass on what was measured', () => {
     setQueue([board('A')], [plan([3.175])]);
     const { rerender } = render(view());
-    // Folded until asked for: its title and size stay in view.
-    expect(card().queryByText(/1\. Measure its thickness/)).toBeNull();
-    fireEvent.click(card().getByRole('button', { name: /Board A on the bed/ }));
     expect(card().getByText(/1\. Measure its thickness/).parentElement!.textContent).toMatch(/assumed parts \+ 0\.3 mm/);
     const field = card().getByRole('textbox', { name: /Stock thickness of board A/ });
     fireEvent.change(field, { target: { value: '8,6' } });
@@ -326,6 +323,9 @@ describe('the machine queue card', () => {
 
     setQueue([board('A', { measuredThickness: 8.6 })], [plan([3.175])]);
     rerender(view());
+    // Measured: it folds out of the way of zero and jog, and opens on request.
+    expect(card().queryByText(/1\. Measure its thickness/)).toBeNull();
+    fireEvent.click(card().getByRole('button', { name: /Board A on the bed/ }));
     expect(card().getByText(/1\. Measure its thickness/)).toBeTruthy();
     expect(card().getByRole<HTMLInputElement>('textbox', { name: /Stock thickness of board A/ }).value).toBe('8.6');
     // Not again for the next bit of the same board.

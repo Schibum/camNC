@@ -104,7 +104,7 @@ function ZeroStep() {
   const idle = api.isConnected.value && api.state.value === 'Idle';
   const hasToolpath = useStore(s => !!s.toolpath);
   const checklist = useJobChecklist();
-  const { probe, disabled } = useProbeZ();
+  const { probe, disabled, prefs } = useProbeZ();
   const xy = checklist.find(i => i.id === 'xy-zero');
   const z = checklist.find(i => i.id === 'z-zero');
   const zOk = z?.ok ?? api.zZeroedAt.value !== null;
@@ -113,7 +113,7 @@ function ZeroStep() {
       label="Zero"
       state={xy?.ok && zOk ? 'done' : 'todo'}
       title="Zero"
-      summary={xy?.ok && zOk ? 'XY = toolpath · Z set' : undefined}>
+      summary={xy?.ok && zOk ? 'XY = toolpath · Z set' : `Probe plate ${prefs.probePlateThickness} mm, travel ${prefs.probeMaxTravel} mm`}>
       <ZeroRow ok={!!xy?.ok} label={xy ? (xy.ok ? 'XY = toolpath' : 'XY not at the toolpath') : 'XY: load a job first'}>
         <Button
           size="sm"

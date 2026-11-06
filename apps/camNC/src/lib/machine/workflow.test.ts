@@ -152,6 +152,14 @@ describe('getJobChecklist travel with open zero steps', () => {
     expect(zeroed.details?.[0]).toMatch(/^Z would go to 8.8, 5.8 mm above/);
   });
 
+  it('reports the Z problem itself for G-code that sets Z, which has no zero step left', () => {
+    const placed = { machineZero: { x: 14.3, y: 118.7 }, workOffset: { x: 14.3, y: 118.7, z: -17 } };
+    const item = check({ ...placed, gcode: 'G38.2 Z-20 F100\nG1 X10' });
+    expect(item.zeroFirst).toBeUndefined();
+    expect(item.blocking).toBe(true);
+    expect(item.details?.[0]).toMatch(/^Z would go to 8.8/);
+  });
+
   it('passes from the zero on the controller, set or not', () => {
     expect(check({ workOffset: { x: 14.3, y: 118.7, z: -60 } }).ok).toBe(true);
     expect(check({ machineZero: { x: 14.3, y: 118.7 }, workOffset: { x: 14.3, y: 118.7, z: -60 }, zZeroed: true }).ok).toBe(true);
@@ -179,6 +187,17 @@ describe('zeroGhost', () => {
     expect(ghost.past[0]!.max.y).toBeCloseTo(1398.2);
     expect(ghost.past[0]!.min.x).toBe(ghost.min.x);
     expect(ghost.label).toBe('Would run here from the current zero: 157.2 mm past the Y limit');
+  });
+
+  it('marks only the outline itself when all of it is past the travel', () => {
+    const ghost = zeroGhost({ toolpathBounds, workOffset: { x: 6, y: 1500 }, toolpathOffset, travel })!;
+    expect(ghost.past[0]!.min.y).toBe(ghost.min.y);
+    expect(ghost.past[0]!.max.y).toBe(ghost.max.y);
+  });
+
+  it('has nothing to outline for a program without moves', () => {
+    const empty = { min: { x: Infinity, y: Infinity }, max: { x: -Infinity, y: -Infinity } };
+    expect(zeroGhost({ toolpathBounds: empty, workOffset: { x: 6, y: 416 }, toolpathOffset, travel })).toBeNull();
   });
 
   it('still outlines it when it stays inside the travel, or the travel is unknown', () => {

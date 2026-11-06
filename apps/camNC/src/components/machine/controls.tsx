@@ -110,7 +110,8 @@ function useKeyboardJog(enabled: boolean, axes: ScreenAxes) {
       PageDown: { z: -1 },
     };
     let active: string | null = null;
-    const isTyping = (e: KeyboardEvent) => e.target instanceof HTMLElement && e.target.closest('input, textarea, [contenteditable]');
+    const isTyping = (e: KeyboardEvent) =>
+      e.target instanceof HTMLElement && e.target.closest('input, textarea, select, [contenteditable]');
     const onDown = (e: KeyboardEvent) => {
       const dir = keys[e.key];
       if (!dir || isTyping(e)) return;

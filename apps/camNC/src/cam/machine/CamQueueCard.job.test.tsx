@@ -97,7 +97,6 @@ describe('the machine queue with a real plan', () => {
     await waitFor(() => expect(useCamMachine.getState().overlay?.holds?.length).toBeGreaterThan(0), { timeout: 60_000 });
     const offset = useStore.getState().toolpathOffset;
     expect([offset.x, offset.y]).toEqual([212, 98]);
-    fireEvent.click(card().getByRole('button', { name: /Board A on the bed/ }));
     expect(card().getByText(/on the blue marks/)).toBeTruthy();
     const before = useStore.getState().toolpath?.gcode;
     const o = useCamMachine.getState().overlay!;
