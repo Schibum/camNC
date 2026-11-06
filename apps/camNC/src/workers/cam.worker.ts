@@ -393,6 +393,7 @@ function boardSpec(key: string, board: BoardRequest): BoardSpec {
         y: p.y,
         rotated: p.rotated,
         ...(p.tabsAt && { tabsAt: p.tabsAt }),
+        ...(p.holes && { holes: p.holes }),
       };
     }),
   };
@@ -504,6 +505,7 @@ function summarize(
     programs,
     size,
     path: moves.filter(m => !m.rapid && Math.min(m.from[2], m.to[2]) < cam.stockTop - 1e-3).map(m => [m.from, m.to]),
+    ...(cam.holeMiddles && { holeMiddles: cam.holeMiddles }),
   };
 }
 

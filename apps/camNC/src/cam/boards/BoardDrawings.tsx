@@ -1,9 +1,18 @@
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
 import { cn } from '@wbcnc/ui/lib/utils';
 import { MATERIALS } from '@wbcnc/cam/settings';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@wbcnc/ui/components/dropdown-menu';
+import type { HoleChoice, HoleMiddle } from '@wbcnc/cam';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@wbcnc/ui/components/dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '@wbcnc/ui/components/popover';
-import { CircleHelp, Maximize, Minus, MoreHorizontal, Plus } from 'lucide-react';
+import { Check, CircleHelp, Maximize, Minus, MoreHorizontal, Plus } from 'lucide-react';
+import { kVacuumSlug } from '@wbcnc/cam/settings';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { clampPlay, largestOffcut, reserved, screwPlay } from '@wbcnc/cam/settle';
 import {
@@ -72,6 +81,53 @@ function toBoard(frame: SVGGraphicsElement, x: number, y: number) {
   return m ? new DOMPoint(x, y).matrixTransform(m.inverse()) : null;
 }
 
+/** What happens to the piece in the middle of a through hole, at that hole. For every copy of the part. */
+function HoleMenu({
+  middle,
+  left,
+  top,
+  onClose,
+  onChoose,
+}: {
+  middle: HoleMiddle;
+  left: number;
+  top: number;
+  onClose: () => void;
+  onChoose: (choice: HoleChoice | undefined) => void;
+}) {
+  const { state, size, addMinutes, choice } = middle;
+  const small = size <= kVacuumSlug;
+  return (
+    <DropdownMenu modal={false} open onOpenChange={open => !open && onClose()}>
+      <DropdownMenuTrigger asChild>
+        <span aria-hidden className="absolute" style={{ left, top }} />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        <DropdownMenuLabel className="text-xs">Middle of this hole: {+size.toFixed(0)} mm</DropdownMenuLabel>
+        {state === 'screwed' ? (
+          <DropdownMenuItem disabled>A screw holds it. Remove the screw to clear it.</DropdownMenuItem>
+        ) : (
+          <>
+            <DropdownMenuItem onSelect={() => onChoose('clear')}>
+              <Check className={cn('size-3', state !== 'cleared' && 'invisible')} /> Clear it, about +{addMinutes.toFixed(1)} min
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onChoose('leave')}>
+              <Check className={cn('size-3', state === 'cleared' && 'invisible')} />{' '}
+              {small ? 'Leave it for the vacuum' : 'Leave it: I’ll tape or screw it down'}
+            </DropdownMenuItem>
+            {choice && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => onChoose(undefined)}>Decide by its size and time</DropdownMenuItem>
+              </>
+            )}
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 /**
  * The drawings. `view` "board": the selected board fills the area with everything that edits it on the drawing, the others
  * small in a rail. `view` "all": every board at one scale without those details, to arrange parts across them.
@@ -99,6 +155,7 @@ export function BoardDrawings({
   nestOptions,
   machine,
   onTabsMove,
+  onHoleChoice,
   view,
   holds,
   onOpen,
@@ -115,6 +172,8 @@ export function BoardDrawings({
   plans: (PlanResult | undefined)[];
   fetching: boolean[];
   bit: number;
+  /** A choice for the piece in a through hole's middle, for every copy of the part; none: its size and time decide again. */
+  onHoleChoice?: (partId: string, hole: number, choice: HoleChoice | undefined) => void;
   selectedId: string;
   onSelect: (id: string) => void;
   /** Dropped on a board: `drop` is null when it doesn't fit there or has another thickness. `fromRail`: stay on the board it came from. */
@@ -379,6 +438,8 @@ export function BoardDrawings({
   }, [!!drag]);
 
   const { tool, edit, setEdit, selectedHold, setSelectedHold, bands, preview, commit } = holds;
+  // The menu of a through hole's middle, from a click on it.
+  const [holeMenu, setHoleMenu] = useState<{ middle: HoleMiddle; at: { x: number; y: number } } | null>(null);
   // A fixture's menu, from a right-click on it.
   const [holdMenu, setHoldMenu] = useState<number | null>(null);
 
@@ -644,6 +705,7 @@ export function BoardDrawings({
                           ? (item, tabs) => onTabsMove(board.id, item, tabs)
                           : undefined
                       }
+                      onHole={here && onHoleChoice ? (middle, at) => setHoleMenu({ middle, at }) : undefined}
                     />
                     {here && !tool && !dragging && !editing && (
                       <BoardOverlay
@@ -657,6 +719,18 @@ export function BoardDrawings({
                         onResizing={onNote}
                         onMargin={margin => onBoardChange({ ...board, margin })}
                         onGap={gap => onBoardChange({ ...board, gap })}
+                      />
+                    )}
+                    {here && holeMenu && onHoleChoice && (
+                      <HoleMenu
+                        {...holeMenu}
+                        left={holeMenu.at.x * pxPerMm + padPx}
+                        top={(nest.board.h - holeMenu.at.y) * pxPerMm + padPx}
+                        onClose={() => setHoleMenu(null)}
+                        onChoose={choice => {
+                          const partId = instances.find(i => i.id === holeMenu.middle.part)?.partId;
+                          if (partId) onHoleChoice(partId, holeMenu.middle.hole, choice);
+                        }}
                       />
                     )}
                     {here && holdMenu !== null && nest.holds[holdMenu] && (

@@ -121,7 +121,8 @@ export function partDist(box: Rect & { r: number }, part: SettlePart, at: P2): n
   if (gap > kFar) return gap - box.r;
   const cx = box.x + box.w / 2 - at.x,
     cy = box.y + box.h / 2 - at.y;
-  if (part.outer.some(l => inLoop(cx, cy, l))) return -1;
+  // In a through hole it's on the piece in its middle, not on the part: a screw can hold that down.
+  if (part.outer.some(l => inLoop(cx, cy, l)) && !part.holes.some(l => inLoop(cx, cy, l))) return -1;
   let best = Infinity;
   const corners = [
     [box.x, box.y],

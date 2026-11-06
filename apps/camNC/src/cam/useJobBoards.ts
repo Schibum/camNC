@@ -58,7 +58,7 @@ export function useJobBoards(job: CamJobV1 | null | undefined, model: ModelImpor
       const nest = nestBoard(reconciled, instances, plan.bit.diameter, opts);
       // Stored once nested: from then on its parts stay where they are.
       const board = withLayout(reconciled, nest);
-      return { board, nest, request: boardRequest(board, nest, instances, { skin: plan.skin }) };
+      return { board, nest, request: boardRequest(board, nest, instances, { skin: plan.skin, holes: plan.holes }) };
     });
     const changed = JSON.stringify(boards.map(b => b.board)) !== JSON.stringify(job.boards ?? []);
     return { instances, changed, boards };

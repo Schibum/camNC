@@ -13,6 +13,7 @@ import {
   freezeSpacing,
   holdSettingsOf,
   holdVerdict,
+  cutBoardWith,
   isCut,
   layoutSummary,
   newBoard,
@@ -43,7 +44,7 @@ import { CamJobBar } from '@/cam/model/CamJobBar';
 import { forgetCut } from '@/cam/machine/camMachine';
 import { Hint } from '@/cam/Hint';
 import { bitKey } from '@/cam/cuttingData';
-import { kDefaultPlan } from '@/cam/planSettings';
+import { kDefaultPlan, withHoleChoice } from '@/cam/planSettings';
 import { useToolLibrary } from '@/cam/toolLibrary';
 import { useJobBoards, useMachineArea } from '@/cam/useJobBoards';
 import { useQueryClient } from '@tanstack/react-query';
@@ -558,6 +559,15 @@ function BoardsEditor({
           plans={plans.map(p => p.data)}
           fetching={plans.map(p => p.isFetching)}
           bit={plan.bit.diameter}
+          onHoleChoice={(partId, hole, choice) => {
+            const cut = cutBoardWith(
+              boards.map(b => b.board),
+              instances,
+              partId
+            );
+            if (cut) setNote(`Not changed: a copy of this part is on ${boardLabel(cut)}, already cut. Start it over to change this hole.`);
+            else save({ ...job, plan: withHoleChoice(plan, partId, hole, choice) });
+          }}
           selectedId={selected.board.id}
           onSelect={setSelectedId}
           onDrop={dropOn}
@@ -668,6 +678,7 @@ function BoardsEditor({
               gap={selNest.placements.length < 2 ? { min: plan.bit.diameter } : undefined}
               verdict={verdict}
               onHoldSizes={() => setHoldSizes(true)}
+              holeMiddles={planOf(sel)?.holeMiddles}
               skin={plan.skin}
               onSkin={skin => save({ ...job, plan: { ...plan, skin } })}
               flip={sel.flip || instances.some(i => sel.items.includes(i.id) && i.needsFlip) ? flipOf(sel, instances) : undefined}

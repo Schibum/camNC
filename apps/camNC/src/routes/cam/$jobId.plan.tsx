@@ -8,7 +8,7 @@ import type { BoardRequest, CamPartInfo, OpSummary, PlanResult, ReleaseProgram }
 import type { FlipRegistration } from '@wbcnc/cam';
 import { missingParts, useJobBoards, type MissingPart } from '@/cam/useJobBoards';
 import { layoutBlock, loose, planBlock, releaseProblems, unstable } from '@/cam/boardBlock';
-import { edgeNote, freezeSpacing, isCut, spacingProblem } from '@/cam/boards';
+import { cutBoardWith, edgeNote, freezeSpacing, isCut, spacingProblem } from '@/cam/boards';
 import { CutBadge } from '@/cam/boards/CutBadge';
 import { orderBoardQueue } from '@wbcnc/cam/board';
 import { CamJobBar } from '@/cam/model/CamJobBar';
@@ -20,7 +20,7 @@ import { usePlanLayout, type PlanTab } from '@/cam/plan/planLayoutStore';
 import { PlanView3D } from '@/cam/plan3d/PlanView3D';
 import { usePlanPlayback } from '@/cam/plan3d/planPlayback';
 import { formatDuration } from '@/visualize/stockSim/jobTimeline';
-import { jobCutting, kDefaultPlan, type PlanSettingsV1 } from '@/cam/planSettings';
+import { jobCutting, kDefaultPlan, withHoleChoice, type PlanSettingsV1 } from '@/cam/planSettings';
 import { BitChip } from '@/cam/plan/BitPicker';
 import { clearMachineView, loadIntoMachineView } from '@/cam/showOnMachine';
 import { useCamMachine } from '@/cam/machine/camMachine';
@@ -333,7 +333,21 @@ function PlanStep() {
           result &&
           sideA && (
             <>
-              <Checks plan={result} board={sideA} checked={!empty && !blocked} releaseSafety={releaseSafety} />
+              <Checks
+                plan={result}
+                board={sideA}
+                checked={!empty && !blocked}
+                releaseSafety={releaseSafety}
+                partOf={instance => current.request.parts.find(p => p.id === instance)}
+                canClearHole={partId =>
+                  !cutBoardWith(
+                    boards.map(b => b.board),
+                    instances,
+                    partId
+                  )
+                }
+                onClearHole={(partId, hole) => savePlan(withHoleChoice(settings, partId, hole, 'clear'))}
+              />
               <p className="text-xs text-muted-foreground">
                 {result.programs.length > 1
                   ? 'One program per bit: run them in order, swap the bit and zero Z in between; the board stays put.'
@@ -599,12 +613,32 @@ function Checks({
   board,
   checked,
   releaseSafety,
+  partOf,
+  canClearHole,
+  onClearHole,
 }: {
   plan: PlanResult;
   board: PlanResult;
   checked: boolean;
   releaseSafety: string[];
+  /** A body on the board. */
+  partOf: (instance: string) => { partId: string; name: string } | undefined;
+  /** Not with a copy of the part on a board already cut. */
+  canClearHole: (partId: string) => boolean;
+  /** Clear the middle of this hole, for every copy of the part. */
+  onClearHole: (partId: string, hole: number) => void;
 }) {
+  // One line per hole, however many copies of its part are on the board.
+  const looseHoles = [
+    ...new Map(
+      (board.holeMiddles ?? [])
+        .filter(m => m.state === 'loose')
+        .flatMap(m => {
+          const part = m.part ? partOf(m.part) : undefined;
+          return part ? [[`${part.partId}/${m.hole}`, { ...m, partId: part.partId, name: part.name }] as const] : [];
+        })
+    ).values(),
+  ];
   const failed = [...plan.safety, ...releaseSafety];
   const skins = (plan.holding ?? []).filter(h => h.how === 'skin');
   const moves = 'no rapid moves in the stock, stays on the board, never deeper than the cut-through depth.';
@@ -661,7 +695,23 @@ function Checks({
           <ShieldCheck className="size-4" /> Safety checks passed: {moves}
         </p>
       )}
-      {[...new Set(plan.warnings.map(friendly))].map(w => (
+      {looseHoles.map(h => (
+        <div key={`${h.partId}/${h.hole}`} className="flex gap-2 text-amber-700 dark:text-amber-400" data-loose-hole>
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+          <div className="flex flex-col items-start gap-1">
+            <p>
+              {h.name}: the {+h.size.toFixed(0)} mm piece in a through hole comes loose on the last pass and can catch the bit. Tape it,
+              screw it down, or clear it.
+            </p>
+            {canClearHole(h.partId) && (
+              <Button size="sm" variant="outline" onClick={() => onClearHole(h.partId, h.hole)}>
+                Clear it, about +{h.addMinutes.toFixed(1)} min
+              </Button>
+            )}
+          </div>
+        </div>
+      ))}
+      {[...new Set(plan.warnings.filter(w => !kLooseHoleWarning.test(w)).map(friendly))].map(w => (
         <p key={w} className="flex gap-2 text-amber-700 dark:text-amber-400">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" /> {w}
         </p>
@@ -669,6 +719,9 @@ function Checks({
     </div>
   );
 }
+
+/** Listed on their own, with a way to clear the hole. */
+const kLooseHoleWarning = /through hole \d+: .* comes loose on the last pass/;
 
 /** The CAM core's notes, in words a user can act on. */
 function friendly(w: string) {

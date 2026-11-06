@@ -1,4 +1,4 @@
-import type { FlipRegistration, HoldDown } from '@wbcnc/cam';
+import type { FlipRegistration, HoleChoice, HoldDown } from '@wbcnc/cam';
 import { edgeDir, holdBox, kDefaultStickout, pathClearance, type HoldKind, type HoldPoint } from '@wbcnc/cam/holdPoints';
 import { nestRects, placedSize, type NestResult, type Placement, type Rect } from '@wbcnc/cam/nest';
 import {
@@ -114,6 +114,15 @@ export interface BoardCut {
 
 /** The board has a program cut: its layout and holds stay as they are. */
 export const isCut = (board: Pick<BoardV1, 'cut'>) => !!board.cut?.keys.length;
+
+/**
+ * A cut board with a copy of this part, if any. A choice for all of a part's copies would change the program that was
+ * cut there, which then no longer counts as cut.
+ */
+export function cutBoardWith<B extends Pick<BoardV1, 'cut' | 'items'>>(boards: B[], instances: PartInstance[], partId: string) {
+  const copies = new Set(instances.filter(i => i.partId === partId).map(i => i.id));
+  return boards.find(b => isCut(b) && b.items.some(item => copies.has(item)));
+}
 
 /** "Cut" or "Partly cut", for a cut board. */
 export const cutLabel = (board: Pick<BoardV1, 'cut'>) => (board.cut?.all ? 'Cut' : 'Partly cut');
@@ -1045,7 +1054,12 @@ export function flipOf(board: BoardV1, instances: PartInstance[]): FlipRegistrat
   return instances.some(i => board.items.includes(i.id) && i.needsFlip) ? 'camera' : 'off';
 }
 
-export function boardRequest(board: BoardV1, nest: BoardNest, instances: PartInstance[], hold: { skin?: number } = {}): BoardRequest {
+export function boardRequest(
+  board: BoardV1,
+  nest: BoardNest,
+  instances: PartInstance[],
+  hold: { skin?: number; holes?: Record<string, Record<number, HoleChoice>> } = {}
+): BoardRequest {
   const byId = new Map(instances.map(i => [i.id, i]));
   return {
     id: board.id,
@@ -1055,6 +1069,7 @@ export function boardRequest(board: BoardV1, nest: BoardNest, instances: PartIns
     thickness: board.thickness,
     stockTop: stockTopOf(board),
     holdDown: holdDownOf(board),
+    clearHoles: true,
     ...(board.taped && { taped: true }),
     holdPoints: nest.holds,
     tabs: board.tabs,
@@ -1070,6 +1085,7 @@ export function boardRequest(board: BoardV1, nest: BoardNest, instances: PartIns
       y: p.y,
       rotated: p.rotated,
       ...(board.tabsAt?.[p.id]?.length && { tabsAt: board.tabsAt[p.id] }),
+      ...(hold.holes?.[byId.get(p.id)!.partId] && { holes: hold.holes[byId.get(p.id)!.partId] }),
     })),
   };
 }

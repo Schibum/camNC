@@ -198,6 +198,8 @@ describe('CAM boards step', () => {
       ]);
     });
 
+    // The click that ends a drag doesn't open a board, for 50 ms: this one comes later.
+    await new Promise(resolve => setTimeout(resolve, 60));
     // No fixtures until they are placed: Suggest holds places some, Undo takes them back.
     fireEvent.click(drawing('A'));
     const holdsOnA = () => screen.getByRole('region', { name: 'Board A drawing' }).querySelectorAll('[data-hold]').length;
