@@ -1,6 +1,6 @@
 import { readGcode } from './analyze';
 import { toolProgramKey } from './toolIdentity';
-import { tangentEntryClashes } from './boardEntrySafety';
+import { pocketOperationClashes, tangentEntryClashes } from './boardEntrySafety';
 import { finalizePlan } from './finalizePlan';
 import { geometryTolerances } from './accuracy';
 import { openPocketRegion, type PartFeatures } from './features';
@@ -342,7 +342,31 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
             ? { tabs: false }
             : {};
     const requested: Partial<CamSettings> = { ...settings, tabs, stockTop, ...own };
-    let cam = camPart(part.features, requested);
+    // Future holes in a neighbor are not proved cleared stock; protect its complete outer silhouette.
+    const pocketNeighbors = board.parts
+      .filter(other => other.id !== part.id)
+      .flatMap(other =>
+        other.features.outlines.map(loop =>
+          loop.map(point => {
+            const [x, y] = partToBoard(other, [point.x, point.y, 0]);
+            return { x, y };
+          })
+        )
+      );
+    // The path budget includes its own source scope; the neighbor's independently declared boundary may also move.
+    // An omitted source tolerance keeps this a nominal-feature check, not an independently certified CAD bound.
+    const context = pocketNeighbors.length
+      ? {
+          pocketClashes: (operation: Operation) =>
+            pocketOperationClashes(
+              operation,
+              pocketNeighbors,
+              point => partToBoard(part, point),
+              (requested.geometryTolerance ?? DEFAULT_SETTINGS.geometryTolerance ?? 0.05) + (requested.sourceTolerance ?? 0)
+            ),
+        }
+      : {};
+    let cam = camPart(part.features, requested, context);
     if (requested.profileEntry === 'tangent') {
       const neighbors = board.parts
         .filter(other => other.id !== part.id)
@@ -357,7 +381,7 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
       const tolerance =
         'geometryTolerance' in settings && typeof settings.geometryTolerance === 'number' ? settings.geometryTolerance : 0.05;
       if (tangentEntryClashes(cam, neighbors, q => partToBoard(part, q), tolerance)) {
-        cam = camPart(part.features, { ...requested, profileEntry: 'ramp' });
+        cam = camPart(part.features, { ...requested, profileEntry: 'ramp' }, context);
         cam.warnings.push('Tangent profile lead intersects a neighboring part; using contour ramps');
       }
     }

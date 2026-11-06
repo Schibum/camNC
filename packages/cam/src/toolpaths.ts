@@ -1490,7 +1490,13 @@ export function fluteWarnings(ops: Operation[], stockTop: number): string[] {
 /** The piece inside a through hole is worth a warning above this, mm² (50 x 50 mm). */
 const kLooseSlugArea = 2500;
 
-export function camPart(features: PartFeatures, settings: Partial<CamSettings> = {}): PartCam {
+/** Board-only planning constraints; they never become job settings or posted plan metadata. */
+interface PartPlanningContext {
+  pocketClashes?: (operation: Operation) => boolean;
+  containedPockets?: ReadonlySet<number>;
+}
+
+export function camPart(features: PartFeatures, settings: Partial<CamSettings> = {}, context: PartPlanningContext = {}): PartCam {
   const s: CamSettings = { ...DEFAULT_SETTINGS, ...settings };
   validateCamSettings(s);
   validateFeatures(features);
@@ -1498,6 +1504,7 @@ export function camPart(features: PartFeatures, settings: Partial<CamSettings> =
   const tools = [...s.tools].sort((a, b) => b.diameter - a.diameter);
   const warnings: string[] = [];
   const ops: Operation[] = [];
+  const needContained = new Set(context.containedPockets);
   const fits = (region: PathsD, inward: boolean) => (t: Tool) =>
     offset(region, (inward ? -1 : 1) * (t.diameter / 2), offsetToleranceFor(s)).length > 0;
 
@@ -1505,35 +1512,78 @@ export function camPart(features: PartFeatures, settings: Partial<CamSettings> =
   // unless that floor was cleared by another (bigger) bit that couldn't reach into this one.
   let pocketTop = top;
   let prevTool: Tool | undefined;
+  let previousContained = false;
+  let previousRegion: PathsD | undefined;
   features.pockets.forEach((p, i) => {
+    const contained = context.containedPockets?.has(i);
     // Open to the edge: run the bit 1mm past the edge into the waste, whatever its size. A bit only has to fit
     // that extended region (a 6mm bit cuts a 3.5mm rabbet).
     const openFor = (t: Tool) =>
-      openPocketRegion(features.outlines, p, t.diameter / 2 + 1, geometryTolerances(s.geometryTolerance, s.sourceTolerance));
+      contained
+        ? p.strictRegion
+        : openPocketRegion(features.outlines, p, t.diameter / 2 + 1, geometryTolerances(s.geometryTolerance, s.sourceTolerance));
     const tool = tools.find(t => fits(openFor(t), true)(t));
-    if (!tool) return warnings.push(`pocket z=${p.floorZ}: no tool fits`);
-    if (prevTool && prevTool !== tool) pocketTop = top;
-    prevTool = tool;
+    if (!tool) {
+      if (contained)
+        throw new CamInputError([{ field: `pockets[${i}]`, message: 'no tool fits a pocket path that clears neighboring parts' }]);
+      return warnings.push(`pocket z=${p.floorZ}: no tool fits`);
+    }
     const region = openFor(tool);
-    ops.push({
-      ...pocketOperation(`Pocket ${i + 1} z=${p.floorZ}`, region, pocketTop, p.floorZ, tool, s, features.outlines),
-      title: pocketTitle(features, i, region, pocketTop),
-    });
+    // A contained higher pocket did not clear exterior waste for a lower open entry. Restart that new domain
+    // from stock top; a deeper region entirely inside the cleared strict region can still reuse its floor.
+    if ((prevTool && prevTool !== tool) || (previousContained && !contained && previousRegion && difference(region, previousRegion).length))
+      pocketTop = top;
+    prevTool = tool;
+    const pocketOps: Operation[] = [
+      {
+        ...pocketOperation(
+          `Pocket ${i + 1} z=${p.floorZ}`,
+          region,
+          pocketTop,
+          p.floorZ,
+          tool,
+          s,
+          contained ? undefined : features.outlines
+        ),
+        title: pocketTitle(features, i, region, pocketTop),
+      },
+    ];
     let reached = reachOf(region, tool.diameter / 2, offsetToleranceFor(s));
     for (const small of tools.filter(t => t.diameter < tool.diameter)) {
       const spots = narrowSpots(openFor(small), reached, small, s);
       if (!spots.length) continue;
       // From the stock top: smaller bits go first, nothing has cleared these spots' surroundings yet.
-      ops.push({
-        ...pocketOperation(`Pocket ${i + 1} z=${p.floorZ} narrow spots`, spots, top, p.floorZ, small, s, features.outlines),
+      pocketOps.push({
+        ...pocketOperation(
+          `Pocket ${i + 1} z=${p.floorZ} narrow spots`,
+          spots,
+          top,
+          p.floorZ,
+          small,
+          s,
+          contained ? undefined : features.outlines
+        ),
         title: `${plural(components(spots).length, 'narrow spot')} ${round2(features.thickness - p.floorZ)} deep`,
       });
       reached = union(reached, reachOf(spots, small.diameter / 2, offsetToleranceFor(s)));
     }
+    if (context.pocketClashes && pocketOps.some(context.pocketClashes)) {
+      if (contained)
+        throw new CamInputError([
+          { field: `pockets[${i}]`, message: 'a contained pocket path still reaches a neighboring part; move the parts farther apart' },
+        ]);
+      needContained.add(i);
+    }
+    if (contained) warnings.push(`Pocket ${i + 1}: Open-pocket path would reach a neighboring part; using a path inside the pocket`);
+    ops.push(...pocketOps);
     const uncut = polyArea(difference(region, reached));
     if (uncut > 1) warnings.push(`pocket z=${p.floorZ}: ${uncut.toFixed(1)}mm² left in corners/narrow spots with D=${tool.diameter}`);
     pocketTop = p.floorZ;
+    previousContained = !!contained;
+    previousRegion = region;
   });
+  if (needContained.size > (context.containedPockets?.size ?? 0))
+    return camPart(features, settings, { ...context, containedPockets: needContained });
   if (s.cutThrough)
     features.throughHoles.forEach((h, i) => {
       const tool = tools.find(fits([h], true));
