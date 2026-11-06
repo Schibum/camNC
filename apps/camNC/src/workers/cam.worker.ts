@@ -15,7 +15,6 @@ import {
   dowelSpots,
   freePartsProgram,
   kDefaultSkin,
-  kTapeLayer,
   flipPart,
   holdCheck,
   holdOptionsOf,
@@ -186,7 +185,7 @@ const api = {
       return {
         ...plan,
         holding,
-        skin: board.skin ?? (board.holdDown === 'skin' ? kDefaultSkin : kTapeLayer),
+        skin: board.skin ?? kDefaultSkin,
         ...(board.holdDown === 'fixture-tape' && { taped: true }),
       };
     if (!usesTabs(board.holdDown)) return plan;
@@ -285,7 +284,7 @@ function releasePrograms(flat: PartCam, board: BoardRequest, settings: Partial<C
       'Cut the parts free',
       n => (taped ? 'No pauses: take the parts off the tape at the end' : pauses(n, n === 1 ? 'take out the part' : 'take out each part')),
       turnCam(program.cam, turn),
-      board.skin ?? (taped ? kTapeLayer : kDefaultSkin),
+      board.skin ?? kDefaultSkin,
       { parts: program.parts.map(p => ({ ...p, at: turn2(turn, p.at) })) }
     );
   }

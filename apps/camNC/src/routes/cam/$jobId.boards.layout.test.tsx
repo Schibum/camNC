@@ -77,16 +77,17 @@ describe('CAM boards layout', () => {
     expect(drawing('Board B')).toBeNull();
   }, 90_000);
 
-  it('resizes the board by dragging: the drawing holds still until the drop, and XY zero stays', async () => {
+  it('resizes the board by dragging: the drawing holds still until the drop, and the new room is at the bottom', async () => {
     const job = await open();
     const svg = () => drawing('Board A')!.querySelector('[data-board-frame]')!.closest('svg')!;
     await waitFor(async () => expect((await saved(job.id)).layout).toBeTruthy(), { timeout: 10_000 });
     const before = svg().getBoundingClientRect();
+    const was = await saved(job.id);
     const grip = drawing('Board A')!.querySelector('[data-resize="wh"]')!;
     const at = grip.getBoundingClientRect();
     const from = { clientX: at.x + 4, clientY: at.y + 4, pointerId: 1, button: 0 };
     fireEvent.pointerDown(grip, from);
-    fireEvent.pointerMove(grip, { ...from, clientX: from.clientX + 80, clientY: from.clientY - 40 });
+    fireEvent.pointerMove(grip, { ...from, clientX: from.clientX + 80, clientY: from.clientY + 40 });
 
     // The new outline, and what it would give, while nothing else moves.
     expect(drawing('Board A')!.querySelector('[data-resize-outline]')).toBeTruthy();
@@ -94,7 +95,9 @@ describe('CAM boards layout', () => {
     expect(screen.getByLabelText('Board A status').textContent).toMatch(/^\d+ × \d+ mm · \d\.\d\d m² · \d+ % yield/);
     const moved = grip.getBoundingClientRect();
     expect(moved.x - at.x).toBeCloseTo(80, -1);
-    expect(moved.y - at.y).toBeCloseTo(-40, -1);
+    expect(moved.y - at.y).toBeCloseTo(40, -1);
+    expect(at.x).toBeGreaterThan(before.x + before.width / 2);
+    expect(at.y).toBeGreaterThan(before.y + before.height / 2);
 
     fireEvent.pointerUp(grip, from);
     await waitFor(
@@ -110,6 +113,10 @@ describe('CAM boards layout', () => {
       },
       { timeout: 10_000 }
     );
+    // What's on it kept its distance to the top edge; XY zero went down with the bottom one.
+    const now = await saved(job.id);
+    const item = now.items[0];
+    expect(now.layout!.h - now.layout!.at[item].y).toBeCloseTo(was.layout!.h - was.layout!.at[item].y, 3);
     expect(drawing('Board A')!.querySelector('[data-resize-outline]')).toBeNull();
   }, 90_000);
 

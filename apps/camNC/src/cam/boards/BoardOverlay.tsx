@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { cn } from '@wbcnc/ui/lib/utils';
 import { holdBox } from '@wbcnc/cam/holdPoints';
-import { placedRect, type BoardNest, type PartInstance } from '../boards';
+import { placedRect, roomBelow, type BoardNest, type PartInstance } from '../boards';
 import { Hint } from '../Hint';
 import { NumberInput } from '../NumberInput';
 
@@ -80,9 +80,9 @@ function Chip({
 }
 
 /**
- * What's edited right on the selected board's drawing: its size by the handles on its right and top edge (XY zero, at the
- * lower left, stays), the edge margin and the gap between parts by their labels. While dragging, nothing else moves: the new
- * outline is drawn over the board at the same scale, and the board changes on the drop.
+ * What's edited right on the selected board's drawing: its size by the handles on its right and bottom edge (the upper left
+ * corner stays, XY zero goes with the bottom edge), the edge margin and the gap between parts by their labels. While dragging,
+ * nothing else moves: the new outline is drawn over the board at the same scale, and the board changes on the drop.
  */
 export function BoardOverlay({
   nest,
@@ -115,7 +115,7 @@ export function BoardOverlay({
   const shown = draft ?? { w, h };
   const px = (mm: number) => mm * pxPerMm;
   const right = padPx + px(shown.w);
-  const top = padPx + px(h - shown.h);
+  const bottom = padPx + px(shown.h);
 
   const edges = nest.placements.flatMap(p => {
     const inst = instances.find(i => i.id === p.id);
@@ -128,10 +128,12 @@ export function BoardOverlay({
     ...edges.map(r => Math.ceil(r.x + r.w + nest.margin)),
     ...holds.filter(({ hp }) => hp.kind === 'screw' || hp.dir?.x === 0).map(({ box }) => Math.ceil(box.x + box.w))
   );
+  // Going up, the bottom edge pushes what's in its way along, until that reaches the top edge.
+  const below = roomBelow(nest, instances);
   const leastH = Math.max(
     10,
-    ...edges.map(r => Math.ceil(r.y + r.h + nest.margin)),
-    ...holds.filter(({ hp }) => hp.kind === 'screw' || hp.dir?.y === 0).map(({ box }) => Math.ceil(box.y + box.h))
+    ...edges.map(r => Math.ceil(r.y + r.h + nest.margin - below)),
+    ...holds.filter(({ hp }) => hp.kind === 'screw' || hp.dir?.y === 0).map(({ box }) => Math.ceil(box.y + box.h - below))
   );
   /** On the machine, either way round, as a board may lie on it. */
   const fits = (s: { w: number; h: number }) =>
@@ -155,7 +157,7 @@ export function BoardOverlay({
       const snap = (v: number) => Math.round(v / step) * step;
       const next = {
         w: s.grip === 'h' ? w : Math.max(Math.min(leastW, w), snap(w + (e.clientX - s.x) / pxPerMm)),
-        h: s.grip === 'w' ? h : Math.max(Math.min(leastH, h), snap(h - (e.clientY - s.y) / pxPerMm)),
+        h: s.grip === 'w' ? h : Math.max(Math.min(leastH, h), snap(h + (e.clientY - s.y) / pxPerMm)),
       };
       // Past the machine it stops growing, where it was; a board that's already too big can still shrink.
       if ((next.w > shown.w || next.h > shown.h) && !fits(next)) return;
@@ -197,7 +199,7 @@ export function BoardOverlay({
         <div
           data-resize-outline
           className="!pointer-events-none absolute border-2 border-dashed border-primary bg-primary/5"
-          style={{ left: padPx, top, width: px(draft.w), height: px(draft.h) }}
+          style={{ left: padPx, top: padPx, width: px(draft.w), height: px(draft.h) }}
         />
       )}
       {!draft && (
@@ -233,19 +235,19 @@ export function BoardOverlay({
         className={cn(
           'absolute h-9 w-1.5 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none rounded-full bg-primary ring-1 ring-background'
         )}
-        style={{ left: right + kGripOff, top: top + px(shown.h) / 2 }}
+        style={{ left: right + kGripOff, top: padPx + px(shown.h) / 2 }}
       />
       <div
         {...handle('h')}
         title="Drag to change the board's height"
         className="absolute h-1.5 w-9 -translate-x-1/2 -translate-y-1/2 cursor-ns-resize touch-none rounded-full bg-primary ring-1 ring-background"
-        style={{ left: padPx + px(shown.w) / 2, top: top - kGripOff }}
+        style={{ left: padPx + px(shown.w) / 2, top: bottom + kGripOff }}
       />
       <div
         {...handle('wh')}
         title="Drag to change the board's size"
-        className="absolute size-3 -translate-x-1/2 -translate-y-1/2 cursor-nesw-resize touch-none rounded-full bg-primary ring-1 ring-background"
-        style={{ left: right + kGripOff, top: top - kGripOff }}
+        className="absolute size-3 -translate-x-1/2 -translate-y-1/2 cursor-nwse-resize touch-none rounded-full bg-primary ring-1 ring-background"
+        style={{ left: right + kGripOff, top: bottom + kGripOff }}
       />
     </div>
   );

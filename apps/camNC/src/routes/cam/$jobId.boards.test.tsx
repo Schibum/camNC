@@ -331,9 +331,16 @@ describe('CAM boards step', () => {
     const part = tab.getAttribute('data-tab')!;
     const [cx, cy] = [+tab.getAttribute('cx')!, +tab.getAttribute('cy')!];
     // 30 mm along the board's x, and a little off the outline: it lands on the outline.
-    fireEvent.pointerDown(tab, { ...clientOf('A', cx, cy), button: 0, pointerId: 1 });
-    fireEvent.pointerMove(tab, { ...clientOf('A', cx + 30, cy + 2), pointerId: 1 });
-    await commit('drag tab', () => fireEvent.pointerUp(tab, { ...clientOf('A', cx + 30, cy + 2), pointerId: 1 }));
+    // By the bar, which on a small board reaches past the ring.
+    const bar = tab.parentElement!.querySelector<SVGLineElement>('[data-tab-bar]')!;
+    const ends = [...tab.parentElement!.querySelectorAll('[data-tab-bar]')].flatMap(l => [
+      Math.hypot(+l.getAttribute('x1')! - cx, +l.getAttribute('y1')! - cy),
+      Math.hypot(+l.getAttribute('x2')! - cx, +l.getAttribute('y2')! - cy),
+    ]);
+    expect(Math.max(...ends)).toBeGreaterThan(2);
+    fireEvent.pointerDown(bar, { ...clientOf('A', cx, cy), button: 0, pointerId: 1 });
+    fireEvent.pointerMove(bar, { ...clientOf('A', cx + 30, cy + 2), pointerId: 1 });
+    await commit('drag tab', () => fireEvent.pointerUp(bar, { ...clientOf('A', cx + 30, cy + 2), pointerId: 1 }));
     const saved = async () => (await getJob(job.id))!.boards!.find(b => b.name === 'A')!;
     await waitFor(async () => {
       const b = await saved();

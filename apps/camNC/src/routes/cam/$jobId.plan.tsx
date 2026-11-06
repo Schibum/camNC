@@ -637,8 +637,8 @@ function Checks({
         ))}
       {skins.length > 0 && plan.taped && (
         <p className="text-muted-foreground">
-          Every outline stops {plan.skin ?? 0.5} mm above the bottom, so the parts stay on the tape while the board is cut. The last
-          program, “Cut the parts free”, cuts the skin for all parts together, smallest first.
+          Every outline stops {plan.skin ?? 1} mm above the bottom, so the parts stay on the tape while the board is cut. The last program,
+          “Cut the parts free”, cuts the skin for all parts together, smallest first.
         </p>
       )}
       {skins.length > 0 && !plan.taped && (

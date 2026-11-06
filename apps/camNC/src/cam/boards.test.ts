@@ -32,6 +32,7 @@ import {
   type StockBoardV1,
   withinMachine,
   keepWithinMachine,
+  movedBottomEdge,
 } from './boards';
 import { missingParts } from './useJobBoards';
 import type { NestObjective } from './autoNest';
@@ -735,6 +736,34 @@ describe('boards', () => {
       expect(respaceBoard(board, sheet, parts, bit).layout).toMatchObject({ w: nest.board.w + 200, at: board.layout!.at });
       const back = respaceBoard(sheet, { ...sheet, size: { fit: true } }, parts, bit);
       expect(back.layout!.w).toBe(nest.board.w);
+    });
+
+    it('moving the bottom edge keeps everything under the top edge, and pushes up only what it reaches', () => {
+      const board = stored();
+      const nest = nestBoard(board, parts, bit);
+      const [id] = board.items;
+      const y = nest.placements.find(p => p.id === id)!.y;
+      const withFixtures = {
+        ...board,
+        fixtures: [
+          { kind: 'clamp', side: 'left', at: 40 },
+          { kind: 'clamp', side: 'bottom', at: 40 },
+          { kind: 'screw', x: 20, y: nest.board.h - 20 },
+        ] as Fixture[],
+      };
+      const on = nestBoard(withFixtures, parts, bit);
+      const down = movedBottomEdge(withFixtures, on, parts, on.board.h + 100);
+      expect(down.layout!.at[id].y).toBeCloseTo(on.placements.find(p => p.id === id)!.y + 100, 3);
+      expect(down.fixtures).toEqual([
+        { kind: 'clamp', side: 'left', at: 140 },
+        { kind: 'clamp', side: 'bottom', at: 40 },
+        { kind: 'screw', x: 20, y: on.board.h + 80 },
+      ]);
+
+      // Room above and none below: the parts go up by what the edge takes, and stay on the board.
+      const tall = { ...board, size: { fit: false as const, w: nest.board.w, h: nest.board.h + 100 } };
+      const moved = movedBottomEdge(tall, { ...nest, board: { ...nest.board, h: nest.board.h + 100 } }, parts, nest.board.h + 40);
+      expect(moved.layout!.at[id].y).toBeCloseTo(y, 3);
     });
 
     it('a board saved without a retention gets tabs, never parts cut loose', () => {
