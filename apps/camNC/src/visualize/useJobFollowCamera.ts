@@ -1,8 +1,8 @@
 import { getCncApi } from '@/lib/fluidnc/machine';
-import { isCamncJobFile } from '@/lib/machine/jobs';
+import { isJobOfToolpath } from '@/lib/machine/jobs';
 import { useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
-import { Box3, Vector3 } from 'three';
+import { Box3, TOUCH, Vector3 } from 'three';
 import { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { getStockFootprint } from './depthInspection';
 import { useDepthView, useZeroPlacement } from './depthViewStore';
@@ -11,11 +11,20 @@ import { getJobParts, PartShotFollower, partAt } from './jobFollow';
 import { currentPlayhead } from './stockSim/jobTimeline';
 import { useJobProgressSplit } from './useJobProgressSplit';
 
-/** Whether the camNC job of the loaded toolpath is running. */
-export function useJobActive() {
+/** Whether the camNC job of `toolpath` is running. */
+export function useJobActive(toolpath: ParsedToolpath) {
   'use no memo';
   const job = getCncApi().jobProgress.value;
-  return !!job && isCamncJobFile(job.file);
+  return !!job && isJobOfToolpath(job.file, toolpath.gcode);
+}
+
+/** Each job starts out followed, whatever was done to the view during the last one. Once: not again after a view switch. */
+export function useFollowEachJob(jobActive: boolean) {
+  'use no memo';
+  const startedAt = getCncApi().jobStartedAt.value;
+  useEffect(() => {
+    if (jobActive && startedAt !== null) useDepthView.getState().startFollowing(startedAt);
+  }, [jobActive, startedAt]);
 }
 
 /**
@@ -29,7 +38,9 @@ export function useJobFollowCamera(toolpath: ParsedToolpath, workOrigin: Vector3
   const get = useThree(s => s.get);
   const zScale = useDepthView(s => s.zScale);
   const { shift } = useZeroPlacement(toolpath);
-  const jobActive = useJobActive();
+  const jobActive = useJobActive(toolpath);
+  useFollowEachJob(jobActive);
+  const followCamera = useDepthView(s => s.followCamera);
   const split = useJobProgressSplit(toolpath);
   const parts = useMemo(() => getJobParts(toolpath, shift), [toolpath, shift]);
   const footprint = useMemo(() => getStockFootprint(toolpath), [toolpath]);
@@ -37,12 +48,15 @@ export function useJobFollowCamera(toolpath: ParsedToolpath, workOrigin: Vector3
   const worldBox = useRef(new Box3());
   const { setFollowCamera, setFollowCustomView } = useDepthView.getState();
 
-  // Each job starts out followed, whatever was done to the view during the last one.
+  // Fingers never hold a pinch still: its drift would count as a pan, and stop following on every zoom.
   useEffect(() => {
-    if (!jobActive) return;
-    setFollowCamera(true);
-    setFollowCustomView(false);
-  }, [jobActive, setFollowCamera, setFollowCustomView]);
+    if (!controls || !enabled || !jobActive || !followCamera) return;
+    const { TWO } = controls.touches;
+    controls.touches.TWO = TOUCH.DOLLY_ROTATE;
+    return () => {
+      controls.touches.TWO = TWO;
+    };
+  }, [controls, enabled, jobActive, followCamera]);
 
   return (dt: number, moved: boolean) => {
     if (!follower) return;

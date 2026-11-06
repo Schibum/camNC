@@ -34,10 +34,10 @@ vi.mock('@/lib/fluidnc/machine', async () => {
   const { signal } = await import('@preact/signals-react');
   const status = signal(null);
   return {
-    getCncApi: () => ({ status, machinePos: signal(null), workPos: signal(null), jobProgress: signal(null) }),
+    getCncApi: () => ({ status, machinePos: signal(null), workPos: signal(null), jobProgress: signal(null), jobStartedAt: signal(null) }),
   };
 });
-vi.mock('@/lib/machine/jobs', () => ({ isCamncJobFile: (file: string) => file.endsWith('/camnc.gcode') }));
+vi.mock('@/lib/machine/jobs', () => ({ isJobOfToolpath: (file: string) => file.endsWith('/camnc.gcode') }));
 
 const gcode = `
 G0 X0 Y0 Z5

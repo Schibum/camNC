@@ -58,6 +58,17 @@ export function timeAtSplit(points: Vector3[], times: Float64Array, split: Progr
   return times[split.index - 1]! + (times[split.index]! - times[split.index - 1]!) * share;
 }
 
+// A job's time going back by more than this (seconds) is real: the progress was off, or another job started.
+const kMaxJobTimeHold = 10;
+
+/**
+ * The time to show for a running job. Its tool can match two segments at once (a plunge and the retract right over
+ * it), which makes the time run backwards, and each step back redraws the whole simulated stock.
+ */
+export function heldJobTime(shown: number, time: number) {
+  return time < shown && shown - time <= kMaxJobTimeHold ? shown : time;
+}
+
 export type TimelineMarkKind = 'tool' | 'depth';
 
 export interface TimelineMark {

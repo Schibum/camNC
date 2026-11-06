@@ -1,12 +1,12 @@
 import { cn } from '@wbcnc/ui/lib/utils';
 import { Pause, Play, Radio, SkipBack, Undo2 } from 'lucide-react';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useDepthView } from '../depthViewStore';
 import { ParsedToolpath } from '../gcodeParsing';
 import { kJobDoneColor } from '../jobProgress';
-import { useJobActive } from '../useJobFollowCamera';
+import { useFollowEachJob, useJobActive } from '../useJobFollowCamera';
 import { useJobProgressSplit } from '../useJobProgressSplit';
-import { formatDuration, getJobTimeline, playheadAt, timeAtSplit } from './jobTimeline';
+import { formatDuration, getJobTimeline, heldJobTime, playheadAt, timeAtSplit } from './jobTimeline';
 
 const kSpeeds = [1, 10, 50, 200];
 
@@ -30,14 +30,14 @@ export function SimTimeline({ toolpath }: { toolpath: ParsedToolpath }) {
   const markTimes = useMemo(() => marks.map(m => m.time), [marks]);
 
   // Running camNC job: the playhead stays on the tool, until the user scrubs or plays.
-  const jobActive = useJobActive();
+  const jobActive = useJobActive(toolpath);
+  useFollowEachJob(jobActive);
   const split = useJobProgressSplit(toolpath);
   const jobTime = jobActive ? (split ? timeAtSplit(toolpath.pathPoints, times, split) : 0) : null;
+  const followedTime = useRef(0);
   useEffect(() => {
-    if (jobActive) setSimFollowJob(true);
-  }, [jobActive, setSimFollowJob]);
-  useEffect(() => {
-    if (follow && jobTime !== null) setSimTime(jobTime);
+    if (jobTime === null) followedTime.current = 0;
+    else if (follow) setSimTime((followedTime.current = heldJobTime(followedTime.current, jobTime)));
   }, [follow, jobTime, setSimTime]);
 
   // Playback.

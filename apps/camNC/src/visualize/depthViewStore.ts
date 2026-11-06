@@ -39,6 +39,10 @@ interface DepthViewState {
   followCamera: boolean;
   // The user orbited or zoomed the followed view: following keeps that angle and zoom.
   followCustomView: boolean;
+  // The job (its start time) the defaults below were last applied for.
+  followedJob: number | null;
+  /** A job runs: the first time for this one, follow it with the camera and the timeline. */
+  startFollowing: (job: number) => void;
   setFollowCamera: (followCamera: boolean) => void;
   setFollowCustomView: (followCustomView: boolean) => void;
   setSimEnabled: (simEnabled: boolean) => void;
@@ -71,6 +75,11 @@ export const useDepthView = create<DepthViewState>()(set => ({
   toolShape: 'auto',
   followCamera: true,
   followCustomView: false,
+  followedJob: null,
+  startFollowing: job =>
+    set(s =>
+      s.followedJob === job ? s : { followedJob: job, followCamera: true, followCustomView: false, simFollowJob: true, simPlaying: false }
+    ),
   setFollowCamera: followCamera => set({ followCamera }),
   setFollowCustomView: followCustomView => set({ followCustomView }),
   setSimEnabled: simEnabled => set({ simEnabled, simPlaying: false }),

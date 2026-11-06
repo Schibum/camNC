@@ -299,7 +299,7 @@ function VisualizeComponent() {
                 </div>
                 {view === '3d' && (
                   <div className="absolute top-2 left-2">
-                    <JobFollowControl />
+                    <JobFollowControl toolpath={toolpath} />
                   </div>
                 )}
                 {simEnabled ? (

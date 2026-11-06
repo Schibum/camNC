@@ -22,6 +22,14 @@ export function isCamncJobFile(file: string) {
   return [kJobFileName, kResumeFileName].some(name => file === name || file.endsWith(`/${name}`));
 }
 
+// The program of the job started from this page. Null after a reload: then the loaded toolpath is taken to be it.
+let startedGcode: string | null = null;
+
+/** Whether the SD file running is a camNC job of `gcode`, rather than of a file opened since it started. */
+export function isJobOfToolpath(file: string, gcode: string) {
+  return isCamncJobFile(file) && (startedGcode === null || startedGcode === gcode);
+}
+
 /**
  * What to call the running job: the name of the toolpath camNC started it from (a CAM program is named after the
  * job, board, side and step, see CamQueueCard), else the SD file name. Without the `.gcode` extension.
@@ -91,6 +99,7 @@ export async function uploadAndRun() {
   assertInsideTravel();
   await step(api.uploadGcode(toolpath.gcode, kJobFileName), 'Uploading…', 'Uploaded and verified');
   runningJobName.value = toolpathName;
+  startedGcode = toolpath.gcode;
   await step(api.runFile(kJobFileName), 'Starting job…', 'Job started');
   recordJob({ gcode: toolpath.gcode, sdFile: kJobFileName, toolpathName });
 }
@@ -144,6 +153,7 @@ export async function runResume(job: InterruptedJob, line: number) {
   applyRecord(api, { ...job.record, gcode: resume.gcode, toolpathName: name }, { machineState: false });
   await step(api.uploadGcode(resume.gcode, kResumeFileName), 'Uploading…', 'Uploaded and verified');
   runningJobName.value = name;
+  startedGcode = resume.gcode;
   await step(api.runFile(kResumeFileName), 'Starting job…', 'Job resumed: Resume once the bit is clear');
   interruptedJob.value = null;
   recordJob({ gcode: resume.gcode, sdFile: kResumeFileName, toolpathName: name });

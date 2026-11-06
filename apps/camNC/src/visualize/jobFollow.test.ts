@@ -53,6 +53,29 @@ describe('getJobParts', () => {
     expect(partAt(parts, 0)).toBe(parts[0]);
   });
 
+  const square = (x: number, y: number, size: number) => [
+    'G0 Z5',
+    `G0 X${x} Y${y}`,
+    'G1 Z-3 F100',
+    `G1 X${x + size} F600`,
+    `G1 Y${y + size}`,
+    `G1 X${x}`,
+    `G1 Y${y}`,
+  ];
+
+  it('does not let a board outline after the pockets swallow the last of them', () => {
+    const job = parseGCode([...square(10, 10, 50), ...square(100, 10, 50), ...square(0, 0, 300)].join('\n'));
+    const found = getJobParts(job, 0);
+    expect(found).toHaveLength(3);
+    expect(found[1]!.box.max.x).toBe(150);
+    expect(found[2]!.box.max.x).toBe(300);
+  });
+
+  it('does not let a facing pass swallow the parts cut after it', () => {
+    const job = parseGCode([...square(0, 0, 300), ...square(10, 10, 50), ...square(100, 10, 50)].join('\n'));
+    expect(getJobParts(job, 0).map(p => p.box.max.x)).toEqual([300, 60, 150]);
+  });
+
   it('ignores feed moves above the stock', () => {
     const air = parseGCode('G1 X0 Y0 Z5 F600\nG1 X50\nG1 Z-1\nG1 X60\n');
     const [part, ...rest] = getJobParts(air, 0);

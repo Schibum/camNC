@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseGCode } from '../gcodeParsing';
-import { computeJobTimes, formatDuration, getTimelineMarks, playheadAt, timeAtSplit } from './jobTimeline';
+import { computeJobTimes, formatDuration, getTimelineMarks, heldJobTime, playheadAt, timeAtSplit } from './jobTimeline';
 
 describe('job timeline', () => {
   // 10 mm at F600 takes 1 s, 10 mm rapid at 6000 mm/min takes 0.1 s.
@@ -32,6 +32,12 @@ describe('job timeline', () => {
     const end = toolpath.pathPoints.findIndex(p => p.x === 10);
     const point = toolpath.pathPoints[end].clone().setX(5);
     expect(timeAtSplit(toolpath.pathPoints, times, { index: end, point })).toBeCloseTo((times[end - 1] + times[end]) / 2, 5);
+  });
+
+  it('keeps a job time from running back, unless by a lot', () => {
+    expect(heldJobTime(100, 101)).toBe(101);
+    expect(heldJobTime(100, 96)).toBe(100);
+    expect(heldJobTime(100, 20)).toBe(20);
   });
 
   it('finds the segment and the share of it done at a time', () => {

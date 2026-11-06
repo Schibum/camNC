@@ -1,16 +1,21 @@
 import { cn } from '@wbcnc/ui/lib/utils';
 import { Locate, LocateOff } from 'lucide-react';
-import { useDepthView } from './depthViewStore';
+import { useMemo } from 'react';
+import { useDepthView, useZeroPlacement } from './depthViewStore';
+import { ParsedToolpath } from './gcodeParsing';
+import { getJobParts } from './jobFollow';
 import { useJobActive } from './useJobFollowCamera';
 
 /** While a job runs: whether the 3D view follows the part being cut, and getting back to the automatic view. */
-export function JobFollowControl() {
+export function JobFollowControl({ toolpath }: { toolpath: ParsedToolpath }) {
   'use no memo';
-  const jobActive = useJobActive();
+  const jobActive = useJobActive(toolpath);
+  const { shift } = useZeroPlacement(toolpath);
+  const hasParts = useMemo(() => getJobParts(toolpath, shift).length > 0, [toolpath, shift]);
   const follow = useDepthView(s => s.followCamera);
   const customView = useDepthView(s => s.followCustomView);
   const { setFollowCamera, setFollowCustomView } = useDepthView.getState();
-  if (!jobActive) return null;
+  if (!jobActive || !hasParts) return null;
   return (
     <div className="dark pointer-events-auto flex items-center gap-1 rounded-lg border border-white/10 bg-slate-900/75 p-1 text-xs text-foreground shadow-lg shadow-black/30 backdrop-blur-md">
       <button

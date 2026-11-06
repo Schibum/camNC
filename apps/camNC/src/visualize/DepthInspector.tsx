@@ -291,7 +291,8 @@ function CameraRig({
   workOrigin: Vector3;
 }) {
   const followJob = useJobFollowCamera(toolpath, workOrigin, view === '3d');
-  const shownFit = useRef(fitKey);
+  const jobActive = useJobActive(toolpath);
+  const shown = useRef<{ view: DepthViewPreset; fitKey: number } | null>(null);
   const camera = useThree(s => s.camera) as OrthographicCamera;
   const controls = useThree(s => s.controls) as OrbitControlsImpl | null;
   const get = useThree(s => s.get);
@@ -316,9 +317,13 @@ function CameraRig({
 
   useEffect(() => {
     if (!controls) return;
+    const was = shown.current;
+    const { followCamera, setFollowCamera } = useDepthView.getState();
     // Asked to see all of it: following the job would take that right back.
-    if (shownFit.current !== fitKey) useDepthView.getState().setFollowCamera(false);
-    shownFit.current = fitKey;
+    if (view === '3d' && was?.view === view && was.fitKey !== fitKey) setFollowCamera(false);
+    // The box changed, not the view: following fits the camera anyway.
+    else if (view === '3d' && was?.view === view && jobActive && followCamera) return;
+    shown.current = { view, fitKey };
     const { width, height } = get().size;
     const distance = box.radius * 4;
     const to = {
@@ -337,6 +342,7 @@ function CameraRig({
     fromTopView.current = false;
     transition.current = { start: performance.now(), from, to };
     invalidate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- not when a job starts or ends: that alone moves no camera
   }, [camera, controls, get, invalidate, box, view, fitKey]);
 
   useFrame(({ raycaster }, delta) => {
@@ -514,7 +520,7 @@ function PlayheadToolMarker({ toolpath, sceneZ, length }: { toolpath: ParsedTool
   'use no memo';
   const machineShown = useShowMachinePosMarker();
   const followJob = useDepthView(s => s.simFollowJob);
-  const jobActive = useJobActive();
+  const jobActive = useJobActive(toolpath);
   if (machineShown && followJob && jobActive) return null;
   return <SimToolMarker toolpath={toolpath} sceneZ={sceneZ} length={length} />;
 }

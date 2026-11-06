@@ -11,26 +11,35 @@ export interface JobPart {
 
 // Cuts closer than this (mm) to the part so far belong to it: a pocket and its outline, or the passes of a profile.
 const kPartGap = 2;
+// Small parts (mm): keep some of the surroundings in view.
+const kMinSpan = 40;
+// Cuts this many times the area of the part or less: a board outline around pockets, or a facing pass, is not their part.
+const kMaxPartAreaRatio = 4;
+
+const framedArea = (box: Box3) => Math.max(box.max.x - box.min.x, kMinSpan) * Math.max(box.max.y - box.min.y, kMinSpan);
+
+/** Whether a run of cuts belongs to the part so far: over or next to it, and of a similar size. */
+function joinsPart(part: Box3, run: Box3) {
+  const near = part
+    .clone()
+    .expandByVector(new Vector3(kPartGap, kPartGap, Infinity))
+    .intersectsBox(run);
+  const [a, b] = [framedArea(part), framedArea(run)];
+  return near && Math.max(a, b) / Math.min(a, b) <= kMaxPartAreaRatio;
+}
 
 /**
  * Splits the job into the parts it cuts one after the other: each run of cutting moves below the stock top joins the
- * current part if it overlaps it, or starts the next one. `shift` is the offset from toolpath Z to Z relative to the
+ * current part if it overlaps it and is of a similar size, or starts the next one. `shift` is the offset from toolpath Z to Z relative to the
  * stock top.
  */
 export function getJobParts(toolpath: ParsedToolpath, shift: number): JobPart[] {
   const points = toolpath.pathPoints;
   const parts: JobPart[] = [];
-  const expanded = new Box3();
   const addRun = (run: Box3, nextStart: number) => {
     const current = parts[parts.length - 1];
-    if (current) {
-      expanded.copy(current.box).expandByVector(new Vector3(kPartGap, kPartGap, Infinity));
-      if (expanded.intersectsBox(run)) {
-        current.box.union(run);
-        return;
-      }
-    }
-    parts.push({ start: nextStart, box: run });
+    if (current && joinsPart(current.box, run)) current.box.union(run);
+    else parts.push({ start: nextStart, box: run });
   };
 
   let run: Box3 | null = null;
@@ -77,8 +86,6 @@ const kSideHysteresis = 10;
 export const kPartShotElevation = 0.42;
 // Room around the part, for the panels over the view.
 const kFitMargin = 1.4;
-// Small parts (mm): keep some of the surroundings in view.
-const kMinSpan = 40;
 
 /** Index into the stock sides of the one nearest `box`, which keeps the camera's view over the least stock. */
 export function nearestStockSide(box: Box3, footprint: Box2, current: number | null): number {

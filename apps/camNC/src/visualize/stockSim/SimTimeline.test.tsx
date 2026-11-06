@@ -9,22 +9,25 @@ const api = vi.hoisted(() => ({
   jobProgress: { value: null as { file: string; percent: number } | null },
   machinePos: { value: null as { x: number; y: number; z: number } | null },
   status: { value: { wco: { x: 0, y: 0, z: 0 } } },
+  jobStartedAt: { value: null as number | null },
 }));
 vi.mock('@/lib/fluidnc/machine', () => ({ getCncApi: () => api }));
-vi.mock('@/lib/machine/jobs', () => ({ isCamncJobFile: (file: string) => file.endsWith('/camnc.gcode') }));
+vi.mock('@/lib/machine/jobs', () => ({ isJobOfToolpath: (file: string) => file.endsWith('/camnc.gcode') }));
 
 const toolpath = parseGCode('G0 X0 Y0 Z5\nG1 Z-1 F60\nG1 X40 F600\nG0 Z5\n');
 
 afterEach(() => {
   cleanup();
-  useDepthView.setState({ simTime: null, simPlaying: false, simFollowJob: false });
+  useDepthView.setState({ simTime: null, simPlaying: false, simFollowJob: false, followedJob: null });
   api.jobProgress.value = null;
+  api.jobStartedAt.value = null;
   api.machinePos.value = null;
 });
 
 function runJob() {
   // Past the plunge in the file; the tool is further back, halfway along the cut.
   api.jobProgress.value = { file: '/sd/camnc.gcode', percent: 80 };
+  api.jobStartedAt.value = 1;
   api.machinePos.value = { x: 20, y: 0, z: -1 };
 }
 
@@ -72,5 +75,18 @@ describe('SimTimeline', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back to live' }));
     expect(useDepthView.getState().simFollowJob).toBe(true);
     expect(useDepthView.getState().simTime).toBeCloseTo(live!);
+  });
+
+  it('stays in free playback when coming back to the view during the same job, not for the next job', () => {
+    runJob();
+    const { unmount } = render(<SimTimeline toolpath={toolpath} />);
+    fireEvent.change(screen.getByRole('slider', { name: 'Job time' }), { target: { value: '0' } });
+    unmount();
+    const { unmount: unmountAgain } = render(<SimTimeline toolpath={toolpath} />);
+    expect(useDepthView.getState().simFollowJob).toBe(false);
+    unmountAgain();
+    api.jobStartedAt.value = 2;
+    render(<SimTimeline toolpath={toolpath} />);
+    expect(useDepthView.getState().simFollowJob).toBe(true);
   });
 });
