@@ -25,6 +25,7 @@ import { nearestPointOnToolpath } from '@/visualize/nearestPoint';
 import { VisualizeToolbar } from '@/visualize/toolbar/VisualizeToolbar';
 import { DepthHoverReadout, DepthPanel, DepthScene, kDepthSceneBackground } from '@/visualize/DepthInspector';
 import { useDepthView, useShowStockVideo } from '@/visualize/depthViewStore';
+import { JobFollowControl } from '@/visualize/JobFollowControl';
 import { SimTimeline } from '@/visualize/stockSim/SimTimeline';
 import { getStockFootprint } from '@/visualize/depthInspection';
 import { ViewSwitcher } from '@/visualize/toolbar/ViewSwitcher';
@@ -298,6 +299,11 @@ function VisualizeComponent() {
                 <div className="absolute top-2 right-2 bottom-12 flex flex-col items-end">
                   <DepthPanel toolpath={toolpath} />
                 </div>
+                {view === '3d' && (
+                  <div className="absolute top-2 left-2">
+                    <JobFollowControl toolpath={toolpath} />
+                  </div>
+                )}
                 {simEnabled ? (
                   // Leaves room for the axis gizmo in the bottom right corner, and for the demo banner.
                   <div className={cn('absolute left-2 right-36', getRehearsalId() ? 'bottom-36' : isDemoMode() ? 'bottom-16' : 'bottom-2')}>

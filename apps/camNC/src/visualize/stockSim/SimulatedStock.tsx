@@ -168,6 +168,8 @@ export function SimulatedStock({ toolpath, zTop, stockHeight }: { toolpath: Pars
   // The cut changes while the playhead moves: the coarser grid meanwhile.
   const shown = useRef<{ index: number; fraction: number } | null>(null);
   const moving = () => {
+    // Following a job, the playhead moves with every status report, and never long enough to want a coarser view.
+    if (useDepthView.getState().simFollowJob) return false;
     const now = currentPlayhead(toolpath);
     const was = shown.current;
     shown.current = { index: now.index, fraction: now.fraction };
