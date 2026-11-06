@@ -201,18 +201,35 @@ export async function updateJobForModel(source: CamJobV1, update: (current: CamJ
 
 /** Swap the model file of a job; parts are re-derived on the next import, found again by what they are (`partMatch`). */
 export async function replaceModel(job: CamJobV1, file: File): Promise<CamJobV1> {
-  const saved = { ...job, fileName: file.name, modelRevision: (job.modelRevision ?? 0) + 1, updatedAt: Date.now() };
-  delete saved.readError;
   const bytes = await file.arrayBuffer();
+  // Reading a file or picking it in another tab can outlive edits, another replacement, or deletion. Derive the
+  // revision from the stored job in the same transaction as the bytes, so every committed model has its own key.
+  const replace = (current: CamJobV1 | undefined) => {
+    if (!current) return null;
+    const saved = { ...current, fileName: file.name, modelRevision: (current.modelRevision ?? 0) + 1, updatedAt: Date.now() };
+    delete saved.readError;
+    return saved;
+  };
+  const missing = () => new Error('This job no longer exists. Open another job before replacing its model.');
   if (isDemoMode()) {
+    const saved = replace(demoJobs.get(job.id));
+    if (!saved) throw missing();
     demoJobs.set(job.id, structuredClone(saved));
     demoModels.set(job.id, new Uint8Array(bytes));
     return saved;
   }
+  let saved: CamJobV1 | null = null;
   await tx([kJobs, kModels], 'readwrite', t => {
-    t.objectStore(kJobs).put(saved);
-    t.objectStore(kModels).put(bytes, job.id);
+    const store = t.objectStore(kJobs);
+    const req = store.get(job.id) as IDBRequest<CamJobV1 | undefined>;
+    req.onsuccess = () => {
+      saved = replace(req.result);
+      if (!saved) return;
+      store.put(saved);
+      t.objectStore(kModels).put(bytes, job.id);
+    };
   });
+  if (!saved) throw missing();
   return saved;
 }
 
