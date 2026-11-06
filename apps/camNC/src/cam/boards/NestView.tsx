@@ -1,3 +1,4 @@
+import type { HoleMiddle } from '@wbcnc/cam';
 import { cn } from '@wbcnc/ui/lib/utils';
 import { useId, useState } from 'react';
 import type { BoardNest, PartInstance, PartPosition } from '../boards';
@@ -41,6 +42,14 @@ export interface FixtureEditing {
   onMenu?: (i: number) => void;
 }
 
+/** For people: what happens to the piece in the middle of a through hole. */
+const kHoleStates: Record<HoleMiddle['state'], string> = {
+  vacuum: 'small enough for the vacuum',
+  cleared: 'cleared by the bit',
+  loose: 'comes loose: tape it, screw it down, or clear it',
+  screwed: 'held by a screw',
+};
+
 /**
  * Top view of a board: its parts at their positions (outline, pockets, holes), its hold points (screws or
  * clamps, placed and dragged here), tabs from the generated program, what comes loose during the job, XY zero at the lower left. Y up, like the machine. With `pxPerMm`, drawn at that scale (so
@@ -66,6 +75,7 @@ export function NestView({
   unheld,
   fixtures,
   onTabsChange,
+  onHole,
 }: {
   nest: BoardNest;
   instances: PartInstance[];
@@ -93,6 +103,8 @@ export function NestView({
   fixtures?: FixtureEditing;
   /** A tab dragged along a part's outline: all of that body's tabs (instance id), part frame (mm). */
   onTabsChange?: (item: string, tabs: { x: number; y: number }[]) => void;
+  /** A click on the piece in a through hole's middle: that hole, and where it is (board frame, mm). */
+  onHole?: (middle: HoleMiddle, at: { x: number; y: number }) => void;
 }) {
   const { w, h } = nest.board;
   const u = unit ?? Math.max(w, h);
@@ -110,6 +122,7 @@ export function NestView({
   // The fixture being dragged, once it has moved.
   const [holdDrag, setHoldDrag] = useState<{ i: number; moved: boolean; start: P2 } | null>(null);
   const hatch = useId();
+  const cleared = useId();
   // A tab being dragged: its part, which of its tabs, and where it is now (on the part's outline).
   const [tabDrag, setTabDrag] = useState<{ part: string; i: number; x: number; y: number } | null>(null);
   const placedOf = (name: string) => {
@@ -213,6 +226,10 @@ export function NestView({
       role={interactive ? 'group' : 'img'}
       aria-label={label ?? `Board ${w} by ${h} mm with ${nest.placements.length} parts`}>
       <defs>
+        <pattern id={cleared} width={u / 120} height={u / 120} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <rect width={u / 120} height={u / 120} className="fill-sky-500/15" />
+          <line x1={0} y1={0} x2={0} y2={u / 120} className="stroke-sky-500" strokeWidth={u / 500} />
+        </pattern>
         <pattern id={hatch} width={u / 120} height={u / 120} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
           <rect width={u / 120} height={u / 120} className="fill-red-500/10" />
           <line x1={0} y1={0} x2={0} y2={u / 120} className="stroke-red-500/60" strokeWidth={u / 400} />
@@ -304,6 +321,60 @@ export function NestView({
                 <path key={pk.depth} d={toD(pk.region, f)} className="fill-violet-600/70 dark:fill-violet-500/80" fillRule="evenodd" />
               ))}
               <path d={toD(part.shape.holes, f)} className="fill-background" />
+              {plan?.holeMiddles
+                ?.filter(m => m.part === p.id && part.shape.holes[m.hole])
+                .map(m => {
+                  const loop = part.shape.holes[m.hole];
+                  const d = toD([loop], f);
+                  const pts = loop.map(f);
+                  const [xs, ys] = [pts.map(q => q[0]), pts.map(q => q[1])];
+                  const at = { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 };
+                  const pick = onHole && !fixtures?.tool ? () => onHole(m, at) : undefined;
+                  return (
+                    <g
+                      key={m.hole}
+                      data-hole={m.hole}
+                      data-hole-state={m.state}
+                      role={pick && 'button'}
+                      tabIndex={pick && 0}
+                      aria-label={pick && `Hole in ${inst.name}, its ${Math.round(m.size)} mm middle: ${kHoleStates[m.state]}. Change it.`}
+                      // While placing a screw, the click goes through: onto the piece, where it holds.
+                      className={cn(pick ? 'cursor-pointer outline-none [&:focus-visible>path]:stroke-primary' : 'pointer-events-none')}
+                      onPointerDown={pick && (e => e.stopPropagation())}
+                      onClick={pick}
+                      onKeyDown={
+                        pick &&
+                        (e => {
+                          e.stopPropagation();
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            pick();
+                          }
+                        })
+                      }>
+                      <title>{kHoleStates[m.state]}</title>
+                      <path
+                        d={d}
+                        fill={m.state === 'cleared' ? `url(#${cleared})` : 'transparent'}
+                        className={cn(
+                          m.state === 'cleared' && 'stroke-sky-500',
+                          m.state === 'loose' && 'fill-amber-500/20 stroke-amber-500',
+                          (m.state === 'vacuum' || m.state === 'screwed') && 'stroke-muted-foreground/60'
+                        )}
+                        strokeWidth={stroke * (m.state === 'loose' ? 2 : 1)}
+                        strokeDasharray={m.state === 'loose' ? `${stroke * 5} ${stroke * 3}` : undefined}
+                      />
+                      {m.state === 'loose' && (
+                        <g transform={`translate(${at.x} ${at.y}) scale(1,-1)`} className="pointer-events-none">
+                          <circle r={stroke * 8} className="fill-amber-500" />
+                          <text textAnchor="middle" y={stroke * 4} fontSize={stroke * 12} fontWeight={600} className="fill-black">
+                            !
+                          </text>
+                        </g>
+                      )}
+                    </g>
+                  );
+                })}
             </g>
           );
         })}

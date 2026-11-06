@@ -45,7 +45,7 @@ export interface Tool {
 }
 
 export { MATERIALS, DEFAULT_TABS, type Material, type TabSettings } from './settings';
-import { MATERIALS, DEFAULT_TABS, type Material, type TabSettings } from './settings';
+import { kVacuumSlug, MATERIALS, DEFAULT_TABS, type Material, type TabSettings } from './settings';
 import type { PartHolding } from './tabPlan';
 
 export interface CamSettings {
@@ -209,6 +209,24 @@ export interface Operation {
   part?: string;
 }
 
+/** The piece a through hole's cut would leave in its middle. */
+export interface HoleMiddle {
+  /** Index in the part's `throughHoles`. */
+  hole: number;
+  /** Its longer side, mm. */
+  size: number;
+  /** About how much longer the job takes with it cleared. */
+  addMinutes: number;
+  /** `vacuum`: small enough to be sucked up. `loose`: left in place, nothing holds it. `screwed`: a hold point is on it. */
+  state: 'vacuum' | 'cleared' | 'loose' | 'screwed';
+  /** The user's choice, over what the size and time would pick. */
+  choice?: HoleChoice;
+  /** On a board: the part (instance id). */
+  part?: string;
+}
+
+export type HoleChoice = 'clear' | 'leave';
+
 export interface PartCam {
   stockTop: number;
   operations: Operation[];
@@ -221,6 +239,8 @@ export interface PartCam {
   retractZ?: number;
   /** Original blank material; through holes and final cutouts are not initial air. */
   stockFootprint?: PathsD;
+  /** Through holes that leave a piece in their middle: what happens to it. */
+  holeMiddles?: HoleMiddle[];
   /** Configured stage limits, not a measured source/CAD accuracy certificate. */
   accuracy?: PlanAccuracy;
   stockSummary?: StockSummary;
@@ -1489,11 +1509,78 @@ export function fluteWarnings(ops: Operation[], stockTop: number): string[] {
 
 /** The piece inside a through hole is worth a warning above this, mm² (50 x 50 mm). */
 const kLooseSlugArea = 2500;
+/** Clearing a hole's middle by itself is worth up to this many minutes; beyond, fixing the piece is quicker. */
+const kClearMinutes = 3;
 
 /** Board-only planning constraints; they never become job settings or posted plan metadata. */
 interface PartPlanningContext {
   pocketClashes?: (operation: Operation) => boolean;
   containedPockets?: ReadonlySet<number>;
+  /** Clear the middle of a hole where that's quick, and report every hole's middle in `holeMiddles`. */
+  holeMiddles?: {
+    choices?: Record<number, HoleChoice>;
+    /** Holes with a hold point on their middle: never cleared. */
+    screwed?: ReadonlySet<number>;
+    /** How long an operation takes the machine. */
+    minutes: (operation: Operation) => number;
+  };
+}
+
+const kClearings = new WeakMap<PathD, Map<string, { clearing: Operation; addMinutes: number }>>();
+
+/**
+ * The operation that clears a hole's middle, and how long it takes: the same for each copy of a part and each time its
+ * board is planned, so kept with the hole. It stops short of the wall, half the bit's width: the hole's own contour
+ * still cuts the wall the same way, and takes what's left.
+ */
+function clearingOf(hole: PathD, index: number, topZ: number, tool: Tool, s: CamSettings, minutes: (operation: Operation) => number) {
+  const { tabs: _tabs, tools: _tools, blankFootprint: _blank, outlineFloor: _floor, ...cutting } = s;
+  const key = JSON.stringify([index, topZ, tool, cutting]);
+  let known = kClearings.get(hole);
+  if (!known) kClearings.set(hole, (known = new Map()));
+  let entry = known.get(key);
+  if (!entry) {
+    const region = offset([hole], -tool.diameter / 2, offsetToleranceFor(s));
+    const clearing: Operation = {
+      ...pocketOperation(`Hole ${index + 1} middle`, region, topZ, s.finalZ, tool, s),
+      feature: 'hole',
+      title: 'Middle of a through hole',
+    };
+    entry = { clearing, addMinutes: round2(minutes(clearing)) };
+    known.set(key, entry);
+  }
+  return entry;
+}
+
+/**
+ * What to do with the piece in the middle of a through hole, if the bit leaves one: its clearing operation, if it should
+ * go.
+ */
+function planHoleMiddle(
+  hole: PathD,
+  index: number,
+  topZ: number,
+  tool: Tool,
+  s: CamSettings,
+  context: NonNullable<PartPlanningContext['holeMiddles']>
+): { middle: HoleMiddle; clearing?: Operation } | null {
+  const tolerance = offsetToleranceFor(s);
+  const piece = offset([hole], -tool.diameter, tolerance);
+  if (!piece.length) return null;
+  const [xs, ys] = [piece.flat().map(q => q.x), piece.flat().map(q => q.y)];
+  const size = round2(Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)));
+  const { clearing, addMinutes } = clearingOf(hole, index, topZ, tool, s, context.minutes);
+  const choice = context.choices?.[index];
+  const small = size <= kVacuumSlug;
+  const cleared = !context.screwed?.has(index) && (choice ? choice === 'clear' : !small && addMinutes < kClearMinutes);
+  const middle: HoleMiddle = {
+    hole: index,
+    size,
+    addMinutes,
+    state: context.screwed?.has(index) ? 'screwed' : cleared ? 'cleared' : small ? 'vacuum' : 'loose',
+    ...(choice && { choice }),
+  };
+  return { middle, ...(cleared && { clearing }) };
 }
 
 export function camPart(features: PartFeatures, settings: Partial<CamSettings> = {}, context: PartPlanningContext = {}): PartCam {
@@ -1504,6 +1591,7 @@ export function camPart(features: PartFeatures, settings: Partial<CamSettings> =
   const tools = [...s.tools].sort((a, b) => b.diameter - a.diameter);
   const warnings: string[] = [];
   const ops: Operation[] = [];
+  const holeMiddles: HoleMiddle[] = [];
   const needContained = new Set(context.containedPockets);
   const fits = (region: PathsD, inward: boolean) => (t: Tool) =>
     offset(region, (inward ? -1 : 1) * (t.diameter / 2), offsetToleranceFor(s)).length > 0;
@@ -1588,6 +1676,17 @@ export function camPart(features: PartFeatures, settings: Partial<CamSettings> =
     features.throughHoles.forEach((h, i) => {
       const tool = tools.find(fits([h], true));
       if (!tool) return warnings.push(`through hole ${i + 1}: no tool fits`);
+      if (context.holeMiddles) {
+        const planned = planHoleMiddle(h, i, top, tool, s, context.holeMiddles);
+        if (planned) holeMiddles.push(planned.middle);
+        if (planned?.clearing) ops.push(planned.clearing);
+        ops.push(profileOperation(`Hole ${i + 1}`, h, top, tool, s, true));
+        if (planned?.middle.state === 'loose')
+          warnings.push(
+            `through hole ${i + 1}: the ${round2(planned.middle.size)} mm piece inside it comes loose on the last pass and can catch the bit. Tape it down, screw it down, or clear it (about ${Math.ceil(planned.middle.addMinutes)} min).`
+          );
+        return;
+      }
       ops.push(profileOperation(`Hole ${i + 1}`, h, top, tool, s, true));
       // Nothing holds the piece in the middle (if the bit leaves one): free on the last lap, it can catch the bit.
       if (Math.abs(polyArea([h])) > kLooseSlugArea && offset([h], -tool.diameter, offsetToleranceFor(s)).length) {
@@ -1611,7 +1710,14 @@ export function camPart(features: PartFeatures, settings: Partial<CamSettings> =
     .sort((a, b) => a.op.tool.diameter - b.op.tool.diameter || a.i - b.i)
     .map(x => x.op);
   return finalizePlan(
-    { stockTop: top, safeZ: top + s.safeHeight, retractZ: top + s.retractHeight, operations, warnings },
+    {
+      stockTop: top,
+      safeZ: top + s.safeHeight,
+      retractZ: top + s.retractHeight,
+      operations,
+      warnings,
+      ...(holeMiddles.length && { holeMiddles }),
+    },
     s,
     s.blankFootprint
   );

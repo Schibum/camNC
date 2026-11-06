@@ -1,4 +1,4 @@
-import type { FlipRegistration, HoldDown } from '@wbcnc/cam';
+import type { FlipRegistration, HoleChoice, HoldDown } from '@wbcnc/cam';
 import { edgeDir, holdBox, kDefaultStickout, pathClearance, type HoldKind, type HoldPoint } from '@wbcnc/cam/holdPoints';
 import { nestRects, placedSize, type NestResult, type Placement, type Rect } from '@wbcnc/cam/nest';
 import {
@@ -1011,7 +1011,12 @@ export function flipOf(board: BoardV1, instances: PartInstance[]): FlipRegistrat
   return instances.some(i => board.items.includes(i.id) && i.needsFlip) ? 'camera' : 'off';
 }
 
-export function boardRequest(board: BoardV1, nest: BoardNest, instances: PartInstance[], hold: { skin?: number } = {}): BoardRequest {
+export function boardRequest(
+  board: BoardV1,
+  nest: BoardNest,
+  instances: PartInstance[],
+  hold: { skin?: number; holes?: Record<string, Record<number, HoleChoice>> } = {}
+): BoardRequest {
   const byId = new Map(instances.map(i => [i.id, i]));
   return {
     id: board.id,
@@ -1021,6 +1026,7 @@ export function boardRequest(board: BoardV1, nest: BoardNest, instances: PartIns
     thickness: board.thickness,
     stockTop: stockTopOf(board),
     holdDown: holdDownOf(board),
+    clearHoles: true,
     ...(board.taped && { taped: true }),
     holdPoints: nest.holds,
     tabs: board.tabs,
@@ -1036,6 +1042,7 @@ export function boardRequest(board: BoardV1, nest: BoardNest, instances: PartIns
       y: p.y,
       rotated: p.rotated,
       ...(board.tabsAt?.[p.id]?.length && { tabsAt: board.tabsAt[p.id] }),
+      ...(hold.holes?.[byId.get(p.id)!.partId] && { holes: hold.holes[byId.get(p.id)!.partId] }),
     })),
   };
 }

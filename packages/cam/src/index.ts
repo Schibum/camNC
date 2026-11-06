@@ -13,7 +13,7 @@ export {
   stepdownFor,
   MATERIALS,
 } from './toolpaths';
-export type { CamSettings, Tool, Material, TabSettings, Operation, Pass, PartCam } from './toolpaths';
+export type { CamSettings, Tool, Material, TabSettings, Operation, Pass, PartCam, HoleMiddle, HoleChoice } from './toolpaths';
 export { MOTION_ROLES, applyFeedPolicy } from './motion';
 export type { MotionRole, CornerFeedSettings, MotionPath, FeedPolicy } from './motion';
 export { CamInputError, validateCamSettings, validateFeatures } from './validation';

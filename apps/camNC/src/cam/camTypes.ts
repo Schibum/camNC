@@ -1,5 +1,5 @@
 import type { FlipRegistration } from '@wbcnc/cam';
-import type { HoldDown, HoldPoint, PartSummary, ProgramTimeEstimate, SetupSummary, TabStop } from '@wbcnc/cam';
+import type { HoleChoice, HoleMiddle, HoldDown, HoldPoint, PartSummary, ProgramTimeEstimate, SetupSummary, TabStop } from '@wbcnc/cam';
 
 /** Closed polygons as [x, y] point lists, in the part's flat frame (mm). */
 export type Outline2D = [number, number][][];
@@ -146,6 +146,8 @@ export interface PlanResult {
   flip?: { registration: FlipRegistration; dowels?: { x: number; y: number }[]; dowelDiameter?: number; problem?: string };
   /** What's left for after the cutting, in machine queue order. */
   release?: ReleaseProgram[];
+  /** The piece in the middle of each through hole that leaves one: cleared, sucked up, or to be fixed by hand. */
+  holeMiddles?: HoleMiddle[];
 }
 
 /** A board to generate: which bodies sit where. */
@@ -176,7 +178,11 @@ export interface BoardRequest {
     rotated: boolean;
     /** Tabs dragged into place, part frame, mm. */
     tabsAt?: { x: number; y: number }[];
+    /** The user's choices for the middles of its through holes. */
+    holes?: Record<number, HoleChoice>;
   }[];
+  /** Clear the middles of through holes where that's quick. */
+  clearHoles?: boolean;
   /** A second side for the parts' undersides, and how it lines up after turning the board over. */
   flip?: { registration: FlipRegistration; dowelDiameter?: number };
   /** Bottom skin thickness, mm. */

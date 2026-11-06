@@ -1,4 +1,4 @@
-import type { CamSettings, LibraryTool } from '@wbcnc/cam';
+import type { CamSettings, HoleChoice, LibraryTool } from '@wbcnc/cam';
 import { DEFAULT_TABS, MATERIALS } from '@wbcnc/cam/settings';
 import { savedCuttingFor, resolveCutting, type CuttingData } from './cuttingData';
 
@@ -22,6 +22,16 @@ export interface PlanSettingsV1 {
   leaveOut?: string[];
   /** Bottom skin thickness, mm (default 1). */
   skin?: number;
+  /** What to do with the piece in the middle of a through hole, where the user chose: part id -> hole index -> choice. */
+  holes?: Record<string, Record<number, HoleChoice>>;
+}
+
+/** The plan with this hole's choice set, for every copy of the part; no choice: its size and time decide again. */
+export function withHoleChoice(p: PlanSettingsV1, partId: string, hole: number, choice: HoleChoice | undefined): PlanSettingsV1 {
+  const choices = { ...p.holes?.[partId] };
+  if (choice) choices[hole] = choice;
+  else delete choices[hole];
+  return { ...p, holes: { ...p.holes, [partId]: choices } };
 }
 
 /** The built-in bit: no library values, so its cutting data shows as the defaults. */

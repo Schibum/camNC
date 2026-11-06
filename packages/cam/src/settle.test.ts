@@ -220,6 +220,37 @@ describe('forgiving placement', () => {
     expect(fixtureFree(b, spots, { kind: 'screw', ...s })).toBe(true);
   });
 
+  it('lets a screw hold the piece in the middle of a through hole', () => {
+    const ring = (cx: number, cy: number, r: number) =>
+      Array.from({ length: 48 }, (_, i): [number, number] => [
+        cx + r * Math.cos((i / 48) * 2 * Math.PI),
+        cy + r * Math.sin((i / 48) * 2 * Math.PI),
+      ]);
+    const outer: [number, number][] = [
+      [0, 0],
+      [200, 0],
+      [200, 100],
+      [0, 100],
+    ];
+    const b: SettleBoard = {
+      w: 220,
+      h: 120,
+      gap: 7,
+      margin: 10,
+      parts: [{ id: 'p', w: 200, h: 100, outer: [outer], holes: [ring(100, 50, 35)] }],
+      sizes: { clampReach: 3, clampWidth: 24, screwD: 10 },
+      keep: { clamp: 7.5, screw: 7.5 },
+    };
+    const spots: Spots = { p: { x: 10, y: 10 } };
+    const s = snapScrew(b, spots, 112, 58);
+    expect(Math.hypot(s.x - 110, s.y - 60)).toBeLessThan(35);
+    expect(fixtureFree(b, spots, { kind: 'screw', ...s })).toBe(true);
+    // Beside the hole it's on the part.
+    expect(fixtureFree(b, spots, { kind: 'screw', x: 30, y: 60 })).toBe(false);
+    // Too close to the hole's wall, where the bit cuts.
+    expect(fixtureFree(b, spots, { kind: 'screw', x: 110 + 34, y: 60 })).toBe(false);
+  });
+
   it('leaves a screw on a part where it is', () => {
     const { b, spots } = sample('kinderregal-standing');
     expect(snapScrew(b, spots, 300, 80)).toEqual({ x: 300, y: 80 });
