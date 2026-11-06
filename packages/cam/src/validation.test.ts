@@ -9,9 +9,22 @@ describe('cutting input validation', () => {
   it.each([
     { feed: 0 },
     { plungeFeed: -1 },
+    { rampFeed: 0 },
+    { leadFeed: -1 },
+    { leadOutFeed: Infinity },
+    { finishFeed: 0 },
+    { reducedFeed: -1 },
+    { transitionFeed: NaN },
     { maxStepdown: 0 },
     { maxStepdown: NaN },
     { profileStepdown: -1 },
+    { profileFinishStepdown: 0 },
+    { pocketFinishStepdown: -1 },
+    { pocketFloorAllowance: -1 },
+    { profileLeadRadius: 0 },
+    { cornerFeed: { factor: 1.1, minAngleDeg: 30, maxRadius: 1, distance: 1 } },
+    { cornerFeed: { factor: 0.5, minAngleDeg: 180, maxRadius: 1, distance: 1 } },
+    { tabs: { ...(DEFAULT_SETTINGS.tabs || { height: 2, width: 5, minCount: 3, spacing: 100 }), rampLength: -1 } },
     { stepoverFactor: 0 },
     { stepoverFactor: Infinity },
     { stepoverFactor: 2 },
@@ -78,7 +91,7 @@ describe('axial profile limits', () => {
       { ...DEFAULT_SETTINGS, maxStepdown: step },
       inside
     );
-    const levels = [2, ...op.passes.map(pass => Math.min(...pass.pts.map(point => point[2])))];
+    const levels = [2, ...new Set(op.passes.map(pass => Math.min(...pass.pts.map(point => point[2]))))];
     expect(levels.at(-1)).toBe(-0.3);
     for (let i = 1; i < levels.length; i++) expect(levels[i - 1] - levels[i]).toBeLessThanOrEqual(step + 1e-9);
     expect(levels.filter(z => z === -0.3)).toHaveLength(1);

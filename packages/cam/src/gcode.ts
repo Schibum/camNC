@@ -1,6 +1,7 @@
 import type { Vec3 } from './geom';
 import { pauseMarker, type PauseMarker } from './pauseMarker';
 import type { Operation, PartCam, Tool } from './toolpaths';
+import { fitVerticalRun, verticalRunEnd, type VerticalPrimitive } from './verticalArcs';
 import {
   FLUIDNC_POST_PROFILE,
   quantizedArcIsSafe,
@@ -202,6 +203,17 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
     x = a.to.x;
     y = a.to.y;
   };
+  const verticalArc = (primitive: VerticalPrimitive, feed: number) => {
+    const g = primitive.cw ? 'G2' : 'G3';
+    const center = primitive.center!;
+    const words = primitive.to.map((value, axis) => `${['X', 'Y', 'Z'][axis]}${fmt(value)}`);
+    const axes = primitive.plane === 18 ? [0, 2] : [1, 2];
+    for (const axis of axes) words.push(`${['I', 'J', 'K'][axis]}${fmt(center[axis] - quantizePostNumber([x, y, z][axis]))}`);
+    if (feed !== f) words.push(`F${fmt((f = feed))}`);
+    out.push(`${g} ${words.join(' ')}`);
+    motion = g;
+    [x, y, z] = primitive.to;
+  };
 
   // After a pause with the spindle off: start it again and let it come up to speed before cutting on.
   let spindleOff = true;
@@ -263,9 +275,40 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
       const slope = (k: number) => (pass.pts[k][2] - pass.pts[k - 1][2]) / (xy(k) || NaN);
       let i = 1;
       while (i < pass.pts.length) {
+        let verticalEnd = 0;
+        if (useArcs)
+          for (const plane of [18, 19] as const) {
+            const end = verticalRunEnd(pass.pts, pass.feeds, pass.roles, i, plane);
+            if (end - i < 3) continue;
+            const primitives = fitVerticalRun(pass.pts.slice(i - 1, end), plane, tol, (points, tolerance) =>
+              fitArcs(points, tolerance, tolerance)
+            );
+            if (!primitives) continue;
+            out.push(`G${plane}`);
+            for (const primitive of primitives) {
+              if (primitive.type === 'arc') verticalArc(primitive, pass.feeds[i]);
+              else move('G1', { x: primitive.to[0], y: primitive.to[1], z: primitive.to[2] }, pass.feeds[i]);
+            }
+            out.push('G17');
+            motion = '';
+            verticalEnd = end;
+            break;
+          }
+        if (verticalEnd) {
+          i = verticalEnd;
+          continue;
+        }
         let j = i;
         const s0 = slope(i);
-        while (useArcs && j < pass.pts.length && pass.feeds[j] === pass.feeds[i] && xy(j) > 1e-9 && Math.abs(slope(j) - s0) < 1e-4) j++;
+        while (
+          useArcs &&
+          j < pass.pts.length &&
+          pass.feeds[j] === pass.feeds[i] &&
+          pass.roles?.[j] === pass.roles?.[i] &&
+          xy(j) > 1e-9 &&
+          Math.abs(slope(j) - s0) < 1e-4
+        )
+          j++;
         if (j - i >= 3) {
           const run = pass.pts.slice(i - 1, j).map(p => ({ x: p[0], y: p[1], z: p[2] }));
           const indices = new Map(run.map((point, index) => [point, index]));

@@ -38,7 +38,23 @@ export function validateTool(tool: Tool, field = 'tool'): void {
   positiveValue(`${field}.number`, tool.number);
   if (!Number.isInteger(tool.number)) fail(`${field}.number`, 'must be an integer');
   positiveValue(`${field}.diameter`, tool.diameter);
-  for (const key of ['stepdown', 'feed', 'plungeFeed', 'rpm', 'stepover', 'finalFeedFactor', 'fluteLength', 'stickout', 'flutes'] as const)
+  for (const key of [
+    'stepdown',
+    'feed',
+    'plungeFeed',
+    'rampFeed',
+    'leadFeed',
+    'leadOutFeed',
+    'finishFeed',
+    'reducedFeed',
+    'transitionFeed',
+    'rpm',
+    'stepover',
+    'finalFeedFactor',
+    'fluteLength',
+    'stickout',
+    'flutes',
+  ] as const)
     if (tool[key] !== undefined) positiveValue(`${field}.${key}`, tool[key]);
   if (tool.flutes !== undefined && !Number.isInteger(tool.flutes)) fail(`${field}.flutes`, 'must be an integer');
   if (tool.stepover !== undefined && tool.stepover > tool.diameter) fail(`${field}.stepover`, 'must not exceed the tool diameter');
@@ -58,7 +74,20 @@ export function validateCamSettings(settings: CamSettings): void {
     'retractHeight',
   ] as const)
     positiveValue(key, settings[key]);
-  for (const key of ['maxStepdown', 'profileStepdown', 'spindleRpm'] as const)
+  for (const key of [
+    'maxStepdown',
+    'profileStepdown',
+    'profileFinishStepdown',
+    'pocketFinishStepdown',
+    'profileLeadRadius',
+    'rampFeed',
+    'leadFeed',
+    'leadOutFeed',
+    'finishFeed',
+    'reducedFeed',
+    'transitionFeed',
+    'spindleRpm',
+  ] as const)
     if (settings[key] !== undefined) positiveValue(key, settings[key]);
   positiveValue('material.stepdownFactor', settings.material?.stepdownFactor);
   if (settings.stepoverFactor > 1) fail('stepoverFactor', 'must not exceed one tool diameter');
@@ -67,6 +96,15 @@ export function validateCamSettings(settings: CamSettings): void {
       fail('stepoverFactor', 'must produce at least 0.001 mm between passes');
   for (const key of ['leaveStock', 'pocketWallAllowance', 'innerCornerRadius'] as const) nonnegative(key, settings[key]);
   if (settings.openWallAllowance !== undefined) nonnegative('openWallAllowance', settings.openWallAllowance);
+  if (settings.pocketFloorAllowance !== undefined) nonnegative('pocketFloorAllowance', settings.pocketFloorAllowance);
+  if (settings.profileEntry !== undefined && !['plunge', 'ramp', 'tangent'].includes(settings.profileEntry))
+    fail('profileEntry', 'must be plunge, ramp, or tangent');
+  if (settings.cornerFeed) {
+    for (const key of ['factor', 'minAngleDeg', 'maxRadius', 'distance'] as const)
+      positiveValue(`cornerFeed.${key}`, settings.cornerFeed[key]);
+    if (settings.cornerFeed.factor > 1) fail('cornerFeed.factor', 'must not exceed one');
+    if (settings.cornerFeed.minAngleDeg >= 180) fail('cornerFeed.minAngleDeg', 'must be less than 180 degrees');
+  }
   for (const key of ['profileRoughBottom', 'finalZ'] as const) finiteValue(key, settings[key]);
   for (const key of ['stockTop', 'outlineFloor'] as const) if (settings[key] !== undefined) finiteValue(key, settings[key]);
   positiveValue('rampAngleDeg', settings.rampAngleDeg);
@@ -75,6 +113,7 @@ export function validateCamSettings(settings: CamSettings): void {
   if (settings.tabs) {
     for (const key of ['height', 'width', 'spacing', 'minCount'] as const) positiveValue(`tabs.${key}`, settings.tabs[key]);
     if (!Number.isInteger(settings.tabs.minCount)) fail('tabs.minCount', 'must be an integer');
+    if (settings.tabs.rampLength !== undefined) nonnegative('tabs.rampLength', settings.tabs.rampLength);
     settings.tabs.centers?.forEach((point, i) => {
       finiteValue(`tabs.centers[${i}].x`, point.x);
       finiteValue(`tabs.centers[${i}].y`, point.y);

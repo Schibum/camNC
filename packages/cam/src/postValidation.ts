@@ -1,6 +1,7 @@
 import type { Vec3 } from './geom';
 import { samePhysicalTool } from './toolIdentity';
 import type { PartCam } from './toolpaths';
+import { MOTION_ROLES } from './motion';
 
 /** The emitted subset keeps the active work offset established by machine setup. */
 export interface FluidNCPostProfile {
@@ -12,7 +13,7 @@ export interface FluidNCPostProfile {
   readonly maxLineBytes: 127;
   readonly minimumClearance: 0.5;
   readonly startup: readonly string[];
-  readonly arcPlanes: readonly [17];
+  readonly arcPlanes: readonly [17, 18, 19];
   readonly helicalArcs: true;
 }
 
@@ -25,7 +26,7 @@ export const FLUIDNC_POST_PROFILE: FluidNCPostProfile = Object.freeze({
   maxLineBytes: 127,
   minimumClearance: 0.5,
   startup: Object.freeze(['G21 G90 G94 G17', 'G40 G49 G80']),
-  arcPlanes: Object.freeze([17] as const),
+  arcPlanes: Object.freeze([17, 18, 19] as const),
   helicalArcs: true,
 });
 
@@ -87,6 +88,8 @@ export function validatePostInput(cam: PartCam, settings: PostInputSettings): vo
       const at = `${where}, pass ${index + 1}`;
       if (!pass.pts.length) throw new Error(`${at} has no points`);
       if (pass.feeds.length !== pass.pts.length) throw new Error(`${at}: every point must have a feed`);
+      if (pass.roles && pass.roles.length !== pass.pts.length) throw new Error(`${at}: every point must have a motion role`);
+      if (pass.roles?.some(role => !MOTION_ROLES.includes(role))) throw new Error(`${at}: unknown motion role`);
       pass.pts.forEach((point, vertex) => {
         if (point.length !== 3) throw new Error(`${at}, point ${vertex + 1} must contain X, Y and Z`);
         point.forEach((value, axis) => finite(value, `${at}, point ${vertex + 1}, axis ${axis}`));
@@ -141,12 +144,14 @@ export function quantizedArcIsSafe(start: ArcPoint, source: ArcPoint[], arc: Arc
   if (sweep <= 1e-9 || sweep > 2 * Math.PI - 0.025) return false;
   let previousAngle = 0;
   let previousError = Math.abs(source[0].z - sz);
+  let previousRadialError = Math.abs(Math.hypot(source[0].x - cx, source[0].y - cy) - radius);
   for (let index = 0; index < source.length; index++) {
     const p = source[index];
     const angle = index === 0 ? 0 : index === source.length - 1 ? sweep : directedAngle(begin, Math.atan2(p.y - cy, p.x - cx), arc.cw);
     if (angle < previousAngle - 1e-7 || angle > sweep + 1e-7) return false;
     const error = Math.abs(p.z - (sz + ((ez - sz) * angle) / sweep));
-    if (error > tolerance || Math.abs(Math.hypot(p.x - cx, p.y - cy) - radius) > tolerance) return false;
+    const radialError = Math.abs(Math.hypot(p.x - cx, p.y - cy) - radius);
+    if (Math.hypot(error, radialError) > tolerance) return false;
     if (index > 0) {
       const a = source[index - 1];
       const dx = p.x - a.x,
@@ -154,15 +159,16 @@ export function quantizedArcIsSafe(start: ArcPoint, source: ArcPoint[], arc: Arc
       const length2 = dx * dx + dy * dy;
       const t = length2 ? Math.max(0, Math.min(1, ((cx - a.x) * dx + (cy - a.y) * dy) / length2)) : 0;
       const nearestRadius = Math.hypot(a.x + t * dx - cx, a.y + t * dy - cy);
-      if (Math.abs(nearestRadius - radius) > tolerance) return false;
+      const radialBound = Math.max(previousRadialError, radialError, Math.abs(nearestRadius - radius));
       const angleDelta = angle - previousAngle;
       if (angleDelta > Math.PI / 4 + 1e-7) return false;
       // Conservative bound for Z interpolation between vertices on a circular chord.
       const zCurveBound = Math.abs(p.z - a.z) * (1 - Math.cos(angleDelta / 2));
-      if (Math.max(previousError, error) + zCurveBound > tolerance) return false;
+      if (Math.hypot(radialBound, Math.max(previousError, error) + zCurveBound) > tolerance) return false;
     }
     previousAngle = angle;
     previousError = error;
+    previousRadialError = radialError;
   }
   return true;
 }
@@ -170,7 +176,7 @@ export function quantizedArcIsSafe(start: ArcPoint, source: ArcPoint[], arc: Arc
 /** Validate only the command subset emitted by this post, including modal lines. */
 export function validateFluidNCOutput(program: string): void {
   const encoder = new TextEncoder();
-  const gCodes = new Set([0, 1, 2, 3, 4, 17, 21, 40, 49, 53, 80, 90, 94]);
+  const gCodes = new Set([0, 1, 2, 3, 4, 17, 18, 19, 21, 40, 49, 53, 80, 90, 94]);
   const mCodes = new Set([0, 3, 5, 30]);
   for (const [index, raw] of program.split('\n').entries()) {
     if (encoder.encode(raw).length > FLUIDNC_POST_PROFILE.maxLineBytes)
@@ -180,7 +186,7 @@ export function validateFluidNCOutput(program: string): void {
     if (code.replace(/([A-Z])(-?(?:\d+(?:\.\d*)?|\.\d+))/g, '').trim()) throw new Error(`Invalid output on line ${index + 1}`);
     for (const [, word, number] of words) {
       const value = Number(number);
-      if (!Number.isFinite(value) || (word === 'G' ? !gCodes.has(value) : word === 'M' ? !mCodes.has(value) : !'XYZIJFSP'.includes(word)))
+      if (!Number.isFinite(value) || (word === 'G' ? !gCodes.has(value) : word === 'M' ? !mCodes.has(value) : !'XYZIJKFSP'.includes(word)))
         throw new Error(`Unsupported output word ${word}${number} on line ${index + 1}`);
       if (word === 'F' && value <= 0) throw new Error(`Nonpositive output feed on line ${index + 1}`);
     }

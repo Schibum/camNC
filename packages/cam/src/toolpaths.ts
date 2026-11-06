@@ -3,11 +3,16 @@ import { CamInputError, validateCamSettings, validateFeatures, validateDepthRang
 import { areaD, pointInPolygonD, PointInPolygonResult, simplifyPathsD, type PathD, type PathsD } from 'clipper2-ts';
 import { openPocketRegion, type PartFeatures } from './features';
 import { cleanRegion, clipLines, difference, intersect, offset, pathLength, polyArea, union, type Vec3 } from './geom';
+import { applyFeedPolicy, type CornerFeedSettings, type MotionRole } from './motion';
+import { profileEntryRegion, tangentLoopPass } from './entry';
+import { applyTabMotion, repeatTabIntervals } from './tabMotion';
 
 export interface Tool {
   number: number;
   /** Stable tool-library identity, independent of its editable name. */
   guid?: string;
+  presetId?: string;
+  presetName?: string;
   /** Flat end mill diameter in mm. */
   diameter: number;
   name?: string;
@@ -16,6 +21,12 @@ export interface Tool {
   /** The rest of this bit's cutting data; default: the job's (`CamSettings`). */
   feed?: number;
   plungeFeed?: number;
+  rampFeed?: number;
+  leadFeed?: number;
+  leadOutFeed?: number;
+  finishFeed?: number;
+  reducedFeed?: number;
+  transitionFeed?: number;
   /** Spindle speed of the program this bit cuts (M3 S). */
   rpm?: number;
   /** Sideways step between pocket rings, mm. */
@@ -39,6 +50,18 @@ export interface CamSettings {
   material: Material;
   feed: number;
   plungeFeed: number;
+  /** Defaults to the effective plunge feed. */
+  rampFeed?: number;
+  /** Tangent entry/exit feeds default to the cutting feed. */
+  leadFeed?: number;
+  leadOutFeed?: number;
+  finishFeed?: number;
+  reducedFeed?: number;
+  transitionFeed?: number;
+  /** Undefined uses tool-size-based defaults; false disables geometric corner reduction. */
+  cornerFeed?: CornerFeedSettings | false;
+  profileEntry?: 'plunge' | 'ramp' | 'tangent';
+  profileLeadRadius?: number;
   stepoverFactor: number;
   /** Spindle speed the program starts the spindle at (M3 S), for a bit without its own. */
   spindleRpm?: number;
@@ -46,15 +69,20 @@ export interface CamSettings {
   maxStepdown?: number;
   /** Max stepdown for the outline roughing passes only (overrides the above, e.g. to match a Fusion setup). */
   profileStepdown?: number;
+  profileFinishStepdown?: number;
   /** Roughing passes stop this high above the stock bottom... */
   profileRoughBottom: number;
   /** ...leaving this much radial stock for the final pass: the outline's wall allowance. */
   leaveStock: number;
   /**
-   * Pocket wall allowance: roughing stays this far off the pocket walls, then one full-depth pass at the floor cuts
-   * them to size (at feed × pocketFinishFeedFactor). 0 = off: the wall ring is cut at every depth.
+   * Pocket wall allowance: roughing stays this far off the walls, then bounded-depth wall passes cut them to size.
+   * 0 = off: the wall ring is cut at every depth.
    */
   pocketWallAllowance: number;
+  /** Axial stock left by roughing, then removed by floor finishing. */
+  pocketFloorAllowance?: number;
+  /** Maximum axial depth of wall/floor finishing; defaults to the roughing stepdown. */
+  pocketFinishStepdown?: number;
   /**
    * The same for pockets open to the edge (rabbets), where it's on by default: rows cut toward the walls stop this
    * far off them, then one full-depth climb pass finishes the walls. 0 = the last row cuts the walls.
@@ -103,6 +131,7 @@ export const DEFAULT_SETTINGS: CamSettings = {
   finalFeedFactor: 0.5,
   climb: true,
   rampAngleDeg: 3,
+  profileEntry: 'ramp',
   safeHeight: 5,
   retractHeight: 2,
   tabs: false,
@@ -114,6 +143,11 @@ export interface Pass {
   pts: Vec3[];
   /** Feed of the move ending at pts[i]; feeds[0] is used for the approach. */
   feeds: number[];
+  roles?: MotionRole[];
+  /** Known side of the remaining wall material; omitted when no geometric side is established. */
+  materialSide?: 'left' | 'right';
+  phase?: 'rough' | 'finish';
+  entry?: 'plunge' | 'ramp' | 'tangent';
   link: 'retract' | 'direct';
   /** The straight link to pts[0] runs through material already cleared at this depth (may be longer than D). */
   clearLink?: boolean;
@@ -130,6 +164,8 @@ export interface Operation {
   pauseBefore?: string;
   /** For people, in the words of the Model step's feature list: "9 pockets 4.2 deep + edge groove to 4.2". */
   title?: string;
+  /** Planning choices that required a conservative entry fallback. */
+  warnings?: string[];
   /** Pause (M0) after this operation with this message, the spindle off and the bit up (e.g. "take the part out"). */
   pauseAfter?: string;
   /** The part this operation frees or cuts the tabs of: named in the pause marker (`pauseMarker`) for the machine view. */
@@ -291,7 +327,10 @@ function wallPassWithLeads(loop: Loop, from: { x: number; y: number }, z: number
     if (![...leadIn, ...leadOut].every(q => insideRegion(q, free))) continue;
     const lap = [P, ...loop.slice(seg.i + 1), ...loop.slice(0, seg.i + 1), P];
     const pts: Vec3[] = [...leadIn, ...lap, ...leadOut].map(q => [q.x, q.y, z]);
-    return { pts, feeds: pts.map(() => feed), link: 'direct' };
+    const roles: MotionRole[] = pts.map((_, i) =>
+      i === 0 ? 'link' : i <= leadIn.length ? 'lead-in' : i < leadIn.length + lap.length ? 'cut' : 'lead-out'
+    );
+    return { pts, feeds: pts.map(() => feed), roles, link: 'direct' };
   }
   return undefined;
 }
@@ -414,7 +453,7 @@ export function stepdownFor(tool: Tool, s: Pick<CamSettings, 'maxStepdown' | 'ma
 function depthLevels(top: number, bottom: number, maxStep: number): number[] {
   validateDepthRange(top, bottom, maxStep);
   const n = Math.max(1, Math.ceil((top - bottom) / maxStep - 1e-9));
-  return Array.from({ length: n }, (_, k) => top - ((k + 1) * (top - bottom)) / n);
+  return Array.from({ length: n }, (_, k) => (k === n - 1 ? bottom : top - ((k + 1) * (top - bottom)) / n));
 }
 
 // ---- operations ----
@@ -425,8 +464,44 @@ function cuttingWith(tool: Tool, s: CamSettings): CamSettings {
     ...s,
     feed: tool.feed ?? s.feed,
     plungeFeed: tool.plungeFeed ?? s.plungeFeed,
+    rampFeed: tool.rampFeed ?? s.rampFeed,
+    leadFeed: tool.leadFeed ?? s.leadFeed,
+    leadOutFeed: tool.leadOutFeed ?? s.leadOutFeed,
+    finishFeed: tool.finishFeed ?? s.finishFeed,
+    reducedFeed: tool.reducedFeed ?? s.reducedFeed,
+    transitionFeed: tool.transitionFeed ?? s.transitionFeed,
     stepoverFactor: tool.stepover ? tool.stepover / tool.diameter : s.stepoverFactor,
     finalFeedFactor: tool.finalFeedFactor ?? s.finalFeedFactor,
+  };
+}
+
+function scheduledPass(pass: Pass, s: CamSettings, tool: Tool, role: MotionRole = 'cut'): Pass {
+  return applyFeedPolicy(
+    { ...pass, phase: pass.phase ?? 'rough' },
+    {
+      plungeFeed: s.plungeFeed,
+      rampFeed: s.rampFeed ?? s.plungeFeed,
+      leadFeed: s.leadFeed ?? s.feed,
+      leadOutFeed: s.leadOutFeed ?? s.leadFeed ?? s.feed,
+      transitionFeed: s.transitionFeed ?? s.feed,
+      reducedFeed: s.reducedFeed,
+      materialSide: pass.materialSide,
+      cornerFeed: s.cornerFeed ?? { factor: 0.5, minAngleDeg: 30, maxRadius: tool.diameter / 2, distance: tool.diameter / 4 },
+    },
+    role
+  );
+}
+
+function finishRoles(pass: Pass): Pass {
+  return {
+    ...pass,
+    phase: 'finish',
+    roles: pass.pts.map((p, i) =>
+      pass.roles?.[i] === 'cut'
+        ? 'finish'
+        : (pass.roles?.[i] ??
+          (i === 0 ? (pass.link === 'direct' ? 'link' : 'approach') : p[2] < pass.pts[i - 1][2] - 1e-8 ? 'ramp' : 'finish'))
+    ),
   };
 }
 
@@ -605,7 +680,7 @@ function openPocketPasses(comp: PathsD, walls: PathsD, topZ: number, floorZ: num
     const pass: Pass =
       rampFrom !== undefined
         ? rampAlong(line, rampFrom, z, s)
-        : hop <= tool.diameter
+        : hop <= tool.diameter && last && Math.abs(last[2] - z) < 1e-8
           ? { pts: line.map(q => [q.x, q.y, z]), feeds: line.map(() => feed), link: 'direct' }
           : { pts: line.map(q => [q.x, q.y, z]), feeds: line.map((_, k) => (k === 0 ? s.plungeFeed : feed)), link: 'retract' };
     passes.push(pass);
@@ -617,7 +692,12 @@ function openPocketPasses(comp: PathsD, walls: PathsD, topZ: number, floorZ: num
     prevZ = z;
   }
   // The walls to size, full depth, climb.
-  if (allowance > 0) for (const line of along(r)) run(line, floorZ, s.feed * s.pocketFinishFeedFactor);
+  if (allowance > 0)
+    for (const z of depthLevels(topZ, floorZ, s.pocketFinishStepdown ?? stepdown))
+      for (const line of along(r)) {
+        run(line, z, s.finishFeed ?? s.feed * s.pocketFinishFeedFactor);
+        passes[passes.length - 1] = finishRoles(passes[passes.length - 1]);
+      }
   return passes;
 }
 
@@ -637,6 +717,31 @@ export function pocketOperation(
   validatePaths(region, 'pocket');
   validateDepthRange(topZ, floorZ, stepdownFor(tool, settings));
   const s = cuttingWith(tool, settings);
+  if (s.pocketFinishStepdown !== undefined) validateDepthRange(topZ, floorZ, s.pocketFinishStepdown);
+  if ((s.pocketFloorAllowance ?? 0) > 0 && topZ > floorZ + 1e-8) {
+    const roughFloor = Math.min(topZ, floorZ + s.pocketFloorAllowance!);
+    const withoutFloor = { ...s, pocketFloorAllowance: 0 };
+    const rough = roughFloor < topZ - 1e-8 ? pocketOperation(name, region, topZ, roughFloor, tool, withoutFloor, solid).passes : [];
+    const finishFeed = s.finishFeed ?? s.feed * s.pocketFinishFeedFactor;
+    const finishingTool = { ...tool, feed: finishFeed };
+    const finish = pocketOperation(
+      name,
+      region,
+      roughFloor,
+      floorZ,
+      finishingTool,
+      {
+        ...withoutFloor,
+        feed: finishFeed,
+        maxStepdown: s.pocketFinishStepdown ?? stepdownFor(tool, s),
+        pocketWallAllowance: 0,
+        openWallAllowance: 0,
+        pocketFinishFeedFactor: 1,
+      },
+      solid
+    ).passes.map(finishRoles);
+    return { name, kind: 'pocket', feature: 'pocket', tool, passes: [...rough, ...finish] };
+  }
   const r = tool.diameter / 2;
   const stepover = s.stepoverFactor * tool.diameter;
   const stepdown = stepdownFor(tool, s);
@@ -705,7 +810,7 @@ export function pocketOperation(
           if (!open && ri === 0 && allowance === 0 && last) {
             const lead = wallPassWithLeads(oriented, { x: last[0], y: last[1] }, z, s.feed, r, free);
             if (lead && segmentInside({ x: last[0], y: last[1] }, { x: lead.pts[0][0], y: lead.pts[0][1] }, free)) {
-              passes.push({ ...lead, clearLink: true });
+              passes.push({ ...lead, clearLink: true, materialSide: s.climb ? 'right' : 'left' });
               last = lead.pts[lead.pts.length - 1];
               continue;
             }
@@ -715,31 +820,37 @@ export function pocketOperation(
           const pass: Pass = near
             ? { pts: closeLoop(nearest, z), feeds: closeLoop(nearest, z).map(() => s.feed), link: 'direct' }
             : entry(oriented, nearest, prevZ, z);
-          passes.push(pass);
+          passes.push({ ...pass, materialSide: s.climb ? 'right' : 'left' });
           last = pass.pts[pass.pts.length - 1];
         }
       }
       if (last) pos = { x: last[0], y: last[1] };
       prevZ = z;
     }
-    // With a wall allowance: one full-depth pass at the floor cuts the walls to size.
+    // Bound axial engagement while the radial finishing allowance is removed.
     if (allowance > 0 && rings.length) {
       let last: Vec3 = passes[passes.length - 1].pts.at(-1)!;
-      for (const raw of free) {
-        const oriented = s.climb ? raw : [...raw].reverse();
-        const feed = s.feed * s.pocketFinishFeedFactor;
-        const lead = wallPassWithLeads(oriented, { x: last[0], y: last[1] }, floorZ, feed, r, free);
-        const pass: Pass =
-          lead && segmentInside({ x: last[0], y: last[1] }, { x: lead.pts[0][0], y: lead.pts[0][1] }, free)
-            ? { ...lead, clearLink: true }
-            : { ...rampLoop(rotateToNearest(oriented, { x: last[0], y: last[1] }), floorZ, floorZ, s, tool), feeds: [] };
-        if (!pass.feeds.length) pass.feeds = pass.pts.map((_, k) => (k === 0 ? s.plungeFeed : feed));
-        passes.push(pass);
-        last = pass.pts[pass.pts.length - 1];
-      }
+      for (const z of depthLevels(topZ, floorZ, s.pocketFinishStepdown ?? stepdown))
+        for (const raw of free) {
+          const oriented = s.climb ? raw : [...raw].reverse();
+          const feed = s.finishFeed ?? s.feed * s.pocketFinishFeedFactor;
+          const lead = wallPassWithLeads(oriented, { x: last[0], y: last[1] }, z, feed, r, free);
+          const pass: Pass =
+            lead && segmentInside({ x: last[0], y: last[1] }, { x: lead.pts[0][0], y: lead.pts[0][1] }, free)
+              ? { ...lead, clearLink: true }
+              : { ...rampLoop(rotateToNearest(oriented, { x: last[0], y: last[1] }), z, z, s, tool), feeds: [] };
+          if (Math.abs(last[2] - z) > 1e-8) {
+            pass.link = 'retract';
+            pass.clearLink = false;
+            if (pass.roles) pass.roles[0] = 'approach';
+          }
+          if (!pass.feeds.length) pass.feeds = pass.pts.map((_, k) => (k === 0 ? s.plungeFeed : feed));
+          passes.push({ ...finishRoles(pass), materialSide: s.climb ? 'right' : 'left' });
+          last = pass.pts[pass.pts.length - 1];
+        }
     }
   }
-  return { name, kind: 'pocket', feature: 'pocket', tool, passes };
+  return { name, kind: 'pocket', feature: 'pocket', tool, passes: passes.map(pass => scheduledPass(pass, s, tool)) };
 }
 
 /** Tab intervals (arc length along `loop`) centered on the given points. */
@@ -770,37 +881,8 @@ function tabIntervals(loop: Vec3[], centers: { x: number; y: number }[], halfLen
  * Raise the path to tabZ inside the given arc-length intervals (vertical steps at the borders). A step down goes into
  * uncut wood: at the plunge feed. `feeds` stays one per point; arc fitting only looks at runs of constant feed.
  */
-function applyTabs(pass: Pass, intervals: (readonly [number, number])[], tabZ: number, plungeFeed: number): Pass {
-  const inTab = (s: number) => intervals.some(([a, b]) => s > a && s < b);
-  const pts: Vec3[] = [pass.pts[0]];
-  const feeds: number[] = [pass.feeds[0]];
-  let s = 0;
-  for (let i = 1; i < pass.pts.length; i++) {
-    const a = pass.pts[i - 1],
-      b = pass.pts[i];
-    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    const cuts = intervals
-      .flat()
-      .filter(c => c > s && c < s + len)
-      .sort((x, y) => x - y);
-    for (const c of cuts) {
-      const t = (c - s) / len;
-      const x = a[0] + t * (b[0] - a[0]),
-        y = a[1] + t * (b[1] - a[1]);
-      const zBase = a[2] + t * (b[2] - a[2]);
-      const before = inTab(c - 1e-6),
-        after = inTab(c + 1e-6);
-      const [zBefore, zAfter] = [before ? Math.max(zBase, tabZ) : zBase, after ? Math.max(zBase, tabZ) : zBase];
-      pts.push([x, y, zBefore]);
-      feeds.push(pass.feeds[i]);
-      pts.push([x, y, zAfter]);
-      feeds.push(zAfter < zBefore ? Math.min(plungeFeed, pass.feeds[i]) : pass.feeds[i]);
-    }
-    s += len;
-    pts.push([b[0], b[1], inTab(s) ? Math.max(b[2], tabZ) : b[2]]);
-    feeds.push(pass.feeds[i]);
-  }
-  return { ...pass, pts, feeds };
+function applyTabs(pass: Pass, intervals: (readonly [number, number])[], tabZ: number, plungeFeed: number, rampLength = 0): Pass {
+  return applyTabMotion(pass, intervals, tabZ, plungeFeed, rampLength);
 }
 
 /** Evenly spread tabs over the long straight runs of a loop. */
@@ -891,35 +973,102 @@ export function profileOperation(
   const passes: Pass[] = [];
   if (!loops) return { name, kind: 'profile', feature: inside ? 'hole' : 'outline', tool, passes };
   const { rough, final } = loops;
+  const warnings = new Set<string>();
+  const sourceLoops = new WeakMap<Pass, { loop: Loop; start: number }>();
 
   // A bottom skin (outlines only): the final pass stops there, and roughing never goes below it.
   const floorZ = inside ? s.finalZ : (s.outlineFloor ?? s.finalZ);
   const roughBottom = Math.min(topZ, Math.max(s.profileRoughBottom, floorZ));
   const profileStep = s.profileStepdown ?? stepdownFor(tool, s);
   validateDepthRange(topZ, floorZ, profileStep);
+  if (s.profileFinishStepdown !== undefined) validateDepthRange(topZ, floorZ, s.profileFinishStepdown);
   // The strip under the roughing floor is a new axial cut, even with a light radial finish allowance.
   const extendRoughing = roughBottom - floorZ > profileStep + 1e-9;
   const roughTo = extendRoughing ? floorZ : roughBottom;
   const roughLevels = topZ - roughTo > 0.01 ? depthLevels(topZ, roughTo, profileStep) : [];
   if (extendRoughing) roughLevels.pop();
-  roughLevels.forEach((z, i) => {
-    const pts = closeLoop(rough, z);
-    passes.push({ pts, feeds: pts.map((_, k) => (k === 0 ? s.plungeFeed : s.feed)), link: i === 0 ? 'retract' : 'direct' });
-  });
-  const fpts = closeLoop(final, floorZ);
-  const ffeed = s.feed * s.finalFeedFactor;
-  passes.push({ pts: fpts, feeds: fpts.map((_, k) => (k === 0 ? s.plungeFeed : ffeed)), link: passes.length ? 'direct' : 'retract' });
+  const append = (loop: Loop, zFrom: number, z: number, feed: number, phase: 'rough' | 'finish') => {
+    const requested = s.profileEntry ?? 'ramp';
+    let pass: Pass | undefined;
+    if (requested === 'tangent' && !(s.tabs && !inside)) {
+      const leadRadius = s.profileLeadRadius ?? r;
+      pass = tangentLoopPass(loop, z, feed, leadRadius, profileEntryRegion(loopShape, r, leadRadius, inside));
+      if (pass) pass.entry = 'tangent';
+      else warnings.add('Tangent entry does not fit the cutter-centre region; using a contour ramp');
+    } else if (requested === 'tangent') warnings.add('Tangent entry with tabs uses a contour ramp to preserve the holding material');
+    if (!pass) {
+      if (requested === 'plunge') {
+        const pts = closeLoop(loop, z);
+        pass = { pts, feeds: pts.map((_, i) => (i ? feed : s.plungeFeed)), link: 'retract', entry: 'plunge' };
+      } else {
+        pass = { ...rampLoop(loop, zFrom, z, { ...s, feed }, tool), entry: 'ramp' };
+        if (pathLength(loop, true) < tool.diameter && zFrom > z) {
+          pass.entry = 'plunge';
+          warnings.add('Contour entry loop is too small for a ramp; using a bounded plunge');
+        }
+      }
+    }
+    const record = (next: Pass, start: number) => {
+      next.phase = phase;
+      next.materialSide = s.climb ? 'right' : 'left';
+      if (phase === 'finish') next = finishRoles(next);
+      passes.push(next);
+      sourceLoops.set(next, { loop, start });
+    };
+    pass.link = 'retract';
+    const atDepth = pass.pts.findIndex(p => Math.abs(p[2] - z) < 1e-8);
+    if (pass.entry === 'ramp' && atDepth > 0 && atDepth < pass.pts.length - 1) {
+      const entry = { ...pass, pts: pass.pts.slice(0, atDepth + 1), feeds: pass.feeds.slice(0, atDepth + 1) };
+      const lap = { ...pass, pts: pass.pts.slice(atDepth), feeds: pass.feeds.slice(atDepth), link: 'direct' as const, entry: undefined };
+      const start = pathLength(
+        entry.pts.map(q => ({ x: q[0], y: q[1] })),
+        false
+      );
+      record(entry, 0);
+      record(lap, start);
+    } else record(pass, 0);
+  };
+  let previousZ = topZ;
+  for (const z of roughLevels) {
+    append(rough, previousZ, z, s.feed, 'rough');
+    previousZ = z;
+  }
+  const ffeed = s.finishFeed ?? s.feed * s.finalFeedFactor;
+  const finishLevels = s.leaveStock > 0 ? depthLevels(topZ, floorZ, s.profileFinishStepdown ?? profileStep) : [floorZ];
+  previousZ = s.leaveStock > 0 ? topZ : previousZ;
+  for (const z of finishLevels) {
+    append(final, previousZ, z, ffeed, 'finish');
+    previousZ = z;
+  }
 
   if (s.tabs && !inside) {
     const centers = s.tabs.centers ?? placeTabs(final, s.tabs, tool);
     const half = (s.tabs.width + tool.diameter) / 2;
     for (let i = 0; i < passes.length; i++) {
       const p = passes[i];
-      if (p.pts[1][2] >= s.tabs.height) continue;
-      passes[i] = applyTabs(p, tabIntervals(p.pts, centers, half), s.tabs.height, s.plungeFeed);
+      if (Math.min(...p.pts.map(q => q[2])) >= s.tabs.height) continue;
+      const { loop, start } = sourceLoops.get(p)!;
+      const perimeter = pathLength(loop, true);
+      const travel = pathLength(
+        p.pts.map(q => ({ x: q[0], y: q[1] })),
+        false
+      );
+      const intervals = repeatTabIntervals(
+        tabIntervals(closeLoop(loop, 0), centers, half).map(([a, b]) => [a - start, b - start] as const),
+        perimeter,
+        travel
+      );
+      passes[i] = applyTabs(p, intervals, s.tabs.height, s.plungeFeed, s.tabs.rampLength);
     }
   }
-  return { name, kind: 'profile', feature: inside ? 'hole' : 'outline', tool, passes };
+  return {
+    name,
+    kind: 'profile',
+    feature: inside ? 'hole' : 'outline',
+    tool,
+    passes: passes.map(pass => scheduledPass(pass, s, tool, pass.phase === 'finish' ? 'finish' : 'cut')),
+    ...(warnings.size ? { warnings: [...warnings] } : {}),
+  };
 }
 
 /** Where a bit of radius r can cut in a region. */
@@ -950,7 +1099,7 @@ function narrowSpots(region: PathsD, reached: PathsD, tool: Tool): PathsD {
  * what stock is left, not the pockets).
  */
 export function throughCuts(features: PartFeatures, settings: Partial<CamSettings> = {}): Operation[] {
-  const s: CamSettings = { ...DEFAULT_SETTINGS, ...settings, tabs: false, outlineFloor: undefined };
+  const s: CamSettings = { ...DEFAULT_SETTINGS, ...settings, tabs: false, outlineFloor: undefined, profileEntry: 'plunge' };
   validateCamSettings(s);
   validateFeatures(features);
   const top = Math.max(s.stockTop ?? 0, features.levels[0]?.z ?? features.thickness);
@@ -1045,7 +1194,7 @@ export function camPart(features: PartFeatures, settings: Partial<CamSettings> =
     warnings.push(`bottom-side features at z=${features.bottomFaces.map(b => b.z).join(', ')}: need a second (flipped) setup`);
   if (features.slopedArea > 1) warnings.push(`${features.slopedArea.toFixed(0)}mm² of sloped faces ignored (not 2.5D)`);
 
-  warnings.push(...fluteWarnings(ops, top));
+  warnings.push(...ops.flatMap(op => op.warnings ?? []), ...fluteWarnings(ops, top));
 
   // Stable sort: smallest tool first, keeps pockets -> holes -> outline within a tool.
   const operations = ops
