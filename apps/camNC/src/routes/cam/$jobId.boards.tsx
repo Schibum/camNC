@@ -4,6 +4,8 @@ import { CamPage } from '@/cam/CamPage';
 import { NoPartsToMill } from '@/cam/NoPartsToMill';
 import {
   autoFillFromStock,
+  boardLabel,
+  boardNameProblem,
   changesCutBoard,
   cutLabel,
   dropPart,
@@ -19,13 +21,19 @@ import {
   stockTopOf,
   type BoardV1,
   type PartDrop,
+  type PartInstance,
   type PartPosition,
 } from '@/cam/boards';
 import { BoardDrawings } from '@/cam/boards/BoardDrawings';
 import { BoardInspector } from '@/cam/boards/BoardInspector';
+import { useBoardsLayout } from '@/cam/boards/boardsLayoutStore';
+import { HoldSizesDialog } from '@/cam/boards/HoldSizesDialog';
+import { HoldTools } from '@/cam/boards/HoldTools';
+import { useHoldEditing } from '@/cam/boards/useHoldEditing';
 import type { PartMenuProps } from '@/cam/boards/PartMenu';
-import { StockPopover } from '@/cam/boards/StockList';
+import { StockList } from '@/cam/boards/StockList';
 import type { JobBoard } from '@/cam/useJobBoards';
+import type { ModelImport, PlanResult } from '@/cam/camTypes';
 import { useHoldHardware } from '@/cam/holdHardware';
 import { BitChip } from '@/cam/plan/BitPicker';
 import { camKeys, useBoardPlans, useCamJob, useCamModel, useSaveCamJob } from '@/cam/camQueries';
@@ -42,10 +50,17 @@ import { createFileRoute, Link, useParams, useSearch } from '@tanstack/react-rou
 import { zodValidator } from '@tanstack/zod-adapter';
 import { z } from 'zod';
 import { Button } from '@wbcnc/ui/components/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@wbcnc/ui/components/dropdown-menu';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@wbcnc/ui/components/dropdown-menu';
+import { useIsMobile } from '@wbcnc/ui/hooks/use-mobile';
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
 import { toast } from '@wbcnc/ui/components/sonner';
-import { ChevronDown, Plus } from 'lucide-react';
+import { ChevronDown, Plus, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 export const Route = createFileRoute('/cam/$jobId/boards')({
@@ -54,13 +69,12 @@ export const Route = createFileRoute('/cam/$jobId/boards')({
   validateSearch: zodValidator(z.object({ board: z.string().optional() })),
 });
 
-/** Step 2: which parts go on which board, how they are nested and held down. */
+/** Step 2: which parts go on which board, how they are nested and held down: the job, as far as it's there. */
 function BoardsStep() {
   const { jobId } = useParams({ from: '/cam/$jobId/boards' });
   const { data: job, isPending } = useCamJob(jobId);
   const model = useCamModel(job);
   const save = useSaveCamJob(job);
-  const queryClient = useQueryClient();
   const { instances, boards, changed } = useJobBoards(job, model.data);
   // While a board is planned again (a part moved, Min # changed), its tabs stay drawn as they were, dimmed.
   const plans = useBoardPlans(
@@ -70,13 +84,6 @@ function BoardsStep() {
     { keepShown: true }
   );
   const { board: boardParam } = useSearch({ from: '/cam/$jobId/boards' });
-  const [selectedId, setSelectedId] = useState<string | null>(boardParam ?? null);
-  const hardware = useHoldHardware(s => s.hardware);
-  // The machine's work area, when it is set up: no board comes out bigger (stock cut down, fitted boards and borders).
-  const machine = useMachineArea();
-  // What just happened on the drawing, and the boards before each change, to go back to.
-  const [note, setNote] = useState('');
-  const history = useRef<BoardV1[][]>([]);
 
   // Persist the derived boards once (first visit, or parts changed in the Model step).
   useEffect(() => {
@@ -94,6 +101,11 @@ function BoardsStep() {
       step="Boards"
       actions={
         <>
+          {instances.length > 0 && boards.length > 0 && (
+            <p role="status" aria-label="Layout result" className="text-xs text-muted-foreground">
+              {layoutSummary(boards)}
+            </p>
+          )}
           {/* The bit sets the margin and gap between parts: choose it before nesting. */}
           <BitChip
             value={job.plan ?? kDefaultPlan}
@@ -131,6 +143,55 @@ function BoardsStep() {
       </Shell>
     );
 
+  return (
+    <Shell bar={bar}>
+      <BoardsEditor
+        job={job}
+        parts={model.data.parts}
+        instances={instances}
+        boards={boards}
+        plans={plans}
+        firstBoard={boardParam}
+        save={save.mutate}
+      />
+    </Shell>
+  );
+}
+
+/** The boards of a job with parts to mill: a board at a time, or all of them with the job-wide layout tools. */
+function BoardsEditor({
+  job,
+  parts,
+  instances,
+  boards,
+  plans,
+  firstBoard,
+  save,
+}: {
+  job: CamJobV1;
+  parts: ModelImport['parts'];
+  instances: PartInstance[];
+  boards: JobBoard[];
+  plans: { data?: PlanResult; isFetching: boolean }[];
+  /** The board to show first, if any. */
+  firstBoard?: string;
+  save: (job: CamJobV1) => void;
+}) {
+  const queryClient = useQueryClient();
+  const [selectedId, setSelectedId] = useState<string | null>(firstBoard ?? null);
+  // A board at a time gets the room: every board is an overview, for arranging parts across them.
+  const [view, setView] = useState<'board' | 'all'>('board');
+  const [holdSizes, setHoldSizes] = useState(false);
+  const renaming = useRef(false);
+  const hardware = useHoldHardware(s => s.hardware);
+  const narrow = useIsMobile();
+  const railClosed = useBoardsLayout(s => s.railClosed);
+  const setRailClosed = useBoardsLayout(s => s.setRailClosed);
+  // The machine's work area, when it is set up: no board comes out bigger (stock cut down, fitted boards and borders).
+  const machine = useMachineArea();
+  // What just happened on the drawing, and the boards before each change, to go back to.
+  const [note, setNote] = useState('');
+  const history = useRef<BoardV1[][]>([]);
   const plan = job.plan ?? kDefaultPlan;
   const selected = boards.find(b => b.board.id === selectedId) ?? boards[0];
   // A cut board stays as it was cut: a change to its layout or holds is refused, until "Start over".
@@ -144,14 +205,14 @@ function BoardsStep() {
       return false;
     }
     history.current = [...history.current.slice(-49), boards.map(b => b.board)];
-    save.mutate({ ...job, boards: next });
+    save({ ...job, boards: next });
     return true;
   };
   const nestOptions = { stickout: plan.bit.stickout, hardware, machine };
   const startOver = (board: BoardV1) => {
     const { cut, ...rest } = board;
     void cut;
-    save.mutate({ ...job, boards: boards.map(b => (b.board.id === board.id ? rest : b.board)) });
+    save({ ...job, boards: boards.map(b => (b.board.id === board.id ? rest : b.board)) });
     forgetCut(job.id, board.id);
     toast.success(`Board ${board.name} can be changed again`, {
       description: 'What was cut on it is forgotten: at the machine, all its programs are to cut again.',
@@ -159,13 +220,64 @@ function BoardsStep() {
         label: 'Undo',
         onClick: () => {
           const latest = queryClient.getQueryData<CamJobV1>(camKeys.job(job.id)) ?? job;
-          save.mutate({ ...latest, boards: (latest.boards ?? []).map(b => (b.id === board.id ? { ...b, cut } : b)) });
+          save({ ...latest, boards: (latest.boards ?? []).map(b => (b.id === board.id ? { ...b, cut } : b)) });
         },
       },
       duration: 10_000,
     });
   };
   const updateBoard = (b: BoardV1) => saveBoards(boards.map(x => (x.board.id === b.id ? b : x.board)));
+  const open = (id: string) => {
+    setSelectedId(id);
+    setView('board');
+  };
+  /** Changed where it's drawn or in its settings: the parts make room for what that takes. */
+  const respaced = (next: BoardV1) => updateBoard(respaceBoard(selected.board, next, instances, plan.bit.diameter, nestOptions));
+  const rename = (name: string) => {
+    const problem = boardNameProblem(
+      name,
+      boards.map(b => b.board),
+      selected.board.id
+    );
+    if (problem) toast.error(problem);
+    else updateBoard({ ...selected.board, name });
+    return !problem;
+  };
+  const holds = useHoldEditing({
+    boards,
+    selectedId: selected.board.id,
+    instances,
+    bit: plan.bit.diameter,
+    nestOptions,
+    machine,
+    onNote: setNote,
+    onBoardEdit: (b, text) => {
+      setNote(text);
+      updateBoard(b);
+    },
+  });
+  const undo = history.current.length
+    ? () => {
+        const before = history.current.at(-1)!;
+        history.current = history.current.slice(0, -1);
+        setNote('Undone.');
+        const latest = queryClient.getQueryData<CamJobV1>(camKeys.job(job.id)) ?? job;
+        save({ ...latest, boards: before });
+      }
+    : undefined;
+  // A message goes once it's had time to be read; with a tool in hand it says what's under the pointer, so it stays.
+  useEffect(() => {
+    if (!note || holds.tool) return;
+    const t = setTimeout(() => setNote(''), 6000 + 50 * note.length);
+    return () => clearTimeout(t);
+  }, [note, holds.tool]);
+  const showView = (next: 'board' | 'all') => {
+    if (next === 'all') {
+      holds.setTool(null);
+      holds.setEdit(null);
+    }
+    setView(next);
+  };
   const byId = new Map(instances.map(i => [i.id, i]));
 
   const move = (itemId: string, boardId: string) => {
@@ -214,8 +326,8 @@ function BoardsStep() {
   const place = (itemId: string, target: BoardV1) =>
     saveBoards(boards.map(({ board }) => (board.id === target.id ? target : without(board, itemId))));
 
-  // Dragged onto a board drawing.
-  const dropOn = (itemId: string, boardId: string, drop: PartDrop | null) => {
+  // Dragged onto a board's drawing, or onto it in the rail (the board being edited stays open).
+  const dropOn = (itemId: string, boardId: string, drop: PartDrop | null, fromRail?: boolean) => {
     const target = boards.find(b => b.board.id === boardId)?.board;
     const inst = byId.get(itemId);
     if (!target || !inst) return;
@@ -228,7 +340,7 @@ function BoardsStep() {
       return;
     }
     place(itemId, drop.board);
-    setSelectedId(boardId);
+    if (!fromRail) setSelectedId(boardId);
   };
 
   // Arrow keys: only to a free spot.
@@ -245,7 +357,7 @@ function BoardsStep() {
     label: 'Undo',
     onClick: () => {
       const latest = queryClient.getQueryData<CamJobV1>(camKeys.job(job.id)) ?? job;
-      save.mutate({ ...latest, boards: before });
+      save({ ...latest, boards: before });
     },
   });
   /** One board's parts nested afresh, around its fixtures: they stay on it, unpinned. */
@@ -277,7 +389,8 @@ function BoardsStep() {
       plan.bit.diameter,
       plan.material,
       job.nestObjective ?? 'boards',
-      machine
+      machine,
+      kept.map(b => b.name)
     );
     res.boards = [...kept, ...res.boards];
     saveBoards(res.boards);
@@ -321,7 +434,7 @@ function BoardsStep() {
         : undefined,
     };
   };
-  // What needs attention on the selected board: under the drawings, whose headers say which board has some.
+  // What needs attention on the selected board: over its drawing, whose heading says which board has some.
   const sel = selected.board,
     selNest = selected.nest;
   const unplacedNames = selNest.unplaced.map(id => byId.get(id)?.name ?? id);
@@ -356,205 +469,324 @@ function BoardsStep() {
     </>
   );
 
-  const tabs = boards.some(b => b.board.retention === 'tabs');
-  const partArea = selected.nest.placements.length ? `Yield ${Math.round(selected.nest.yield * 100)} %` : '';
+  const issue = view === 'board' && (verdict.tone === 'warn' || unplacedNames.length > 0 || selNest.nutAbove < 0 || cantHold.length > 0);
+
+  const status = (
+    <div
+      aria-label={`${boardLabel(sel)} status`}
+      hidden={!issue && !note}
+      className={cn(
+        // Over the drawing, but a part can be dropped or a fixture grabbed through it; only its buttons take the pointer.
+        'pointer-events-none absolute bottom-3 left-4 z-20 flex max-h-40 max-w-[calc(100%-13rem)] items-start gap-2 overflow-y-auto rounded-md border bg-background/95 px-3 py-2 text-[13px] shadow-md [&_button]:pointer-events-auto',
+        issue && 'border-amber-500/70'
+      )}>
+      <div className="flex min-w-0 flex-col gap-1">
+        {view === 'board' && verdict.tone === 'warn' && (
+          <p role="status" className="flex gap-2">
+            <span aria-hidden className="mt-1.5 size-2 shrink-0 rounded-full bg-amber-500" />
+            {verdict.text}
+          </p>
+        )}
+        {view === 'board' && alerts}
+        {note && <p className="text-muted-foreground">{note}</p>}
+      </div>
+      {note && (
+        <button
+          type="button"
+          aria-label="Dismiss this message"
+          className="mt-0.5 text-muted-foreground hover:text-foreground"
+          onClick={() => setNote('')}>
+          <X className="size-3.5" />
+        </button>
+      )}
+    </div>
+  );
 
   return (
-    <Shell bar={bar}>
-      <div className="grid flex-1 grid-cols-1 md:min-h-0 md:grid-cols-[1fr_300px]">
-        <main className="flex min-h-[320px] min-w-0 flex-col bg-muted/30">
-          <div className="flex flex-wrap items-center gap-2 px-4 py-3">
-            <span className="font-medium">Nest</span>
-            <Button size="sm" variant="outline" onClick={addBoard}>
-              <Plus /> New {selected.board.thickness} mm board
-            </Button>
-            <StockPopover stock={job.stock ?? []} onChange={stock => save.mutate({ ...job, stock })} />
-            <div className="flex">
-              <Hint text="Puts the parts on boards from your stock list. Parts you moved by hand stay where they are.">
-                <Button size="sm" variant="outline" className="rounded-r-none" onClick={() => autoFill()}>
-                  Auto-fill from stock
-                </Button>
-              </Hint>
-              <DropdownMenu>
-                <Hint text="More layout actions: re-lay out everything from scratch.">
-                  <DropdownMenuTrigger asChild>
-                    <Button size="sm" variant="outline" className="rounded-l-none border-l-0 px-1.5" aria-label="More layout actions">
-                      <ChevronDown />
-                    </Button>
-                  </DropdownMenuTrigger>
-                </Hint>
-                <DropdownMenuContent align="start">
-                  <DropdownMenuItem onSelect={relayoutAll}>Re-lay out everything (unpin all)</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            <span id="nest-objective-label" className="text-xs text-muted-foreground">
-              Auto-fill prefers:
-            </span>
-            <div
-              role="group"
-              aria-label="Auto-fill optimizes for"
-              aria-describedby="nest-objective-label"
-              className="flex rounded-md border p-0.5 text-xs">
-              {kObjectives.map(([value, label, hint]) => (
-                <Hint key={value} text={hint}>
-                  <button
-                    aria-pressed={(job.nestObjective ?? 'boards') === value}
-                    onClick={() => save.mutate({ ...job, nestObjective: value })}
-                    className={cn(
-                      'rounded px-2 py-1',
-                      (job.nestObjective ?? 'boards') === value ? 'bg-muted font-medium' : 'text-muted-foreground hover:bg-muted/60'
-                    )}>
-                    {label}
-                  </button>
-                </Hint>
-              ))}
-            </div>
-            <span className="grow" />
-            <span className="text-xs text-muted-foreground">Rectangle nesting for now. True-shape nesting is planned.</span>
-          </div>
-          <p role="status" aria-label="Layout result" className="-mt-1.5 px-4 pb-2 text-xs text-muted-foreground">
-            {layoutSummary(boards)}
-          </p>
-          {isCut(selected.board) && (
-            <div
-              role="note"
-              aria-label={`Board ${selected.board.name} is cut`}
-              className="mx-4 mb-2 flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
-              <span className="font-medium">
-                Board {selected.board.name}: {cutLabel(selected.board).toLowerCase()}
-              </span>
-              <span className="text-muted-foreground">
-                {selected.board.cut!.keys.length} {selected.board.cut!.keys.length === 1 ? 'program' : 'programs'} ran at the machine, since{' '}
-                {new Date(selected.board.cut!.at).toLocaleString()}. Its parts and holds stay as they were cut.
-              </span>
-              <span className="grow" />
-              <Hint text="Unlocks the board's layout and holds, and forgets what was cut: for a new sheet of the same parts.">
-                <Button size="sm" variant="outline" onClick={() => startOver(selected.board)}>
-                  Start over
-                </Button>
-              </Hint>
-            </div>
-          )}
-          <BoardDrawings
-            nestOptions={nestOptions}
-            machine={machine}
-            onNote={setNote}
-            onBoardEdit={(b, text) => {
-              setNote(text);
-              updateBoard(b);
-            }}
-            onUndo={
-              history.current.length
-                ? () => {
-                    const before = history.current.at(-1)!;
-                    history.current = history.current.slice(0, -1);
-                    setNote('Undone.');
-                    const latest = queryClient.getQueryData<CamJobV1>(camKeys.job(job.id)) ?? job;
-                    save.mutate({ ...latest, boards: before });
-                  }
-                : undefined
-            }
-            boards={boards}
-            instances={instances}
-            parts={model.data.parts}
-            plans={plans.map(p => p.data)}
-            fetching={plans.map(p => p.isFetching)}
-            bit={plan.bit.diameter}
-            selectedId={selected.board.id}
-            onSelect={setSelectedId}
-            onDrop={dropOn}
-            partMenu={partMenu}
-            onNewBoard={toNewBoard}
-            onNudge={nudge}
-            onTabsMove={(id, item, tabs) => {
-              const b = boards.find(x => x.board.id === id);
-              if (b) updateBoard({ ...b.board, tabsAt: { ...b.board.tabsAt, [item]: tabs } });
-            }}
-          />
-          {/* The one place the Boards step speaks: its height never changes, or the drawings would rescale under the pointer. */}
+    <div className="grid flex-1 grid-cols-1 md:min-h-0 md:grid-cols-[1fr_300px]">
+      <main className="flex min-h-[320px] min-w-0 flex-col bg-muted/30">
+        {view === 'board' && isCut(sel) && (
           <div
-            aria-label={`Board ${sel.name} status`}
-            className="grid h-[5.5rem] shrink-0 grid-cols-1 gap-x-4 gap-y-1 overflow-y-auto border-t px-4 py-2 text-[13px] md:grid-cols-2">
-            <p role="status" className="flex gap-2">
-              <span
-                aria-hidden
-                className={cn(
-                  'mt-1.5 size-2 shrink-0 rounded-full',
-                  verdict.tone === 'ok' ? 'bg-emerald-500' : verdict.tone === 'warn' ? 'bg-amber-500' : 'bg-muted-foreground'
-                )}
-              />
-              {verdict.text}
-            </p>
-            <div className="flex flex-col gap-1 text-muted-foreground">
-              {note && <p>{note}</p>}
-              {alerts}
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-5 border-t px-4 py-2.5 text-xs text-muted-foreground">
-            <span>
-              <span className="text-violet-500 dark:text-violet-400">■</span> part outline
+            role="note"
+            aria-label={`${boardLabel(sel)} is cut`}
+            className="mx-4 mt-3 flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
+            <span className="font-medium">
+              {boardLabel(sel)}: {cutLabel(sel).toLowerCase()}
             </span>
-            <span>
-              <span className="text-violet-600 dark:text-violet-500">■</span> pocket
+            <span className="text-muted-foreground">
+              {sel.cut!.keys.length} {sel.cut!.keys.length === 1 ? 'program' : 'programs'} ran at the machine, since{' '}
+              {new Date(sel.cut!.at).toLocaleString()}. Its parts and holds stay as they were cut.
             </span>
-            {tabs && (
-              <span>
-                <span className="text-amber-600 dark:text-amber-500">■</span> tab
-              </span>
-            )}
-            {boards.some(b => b.nest.holds.length > 0) && (
-              <span>
-                <span className="text-foreground">⊕</span> screw or clamp (drag to move)
-              </span>
-            )}
-            {boards.some(b => b.nest.holds.length > 0) && (
-              <span>
-                <span className="text-red-500">▨</span> blocked for the bit
-              </span>
-            )}
             <span className="grow" />
-            <Hint text="Edge margin: free border inside the board edge. Gap: space between parts, so their outline cuts never meet. Change them in the board settings on the right.">
-              <span tabIndex={0}>
-                Board {selected.board.name}: edge margin {selected.nest.margin} mm · gap {selected.nest.gap} mm
-              </span>
+            <Hint text="Unlocks the board's layout and holds, and forgets what was cut: for a new sheet of the same parts.">
+              <Button size="sm" variant="outline" onClick={() => startOver(sel)}>
+                Start over
+              </Button>
             </Hint>
-            {partArea && (
-              <Hint text="Share of this board covered by parts. The rest is offcut.">
-                <span tabIndex={0}>{partArea}</span>
-              </Hint>
-            )}
           </div>
-        </main>
-        <BoardInspector
-          board={selected.board}
-          nest={selected.nest}
-          stock={job.stock ?? []}
-          bit={plan.bit.diameter}
-          onStickout={stickout => {
-            // Kept with the bit: this job's copy and the library's, so the next job with it starts from it.
-            const lib = useToolLibrary.getState();
-            const own = lib.bits.find(b => bitKey(b) === bitKey(plan.bit));
-            if (own) lib.updateBit(own.id, { stickout });
-            save.mutate({ ...job, plan: { ...plan, bit: { ...plan.bit, stickout } } });
+        )}
+        {/* The sidebar is under the drawing on a small screen: the tools stay with the drawing. */}
+        {narrow && view === 'board' && <HoldTools holds={holds} onUndo={undo} row />}
+        <BoardDrawings
+          view={view}
+          holds={holds}
+          status={status}
+          onOpen={open}
+          onBoardChange={respaced}
+          onResize={(w, h) => {
+            // A fitted board with nothing on it is only its margins: one side dragged sets both, as when typed in.
+            const empty = sel.size.fit && !selNest.placements.length;
+            const size = empty && h === selNest.board.h ? { w, h: w } : empty && w === selNest.board.w ? { w: h, h } : { w, h };
+            setNote(`${boardLabel(sel)} is fixed at ${size.w} × ${size.h} mm.`);
+            respaced({ ...sel, size: { fit: false, ...size } });
           }}
-          onChange={next => updateBoard(respaceBoard(selected.board, next, instances, plan.bit.diameter, nestOptions))}
-          onRelayout={() => relayout(selected.board)}
-          skin={plan.skin}
-          onSkin={skin => save.mutate({ ...job, plan: { ...plan, skin } })}
-          flip={
-            selected.board.flip || instances.some(i => selected.board.items.includes(i.id) && i.needsFlip)
-              ? flipOf(selected.board, instances)
-              : undefined
-          }
-          onDelete={
-            !selected.board.items.length && boards.some(b => b !== selected && b.board.thickness === selected.board.thickness)
-              ? () => saveBoards(boards.filter(b => b !== selected).map(b => b.board))
-              : undefined
-          }
+          onHoldSizes={() => setHoldSizes(true)}
+          railClosed={railClosed || narrow}
+          onRailToggle={narrow ? undefined : () => setRailClosed(!railClosed)}
+          nestOptions={nestOptions}
+          machine={machine}
+          onNote={setNote}
+          onBoardEdit={(b, text) => {
+            setNote(text);
+            updateBoard(b);
+          }}
+          boards={boards}
+          instances={instances}
+          parts={parts}
+          plans={plans.map(p => p.data)}
+          fetching={plans.map(p => p.isFetching)}
+          bit={plan.bit.diameter}
+          selectedId={selected.board.id}
+          onSelect={setSelectedId}
+          onDrop={dropOn}
+          partMenu={partMenu}
+          onNewBoard={toNewBoard}
+          onNudge={nudge}
+          onTabsMove={(id, item, tabs) => {
+            const b = boards.find(x => x.board.id === id);
+            if (b) updateBoard({ ...b.board, tabsAt: { ...b.board.tabsAt, [item]: tabs } });
+          }}
         />
+      </main>
+      <aside className="flex min-h-0 flex-col border-l">
+        <div className="relative shrink-0 border-b text-[13px]">
+          <div
+            role="tablist"
+            aria-label="Boards view"
+            className="grid grid-cols-2"
+            onKeyDown={e => {
+              if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+              e.preventDefault();
+              showView(view === 'board' ? 'all' : 'board');
+              e.currentTarget.querySelector<HTMLElement>('[aria-selected="false"]')?.focus();
+            }}>
+            <button
+              type="button"
+              role="tab"
+              id="boards-tab-board"
+              aria-selected={view === 'board'}
+              aria-controls="boards-panel"
+              tabIndex={view === 'board' ? 0 : -1}
+              onClick={() => showView('board')}
+              className={cn(
+                'min-w-0 truncate border-b-2 border-transparent py-2 pr-7 pl-3 text-left',
+                view === 'board' ? 'border-primary font-medium' : 'text-muted-foreground hover:text-foreground'
+              )}>
+              {boardLabel(sel)}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="boards-tab-all"
+              aria-selected={view === 'all'}
+              aria-controls="boards-panel"
+              tabIndex={view === 'all' ? 0 : -1}
+              onClick={() => showView('all')}
+              className={cn(
+                'border-b-2 border-transparent py-2',
+                view === 'all' ? 'border-primary font-medium' : 'text-muted-foreground hover:text-foreground'
+              )}>
+              All boards
+            </button>
+          </div>
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={isCut(sel) ? 'Choose a board' : 'Choose or rename a board'}
+                className="absolute inset-y-0 left-[calc(50%-1.75rem)] w-7 text-muted-foreground hover:text-foreground">
+                <ChevronDown className="mx-auto size-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              className="max-h-80 overflow-y-auto"
+              onCloseAutoFocus={e => {
+                // Renaming: the name's field has the focus, not the button that opened the menu.
+                if (renaming.current) e.preventDefault();
+                renaming.current = false;
+              }}>
+              {boards.map(({ board }) => (
+                <DropdownMenuItem key={board.id} onSelect={() => open(board.id)}>
+                  {boardLabel(board)}
+                </DropdownMenuItem>
+              ))}
+              {!isCut(sel) && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      renaming.current = true;
+                      setView('board');
+                      // Once the name's field is there.
+                      setTimeout(() => document.getElementById('board-name')?.focus(), 50);
+                    }}>
+                    Rename this board…
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        <div
+          role="tabpanel"
+          id="boards-panel"
+          aria-labelledby={view === 'board' ? 'boards-tab-board' : 'boards-tab-all'}
+          className="flex min-h-0 flex-1 flex-col">
+          {view === 'board' ? (
+            <BoardInspector
+              board={sel}
+              nest={selNest}
+              stock={job.stock ?? []}
+              onChange={respaced}
+              onRelayout={() => relayout(sel)}
+              // Its name is in its programs: renamed, they'd count as not cut yet at the machine.
+              onRename={isCut(sel) ? undefined : rename}
+              tools={narrow ? undefined : <HoldTools holds={holds} onUndo={undo} />}
+              gap={selNest.placements.length < 2 ? { min: plan.bit.diameter } : undefined}
+              verdict={verdict}
+              onHoldSizes={() => setHoldSizes(true)}
+              skin={plan.skin}
+              onSkin={skin => save({ ...job, plan: { ...plan, skin } })}
+              flip={sel.flip || instances.some(i => sel.items.includes(i.id) && i.needsFlip) ? flipOf(sel, instances) : undefined}
+              onDelete={
+                !sel.items.length && boards.some(b => b !== selected && b.board.thickness === sel.thickness)
+                  ? () => saveBoards(boards.filter(b => b !== selected).map(b => b.board))
+                  : undefined
+              }
+            />
+          ) : (
+            <LayoutPanel
+              newBoardLabel={`New ${sel.thickness} mm board`}
+              stock={job.stock ?? []}
+              objective={job.nestObjective ?? 'boards'}
+              onStock={stock => save({ ...job, stock })}
+              onObjective={nestObjective => save({ ...job, nestObjective })}
+              onAutoFill={() => autoFill()}
+              onRelayoutAll={relayoutAll}
+              onNewBoard={addBoard}
+              onUndo={undo}
+            />
+          )}
+        </div>
+      </aside>
+      <HoldSizesDialog
+        open={holdSizes}
+        onOpenChange={setHoldSizes}
+        bit={plan.bit.diameter}
+        stockTop={stockTopOf(sel)}
+        nutAbove={selNest.nutAbove}
+        stickout={selNest.stickout}
+        onStickout={stickout => {
+          // Kept with the bit: this job's copy and the library's, so the next job with it starts from it.
+          const lib = useToolLibrary.getState();
+          const own = lib.bits.find(b => bitKey(b) === bitKey(plan.bit));
+          if (own) lib.updateBit(own.id, { stickout });
+          save({ ...job, plan: { ...plan, bit: { ...plan.bit, stickout } } });
+        }}
+      />
+    </div>
+  );
+}
+
+/** What's about all the boards: what you have to cut them from, and nesting the parts onto them. */
+function LayoutPanel({
+  newBoardLabel,
+  stock,
+  objective,
+  onStock,
+  onObjective,
+  onAutoFill,
+  onRelayoutAll,
+  onNewBoard,
+  onUndo,
+}: {
+  newBoardLabel: string;
+  stock: CamJobV1['stock'] & {};
+  objective: (typeof kObjectives)[number][0];
+  onStock: (stock: CamJobV1['stock'] & {}) => void;
+  onObjective: (objective: (typeof kObjectives)[number][0]) => void;
+  onAutoFill: () => void;
+  onRelayoutAll: () => void;
+  onNewBoard: () => void;
+  onUndo?: () => void;
+}) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4">
+      <StockList stock={stock} onChange={onStock} />
+      <section aria-label="Auto-fill" className="flex flex-col gap-2">
+        <div className="flex">
+          <Hint text="Puts the parts on boards from your stock list. Parts you moved by hand stay where they are.">
+            <Button size="sm" variant="outline" className="flex-1 rounded-r-none" onClick={onAutoFill}>
+              Auto-fill from stock
+            </Button>
+          </Hint>
+          <DropdownMenu modal={false}>
+            <Hint text="More layout actions: re-lay out everything from scratch.">
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" className="rounded-l-none border-l-0 px-1.5" aria-label="More layout actions">
+                  <ChevronDown />
+                </Button>
+              </DropdownMenuTrigger>
+            </Hint>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={onRelayoutAll}>Re-lay out everything (unpin all)</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        <span id="nest-objective-label" className="text-xs text-muted-foreground">
+          Auto-fill prefers:
+        </span>
+        <div
+          role="group"
+          aria-label="Auto-fill optimizes for"
+          aria-describedby="nest-objective-label"
+          className="flex self-start rounded-md border p-0.5 text-xs">
+          {kObjectives.map(([value, label, hint]) => (
+            <Hint key={value} text={hint}>
+              <button
+                aria-pressed={objective === value}
+                onClick={() => onObjective(value)}
+                className={cn(
+                  'rounded px-2 py-1',
+                  objective === value ? 'bg-muted font-medium' : 'text-muted-foreground hover:bg-muted/60'
+                )}>
+                {label}
+              </button>
+            </Hint>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">Rectangle nesting for now. True-shape nesting is planned.</p>
+      </section>
+      <div className="flex gap-1.5">
+        <Button size="sm" variant="outline" onClick={onNewBoard}>
+          <Plus /> {newBoardLabel}
+        </Button>
+        <Button size="sm" variant="outline" disabled={!onUndo} onClick={onUndo}>
+          Undo
+        </Button>
       </div>
-    </Shell>
+    </div>
   );
 }
 

@@ -144,6 +144,17 @@ describe('boards', () => {
     expect(boards.map(b => b.material)).toEqual(['oak', 'plywood']);
   });
 
+  it('auto-fill keeps a name the user gave, and takes none a cut board has', () => {
+    const [a, b] = reconcileBoards(undefined, parts, 'oak');
+    const stock = [{ id: 's', thickness: 8, w: 600, h: 400 }];
+    // Board B's 3 mm has no stock: it stays, with its name.
+    const named = autoFillFromStock([a, { ...b, name: 'Back panel' }], parts, stock, 3.175, 'oak', 'boards', undefined, ['A']);
+    const names = named.boards.map(x => x.name);
+    expect(names).toContain('Back panel');
+    expect(names).not.toContain('A');
+    expect(new Set(names).size).toBe(names.length);
+  });
+
   it('auto-fills stock boards, overflowing onto more boards, with unique names', () => {
     const boards = reconcileBoards(undefined, parts, 'oak');
     const res = autoFillFromStock(boards, parts, [{ id: 's', thickness: 8, w: 600, h: 400 }], 3.175, 'oak');

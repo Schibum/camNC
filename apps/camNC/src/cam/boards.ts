@@ -35,7 +35,7 @@ export interface StockBoardV1 {
 
 export interface BoardV1 {
   id: string;
-  /** A, B, C … in the order the boards were made. */
+  /** A, B, C … in the order the boards were made, or a name the user gave it. */
   name: string;
   thickness: number;
   material: MaterialKey;
@@ -279,6 +279,18 @@ export function instancesOf(parts: CamPartInfo[], milled: (partId: string) => bo
 }
 
 const letter = (i: number) => (i < 26 ? String.fromCharCode(65 + i) : `B${i + 1}`);
+
+/** What a board is called: "Board A" until it's given a name of its own. */
+export const boardLabel = (board: Pick<BoardV1, 'name'>) => (/^([A-Z]|B\d+)$/.test(board.name) ? `Board ${board.name}` : board.name);
+
+/** Why a board can't have this name: it's in messages at the machine and in the G-code file's name. */
+export function boardNameProblem(name: string, boards: Pick<BoardV1, 'id' | 'name'>[], id: string): string | null {
+  if (!name) return 'A board needs a name.';
+  if (name.length > 30) return 'That name is too long: 30 characters at most.';
+  if (/[/\\:*?"<>|]/.test(name)) return 'A board’s name goes in the G-code file’s name, so it can’t have any of / \\ : * ? " < > |.';
+  if (boards.some(b => b.id !== id && b.name === name)) return `There already is a board called ${name}.`;
+  return null;
+}
 
 export function newBoard(
   boards: BoardV1[],
@@ -1055,7 +1067,9 @@ export function autoFillFromStock(
   material: MaterialKey,
   objective: NestObjective = 'boards',
   /** The machine's work area: stock boards bigger than it are used cut down to it. */
-  machine?: { w: number; h: number }
+  machine?: { w: number; h: number },
+  /** Names no board here may take: those of the boards that stay out of this (cut ones). */
+  reserved: string[] = []
 ): { boards: BoardV1[]; tooBig: string[]; short: string[] } {
   if (machine) stock = stock.map(s => withinMachine(s, machine));
   const out: BoardV1[] = [];
@@ -1131,11 +1145,12 @@ export function autoFillFromStock(
     short.push(...res.short);
   }
   // A fresh layout: name the boards A, B, C… in order (kept boards of other thicknesses too, so names stay unique).
-  // Boards with parts placed by hand keep their name.
-  const taken = new Set(out.filter(b => b.pinned?.length).map(b => b.name));
+  // Boards with parts placed by hand keep their name, and so do boards the user named, and none takes a name that's `reserved`.
+  const keepsName = (b: BoardV1) => !!b.pinned?.length || boardLabel(b) === b.name;
+  const taken = new Set([...reserved, ...out.filter(keepsName).map(b => b.name)]);
   let k = 0;
   const named = out.map(b => {
-    if (b.pinned?.length) return b;
+    if (keepsName(b)) return b;
     while (taken.has(letter(k))) k++;
     return { ...b, name: letter(k++) };
   });
