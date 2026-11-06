@@ -824,6 +824,40 @@ function fixturesNeed(fixtures: Fixture[] | undefined, hw: HoldHardware) {
   return { w: ceilMm(w), h: ceilMm(h) };
 }
 
+/** How far the bottom edge can rise before it reaches a part's margin, a screw or a clamp along a side, mm. */
+export function roomBelow(nest: Pick<BoardNest, 'board' | 'placements' | 'holds' | 'margin'>, instances: PartInstance[]) {
+  const parts = nest.placements.flatMap(p => {
+    const inst = instances.find(i => i.id === p.id);
+    return inst ? [placedRect(p, inst).y - nest.margin] : [];
+  });
+  const holds = nest.holds.filter(hp => hp.kind === 'screw' || hp.dir?.y === 0).map(hp => holdBox(hp).y);
+  return Math.max(0, Math.min(nest.board.h, ...parts, ...holds));
+}
+
+/**
+ * The board as it is about to have its bottom edge moved to this height: what's on it keeps its distance to the top edge, so
+ * the room comes or goes at the bottom. Positions count from XY zero, which goes with that edge, so they change. Clamps on the
+ * bottom edge go along with it. A bottom edge rising past what's there pushes it up, which takes the room above.
+ */
+export function movedBottomEdge(board: BoardV1, nest: BoardNest, instances: PartInstance[], h: number): BoardV1 {
+  const dy = Math.max(h - nest.board.h, -roomBelow(nest, instances));
+  const laid = withLayout(board, nest);
+  return {
+    ...laid,
+    ...(laid.layout && {
+      layout: {
+        ...laid.layout,
+        at: Object.fromEntries(Object.entries(laid.layout.at).map(([id, p]) => [id, { ...p, y: p.y + dy }])),
+      },
+    }),
+    ...(board.fixtures && {
+      fixtures: board.fixtures.map(f =>
+        f.kind === 'screw' ? { ...f, y: f.y + dy } : f.side === 'left' || f.side === 'right' ? { ...f, at: f.at + dy } : f
+      ),
+    }),
+  };
+}
+
 const spacingOf = (b: BoardV1) => JSON.stringify([b.size, b.margin, b.gap, b.retention]);
 
 /**

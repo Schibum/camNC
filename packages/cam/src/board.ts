@@ -29,9 +29,6 @@ import {
  */
 export type HoldDown = 'fixture-tape' | 'tabs' | 'tabs-guided' | 'skin' | 'none';
 
-/** Layer left on the tape under every outline until the end, mm. */
-export const kTapeLayer = 0.5;
-
 /** Hold-downs that leave a layer under every part and cut it for all parts together at the end. */
 export const releasesAtEnd = (holdDown: HoldDown) => holdDown === 'skin' || holdDown === 'fixture-tape';
 
@@ -78,8 +75,7 @@ export interface BoardSpec {
   /** Tape under the board: all of it stays put, whatever the hold points. */
   taped?: boolean;
   /**
-   * Bottom skin thickness, mm (default 1): for the `skin` hold-down. The layer left on the tape for `fixture-tape`
-   * (default `kTapeLayer`).
+   * Bottom skin thickness, mm (default 1): for the `skin` hold-down, and the layer left on the tape for `fixture-tape`.
    */
   skin?: number;
   /**
@@ -330,7 +326,7 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
     : releasesAtEnd(board.holdDown)
       ? new Map(board.parts.map(p => [p.id, { id: p.id, name: p.name, how: 'skin' as const, tabs: [] }]))
       : undefined;
-  const layer = board.holdDown === 'fixture-tape' ? (board.skin ?? kTapeLayer) : (board.skin ?? kDefaultSkin);
+  const layer = board.skin ?? kDefaultSkin;
   for (const part of board.parts) {
     const h = holding?.get(part.id);
     const own: Partial<CamSettings> =

@@ -17,6 +17,7 @@ import {
   layoutSummary,
   newBoard,
   relayoutBoard,
+  movedBottomEdge,
   respaceBoard,
   stockTopOf,
   type BoardV1,
@@ -538,7 +539,8 @@ function BoardsEditor({
             const empty = sel.size.fit && !selNest.placements.length;
             const size = empty && h === selNest.board.h ? { w, h: w } : empty && w === selNest.board.w ? { w: h, h } : { w, h };
             setNote(`${boardLabel(sel)} is fixed at ${size.w} × ${size.h} mm.`);
-            respaced({ ...sel, size: { fit: false, ...size } });
+            const moved = movedBottomEdge(sel, selNest, instances, size.h);
+            updateBoard(respaceBoard(moved, { ...moved, size: { fit: false, ...size } }, instances, plan.bit.diameter, nestOptions));
           }}
           onHoldSizes={() => setHoldSizes(true)}
           railClosed={railClosed || narrow}

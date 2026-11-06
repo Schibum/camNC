@@ -271,8 +271,8 @@ export function BoardInspector({
               id="skin"
               label="Bottom skin"
               side="left"
-              hint={`How much of the board's bottom stays under the parts until they're cut free. 1 mm holds well in hardwood; on tape ${fmt(0.5)} mm is enough.`}
-              value={skin ?? (taped ? 0.5 : 1)}
+              hint="How much of the board's bottom stays under the parts until they're cut free. 1 mm holds well in hardwood."
+              value={skin ?? 1}
               onCommit={onSkin}
               min={0.2}
             />
