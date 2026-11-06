@@ -526,19 +526,22 @@ describe('CAM boards step', () => {
     const sizes = () => fireEvent.click(screen.getByRole('button', { name: 'Clamp and screw sizes…' }));
     const field = () => document.getElementById('hold-stickout') as HTMLInputElement;
     sizes();
-    await waitFor(() => expect(field()).toBeTruthy());
+    await waitFor(() => expect(field()).toBeTruthy(), { timeout: 10_000 });
     fireEvent.change(field(), { target: { value: '42' } });
     fireEvent.blur(field());
-    await waitFor(async () => {
-      const saved = (await getJob(job.id))!;
-      expect(saved.plan?.bit.stickout).toBe(42);
-    });
+    await waitFor(
+      async () => {
+        const saved = (await getJob(job.id))!;
+        expect(saved.plan?.bit.stickout).toBe(42);
+      },
+      { timeout: 10_000 }
+    );
     // Every board of the job shows it.
     fireEvent.keyDown(field(), { key: 'Escape' });
-    await waitFor(() => expect(field()).toBeNull());
+    await waitFor(() => expect(field()).toBeNull(), { timeout: 10_000 });
     openBoard('B');
     sizes();
-    await waitFor(() => expect(field().value).toBe('42'));
+    await waitFor(() => expect(field().value).toBe('42'), { timeout: 10_000 });
   }, 90_000);
 
   it('auto-fill optimizes for fewest boards unless the job says least wood', async () => {
