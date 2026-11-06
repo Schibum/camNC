@@ -4,40 +4,51 @@ import { ParsedToolpath } from './gcodeParsing';
 /** Colour of the already milled part of the toolpath, in the top and the 3D views. */
 export const kJobDoneColor = '#22c55e';
 
-/** Lines that produce toolpath segments (motion words, not offset/dwell/probe/homing commands). */
-const kMotion = /[XYZ]\s*-?[\d.]/i;
-const kNoMotion = /\b(G10|G92|G28|G30|G4|G38\.\d|G53)\b/i;
+const fileMaps = new WeakMap<ParsedToolpath, { lineEnds: Uint32Array; totalBytes: number }>();
 
-/**
- * Byte offset (in the uploaded file) where each toolpath segment's G-code line ends. Approximate: assumes
- * one segment per motion line (arcs produce several points but come from one line).
- */
-export function motionLineEnds(gcode: string): number[] {
-  const ends: number[] = [];
-  let offset = 0;
-  let utf8Extra = 0;
-  for (const line of gcode.split('\n')) {
-    const code = line.replace(/\(.*?\)|;.*$/g, '');
-    offset += line.length + 1;
-    // FluidNC reports progress in bytes; account for multi-byte characters (comments in non-ASCII).
-    for (let i = 0; i < line.length; i++) if (line.charCodeAt(i) > 0x7f) utf8Extra++;
-    if (kMotion.test(code) && !kNoMotion.test(code)) ends.push(offset + utf8Extra);
+/** Byte offset (in the uploaded file) where each source line ends, computed once per toolpath. */
+function getFileMap(toolpath: ParsedToolpath) {
+  let map = fileMaps.get(toolpath);
+  if (!map) {
+    const lines = toolpath.gcode.split('\n');
+    const lineEnds = new Uint32Array(lines.length);
+    const encoder = new TextEncoder();
+    let offset = 0;
+    // FluidNC reports progress in bytes, so multi-byte characters (comments in non-ASCII) count.
+    lines.forEach((line, i) => {
+      offset += encoder.encode(line).length + 1;
+      lineEnds[i] = offset;
+    });
+    // No newline after the last line.
+    map = { lineEnds, totalBytes: encoder.encode(toolpath.gcode).length };
+    fileMaps.set(toolpath, map);
   }
-  return ends;
+  return map;
+}
+
+/** How many of the ascending `values` are at most `limit`. */
+function countUpTo(values: ArrayLike<number>, limit: number) {
+  let lo = 0;
+  let hi = values.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (values[mid]! <= limit) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
 }
 
 /**
  * Index into `toolpath.pathPoints` up to which the job has progressed, given FluidNC's `SD:` percentage
- * (which is the share of the file read so far, a few planner blocks ahead of the tool).
+ * (which is the share of the file read so far, a few planner blocks ahead of the tool). Goes by the source line of
+ * each point, since an arc's line makes many points and other lines none.
  */
-export function progressPointIndex(toolpath: ParsedToolpath, lineEnds: number[], percent: number): number {
-  if (!lineEnds.length || !toolpath.pathPoints.length) return 0;
-  const totalBytes = new TextEncoder().encode(toolpath.gcode).length;
+export function progressPointIndex(toolpath: ParsedToolpath, percent: number): number {
+  if (!toolpath.pathPoints.length) return 0;
+  const { lineEnds, totalBytes } = getFileMap(toolpath);
   const byte = (percent / 100) * totalBytes;
-  let done = 0;
-  while (done < lineEnds.length && lineEnds[done]! <= byte) done++;
-  const fraction = done / lineEnds.length;
-  return Math.min(toolpath.pathPoints.length, Math.round(fraction * toolpath.pathPoints.length));
+  const linesRead = byte >= totalBytes ? lineEnds.length : countUpTo(lineEnds, byte);
+  return linesRead === 0 ? 0 : countUpTo(toolpath.lines, linesRead);
 }
 
 /** Where a running job splits the toolpath: the tool is at `point`, on the segment ending at `pathPoints[index]`. */

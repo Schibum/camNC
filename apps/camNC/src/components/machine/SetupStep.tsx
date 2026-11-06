@@ -33,6 +33,7 @@ export function SetupStep({
   n,
   children,
   label,
+  startFolded = false,
 }: {
   state: StepState;
   title: React.ReactNode;
@@ -44,11 +45,14 @@ export function SetupStep({
   n?: number;
   /** Accessible name of the step, when the title isn't plain text. */
   label?: string;
+  /** A step to do that's already known by heart: its title is enough until asked for more. */
+  startFolded?: boolean;
   children?: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(state !== 'done');
+  const opensByItself = state !== 'done' && !startFolded;
+  const [open, setOpen] = useState(opensByItself);
   // A step that gets done folds; one that needs doing again opens.
-  useEffect(() => setOpen(state !== 'done'), [state]);
+  useEffect(() => setOpen(opensByItself), [opensByItself]);
   const foldable = !!children;
   return (
     <section

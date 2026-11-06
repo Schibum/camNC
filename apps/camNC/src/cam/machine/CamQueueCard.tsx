@@ -1,8 +1,9 @@
 import { useStore } from '@/store/store';
 import { Button } from '@wbcnc/ui/components/button';
 import { Checkbox } from '@wbcnc/ui/components/checkbox';
+import { Popover, PopoverContent, PopoverTrigger } from '@wbcnc/ui/components/popover';
 import { cn } from '@wbcnc/ui/lib/utils';
-import { AlertTriangle, Check, X } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { SetupStep } from '@/components/machine/SetupStep';
 import { Hint } from '../Hint';
@@ -21,11 +22,13 @@ const fmt = (v: number) => `${+v.toFixed(2)}`;
 const holdKindName = (e: QueueEntry) => (e.board.request?.holdPoints?.[0]?.kind === 'clamp' ? 'Clamp it' : 'Screw it down');
 
 /**
- * The CAM job at the machine, in the machine panel: the queue of programs (boards in an order that keeps the bit in
- * the collet, one program per bit, guided tab removal), and for the current one what to do before running it. Once an
- * entry is active the machine view holds its program or nothing, never the program of another entry.
+ * The CAM job at the machine, in the machine panel: one line for the current entry of the queue of programs (boards in
+ * an order that keeps the bit in the collet, one program per bit, guided tab removal) with the whole queue behind it,
+ * and what to do before running it. Once an entry is active the machine view holds its program or nothing, never the
+ * program of another entry.
  */
 export function CamQueueCard() {
+  const [queueOpen, setQueueOpen] = useState(false);
   const { jobId, active, setActive, markDone, rotation, leave, setOverlay, pauseEachTab, setPauseEachTab } = useCamMachine();
   const spindle = useStore(s => s.machinePrefs.spindleSwitch ?? 'hand');
   const { job, queue, current, done, stale, loading, modelError, setStockThickness, parts } = useMachineQueue();
@@ -97,17 +100,122 @@ export function CamQueueCard() {
   const swap = bit !== undefined && bit !== current?.bitBefore;
   const swapText = current?.bitBefore === undefined ? `Put in the ⌀${bit} mm bit` : `Swap the bit to ⌀${bit} mm`;
   const onCamera = current?.flip?.registration === 'camera';
+  const at = current ? queue.indexOf(current) : -1;
+  const blockedCount = queue.filter(e => e.kind !== 'pending' && e.blocked).length;
+  const stripTitle = current ? entryTitle(current) : (job?.name ?? 'CAM job');
+  // Loaded already: there's nothing for the button to do, and the panel needs the room.
+  const loaded = !!current && active === current.key && !!loadedGcode && loadedGcode === gcodeOf(current);
 
   return (
     <section aria-label="CAM job" className="flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <h3 className="truncate text-sm font-semibold">{job ? job.name : 'CAM job'}</h3>
-        <span className="grow" />
-        <Hint text="Closes the queue here. Which boards are done is forgotten; the job itself stays.">
-          <Button size="icon" variant="ghost" className="size-6" aria-label="Leave the CAM job" onClick={leave}>
-            <X className="size-3.5" />
-          </Button>
-        </Hint>
+      <div className="flex items-center gap-1 rounded-lg border p-1">
+        <Popover open={queueOpen} onOpenChange={setQueueOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="min-w-0 flex-1 justify-start gap-1 px-1.5 text-[13px] font-medium"
+              aria-label={`Board queue: ${stripTitle}`}>
+              <span className="truncate">{stripTitle}</span>
+              {at >= 0 && (
+                <span className="shrink-0 font-mono text-xs font-normal text-muted-foreground">
+                  {at + 1}/{queue.length}
+                </span>
+              )}
+              {blockedCount > 0 && (
+                <span className="flex shrink-0 items-center gap-0.5 text-xs text-destructive" title={`${blockedCount} blocked`}>
+                  <AlertTriangle className="size-3.5" />
+                  {blockedCount}
+                </span>
+              )}
+              <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
+            </Button>
+          </PopoverTrigger>
+          {/* Not onto Leave, the first button: Enter would close the job. */}
+          <PopoverContent align="start" className="flex w-80 flex-col gap-1 p-2" onOpenAutoFocus={e => e.preventDefault()}>
+            <div className="flex items-center gap-2 px-1">
+              <h3 className="truncate text-sm font-semibold">{job ? job.name : 'CAM job'}</h3>
+              <span className="grow" />
+              <Hint text="Closes the queue here. Which boards are done is forgotten; the job itself stays.">
+                <Button size="icon" variant="ghost" className="size-6" aria-label="Leave the CAM job" onClick={leave}>
+                  <X className="size-3.5" />
+                </Button>
+              </Hint>
+            </div>
+            <ol className="flex flex-col gap-0.5 rounded-lg border p-1 text-[13px]" aria-label="Board queue">
+              {queue.map(e => {
+                const isDone = done.includes(e.doneId);
+                const isNow = e === current;
+                return (
+                  <li key={e.key}>
+                    <button
+                      disabled={busy}
+                      onClick={() => {
+                        load(e);
+                        setQueueOpen(false);
+                      }}
+                      className={cn(
+                        'flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-muted',
+                        isNow && 'bg-primary/10 font-medium',
+                        isDone && !isNow && 'text-muted-foreground'
+                      )}>
+                      <span className="w-4">
+                        {e.kind !== 'pending' && e.blocked ? (
+                          <AlertTriangle aria-label="Blocked" className="size-3.5 text-destructive" />
+                        ) : isDone ? (
+                          <Check className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                        ) : isNow ? (
+                          '●'
+                        ) : (
+                          ''
+                        )}
+                      </span>
+                      <span className="grow">{entryTitle(e)}</span>
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {!e.plan || e.kind === 'flip'
+                          ? ''
+                          : e.release
+                            ? `${e.release.parts ? `${e.release.parts.length} parts` : `${e.release.tabs?.length ?? 0} tabs`} · ≈${Math.ceil(e.release.timeMin)} min auto`
+                            : `≈${Math.ceil(e.plan.programs[e.program].timeMin)} min auto`}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+          </PopoverContent>
+        </Popover>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="size-7"
+          aria-label="Previous board"
+          disabled={busy || at <= 0}
+          onClick={() => load(queue[at - 1]!)}>
+          <ChevronLeft />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="size-7"
+          aria-label="Next board"
+          disabled={busy || at < 0 || at >= queue.length - 1}
+          onClick={() => load(queue[at + 1]!)}>
+          <ChevronRight />
+        </Button>
+        {current && (
+          <Hint text="Marks this one as cut and loads the next program in the queue.">
+            {/* Only for what could be loaded: a program not there yet, or blocked, wasn't cut. Not while one runs: what's loaded stays. */}
+            <Button
+              size="sm"
+              className="shrink-0"
+              variant={current.kind === 'flip' ? 'default' : 'outline'}
+              disabled={busy || !!current.blocked || !!stale?.has(current.board.board.id)}
+              onClick={next}>
+              {current.kind === 'flip' ? 'Turned over, next' : 'Done, next'}
+            </Button>
+          </Hint>
+        )}
       </div>
       {loading && !queue.length && <p className="text-xs text-muted-foreground">Making the programs…</p>}
       {modelError && (
@@ -115,44 +223,6 @@ export function CamQueueCard() {
           {modelError}
         </p>
       )}
-      <ol className="flex flex-col gap-0.5 rounded-lg border p-1 text-[13px]" aria-label="Board queue">
-        {queue.map(e => {
-          const isDone = done.includes(e.doneId);
-          const isNow = e === current;
-          return (
-            <li key={e.key}>
-              <button
-                disabled={busy}
-                onClick={() => load(e)}
-                className={cn(
-                  'flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-muted',
-                  isNow && 'bg-primary/10 font-medium',
-                  isDone && !isNow && 'text-muted-foreground'
-                )}>
-                <span className="w-4">
-                  {e.kind !== 'pending' && e.blocked ? (
-                    <AlertTriangle aria-label="Blocked" className="size-3.5 text-destructive" />
-                  ) : isDone ? (
-                    <Check className="size-3.5 text-emerald-600 dark:text-emerald-400" />
-                  ) : isNow ? (
-                    '●'
-                  ) : (
-                    ''
-                  )}
-                </span>
-                <span className="grow">{entryTitle(e)}</span>
-                <span className="font-mono text-xs text-muted-foreground">
-                  {!e.plan || e.kind === 'flip'
-                    ? ''
-                    : e.release
-                      ? `${e.release.parts ? `${e.release.parts.length} parts` : `${e.release.tabs?.length ?? 0} tabs`} · ≈${Math.ceil(e.release.timeMin)} min auto`
-                      : `≈${Math.ceil(e.plan.programs[e.program].timeMin)} min auto`}
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ol>
       {busy && <p className="text-xs text-muted-foreground">A program is running or paused: the queue goes on when it’s done.</p>}
 
       {current && board && (
@@ -170,9 +240,11 @@ export function CamQueueCard() {
           )}
           {current.firstOfBoard && current.plan && (
             <SetupStep
+              key={board.id}
               state="todo"
+              startFolded={board.measuredThickness !== undefined}
               label="Board"
-              title={`Board ${board.name} on the bed`}
+              title={<span className="whitespace-nowrap">{`Board ${board.name} on the bed`}</span>}
               summary={`${fmt(current.plan.size[0])} × ${fmt(current.plan.size[1])} × ${fmt(stockTopOf(board))} mm`}>
               <div className="flex flex-col gap-1.5">
                 <p>
@@ -236,7 +308,12 @@ export function CamQueueCard() {
             </SetupStep>
           )}
           {swap && (
-            <SetupStep state="todo" label="Bit" title={swapText}>
+            <SetupStep
+              state="todo"
+              startFolded={current.firstOfBoard}
+              label="Bit"
+              title={<span className="whitespace-nowrap">{swapText}</span>}
+              summary={current.firstOfBoard ? 'Z0: board bottom' : undefined}>
               <p>
                 {current.firstOfBoard
                   ? 'Then zero Z on the spoilboard below: Z0 is the bottom of the board.'
@@ -288,30 +365,13 @@ export function CamQueueCard() {
               </label>
             </SetupStep>
           )}
-          <div className="flex flex-wrap items-center gap-2">
-            {current.plan && current.kind !== 'flip' && (
-              <Hint text="Puts this program in the machine view, ready to run.">
-                <Button
-                  size="sm"
-                  variant={loadedGcode && loadedGcode === gcodeOf(current) ? 'outline' : 'default'}
-                  disabled={busy || !gcodeOf(current)}
-                  onClick={() => load(current)}>
-                  Load {current.kind === 'tabs' ? 'tab removal' : current.kind === 'free' ? 'parts freeing' : 'program'}
-                </Button>
-              </Hint>
-            )}
-            <span className="grow" />
-            <Hint text="Marks this one as cut and loads the next program in the queue.">
-              {/* Only for what could be loaded: a program not there yet, or blocked, wasn't cut. Not while one runs: what's loaded stays. */}
-              <Button
-                size="sm"
-                variant={current.kind === 'flip' ? 'default' : 'outline'}
-                disabled={busy || !!current.blocked || !!stale?.has(current.board.board.id)}
-                onClick={next}>
-                {current.kind === 'flip' ? 'Turned over, next' : 'Done, next'}
+          {current.plan && current.kind !== 'flip' && !loaded && (
+            <Hint text="Puts this program in the machine view, ready to run.">
+              <Button size="sm" className="self-start" disabled={busy || !gcodeOf(current)} onClick={() => load(current)}>
+                Load {current.kind === 'tabs' ? 'tab removal' : current.kind === 'free' ? 'parts freeing' : 'program'}
               </Button>
             </Hint>
-          </div>
+          )}
         </div>
       )}
       {!current && queue.length > 0 && <p className="text-[13px]">All boards are cut.</p>}

@@ -1,24 +1,42 @@
 import { describe, expect, it } from 'vitest';
 import { parseGCode } from './gcodeParsing';
 import { Vector3 } from 'three';
-import { motionLineEnds, progressPointIndex, snapProgressToTool, trailBehind } from './jobProgress';
+import { progressPointIndex, snapProgressToTool, trailBehind } from './jobProgress';
 
 describe('job progress', () => {
   const gcode = 'G21\nG90\nG0 X0 Y0\nG1 X10 Y0 F100\nG1 X10 Y10\nG1 X0 Y10\nG1 X0 Y0\n';
 
-  it('finds the end of every motion line', () => {
-    expect(motionLineEnds(gcode)).toHaveLength(5);
-    expect(motionLineEnds('G10 L20 P0 Z0\nG38.2 Z-5 F10\nG1 X1')).toHaveLength(1);
-  });
-
   it('maps the SD percentage to a point index', () => {
     const toolpath = parseGCode(gcode);
-    const ends = motionLineEnds(gcode);
-    expect(progressPointIndex(toolpath, ends, 0)).toBe(0);
-    expect(progressPointIndex(toolpath, ends, 100)).toBe(toolpath.pathPoints.length);
-    const half = progressPointIndex(toolpath, ends, 60);
+    expect(progressPointIndex(toolpath, 0)).toBe(0);
+    expect(progressPointIndex(toolpath, 100)).toBe(toolpath.pathPoints.length);
+    const half = progressPointIndex(toolpath, 60);
     expect(half).toBeGreaterThan(0);
     expect(half).toBeLessThan(toolpath.pathPoints.length);
+  });
+
+  it('counts the points of arcs by their line, however many of them a line makes', () => {
+    const arcs = Array.from({ length: 10 }, () => 'G3 X0 Y0 I5 J0');
+    const straight = Array.from({ length: 10 }, (_, i) => `G1 X${i + 1} Y0`);
+    const text = ['G1 X0 Y0 F100', ...arcs, ...straight].join('\n') + '\n';
+    const toolpath = parseGCode(text);
+    const byteOfLine = (line: number) => text.split('\n').slice(0, line).join('\n').length + 1;
+    const percentAt = (line: number) => ((byteOfLine(line) + 0.5) / text.length) * 100;
+    const pointsOfLine = (line: number) => toolpath.lines.filter(l => l <= line).length;
+    // Half way through the lines, the arcs are done: well past half of the points.
+    expect(progressPointIndex(toolpath, percentAt(11))).toBe(pointsOfLine(11));
+    expect(pointsOfLine(11) / toolpath.pathPoints.length).toBeGreaterThan(0.9);
+    expect(progressPointIndex(toolpath, percentAt(16))).toBe(pointsOfLine(16));
+  });
+
+  it('counts the progress in bytes', () => {
+    const text = '(äöü äöü äöü äöü äöü)\nG1 X10 F100\nG1 X20\n';
+    const toolpath = parseGCode(text);
+    const bytes = new TextEncoder().encode(text).length;
+    const firstLine = new TextEncoder().encode('(äöü äöü äöü äöü äöü)\n').length;
+    expect(progressPointIndex(toolpath, ((firstLine - 1) / bytes) * 100)).toBe(0);
+    expect(progressPointIndex(toolpath, ((firstLine + 0.5) / bytes) * 100)).toBe(toolpath.lines.filter(l => l <= 1).length);
+    expect(progressPointIndex(toolpath, 100)).toBe(toolpath.pathPoints.length);
   });
 
   describe('snapping to the tool', () => {

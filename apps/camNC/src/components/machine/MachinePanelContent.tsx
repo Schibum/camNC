@@ -63,7 +63,13 @@ export function MachinePanelContent({ onClose, className }: { onClose?: () => vo
           <h2 className="font-semibold">Machine</h2>
           <MachineStateBadge />
           <JobProgressBadge />
-          <div className="ml-auto flex flex-row items-center">
+          <div
+            className="flex min-w-0 flex-row items-center gap-1.5 text-xs text-muted-foreground"
+            title={api.firmware.value ? `FluidNC ${api.firmware.value.version}` : undefined}>
+            <ConnectionBadge dotWhenConnected />
+            {machine?.host && <span className="truncate">{machine.host}</span>}
+          </div>
+          <div className="ml-auto flex shrink-0 flex-row items-center">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="icon" variant="ghost" className="size-8" aria-label="More machine tools">
@@ -97,11 +103,6 @@ export function MachinePanelContent({ onClose, className }: { onClose?: () => vo
               </Button>
             )}
           </div>
-        </div>
-        <div className="flex flex-row items-center gap-2 text-xs text-muted-foreground">
-          <ConnectionBadge />
-          {machine?.host && <span>{machine.host}</span>}
-          {api.firmware.value && <span>FluidNC {api.firmware.value.version}</span>}
         </div>
         {connected && (
           <div className="flex flex-row flex-wrap items-center justify-between gap-2">

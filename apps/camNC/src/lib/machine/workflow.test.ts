@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkPosition, checkTravel, g53Targets, getJobChecklist, kHomeFirst, machineView, outsideTravel } from './workflow';
+import { checkPosition, checkTravel, g53Targets, getJobChecklist, kHomeFirst, machineView, outsideTravel, zeroGhost } from './workflow';
 
 describe('machineView', () => {
   it('switches to running while a job is active or the machine is running/held', () => {
@@ -104,6 +104,107 @@ describe('checkTravel', () => {
       { axis: 'x', value: 10.5 },
       { axis: 'y', value: -2 },
     ]);
+  });
+});
+
+describe('getJobChecklist travel with open zero steps', () => {
+  // Board A of 600 x 1000 x 20.8 mm, with the zero an earlier job left on the controller.
+  const travel = {
+    x: { min: 3, max: 621, softLimits: true },
+    y: { min: 3, max: 1241, softLimits: true },
+    z: { min: -97, max: 3, softLimits: true },
+  };
+  const bounds = { min: { x: 0, y: 0, z: -0.3 }, max: { x: 572.71, y: 981.71, z: 25.8 } };
+  const base = {
+    gcode: 'G1 X10\nG53 G0 Z-5',
+    homed: true,
+    zZeroed: false,
+    toolpathOffset: { x: 14.3, y: 118.7 },
+    machineZero: { x: 6.48, y: 416.49 },
+    toolpathBounds3: bounds,
+    workOffset: { x: 6.48, y: 416.49, z: -17 },
+    travel,
+  };
+  const check = (input: Partial<typeof base>) => getJobChecklist({ ...base, ...input }).find(i => i.id === 'travel')!;
+
+  it('asks for the zero, and still blocks, when only the old zero is out of the travel', () => {
+    const item = check({});
+    expect(item.zeroFirst).toBe(true);
+    expect(item.blocking).toBe(true);
+    expect(item.label).toMatch(/^Set the zero first/);
+    expect(item.details).toBeUndefined();
+  });
+
+  it('reports a job that does not fit where it is placed, with the numbers', () => {
+    const item = check({ toolpathOffset: { x: 14.3, y: 300 } });
+    expect(item.zeroFirst).toBeUndefined();
+    expect(item.blocking).toBe(true);
+    expect(item.details).toEqual([
+      'Y would go to 1281.71, 40.71 mm above the Y travel 3 to 1241. Move the Y zero at least 40.71 mm down, or the job is too large.',
+    ]);
+  });
+
+  it('holds Z against an old zero only until Z is zeroed', () => {
+    const placed = { machineZero: { x: 14.3, y: 118.7 }, workOffset: { x: 14.3, y: 118.7, z: -17 } };
+    expect(check(placed).zeroFirst).toBe(true);
+    const zeroed = check({ ...placed, zZeroed: true });
+    expect(zeroed.zeroFirst).toBeUndefined();
+    expect(zeroed.details?.[0]).toMatch(/^Z would go to 8.8, 5.8 mm above/);
+  });
+
+  it('reports the Z problem itself for G-code that sets Z, which has no zero step left', () => {
+    const placed = { machineZero: { x: 14.3, y: 118.7 }, workOffset: { x: 14.3, y: 118.7, z: -17 } };
+    const item = check({ ...placed, gcode: 'G38.2 Z-20 F100\nG1 X10' });
+    expect(item.zeroFirst).toBeUndefined();
+    expect(item.blocking).toBe(true);
+    expect(item.details?.[0]).toMatch(/^Z would go to 8.8/);
+  });
+
+  it('passes from the zero on the controller, set or not', () => {
+    expect(check({ workOffset: { x: 14.3, y: 118.7, z: -60 } }).ok).toBe(true);
+    expect(check({ machineZero: { x: 14.3, y: 118.7 }, workOffset: { x: 14.3, y: 118.7, z: -60 }, zZeroed: true }).ok).toBe(true);
+  });
+});
+
+describe('zeroGhost', () => {
+  const travel = {
+    x: { min: 3, max: 621, softLimits: true },
+    y: { min: 3, max: 1241, softLimits: true },
+    z: { min: -97, max: 3, softLimits: true },
+  };
+  const toolpathBounds = { min: { x: 0, y: 0 }, max: { x: 572.71, y: 981.71 } };
+  const toolpathOffset = { x: 14.3, y: 118.7 };
+
+  it('shows nothing once the zero is where the job is placed', () => {
+    expect(zeroGhost({ toolpathBounds, workOffset: toolpathOffset, toolpathOffset, travel })).toBeNull();
+  });
+
+  it('outlines where the job would run from an old zero, and what lies past the travel', () => {
+    const ghost = zeroGhost({ toolpathBounds, workOffset: { x: 6.48, y: 416.49 }, toolpathOffset, travel })!;
+    expect(ghost.max.y).toBeCloseTo(1398.2);
+    expect(ghost.past).toHaveLength(1);
+    expect(ghost.past[0]!.min.y).toBe(1241);
+    expect(ghost.past[0]!.max.y).toBeCloseTo(1398.2);
+    expect(ghost.past[0]!.min.x).toBe(ghost.min.x);
+    expect(ghost.label).toBe('Would run here from the current zero: 157.2 mm past the Y limit');
+  });
+
+  it('marks only the outline itself when all of it is past the travel', () => {
+    const ghost = zeroGhost({ toolpathBounds, workOffset: { x: 6, y: 1500 }, toolpathOffset, travel })!;
+    expect(ghost.past[0]!.min.y).toBe(ghost.min.y);
+    expect(ghost.past[0]!.max.y).toBe(ghost.max.y);
+  });
+
+  it('has nothing to outline for a program without moves', () => {
+    const empty = { min: { x: Infinity, y: Infinity }, max: { x: -Infinity, y: -Infinity } };
+    expect(zeroGhost({ toolpathBounds: empty, workOffset: { x: 6, y: 416 }, toolpathOffset, travel })).toBeNull();
+  });
+
+  it('still outlines it when it stays inside the travel, or the travel is unknown', () => {
+    const inside = zeroGhost({ toolpathBounds, workOffset: { x: 20, y: 100 }, toolpathOffset, travel })!;
+    expect(inside.past).toEqual([]);
+    expect(inside.label).toBe('Would run here from the current zero');
+    expect(zeroGhost({ toolpathBounds, workOffset: { x: 6, y: 416 }, toolpathOffset, travel: null })!.past).toEqual([]);
   });
 });
 
