@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readGcode } from './analyze';
 import { fitArcs, FLUIDNC_POST_PROFILE, toGcode, validateFluidNCOutput, type GcodeOptions } from './gcode';
-import { quantizedArcIsSafe } from './postValidation';
+import { parsedPostNumber, quantizedArcIsSafe } from './postValidation';
 import type { PartCam, Tool } from './toolpaths';
 import type { Vec3 } from './geom';
 
@@ -91,6 +91,38 @@ describe('post input validation', () => {
 });
 
 describe('the controller output contract', () => {
+  it('bounds absolute coordinates and models the decimal parser float32 conversion', () => {
+    expect(parsedPostNumber(3844.837)).toBe(3844.836669921875);
+    expect(parsedPostNumber(-3844.837)).toBe(-3844.836669921875);
+    expect(parsedPostNumber(3844.837)).not.toBe(Math.fround(3844.837));
+    expect(() =>
+      toGcode(
+        program([
+          [1e6, 10, 4],
+          [1e6 + 1, 10, 4],
+        ])
+      )
+    ).toThrow(/coordinate window/);
+    expect(() => validateFluidNCOutput('G0 X1000000\n')).toThrow(/coordinate window/);
+    expect(() => parsedPostNumber(Infinity)).toThrow(/finite decimals/);
+  });
+
+  it('accepts normal travel coordinates and negative rotated placements within the supported window', () => {
+    for (const center of [
+      [2434, 1200],
+      [-1200, -2434],
+    ]) {
+      const points: Vec3[] = Array.from({ length: 91 }, (_, i) => [
+        center[0] + 5 * Math.cos((i * Math.PI) / 180),
+        center[1] + 5 * Math.sin((i * Math.PI) / 180),
+        4,
+      ]);
+      const output = toGcode(program(points));
+      expect(output).toMatch(/^G3 /m);
+      expect(() => validateFluidNCOutput(output)).not.toThrow();
+    }
+  });
+
   it('selects metric absolute motion and cancels stale compensation without changing the established work offset', () => {
     const output = toGcode(program(), { postProfile: 'fluidnc' });
     expect(output).toContain('G21 G90 G94 G17\nG40 G49 G80\n');

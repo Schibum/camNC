@@ -1,6 +1,7 @@
 import type { TurnedOver } from './flip';
 import type { Vec3 } from './geom';
 import type { Operation, Pass, PartCam } from './toolpaths';
+import { releaseMetadata } from './releaseMetadata';
 
 /** One tab to cut free in a guided tab removal program. */
 export interface TabStop {
@@ -86,11 +87,12 @@ export function tabRemovalProgram(
         part,
       });
   }
-  if (opts.perPart) return { cam: { stockTop: cam.stockTop, safeZ: cam.safeZ, retractZ: cam.retractZ, operations, warnings: [] }, tabs };
+  const released: PartCam = { ...cam, ...releaseMetadata(cam, turned), holding: undefined, operations, warnings: [] };
+  if (opts.perPart) return { cam: released, tabs };
   tabs.forEach(
     t => (operations[t.index - 1].pauseBefore = `Tab ${t.index} of ${tabs.length}: spindle off until Resume. Hold away from bit: ${t.part}`)
   );
-  return { cam: { stockTop: cam.stockTop, safeZ: cam.safeZ, retractZ: cam.retractZ, operations, warnings: [] }, tabs };
+  return { cam: released, tabs };
 }
 
 /** Stretches of a closed pass that are lifted above its deepest Z (the tabs), with their end points. */

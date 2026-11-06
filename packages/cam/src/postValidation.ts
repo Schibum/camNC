@@ -10,6 +10,8 @@ export interface FluidNCPostProfile {
   readonly positionMode: 'absolute';
   readonly arcCenterMode: 'incremental';
   readonly coordinateDecimals: 3;
+  /** Supported magnitude of emitted absolute XYZ coordinates, mm. */
+  readonly maximumCoordinate: 4096;
   readonly maxLineBytes: 127;
   readonly minimumClearance: 0.5;
   readonly startup: readonly string[];
@@ -23,6 +25,7 @@ export const FLUIDNC_POST_PROFILE: FluidNCPostProfile = Object.freeze({
   positionMode: 'absolute',
   arcCenterMode: 'incremental',
   coordinateDecimals: 3,
+  maximumCoordinate: 4096,
   maxLineBytes: 127,
   minimumClearance: 0.5,
   startup: Object.freeze(['G21 G90 G94 G17', 'G40 G49 G80']),
@@ -32,6 +35,40 @@ export const FLUIDNC_POST_PROFILE: FluidNCPostProfile = Object.freeze({
 
 export const quantizePostNumber = (value: number): number => +value.toFixed(FLUIDNC_POST_PROFILE.coordinateDecimals);
 
+/** Parse the emitted decimal using the controller's bounded integer/float32 conversion. */
+export function parsedPostNumber(value: number): number {
+  if (!Number.isFinite(value) || Math.abs(value) >= 1e21) throw new Error('Controller numbers must be finite decimals');
+  const text = value.toFixed(FLUIDNC_POST_PROFILE.coordinateDecimals).replace(/\.?0+$/, '');
+  let integer = 0,
+    exponent = 0,
+    digits = 0,
+    decimal = false;
+  for (const char of text) {
+    if (char === '-') continue;
+    if (char === '.') {
+      decimal = true;
+      continue;
+    }
+    digits++;
+    if (digits <= 8) {
+      if (decimal) exponent--;
+      integer = integer * 10 + Number(char);
+    } else if (!decimal) exponent++;
+  }
+  const f = Math.fround;
+  let result = f(integer);
+  while (exponent <= -2) {
+    result = f(result * f(0.01));
+    exponent += 2;
+  }
+  if (exponent < 0) result = f(result * f(0.1));
+  while (exponent > 0) {
+    result = f(result * 10);
+    exponent--;
+  }
+  return value < 0 ? -result : result;
+}
+
 function finite(value: number, name: string): void {
   if (!Number.isFinite(value) || Math.abs(value) >= 1e21) throw new Error(`${name} must be a finite decimal number`);
 }
@@ -39,6 +76,12 @@ function finite(value: number, name: string): void {
 function positive(value: number, name: string): void {
   finite(value, name);
   if (value <= 0 || quantizePostNumber(value) <= 0) throw new Error(`${name} must be positive at the output precision`);
+}
+
+function coordinate(value: number, name: string): void {
+  finite(value, name);
+  if (Math.abs(value) > FLUIDNC_POST_PROFILE.maximumCoordinate)
+    throw new Error(`${name} exceeds the supported ±${FLUIDNC_POST_PROFILE.maximumCoordinate} mm coordinate window`);
 }
 
 export interface PostInputSettings {
@@ -54,12 +97,12 @@ export interface PostInputSettings {
 /** Reject malformed plans before any machine program can be returned. */
 export function validatePostInput(cam: PartCam, settings: PostInputSettings): void {
   const { safeZ, retractZ, rpm, dwell, tolerance, fallbackRpm, stockSize } = settings;
-  finite(cam.stockTop, 'Stock top');
+  coordinate(cam.stockTop, 'Stock top');
   if (cam.stockTop < 0) throw new Error('Stock top must be at or above the stock bottom');
-  finite(safeZ, 'Safe Z');
-  finite(retractZ, 'Retract Z');
+  coordinate(safeZ, 'Safe Z');
+  coordinate(retractZ, 'Retract Z');
   const clearance = cam.stockTop + FLUIDNC_POST_PROFILE.minimumClearance;
-  if (quantizePostNumber(safeZ) < clearance - 1e-9 || quantizePostNumber(retractZ) < clearance - 1e-9)
+  if (parsedPostNumber(safeZ) < clearance - 1e-9 || parsedPostNumber(retractZ) < clearance - 1e-9)
     throw new Error(`Safe Z and retract Z must clear stock top by at least ${FLUIDNC_POST_PROFILE.minimumClearance} mm`);
   if (safeZ < retractZ) throw new Error('Safe Z must be at least retract Z');
   positive(rpm, 'Spindle RPM');
@@ -68,7 +111,11 @@ export function validatePostInput(cam: PartCam, settings: PostInputSettings): vo
   if (dwell < 0) throw new Error('Spindle dwell must not be negative');
   positive(tolerance, 'Arc tolerance');
   if (tolerance < 10 ** -FLUIDNC_POST_PROFILE.coordinateDecimals) throw new Error('Arc tolerance is smaller than the output precision');
-  if (stockSize) stockSize.forEach((value, axis) => positive(value, `Stock size ${axis}`));
+  if (stockSize)
+    stockSize.forEach((value, axis) => {
+      positive(value, `Stock size ${axis}`);
+      coordinate(value, `Stock size ${axis}`);
+    });
   const firstTool = cam.operations[0]?.tool;
   cam.operations.forEach((op, operation) => {
     const where = `Operation ${operation + 1}`;
@@ -92,7 +139,7 @@ export function validatePostInput(cam: PartCam, settings: PostInputSettings): vo
       if (pass.roles?.some(role => !MOTION_ROLES.includes(role))) throw new Error(`${at}: unknown motion role`);
       pass.pts.forEach((point, vertex) => {
         if (point.length !== 3) throw new Error(`${at}, point ${vertex + 1} must contain X, Y and Z`);
-        point.forEach((value, axis) => finite(value, `${at}, point ${vertex + 1}, axis ${axis}`));
+        point.forEach((value, axis) => coordinate(value, `${at}, point ${vertex + 1}, axis ${axis}`));
         positive(pass.feeds[vertex], `${at}, point ${vertex + 1} feed`);
       });
     });
@@ -112,6 +159,8 @@ const directedAngle = (a: number, b: number, cw: boolean): number => {
 /**
  * Check the circle the controller will read after XYZ/IJ rounding. A rejected fit
  * is emitted as its original line segments, preserving the planned endpoints.
+ * The command-frame proof reserves separate controller rounding for offset
+ * arithmetic within the supported coordinate window; it cannot inspect an active work offset.
  */
 export function quantizedArcIsSafe(start: ArcPoint, source: ArcPoint[], arc: Arc, tolerance: number): boolean {
   if (source.length < 2) return false;
@@ -123,52 +172,67 @@ export function quantizedArcIsSafe(start: ArcPoint, source: ArcPoint[], arc: Arc
     return false;
   const end = source[source.length - 1];
   const q = quantizePostNumber;
-  const sx = q(start.x),
-    sy = q(start.y),
-    sz = q(start.z);
-  const ex = q(end.x),
-    ey = q(end.y),
-    ez = q(end.z);
-  const i = q(arc.c.x - sx),
-    j = q(arc.c.y - sy);
+  const p = parsedPostNumber,
+    f = Math.fround;
+  if ([start, ...source].some(point => [point.x, point.y, point.z].some(value => Math.abs(value) > FLUIDNC_POST_PROFILE.maximumCoordinate)))
+    return false;
+  const sx = p(start.x),
+    sy = p(start.y),
+    sz = p(start.z);
+  const ex = p(end.x),
+    ey = p(end.y),
+    ez = p(end.z);
+  // The emitted IJ offset is relative to the decimal start, not its parsed float.
+  const i = p(arc.c.x - q(start.x)),
+    j = p(arc.c.y - q(start.y));
   if ((!i && !j) || (sx === ex && sy === ey)) return false;
-  const cx = sx + i,
-    cy = sy + j;
+  const cx = f(sx + i),
+    cy = f(sy + j);
+  // Motion rotates the parsed IJ vector; its norm defines the continuous envelope.
+  // The separate float32 norm below controls parser acceptance and segment count.
   const radius = Math.hypot(i, j);
-  const targetRadius = Math.hypot(ex - cx, ey - cy);
-  const radiusError = Math.abs(radius - targetRadius);
+  const hypot = (x: number, y: number) => f(Math.sqrt(f(f(x * x) + f(y * y))));
+  const controllerRadius = hypot(i, j);
+  const targetRadius = hypot(f(f(ex - sx) - i), f(f(ey - sy) - j));
+  const radiusError = f(Math.abs(f(controllerRadius - targetRadius)));
   // FluidNC's IJK acceptance test: absolute 0.005 mm or 0.1%, with a 0.5 mm hard bound.
-  if (radiusError > 0.005 && (radiusError > 0.5 || radiusError > 0.001 * radius)) return false;
-  const begin = Math.atan2(sy - cy, sx - cx);
-  const sweep = directedAngle(begin, Math.atan2(ey - cy, ex - cx), arc.cw);
+  if (radiusError > 0.005 && (radiusError > 0.5 || radiusError > 0.001 * controllerRadius)) return false;
+  const rx = -i,
+    ry = -j,
+    tx = f(ex - cx),
+    ty = f(ey - cy);
+  const begin = Math.atan2(ry, rx);
+  let travel = f(Math.atan2(f(f(rx * ty) - f(ry * tx)), f(f(rx * tx) + f(ry * ty))));
+  if (arc.cw && travel >= -5e-7) travel = f(travel - f(2 * f(Math.PI)));
+  if (!arc.cw && travel <= 5e-7) travel = f(travel + f(2 * f(Math.PI)));
+  const sweep = Math.abs(travel);
   if (sweep <= 1e-9 || sweep > 2 * Math.PI - 0.025) return false;
   let previousAngle = 0;
   let previousError = Math.abs(source[0].z - sz);
-  let previousRadialError = Math.abs(Math.hypot(source[0].x - cx, source[0].y - cy) - radius);
+  let previousXYError = Math.hypot(source[0].x - sx, source[0].y - sy);
   for (let index = 0; index < source.length; index++) {
-    const p = source[index];
-    const angle = index === 0 ? 0 : index === source.length - 1 ? sweep : directedAngle(begin, Math.atan2(p.y - cy, p.x - cx), arc.cw);
+    const point = source[index];
+    const angle =
+      index === 0 ? 0 : index === source.length - 1 ? sweep : directedAngle(begin, Math.atan2(point.y - cy, point.x - cx), arc.cw);
     if (angle < previousAngle - 1e-7 || angle > sweep + 1e-7) return false;
-    const error = Math.abs(p.z - (sz + ((ez - sz) * angle) / sweep));
-    const radialError = Math.abs(Math.hypot(p.x - cx, p.y - cy) - radius);
-    if (Math.hypot(error, radialError) > tolerance) return false;
+    const error = Math.abs(point.z - (sz + ((ez - sz) * angle) / sweep));
+    const theta = begin + (arc.cw ? -angle : angle);
+    let xyError = Math.hypot(point.x - (cx + radius * Math.cos(theta)), point.y - (cy + radius * Math.sin(theta)));
+    if (index === 0) xyError = Math.max(xyError, Math.hypot(point.x - sx, point.y - sy));
+    if (index === source.length - 1) xyError = Math.max(xyError, Math.hypot(point.x - ex, point.y - ey));
+    if (Math.hypot(error, xyError) > tolerance) return false;
     if (index > 0) {
-      const a = source[index - 1];
-      const dx = p.x - a.x,
-        dy = p.y - a.y;
-      const length2 = dx * dx + dy * dy;
-      const t = length2 ? Math.max(0, Math.min(1, ((cx - a.x) * dx + (cy - a.y) * dy) / length2)) : 0;
-      const nearestRadius = Math.hypot(a.x + t * dx - cx, a.y + t * dy - cy);
-      const radialBound = Math.max(previousRadialError, radialError, Math.abs(nearestRadius - radius));
       const angleDelta = angle - previousAngle;
       if (angleDelta > Math.PI / 4 + 1e-7) return false;
-      // Conservative bound for Z interpolation between vertices on a circular chord.
-      const zCurveBound = Math.abs(p.z - a.z) * (1 - Math.cos(angleDelta / 2));
-      if (Math.hypot(radialBound, Math.max(previousError, error) + zCurveBound) > tolerance) return false;
+      // Couple each source chord and circle interval by the same linear angular
+      // parameter. Endpoint XY error interpolates convexly; the circle's second
+      // derivative bounds interpolation error by R * angle² / 8. Z is affine.
+      const xyBound = Math.max(previousXYError, xyError) + (radius * angleDelta * angleDelta) / 8;
+      if (Math.hypot(xyBound, Math.max(previousError, error)) > tolerance) return false;
     }
     previousAngle = angle;
     previousError = error;
-    previousRadialError = radialError;
+    previousXYError = xyError;
   }
   return true;
 }
@@ -189,6 +253,7 @@ export function validateFluidNCOutput(program: string): void {
       if (!Number.isFinite(value) || (word === 'G' ? !gCodes.has(value) : word === 'M' ? !mCodes.has(value) : !'XYZIJKFSP'.includes(word)))
         throw new Error(`Unsupported output word ${word}${number} on line ${index + 1}`);
       if (word === 'F' && value <= 0) throw new Error(`Nonpositive output feed on line ${index + 1}`);
+      if ('XYZ'.includes(word)) coordinate(value, `Output ${word} on line ${index + 1}`);
     }
   }
 }

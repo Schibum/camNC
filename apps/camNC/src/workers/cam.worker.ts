@@ -26,7 +26,7 @@ import {
   kMaxSlopedShare,
   loadStep,
   loadStl,
-  metrics,
+  estimateProgramTime,
   readGcode,
   splitByBit,
   stepdownFor,
@@ -330,11 +330,13 @@ function releaseProgram(
     spindleRpm: settings.spindleRpm,
     spindle: settings.spindle,
   });
+  const timing = estimateProgramTime(gcode);
   return {
     kind,
     title,
     gcode,
-    timeMin: metrics(readGcode(gcode), cam.stockTop).timeMin,
+    timeMin: timing.estimatedAutomaticSeconds / 60,
+    timing,
     tool: tool.number,
     diameter: tool.diameter,
     pauses,
@@ -360,6 +362,13 @@ const turn2 = (turn: ReturnType<typeof rotateAboutOrigin>, p: { x: number; y: nu
 };
 const turnCam = (cam: PartCam, turn: ReturnType<typeof rotateAboutOrigin>): PartCam => ({
   ...cam,
+  stockSummary: undefined,
+  stockFootprint: cam.stockFootprint?.map(path =>
+    path.map(point => {
+      const [x, y] = turn([point.x, point.y, 0]);
+      return { x, y };
+    })
+  ),
   operations: cam.operations.map(op => ({ ...op, passes: op.passes.map(p => ({ ...p, pts: p.pts.map(turn) })) })),
 });
 
@@ -457,7 +466,8 @@ function summarize(
       spindleRpm: settings.spindleRpm,
       spindle: settings.spindle,
     });
-    return { tool: tool.number, diameter: tool.diameter, gcode, timeMin: metrics(readGcode(gcode), cam.stockTop).timeMin };
+    const timing = estimateProgramTime(gcode);
+    return { tool: tool.number, diameter: tool.diameter, gcode, timeMin: timing.estimatedAutomaticSeconds / 60, timing };
   });
   const ops = opSummaries(cam, partTop);
   const safety = programs.flatMap((p, i) =>
@@ -486,7 +496,7 @@ function summarize(
 
 /** The numbers of each operation. `partTop`: the parts' top face, which pocket depths are measured from. */
 function opSummaries(cam: PartCam, partTop: number): OpSummary[] {
-  const one = (ops: typeof cam.operations) => metrics(readGcode(toGcode({ ...cam, operations: ops })), cam.stockTop);
+  const one = (ops: typeof cam.operations) => estimateProgramTime(toGcode({ ...cam, operations: ops })).estimatedAutomaticSeconds / 60;
   return cam.operations.map(op => {
     const zs = op.passes.flatMap(p => p.pts.map(q => q[2]));
     const levels = new Set(op.passes.map(p => Math.min(...p.pts.map(q => q[2])).toFixed(2)));
@@ -504,7 +514,7 @@ function opSummaries(cam: PartCam, partTop: number): OpSummary[] {
       depthSteps: levels.size,
       stepdown: Math.max(...depths.slice(1).map((z, i) => depths[i] - z)),
       feeds: [...new Set(op.passes.flatMap(p => p.feeds.slice(1)))].sort((a, b) => b - a),
-      timeMin: one([op]).timeMin,
+      timeMin: one([op]),
     };
   });
 }

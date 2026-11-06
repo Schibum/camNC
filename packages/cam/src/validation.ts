@@ -1,6 +1,7 @@
 import type { PartFeatures } from './features';
 import type { PathD, PathsD } from './geom';
 import type { CamSettings, Tool } from './toolpaths';
+import { planAccuracy } from './accuracy';
 
 export interface CamInputIssue {
   field: string;
@@ -87,8 +88,22 @@ export function validateCamSettings(settings: CamSettings): void {
     'reducedFeed',
     'transitionFeed',
     'spindleRpm',
+    'minimumRoughingRadius',
+    'maxPlanarRemovalRate',
+    'minimumCuttingFeed',
   ] as const)
     if (settings[key] !== undefined) positiveValue(key, settings[key]);
+  if (settings.minimumCuttingFeed !== undefined && settings.minimumCuttingFeed < 0.001)
+    fail('minimumCuttingFeed', 'must be representable at the posted feed precision');
+  if (settings.pocketStrategy !== undefined && !['offset', 'controlled'].includes(settings.pocketStrategy))
+    fail('pocketStrategy', 'must be offset or controlled');
+  if (settings.sourceTolerance !== undefined) nonnegative('sourceTolerance', settings.sourceTolerance);
+  try {
+    planAccuracy(settings.geometryTolerance, settings.sourceTolerance);
+  } catch (error) {
+    fail('geometryTolerance', error instanceof Error ? error.message : 'invalid accuracy limits');
+  }
+  if (settings.blankFootprint) validatePaths(settings.blankFootprint, 'blankFootprint');
   positiveValue('material.stepdownFactor', settings.material?.stepdownFactor);
   if (settings.stepoverFactor > 1) fail('stepoverFactor', 'must not exceed one tool diameter');
   for (const tool of settings.tools)

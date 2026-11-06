@@ -2,6 +2,8 @@ import type { Vec3 } from './geom';
 import { pauseMarker, type PauseMarker } from './pauseMarker';
 import type { Operation, PartCam, Tool } from './toolpaths';
 import { fitVerticalRun, verticalRunEnd, type VerticalPrimitive } from './verticalArcs';
+import { certifyStockLinks } from './stockPlan';
+import { checkAccuracyBudget } from './accuracy';
 import {
   FLUIDNC_POST_PROFILE,
   quantizedArcIsSafe,
@@ -156,9 +158,23 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
   const retractZ = opts.retractZ ?? cam.retractZ ?? cam.stockTop + 2;
   const approachZ = cam.stockTop + 1;
   const useArcs = opts.arcs ?? true;
-  const tol = opts.arcTolerance ?? 0.01;
+  const tol = opts.arcTolerance ?? cam.accuracy?.budget.fitting ?? 0.01;
   const dwell = opts.spindleDwell ?? 3;
   validatePostInput(cam, { safeZ, retractZ, rpm, dwell, tolerance: tol, fallbackRpm: opts.spindleRpm ?? 15000, stockSize: opts.stockSize });
+  if (cam.accuracy) checkAccuracyBudget(cam.accuracy.budget);
+  if (useArcs && cam.accuracy && tol > cam.accuracy.budget.fitting + 1e-12)
+    throw new Error('Arc tolerance exceeds the machining plan fitting budget');
+  // Recheck the exact program order, including custom plans and programs split
+  // by tool. Header stock dimensions alone do not establish a known raw blank.
+  cam = certifyStockLinks(cam, {
+    plungeFeed: 480,
+    footprint: cam.stockFootprint,
+    tolerance: cam.accuracy?.budget.offset ?? 0.005,
+    pathTolerance:
+      (useArcs ? tol : 0) +
+      (cam.accuracy?.budget.outputRounding ?? Math.sqrt(3) * 0.0005) +
+      (cam.accuracy?.budget.controllerRounding ?? Math.sqrt(3) * 2 ** -10),
+  }).cam;
 
   const tools: { tool: Tool; zMin: number }[] = [];
   for (const op of cam.operations) {
@@ -258,10 +274,7 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
     op.passes.forEach((pass, pi) => {
       const [p0] = pass.pts;
       out.push(`(PASS ${pi + 1}/${op.passes.length} Z${fmt(Math.min(...pass.pts.map(p => p[2])))})`);
-      // Safety net: a direct link is only allowed for short hops (e.g. stepping between adjacent rings).
-      // A link the generator knows runs through cleared material may be longer.
-      const longLink = !pass.clearLink && Math.hypot(p0[0] - x, p0[1] - y) > op.tool.diameter;
-      if (pi === 0 || pass.link === 'retract' || longLink) {
+      if (pi === 0 || pass.link === 'retract') {
         move('G0', { z: pi === 0 ? safeZ : Math.max(retractZ, z) });
         move('G0', { x: p0[0], y: p0[1] });
         move('G0', { z: Math.max(approachZ, p0[2]) });

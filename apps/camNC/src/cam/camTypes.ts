@@ -1,5 +1,5 @@
 import type { FlipRegistration } from '@wbcnc/cam';
-import type { HoldDown, HoldPoint, PartSummary, TabStop } from '@wbcnc/cam';
+import type { HoldDown, HoldPoint, PartSummary, ProgramTimeEstimate, TabStop } from '@wbcnc/cam';
 
 /** Closed polygons as [x, y] point lists, in the part's flat frame (mm). */
 export type Outline2D = [number, number][][];
@@ -66,6 +66,8 @@ export interface ReleaseProgram {
   title: string;
   gcode: string;
   timeMin: number;
+  /** Automatic motion/dwell estimate; operator pauses and unresolved moves stay explicit. */
+  timing?: ProgramTimeEstimate;
   tool: number;
   diameter: number;
   /** Stops for a person: holding a part, taking one out. The spindle confirmation every program starts with doesn't count. */
@@ -98,7 +100,7 @@ export interface PlanResult {
    * What to run: one program per bit (FluidNC can't zero Z during an M0 pause, so bit swaps happen between programs).
    * `gcode` is all of them in order, for previews.
    */
-  programs: { tool: number; diameter: number; gcode: string; timeMin: number }[];
+  programs: { tool: number; diameter: number; gcode: string; timeMin: number; timing?: ProgramTimeEstimate }[];
   size: [number, number, number];
   path: [number, number, number][][];
   /**

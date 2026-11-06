@@ -1,6 +1,7 @@
 import { holdOptionsOf, partToBoard, type BoardPart, type BoardSpec } from './board';
 import type { TurnedOver } from './flip';
 import { holdState, layerAcross, tabWhole } from './hold';
+import { releaseMetadata } from './releaseMetadata';
 import {
   DEFAULT_TABS,
   throughCuts,
@@ -441,5 +442,5 @@ export function freePartsProgram(
       ys = pts.map(q => q[1]);
     parts.push({ name, at: { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 } });
   }
-  return { cam: { ...cam, operations: ops, warnings: [] }, parts };
+  return { cam: { ...cam, ...releaseMetadata(cam, turned), operations: ops, warnings: [] }, parts };
 }

@@ -2,9 +2,9 @@ import { bounds2, clipLines, difference, offset, pathLength, polyArea, type Path
 import type { MotionRole } from './motion';
 
 /** Cutter-centre region; outside profiles use a bounded portion of the waste surrounding the part. */
-export function profileEntryRegion(shape: PathD, toolRadius: number, leadRadius: number, inside: boolean): PathsD {
+export function profileEntryRegion(shape: PathD, toolRadius: number, leadRadius: number, inside: boolean, tolerance = 0.005): PathsD {
   const positive = polyArea([shape]) > 0 ? shape : [...shape].reverse();
-  if (inside) return offset([positive], -toolRadius);
+  if (inside) return offset([positive], -toolRadius, tolerance);
   const { minX, minY, maxX, maxY } = bounds2([shape]);
   const pad = toolRadius + 3 * leadRadius + 1;
   return difference(
@@ -16,7 +16,7 @@ export function profileEntryRegion(shape: PathD, toolRadius: number, leadRadius:
         { x: minX - pad, y: maxY + pad },
       ],
     ],
-    offset([positive], toolRadius)
+    offset([positive], toolRadius, tolerance)
   );
 }
 
@@ -46,7 +46,7 @@ export function lineInsideRegion(line: PathD, region: PathsD): boolean {
 }
 
 /** Tangent quarter-circle leads, wholly in a supplied cutter-centre region. No claim of already cleared stock. */
-export function tangentLoopPass(loop: PathD, z: number, feed: number, radius: number, free: PathsD, from = loop[0]) {
+export function tangentLoopPass(loop: PathD, z: number, feed: number, radius: number, free: PathsD, from = loop[0], tolerance = 0.005) {
   if (loop.length < 3 || !free.length || !Number.isFinite(radius) || radius <= 0) return undefined;
   const edges = loop
     .map((a, i) => ({ a, b: loop[(i + 1) % loop.length], i }))
@@ -66,7 +66,7 @@ export function tangentLoopPass(loop: PathD, z: number, feed: number, radius: nu
       if (!containsPoint({ x: p.x + normal.x * 0.01, y: p.y + normal.y * 0.01 }, free)) continue;
       for (const rho of [radius, radius / 2, radius / 4, radius / 8]) {
         const center = { x: p.x + normal.x * rho, y: p.y + normal.y * rho };
-        const steps = Math.max(6, Math.ceil(Math.PI / 2 / (2 * Math.acos(Math.max(-1, 1 - Math.min(0.005, rho) / rho)))));
+        const steps = Math.max(6, Math.ceil(Math.PI / 2 / (2 * Math.acos(Math.max(-1, 1 - Math.min(tolerance, rho) / rho)))));
         const arc = (k: number) => {
           const angle = (side * k * Math.PI) / (2 * steps),
             vx = -t.x,

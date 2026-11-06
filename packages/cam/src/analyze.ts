@@ -1,4 +1,4 @@
-/** Minimal G-code reader + metrics used to compare our output with Fusion's (POC tooling, not for the app). */
+/** G-code geometry, ideal-feed metrics, and path registration for diagnostics and stock analysis. */
 import { distPointSeg, type Vec3 } from './geom';
 
 export interface Move {
@@ -8,12 +8,26 @@ export interface Move {
   feed: number;
   /** Whether the program has the spindle running during this move (M3/M4 on, M5/M2/M30 off). */
   spindle: boolean;
+  coordinateFrame?: 'work' | 'machine';
+  /** False when a preceding machine-coordinate move cannot be mapped without a work offset. */
+  positionKnown?: boolean;
+}
+
+export interface ReadGcodeOptions {
+  initialWorkPosition?: Vec3;
+  initialMachinePosition?: Vec3;
+  /** Machine position minus work position, in mm. */
+  workOffset?: Vec3;
+  /** Default readers operate on stock/work geometry and omit machine-coordinate blocks. */
+  includeMachineMoves?: boolean;
 }
 
 /** Reads G0-G3 (all planes), discretizing arcs into <= 0.5mm / 5° chords. */
-export function readGcode(src: string): Move[] {
+export function readGcode(src: string, options: ReadGcodeOptions = {}): Move[] {
   const moves: Move[] = [];
-  let pos: Vec3 = [0, 0, 0];
+  let pos: Vec3 = options.initialWorkPosition ? [...options.initialWorkPosition] : [0, 0, 0];
+  let machinePos = options.initialMachinePosition;
+  const unknownAxes = new Set<number>();
   let motion = 0,
     plane = 17,
     feed = 0,
@@ -45,13 +59,32 @@ export function readGcode(src: string): Move[] {
     if (w.F !== undefined) feed = w.F;
     // M3 S0 doesn't turn anything.
     if (speed === 0) spindle = false;
-    if (!hasAxis || words.some(([k, v]) => k === 'G' && v === 53)) {
-      if (hasAxis && w.Z !== undefined) pos = [pos[0], pos[1], Math.max(pos[2], 20)];
+    if (!hasAxis) continue;
+    if (words.some(([k, v]) => k === 'G' && v === 53)) {
+      const from = options.workOffset ? (pos.map((v, axis) => v + options.workOffset![axis]) as Vec3) : machinePos;
+      const to = (['X', 'Y', 'Z'] as const).map((axis, i) => w[axis] ?? from?.[i] ?? 0) as Vec3;
+      if (options.includeMachineMoves)
+        moves.push({
+          from: from ?? [...to],
+          to,
+          rapid: motion === 0,
+          feed,
+          spindle,
+          coordinateFrame: 'machine',
+          positionKnown: from !== undefined,
+        });
+      machinePos = to;
+      (['X', 'Y', 'Z'] as const).forEach((axis, i) => {
+        if (w[axis] === undefined) return;
+        if (options.workOffset) pos[i] = w[axis] - options.workOffset[i];
+        else unknownAxes.add(i);
+      });
       continue;
     }
+    const known = unknownAxes.size ? { positionKnown: false as const } : {};
     const to: Vec3 = [w.X ?? pos[0], w.Y ?? pos[1], w.Z ?? pos[2]];
     if (motion <= 1) {
-      moves.push({ from: pos, to, rapid: motion === 0, feed, spindle });
+      moves.push({ from: pos, to, rapid: motion === 0, feed, spindle, ...known });
     } else {
       // Map plane to (u, v, axial) indices.
       const [u, v, a] = plane === 17 ? [0, 1, 2] : plane === 18 ? [2, 0, 1] : [1, 2, 0];
@@ -75,10 +108,15 @@ export function readGcode(src: string): Move[] {
         p[a] = pos[a] + (to[a] - pos[a]) * t;
         if (k === n) p[u] = to[u];
         if (k === n) p[v] = to[v];
-        moves.push({ from: prev, to: p, rapid: false, feed, spindle });
+        moves.push({ from: prev, to: p, rapid: false, feed, spindle, ...known });
         prev = p;
       }
     }
+    (['X', 'Y', 'Z'] as const).forEach((axis, i) => {
+      if (w[axis] !== undefined) unknownAxes.delete(i);
+    });
+    if (options.workOffset) machinePos = to.map((v, axis) => v + options.workOffset![axis]) as Vec3;
+    else machinePos = undefined;
     pos = to;
   }
   return moves;
@@ -87,8 +125,9 @@ export function readGcode(src: string): Move[] {
 export interface Metrics {
   cutLength: number;
   rapidLength: number;
-  /** Minutes: cuts at programmed feed, rapids at 9000 XY / 1800 Z. */
+  /** Ideal minutes at programmed feed and rapid limits, without acceleration, dwell, or operator pauses. */
   timeMin: number;
+  unresolvedMoves: number;
   /** Moves that go from above the stock top into material. */
   plunges: number;
   /** Distinct Z levels of horizontal cutting moves. */
@@ -96,14 +135,19 @@ export interface Metrics {
   zMin: number;
 }
 
-export function metrics(moves: Move[], stockTop: number, rapidXY = 9000, rapidZ = 1800): Metrics {
+export function metrics(moves: Move[], stockTop: number, rapidXY = 9000, rapidZ = 1200): Metrics {
   let cutLength = 0,
     rapidLength = 0,
     time = 0,
     plunges = 0,
-    zMin = Infinity;
+    zMin = Infinity,
+    unresolvedMoves = 0;
   const levels = new Map<string, number>();
   for (const m of moves) {
+    if (m.positionKnown === false || m.coordinateFrame === 'machine') {
+      unresolvedMoves++;
+      continue;
+    }
     const dxy = Math.hypot(m.to[0] - m.from[0], m.to[1] - m.from[1]);
     const dz = Math.abs(m.to[2] - m.from[2]);
     const len = Math.hypot(dxy, dz);
@@ -125,7 +169,7 @@ export function metrics(moves: Move[], stockTop: number, rapidXY = 9000, rapidZ 
     .filter(([, l]) => l > 5)
     .map(([z]) => +z)
     .sort((a, b) => b - a);
-  return { cutLength, rapidLength, timeMin: time, plunges, zLevels, zMin };
+  return { cutLength, rapidLength, timeMin: time, unresolvedMoves, plunges, zLevels, zMin };
 }
 
 /** XY polyline points of cutting moves at (within tol of) the deepest Z: the final outline pass. */
@@ -194,7 +238,7 @@ export const stats = (d: number[]) => {
   };
 };
 
-/** 2D transform applied to our moves to register them on Fusion's setup frame. */
+/** 2D transform used to register moves in another setup frame. */
 export type Xf = { rot: 0 | 1 | 2 | 3; mirror: boolean; dx: number; dy: number };
 
 export function applyXf([x, y]: [number, number], xf: Xf): [number, number] {
@@ -210,9 +254,9 @@ export function transformMoves(moves: Move[], xf: Xf): Move[] {
 }
 
 /**
- * Register our part frame on Fusion's setup frame: try the 4 rotations (mirrors optional: a mirror means the board
+ * Register a part frame on a reference setup frame: try the 4 rotations (mirrors optional: a mirror means the board
  * was flipped, which would put pockets on the wrong side), align bboxes, then refine the translation ICP-style
- * (Fusion's lead-in/out moves sit at the final depth too and skew the bbox).
+ * (lead-in/out moves can sit at the final depth too and skew the bbox).
  */
 export function register(ours: [number, number][], ref: [number, number][], mirrors = false): { xf: Xf; mean: number }[] {
   const bmin = (p: [number, number][]) => [Math.min(...p.map(q => q[0])), Math.min(...p.map(q => q[1]))];

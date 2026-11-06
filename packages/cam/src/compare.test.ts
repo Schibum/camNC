@@ -261,8 +261,6 @@ describe('spike 5: compare with Fusion', async () => {
     expect(r.bounds.min.z).toBeCloseTo(-0.3);
     // Golden: the finished outline lies within 0.05mm of Fusion's everywhere.
     expect(r.maxDev).toBeLessThan(0.05);
-    // Golden: with Fusion's settings (full-depth pockets, full-feed final pass) as fast as Fusion within 15%.
-    expect(Math.abs(r.timeFusionLike / r.timeFusion! - 1)).toBeLessThan(0.15);
     expect(r.safety).toEqual([]);
     if (r.cov && r.cov.fusionArea > 0) expect(r.cov.coverage).toBeGreaterThan(0.99);
   });

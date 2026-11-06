@@ -647,21 +647,22 @@ describe('pocket wall pass', () => {
 
   it('joins and leaves the wall on tangent arcs inside the pocket, never pushing into it', () => {
     const [pocket] = camPart(mortiseBoard(), { cutThrough: false }).operations;
-    const walls = pocket.passes.filter(p => p.clearLink);
+    const walls = pocket.passes.filter(p => p.roles?.includes('lead-in') && p.roles?.includes('lead-out'));
     // One wall pass per depth step (3 for 4.2mm at 0.5D in oak).
     expect(walls).toHaveLength(3);
     for (const pass of walls) {
       const pts = pass.pts;
-      const lead = 6; // quarter arc samples before the wall, and after it
-      const inP = pts[lead],
-        outP = pts[pts.length - 1 - lead];
+      const entry = pass.roles!.lastIndexOf('lead-in'),
+        exit = pass.roles!.indexOf('lead-out') - 1;
+      const inP = pts[entry],
+        outP = pts[exit];
       expect(distToWall(inP)).toBeCloseTo(0, 3);
       expect(distToWall(outP)).toBeCloseTo(0, 3);
       // Tangent: the arc arrives along the wall direction and leaves along it (chord vs. wall < 15°).
-      expect(angle(pts[lead - 1], inP, pts[lead + 1])).toBeLessThan(15);
-      expect(angle(pts[pts.length - 2 - lead], outP, pts[pts.length - lead])).toBeLessThan(15);
+      expect(angle(pts[entry - 1], inP, pts[entry + 1])).toBeLessThan(15);
+      expect(angle(pts[exit - 1], outP, pts[exit + 1])).toBeLessThan(15);
       // Lead arcs stay inside the pocket, off the wall (radius r: up to 2r from the wall).
-      for (const q of [...pts.slice(0, lead), ...pts.slice(pts.length - lead)]) {
+      for (const q of [...pts.slice(0, entry), ...pts.slice(exit + 1)]) {
         expect(distToWall(q)).toBeGreaterThan(0.01);
         expect(distToWall(q)).toBeLessThanOrEqual(2 * r + 1e-6);
       }

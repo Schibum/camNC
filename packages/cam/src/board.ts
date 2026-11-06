@@ -1,5 +1,7 @@
 import { readGcode } from './analyze';
 import { toolProgramKey } from './toolIdentity';
+import { tangentEntryClashes } from './boardEntrySafety';
+import { finalizePlan } from './finalizePlan';
 import { openPocketRegion, type PartFeatures } from './features';
 import { dowelOperations, partRect, type DowelSpec } from './flip';
 import { boardToPart, kDefaultSkin, planTabs, type PartHolding } from './tabPlan';
@@ -296,7 +298,26 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
           : h?.how === 'unheld'
             ? { tabs: false }
             : {};
-    const cam = camPart(part.features, { ...settings, tabs, stockTop, ...own });
+    const requested: Partial<CamSettings> = { ...settings, tabs, stockTop, ...own };
+    let cam = camPart(part.features, requested);
+    if (requested.profileEntry === 'tangent') {
+      const neighbors = board.parts
+        .filter(other => other.id !== part.id)
+        .flatMap(other =>
+          other.features.footprint.map(loop =>
+            loop.map(q => {
+              const [x, y] = partToBoard(other, [q.x, q.y, 0]);
+              return { x, y };
+            })
+          )
+        );
+      const tolerance =
+        'geometryTolerance' in settings && typeof settings.geometryTolerance === 'number' ? settings.geometryTolerance : 0.05;
+      if (tangentEntryClashes(cam, neighbors, q => partToBoard(part, q), tolerance)) {
+        cam = camPart(part.features, { ...requested, profileEntry: 'ramp' });
+        cam.warnings.push('Tangent profile lead intersects a neighboring part; using contour ramps');
+      }
+    }
     warnings.push(...cam.warnings.map(w => `${part.name}: ${w}`));
     cam.operations.forEach((op, index) =>
       ops.push({
@@ -353,7 +374,22 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
       }
     }
   }
-  return { stockTop, operations, warnings, ...(holding && { holding: [...holding.values()] }), ...aboveHolds(board, stockTop, settings) };
+  const blank = [
+    [
+      [0, 0, 0],
+      [board.w, 0, 0],
+      [board.w, board.h, 0],
+      [0, board.h, 0],
+    ].map(point => {
+      const q = turn(point as Vec3);
+      return { x: q[0], y: q[1] };
+    }),
+  ];
+  return finalizePlan(
+    { stockTop, operations, warnings, ...(holding && { holding: [...holding.values()] }), ...aboveHolds(board, stockTop, settings) },
+    { ...DEFAULT_SETTINGS, ...settings },
+    blank
+  );
 }
 
 /** Bits in the order a board program uses them. */
@@ -400,6 +436,9 @@ export function splitByBit(cam: PartCam): PartCam[] {
         stockTop: cam.stockTop,
         safeZ: cam.safeZ,
         retractZ: cam.retractZ,
+        accuracy: cam.accuracy,
+        stockFootprint: cam.stockFootprint,
+        stockSummary: cam.stockSummary,
         operations: [op],
         warnings: out.length ? [] : cam.warnings,
       });
