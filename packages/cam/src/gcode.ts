@@ -1,6 +1,17 @@
 import type { Vec3 } from './geom';
 import { pauseMarker, type PauseMarker } from './pauseMarker';
 import type { Operation, PartCam, Tool } from './toolpaths';
+import {
+  FLUIDNC_POST_PROFILE,
+  quantizedArcIsSafe,
+  quantizePostNumber,
+  validateFluidNCOutput,
+  validatePostInput,
+  type FluidNCPostProfile,
+} from './postValidation';
+
+export { FLUIDNC_POST_PROFILE, validateFluidNCOutput } from './postValidation';
+export type { FluidNCPostProfile } from './postValidation';
 
 type P2 = { x: number; y: number };
 export type Prim<P extends P2 = P2> = { type: 'line'; to: P } | { type: 'arc'; to: P; c: P2; cw: boolean };
@@ -21,12 +32,15 @@ function circleThrough(a: P2, b: P2, c: P2): { c: P2; r: number } | undefined {
  * maxSagitta from the arc) by a G2/G3 arc. Tessellated circles from the STEP mesh and Clipper round joins both come back as arcs.
  */
 export function fitArcs<P extends P2>(p: P[], tol = 0.01, maxSagitta = 0.05, maxRadius = 1000): Prim<P>[] {
+  if (![tol, maxRadius].every(v => Number.isFinite(v) && v > 0) || !Number.isFinite(maxSagitta) || maxSagitta < 0)
+    throw new Error('Arc fitting requires a positive tolerance/radius and a nonnegative chord deviation');
+  if (p.some(q => !Number.isFinite(q.x) || !Number.isFinite(q.y))) throw new Error('Arc fitting requires finite XY coordinates');
   const out: Prim<P>[] = [];
   const n = p.length;
   let i = 0;
   const check = (i: number, j: number) => {
     const circ = circleThrough(p[i], p[(i + j) >> 1], p[j]);
-    if (!circ || circ.r > maxRadius) return undefined;
+    if (!circ || !Number.isFinite(circ.r) || circ.r > maxRadius) return undefined;
     let sweep = 0,
       sign = 0;
     for (let k = i + 1; k <= j; k++) {
@@ -70,6 +84,8 @@ export function fitArcs<P extends P2>(p: P[], tol = 0.01, maxSagitta = 0.05, max
 export type SpindleSwitch = 'hand' | 'controller';
 
 export interface GcodeOptions {
+  /** Explicit controller dialect; preserves the work offset established during setup. */
+  postProfile?: FluidNCPostProfile['id'];
   partName?: string;
   /** The board's name ("A"): the header then says XY0 is that board's lower left corner. */
   board?: string;
@@ -90,7 +106,7 @@ export interface GcodeOptions {
 }
 
 const fmt = (v: number) => {
-  const s = v.toFixed(3).replace(/\.?0+$/, '');
+  const s = v.toFixed(FLUIDNC_POST_PROFILE.coordinateDecimals).replace(/\.?0+$/, '');
   return s === '-0' ? '0' : s;
 };
 
@@ -98,7 +114,7 @@ const fmt = (v: number) => {
  * FluidNC rejects a line longer than this, comments included ("error:14" in `gc_execute_line`), which stops the job with
  * an alarm: names and messages are clipped to fit.
  */
-export const kMaxGcodeLine = 127;
+export const kMaxGcodeLine = FLUIDNC_POST_PROFILE.maxLineBytes;
 const encoder = new TextEncoder();
 
 /**
@@ -132,8 +148,7 @@ export const kParkMachineZ = -5;
  * several programs (`splitByBit`): FluidNC can't zero Z while a program is paused, so a swap can't happen inside one.
  */
 export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
-  const diameters = new Set(cam.operations.map(o => o.tool.diameter));
-  if (diameters.size > 1) throw new Error(`One program per bit: split the ${diameters.size} bits with splitByBit first`);
+  if (opts.postProfile !== undefined && opts.postProfile !== FLUIDNC_POST_PROFILE.id) throw new Error('Unsupported post profile');
   const rpm = cam.operations[0]?.tool.rpm ?? opts.spindleRpm ?? 15000;
   const byHand = (opts.spindle ?? 'hand') === 'hand';
   const safeZ = opts.safeZ ?? cam.safeZ ?? cam.stockTop + 5;
@@ -141,6 +156,8 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
   const approachZ = cam.stockTop + 1;
   const useArcs = opts.arcs ?? true;
   const tol = opts.arcTolerance ?? 0.01;
+  const dwell = opts.spindleDwell ?? 3;
+  validatePostInput(cam, { safeZ, retractZ, rpm, dwell, tolerance: tol, fallbackRpm: opts.spindleRpm ?? 15000, stockSize: opts.stockSize });
 
   const tools: { tool: Tool; zMin: number }[] = [];
   for (const op of cam.operations) {
@@ -158,7 +175,7 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
   out.push(`(X0 Y0 = lower left corner of ${corner}${size}. Z0 = stock bottom)`);
   out.push('( Tools Table:)', ...tools.map(t => toolLine(t.tool, t.zMin)), '( )');
   for (const w of cam.warnings) out.push(`(WARNING: ${commentText(w, kMaxGcodeLine - '(WARNING: )'.length)})`);
-  out.push('G21 G90 G94 G17');
+  out.push(...FLUIDNC_POST_PROFILE.startup);
 
   let x = NaN,
     y = NaN,
@@ -179,7 +196,7 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
     const g = a.cw ? 'G2' : 'G3';
     const words = [`X${fmt(a.to.x)}`, `Y${fmt(a.to.y)}`];
     if (toZ !== undefined && fmt(toZ) !== fmt(z)) words.push(`Z${fmt((z = toZ))}`);
-    words.push(`I${fmt(a.c.x - x)}`, `J${fmt(a.c.y - y)}`);
+    words.push(`I${fmt(a.c.x - quantizePostNumber(x))}`, `J${fmt(a.c.y - quantizePostNumber(y))}`);
     if (feed !== f) words.push(`F${fmt((f = feed))}`);
     out.push((g !== motion ? `${(motion = g)} ` : '') + words.join(' '));
     x = a.to.x;
@@ -190,7 +207,7 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
   let spindleOff = true;
   const spindleOn = () => {
     if (!spindleOff) return;
-    out.push(`M3 S${rpm}`, `G4 P${fmt(opts.spindleDwell ?? 3)}`);
+    out.push(`M3 S${fmt(rpm)}`, `G4 P${fmt(dwell)}`);
     spindleOff = false;
   };
   /** Bit up and spindle off before anyone reaches in; nothing moves until Resume. */
@@ -251,11 +268,16 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
         while (useArcs && j < pass.pts.length && pass.feeds[j] === pass.feeds[i] && xy(j) > 1e-9 && Math.abs(slope(j) - s0) < 1e-4) j++;
         if (j - i >= 3) {
           const run = pass.pts.slice(i - 1, j).map(p => ({ x: p[0], y: p[1], z: p[2] }));
-          for (const prim of fitArcs(run, tol)) {
+          const indices = new Map(run.map((point, index) => [point, index]));
+          let from = 0;
+          for (const prim of fitArcs(run, tol, tol)) {
+            const end = indices.get(prim.to)!;
             // Preserve the planned depth at each endpoint. Fitted arcs are longer than the original chords:
             // multiplying their length by the chord slope would overshoot the floor before correcting back up.
             if (prim.type === 'line') move('G1', { x: prim.to.x, y: prim.to.y, z: prim.to.z }, pass.feeds[i]);
-            else arc(prim, pass.feeds[i], prim.to.z);
+            else if (quantizedArcIsSafe({ x, y, z }, run.slice(from, end + 1), prim, tol)) arc(prim, pass.feeds[i], prim.to.z);
+            else for (const point of run.slice(from + 1, end + 1)) move('G1', point, pass.feeds[i]);
+            from = end;
           }
           i = j;
         } else {
@@ -274,5 +296,7 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
   // M5 did nothing on a router switched by hand: parked, say so. Not after a last pause that already did.
   if (byHand && !cam.operations.at(-1)?.pauseAfter) out.push(pauseMarker({ kind: 'done' }), `M0 (MSG Program done. ${kManualOff})`);
   out.push('M30');
-  return out.join('\n') + '\n';
+  const program = out.join('\n') + '\n';
+  validateFluidNCOutput(program);
+  return program;
 }

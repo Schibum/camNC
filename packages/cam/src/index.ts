@@ -14,9 +14,12 @@ export {
   MATERIALS,
 } from './toolpaths';
 export type { CamSettings, Tool, Material, TabSettings, Operation, Pass, PartCam } from './toolpaths';
-export { toGcode, fitArcs } from './gcode';
+export { CamInputError, validateCamSettings, validateFeatures } from './validation';
+export type { CamInputIssue } from './validation';
+export { samePhysicalTool, toolIdentityKey, toolProgramKey } from './toolIdentity';
+export { toGcode, fitArcs, FLUIDNC_POST_PROFILE, validateFluidNCOutput } from './gcode';
 export { pauseMarker, parsePauseMarker } from './pauseMarker';
-export type { GcodeOptions, SpindleSwitch } from './gcode';
+export type { GcodeOptions, SpindleSwitch, FluidNCPostProfile } from './gcode';
 export type { PauseMarker } from './pauseMarker';
 export { readGcode, metrics } from './analyze';
 export type { Move, Metrics } from './analyze';

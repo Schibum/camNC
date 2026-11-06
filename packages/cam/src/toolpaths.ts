@@ -1,10 +1,13 @@
 import type { SpindleSwitch } from './gcode';
+import { CamInputError, validateCamSettings, validateFeatures, validateDepthRange, validatePaths, validateTool } from './validation';
 import { areaD, pointInPolygonD, PointInPolygonResult, simplifyPathsD, type PathD, type PathsD } from 'clipper2-ts';
 import { openPocketRegion, type PartFeatures } from './features';
 import { cleanRegion, clipLines, difference, intersect, offset, pathLength, polyArea, union, type Vec3 } from './geom';
 
 export interface Tool {
   number: number;
+  /** Stable tool-library identity, independent of its editable name. */
+  guid?: string;
   /** Flat end mill diameter in mm. */
   diameter: number;
   name?: string;
@@ -20,6 +23,9 @@ export interface Tool {
   finalFeedFactor?: number;
   /** Length of cut, mm: deeper cuts get a warning. */
   fluteLength?: number;
+  flutes?: number;
+  /** Measured distance from the collet nut to the tip, mm. */
+  stickout?: number;
 }
 
 export { MATERIALS, DEFAULT_TABS, type Material, type TabSettings } from './settings';
@@ -206,6 +212,8 @@ function rampOnWasteEdge(loop: Loop, zFrom: number, zTo: number, s: CamSettings)
   const [a, b] = loop;
   const edge = Math.sqrt(dist2(a, b));
   const slope = Math.tan((s.rampAngleDeg * Math.PI) / 180);
+  if ((zFrom - zTo) / (edge * slope) > 1000)
+    throw new CamInputError([{ field: 'rampAngleDeg', message: 'would require more than 1000 entry traversals' }]);
   const pts: Vec3[] = [[a.x, a.y, zFrom]];
   const feeds = [s.plungeFeed];
   let z = zFrom,
@@ -317,6 +325,8 @@ function rampLoop(loop: Loop, zFrom: number, zTo: number, s: CamSettings, tool: 
     feeds.push(s.plungeFeed);
   } else {
     const rampLen = (zFrom - zTo) / Math.tan((s.rampAngleDeg * Math.PI) / 180);
+    if (Math.ceil(rampLen / per) * loop.length > 100_000)
+      throw new CamInputError([{ field: 'rampAngleDeg', message: 'would require more than 100000 entry segments' }]);
     pts.push([loop[0].x, loop[0].y, zFrom]);
     feeds.push(s.plungeFeed);
     let travelled = 0;
@@ -402,6 +412,7 @@ export function stepdownFor(tool: Tool, s: Pick<CamSettings, 'maxStepdown' | 'ma
 }
 
 function depthLevels(top: number, bottom: number, maxStep: number): number[] {
+  validateDepthRange(top, bottom, maxStep);
   const n = Math.max(1, Math.ceil((top - bottom) / maxStep - 1e-9));
   return Array.from({ length: n }, (_, k) => top - ((k + 1) * (top - bottom)) / n);
 }
@@ -472,6 +483,8 @@ function rampAlong(line: PathD, zFrom: number, zTo: number, s: CamSettings): Pas
   const slope = Math.tan((s.rampAngleDeg * Math.PI) / 180);
   const leg = prefix(line, Math.min(pathLength(line, false), 30));
   const legLen = pathLength(leg, false);
+  if (legLen <= 0 || (zFrom - zTo) / (legLen * slope) > 1000)
+    throw new CamInputError([{ field: 'rampAngleDeg', message: 'entry cannot reach the floor within 1000 traversals' }]);
   const pts: Vec3[] = [[leg[0].x, leg[0].y, zFrom]];
   const feeds = [s.plungeFeed];
   let z = zFrom,
@@ -619,6 +632,10 @@ export function pocketOperation(
   settings: CamSettings,
   solid?: PathsD
 ): Operation {
+  validateCamSettings(settings);
+  validateTool(tool);
+  validatePaths(region, 'pocket');
+  validateDepthRange(topZ, floorZ, stepdownFor(tool, settings));
   const s = cuttingWith(tool, settings);
   const r = tool.diameter / 2;
   const stepover = s.stepoverFactor * tool.diameter;
@@ -660,6 +677,8 @@ export function pocketOperation(
     const rings: PathsD[] = [];
     const c = s.innerCornerRadius;
     for (let cur = allowance > 0 ? offset(comps[ci], -r - allowance) : free; cur.length; ) {
+      if (rings.length >= 10_000)
+        throw new CamInputError([{ field: 'stepoverFactor', message: 'would require more than 10000 pocket rings' }]);
       // Inner rings get rounded corners (an opening keeps them inside the ring); the wall ring keeps its shape.
       // (Simplified: the double offset leaves near-collinear micro-segments that arc fitting can't merge.)
       const rounded = rings.length && c > 0 ? simplifyPathsD(offset(offset(cur, -c), c), 0.002, true) : cur;
@@ -832,9 +851,6 @@ export function placeTabs(loop: Loop, tabs: TabSettings, tool: Tool): { x: numbe
 /** profileOperation's bit loops per shape (and bit radius, allowance, direction). */
 const loopCache = new WeakMap<PathD, Map<string, { rough: Loop; final: Loop } | null>>();
 
-/** A final pass this far or more below the stock bottom (dowel holes) is too deep to take in one go. */
-const kDeepBelowStock = 1;
-
 export function profileOperation(
   name: string,
   loopShape: PathD,
@@ -843,6 +859,9 @@ export function profileOperation(
   settings: CamSettings,
   inside = false
 ): Operation {
+  validateCamSettings(settings);
+  validateTool(tool);
+  validatePaths([loopShape], 'profile');
   const s = cuttingWith(tool, settings);
   const r = tool.diameter / 2;
   const sign = inside ? -1 : 1;
@@ -875,14 +894,14 @@ export function profileOperation(
 
   // A bottom skin (outlines only): the final pass stops there, and roughing never goes below it.
   const floorZ = inside ? s.finalZ : (s.outlineFloor ?? s.finalZ);
-  const roughBottom = Math.max(s.profileRoughBottom, floorZ);
+  const roughBottom = Math.min(topZ, Math.max(s.profileRoughBottom, floorZ));
   const profileStep = s.profileStepdown ?? stepdownFor(tool, s);
-  // Normally the final pass takes what's left to just below the board. Far below it (dowel holes, into the spoilboard)
-  // that would be one lap many mm deep in a full-width cut: roughing goes on down, the final pass takes one more step.
-  const deep = floorZ < -kDeepBelowStock;
-  const roughTo = deep ? floorZ : roughBottom;
+  validateDepthRange(topZ, floorZ, profileStep);
+  // The strip under the roughing floor is a new axial cut, even with a light radial finish allowance.
+  const extendRoughing = roughBottom - floorZ > profileStep + 1e-9;
+  const roughTo = extendRoughing ? floorZ : roughBottom;
   const roughLevels = topZ - roughTo > 0.01 ? depthLevels(topZ, roughTo, profileStep) : [];
-  if (deep) roughLevels.pop();
+  if (extendRoughing) roughLevels.pop();
   roughLevels.forEach((z, i) => {
     const pts = closeLoop(rough, z);
     passes.push({ pts, feeds: pts.map((_, k) => (k === 0 ? s.plungeFeed : s.feed)), link: i === 0 ? 'retract' : 'direct' });
@@ -932,6 +951,8 @@ function narrowSpots(region: PathsD, reached: PathsD, tool: Tool): PathsD {
  */
 export function throughCuts(features: PartFeatures, settings: Partial<CamSettings> = {}): Operation[] {
   const s: CamSettings = { ...DEFAULT_SETTINGS, ...settings, tabs: false, outlineFloor: undefined };
+  validateCamSettings(s);
+  validateFeatures(features);
   const top = Math.max(s.stockTop ?? 0, features.levels[0]?.z ?? features.thickness);
   const tools = [...s.tools].sort((a, b) => b.diameter - a.diameter);
   const fits = (region: PathsD) => (t: Tool) => offset(region, -t.diameter / 2).length > 0;
@@ -965,6 +986,8 @@ const kLooseSlugArea = 2500;
 
 export function camPart(features: PartFeatures, settings: Partial<CamSettings> = {}): PartCam {
   const s: CamSettings = { ...DEFAULT_SETTINGS, ...settings };
+  validateCamSettings(s);
+  validateFeatures(features);
   const top = Math.max(s.stockTop ?? 0, features.levels[0]?.z ?? features.thickness);
   const tools = [...s.tools].sort((a, b) => b.diameter - a.diameter);
   const warnings: string[] = [];

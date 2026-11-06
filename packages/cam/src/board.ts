@@ -1,4 +1,5 @@
 import { readGcode } from './analyze';
+import { toolProgramKey } from './toolIdentity';
 import { openPocketRegion, type PartFeatures } from './features';
 import { dowelOperations, partRect, type DowelSpec } from './flip';
 import { boardToPart, kDefaultSkin, planTabs, type PartHolding } from './tabPlan';
@@ -393,7 +394,7 @@ export function splitByBit(cam: PartCam): PartCam[] {
   const out: PartCam[] = [];
   for (const op of cam.operations) {
     const last = out.at(-1);
-    if (last && last.operations[0].tool.diameter === op.tool.diameter) last.operations.push(op);
+    if (last && toolProgramKey(last.operations[0].tool) === toolProgramKey(op.tool)) last.operations.push(op);
     else
       out.push({
         stockTop: cam.stockTop,

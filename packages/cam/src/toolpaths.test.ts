@@ -250,9 +250,9 @@ describe('spike 3/4: toolpaths + gcode', () => {
   });
 
   it.each([false, true])('preserves planned ramp depths when fitting helical arcs (ascending=%s)', ascending => {
-    const pts: Vec3[] = Array.from({ length: 13 }, (_, i) => {
-      const a = (i * Math.PI) / 6;
-      return [10 + Math.cos(a), 10 + Math.sin(a), ascending ? 0.64 + i * 0.03 : 1 - i * 0.03];
+    const pts: Vec3[] = Array.from({ length: 37 }, (_, i) => {
+      const a = (i * Math.PI) / 18;
+      return [10 + Math.cos(a), 10 + Math.sin(a), ascending ? 0.64 + i * 0.01 : 1 - i * 0.01];
     });
     const gcode = toGcode({
       stockTop: 1,
@@ -474,12 +474,15 @@ describe('profile depth', () => {
     expect(z.filter(v => Math.abs(v + 6) < 1e-6)).toHaveLength(1);
   });
 
-  it('a normal through cut stays as it was: rough to 1 mm, then the final pass', () => {
+  it('keeps a light through pass and subdivides a deeper release strip', () => {
     const [op] = camPart(pinBoard(10), { tools: [{ number: 1, diameter: 3.175, stepdown: 1.6 }] }).operations;
     expect(levels(op).slice(-2)).toEqual([1, -0.3]);
-    expect(
-      levels(camPart(pinBoard(10), { tools: [{ number: 1, diameter: 3.175, stepdown: 1.6 }], finalZ: -1 }).operations[0]).slice(-2)
-    ).toEqual([1, -1]);
+    const deeper = [
+      18.3,
+      ...levels(camPart(pinBoard(10), { tools: [{ number: 1, diameter: 3.175, stepdown: 1.6 }], finalZ: -1 }).operations[0]),
+    ];
+    expect(deeper.at(-1)).toBe(-1);
+    for (let i = 1; i < deeper.length; i++) expect(deeper[i - 1] - deeper[i]).toBeLessThanOrEqual(1.6 + 1e-9);
   });
 
   it('a hole hardly wider than the bit is still cut', () => {
