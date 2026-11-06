@@ -523,9 +523,8 @@ describe('CAM boards step', () => {
 
   it('keeps the stick-out with the job’s bit, not the board', async () => {
     const job = await openKinderregal();
-    const sizes = () => fireEvent.click(screen.getByRole('button', { name: 'Clamp and screw sizes…' }));
     const field = () => document.getElementById('hold-stickout') as HTMLInputElement;
-    sizes();
+    fireEvent.click(screen.getByRole('button', { name: 'Clamp and screw sizes…' }));
     await waitFor(() => expect(field()).toBeTruthy(), { timeout: 10_000 });
     fireEvent.change(field(), { target: { value: '42' } });
     fireEvent.blur(field());
@@ -536,12 +535,10 @@ describe('CAM boards step', () => {
       },
       { timeout: 10_000 }
     );
-    // Every board of the job shows it.
-    fireEvent.keyDown(field(), { key: 'Escape' });
-    await waitFor(() => expect(field()).toBeNull(), { timeout: 10_000 });
-    openBoard('B');
-    sizes();
-    await waitFor(() => expect(field().value).toBe('42'), { timeout: 10_000 });
+    // Every board of the job shows it: the open dialog follows the selected board.
+    fireEvent.click(screen.getByRole('button', { name: 'Board B', hidden: true }));
+    await screen.findByRole('region', { name: 'Board B drawing', hidden: true }, { timeout: 10_000 });
+    expect(field().value).toBe('42');
   }, 90_000);
 
   it('auto-fill optimizes for fewest boards unless the job says least wood', async () => {
