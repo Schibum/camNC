@@ -4,6 +4,7 @@ import { splitByBit } from './board';
 import { toGcode } from './gcode';
 import { camPart, DEFAULT_SETTINGS, pocketOperation, profileOperation, type CamSettings, type Tool } from './toolpaths';
 import { CamInputError, validateCamSettings } from './validation';
+import { parseFusionToolLibrary } from './tools';
 
 describe('cutting input validation', () => {
   it.each([
@@ -41,6 +42,9 @@ describe('cutting input validation', () => {
     { pocketFinishFeedFactor: 0 },
     { finalFeedFactor: NaN },
     { tools: [] },
+    { tools: [{ number: -1, diameter: 3.175 }] },
+    { tools: [{ number: 0.5, diameter: 3.175 }] },
+    { tools: [{ number: NaN, diameter: 3.175 }] },
     { tools: [{ number: 1, diameter: 0 }] },
     { tools: [{ number: 1, diameter: 3.175, stepdown: -1 }] },
     { tools: [{ number: 1, diameter: 3.175, stepover: 4 }] },
@@ -77,6 +81,20 @@ describe('cutting input validation', () => {
     expect(() => pocketOperation('pocket', [rectangle(0, 0, 40, 30)], 12, 14, DEFAULT_SETTINGS.tools[0], DEFAULT_SETTINGS)).toThrow(
       /floorZ/
     );
+  });
+
+  it('preserves tool number zero from library import through planning and posting', () => {
+    const tools = parseFusionToolLibrary({
+      data: [{ type: 'flat end mill', guid: 'tool-zero', geometry: { DC: 3.175 }, 'post-process': { number: 0 } }],
+    });
+    expect(tools[0].number).toBe(0);
+    const cam = camPart(machiningCases.rectangle(), { tools });
+    expect(cam.operations.length).toBeGreaterThan(0);
+    expect(cam.operations.every(operation => operation.tool.number === 0)).toBe(true);
+    expect(toGcode(cam)).toContain('T0 D=3.175');
+    expect(
+      splitByBit({ ...cam, operations: [...cam.operations, { ...cam.operations[0], tool: { ...tools[0], number: 1 } }] })
+    ).toHaveLength(2);
   });
 });
 

@@ -120,7 +120,7 @@ export function validatePostInput(cam: PartCam, settings: PostInputSettings): vo
   cam.operations.forEach((op, operation) => {
     const where = `Operation ${operation + 1}`;
     const tool = op.tool;
-    if (!Number.isInteger(tool.number) || tool.number < 1) throw new Error(`${where}: tool number must be a positive integer`);
+    if (!Number.isInteger(tool.number) || tool.number < 0) throw new Error(`${where}: tool number must be a nonnegative integer`);
     positive(tool.diameter, `${where}: tool diameter`);
     for (const key of ['fluteLength', 'stickout'] as const) if (tool[key] !== undefined) positive(tool[key], `${where}: ${key}`);
     if (tool.flutes !== undefined && (!Number.isInteger(tool.flutes) || tool.flutes < 1))

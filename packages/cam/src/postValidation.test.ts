@@ -94,7 +94,7 @@ describe('post input validation', () => {
     expect(() => toGcode(cam, { spindleRpm: 15000 })).toThrow(/One spindle speed/);
   });
 
-  it.each([{ diameter: 0 }, { number: 0 }, { diameter: NaN }, { fluteLength: Infinity }, { rpm: 0 }])(
+  it.each([{ diameter: 0 }, { number: -1 }, { number: 0.5 }, { number: NaN }, { diameter: NaN }, { fluteLength: Infinity }, { rpm: 0 }])(
     'rejects malformed tools (%j)',
     change => {
       expect(() => toGcode(program(undefined, { ...tool, ...change }))).toThrow();

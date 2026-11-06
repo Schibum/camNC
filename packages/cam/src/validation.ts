@@ -36,7 +36,7 @@ function nonnegative(field: string, value: number): void {
 
 export function validateTool(tool: Tool, field = 'tool'): void {
   if (!tool || typeof tool !== 'object') fail(field, 'is required');
-  positiveValue(`${field}.number`, tool.number);
+  nonnegative(`${field}.number`, tool.number);
   if (!Number.isInteger(tool.number)) fail(`${field}.number`, 'must be an integer');
   positiveValue(`${field}.diameter`, tool.diameter);
   for (const key of [
