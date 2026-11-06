@@ -1125,6 +1125,7 @@ export function autoFillFromStock(
       pack,
       { objective }
     );
+    const rebuiltFrom = out.length + kept.length;
     out.push(...kept, ...res.boards.map(b => fresh(b.items, { fit: false, w: b.sheet.w, h: b.sheet.h })));
     // Never a board bigger than the stock: parts left when the stock ran out go on more boards of the stock's sizes
     // (to buy), and parts too big for any of them on one board of the biggest size, where they show as not fitting.
@@ -1141,6 +1142,11 @@ export function autoFillFromStock(
       const biggest = sheets.reduce((a, s) => (s.w * s.h > a.w * a.h ? s : a));
       out.push(fresh(res.tooBig, { fit: false, w: biggest.w, h: biggest.h }));
     }
+    // The boards made here take over the names the user gave the ones they replace.
+    const names = old.filter(b => boardLabel(b) === b.name && !kept.some(k => k.id === b.id)).map(b => b.name);
+    out.slice(rebuiltFrom).forEach((b, i) => {
+      if (names[i]) b.name = names[i];
+    });
     tooBig.push(...res.tooBig);
     short.push(...res.short);
   }

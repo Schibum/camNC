@@ -153,6 +153,12 @@ describe('boards', () => {
     expect(names).toContain('Back panel');
     expect(names).not.toContain('A');
     expect(new Set(names).size).toBe(names.length);
+
+    // With stock for it, the board is made anew: the new one takes over its name.
+    const rebuilt = autoFillFromStock([{ ...a, name: 'Shelves' }, b], parts, stock, 3.175, 'oak');
+    expect(rebuilt.boards[0]).toMatchObject({ name: 'Shelves', thickness: 8, size: { fit: false, w: 600, h: 400 } });
+    expect(rebuilt.boards[0].id).not.toBe(a.id);
+    expect(new Set(rebuilt.boards.map(x => x.name)).size).toBe(rebuilt.boards.length);
   });
 
   it('auto-fills stock boards, overflowing onto more boards, with unique names', () => {
