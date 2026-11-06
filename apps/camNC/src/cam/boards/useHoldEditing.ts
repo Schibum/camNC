@@ -126,10 +126,15 @@ export function useHoldEditing({
     }
   }, [canPlace]);
 
+  /** A clamp's width where it differs: the one being moved, or the next one placed. */
+  const widthOf = (i: number | null) => {
+    const moved = i === null ? undefined : selectedBoard?.board.fixtures?.[i];
+    return i === null ? newSizes.clamp.w : moved?.kind === 'clamp' ? moved.w : undefined;
+  };
   /** The fixture at a point: previewed on its board with the parts moved aside for it, or refused. */
   const preview = ({ board, nest }: JobBoard, kind: HoldKind, p: { x: number; y: number }, i: number | null) => {
     const f = {
-      ...fixtureAt(kind, p, board, nest, instances, bit, { ...nestOptions, exact: i !== null }),
+      ...fixtureAt(kind, p, board, nest, instances, bit, { ...nestOptions, exact: i !== null, clampWidth: widthOf(i) }),
       ...(i === null ? newSizes[kind] : {}),
     };
     const key = `${board.id}:${i}:${JSON.stringify(f)}`;

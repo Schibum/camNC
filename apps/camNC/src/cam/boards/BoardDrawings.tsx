@@ -745,7 +745,10 @@ export function BoardDrawings({
                                 onSelect(board.id);
                                 // A click without hovering first (a finger): where it landed.
                                 const f = {
-                                  ...fixtureAt(holdTool, p, board, b.nest, instances, bit, nestOptions),
+                                  ...fixtureAt(holdTool, p, board, b.nest, instances, bit, {
+                                    ...nestOptions,
+                                    clampWidth: holds.newSizes.clamp.w,
+                                  }),
                                   ...holds.newSizes[holdTool],
                                 };
                                 const fixtures = [...(board.fixtures ?? []), f];

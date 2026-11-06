@@ -940,7 +940,7 @@ export function fixtureAt(
   nest: Pick<BoardNest, 'board' | 'placements'>,
   instances: PartInstance[],
   bit: number,
-  opts: NestOptions & { exact?: boolean } = {}
+  opts: NestOptions & { exact?: boolean; clampWidth?: number } = {}
 ): Fixture {
   const { w, h } = nest.board;
   if (kind === 'screw') {
@@ -952,7 +952,9 @@ export function fixtureAt(
   const dir = edgeDir(p, { w, h });
   const side: BoardSide = dir.x === 1 ? 'left' : dir.x === -1 ? 'right' : dir.y === 1 ? 'bottom' : 'top';
   const along = side === 'left' || side === 'right';
-  return { kind, side, at: Math.round(Math.max(hw.clamp.w / 2, Math.min((along ? h : w) - hw.clamp.w / 2, along ? p.y : p.x))) };
+  // A clamp of its own width stops where that one reaches the end of the edge.
+  const half = (opts.clampWidth ?? hw.clamp.w) / 2;
+  return { kind, side, at: Math.round(Math.max(half, Math.min((along ? h : w) - half, along ? p.y : p.x))) };
 }
 
 /** A part at this spot keeps clear of the board's fixtures: its real outline, with room for the cut. */

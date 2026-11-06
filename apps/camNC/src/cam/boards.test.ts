@@ -18,6 +18,7 @@ import {
   edgeNote,
   holdDownOf,
   holdPointOf,
+  fixtureAt,
   fixtureOf,
   layoutChange,
   nutAboveOf,
@@ -775,6 +776,12 @@ describe('boards', () => {
       expect(holdPointOf({ kind: 'clamp', side: 'left', at: 100 }, { w: 500, h: 400 }, hw, 10)).toMatchObject(hw.clamp);
       expect(holdPointOf({ kind: 'screw', x: 5, y: 6, d: 14, height: 9 }, { w: 500, h: 400 }, hw, 10)).toMatchObject({ d: 14, height: 9 });
       expect(fixtureBox(own, { w: 500, h: 400, sizes: { clampReach: 1, clampWidth: 1, screwD: 1 } })).toMatchObject({ w: 40, h: 60 });
+
+      // Placed near the end of an edge, it stops where its own width reaches that end.
+      const clampNear = (clampWidth?: number) =>
+        fixtureAt('clamp', { x: 490, y: 1 }, stored(), { board: { w: 500, h: 400 }, placements: [] }, parts, bit, { clampWidth });
+      expect(clampNear(60)).toMatchObject({ side: 'bottom', at: 470 });
+      expect(clampNear(10)).toMatchObject({ side: 'bottom', at: 490 });
 
       // Back from a hold point (an edit at the machine): what's its own stays, what isn't doesn't become so.
       expect(fixtureOf(holdPointOf(own, { w: 500, h: 400 }, hw, 10), hw)).toEqual(own);
