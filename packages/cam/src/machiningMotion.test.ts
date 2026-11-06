@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { machiningCases, circle, rectangle } from '../test/machining-fixtures';
 import { DepthMap, readGcode } from './analyze';
 import { toGcode } from './gcode';
-import { camPart, DEFAULT_SETTINGS, profileOperation, type PartCam, type Pass } from './toolpaths';
+import { camPart, DEFAULT_SETTINGS, pocketOperation, profileOperation, type PartCam, type Pass } from './toolpaths';
 import { checkGcodeSafety } from './safety';
 import { tabRemovalProgram } from './tabRemoval';
 
@@ -65,6 +65,37 @@ describe('machining motion invariants', () => {
         role
       ).toBe(true);
     }
+  });
+
+  it('retains finely sampled wall leads without admitting leads outside a narrow cutter region', () => {
+    const r = DEFAULT_SETTINGS.tools[0].diameter / 2;
+    const boundary = rectangle(100, 40, 121, 49);
+    for (const geometryTolerance of [0.01, 0.02, 0.05]) {
+      const op = pocketOperation('mortise', [boundary], 8, 3.8, DEFAULT_SETTINGS.tools[0], { ...DEFAULT_SETTINGS, geometryTolerance });
+      const leads = op.passes.filter(pass => pass.roles?.includes('lead-in') && pass.roles?.includes('lead-out'));
+      expect(leads, `wall leads at tolerance ${geometryTolerance}`).toHaveLength(3);
+      const arcPoints = leads.flatMap(pass => pass.pts.filter((_, i) => pass.roles?.[i] === 'lead-in' || pass.roles?.[i] === 'lead-out'));
+      const wallDistance = (q: number[]) => Math.min(q[0] - 100 - r, 121 - r - q[0], q[1] - 40 - r, 49 - r - q[1]);
+      // At the default budget this includes the valid sample (110.646476, 47.405728), only 0.006772 mm off the wall.
+      // Finer budgets put samples even closer; a coarser point-classification grid must not collapse them onto it.
+      expect(arcPoints.some(q => wallDistance(q) > 1e-7 && wallDistance(q) < 0.009)).toBe(true);
+      // The center region is convex, so these endpoint bounds also contain every lead chord and its whole cutter.
+      for (const pass of leads) for (const q of pass.pts) expect(wallDistance(q)).toBeGreaterThanOrEqual(-1e-10);
+    }
+    // The smallest supported lead radius is r/4. Leave 0.002 mm less center-room than that, so its start/end are
+    // outside, even though a 0.01 mm classifier could round them onto the boundary. Such a lead must be refused.
+    const height = 2 * r + r / 4 - 0.002;
+    const narrow = pocketOperation('narrow', [rectangle(100, 40, 121, 40 + height)], 8, 7, DEFAULT_SETTINGS.tools[0], {
+      ...DEFAULT_SETTINGS,
+      pocketWallAllowance: 0.01,
+    });
+    expect(narrow.passes.length).toBeGreaterThan(0);
+    expect(narrow.passes.some(pass => pass.roles?.includes('lead-in') || pass.roles?.includes('lead-out'))).toBe(false);
+    for (const pass of narrow.passes)
+      for (const q of pass.pts) {
+        expect(q[1]).toBeGreaterThanOrEqual(40 + r - 1e-10);
+        expect(q[1]).toBeLessThanOrEqual(40 + height - r + 0.0001);
+      }
   });
 
   it('reduces inner wall corners and leaves convex outside contours at their baseline feed', () => {

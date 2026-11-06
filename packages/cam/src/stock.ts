@@ -42,13 +42,15 @@ export interface MoveEngagement {
 }
 
 export interface PocketTransitionPolicy {
-  /** Actual removable pocket, with retained islands represented by its inner boundaries. */
+  /** Planned pocket and center corridor, with retained islands represented by its inner boundaries. */
   region: PathsD;
   maximumStepover: number;
   cutFeed: number;
   transitionFeed: number;
   /** Additional radial material retained by roughing transitions. */
   wallAllowance?: number;
+  /** Part material containing this pocket; outside it is removable waste for cutting, never proved travel clearance. */
+  retainedSolid?: PathsD;
 }
 
 export interface CuttingTransitionCertificate {
@@ -122,6 +124,16 @@ function materialEnvelope(region: PathsD): PathsD {
     path.map((point, i) => sweptCapsule(point, path[(i + 1) % path.length], guard, guard / 4, 'outer'))
   );
   return union(region, boundaries.length ? unionMany(boundaries) : []);
+}
+
+/** A strict interior protects raw inner boundaries, including islands smaller than the polygon coordinate grid. */
+function pocketInterior(region: PathsD): PathsD {
+  const edgeCount = region.reduce((sum, path) => sum + path.length, 0);
+  const guard = kGridGuard * (4 + Math.ceil(Math.log2(Math.max(1, edgeCount / 256))));
+  const boundaries = region.flatMap(path =>
+    path.map((point, i) => sweptCapsule(point, path[(i + 1) % path.length], guard, guard / 4, 'outer'))
+  );
+  return difference(region, boundaries.length ? unionMany(boundaries) : []);
 }
 
 function boxOverlaps(a: Pt, b: Pt, radius: number, sweep: Sweep): boolean {
@@ -406,8 +418,23 @@ export class StockModel {
       return result(false, 'pose-unproven');
     if (from[2] !== to[2]) return result(false, 'depth-change');
     if (maximumImmersion > policy.maximumStepover) return result(false, 'stepover-exceeded');
-    if (!capsuleInsideRegion({ x: from[0], y: from[1] }, { x: to[0], y: to[1] }, radius + this.pathTolerance + allowance, policy.region))
-      return result(false, 'outside-pocket');
+    const a = { x: from[0], y: from[1] },
+      b = { x: to[0], y: to[1] };
+    const clearanceRadius = radius + this.pathTolerance + allowance;
+    if (!capsuleInsideRegion(a, b, clearanceRadius, policy.region)) {
+      if (!policy.retainedSolid || !capsuleInsideRegion(a, b, this.pathTolerance, policy.region)) return result(false, 'outside-pocket');
+      for (const path of [...policy.region, ...policy.retainedSolid]) {
+        if (path.length < 3 || path.some(point => !Number.isFinite(point.x) || !Number.isFinite(point.y)))
+          throw new Error('Open pocket transition boundaries require finite polygon paths');
+      }
+      // The center stays in the planned pocket component. Only its cutter envelope may extend into adjacent
+      // removable waste; overlap with guarded part material must remain inside the strict pocket interior.
+      // Resolve this short opening certificate more finely than a general removed-stock query; otherwise the
+      // polygon's conservative circle envelope can consume the reserved rough-wall clearance at a mouth corner.
+      const query = [sweptCapsule(a, b, clearanceRadius, Math.min(this.tolerance, kGridGuard / 2), 'outer')];
+      const retainedOverlap = difference(intersect(query, materialEnvelope(policy.retainedSolid)), pocketInterior(policy.region));
+      if (retainedOverlap.length) return result(false, 'outside-pocket');
+    }
     return result(true, 'bounded-cut');
   }
 

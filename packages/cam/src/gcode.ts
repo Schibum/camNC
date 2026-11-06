@@ -366,17 +366,24 @@ export function postProgram(cam: PartCam, opts: GcodeOptions = {}): PostedProgra
           j++;
         if (j - i >= 3) {
           const run = pass.pts.slice(i - 1, j).map(p => ({ x: p[0], y: p[1], z: p[2] }));
-          const indices = new Map(run.map((point, index) => [point, index]));
-          let from = 0;
-          for (const prim of fitArcs(run, tol, tol)) {
-            const end = indices.get(prim.to)!;
-            // Preserve the planned depth at each endpoint. Fitted arcs are longer than the original chords:
-            // multiplying their length by the chord slope would overshoot the floor before correcting back up.
-            if (prim.type === 'line') move('G1', { x: prim.to.x, y: prim.to.y, z: prim.to.z }, pass.feeds[i]);
-            else if (quantizedArcIsSafe({ x, y, z }, run.slice(from, end + 1), prim, tol)) arc(prim, pass.feeds[i], prim.to.z);
-            else for (const point of run.slice(from + 1, end + 1)) move('G1', point, pass.feeds[i]);
-            from = end;
-          }
+          const emitRun = (points: typeof run) => {
+            const at = new Map(points.map((point, index) => [point, index]));
+            let from = 0;
+            for (const prim of fitArcs(points, tol, tol)) {
+              const end = at.get(prim.to)!;
+              // Preserve planned XYZ endpoints; fitting never derives depth from a longer arc's length.
+              if (prim.type === 'line') move('G1', prim.to, pass.feeds[i]);
+              else if (quantizedArcIsSafe({ x, y, z }, points.slice(from, end + 1), prim, tol)) arc(prim, pass.feeds[i], prim.to.z);
+              else if (end - from >= 6) {
+                // A rejected long candidate does not invalidate every shorter arc within it.
+                const middle = (from + end) >> 1;
+                emitRun(points.slice(from, middle + 1));
+                emitRun(points.slice(middle, end + 1));
+              } else for (const point of points.slice(from + 1, end + 1)) move('G1', point, pass.feeds[i]);
+              from = end;
+            }
+          };
+          emitRun(run);
           i = j;
         } else {
           const p = pass.pts[i];

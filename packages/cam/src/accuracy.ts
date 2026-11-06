@@ -26,13 +26,15 @@ export function accuracyBudget(total = 0.05, outputDecimals = 3, sourceTolerance
   const polygonRounding = 32 * (Math.sqrt(2) / 2) * 10 ** -PRECISION;
   const available = total - outputRounding - controllerRounding - polygonRounding - sourceTolerance;
   if (available <= 0) throw new Error('Geometry tolerance is smaller than the coordinate quantization budget');
-  if (available * 0.45 < 0.001) throw new Error('Geometry tolerance cannot reserve the minimum 0.001 mm fitting allowance');
+  if (available * 0.75 < 0.001) throw new Error('Geometry tolerance cannot reserve the minimum 0.001 mm fitting allowance');
   return {
     total,
     import: sourceTolerance,
-    offset: available * 0.3,
-    smoothing: available * 0.25,
-    fitting: available * 0.45,
+    // Arc substitution must cover the source chords as well as their vertices.
+    // Tighten intermediate geometry so this fitting reserve still fits the same job total.
+    offset: available * 0.1,
+    smoothing: available * 0.15,
+    fitting: available * 0.75,
     polygonRounding,
     outputRounding,
     controllerRounding,

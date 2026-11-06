@@ -2,7 +2,7 @@ import type { SpindleSwitch } from './gcode';
 import { CamInputError, validateCamSettings, validateFeatures, validateDepthRange, validatePaths, validateTool } from './validation';
 import { areaD, pointInPolygonD, PointInPolygonResult, simplifyPathsD, type PathD, type PathsD } from 'clipper2-ts';
 import { openPocketRegion, type PartFeatures } from './features';
-import { cleanRegion, clipLines, difference, intersect, offset, pathLength, polyArea, union, type Vec3 } from './geom';
+import { cleanRegion, clipLines, difference, intersect, offset, pathLength, polyArea, union, PRECISION, type Vec3 } from './geom';
 import { applyFeedPolicy, type CornerFeedSettings, type MotionRole } from './motion';
 import { profileEntryRegion, tangentLoopPass } from './entry';
 import { applyTabMotion, repeatTabIntervals } from './tabMotion';
@@ -320,7 +320,7 @@ function rampOnWasteEdge(loop: Loop, zFrom: number, zTo: number, s: CamSettings)
 /** Inside a region given as Clipper paths (outer loops + holes), by crossing parity. */
 function insideRegion(p: { x: number; y: number }, region: PathsD) {
   let n = 0;
-  for (const path of region) if (pointInPolygonD(p, path) === PointInPolygonResult.IsInside) n++;
+  for (const path of region) if (pointInPolygonD(p, path, PRECISION) === PointInPolygonResult.IsInside) n++;
   return n % 2 === 1;
 }
 
@@ -678,25 +678,24 @@ function rampAlong(line: PathD, zFrom: number, zTo: number, s: CamSettings): Pas
  * finishes the walls. Every pass starts and ends where the region meets the waste and runs along the end walls and
  * around their corners: no move straight into a wall, no sharp turn onto it.
  */
-function openPocketPasses(comp: PathsD, walls: PathsD, topZ: number, floorZ: number, tool: Tool, s: CamSettings): Pass[] {
+function openPocketPasses(comp: PathsD, walls: PathsD, solid: PathsD, topZ: number, floorZ: number, tool: Tool, s: CamSettings): Pass[] {
   const r = tool.diameter / 2;
   const offsetPaths = (paths: PathsD, delta: number) => offset(paths, delta, offsetToleranceFor(s));
   const stepdown = stepdownFor(tool, s);
   const levels = depthLevels(topZ, floorZ, stepdown);
-  // The load on the bit is width x depth: shallow levels (e.g. the last 0.3 mm of a rabbet) may take wider rows,
-  // up to 0.9 D so that neighbouring rows still overlap.
-  const depth = topZ - floorZ > 0 ? (topZ - floorZ) / levels.length : stepdown;
-  const stepover = Math.min(0.9 * tool.diameter, s.stepoverFactor * tool.diameter * Math.max(1, stepdown / depth));
+  const stepover = pocketRingSpacing(s, tool.diameter);
   // A shallow pocket (the last few tenths of a rabbet) cuts its walls lightly anyway: no separate finishing pass.
   const allowance = s.pocketWallAllowance || (topZ - floorZ > 1 ? (s.openWallAllowance ?? kOpenWallAllowance) : 0);
   const free = offsetPaths(comp, -r);
+  const physicalFree = intersect(free, solid);
+  const openingReserve = pocketTransitionDeviation(s) + 2 * offsetToleranceFor(s) + 0.002;
+  const entrySolid = physicalFree.length ? offsetPaths(solid, openingReserve) : solid;
   // A path right at the free area's edge (the row next to the walls) would come out of the clip in slivers: clip to
   // a hair more. Paths are at least `d` >= r from the walls anyway.
   const clipArea = offsetPaths(free, 0.01);
-  // How far a pass can be from the walls: the farthest point of the free area's edge (in the waste for a rabbet),
-  // measured directly; then further out while there are still passes (a wider pocket's middle).
+  // Survey useful center positions inside the part, then search farther to find any wider chamber's interior.
   let far = 0;
-  for (const loop of free)
+  for (const loop of physicalFree.length ? physicalFree : free)
     for (let i = 0; i < loop.length; i++) {
       const a = loop[i],
         b = loop[(i + 1) % loop.length];
@@ -734,10 +733,18 @@ function openPocketPasses(comp: PathsD, walls: PathsD, topZ: number, floorZ: num
     cache.set(d, out);
     return out;
   };
-  const near = r + allowance;
+  // Keep extended endpoints for safe entries, but exclude rows that only cross distant waste.
+  // Very narrow edge cuts can require every center outside the part, so retain their existing bounded search.
+  const useful = (d: number) =>
+    physicalFree.length ? clipLines(along(d), entrySolid).some(line => pathLength(line, false) > 0.001) : along(d).length > 0;
+  // Rough rows retain the requested wall allowance even after the centerline/offset uncertainty.
+  // The separate wall-finishing row still runs at the nominal cutter radius.
+  const roughReserve = allowance > 0 ? openingReserve : 0;
+  const near = r + allowance + roughReserve;
   if (!along(near).length) return [];
-  let lo = Math.max(near, far - 0.01);
-  for (let i = 0; i < 200 && along(lo + 0.5 * stepover).length; i++) {
+  // A thin exterior margin preserves the ramp in waste without adding a whole row at the extended clip boundary.
+  let lo = Math.max(near, physicalFree.length ? far + openingReserve / 2 : far - 0.01);
+  for (let i = 0; i < 200 && useful(lo + 0.5 * stepover); i++) {
     lo += 0.5 * stepover;
     if (lo + r + 2 > far + r + 2) {
       far = lo;
@@ -745,11 +752,10 @@ function openPocketPasses(comp: PathsD, walls: PathsD, topZ: number, floorZ: num
       cache.clear();
     }
   }
-  while (lo > near && !along(lo).length) lo = Math.max(near, lo - 0.05);
-  // Rows evenly spaced, at most a quarter wider than the stepover (a whole extra row for a few tenths isn't worth it).
+  while (lo > near && !useful(lo)) lo = Math.max(near, lo - 0.05);
+  // Every row hop must fit the selected stepover with both endpoint deviations reserved.
   const span = lo - near;
-  let n = Math.max(span > 1e-6 ? 1 : 0, Math.round(span / stepover));
-  if (n && span / n > 1.25 * stepover) n = Math.ceil(span / stepover - 1e-9);
+  const n = Math.max(0, Math.ceil(span / stepover - 1e-9));
   const rows = Array.from({ length: n + 1 }, (_, k) => along(n ? lo - (k * (lo - near)) / n : near));
   // The row next to the walls is climb; each row before it runs the way that ends where the next one starts.
   for (let k = n - 1; k >= 0; k--) {
@@ -763,7 +769,7 @@ function openPocketPasses(comp: PathsD, walls: PathsD, topZ: number, floorZ: num
     const pass: Pass =
       rampFrom !== undefined
         ? rampAlong(line, rampFrom, z, s)
-        : hop <= tool.diameter && last && Math.abs(last[2] - z) < 1e-8
+        : hop + 2 * pocketTransitionDeviation(s) <= s.stepoverFactor * tool.diameter && last && last[2] === z
           ? { pts: line.map(q => [q.x, q.y, z]), feeds: line.map(() => feed), link: 'direct' }
           : { pts: line.map(q => [q.x, q.y, z]), feeds: line.map((_, k) => (k === 0 ? s.plungeFeed : feed)), link: 'retract' };
     passes.push(pass);
@@ -801,7 +807,8 @@ function withPocketTransitions(
   operation: Operation,
   region: PathsD,
   settings: CamSettings,
-  wallAllowance = settings.pocketWallAllowance
+  wallAllowance = settings.pocketWallAllowance,
+  retainedSolid?: PathsD
 ): Operation {
   const maximumStepover = settings.stepoverFactor * operation.tool.diameter;
   let last: Vec3 | undefined;
@@ -826,6 +833,7 @@ function withPocketTransitions(
       cutFeed: settings.feed,
       transitionFeed: settings.transitionFeed ?? settings.feed,
       wallAllowance,
+      ...(retainedSolid ? { retainedSolid: retainedSolid.map(path => path.map(point => ({ ...point }))) } : {}),
     },
     passes,
   };
@@ -872,7 +880,7 @@ export function pocketOperation(
           )
         );
       }
-    return withPocketTransitions({ ...base, passes }, region, s, base.pocketTransition?.wallAllowance);
+    return withPocketTransitions({ ...base, passes }, region, s, base.pocketTransition?.wallAllowance, solid);
   }
   if ((s.pocketFloorAllowance ?? 0) > 0 && topZ > floorZ + 1e-8) {
     const roughFloor = Math.min(topZ, floorZ + s.pocketFloorAllowance!);
@@ -919,7 +927,8 @@ export function pocketOperation(
       },
       region,
       s,
-      roughOperation?.pocketTransition?.wallAllowance
+      roughOperation?.pocketTransition?.wallAllowance,
+      solid
     );
   }
   if (s.pocketStrategy === 'controlled') {
@@ -997,7 +1006,8 @@ export function pocketOperation(
       },
       region,
       s,
-      Math.max(s.pocketWallAllowance, tool.diameter * 0.05, tolerance * 4)
+      Math.max(s.pocketWallAllowance, tool.diameter * 0.05, tolerance * 4),
+      solid
     );
   }
   const offsetPaths = (paths: PathsD, delta: number) => offset(paths, delta, offsetToleranceFor(s));
@@ -1026,7 +1036,7 @@ export function pocketOperation(
     }
     remaining.delete(ci);
     if (solid && walls && offsetPaths(comps[ci], -r).some(l => rotateToWaste(l, solid))) {
-      const open = openPocketPasses(comps[ci], walls, topZ, floorZ, tool, s);
+      const open = openPocketPasses(comps[ci], walls, solid, topZ, floorZ, tool, s);
       if (open.length) {
         roughWallAllowance = Math.max(
           roughWallAllowance,
@@ -1126,7 +1136,8 @@ export function pocketOperation(
     { name, kind: 'pocket', feature: 'pocket', tool, passes: passes.map(pass => scheduledPass(pass, s, tool)) },
     region,
     s,
-    roughWallAllowance
+    roughWallAllowance,
+    solid
   );
 }
 

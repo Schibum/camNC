@@ -7,7 +7,7 @@ import { bounds2, difference, polyArea, type Vec3 } from './geom';
 import { detectFlat, loadStep } from './import';
 import { checkGcodeSafety, kMaxFeed } from './safety';
 import { splitByBit } from './board';
-import { camPart, DEFAULT_TABS, type Pass, type Tool } from './toolpaths';
+import { camPart, DEFAULT_SETTINGS, DEFAULT_TABS, type Pass, type Tool } from './toolpaths';
 
 function segDist(a: number[], b: number[], x: number, y: number) {
   const dx = b[0] - a[0],
@@ -240,9 +240,12 @@ describe('spike 3/4: toolpaths + gcode', () => {
       const gaps = ys.slice(1).map((y, i) => y - ys[i]);
       expect(gaps.length).toBeGreaterThan(1);
       for (const g of gaps) expect(g).toBeLessThanOrEqual(1.25 * 0.4 * d + 1e-6);
-      // The last row stays 0.2 off the wall; the finishing pass at the floor takes it to size along y = 3.5 - r with
+      // Roughing retains at least the selected 0.2 allowance plus its uncertainty reserve; the floor finish takes
+      // it to size along y = 3.5 - r with
       // the wall on its right (climb): towards -x.
-      expect(ys.at(-1)).toBeCloseTo(3.5 - d / 2 - 0.2, 2);
+      const roughAllowance = 3.5 - d / 2 - ys.at(-1)!;
+      expect(roughAllowance).toBeGreaterThanOrEqual(0.2);
+      expect(roughAllowance).toBeLessThanOrEqual(0.2 + (DEFAULT_SETTINGS.geometryTolerance ?? 0.05));
       const finish = pocket.passes.at(-1)!;
       expect(finish.pts.every(q => q[2] === 3.5)).toBe(true);
       const wall = finish.pts.filter(q => Math.abs(q[1] - (3.5 - d / 2)) < 1e-3);

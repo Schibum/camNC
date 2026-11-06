@@ -286,6 +286,14 @@ function transformOperation(operation: Operation, transform: (point: Vec3) => Ve
             return { x, y };
           })
         ),
+        ...(operation.pocketTransition.retainedSolid && {
+          retainedSolid: operation.pocketTransition.retainedSolid.map(loop =>
+            loop.map(point => {
+              const [x, y] = transform([point.x, point.y, 0]);
+              return { x, y };
+            })
+          ),
+        }),
       },
     }),
     passes: operation.passes.map(pass => ({
