@@ -151,7 +151,8 @@ describe('CAM controls explain themselves', () => {
       </TooltipProvider>
     );
     const card = within(screen.getByRole('region', { name: 'CAM job' }));
-    expect(description(card.getByRole('button', { name: 'Leave the CAM job' }))).toMatch(/Closes the queue/);
+    fireEvent.click(card.getByRole('button', { name: /^Board queue/ }));
+    expect(description(screen.getByRole('button', { name: 'Leave the CAM job', hidden: true }))).toMatch(/Closes the queue/);
     expect(description(card.getByRole('button', { name: 'Load program' }))).toMatch(/machine view/);
     expect(description(card.getByRole('button', { name: 'Done, next' }))).toMatch(/loads the next program/);
   });
@@ -199,7 +200,9 @@ describe('CAM controls explain themselves', () => {
     const { rerender } = render(view());
     const card = within(screen.getByRole('region', { name: 'CAM job' }));
     expect(card.getByRole('button', { name: 'Load parts freeing' })).toHaveProperty('disabled', true);
-    expect(card.getByText(/1 parts · 2 min/)).toBeTruthy();
+    fireEvent.click(card.getByRole('button', { name: /^Board queue/ }));
+    expect(screen.getByText(/1 parts · 2 min/)).toBeTruthy();
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
 
     queue.value = { ...queue.value, stale: new Set() };
     rerender(view());
