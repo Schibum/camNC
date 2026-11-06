@@ -80,6 +80,9 @@ describe('Plan step: a hole whose middle comes loose', () => {
       'oak'
     ).map(b => ({
       ...b,
+      margin: 4,
+      size: { fit: false as const, w: 200, h: 130 },
+      layout: { w: 200, h: 130, at: { [b.items[0]]: { x: 10, y: 10, rotated: false } } },
       cut: { at: 1, keys: ['ran'] },
     }));
     await saveJob({ ...job, boards });
