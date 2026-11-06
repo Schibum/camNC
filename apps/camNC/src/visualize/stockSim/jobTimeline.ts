@@ -1,6 +1,8 @@
+import { Vector3 } from 'three';
 import { ParsedToolpath } from '../gcodeParsing';
 import { isRapidSegment } from '../depthInspection';
 import { useDepthView } from '../depthViewStore';
+import { ProgressSplit } from '../jobProgress';
 
 /** Rapid rate (mm/min) used for G0 moves when the machine's is unknown. */
 export const kDefaultRapidRate = 5000;
@@ -44,6 +46,16 @@ export function playheadAt(times: Float64Array, t: number): Playhead {
   }
   const span = times[lo] - times[lo - 1];
   return { index: lo, fraction: span > 0 ? Math.min(Math.max((t - times[lo - 1]) / span, 0), 1) : 1 };
+}
+
+/** Time (seconds) at which the tool is where a running job's progress `split` puts it. */
+export function timeAtSplit(points: Vector3[], times: Float64Array, split: ProgressSplit) {
+  const a = points[split.index - 1];
+  const b = points[split.index];
+  if (!a || !b) return times[Math.min(split.index, times.length - 1)] ?? 0;
+  const length = a.distanceTo(b);
+  const share = length > 0 ? Math.min(a.distanceTo(split.point) / length, 1) : 1;
+  return times[split.index - 1]! + (times[split.index]! - times[split.index - 1]!) * share;
 }
 
 export type TimelineMarkKind = 'tool' | 'depth';

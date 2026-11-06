@@ -35,6 +35,12 @@ interface DepthViewState {
   // Keep the playhead on the running job's progress.
   simFollowJob: boolean;
   toolShape: ToolShapeChoice;
+  // While a job runs, the 3D view's camera follows the part being cut.
+  followCamera: boolean;
+  // The user orbited or zoomed the followed view: following keeps that angle and zoom.
+  followCustomView: boolean;
+  setFollowCamera: (followCamera: boolean) => void;
+  setFollowCustomView: (followCustomView: boolean) => void;
   setSimEnabled: (simEnabled: boolean) => void;
   setSimTime: (simTime: number | null) => void;
   setSimPlaying: (simPlaying: boolean) => void;
@@ -63,6 +69,10 @@ export const useDepthView = create<DepthViewState>()(set => ({
   simSpeed: 50,
   simFollowJob: false,
   toolShape: 'auto',
+  followCamera: true,
+  followCustomView: false,
+  setFollowCamera: followCamera => set({ followCamera }),
+  setFollowCustomView: followCustomView => set({ followCustomView }),
   setSimEnabled: simEnabled => set({ simEnabled, simPlaying: false }),
   setSimTime: simTime => set({ simTime }),
   setSimPlaying: simPlaying => set({ simPlaying }),

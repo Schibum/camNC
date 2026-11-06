@@ -31,6 +31,7 @@ import { HoverInfo, useDepthView, useHoverInfo, useSelectedLevel, useShowStockVi
 import { AxisLabel, BedGrid, DepthRuler, HoverMarker, LevelPlane, StockBlock, ToolPositionMarker } from './DepthSceneParts';
 import { ParsedToolpath } from './gcodeParsing';
 import { ProgressSplit, trailBehind } from './jobProgress';
+import { useJobActive, useJobFollowCamera } from './useJobFollowCamera';
 import { useJobProgressSplit } from './useJobProgressSplit';
 import { useSmoothedMachinePos } from './smoothedMachinePos';
 import { getPlasmaColor } from './toolpathColors';
@@ -276,7 +277,21 @@ interface CameraPose {
 const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
 
 /** Moves the orthographic camera to fit the toolpath from the given view, animated from wherever it currently is. */
-function CameraRig({ box, view, fitKey }: { box: { center: Vector3; radius: number }; view: DepthViewPreset; fitKey: number }) {
+function CameraRig({
+  box,
+  view,
+  fitKey,
+  toolpath,
+  workOrigin,
+}: {
+  box: { center: Vector3; radius: number };
+  view: DepthViewPreset;
+  fitKey: number;
+  toolpath: ParsedToolpath;
+  workOrigin: Vector3;
+}) {
+  const followJob = useJobFollowCamera(toolpath, workOrigin, view === '3d');
+  const shownFit = useRef(fitKey);
   const camera = useThree(s => s.camera) as OrthographicCamera;
   const controls = useThree(s => s.controls) as OrbitControlsImpl | null;
   const get = useThree(s => s.get);
@@ -301,6 +316,9 @@ function CameraRig({ box, view, fitKey }: { box: { center: Vector3; radius: numb
 
   useEffect(() => {
     if (!controls) return;
+    // Asked to see all of it: following the job would take that right back.
+    if (shownFit.current !== fitKey) useDepthView.getState().setFollowCamera(false);
+    shownFit.current = fitKey;
     const { width, height } = get().size;
     const distance = box.radius * 4;
     const to = {
@@ -321,9 +339,10 @@ function CameraRig({ box, view, fitKey }: { box: { center: Vector3; radius: numb
     invalidate();
   }, [camera, controls, get, invalidate, box, view, fitKey]);
 
-  useFrame(({ raycaster }) => {
+  useFrame(({ raycaster }, delta) => {
     raycaster.params.Line2 = { threshold: kPickTolerancePx };
     const current = transition.current;
+    followJob(Math.min(delta, 0.1), !!current);
     if (!current || !controls) return;
     const t = Math.min((performance.now() - current.start) / kTransitionMs, 1);
     const k = easeInOut(t);
@@ -389,7 +408,7 @@ export function DepthScene({ toolpath, view, fitKey }: { toolpath: ParsedToolpat
   return (
     <>
       <OrbitControls makeDefault enableDamping dampingFactor={kOrbitDamping} />
-      <CameraRig box={fitBox} view={view} fitKey={fitKey} />
+      <CameraRig box={fitBox} view={view} fitKey={fitKey} toolpath={toolpath} workOrigin={workOrigin} />
       <GizmoHelper alignment="bottom-right" margin={[64, 64]}>
         <GizmoViewport axisColors={['#ef4444', '#22c55e', '#3b82f6']} labelColor="white" axisHeadScale={0.9} hideNegativeAxes />
       </GizmoHelper>
@@ -451,7 +470,7 @@ export function DepthScene({ toolpath, view, fitKey }: { toolpath: ParsedToolpat
         <DepthRuler levels={levels} x={footprint.min.x} y={footprint.min.y} zScale={zScale} shift={shift} selected={selectedLevel} />
 
         <MachineToolMarker toolpathOffset={workOrigin} sceneZ={sceneZ} length={axisLength} />
-        {simEnabled && <SimToolMarker toolpath={toolpath} sceneZ={sceneZ} length={axisLength} />}
+        {simEnabled && <PlayheadToolMarker toolpath={toolpath} sceneZ={sceneZ} length={axisLength} />}
 
         {hover && (
           <HoverMarker
@@ -488,6 +507,16 @@ function MachineToolMarker({ toolpathOffset, sceneZ, length }: { toolpathOffset:
       <ToolPositionMarker radius={toolDiameter / 2} length={length} />
     </group>
   );
+}
+
+/** The simulated tool, unless the playhead is on the running job: then the machine's own marker is the same spot. */
+function PlayheadToolMarker({ toolpath, sceneZ, length }: { toolpath: ParsedToolpath; sceneZ: (z: number) => number; length: number }) {
+  'use no memo';
+  const machineShown = useShowMachinePosMarker();
+  const followJob = useDepthView(s => s.simFollowJob);
+  const jobActive = useJobActive();
+  if (machineShown && followJob && jobActive) return null;
+  return <SimToolMarker toolpath={toolpath} sceneZ={sceneZ} length={length} />;
 }
 
 /** CSS color of the toolpath lines at depth `z`, as drawn in the 3D views. */

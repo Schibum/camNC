@@ -1,12 +1,12 @@
-import { getCncApi } from '@/lib/fluidnc/machine';
-import { isCamncJobFile } from '@/lib/machine/jobs';
 import { cn } from '@wbcnc/ui/lib/utils';
-import { Pause, Play, Radio, SkipBack } from 'lucide-react';
+import { Pause, Play, Radio, SkipBack, Undo2 } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
 import { useDepthView } from '../depthViewStore';
 import { ParsedToolpath } from '../gcodeParsing';
-import { motionLineEnds, progressPointIndex } from '../jobProgress';
-import { formatDuration, getJobTimeline, playheadAt } from './jobTimeline';
+import { kJobDoneColor } from '../jobProgress';
+import { useJobActive } from '../useJobFollowCamera';
+import { useJobProgressSplit } from '../useJobProgressSplit';
+import { formatDuration, getJobTimeline, playheadAt, timeAtSplit } from './jobTimeline';
 
 const kSpeeds = [1, 10, 50, 200];
 
@@ -29,14 +29,16 @@ export function SimTimeline({ toolpath }: { toolpath: ParsedToolpath }) {
   const sourceLines = useMemo(() => toolpath.gcode.split('\n'), [toolpath]);
   const markTimes = useMemo(() => marks.map(m => m.time), [marks]);
 
-  // Running camNC job: its progress can drive the playhead.
-  const job = getCncApi().jobProgress.value;
-  const jobActive = !!job && isCamncJobFile(job.file);
-  const lineEnds = useMemo(() => motionLineEnds(toolpath.gcode), [toolpath]);
-  const jobIndex = jobActive ? progressPointIndex(toolpath, lineEnds, job.percent) : null;
+  // Running camNC job: the playhead stays on the tool, until the user scrubs or plays.
+  const jobActive = useJobActive();
+  const split = useJobProgressSplit(toolpath);
+  const jobTime = jobActive ? (split ? timeAtSplit(toolpath.pathPoints, times, split) : 0) : null;
   useEffect(() => {
-    if (follow && jobIndex !== null) setSimTime(times[Math.min(Math.max(jobIndex - 1, 0), times.length - 1)] ?? 0);
-  }, [follow, jobIndex, times, setSimTime]);
+    if (jobActive) setSimFollowJob(true);
+  }, [jobActive, setSimFollowJob]);
+  useEffect(() => {
+    if (follow && jobTime !== null) setSimTime(jobTime);
+  }, [follow, jobTime, setSimTime]);
 
   // Playback.
   useEffect(() => {
@@ -138,6 +140,13 @@ export function SimTimeline({ toolpath }: { toolpath: ParsedToolpath }) {
             }}
           />
           <div className="pointer-events-none relative mx-2 h-1.5" aria-hidden>
+            {jobTime !== null && (
+              <span
+                data-testid="job-done"
+                className="absolute inset-y-0 left-0 opacity-70"
+                style={{ width: `${(jobTime / (total || 1)) * 100}%`, background: kJobDoneColor }}
+              />
+            )}
             {marks.map((mark, i) => (
               <span
                 key={i}
@@ -166,7 +175,7 @@ export function SimTimeline({ toolpath }: { toolpath: ParsedToolpath }) {
                 follow ? 'bg-emerald-500/25 text-emerald-200 ring-1 ring-emerald-400/50' : 'text-muted-foreground hover:bg-white/10'
               )}
               onClick={() => setSimFollowJob(!follow)}>
-              <Radio className="size-3" /> Follow job
+              {follow ? <Radio className="size-3" /> : <Undo2 className="size-3" />} {follow ? 'Following job' : 'Back to live'}
             </button>
           )}
           <div className="flex gap-0.5" role="group" aria-label="Playback speed">
