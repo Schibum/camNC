@@ -35,7 +35,10 @@ function SpeedControl() {
   );
 }
 
-/** Marks the page as the demo, with the way out and the way into the real setup. Renders nothing outside demo mode. */
+/**
+ * Marks the machine view as the demo, with the simulation's controls, the way out and the way into the real setup.
+ * Other pages have `DemoHeaderMark`. Renders nothing outside demo mode.
+ */
 export function DemoBanner() {
   const navigate = useNavigate();
   const hasToolpath = useStore(s => !!s.toolpath);

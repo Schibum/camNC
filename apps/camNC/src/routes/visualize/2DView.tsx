@@ -1,3 +1,4 @@
+import { DemoBanner } from '@/lib/demo/DemoBanner';
 import { getRehearsalId, isDemoMode } from '@/lib/demo/demo-mode';
 import { cn } from '@wbcnc/ui/lib/utils';
 import { UnprojectVideoMesh } from '@/calibration/Unproject';
@@ -281,7 +282,10 @@ function VisualizeComponent() {
           )}
 
           <div className="pointer-events-none absolute inset-0 flex h-dvh flex-col">
-            <PageHeader title={viewModeTitle(view)} className="dark pointer-events-auto pr-2 flex-wrap h-auto p-1 text-foreground">
+            <PageHeader
+              title={viewModeTitle(view)}
+              className="dark pointer-events-auto pr-2 flex-wrap h-auto p-1 text-foreground"
+              hideDemoMark>
               <div className="pl-2">
                 <ViewSwitcher view={view} hasToolpath={!!toolpath} onSelect={selectView} />
               </div>
@@ -319,6 +323,7 @@ function VisualizeComponent() {
           </div>
         </div>
         <MachineDock />
+        <DemoBanner />
       </div>
     </DarkScope>
   );

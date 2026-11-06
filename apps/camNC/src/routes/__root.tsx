@@ -1,5 +1,4 @@
 import { AppSidebar } from '@/components/app-sidebar';
-import { DemoBanner } from '@/lib/demo/DemoBanner';
 import { GcodeDropZone } from '@/visualize/GcodeDropZone';
 import { SidebarProvider } from '@wbcnc/ui/components/sidebar';
 import { Toaster } from '@wbcnc/ui/components/sonner';
@@ -24,7 +23,6 @@ function RootComponent() {
           <Toaster />
           <AppSidebar />
           <Outlet />
-          <DemoBanner />
           <GcodeDropZone />
         </SidebarProvider>
       </TooltipProvider>
