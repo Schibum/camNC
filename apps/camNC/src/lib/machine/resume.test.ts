@@ -61,6 +61,12 @@ describe('parseProgram', () => {
     expect(program.lines[2]!.end.x).toBeCloseTo(50.8);
   });
 
+  it('keeps the physical feed rate when the program changes units', () => {
+    const program = parseProgram('G21 G1 X10 F254\nG20\nX1\nG21\nX30');
+    expect(program.lines[2]!.before.feed).toBeCloseTo(10);
+    expect(program.lines[4]!.before.feed).toBeCloseTo(254);
+  });
+
   it('forgets axes moved in machine coordinates', () => {
     const program = parseProgram('G0 X1 Y2 Z3\nG53 G0 Z-1\nG0 X5\n');
     expect(program.lines[1]!.motion).toBe(false);
@@ -170,6 +176,36 @@ describe('buildResumeProgram', () => {
     expect(bounds.min).toEqual({ x: 0, y: 0, z: -2 });
     expect(bounds.max.x).toBe(20);
   });
+
+  it('uses the feed on the restart line for the first cutting move', () => {
+    const program = parseProgram('G21 G90\nG0 X10 Y20 Z5\nG1 Z-1 F300\nX30 F1200');
+    const resume = buildResumeProgram(program, { line: 2, safeZMachine: -1 });
+    expect(resume.gcode.split('\n').slice(0, resume.preambleLines)).toContain('G1 Z5 F300');
+  });
+
+  it('converts the first cutting feed to mm when the restart line sets inches', () => {
+    const program = parseProgram('G21 G90\nG0 X10 Y20 Z5\nG20 G1 Z-0.1 F10');
+    const resume = buildResumeProgram(program, { line: 2, safeZMachine: -1 });
+    expect(resume.gcode.split('\n').slice(0, resume.preambleLines)).toContain('G1 Z5 F254');
+  });
+
+  it.each([
+    { first: 'G21 G1 Z-1 F254', rest: 'G20\nG1 X1 F20', feed: 254 },
+    { first: 'G20 G1 Z-0.1 F10', rest: 'G21\nG1 X30 F500', feed: 254 },
+  ])('keeps the last plunge feed in its own units: $first', ({ first, rest, feed }) => {
+    const program = parseProgram(`G90\nG0 X0 Y0 Z5\n${first}\n${rest}`);
+    const resume = buildResumeProgram(program, { line: 4, safeZMachine: -1 });
+    const plunge = resume.gcode
+      .split('\n')
+      .slice(0, resume.preambleLines)
+      .find(line => line.startsWith('G1 Z'));
+    expect(plunge).toMatch(new RegExp(` F${feed}$`));
+  });
+
+  it.each(['G1 Z-1', 'G1 Z-1 F0', 'G93 G1 Z-1 F10'])('refuses an unknown or unusable plunge feed: %s', move => {
+    const program = parseProgram(`G21 G90\nG0 X0 Y0 Z5\n${move}`);
+    expect(() => buildResumeProgram(program, { line: 2, safeZMachine: -1 })).toThrow(/known.*feed rate/);
+  });
 });
 
 // Shaped like camNC's own CAM output (packages/cam toGcode): OP and PASS markers, retract passes and a linked pass.
@@ -276,5 +312,12 @@ describe('resuming a camNC CAM program', () => {
     expect(m3).toBeLessThan(resume.preambleLines);
     expect(lines.slice(-4)).toEqual(['M5', 'X0 Y0', 'M30', '']);
     expect(resume.warnings).toEqual([]);
+  });
+
+  it('sets a plunge feed before restarting the first pass', () => {
+    const program = parseProgram(gcode);
+    const [first] = passStarts(program);
+    const resume = buildResumeProgram(program, { line: first!.line, safeZMachine: -1 });
+    expect(resume.gcode.split('\n').slice(0, resume.preambleLines)).toContain('G1 Z9 F480');
   });
 });
