@@ -3,7 +3,7 @@ import { pauseMarker, type PauseMarker } from './pauseMarker';
 import type { Operation, PartCam, Tool } from './toolpaths';
 
 type P2 = { x: number; y: number };
-export type Prim = { type: 'line'; to: P2 } | { type: 'arc'; to: P2; c: P2; cw: boolean };
+export type Prim<P extends P2 = P2> = { type: 'line'; to: P } | { type: 'arc'; to: P; c: P2; cw: boolean };
 
 function circleThrough(a: P2, b: P2, c: P2): { c: P2; r: number } | undefined {
   const d = 2 * (a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y));
@@ -20,8 +20,8 @@ function circleThrough(a: P2, b: P2, c: P2): { c: P2; r: number } | undefined {
  * Greedy arc fitting: replace runs of >= 4 points that lie on one circle (vertices within tol, chords at most
  * maxSagitta from the arc) by a G2/G3 arc. Tessellated circles from the STEP mesh and Clipper round joins both come back as arcs.
  */
-export function fitArcs(p: P2[], tol = 0.01, maxSagitta = 0.05, maxRadius = 1000): Prim[] {
-  const out: Prim[] = [];
+export function fitArcs<P extends P2>(p: P[], tol = 0.01, maxSagitta = 0.05, maxRadius = 1000): Prim<P>[] {
+  const out: Prim<P>[] = [];
   const n = p.length;
   let i = 0;
   const check = (i: number, j: number) => {
@@ -250,30 +250,13 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
         const s0 = slope(i);
         while (useArcs && j < pass.pts.length && pass.feeds[j] === pass.feeds[i] && xy(j) > 1e-9 && Math.abs(slope(j) - s0) < 1e-4) j++;
         if (j - i >= 3) {
-          const run = pass.pts.slice(i - 1, j).map(p => ({ x: p[0], y: p[1] }));
-          const flat = Math.abs(s0) < 1e-9;
-          let along = 0;
-          const z0 = pass.pts[i - 1][2];
-          let px = run[0].x,
-            py = run[0].y;
+          const run = pass.pts.slice(i - 1, j).map(p => ({ x: p[0], y: p[1], z: p[2] }));
           for (const prim of fitArcs(run, tol)) {
-            // XY length of this primitive, for its end Z on a ramp.
-            if (prim.type === 'line') along += Math.hypot(prim.to.x - px, prim.to.y - py);
-            else {
-              const rad = Math.hypot(px - prim.c.x, py - prim.c.y);
-              let sweep = Math.atan2(prim.to.y - prim.c.y, prim.to.x - prim.c.x) - Math.atan2(py - prim.c.y, px - prim.c.x);
-              if (prim.cw && sweep > 0) sweep -= 2 * Math.PI;
-              if (!prim.cw && sweep < 0) sweep += 2 * Math.PI;
-              along += Math.abs(sweep) * rad;
-            }
-            px = prim.to.x;
-            py = prim.to.y;
-            const toZ = flat ? undefined : z0 + s0 * along;
-            if (prim.type === 'line') move('G1', { x: prim.to.x, y: prim.to.y, z: toZ }, pass.feeds[i]);
-            else arc(prim, pass.feeds[i], toZ);
+            // Preserve the planned depth at each endpoint. Fitted arcs are longer than the original chords:
+            // multiplying their length by the chord slope would overshoot the floor before correcting back up.
+            if (prim.type === 'line') move('G1', { x: prim.to.x, y: prim.to.y, z: prim.to.z }, pass.feeds[i]);
+            else arc(prim, pass.feeds[i], prim.to.z);
           }
-          // Land exactly on the run's last point (arc lengths vs. chords differ slightly).
-          if (!flat) move('G1', { z: pass.pts[j - 1][2] }, pass.feeds[i]);
           i = j;
         } else {
           const p = pass.pts[i];

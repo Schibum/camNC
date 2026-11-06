@@ -3,7 +3,7 @@ import { DepthMap, readGcode, metrics } from './analyze';
 import { extractFeatures, type PartFeatures } from './features';
 import { readStep } from './fixtures';
 import { fitArcs, kMaxGcodeLine, toGcode } from './gcode';
-import { bounds2, difference, polyArea } from './geom';
+import { bounds2, difference, polyArea, type Vec3 } from './geom';
 import { detectFlat, loadStep } from './import';
 import { checkGcodeSafety, kMaxFeed } from './safety';
 import { splitByBit } from './board';
@@ -247,6 +247,38 @@ describe('spike 3/4: toolpaths + gcode', () => {
     expect(prims.length).toBeLessThanOrEqual(3);
     // One arc for (almost) the full circle; a closing chord may stay a line.
     expect(prims[0].type).toBe('arc');
+  });
+
+  it.each([false, true])('preserves planned ramp depths when fitting helical arcs (ascending=%s)', ascending => {
+    const pts: Vec3[] = Array.from({ length: 13 }, (_, i) => {
+      const a = (i * Math.PI) / 6;
+      return [10 + Math.cos(a), 10 + Math.sin(a), ascending ? 0.64 + i * 0.03 : 1 - i * 0.03];
+    });
+    const gcode = toGcode({
+      stockTop: 1,
+      warnings: [],
+      operations: [
+        {
+          name: 'Helical ramp',
+          kind: 'pocket',
+          feature: 'pocket',
+          tool: { number: 1, diameter: 1 },
+          passes: [{ pts, feeds: pts.map(() => 100), link: 'retract' }],
+        },
+      ],
+    });
+    expect(gcode).toMatch(/^G3 .*Z/m);
+    const cuts = readGcode(gcode).filter(m => !m.rapid);
+    expect(Math.min(...cuts.map(m => m.to[2]))).toBeCloseTo(0.64, 6);
+    expect(Math.max(...cuts.map(m => m.to[2]))).toBeCloseTo(1, 6);
+    // Every primitive lands at its source vertex's Z, including the line left after the near-full-circle arc.
+    const fitted = fitArcs(pts.map(([x, y, z]) => ({ x, y, z })));
+    expect(fitted.some(p => p.type === 'line')).toBe(true);
+    for (const prim of fitted) {
+      const end = cuts.find(m => Math.hypot(m.to[0] - prim.to.x, m.to[1] - prim.to.y) < 0.001 && Math.abs(m.to[2] - prim.to.z) < 0.0005);
+      expect(end).toBeDefined();
+    }
+    expect(cuts.at(-1)?.to).toEqual(pts.at(-1)?.map(v => +v.toFixed(3)));
   });
 
   it('emits FluidNC gcode that reads back to the same depths', () => {
