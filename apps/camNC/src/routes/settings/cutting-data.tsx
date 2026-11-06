@@ -2,7 +2,7 @@ import { PageHeader } from '@/components/page-header';
 import { bitKey, kCuttingLabels, savedCuttingEntries, useCuttingData, type CuttingField } from '@/cam/cuttingData';
 import { CuttingDataEditor } from '@/cam/plan/CuttingDataEditor';
 import { ImportToolLibrary } from '@/cam/plan/ImportToolLibrary';
-import { kDefaultBit, type MaterialKey } from '@/cam/planSettings';
+import { kBuiltInBits, kDefaultBit, type MaterialKey } from '@/cam/planSettings';
 import { useToolLibrary } from '@/cam/toolLibrary';
 import { createFileRoute } from '@tanstack/react-router';
 import type { LibraryTool } from '@wbcnc/cam';
@@ -26,7 +26,7 @@ function CuttingDataPage() {
   const stored = useToolLibrary(s => s.bits);
   const saved = useCuttingData(s => s.saved);
   const reset = useCuttingData(s => s.reset);
-  const bits = [kDefaultBit, ...stored.filter(t => bitKey(t) !== bitKey(kDefaultBit))];
+  const bits = [...kBuiltInBits, ...stored.filter(t => !kBuiltInBits.some(b => bitKey(b) === bitKey(t)))];
   const [bit, setBit] = useState<LibraryTool>(kDefaultBit);
   const [material, setMaterial] = useState<MaterialKey>('oak');
   const entries = savedCuttingEntries(saved, bits);

@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { bitKey } from './cuttingData';
+import { kDefaultBit } from './planSettings';
 import { mergeLibrary, offeredBits, readLibraryFile, useToolLibrary, type StoredBit } from './toolLibrary';
 import { selectToolPreset, type LibraryTool } from '@wbcnc/cam/tools';
 
@@ -181,5 +183,12 @@ describe('stored bits', () => {
       second = { ...lib[0], guid: 'second' };
     const bits = offeredBits([first, second], [{ ...first, feed: 2300 }]);
     expect(bits.filter(b => b.guid)).toEqual([first, second]);
+  });
+
+  it('offers the built-in bits first, the default among them', () => {
+    const bits = offeredBits([]);
+    expect(bits[0]).toEqual(kDefaultBit);
+    expect(bits.map(b => b.diameter)).toEqual([3.175, 3.175, 6, 8]);
+    expect(new Set(bits.map(bitKey)).size).toBe(bits.length);
   });
 });

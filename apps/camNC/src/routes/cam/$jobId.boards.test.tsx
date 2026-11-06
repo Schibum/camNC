@@ -43,7 +43,13 @@ const description = (el: Element) =>
 const drawing = (board: string) => screen.getByRole('region', { name: `Board ${board} drawing` });
 
 /** Every board, with the job-wide layout tools. */
-const showAll = () => fireEvent.click(screen.getByRole('tab', { name: 'All boards' }));
+const showAll = () => fireEvent.click(screen.getByRole('button', { name: 'All boards' }));
+/** An item of the Suggest holds menu in the tools. */
+const holdsMenu = async (name: string) => {
+  fireEvent.pointerDown(await screen.findByRole('button', { name: 'Suggest holds' }, { timeout: 10_000 }), { button: 0, ctrlKey: false });
+  return (await screen.findByRole('menuitem', { name })) as HTMLElement;
+};
+const suggestHolds = async () => fireEvent.click(await holdsMenu('Suggest holds'));
 
 /** One board on its own, from the rail: what edits it is on its drawing and in the sidebar. */
 const openBoard = (board: string) => fireEvent.click(screen.getByRole('button', { name: `Board ${board}` }));
@@ -204,7 +210,7 @@ describe('CAM boards step', () => {
     fireEvent.click(drawing('A'));
     const holdsOnA = () => screen.getByRole('region', { name: 'Board A drawing' }).querySelectorAll('[data-hold]').length;
     expect(holdsOnA()).toBe(0);
-    fireEvent.click(await screen.findByRole('button', { name: 'Suggest holds' }, { timeout: 10_000 }));
+    await suggestHolds();
     await waitFor(() => expect(holdsOnA()).toBeGreaterThanOrEqual(3), { timeout: 10_000 });
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
     await waitFor(() => expect(holdsOnA()).toBe(0), { timeout: 10_000 });
@@ -376,6 +382,38 @@ describe('CAM boards step', () => {
     });
     await commit('remove tab', () => fireEvent.doubleClick(drawingA().querySelector(`[data-tab="${part}"]`)!));
     await waitFor(async () => expect(await count()).toBe(before));
+    // The tab tool adds one with a click on the outline, previewed first; a click on the tab selects it, with its bar.
+    // Once the program has caught up: a new tab goes with the ones it has.
+    await waitFor(
+      () => {
+        const spots = [...drawingA().querySelectorAll(`[data-tab="${part}"]`)].map(t => `${t.getAttribute('cx')},${t.getAttribute('cy')}`);
+        expect(new Set(spots).size).toBe(before);
+      },
+      { timeout: 60_000 }
+    );
+    const svgA = () => drawingA().querySelector('[data-board-frame]')!.closest('svg')!;
+    fireEvent.keyDown(document.body, { key: 't' });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Tab' }).getAttribute('aria-pressed')).toBe('true'));
+    // Clear of the one the double-click left there.
+    const elsewhere = () => {
+      const box = outline().getBBox();
+      return clientOf('A', box.x + box.width / 4, box.y + 1);
+    };
+    fireEvent.pointerMove(svgA(), elsewhere());
+    expect(drawingA().querySelector('[data-tab-preview]')).toBeTruthy();
+    await commit('tab tool', () => fireEvent.click(svgA(), elsewhere()));
+    await waitFor(async () => expect(await count()).toBe(before + 1));
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Select' }).getAttribute('aria-pressed')).toBe('true'));
+    await waitFor(() => expect(drawingA().querySelectorAll(`[data-tab="${part}"]`).length).toBeGreaterThanOrEqual(before + 1), {
+      timeout: 60_000,
+    });
+    const group = drawingA().querySelector(`[data-tab="${part}"]`)!.parentElement!;
+    fireEvent.pointerDown(group, { ...edgePoint(), button: 0, pointerId: 1 });
+    fireEvent.pointerUp(group, { ...edgePoint(), button: 0, pointerId: 1 });
+    const tabBar = await screen.findByRole('toolbar', { name: `Tab · ${part}` });
+    await commit('delete tab', () => fireEvent.click(within(tabBar).getByRole('button', { name: 'Delete this tab' })));
+    await waitFor(async () => expect(await count()).toBe(before));
     // Back to picked tabs: for the part, from its menu.
     await openMenu('A', part);
     const menu = screen.getByRole('menu');
@@ -485,7 +523,7 @@ describe('CAM boards step', () => {
     );
     await screen.findByRole('button', { name: 'Board B' }, { timeout: 60_000 });
     openBoard('B');
-    fireEvent.click(screen.getByRole('button', { name: 'Suggest holds' }));
+    await suggestHolds();
     await waitFor(() => expect(document.body.textContent).toMatch(/These holds don’t surround the work’s middle/), { timeout: 10_000 });
     expect(document.body.textContent).not.toMatch(/already surround/);
   }, 90_000);
@@ -494,21 +532,25 @@ describe('CAM boards step', () => {
     const job = await openKinderregal();
     fireEvent.click(drawing('A'));
     const saved = async () => (await getJob(job.id))!.boards!.find(b => b.name === 'A')!;
-    const button = (name: string) => screen.getByRole('button', { name }) as HTMLButtonElement;
+    const isOff = (item: HTMLElement) => item.hasAttribute('data-disabled');
+    const fewer = () => holdsMenu('One clamp fewer');
+    const more_ = () => holdsMenu('One clamp more');
+    const closeMenu = () => fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
     // Nothing to nudge until there are holds.
-    expect(button('Fewer').disabled).toBe(true);
-    expect(button('More').disabled).toBe(true);
-    fireEvent.click(button('Suggest holds'));
+    expect(isOff(await fewer())).toBe(true);
+    expect(isOff(screen.getByRole('menuitem', { name: 'One clamp more' }))).toBe(true);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Suggest holds' }));
     await waitFor(async () => expect((await saved()).fixtures?.length).toBeGreaterThanOrEqual(3), { timeout: 10_000 });
     const before = (await saved()).fixtures!;
-    await waitFor(() => expect(button('More').disabled).toBe(false));
-    fireEvent.click(button('More'));
+    fireEvent.click(await more_());
     await waitFor(async () => expect((await saved()).fixtures).toHaveLength(before.length + 1), { timeout: 10_000 });
     expect((await saved()).fixtures!.slice(0, before.length)).toEqual(before);
     // Fewer takes that one back, or a clamp the rest do without: what stays, stays where it was.
     const more = (await saved()).fixtures!;
-    await waitFor(() => expect(button('Fewer').disabled).toBe(more.length <= 3));
-    fireEvent.click(button('Fewer'));
+    const item = await fewer();
+    expect(isOff(item)).toBe(more.length <= 3);
+    if (isOff(item)) closeMenu();
+    else fireEvent.click(item);
     await waitFor(async () => expect((await saved()).fixtures).toHaveLength(more.length - 1), { timeout: 10_000 });
     for (const f of (await saved()).fixtures!) expect(more).toContainEqual(f);
   }, 90_000);
@@ -516,7 +558,7 @@ describe('CAM boards step', () => {
   it('drags a placed clamp: it stays a fixture all the way, lands where dropped, and parts make room', async () => {
     const job = await openKinderregal();
     fireEvent.click(drawing('A'));
-    fireEvent.click(screen.getByRole('button', { name: 'Suggest holds' }));
+    await suggestHolds();
     const saved = async () => (await getJob(job.id))!.boards!.find(b => b.name === 'A')!;
     await waitFor(async () => expect((await saved()).fixtures?.length).toBeGreaterThanOrEqual(3), { timeout: 10_000 });
     const before = (await saved()).fixtures!;
@@ -560,7 +602,7 @@ describe('CAM boards step', () => {
       openBoard('B');
       const before = await boardB(job.id);
 
-      fireEvent.click(screen.getByRole('button', { name: 'Suggest holds' }));
+      await suggestHolds();
       await waitFor(async () => expect((await boardB(job.id)).fixtures!.length).toBeGreaterThanOrEqual(3), { timeout: 10_000 });
       const after = await boardB(job.id);
       const grew = (after.layout!.w - before.layout!.w) / 2;
@@ -586,7 +628,7 @@ describe('CAM boards step', () => {
       fireEvent.blur(input);
       await waitFor(async () => expect((await boardB(job.id)).size.fit).toBe(false), { timeout: 10_000 });
       const before = await boardB(job.id);
-      fireEvent.click(screen.getByRole('button', { name: 'Suggest holds' }));
+      await suggestHolds();
       // One mm over the part's fit: clamps on that side only, if any, and no border for the others.
       await waitFor(() => expect(status()).toMatch(/Suggested|No clamp spot/));
       expect(status()).not.toContain('grew');
@@ -603,7 +645,7 @@ describe('CAM boards step', () => {
       // The store's bounds are read as the page renders: selecting the board again brings them in.
       openBoard('A');
       openBoard('B');
-      fireEvent.click(screen.getByRole('button', { name: 'Suggest holds' }));
+      await suggestHolds();
       await waitFor(() => expect(status()).toMatch(noRoom));
       expect(await boardB(job.id)).toStrictEqual(before);
     }, 90_000);
@@ -612,7 +654,9 @@ describe('CAM boards step', () => {
   it('keeps the stick-out with the job’s bit, not the board', async () => {
     const job = await openKinderregal();
     const field = () => document.getElementById('hold-stickout') as HTMLInputElement;
-    fireEvent.click(screen.getByRole('button', { name: 'Clamp and screw sizes…' }));
+    // With a tool in hand, under its sizes.
+    fireEvent.click(screen.getByRole('button', { name: 'Clamp' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Clamp and screw sizes…' }));
     await waitFor(() => expect(field()).toBeTruthy(), { timeout: 10_000 });
     fireEvent.change(field(), { target: { value: '42' } });
     fireEvent.blur(field());

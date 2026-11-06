@@ -1,5 +1,6 @@
 import type { HoldPoint } from '@wbcnc/cam/holdPoints';
 import { describe, expect, it } from 'vitest';
+import { kDefaultHardware } from '../holdHardware';
 import { newBoard, nestBoard, type BoardV1, type PartInstance } from '../boards';
 import {
   addHold,
@@ -23,6 +24,8 @@ import {
 
 const board = { w: 600, h: 400 };
 const clamp = (x: number, y: number): HoldPoint => ({ x, y, kind: 'clamp', d: 2, w: 20, height: 30, dir: { x: 0, y: 1 } });
+/** One with no sizes of its own. */
+const plainClamp = (x: number, y: number): HoldPoint => ({ ...clamp(x, y), ...kDefaultHardware.clamp });
 const screw = (x: number, y: number): HoldPoint => ({ x, y, kind: 'screw', d: 10, height: 3 });
 
 describe('bed edit', () => {
@@ -43,8 +46,17 @@ describe('bed edit', () => {
     expect(placeHold(screw(0, 0), { x: 120, y: 80 }, board)).toMatchObject({ x: 120, y: 80 });
   });
 
+  it('an edit here keeps the sizes a fixture has of its own, on all of them', () => {
+    const big = { ...plainClamp(100, 1), w: 80, d: 25 };
+    const { patch } = removeHold([big, plainClamp(500, 1), plainClamp(800, 1)], 2, 'A');
+    expect(patch.fixtures).toEqual([
+      { kind: 'clamp', side: 'bottom', at: 100, w: 80, d: 25 },
+      { kind: 'clamp', side: 'bottom', at: 500 },
+    ]);
+  });
+
   it('moving, adding and removing save all of the board’s fixtures', () => {
-    const holds = [clamp(100, 1), clamp(500, 1)];
+    const holds = [plainClamp(100, 1), plainClamp(500, 1)];
     const moved = moveHold(holds, 1, { x: 450, y: 20 }, board, 'A');
     expect(moved).toEqual({
       boardId: 'A',

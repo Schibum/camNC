@@ -94,8 +94,8 @@ function BitsPage() {
             <CardHeader>
               <CardTitle>Your bits</CardTitle>
               <CardDescription>
-                Offered in every CAM job, with the built-in 1/8″ flat. Importing a Fusion library again updates its bits and adds new ones.
-                A job keeps its own copy of its bit, so removing one here doesn’t change existing jobs.
+                Offered in every CAM job, with the built-in 1/8″ flat, 1/8″ compression, 6 mm and 8 mm. Importing a Fusion library again
+                updates its bits and adds new ones. A job keeps its own copy of its bit, so removing one here doesn’t change existing jobs.
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-2">

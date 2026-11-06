@@ -52,13 +52,7 @@ import { createFileRoute, Link, useParams, useSearch } from '@tanstack/react-rou
 import { zodValidator } from '@tanstack/zod-adapter';
 import { z } from 'zod';
 import { Button } from '@wbcnc/ui/components/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@wbcnc/ui/components/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@wbcnc/ui/components/dropdown-menu';
 import { useIsMobile } from '@wbcnc/ui/hooks/use-mobile';
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
 import { toast } from '@wbcnc/ui/components/sonner';
@@ -184,7 +178,6 @@ function BoardsEditor({
   // A board at a time gets the room: every board is an overview, for arranging parts across them.
   const [view, setView] = useState<'board' | 'all'>('board');
   const [holdSizes, setHoldSizes] = useState(false);
-  const renaming = useRef(false);
   const hardware = useHoldHardware(s => s.hardware);
   const narrow = useIsMobile();
   const railClosed = useBoardsLayout(s => s.railClosed);
@@ -194,6 +187,7 @@ function BoardsEditor({
   // What just happened on the drawing, and the boards before each change, to go back to.
   const [note, setNote] = useState('');
   const history = useRef<BoardV1[][]>([]);
+  const future = useRef<BoardV1[][]>([]);
   const plan = job.plan ?? kDefaultPlan;
   const selected = boards.find(b => b.board.id === selectedId) ?? boards[0];
   // A cut board stays as it was cut: a change to its layout or holds is refused, until "Start over".
@@ -207,6 +201,7 @@ function BoardsEditor({
       return false;
     }
     history.current = [...history.current.slice(-49), boards.map(b => b.board)];
+    future.current = [];
     save({ ...job, boards: next });
     return true;
   };
@@ -253,20 +248,50 @@ function BoardsEditor({
     nestOptions,
     machine,
     onNote: setNote,
+    active: view === 'board',
     onBoardEdit: (b, text) => {
       setNote(text);
       updateBoard(b);
+    },
+    onBoardsEdit: (next, text) => {
+      setNote(text);
+      saveBoards(next);
     },
   });
   const undo = history.current.length
     ? () => {
         const before = history.current.at(-1)!;
         history.current = history.current.slice(0, -1);
+        future.current = [...future.current, boards.map(b => b.board)];
         setNote('Undone.');
         const latest = queryClient.getQueryData<CamJobV1>(camKeys.job(job.id)) ?? job;
         save({ ...latest, boards: before });
       }
     : undefined;
+  const redo = future.current.length
+    ? () => {
+        const after = future.current.at(-1)!;
+        future.current = future.current.slice(0, -1);
+        history.current = [...history.current, boards.map(b => b.board)];
+        setNote('Redone.');
+        const latest = queryClient.getQueryData<CamJobV1>(camKeys.job(job.id)) ?? job;
+        save({ ...latest, boards: after });
+      }
+    : undefined;
+  const undoKeys = useRef({ undo, redo });
+  undoKeys.current = { undo, redo };
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+      if ((e.target as HTMLElement | null)?.closest?.('input,textarea,select,[contenteditable="true"]')) return;
+      const k = e.key.toLowerCase();
+      if (k !== 'z' && k !== 'y') return;
+      e.preventDefault();
+      (k === 'y' || e.shiftKey ? undoKeys.current.redo : undoKeys.current.undo)?.();
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, []);
   // A message goes once it's had time to be read; with a tool in hand it says what's under the pointer, so it stays.
   useEffect(() => {
     if (!note || holds.tool) return;
@@ -453,7 +478,10 @@ function BoardsEditor({
       )}
       {selNest.nutAbove < 0 && (
         <p role="alert" className="text-xs text-destructive">
-          {`The bit's stick-out (${selNest.stickout} mm) is shorter than the deepest cut (${+(stockTopOf(sel) + 0.3).toFixed(1)} mm): the collet nut would hit the board. Check it under “Clamp and screw sizes” or with the bit.`}
+          {`The bit's stick-out (${selNest.stickout} mm) is shorter than the deepest cut (${+(stockTopOf(sel) + 0.3).toFixed(1)} mm): the collet nut would hit the board. Check it with the bit, or here:`}{' '}
+          <button type="button" className="pointer-events-auto underline" onClick={() => setHoldSizes(true)}>
+            Clamp and screw sizes…
+          </button>
         </p>
       )}
       {cantHold.length > 0 && (
@@ -528,12 +556,19 @@ function BoardsEditor({
           </div>
         )}
         {/* The sidebar is under the drawing on a small screen: the tools stay with the drawing. */}
-        {narrow && view === 'board' && <HoldTools holds={holds} onUndo={undo} row />}
+        {narrow && view === 'board' && <HoldTools holds={holds} onUndo={undo} onRedo={redo} layout="row" />}
         <BoardDrawings
           view={view}
           holds={holds}
           status={status}
           onOpen={open}
+          onAll={() => showView('all')}
+          railTools={
+            narrow
+              ? undefined
+              : strip => <HoldTools holds={holds} onUndo={undo} onRedo={redo} layout={strip ? 'strip' : 'grid'} off={view === 'all'} />
+          }
+          onTabSize={(key, value) => holds.setTabSize(key, value, false)}
           onBoardChange={respaced}
           onResize={(w, h) => {
             // A fitted board with nothing on it is only its margins: one side dragged sets both, as when typed in.
@@ -581,90 +616,7 @@ function BoardsEditor({
         />
       </main>
       <aside className="flex min-h-0 flex-col border-l">
-        <div className="relative shrink-0 border-b text-[13px]">
-          <div
-            role="tablist"
-            aria-label="Boards view"
-            className="grid grid-cols-2"
-            onKeyDown={e => {
-              if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-              e.preventDefault();
-              showView(view === 'board' ? 'all' : 'board');
-              e.currentTarget.querySelector<HTMLElement>('[aria-selected="false"]')?.focus();
-            }}>
-            <button
-              type="button"
-              role="tab"
-              id="boards-tab-board"
-              aria-selected={view === 'board'}
-              aria-controls="boards-panel"
-              tabIndex={view === 'board' ? 0 : -1}
-              onClick={() => showView('board')}
-              className={cn(
-                'min-w-0 truncate border-b-2 border-transparent py-2 pr-7 pl-3 text-left',
-                view === 'board' ? 'border-primary font-medium' : 'text-muted-foreground hover:text-foreground'
-              )}>
-              {boardLabel(sel)}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              id="boards-tab-all"
-              aria-selected={view === 'all'}
-              aria-controls="boards-panel"
-              tabIndex={view === 'all' ? 0 : -1}
-              onClick={() => showView('all')}
-              className={cn(
-                'border-b-2 border-transparent py-2',
-                view === 'all' ? 'border-primary font-medium' : 'text-muted-foreground hover:text-foreground'
-              )}>
-              All boards
-            </button>
-          </div>
-          <DropdownMenu modal={false}>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                aria-label={isCut(sel) ? 'Choose a board' : 'Choose or rename a board'}
-                className="absolute inset-y-0 left-[calc(50%-1.75rem)] w-7 text-muted-foreground hover:text-foreground">
-                <ChevronDown className="mx-auto size-3.5" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="start"
-              className="max-h-80 overflow-y-auto"
-              onCloseAutoFocus={e => {
-                // Renaming: the name's field has the focus, not the button that opened the menu.
-                if (renaming.current) e.preventDefault();
-                renaming.current = false;
-              }}>
-              {boards.map(({ board }) => (
-                <DropdownMenuItem key={board.id} onSelect={() => open(board.id)}>
-                  {boardLabel(board)}
-                </DropdownMenuItem>
-              ))}
-              {!isCut(sel) && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onSelect={() => {
-                      renaming.current = true;
-                      setView('board');
-                      // Once the name's field is there.
-                      setTimeout(() => document.getElementById('board-name')?.focus(), 50);
-                    }}>
-                    Rename this board…
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        <div
-          role="tabpanel"
-          id="boards-panel"
-          aria-labelledby={view === 'board' ? 'boards-tab-board' : 'boards-tab-all'}
-          className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col">
           {view === 'board' ? (
             <BoardInspector
               board={sel}
@@ -674,10 +626,8 @@ function BoardsEditor({
               onRelayout={() => relayout(sel)}
               // Its name is in its programs: renamed, they'd count as not cut yet at the machine.
               onRename={isCut(sel) ? undefined : rename}
-              tools={narrow ? undefined : <HoldTools holds={holds} onUndo={undo} />}
               gap={selNest.placements.length < 2 ? { min: plan.bit.diameter } : undefined}
               verdict={verdict}
-              onHoldSizes={() => setHoldSizes(true)}
               holeMiddles={planOf(sel)?.holeMiddles}
               skin={plan.skin}
               onSkin={skin => save({ ...job, plan: { ...plan, skin } })}
@@ -746,6 +696,7 @@ function LayoutPanel({
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4">
+      <h2 className="text-[15px] font-semibold">All boards</h2>
       <StockList stock={stock} onChange={onStock} />
       <section aria-label="Auto-fill" className="flex flex-col gap-2">
         <div className="flex">

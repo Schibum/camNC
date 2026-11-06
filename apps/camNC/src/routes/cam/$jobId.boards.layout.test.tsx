@@ -2,7 +2,7 @@ import '@/style.css';
 import { useBoardsLayout } from '@/cam/boards/boardsLayoutStore';
 import { createJob, getJob, saveJob } from '@/cam/jobDb';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { page } from '@vitest/browser/context';
+import { page, userEvent } from '@vitest/browser/context';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ComponentType } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -45,6 +45,11 @@ async function open() {
   return job;
 }
 
+const suggestHolds = async () => {
+  fireEvent.pointerDown(screen.getByRole('button', { name: 'Suggest holds' }), { button: 0, ctrlKey: false });
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Suggest holds' }));
+};
+
 const saved = async (id: string, name = 'A') => (await getJob(id))!.boards!.find(b => b.name === name)!;
 
 describe('CAM boards layout', () => {
@@ -66,14 +71,16 @@ describe('CAM boards layout', () => {
     expect(drawing('Board B')).toBeTruthy();
 
     // All boards: the same scale for all, and none of what edits a board.
-    fireEvent.click(screen.getByRole('tab', { name: 'All boards' }));
-    expect(screen.queryByRole('navigation', { name: 'Boards' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'All boards' }));
+    // The list stays, to get back and to drop parts on; holds are placed on one board at a time.
+    expect(screen.getByRole('button', { name: 'All boards' }).getAttribute('aria-current')).toBe('page');
+    expect((screen.getByRole('button', { name: 'Clamp' }) as HTMLButtonElement).disabled).toBe(true);
     expect(drawing('Board A')!.querySelector('[data-resize]')).toBeNull();
     expect(document.getElementById('board-w')).toBeNull();
     expect(within(screen.getByRole('region', { name: 'Stock list' })).getByRole('button', { name: 'Add stock board' })).toBeTruthy();
 
     fireEvent.click(drawing('Board A')!);
-    expect(screen.getByRole('tab', { name: 'Board A' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Board A' }).getAttribute('aria-current')).toBe('true');
     expect(drawing('Board B')).toBeNull();
   }, 90_000);
 
@@ -120,10 +127,80 @@ describe('CAM boards layout', () => {
     expect(drawing('Board A')!.querySelector('[data-resize-outline]')).toBeNull();
   }, 90_000);
 
+  it('sizes one selected clamp, then offers the same for the others, with Undo and Redo', async () => {
+    const job = await open();
+    await waitFor(async () => expect((await saved(job.id)).layout).toBeTruthy(), { timeout: 10_000 });
+    await suggestHolds();
+    await waitFor(async () => expect((await saved(job.id)).fixtures?.length).toBeGreaterThanOrEqual(3), { timeout: 10_000 });
+    const count = (await saved(job.id)).fixtures!.length;
+
+    const hold = () => drawing('Board A')!.querySelector('[data-hold]')!;
+    fireEvent.pointerDown(hold(), { button: 0, pointerId: 1, clientX: 1, clientY: 1 });
+    fireEvent.pointerUp(hold(), { button: 0, pointerId: 1, clientX: 1, clientY: 1 });
+    const bar = await screen.findByRole('toolbar', { name: /^Clamp · / });
+    const width = within(bar).getByLabelText(/^Width/) as HTMLInputElement;
+    fireEvent.change(width, { target: { value: '40' } });
+    fireEvent.blur(width);
+
+    // Only that one, until asked for more.
+    await waitFor(async () => expect((await saved(job.id)).fixtures!.filter(f => f.kind === 'clamp' && f.w === 40)).toHaveLength(1), {
+      timeout: 10_000,
+    });
+    fireEvent.click(await screen.findByRole('button', { name: `all ${count} on this board` }));
+    await waitFor(async () => expect((await saved(job.id)).fixtures!.every(f => f.kind === 'clamp' && f.w === 40)).toBe(true), {
+      timeout: 10_000,
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(async () => expect((await saved(job.id)).fixtures!.filter(f => f.kind === 'clamp' && f.w === 40)).toHaveLength(1), {
+      timeout: 10_000,
+    });
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Redo' }) as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByRole('button', { name: 'Redo' }));
+    await waitFor(async () => expect((await saved(job.id)).fixtures!.every(f => f.kind === 'clamp' && f.w === 40)).toBe(true), {
+      timeout: 10_000,
+    });
+
+    // Its menu works with a real pointer, not only a click event.
+    await userEvent.click(await screen.findByRole('button', { name: 'More' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Clamp and screw sizes…' }));
+    await waitFor(() => expect(document.getElementById('hold-stickout')).toBeTruthy(), { timeout: 10_000 });
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(document.getElementById('hold-stickout')).toBeNull(), { timeout: 10_000 });
+
+    // A size being typed counts when the pointer goes elsewhere.
+    const height = within(await screen.findByRole('toolbar', { name: /^Clamp · / })).getByLabelText(/^Height/) as HTMLInputElement;
+    await userEvent.fill(height, '33');
+    await userEvent.click(document.querySelector('[data-board-scroller]')!, { position: { x: 3, y: 3 } });
+    await waitFor(async () => expect((await saved(job.id)).fixtures!.filter(f => f.kind === 'clamp' && f.height === 33)).toHaveLength(1), {
+      timeout: 10_000,
+    });
+    expect(screen.queryByRole('toolbar', { name: /^Clamp · / })).toBeNull();
+    fireEvent.pointerDown(hold(), { button: 0, pointerId: 1, clientX: 1, clientY: 1 });
+    fireEvent.pointerUp(hold(), { button: 0, pointerId: 1, clientX: 1, clientY: 1 });
+
+    // Delete, from the bar.
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete this clamp' }));
+    await waitFor(async () => expect((await saved(job.id)).fixtures).toHaveLength(count - 1), { timeout: 10_000 });
+  }, 90_000);
+
+  it('picks up tools with their letters, and not while typing', async () => {
+    await open();
+    const pressed = (name: string) => screen.getByRole('button', { name }).getAttribute('aria-pressed');
+    fireEvent.keyDown(document.body, { key: 'c' });
+    await waitFor(() => expect(pressed('Clamp')).toBe('true'));
+    expect(document.querySelector('[data-armed-bar]')?.textContent).toMatch(/Click near an edge/);
+    fireEvent.keyDown(screen.getByLabelText('Board name'), { key: 's' });
+    expect(pressed('Clamp')).toBe('true');
+    fireEvent.keyDown(document.body, { key: 'v' });
+    await waitFor(() => expect(pressed('Select')).toBe('true'));
+    expect(document.querySelector('[data-armed-bar]')).toBeNull();
+  }, 90_000);
+
   it('moves a part to a board in the rail: into its nest, with the board being edited still open', async () => {
     const job = await open();
     // Another 8 mm board, empty.
-    fireEvent.click(screen.getByRole('tab', { name: 'All boards' }));
+    fireEvent.click(screen.getByRole('button', { name: 'All boards' }));
     fireEvent.click(screen.getByRole('button', { name: /New 8 mm board/ }));
     await screen.findByRole('region', { name: 'Board C drawing' });
     fireEvent.click(drawing('Board A')!);
@@ -162,25 +239,18 @@ describe('CAM boards layout', () => {
     await waitFor(async () => expect((await saved(job.id)).gap).toBe(20), { timeout: 10_000 });
   }, 90_000);
 
-  it('picks and renames a board from its tab, and refuses a name that can’t be', async () => {
+  it('picks a board in the list, renames it, and refuses a name that can’t be', async () => {
     const job = await open();
-    const menu = () =>
-      fireEvent.pointerDown(screen.getByRole('button', { name: 'Choose or rename a board' }), { button: 0, ctrlKey: false });
-    menu();
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Board B' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Board B' }));
     await screen.findByRole('region', { name: 'Board B drawing' }, { timeout: 10_000 });
 
-    menu();
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename this board…' }));
     const name = screen.getByLabelText('Board name') as HTMLInputElement;
-    await waitFor(() => expect(document.activeElement).toBe(name), { timeout: 10_000 });
     fireEvent.change(name, { target: { value: 'A' } });
     fireEvent.blur(name);
     expect((await getJob(job.id))!.boards!.filter(b => b.name === 'A')).toHaveLength(1);
     fireEvent.change(name, { target: { value: 'Back panel' } });
     fireEvent.blur(name);
     await waitFor(async () => expect((await getJob(job.id))!.boards!.map(b => b.name)).toEqual(['A', 'Back panel']), { timeout: 10_000 });
-    expect(await screen.findByRole('tab', { name: 'Back panel' }, { timeout: 10_000 })).toBeTruthy();
     expect(drawing('Back panel')).toBeTruthy();
     expect(within(screen.getByRole('navigation', { name: 'Boards' })).getByRole('button', { name: 'Back panel' })).toBeTruthy();
   }, 90_000);
@@ -198,14 +268,12 @@ describe('CAM boards layout', () => {
     );
     await screen.findByRole('region', { name: 'Board A drawing' }, { timeout: 60_000 });
     expect(screen.queryByLabelText('Board name')).toBeNull();
-    fireEvent.pointerDown(screen.getByRole('button', { name: 'Choose a board' }), { button: 0, ctrlKey: false });
-    expect(await screen.findByRole('menuitem', { name: 'Board B' })).toBeTruthy();
-    expect(screen.queryByRole('menuitem', { name: 'Rename this board…' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Board B' })).toBeTruthy();
   }, 90_000);
 
   it('a right-click on a clamp only opens its menu, however the mouse drifts', async () => {
     const job = await open();
-    fireEvent.click(screen.getByRole('button', { name: 'Suggest holds' }));
+    await suggestHolds();
     await waitFor(async () => expect((await saved(job.id)).fixtures?.length).toBeGreaterThanOrEqual(3), { timeout: 10_000 });
     const before = await saved(job.id);
     const clamp = await waitFor(() => {
@@ -276,7 +344,7 @@ describe('CAM boards layout', () => {
 
   it('reaches the clamp sizes from a clamp’s menu, with the side view of what they mean', async () => {
     const job = await open();
-    fireEvent.click(screen.getByRole('button', { name: 'Suggest holds' }));
+    await suggestHolds();
     await waitFor(async () => expect((await saved(job.id)).fixtures?.length).toBeGreaterThanOrEqual(3), { timeout: 10_000 });
     const clamp = await waitFor(() => {
       const c = drawing('Board A')!.querySelector('[data-hold="clamp"]');

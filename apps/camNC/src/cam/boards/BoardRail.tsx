@@ -1,6 +1,6 @@
 import { cn } from '@wbcnc/ui/lib/utils';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
-import { useRef } from 'react';
+import { ChevronLeft, ChevronRight, LayoutGrid, Plus } from 'lucide-react';
+import { useRef, type ReactNode } from 'react';
 import { boardLabel, holdVerdict, placedRect, type PartInstance } from '../boards';
 import type { CamPartInfo } from '../camTypes';
 import type { HoldHardware } from '../holdHardware';
@@ -38,9 +38,10 @@ function Thumb({ job, instances, parts, scale }: { job: JobBoard; instances: Par
 }
 
 /**
- * Every board, small, beside the one being edited: click one to edit it, drop a part on one to move it there. Collapsed, a
- * strip of status dots and letters; a part dragged to it opens the list over the drawing, without moving the board under the
- * pointer, and moved on along the board it stays out of the way.
+ * The left column: the tools for the board being edited, staying put above the list, then All boards and every board, small.
+ * Click one to edit it, drop a part on one to move it there. Collapsed, a strip of the tools, status dots and letters; a part
+ * dragged to it opens the list over the drawing, without moving the board under the pointer, and moved on along the board it
+ * stays out of the way.
  */
 export function BoardRail({
   boards,
@@ -54,6 +55,9 @@ export function BoardRail({
   pointerX,
   onOpen,
   onToggle,
+  all,
+  onAll,
+  tools,
 }: {
   boards: JobBoard[];
   instances: PartInstance[];
@@ -70,6 +74,11 @@ export function BoardRail({
   onOpen: (id: string) => void;
   /** Open or close it; undefined where it stays a strip (a small screen has no width for more). */
   onToggle?: () => void;
+  /** Every board is shown, none is being edited. */
+  all: boolean;
+  onAll: () => void;
+  /** The tools, as they fit: in the list, or in the collapsed strip. */
+  tools?: (strip: boolean) => ReactNode;
 }) {
   const unit = Math.max(...boards.map(b => Math.max(b.nest.board.w, b.nest.board.h)), 1);
   const scale = kThumb / unit;
@@ -78,6 +87,9 @@ export function BoardRail({
   const edge = strip.current?.getBoundingClientRect().right ?? 44;
   opened.current = dragging && pointerX !== undefined && pointerX <= edge + (opened.current ? kOpenWidth : 8);
   const toneOf = ({ board, nest }: JobBoard) => holdVerdict(board, nest, hardware, instances).tone;
+  const current = all ? null : selectedId;
+  const toolsAt = (strip: boolean) =>
+    tools && <div className="sticky top-0 z-10 -mx-1 shrink-0 border-b bg-background px-1 pb-1.5">{tools(strip)}</div>;
   const full = (
     <nav
       aria-label="Boards"
@@ -85,15 +97,30 @@ export function BoardRail({
         'flex w-[148px] shrink-0 flex-col gap-1 overflow-y-auto border-r bg-background p-2',
         closed && 'absolute inset-y-0 left-11 z-30 shadow-lg'
       )}>
+      {!closed && toolsAt(false)}
       {!closed && (
-        <button
-          type="button"
-          aria-label="Collapse board list"
-          aria-expanded
-          onClick={onToggle}
-          className="flex shrink-0 items-center gap-1 rounded-md px-1 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">
-          <ChevronLeft className="size-3.5" /> Boards
-        </button>
+        <div className="flex shrink-0 items-center gap-0.5">
+          <button
+            type="button"
+            aria-current={all ? 'page' : undefined}
+            onClick={onAll}
+            className={cn(
+              'flex min-w-0 grow items-center gap-1.5 rounded-md border border-transparent p-1.5 text-xs whitespace-nowrap hover:bg-muted',
+              all && 'border-primary/60 bg-muted'
+            )}>
+            <LayoutGrid className="size-3.5 shrink-0" /> All boards
+          </button>
+          {onToggle && (
+            <button
+              type="button"
+              aria-label="Collapse board list"
+              aria-expanded
+              onClick={onToggle}
+              className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
+              <ChevronLeft className="size-3.5" />
+            </button>
+          )}
+        </div>
       )}
       {boards.map(job => {
         const { board, nest } = job;
@@ -104,12 +131,12 @@ export function BoardRail({
             type="button"
             data-rail-drop={board.id}
             aria-label={boardLabel(board)}
-            aria-current={board.id === selectedId ? 'true' : undefined}
+            aria-current={board.id === current ? 'true' : undefined}
             onClick={() => onOpen(board.id)}
             className={cn(
               'flex w-full shrink-0 flex-col items-start gap-1 rounded-md border border-transparent p-1.5 text-xs hover:bg-muted',
-              board.id === selectedId && 'border-primary/60 bg-muted',
-              dragging && board.id !== selectedId && 'border-dashed border-primary/60',
+              board.id === current && 'border-primary/60 bg-muted',
+              dragging && board.id !== current && 'border-dashed border-primary/60',
               over?.ok && 'border-solid border-primary bg-primary/10 ring-1 ring-primary',
               over && !over.ok && 'border-solid border-red-500 ring-1 ring-red-500'
             )}>
@@ -145,6 +172,16 @@ export function BoardRail({
         ref={strip}
         aria-label={opened.current ? 'Boards, collapsed' : 'Boards'}
         className="flex w-11 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r bg-background px-1 py-2">
+        {toolsAt(true)}
+        <button
+          type="button"
+          aria-label="All boards"
+          aria-current={all ? 'page' : undefined}
+          title="All boards"
+          onClick={onAll}
+          className={cn('rounded-md border border-transparent p-1.5 hover:bg-muted', all && 'border-primary/60 bg-muted')}>
+          <LayoutGrid className="size-3.5" />
+        </button>
         {onToggle && (
           <button
             type="button"
@@ -160,12 +197,12 @@ export function BoardRail({
             key={job.board.id}
             type="button"
             aria-label={boardLabel(job.board)}
-            aria-current={job.board.id === selectedId ? 'true' : undefined}
+            aria-current={job.board.id === current ? 'true' : undefined}
             title={boardLabel(job.board)}
             onClick={() => onOpen(job.board.id)}
             className={cn(
               'flex w-9 shrink-0 flex-col items-center gap-0.5 rounded-md border border-transparent py-1 text-xs hover:bg-muted',
-              job.board.id === selectedId && 'border-primary/60 bg-muted'
+              job.board.id === current && 'border-primary/60 bg-muted'
             )}>
             <span aria-hidden className={cn('size-2 rounded-full', dotClass(toneOf(job)))} />
             {job.board.name.charAt(0)}

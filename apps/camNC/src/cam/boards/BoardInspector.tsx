@@ -99,9 +99,7 @@ export function BoardInspector({
   skin,
   onSkin,
   onRename,
-  tools,
   verdict,
-  onHoldSizes,
   gap,
   holeMiddles,
 }: {
@@ -120,11 +118,8 @@ export function BoardInspector({
   /** A new name for it; false: it can't have that one (and has been told why). */
   onRename?: (name: string) => boolean;
   /** The buttons that place fixtures. */
-  tools?: React.ReactNode;
   /** What holds the board, in a word, and what that means. */
   verdict?: { tone: 'ok' | 'warn' | 'none'; text: string };
-  /** The clamps' and screws' sizes. */
-  onHoldSizes?: () => void;
   /** The gap between parts, with no two parts on the drawing to show it between: at least this, mm. */
   gap?: { min: number };
   /** The pieces in the middle of its through holes. */
@@ -173,7 +168,6 @@ export function BoardInspector({
             {held ? (taped ? `${held} and tape` : held) : taped ? 'Tape' : 'No fixtures yet'}
           </p>
         </Hint>
-        {tools}
         <Hint
           text="Double-sided tape under the board: it stays put without fixtures. Use both if you like."
           id="board-tape-hint"
@@ -189,11 +183,6 @@ export function BoardInspector({
             Tape under the board
           </label>
         </Hint>
-        {onHoldSizes && (
-          <Button size="sm" variant="outline" onClick={onHoldSizes}>
-            Clamp and screw sizes…
-          </Button>
-        )}
       </fieldset>
 
       {holeMiddles?.some(m => m.state !== 'vacuum') && <HoleMiddlesSummary middles={holeMiddles} />}

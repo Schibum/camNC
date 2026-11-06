@@ -2,7 +2,7 @@ import { demoStorage } from '@/lib/demo/demo-storage';
 import type { LibraryTool } from '@wbcnc/cam';
 import { readFusionToolLibrary, selectToolPreset } from '@wbcnc/cam/tools';
 import { bitKey } from './cuttingData';
-import { kDefaultBit } from './planSettings';
+import { kBuiltInBits } from './planSettings';
 import { fusionLibraryText } from './unzip';
 import { create } from 'zustand';
 import { combine, createJSONStorage, persist } from 'zustand/middleware';
@@ -135,9 +135,9 @@ export async function readLibraryFile(file: File): Promise<LibraryImport> {
   }
 }
 
-/** The bits to offer: the built-in 1/8″, the stored ones, and the job's own (it may have been removed since). */
+/** The bits to offer: the built-in ones, the stored ones, and the job's own (it may have been removed since). */
 export function offeredBits(stored: LibraryTool[], current: LibraryTool[] = []): LibraryTool[] {
-  const bits: LibraryTool[] = [kDefaultBit];
+  const bits: LibraryTool[] = [...kBuiltInBits];
   for (const b of [...stored, ...current]) if (!bits.some(x => bitKey(x) === bitKey(b))) bits.push(b);
   return bits;
 }

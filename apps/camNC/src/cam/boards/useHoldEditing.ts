@@ -19,6 +19,11 @@ import {
 import { kDefaultHardware } from '../holdHardware';
 import type { JobBoard } from '../useJobBoards';
 
+/** What can be in hand: a fixture to place, or a tab. */
+export type HoldTool = HoldKind | 'tab';
+export type HoldSizeKey = 'd' | 'w' | 'height';
+export type HoldSizes = Partial<Record<HoldSizeKey, number>>;
+
 /** A fixture being placed or dragged, with its board as it would then be. */
 export interface HoldEdit {
   board: string;
@@ -40,7 +45,9 @@ export function useHoldEditing({
   nestOptions,
   machine,
   onBoardEdit,
+  onBoardsEdit,
   onNote,
+  active,
 }: {
   boards: JobBoard[];
   selectedId: string;
@@ -50,25 +57,66 @@ export function useHoldEditing({
   /** The machine's work area, when it is set up: Suggest holds grows no board past it. */
   machine?: { w: number; h: number };
   onBoardEdit: (board: BoardV1, note: string) => void;
+  /** Several boards changed at once: all of them as they are now. */
+  onBoardsEdit: (boards: BoardV1[], note: string) => void;
   onNote: (note: string) => void;
+  /** A single board is shown: the keys pick up tools. */
+  active: boolean;
 }) {
-  const [tool, setTool] = useState<HoldKind | null>(null);
+  const [tool, setTool] = useState<HoldTool | null>(null);
   const [edit, setEdit] = useState<HoldEdit | null>(null);
-  const [selectedHold, setSelectedHold] = useState<{ board: string; i: number } | null>(null);
+  const [selectedHold, selectHold] = useState<{ board: string; i: number } | null>(null);
+  const [selectedTab, selectTab] = useState<{ board: string; part: string; i: number } | null>(null);
+  // One thing is selected at a time.
+  const setSelectedHold = (s: { board: string; i: number } | null) => {
+    selectHold(s);
+    selectTab(null);
+  };
+  const setSelectedTab = (s: { board: string; part: string; i: number } | null) => {
+    selectTab(s);
+    selectHold(null);
+  };
+  // What the next one placed gets, where it differs from the clamp and screw sizes.
+  const [newSizes, setNewSizes] = useState<{ clamp: HoldSizes; screw: HoldSizes }>({ clamp: {}, screw: {} });
   const selectedBoard = boards.find(b => b.board.id === selectedId);
   const canPlace = !!selectedBoard && !isCut(selectedBoard.board);
   const holdCount = selectedBoard?.board.fixtures?.length ?? 0;
-  // Esc puts the tool down.
+  const tabsOn = selectedBoard?.board.retention === 'tabs';
+  // Esc puts the tool down, and the letters on the tools pick them up.
   useEffect(() => {
-    if (!tool) return;
+    if (!active) return;
     const key = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      setTool(null);
+      if (e.key === 'Escape') {
+        setTool(null);
+        setEdit(null);
+        return;
+      }
+      const on = e.target as HTMLElement | null;
+      if (
+        e.metaKey ||
+        e.ctrlKey ||
+        e.altKey ||
+        on?.closest?.('input,textarea,select,[contenteditable="true"],[role="menu"],[role="dialog"]')
+      )
+        return;
+      const picked = { v: null, c: 'clamp', s: 'screw', t: 'tab' }[e.key.toLowerCase()] as HoldTool | null | undefined;
+      if (picked === undefined || (picked && !canPlace) || (picked === 'tab' && !tabsOn)) return;
+      setTool(picked);
       setEdit(null);
+      selectHold(null);
+      selectTab(null);
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, [tool]);
+  }, [active, canPlace, tabsOn]);
+
+  // No tabs to place on a board without them.
+  useEffect(() => {
+    if (!tabsOn) {
+      setTool(t => (t === 'tab' ? null : t));
+      selectTab(null);
+    }
+  }, [tabsOn]);
 
   // Nothing to place on a cut board: the tool can't stay in hand with its buttons off.
   useEffect(() => {
@@ -78,13 +126,22 @@ export function useHoldEditing({
     }
   }, [canPlace]);
 
+  /** A clamp's width where it differs: the one being moved, or the next one placed. */
+  const widthOf = (i: number | null) => {
+    const moved = i === null ? undefined : selectedBoard?.board.fixtures?.[i];
+    return i === null ? newSizes.clamp.w : moved?.kind === 'clamp' ? moved.w : undefined;
+  };
   /** The fixture at a point: previewed on its board with the parts moved aside for it, or refused. */
   const preview = ({ board, nest }: JobBoard, kind: HoldKind, p: { x: number; y: number }, i: number | null) => {
-    const f = fixtureAt(kind, p, board, nest, instances, bit, { ...nestOptions, exact: i !== null });
+    const f = {
+      ...fixtureAt(kind, p, board, nest, instances, bit, { ...nestOptions, exact: i !== null, clampWidth: widthOf(i) }),
+      ...(i === null ? newSizes[kind] : {}),
+    };
     const key = `${board.id}:${i}:${JSON.stringify(f)}`;
     if (edit?.key === key) return;
     const current = board.fixtures ?? [];
-    const fixtures = i === null ? [...current, f] : current.map((x, j) => (j === i ? f : x));
+    // Moved, it stays the size it is.
+    const fixtures = i === null ? [...current, f] : current.map((x, j) => (j === i ? ({ ...x, ...f } as Fixture) : x));
     const settled = settleBoard(board, instances, bit, fixtures, { ...nestOptions, budget: 80 });
     const shown = nestBoard(settled ?? { ...board, fixtures }, instances, bit, nestOptions);
     setEdit({ board: board.id, i, fixtures, nest: shown, settled, key });
@@ -171,5 +228,91 @@ export function useHoldEditing({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bandsKey]);
 
-  return { tool, setTool, edit, setEdit, selectedHold, setSelectedHold, canPlace, holdCount, bands, preview, commit, suggest, nudgeHolds };
+  /** The board with these fixtures, parts moved aside for them. Null: there's no room. */
+  const refit = ({ board }: JobBoard, fixtures: Fixture[]) => settleBoard(board, instances, bit, fixtures, nestOptions);
+  /** One fixture's size: the parts make room, or it stays as it was. */
+  const setHoldSize = (i: number, key: HoldSizeKey, value: number) => {
+    if (!selectedBoard) return false;
+    const fixtures = (selectedBoard.board.fixtures ?? []).map((f, j) => (j === i ? ({ ...f, [key]: value } as Fixture) : f));
+    const settled = refit(selectedBoard, fixtures);
+    if (!settled) {
+      onNote(`No room for that size here. It stays as it was: move it, or make room first.`);
+      return false;
+    }
+    onBoardEdit(settled, layoutChange(selectedBoard.nest, nestBoard(settled, instances, bit, nestOptions), instances));
+    return true;
+  };
+  const named = (kind: HoldKind, n: number) => `${n} ${kind}${n === 1 ? '' : 's'}`;
+  /** How many of them this reaches: on the selected board, or on every board that isn't cut. */
+  const countOf = (kind: HoldKind, all: boolean) =>
+    (all ? boards.filter(b => !isCut(b.board)) : selectedBoard ? [selectedBoard] : []).reduce(
+      (n, b) => n + (b.board.fixtures ?? []).filter(f => f.kind === kind).length,
+      0
+    );
+  /** The same size for all of a kind. A board where the parts can't make room for it keeps what it has, and that's said. */
+  const applyHoldSize = (kind: HoldKind, key: HoldSizeKey, value: number, all: boolean) => {
+    let [changed, full] = [0, 0];
+    const next = boards.map(b => {
+      const has = (b.board.fixtures ?? []).filter(f => f.kind === kind).length;
+      if (!has || isCut(b.board) || (!all && b.board.id !== selectedId)) return b.board;
+      const settled = refit(
+        b,
+        (b.board.fixtures ?? []).map(f => (f.kind === kind ? ({ ...f, [key]: value } as Fixture) : f))
+      );
+      if (!settled) {
+        full += has;
+        return b.board;
+      }
+      changed += has;
+      return settled;
+    });
+    if (!changed) {
+      onNote(`No room for that size: the ${kind}s stay as they are.`);
+      return;
+    }
+    onBoardsEdit(next, `Changed ${named(kind, changed)}.${full ? ` ${named(kind, full)} kept their size: no room for it.` : ''}`);
+  };
+  /** Tabs are one shape on a board: this board's, or those of all boards with tabs that aren't cut. */
+  const setTabSize = (key: 'width' | 'height', value: number, all: boolean) => {
+    const next = boards.map(b =>
+      b.board.retention !== 'tabs' || isCut(b.board) || (!all && b.board.id !== selectedId)
+        ? b.board
+        : { ...b.board, tabs: { ...b.board.tabs, [key]: value } }
+    );
+    onBoardsEdit(next, all ? 'Changed the tabs on all boards.' : 'Changed the tabs on this board.');
+  };
+  const removeAllHolds = (kind: HoldKind) => {
+    if (!selectedBoard) return;
+    setSelectedHold(null);
+    onBoardEdit(
+      { ...selectedBoard.board, fixtures: (selectedBoard.board.fixtures ?? []).filter(f => f.kind !== kind) },
+      `All ${kind}s on this board removed. Parts stay where they are; Tighten layout closes the gaps.`
+    );
+  };
+
+  return {
+    tool,
+    setTool,
+    edit,
+    setEdit,
+    selectedHold,
+    setSelectedHold,
+    selectedTab,
+    setSelectedTab,
+    canPlace,
+    tabsOn,
+    holdCount,
+    bands,
+    preview,
+    commit,
+    suggest,
+    nudgeHolds,
+    newSizes,
+    setNewSizes,
+    setHoldSize,
+    countOf,
+    applyHoldSize,
+    setTabSize,
+    removeAllHolds,
+  };
 }
