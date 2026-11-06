@@ -1,5 +1,6 @@
 import { getCncApi } from '@/lib/fluidnc/machine';
 import { machineSupport } from '@/lib/fluidnc/machine-support';
+import { workOffsetCommand } from '@/lib/fluidnc/work-offset';
 import { setXYZeroFromToolpath } from '@/lib/machine/jobs';
 import {
   useHasToolpath,
@@ -29,7 +30,7 @@ import { TooltipIconButton } from './TooltipIconButton';
 
 function copyZeroGcodePosition() {
   const { x, y } = useStore.getState().toolpathOffset;
-  const zeroGcodePosition = `G10 L2 P0 X${x.toFixed(2)} Y${y.toFixed(2)}`;
+  const zeroGcodePosition = workOffsetCommand({ x, y });
   navigator.clipboard.writeText(zeroGcodePosition);
   toast.success('Zero command copied to clipboard', {
     description: zeroGcodePosition,
