@@ -273,6 +273,35 @@ export function rotateAboutOrigin(deg: number): (q: Vec3) => Vec3 {
   return q => [q[0] * c - q[1] * s, q[0] * s + q[1] * c, q[2]];
 }
 
+/** Placement moves cutting-transition evidence into the same frame as its actual toolpath. */
+function transformOperation(operation: Operation, transform: (point: Vec3) => Vec3): Operation {
+  return {
+    ...operation,
+    ...(operation.pocketTransition && {
+      pocketTransition: {
+        ...operation.pocketTransition,
+        region: operation.pocketTransition.region.map(loop =>
+          loop.map(point => {
+            const [x, y] = transform([point.x, point.y, 0]);
+            return { x, y };
+          })
+        ),
+      },
+    }),
+    passes: operation.passes.map(pass => ({
+      ...pass,
+      pts: pass.pts.map(transform),
+      ...(pass.cuttingTransition && {
+        cuttingTransition: {
+          ...pass.cuttingTransition,
+          from: transform(pass.cuttingTransition.from),
+          to: transform(pass.cuttingTransition.to),
+        },
+      }),
+    })),
+  };
+}
+
 const kFeatureOrder = { pocket: 0, hole: 1, outline: 2 } as const;
 
 /**
@@ -328,9 +357,8 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
     cam.operations.forEach((op, index) =>
       ops.push({
         op: {
-          ...op,
+          ...transformOperation(op, q => turn(partToBoard(part, q))),
           name: `${part.name}: ${op.name}`,
-          passes: op.passes.map(p => ({ ...p, pts: p.pts.map(q => turn(partToBoard(part, q))) })),
         },
         part,
         index,
@@ -343,7 +371,7 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
   if (board.dowels) {
     const pins = dowelOperations(board, board.dowels, settings);
     warnings.push(...fluteWarnings(pins, stockTop));
-    operations.push(...pins.map(op => ({ ...op, passes: op.passes.map(p => ({ ...p, pts: p.pts.map(q => turn(q)) })) })));
+    operations.push(...pins.map(op => transformOperation(op, turn)));
   }
   let pos = { x: 0, y: 0 };
   // Per bit, inner features before outlines. When every part keeps a layer until the end, the inner features of every

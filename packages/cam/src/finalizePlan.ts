@@ -3,10 +3,11 @@ import { limitRemovalRate } from './engagement';
 import type { PathsD } from './geom';
 import { StockModel } from './stock';
 import { certifyStockLinks } from './stockPlan';
-import type { PartCam } from './toolpaths';
+import type { PartCam, Pass } from './toolpaths';
 
 export interface StockSummary {
   certifiedLinks: number;
+  cuttingTransitions?: number;
   retractedLinks: number;
   limitedSegments: number;
   maximumPlanarRemovalRate: number;
@@ -28,6 +29,11 @@ export interface FinalizeSettings {
 
 export type FinalizedCam = PartCam & { accuracy: PlanAccuracy; stockSummary: StockSummary; stockFootprint?: PathsD };
 
+const cuttingTransitions = (passes: Pass[]) =>
+  passes.filter(
+    pass => pass.cuttingTransition && pass.clearLink && pass.pts[0].every((value, axis) => value === pass.cuttingTransition!.from[axis])
+  ).length;
+
 /** Resolve stock decisions after final ordering. Blank means original material, never the finished silhouette. */
 export function finalizePlan(cam: PartCam, settings: FinalizeSettings, blank?: PathsD): FinalizedCam {
   const accuracy = planAccuracy(settings.geometryTolerance, settings.sourceTolerance);
@@ -35,6 +41,7 @@ export function finalizePlan(cam: PartCam, settings: FinalizeSettings, blank?: P
   const stock = new StockModel({ stockTop: cam.stockTop, footprint: blank, tolerance: accuracy.budget.offset, pathTolerance });
   const summary: StockSummary = {
     certifiedLinks: 0,
+    cuttingTransitions: 0,
     retractedLinks: 0,
     limitedSegments: 0,
     maximumPlanarRemovalRate: 0,
@@ -49,7 +56,19 @@ export function finalizePlan(cam: PartCam, settings: FinalizeSettings, blank?: P
         ? (operation.tool.feed ?? settings.feed) * (operation.tool.stepover ?? operation.tool.diameter * settings.stepoverFactor)
         : undefined);
     if (rate !== undefined) {
-      const resolved = limitRemovalRate(operation.passes, operation.tool, stock, {
+      // Resolve engaging bridges before limiting their explicit cutting segments, while
+      // keeping the limiter's removal history at the start of this operation.
+      const checkpoint = stock.checkpoint();
+      let prepared: ReturnType<typeof certifyStockLinks>;
+      try {
+        prepared = certifyStockLinks({ ...cam, operations: [operation] }, { plungeFeed: settings.plungeFeed }, stock);
+      } finally {
+        stock.rollback(checkpoint);
+      }
+      const passes = prepared.cam.operations[0].passes;
+      summary.retractedLinks += prepared.retractedLinks;
+      summary.cuttingTransitions = (summary.cuttingTransitions ?? 0) + cuttingTransitions(passes);
+      const resolved = limitRemovalRate(passes, operation.tool, stock, {
         maxPlanarRemovalRate: rate,
         minimumFeed: settings.minimumCuttingFeed ?? 1,
         plungeFeed: settings.plungeFeed,
@@ -64,6 +83,7 @@ export function finalizePlan(cam: PartCam, settings: FinalizeSettings, blank?: P
       return { ...operation, passes: resolved.passes };
     }
     const resolved = certifyStockLinks({ ...cam, operations: [operation] }, { plungeFeed: settings.plungeFeed }, stock);
+    summary.cuttingTransitions = (summary.cuttingTransitions ?? 0) + cuttingTransitions(resolved.cam.operations[0].passes);
     summary.certifiedLinks += resolved.certificates.filter(proof => proof.certificate.clear).length;
     summary.retractedLinks += resolved.retractedLinks;
     return resolved.cam.operations[0];

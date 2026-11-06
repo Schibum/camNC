@@ -1,6 +1,6 @@
 import type { Vec3 } from './geom';
 import { pauseMarker, type PauseMarker } from './pauseMarker';
-import type { Operation, PartCam, Tool } from './toolpaths';
+import { DEFAULT_SETTINGS, type Operation, type PartCam, type Tool } from './toolpaths';
 import { fitVerticalRun, verticalRunEnd, type VerticalPrimitive } from './verticalArcs';
 import { certifyStockLinks } from './stockPlan';
 import { checkAccuracyBudget } from './accuracy';
@@ -99,6 +99,8 @@ export interface GcodeOptions {
   stockSize?: Vec3;
   /** For a bit without its own speed (`Tool.rpm`). */
   spindleRpm?: number;
+  /** Fallback approach feed for custom operations without resolved operation or tool plunge data. */
+  plungeFeed?: number;
   /** Who switches the spindle: by hand (default; pauses say what to do, M3/M5 do nothing), or the controller. */
   spindle?: SpindleSwitch;
   /** Seconds to wait after M3 for the spindle to reach speed. */
@@ -186,7 +188,7 @@ export function postProgram(cam: PartCam, opts: GcodeOptions = {}): PostedProgra
   // Recheck the exact program order, including custom plans and programs split
   // by tool. Header stock dimensions alone do not establish a known raw blank.
   cam = certifyStockLinks(cam, {
-    plungeFeed: 480,
+    plungeFeed: opts.plungeFeed ?? DEFAULT_SETTINGS.plungeFeed,
     footprint: cam.stockFootprint,
     tolerance: cam.accuracy?.budget.offset ?? 0.005,
     pathTolerance:

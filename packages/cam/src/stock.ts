@@ -7,6 +7,9 @@ interface Sweep {
   from: Vec3;
   to: Vec3;
   radius: number;
+  /** Original commanded endpoint and cutter, retained only to anchor continuous cutting motion. */
+  occupiedPose: Vec3;
+  cutterRadius: number;
 }
 
 export interface StockOptions {
@@ -36,6 +39,26 @@ export interface MoveEngagement {
   sweptArea: number;
   newArea: number;
   averageWidth: number;
+}
+
+export interface PocketTransitionPolicy {
+  /** Actual removable pocket, with retained islands represented by its inner boundaries. */
+  region: PathsD;
+  maximumStepover: number;
+  cutFeed: number;
+  transitionFeed: number;
+  /** Additional radial material retained by roughing transitions. */
+  wallAllowance?: number;
+}
+
+export interface CuttingTransitionCertificate {
+  allowed: boolean;
+  reason: 'bounded-cut' | 'pose-unproven' | 'depth-change' | 'stepover-exceeded' | 'outside-pocket';
+  /** Radial penetration from the currently occupied disk, including independent XY endpoint deviations. */
+  maximumImmersion: number;
+  /** Full-slot translated-disk frontier bound, not an angular engagement estimate. */
+  maximumFrontierWidth: number;
+  feed: number;
 }
 
 function finitePoint(point: Vec3): void {
@@ -126,6 +149,46 @@ function circleInterval(a: Pt, b: Pt, center: Pt, radius: number): Interval | un
     lo = Math.max(0, (-bb - root) / (2 * aa)),
     hi = Math.min(1, (-bb + root) / (2 * aa));
   return hi >= lo ? [lo, hi] : undefined;
+}
+
+function pointSegmentDistance(point: Pt, a: Pt, b: Pt): number {
+  const dx = b.x - a.x,
+    dy = b.y - a.y;
+  const square = dx * dx + dy * dy;
+  const t = square ? Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / square)) : 0;
+  return Math.hypot(point.x - a.x - t * dx, point.y - a.y - t * dy);
+}
+
+function segmentDistance(a: Pt, b: Pt, c: Pt, d: Pt): number {
+  const cross = (p: Pt, q: Pt, r: Pt) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+  const [abc, abd, cda, cdb] = [cross(a, b, c), cross(a, b, d), cross(c, d, a), cross(c, d, b)];
+  if (((abc > 0 && abd < 0) || (abc < 0 && abd > 0)) && ((cda > 0 && cdb < 0) || (cda < 0 && cdb > 0))) return 0;
+  return Math.min(
+    pointSegmentDistance(a, c, d),
+    pointSegmentDistance(b, c, d),
+    pointSegmentDistance(c, a, b),
+    pointSegmentDistance(d, a, b)
+  );
+}
+
+/** Analytic boundary test retains islands even when their width is below the polygon clipping grid. */
+function capsuleInsideRegion(a: Pt, b: Pt, radius: number, region: PathsD): boolean {
+  let winding = 0;
+  for (const path of region) {
+    if (path.length < 3) throw new Error('Pocket transition boundaries need at least three points');
+    for (let i = 0; i < path.length; i++) {
+      const p = path[i],
+        q = path[(i + 1) % path.length];
+      if (![p.x, p.y, q.x, q.y].every(Number.isFinite)) throw new Error('Pocket transition boundaries need finite points');
+      const distance = segmentDistance(a, b, p, q);
+      if (!Number.isFinite(distance) || distance <= radius + kGridGuard) return false;
+      const cross = (q.x - p.x) * (a.y - p.y) - (q.y - p.y) * (a.x - p.x);
+      if (!Number.isFinite(cross)) return false;
+      if (p.y <= a.y && q.y > a.y && cross > 0) winding++;
+      else if (p.y > a.y && q.y <= a.y && cross < 0) winding--;
+    }
+  }
+  return winding !== 0;
 }
 
 /** Centerline parameter range whose complete cutter disk fits inside one previous capsule. */
@@ -223,7 +286,13 @@ export class StockModel {
     if (effective <= 0) throw new Error('Path uncertainty is greater than the cutter radius');
     const uncertain = (point: Vec3): Vec3 => [point[0], point[1], point[2] + this.verticalTolerance];
     for (let i = 0; i < Math.max(1, points.length - 1); i++)
-      this.sweeps.push({ from: uncertain(points[i]), to: uncertain(points[Math.min(i + 1, points.length - 1)]), radius: effective });
+      this.sweeps.push({
+        from: uncertain(points[i]),
+        to: uncertain(points[Math.min(i + 1, points.length - 1)]),
+        radius: effective,
+        occupiedPose: [...points[Math.min(i + 1, points.length - 1)]],
+        cutterRadius: radius,
+      });
     this.planes.clear();
   }
 
@@ -310,6 +379,36 @@ export class StockModel {
       depthPlane,
       unclearedArea: Math.max(0, polyArea(remaining)),
     };
+  }
+
+  /** A material-engaging pocket stepover, anchored to the actual immediately preceding cutter pose. */
+  certifyCuttingTransition(from: Vec3, to: Vec3, radius: number, policy: PocketTransitionPolicy): CuttingTransitionCertificate {
+    finitePoint(from);
+    finitePoint(to);
+    positiveRadius(radius);
+    if (![policy.maximumStepover, policy.cutFeed, policy.transitionFeed].every(value => Number.isFinite(value) && value > 0))
+      throw new Error('Pocket cutting transitions require positive finite limits');
+    if (policy.maximumStepover > 2 * radius) throw new Error('Pocket cutting transition stepover exceeds the cutter diameter');
+    const allowance = policy.wallAllowance ?? 0;
+    if (!Number.isFinite(allowance) || allowance < 0) throw new Error('Pocket cutting transition allowance must be nonnegative and finite');
+    const maximumImmersion = Math.hypot(to[0] - from[0], to[1] - from[1]) + 2 * this.pathTolerance;
+    const maximumFrontierWidth = 2 * (radius + this.pathTolerance);
+    const feed = Math.min(policy.cutFeed, policy.transitionFeed, (policy.cutFeed * policy.maximumStepover) / maximumFrontierWidth);
+    const result = (allowed: boolean, reason: CuttingTransitionCertificate['reason']): CuttingTransitionCertificate => ({
+      allowed,
+      reason,
+      maximumImmersion,
+      maximumFrontierWidth,
+      feed,
+    });
+    const previous = this.sweeps.at(-1);
+    if (!previous || previous.cutterRadius !== radius || previous.occupiedPose.some((value, axis) => value !== from[axis]))
+      return result(false, 'pose-unproven');
+    if (from[2] !== to[2]) return result(false, 'depth-change');
+    if (maximumImmersion > policy.maximumStepover) return result(false, 'stepover-exceeded');
+    if (!capsuleInsideRegion({ x: from[0], y: from[1] }, { x: to[0], y: to[1] }, radius + this.pathTolerance + allowance, policy.region))
+      return result(false, 'outside-pocket');
+    return result(true, 'bounded-cut');
   }
 
   measureMove(from: Vec3, to: Vec3, radius: number): MoveEngagement {

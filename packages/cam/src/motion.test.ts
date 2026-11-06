@@ -119,20 +119,23 @@ describe('semantic motion and feed scheduling', () => {
     expect(result.roles).toContain('corner');
   });
 
-  it('does not insert corner boundaries when the finish feed is already the reduced feed', () => {
+  it.each([
+    [500, 500],
+    [500.0004, 500.0003],
+  ])('does not insert corner boundaries for equivalent posted feeds (%s, %s)', (feed, reducedFeed) => {
     const original = path(
       [
         [0, 0, 2],
         [20, 0, 2],
         [20, 20, 2],
       ],
-      500
+      feed
     );
     original.roles = ['approach', 'finish', 'finish'];
-    const result = applyFeedPolicy(original, { ...policy, reducedFeed: 500 });
+    const result = applyFeedPolicy(original, { ...policy, reducedFeed });
     expect(result.pts).toEqual(original.pts);
     expect(result.roles).toEqual(original.roles);
-    expect(result.feeds.slice(1)).toEqual([500, 500]);
+    expect(result.feeds.slice(1)).toEqual([feed, feed]);
   });
 
   it('compacts collinear cuts while retaining feed, finish, tab, and reversal boundaries', () => {

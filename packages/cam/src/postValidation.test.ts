@@ -69,6 +69,8 @@ describe('post input validation', () => {
     { spindleRpm: Infinity },
     { arcTolerance: 0 },
     { arcTolerance: 0.0001 },
+    { plungeFeed: 0 },
+    { plungeFeed: NaN },
   ] satisfies GcodeOptions[])('rejects invalid post settings (%j)', options => {
     expect(() => toGcode(program(), options)).toThrow();
   });
@@ -77,6 +79,23 @@ describe('post input validation', () => {
     const cam = { ...program(), stockTop: 5.0004 };
     expect(() => toGcode(cam, { safeZ: 5.5004, retractZ: 5.5004 })).toThrow(/clear stock top/);
     expect(() => toGcode(program(), { safeZ: 5.5, retractZ: 5.5 })).not.toThrow();
+  });
+
+  it('uses an explicit fallback plunge feed when a custom plan has no cutting-data provenance', () => {
+    const cam = program();
+    cam.operations[0].passes.push({
+      pts: [
+        [30, 10, 4],
+        [40, 10, 4],
+      ],
+      feeds: [1000, 1000],
+      link: 'direct',
+      clearLink: true,
+    });
+    const approach = readGcode(toGcode(cam, { plungeFeed: 120 })).find(
+      move => !move.rapid && move.to[0] === 30 && move.to[1] === 10 && move.to[2] === 4
+    );
+    expect(approach?.feed).toBe(120);
   });
 
   it('rejects equal diameters belonging to different physical tools', () => {

@@ -146,7 +146,8 @@ export function applyFeedPolicy<T extends MotionPath>(
       end = cumulative[i],
       len = end - start;
     const reducedFeed = Math.min(feeds[i], policy.reducedFeed ?? feeds[i] * settings.factor);
-    if (len < 1e-9 || !cutting(roles[i]) || reducedFeed === feeds[i]) {
+    // Feeds are posted to 0.001 mm/min; equal output values need no geometric or role boundary.
+    if (len < 1e-9 || !cutting(roles[i]) || reducedFeed.toFixed(3) === feeds[i].toFixed(3)) {
       outPts.push(pts[i]);
       outFeeds.push(feeds[i]);
       outRoles.push(roles[i]);

@@ -10,6 +10,7 @@ import { correctCircularFinish, verticalEntryBlend, verticalExitBlend } from './
 import { geometryTolerances, planAccuracy, type PlanAccuracy } from './accuracy';
 import { planControlledPocket } from './engagement';
 import { finalizePlan, type StockSummary } from './finalizePlan';
+import type { PocketTransitionPolicy } from './stock';
 
 export interface Tool {
   number: number;
@@ -92,6 +93,7 @@ export interface CamSettings {
   maxStepdown?: number;
   /** Max stepdown for outline roughing, overriding the general cutting depth. */
   profileStepdown?: number;
+  /** Optional maximum profile finishing depth increment; omit for one full-depth finish. */
   profileFinishStepdown?: number;
   /** Roughing passes stop this high above the stock bottom... */
   profileRoughBottom: number;
@@ -180,6 +182,8 @@ export interface Pass {
   link: 'retract' | 'direct';
   /** The straight link to pts[0] runs through material already cleared at this depth (may be longer than D). */
   clearLink?: boolean;
+  /** Generated cutting stepover; its explicit prefix is independently rechecked after ordering and at post. */
+  cuttingTransition?: { from: Vec3; to: Vec3 };
 }
 
 export interface Operation {
@@ -188,6 +192,9 @@ export interface Operation {
   /** What it cuts: board programs put inner features (pockets, holes) before outlines. */
   feature: 'pocket' | 'hole' | 'outline';
   tool: Tool;
+  /** Resolved approach feed, retained when the post must replace an unproved link with a plunge. */
+  plungeFeed?: number;
+  pocketTransition?: PocketTransitionPolicy;
   passes: Pass[];
   /** Pause (M0) before this operation with this message, e.g. guided tab removal. */
   pauseBefore?: string;
@@ -399,6 +406,28 @@ function rotateToLongestEdge(loop: Loop): Loop {
 }
 
 const closeLoop = (loop: Loop, z: number): Vec3[] => [...loop, loop[0]].map(p => [p.x, p.y, z]);
+
+/** Move a contour's seam to a known point on it, retaining the exact previous XY pose. */
+function contourFromPoint(loop: Loop, point: Vec3): Loop | undefined {
+  const start = { x: point[0], y: point[1] };
+  for (let i = 0; i < loop.length; i++) {
+    const a = loop[i],
+      b = loop[(i + 1) % loop.length];
+    if (start.x === a.x && start.y === a.y) return [start, ...loop.slice(i + 1), ...loop.slice(0, i)];
+    const dx = b.x - a.x,
+      dy = b.y - a.y,
+      length2 = dx * dx + dy * dy;
+    if (length2 === 0) continue;
+    const t = ((start.x - a.x) * dx + (start.y - a.y) * dy) / length2;
+    if (t < 0 || t > 1 || Math.hypot(a.x + t * dx - start.x, a.y + t * dy - start.y) > 1e-9) continue;
+    if (start.x === b.x && start.y === b.y) {
+      const next = (i + 1) % loop.length;
+      return [start, ...loop.slice(next + 1), ...loop.slice(0, next)];
+    }
+    return [start, ...loop.slice(i + 1), ...loop.slice(0, i + 1)];
+  }
+  return undefined;
+}
 
 /** Ramp down along a closed loop from zFrom to zTo, then one full lap at zTo. Plunges if the loop is tiny. */
 function rampLoop(loop: Loop, zFrom: number, zTo: number, s: CamSettings, tool: Tool): Pass {
@@ -757,6 +786,51 @@ function openPocketPasses(comp: PathsD, walls: PathsD, topZ: number, floorZ: num
 
 /** Contour-parallel (offset) pocket, innermost ring first, ramped entries, climb by default. */
 /** `solid`: the part's outlines; ramp entries of pockets open to the edge then start in the waste outside them. */
+function pocketTransitionDeviation(settings: CamSettings): number {
+  const budget = planAccuracy(settings.geometryTolerance, settings.sourceTolerance).budget;
+  return budget.fitting + budget.outputRounding + budget.controllerRounding;
+}
+
+function pocketRingSpacing(settings: CamSettings, diameter: number): number {
+  const selected = settings.stepoverFactor * diameter;
+  const reserve = 2 * pocketTransitionDeviation(settings) + 0.001;
+  return selected > 2 * reserve ? selected - reserve : selected;
+}
+
+function withPocketTransitions(
+  operation: Operation,
+  region: PathsD,
+  settings: CamSettings,
+  wallAllowance = settings.pocketWallAllowance
+): Operation {
+  const maximumStepover = settings.stepoverFactor * operation.tool.diameter;
+  let last: Vec3 | undefined;
+  const passes = operation.passes.map(pass => {
+    const first = pass.pts[0];
+    const candidate =
+      pass.link === 'direct' &&
+      last &&
+      last[2] === first[2] &&
+      Math.hypot(last[0] - first[0], last[1] - first[1]) > 0 &&
+      Math.hypot(last[0] - first[0], last[1] - first[1]) <= maximumStepover;
+    const resolved = candidate ? { ...pass, cuttingTransition: { from: [...last!] as Vec3, to: [...first] as Vec3 } } : pass;
+    last = pass.pts.at(-1);
+    return resolved;
+  });
+  return {
+    ...operation,
+    plungeFeed: settings.plungeFeed,
+    pocketTransition: {
+      region: region.map(path => path.map(point => ({ ...point }))),
+      maximumStepover,
+      cutFeed: settings.feed,
+      transitionFeed: settings.transitionFeed ?? settings.feed,
+      wallAllowance,
+    },
+    passes,
+  };
+}
+
 export function pocketOperation(
   name: string,
   region: PathsD,
@@ -798,7 +872,7 @@ export function pocketOperation(
           )
         );
       }
-    return { ...base, passes };
+    return withPocketTransitions({ ...base, passes }, region, s, base.pocketTransition?.wallAllowance);
   }
   if ((s.pocketFloorAllowance ?? 0) > 0 && topZ > floorZ + 1e-8) {
     const roughFloor = Math.min(topZ, floorZ + s.pocketFloorAllowance!);
@@ -823,25 +897,30 @@ export function pocketOperation(
       },
       solid
     );
-    return {
-      ...finishOperation,
-      name,
-      tool,
-      passes: [
-        ...(roughOperation?.passes ?? []),
-        ...finishOperation.passes.map(pass => {
-          const finished = finishRoles(pass);
-          return s.circularFinishFeed
-            ? correctCircularFinish(
-                finished,
-                tool.diameter / 2,
-                Math.min(0.01, planAccuracy(s.geometryTolerance, s.sourceTolerance).budget.offset)
-              )
-            : finished;
-        }),
-      ],
-      warnings: [...new Set([...(roughOperation?.warnings ?? []), ...(finishOperation.warnings ?? [])])],
-    };
+    return withPocketTransitions(
+      {
+        ...finishOperation,
+        name,
+        tool,
+        passes: [
+          ...(roughOperation?.passes ?? []),
+          ...finishOperation.passes.map(pass => {
+            const finished = finishRoles(pass);
+            return s.circularFinishFeed
+              ? correctCircularFinish(
+                  finished,
+                  tool.diameter / 2,
+                  Math.min(0.01, planAccuracy(s.geometryTolerance, s.sourceTolerance).budget.offset)
+                )
+              : finished;
+          }),
+        ],
+        warnings: [...new Set([...(roughOperation?.warnings ?? []), ...(finishOperation.warnings ?? [])])],
+      },
+      region,
+      s,
+      roughOperation?.pocketTransition?.wallAllowance
+    );
   }
   if (s.pocketStrategy === 'controlled') {
     const local = geometryTolerances(s.geometryTolerance, s.sourceTolerance);
@@ -849,7 +928,7 @@ export function pocketOperation(
     const minimumTurnRadius = s.minimumRoughingRadius ?? Math.max(s.innerCornerRadius, tool.diameter * 0.1);
     const plan = planControlledPocket(region, {
       toolRadius: tool.diameter / 2,
-      stepover: s.stepoverFactor * tool.diameter,
+      stepover: pocketRingSpacing(s, tool.diameter),
       minimumTurnRadius,
       radialAllowance: Math.max(s.pocketWallAllowance, tool.diameter * 0.05, tolerance * 4),
       tolerance,
@@ -868,13 +947,19 @@ export function pocketOperation(
           const feed = phase === 'finish' ? (s.finishFeed ?? s.feed * s.pocketFinishFeedFactor) : s.feed;
           const tiny = pathLength(loop, true) < tool.diameter;
           if (tiny && previousZ > z) plungeFallbacks++;
-          const pass = rampLoop(loop, previousZ, z, { ...s, feed }, tool);
+          const last = passes.at(-1)?.pts.at(-1);
+          const nearest = rotateToNearest(loop, last ? { x: last[0], y: last[1] } : loop[0]);
+          const hop = last ? Math.hypot(last[0] - nearest[0].x, last[1] - nearest[0].y) : Infinity;
+          const continuous = last && last[2] === z && hop + 2 * pocketTransitionDeviation(s) < s.stepoverFactor * tool.diameter;
+          const pass: Pass = continuous
+            ? { pts: closeLoop(nearest, z), feeds: closeLoop(nearest, z).map(() => feed), link: 'direct' }
+            : rampLoop(nearest, previousZ, z, { ...s, feed }, tool);
           passes.push(
             scheduledPass(
               {
                 ...pass,
                 phase,
-                entry: tiny ? 'plunge' : 'ramp',
+                entry: continuous ? undefined : tiny ? 'plunge' : 'ramp',
                 materialSide: s.climb ? 'right' : 'left',
               },
               { ...s, feed },
@@ -894,28 +979,35 @@ export function pocketOperation(
       warnings.push(
         `${plungeFallbacks} small controlled pocket entries use a bounded plunge because the contour is too short for the selected ramp policy`
       );
-    return {
-      name,
-      kind: 'pocket',
-      feature: 'pocket',
-      tool,
-      passes,
-      warnings,
-      residualStock: {
-        floorZ,
-        remaining: plan.remaining,
-        unreachable: plan.unreachable,
-        reachableArea: plan.reachableResidualArea,
-        minimumTurnRadius,
+    return withPocketTransitions(
+      {
+        name,
+        kind: 'pocket',
+        feature: 'pocket',
+        tool,
+        passes,
+        warnings,
+        residualStock: {
+          floorZ,
+          remaining: plan.remaining,
+          unreachable: plan.unreachable,
+          reachableArea: plan.reachableResidualArea,
+          minimumTurnRadius,
+        },
       },
-    };
+      region,
+      s,
+      Math.max(s.pocketWallAllowance, tool.diameter * 0.05, tolerance * 4)
+    );
   }
   const offsetPaths = (paths: PathsD, delta: number) => offset(paths, delta, offsetToleranceFor(s));
   const leadTolerance = geometryTolerances(s.geometryTolerance, s.sourceTolerance).lead;
   const r = tool.diameter / 2;
-  const stepover = s.stepoverFactor * tool.diameter;
+  // Leave room for both endpoint deviations while keeping the physical hop within the selected stepover.
+  const stepover = pocketRingSpacing(s, tool.diameter);
   const stepdown = stepdownFor(tool, s);
   const passes: Pass[] = [];
+  let roughWallAllowance = s.pocketWallAllowance;
   let pos = { x: 0, y: 0 };
   const comps = components(region);
   // The material the pocket's walls belong to, for pockets open to the edge.
@@ -936,6 +1028,10 @@ export function pocketOperation(
     if (solid && walls && offsetPaths(comps[ci], -r).some(l => rotateToWaste(l, solid))) {
       const open = openPocketPasses(comps[ci], walls, topZ, floorZ, tool, s);
       if (open.length) {
+        roughWallAllowance = Math.max(
+          roughWallAllowance,
+          s.pocketWallAllowance || (topZ - floorZ > 1 ? (s.openWallAllowance ?? kOpenWallAllowance) : 0)
+        );
         passes.push(...open);
         const end = open[open.length - 1].pts.at(-1)!;
         pos = { x: end[0], y: end[1] };
@@ -1026,7 +1122,12 @@ export function pocketOperation(
         }
     }
   }
-  return { name, kind: 'pocket', feature: 'pocket', tool, passes: passes.map(pass => scheduledPass(pass, s, tool)) };
+  return withPocketTransitions(
+    { name, kind: 'pocket', feature: 'pocket', tool, passes: passes.map(pass => scheduledPass(pass, s, tool)) },
+    region,
+    s,
+    roughWallAllowance
+  );
 }
 
 /** Tab intervals (arc length along `loop`) centered on the given points. */
@@ -1103,7 +1204,7 @@ export function placeTabs(loop: Loop, tabs: TabSettings, tool: Tool): { x: numbe
 }
 
 /**
- * Outline profile: bounded roughing and finishing depths, radial stock allowance and deliberate entry motion.
+ * Outline profile: bounded roughing, a full-depth radial finish unless explicitly stepped, and deliberate entry motion.
  * `inside` = through hole (tool inside the loop).
  */
 /** profileOperation's bit loops per shape (and bit radius, allowance, direction). */
@@ -1164,8 +1265,10 @@ export function profileOperation(
   const roughTo = extendRoughing ? floorZ : roughBottom;
   const roughLevels = topZ - roughTo > 0.01 ? depthLevels(topZ, roughTo, profileStep) : [];
   if (extendRoughing) roughLevels.pop();
-  const append = (loop: Loop, zFrom: number, z: number, feed: number, phase: 'rough' | 'finish') => {
+  const append = (baseLoop: Loop, zFrom: number, z: number, feed: number, phase: 'rough' | 'finish') => {
     const requested = s.profileEntry ?? 'ramp';
+    let loop = baseLoop;
+    const previous = passes.at(-1)?.pts.at(-1);
     let pass: Pass | undefined;
     if (requested === 'tangent' && !(s.tabs && !inside)) {
       const leadRadius = s.profileLeadRadius ?? r;
@@ -1186,6 +1289,9 @@ export function profileOperation(
         const pts = closeLoop(loop, z);
         pass = { pts, feeds: pts.map((_, i) => (i ? feed : s.plungeFeed)), link: 'retract', entry: 'plunge' };
       } else {
+        // Begin the next depth at the prior lap's actual pose. The following descent is an explicit
+        // slope/feed-limited cut, rather than a travel link assumed clear below the previous floor.
+        if (previous?.[2] === zFrom) loop = contourFromPoint(baseLoop, previous) ?? baseLoop;
         pass = { ...rampLoop(loop, zFrom, z, { ...s, feed }, tool), entry: 'ramp' };
         if (pathLength(loop, true) < tool.diameter && zFrom > z) {
           pass.entry = 'plunge';
@@ -1200,7 +1306,7 @@ export function profileOperation(
       passes.push(next);
       sourceLoops.set(next, { loop, start, zFrom: entryTop });
     };
-    pass.link = 'retract';
+    pass.link = previous && previous.every((value, axis) => value === pass!.pts[0][axis]) ? 'direct' : 'retract';
     const atDepth = pass.pts.findIndex(p => Math.abs(p[2] - z) < 1e-8);
     if (pass.entry === 'ramp' && atDepth > 0 && atDepth < pass.pts.length - 1) {
       const entry = { ...pass, pts: pass.pts.slice(0, atDepth + 1), feeds: pass.feeds.slice(0, atDepth + 1) };
@@ -1219,8 +1325,9 @@ export function profileOperation(
     previousZ = z;
   }
   const ffeed = s.finishFeed ?? s.feed * s.finalFeedFactor;
-  const finishLevels = s.leaveStock > 0 ? depthLevels(topZ, floorZ, s.profileFinishStepdown ?? profileStep) : [floorZ];
-  previousZ = s.leaveStock > 0 ? topZ : previousZ;
+  const finishTop = s.leaveStock > 0 && s.profileFinishStepdown !== undefined ? topZ : previousZ;
+  const finishLevels = s.profileFinishStepdown !== undefined ? depthLevels(finishTop, floorZ, s.profileFinishStepdown) : [floorZ];
+  previousZ = finishTop;
   for (const z of finishLevels) {
     append(final, previousZ, z, ffeed, 'finish');
     previousZ = z;
@@ -1291,6 +1398,7 @@ export function profileOperation(
     kind: 'profile',
     feature: inside ? 'hole' : 'outline',
     tool,
+    plungeFeed: s.plungeFeed,
     passes: plannedPasses,
     ...(warnings.size ? { warnings: [...warnings] } : {}),
   };

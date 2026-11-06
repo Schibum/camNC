@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { polyArea, type PathD } from './geom';
-import { StockModel } from './stock';
+import { StockModel, type PocketTransitionPolicy } from './stock';
 
 const rect = (x0: number, y0: number, x1: number, y1: number): PathD => [
   { x: x0, y: y0 },
@@ -140,5 +140,75 @@ describe('conservative swept stock', () => {
       );
     expect(nominal.certifyLink([2, 0, 5.001], [8, 0, 5.001], 1.9).clear).toBe(true);
     expect(uncertain.certifyLink([2, 0, 5.001], [8, 0, 5.001], 1.9).clear).toBe(false);
+  });
+});
+
+describe('bounded pocket cutting transitions', () => {
+  const from: [number, number, number] = [5, 0, 5];
+  const to: [number, number, number] = [6, 0, 5];
+  const policy: PocketTransitionPolicy = {
+    region: [rect(-10, -10, 30, 10)],
+    maximumStepover: 1.2,
+    cutFeed: 1800,
+    transitionFeed: 1500,
+  };
+  const occupied = () => {
+    const stock = new StockModel({ stockTop: 10, pathTolerance: 0.01 });
+    stock.recordPath([[0, 0, 5], from], 2);
+    return stock;
+  };
+
+  it('anchors the current cutter disk without weakening uncertain travel clearance', () => {
+    const stock = occupied();
+    expect(stock.certifyLink(from, to, 2).clear).toBe(false);
+    const result = stock.certifyCuttingTransition(from, to, 2, policy);
+    expect(result.allowed).toBe(true);
+    expect(result.maximumImmersion).toBeCloseTo(1.02);
+    expect(result.maximumFrontierWidth).toBeCloseTo(4.02);
+    expect(result.feed * result.maximumFrontierWidth).toBeLessThanOrEqual(policy.cutFeed * policy.maximumStepover);
+    expect(result.feed).toBeLessThanOrEqual(policy.transitionFeed);
+  });
+
+  it('requires the immediately current pose and the same cutter radius', () => {
+    expect(new StockModel({ stockTop: 10 }).certifyCuttingTransition(from, to, 2, policy).reason).toBe('pose-unproven');
+    const stock = occupied();
+    expect(stock.certifyCuttingTransition([4, 0, 5], to, 2, policy).reason).toBe('pose-unproven');
+    expect(stock.certifyCuttingTransition(from, to, 1.9, policy).reason).toBe('pose-unproven');
+    stock.recordPath([[20, 0, 5]], 2);
+    expect(stock.certifyCuttingTransition(from, to, 2, policy).reason).toBe('pose-unproven');
+  });
+
+  it('rejects depth changes and excessive penetration including the uncertainty reserve', () => {
+    const stock = occupied();
+    expect(stock.certifyCuttingTransition(from, [6, 0, 4.99], 2, policy).reason).toBe('depth-change');
+    expect(stock.certifyCuttingTransition(from, [6.19, 0, 5], 2, policy).reason).toBe('stepover-exceeded');
+    expect(stock.certifyCuttingTransition(from, [7, 0, 5], 2, policy).reason).toBe('stepover-exceeded');
+  });
+
+  it('protects islands and the full cutter envelope, including sub-grid retained material', () => {
+    const stock = occupied();
+    for (const width of [0.4, 0.00002]) {
+      const island = rect(5.7, 1.6, 5.7 + width, 1.8).reverse();
+      expect(stock.certifyCuttingTransition(from, to, 2, { ...policy, region: [...policy.region, island] }).reason).toBe('outside-pocket');
+    }
+    expect(stock.certifyCuttingTransition(from, to, 2, { ...policy, region: [rect(0, -2, 20, 2)] }).reason).toBe('outside-pocket');
+    expect(stock.certifyCuttingTransition(from, to, 2, { ...policy, region: [rect(-10, 20, 30, 30)] }).reason).toBe('outside-pocket');
+  });
+
+  it('also preserves a selected rough wall allowance along a cutting bridge', () => {
+    const stock = occupied();
+    const region = [rect(-10, -2.15, 30, 10)];
+    expect(stock.certifyCuttingTransition(from, to, 2, { ...policy, region }).allowed).toBe(true);
+    expect(stock.certifyCuttingTransition(from, to, 2, { ...policy, region, wallAllowance: 0.2 }).reason).toBe('outside-pocket');
+  });
+
+  it('restores the occupied pose when speculative material history is rolled back', () => {
+    const stock = occupied();
+    const checkpoint = stock.checkpoint();
+    stock.recordPath([[20, 0, 5]], 2);
+    stock.rollback(checkpoint);
+    expect(stock.certifyCuttingTransition(from, to, 2, policy).allowed).toBe(true);
+    stock.rollback(0);
+    expect(stock.certifyCuttingTransition(from, to, 2, policy).allowed).toBe(false);
   });
 });

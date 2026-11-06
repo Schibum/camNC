@@ -30,7 +30,7 @@ export type { MachineTimingProfile, ProgramTimingOptions, ProgramTimeEstimate } 
 export { accuracyBudget, planAccuracy, checkAccuracyBudget } from './accuracy';
 export type { AccuracyBudget, PlanAccuracy } from './accuracy';
 export { StockModel, sweptCapsule } from './stock';
-export type { StockOptions, LinkCertificate, MoveEngagement } from './stock';
+export type { StockOptions, LinkCertificate, MoveEngagement, PocketTransitionPolicy, CuttingTransitionCertificate } from './stock';
 export { certifyStockLinks } from './stockPlan';
 export type { StockPlanOptions, StockPlanResult } from './stockPlan';
 export { finalizePlan } from './finalizePlan';
