@@ -5,16 +5,20 @@ import { finalizePlan } from './finalizePlan';
 import { geometryTolerances } from './accuracy';
 import { openPocketRegion, type PartFeatures } from './features';
 import { dowelOperations, partRect, type DowelSpec } from './flip';
+import { toGcode } from './gcode';
 import { boardToPart, kDefaultSkin, planTabs, type PartHolding } from './tabPlan';
 import type { Vec3 } from './geom';
 import type { BottomLayer, HoldOptions } from './hold';
 import { holdBox, holdClashes, holdHeight, type HoldPoint } from './holdPoints';
+import { estimateProgramTime } from './timing';
 import {
   camPart,
   DEFAULT_SETTINGS,
   DEFAULT_TABS,
   fluteWarnings,
   type CamSettings,
+  type HoleChoice,
+  type HoleMiddle,
   type Operation,
   type PartCam,
   type TabSettings,
@@ -48,6 +52,8 @@ export interface BoardPart {
    * the bit's path round the outline.
    */
   tabsAt?: { x: number; y: number }[];
+  /** With the board's `clearHoles`: the user's choice per through hole, over what its size and time would pick. */
+  holes?: Record<number, HoleChoice>;
   /** Lower left corner on the board, and whether the part is turned 90° counterclockwise. */
   x: number;
   y: number;
@@ -70,6 +76,8 @@ export interface BoardSpec {
   /** Z of the stock top if thicker than the parts (allowance or measured); default the board thickness. */
   stockTop?: number;
   parts: BoardPart[];
+  /** Clear the piece in the middle of a through hole where that's quick, and report what happens to each (`holeMiddles`). */
+  clearHoles?: boolean;
   /** A flip on dowel pins: side A drills the pin holes (board and spoilboard) before anything else. */
   dowels?: DowelSpec;
   /** Tape under the board: all of it stays put, whatever the hold points. */
@@ -240,16 +248,39 @@ export function holdsOnParts(board: Pick<BoardSpec, 'parts' | 'holdPoints'>): Ho
       { x: b.x, y: b.y + b.h },
       { x: b.x + b.w, y: b.y + b.h },
     ];
-    return board.parts.some(part =>
-      part.features.outlines.some(loop => {
-        const onBoard = loop.map(q => {
+    return board.parts.some(part => {
+      // On the piece in a hole's middle: not on the part. Its cuts are checked like any other (`holdClashes`).
+      const holes = part.features.throughHoles.map(loop =>
+        loop.map(q => {
           const [x, y] = partToBoard(part, [q.x, q.y, 0]);
           return { x, y };
-        });
-        return pts.some(p => insideLoops(p, [onBoard]));
-      })
-    );
+        })
+      );
+      const region = [
+        ...part.features.outlines.map(loop =>
+          loop.map(q => {
+            const [x, y] = partToBoard(part, [q.x, q.y, 0]);
+            return { x, y };
+          })
+        ),
+        ...holes,
+      ];
+      return pts.some(p => insideLoops(p, region));
+    });
   });
+}
+
+/** The through holes of a part with a hold point on the piece in their middle. */
+function screwedHoles(part: BoardPart, points: HoldPoint[]) {
+  const holes = new Set<number>();
+  part.features.throughHoles.forEach((loop, i) => {
+    const onBoard = loop.map(q => {
+      const [x, y] = partToBoard(part, [q.x, q.y, 0]);
+      return { x, y };
+    });
+    if (points.some(h => insideLoops(h, [onBoard]))) holes.add(i);
+  });
+  return holes;
 }
 
 /** Tabs for hold-downs that use them. */
@@ -320,6 +351,7 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
   const turn = rotateAboutOrigin(board.rotationDeg ?? 0);
   const warnings: string[] = [];
   const ops: { op: Operation; part: BoardPart; index: number }[] = [];
+  const holeMiddles: HoleMiddle[] = [];
   // Tabs only where they hold; the others are cut without, and the job is blocked until that's dealt with.
   const holding = tabs
     ? planTabs(board, settings)
@@ -351,17 +383,25 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
       );
     // The path budget includes its own source scope; the neighbor's independently declared boundary may also move.
     // An omitted source tolerance keeps this a nominal-feature check, not an independently certified CAD bound.
-    const context = pocketNeighbors.length
-      ? {
-          pocketClashes: (operation: Operation) =>
-            pocketOperationClashes(
-              operation,
-              pocketNeighbors,
-              point => partToBoard(part, point),
-              (requested.geometryTolerance ?? DEFAULT_SETTINGS.geometryTolerance ?? 0.05) + (requested.sourceTolerance ?? 0)
-            ),
-        }
-      : {};
+    const context = {
+      ...(pocketNeighbors.length && {
+        pocketClashes: (operation: Operation) =>
+          pocketOperationClashes(
+            operation,
+            pocketNeighbors,
+            point => partToBoard(part, point),
+            (requested.geometryTolerance ?? DEFAULT_SETTINGS.geometryTolerance ?? 0.05) + (requested.sourceTolerance ?? 0)
+          ),
+      }),
+      ...(board.clearHoles && {
+        holeMiddles: {
+          choices: part.holes,
+          screwed: screwedHoles(part, board.holdPoints ?? []),
+          minutes: (operation: Operation) =>
+            estimateProgramTime(toGcode({ stockTop, operations: [operation], warnings: [] })).estimatedAutomaticSeconds / 60,
+        },
+      }),
+    };
     let cam = camPart(part.features, requested, context);
     if (requested.profileEntry === 'tangent') {
       const neighbors = board.parts
@@ -382,6 +422,7 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
       }
     }
     warnings.push(...cam.warnings.map(w => `${part.name}: ${w}`));
+    holeMiddles.push(...(cam.holeMiddles ?? []).map(m => ({ ...m, part: part.id })));
     cam.operations.forEach((op, index) =>
       ops.push({
         op: {
@@ -448,7 +489,14 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
     }),
   ];
   return finalizePlan(
-    { stockTop, operations, warnings, ...(holding && { holding: [...holding.values()] }), ...aboveHolds(board, stockTop, settings) },
+    {
+      stockTop,
+      operations,
+      warnings,
+      ...(holding && { holding: [...holding.values()] }),
+      ...(holeMiddles.length && { holeMiddles }),
+      ...aboveHolds(board, stockTop, settings),
+    },
     { ...DEFAULT_SETTINGS, ...settings },
     blank
   );

@@ -17,6 +17,9 @@ export const MATERIALS = {
   mdf: { name: 'mdf', stepdownFactor: 1 },
 } satisfies Record<string, Material>;
 
+/** A piece in a through hole's middle up to this long, mm, is sucked up by the vacuum when it comes loose. */
+export const kVacuumSlug = 15;
+
 export interface TabSettings {
   /** Above the stock bottom (Z0). */
   height: number;

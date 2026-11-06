@@ -1,4 +1,4 @@
-import type { FlipRegistration } from '@wbcnc/cam';
+import type { FlipRegistration, HoleMiddle } from '@wbcnc/cam';
 import { Button } from '@wbcnc/ui/components/button';
 import { Label } from '@wbcnc/ui/components/label';
 import { Input } from '@wbcnc/ui/components/input';
@@ -66,6 +66,28 @@ function BoardName({ board, onRename }: { board: BoardV1; onRename: (name: strin
  * is edited there. Nothing here changes height with what's chosen and nothing is said in between, so no control moves: what
  * needs attention is said over the drawing.
  */
+/** What happens to the middles of the board's through holes; they are chosen on the drawing. */
+function HoleMiddlesSummary({ middles }: { middles: HoleMiddle[] }) {
+  const cleared = middles.filter(m => m.state === 'cleared');
+  const loose = middles.filter(m => m.state === 'loose').length;
+  return (
+    <section aria-label="Middle of holes" className="flex flex-col gap-0.5 text-[13px]" data-hole-summary>
+      <h3 className="mb-1 font-semibold">Middle of holes</h3>
+      {cleared.length > 0 && (
+        <p>
+          {cleared.length} cleared, about +{cleared.reduce((t, m) => t + m.addMinutes, 0).toFixed(1)} min
+        </p>
+      )}
+      {loose > 0 && (
+        <p className="text-amber-700 dark:text-amber-400">
+          {loose} {loose === 1 ? 'comes' : 'come'} loose: tape, screw, or clear
+        </p>
+      )}
+      <p className="text-xs text-muted-foreground">Click a hole on the drawing to change it. Quick ones are cleared by themselves.</p>
+    </section>
+  );
+}
+
 export function BoardInspector({
   board,
   nest,
@@ -79,6 +101,7 @@ export function BoardInspector({
   onRename,
   verdict,
   gap,
+  holeMiddles,
 }: {
   /** The bottom skin of the job's boards. */
   skin?: number;
@@ -99,6 +122,8 @@ export function BoardInspector({
   verdict?: { tone: 'ok' | 'warn' | 'none'; text: string };
   /** The gap between parts, with no two parts on the drawing to show it between: at least this, mm. */
   gap?: { min: number };
+  /** The pieces in the middle of its through holes. */
+  holeMiddles?: HoleMiddle[];
 }) {
   const matching = stock.filter(s => +s.thickness.toFixed(1) === board.thickness);
   const sizeValue = board.size.fit
@@ -159,6 +184,8 @@ export function BoardInspector({
           </label>
         </Hint>
       </fieldset>
+
+      {holeMiddles?.some(m => m.state !== 'vacuum') && <HoleMiddlesSummary middles={holeMiddles} />}
 
       <fieldset className="flex flex-col gap-1.5">
         <legend className="mb-1.5 text-[13px] font-semibold">Parts stay in place with</legend>

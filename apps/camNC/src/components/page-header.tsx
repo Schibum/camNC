@@ -3,11 +3,23 @@ import { Button } from '@heroui/react';
 import { Separator } from '@radix-ui/react-separator';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage } from '@wbcnc/ui/components/breadcrumb';
 import { SidebarTrigger } from '@wbcnc/ui/components/sidebar';
+import { DemoHeaderMark } from '@/lib/demo/DemoHeaderMark';
 import { isDemoMode } from '@/lib/demo/demo-mode';
 import { isDesktopApp } from '@/lib/desktop/is-desktop';
 import { cn } from '@wbcnc/ui/lib/utils';
 
-export function PageHeader({ title, className, children }: { title: string; className?: string; children?: React.ReactNode }) {
+export function PageHeader({
+  title,
+  className,
+  children,
+  hideDemoMark,
+}: {
+  title: string;
+  className?: string;
+  children?: React.ReactNode;
+  /** For the machine view, which has the full demo bar. */
+  hideDemoMark?: boolean;
+}) {
   return (
     <header
       className={cn(
@@ -26,6 +38,7 @@ export function PageHeader({ title, className, children }: { title: string; clas
         </Breadcrumb>
       </div>
       {children}
+      {!hideDemoMark && <DemoHeaderMark />}
       {/* The desktop app has no sign-in (no Clerk). */}
       {!isDesktopApp() && !isDemoMode() && <AccountButtons />}
     </header>

@@ -204,9 +204,9 @@ describe('CAM boards step', () => {
       ]);
     });
 
-    // No fixtures until they are placed: Suggest holds places some, Undo takes them back. The click that ends a drag
-    // doesn't open the board under the pointer, for a moment: this one comes after it.
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // The click that ends a drag doesn't open a board, for 50 ms: this one comes later.
+    await new Promise(resolve => setTimeout(resolve, 60));
+    // No fixtures until they are placed: Suggest holds places some, Undo takes them back.
     fireEvent.click(drawing('A'));
     const holdsOnA = () => screen.getByRole('region', { name: 'Board A drawing' }).querySelectorAll('[data-hold]').length;
     expect(holdsOnA()).toBe(0);

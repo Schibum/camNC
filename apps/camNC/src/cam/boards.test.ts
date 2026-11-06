@@ -3,6 +3,7 @@ import { kDefaultHardware } from './holdHardware';
 import { describe, expect, it } from 'vitest';
 import {
   changesCutBoard,
+  cutBoardWith,
   autoFillFromStock,
   boardRequest,
   boardSizeLabel,
@@ -1084,5 +1085,24 @@ describe('a cut board', () => {
     expect(changesCutBoard(b, { ...b, fixtures: [] })).toBe(true);
     expect(changesCutBoard(b, undefined)).toBe(true);
     expect(changesCutBoard({ ...b, cut: undefined }, { ...b, items: [] })).toBe(false);
+  });
+});
+
+describe('cutBoardWith', () => {
+  const instances = [
+    { id: 'part-0#0', partId: 'part-0' },
+    { id: 'part-0#1', partId: 'part-0' },
+    { id: 'part-1#0', partId: 'part-1' },
+  ] as PartInstance[];
+  const cut = { at: 1, keys: ['ran'] };
+
+  it('finds a cut board with any copy of the part, not one with other parts or one not cut', () => {
+    const boards = [
+      { id: 'a', items: ['part-0#0'] },
+      { id: 'b', items: ['part-0#1'], cut },
+      { id: 'c', items: ['part-1#0'] },
+    ];
+    expect(cutBoardWith(boards, instances, 'part-0')?.id).toBe('b');
+    expect(cutBoardWith(boards, instances, 'part-1')).toBeUndefined();
   });
 });
