@@ -500,7 +500,7 @@ export class CncApi {
    */
   async probeZ({ plateThickness, maxTravel, feed }: { plateThickness: number; maxTravel: number; feed: number }) {
     const api = this.api;
-    await api.send('G21 G91');
+    await api.send('G21 G91 G94');
     try {
       await api.send(`G38.2 Z-${Math.abs(maxTravel)} F${feed}`, { timeoutMs: 0 });
       await api.send(`G10 L20 P0 Z${plateThickness}`);
