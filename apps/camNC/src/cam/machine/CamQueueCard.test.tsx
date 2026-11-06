@@ -64,6 +64,10 @@ const view = () => (
   </TooltipProvider>
 );
 const card = () => within(screen.getByRole('region', { name: 'CAM job' }));
+const queueEntry = (name: RegExp) => {
+  fireEvent.click(card().getByRole('button', { name: /^Board queue/ }));
+  return within(screen.getByRole('list', { name: 'Board queue' })).getByRole('button', { name });
+};
 const loadedGcode = () => useStore.getState().toolpath?.gcode;
 const entryByKey = (key: string) => (hook.value.queue as QueueEntry[]).find(e => e.key === key)!;
 
@@ -93,7 +97,7 @@ describe('the machine queue card', () => {
     expect(card().getByRole('button', { name: 'Load program' })).toHaveProperty('disabled', true);
     expect(card().getByRole('button', { name: 'Done, next' })).toHaveProperty('disabled', true);
     // Picking it from the list doesn't load it either.
-    fireEvent.click(card().getByRole('button', { name: /Board A · ⌀3.175/ }));
+    fireEvent.click(queueEntry(/Board A · ⌀3.175/));
     expect(loadedGcode()).toBeUndefined();
   });
 
@@ -107,8 +111,9 @@ describe('the machine queue card', () => {
     getCncApi().jobStartedAt.value = Date.now();
     try {
       rerender(view());
-      fireEvent.click(card().getByRole('button', { name: /Board A .*⌀6/ }));
-      expect(card().getByRole('button', { name: 'Load program' })).toHaveProperty('disabled', true);
+      fireEvent.click(queueEntry(/Board A .*⌀6/));
+      fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+      expect(card().getByRole('button', { name: 'Next board' })).toHaveProperty('disabled', true);
       expect(card().getByRole('button', { name: 'Done, next' })).toHaveProperty('disabled', true);
       expect(useCamMachine.getState().active).toBe('A:bit:0');
       expect(useCamMachine.getState().done).toEqual([]);
@@ -117,7 +122,7 @@ describe('the machine queue card', () => {
       getCncApi().jobStartedAt.value = null;
     }
     rerender(view());
-    fireEvent.click(card().getByRole('button', { name: /Board A .*⌀6/ }));
+    fireEvent.click(queueEntry(/Board A .*⌀6/));
     expect(loadedGcode()).toBe(fine.programs[1].gcode);
   });
 
@@ -232,10 +237,14 @@ describe('the machine queue card', () => {
       rerender(view());
     };
     // The first board: nothing to compare with, it says which bit goes in, one zero step.
-    expect(card().getByRole('region', { name: 'Bit' }).textContent).toMatch(/^Put in the ⌀2 mm bit.*Then zero Z on the spoilboard/);
+    // Folded with what matters for the zero in its title, as the first thing on a board.
+    expect(card().getByRole('region', { name: 'Bit' }).textContent).toMatch(/^Put in the ⌀2 mm bit.*Z0: board bottom/);
+    fireEvent.click(card().getByRole('button', { name: /Put in the ⌀2 mm bit/ }));
+    expect(card().getByRole('region', { name: 'Bit' }).textContent).toMatch(/Then zero Z on the spoilboard/);
     open('A:bit:1');
     expect(card().getByText(/Swap the bit to ⌀6 mm/)).toBeTruthy();
     open('B:bit:0');
+    fireEvent.click(card().getByRole('button', { name: /Swap the bit to ⌀3\.175 mm/ }));
     expect(card().getByRole('region', { name: 'Bit' }).textContent).toMatch(/^Swap the bit to ⌀3\.175 mm.*Then zero Z on the spoilboard/);
     open('B:free');
     expect(card().queryByText(/Swap the bit/)).toBeNull();
@@ -306,6 +315,9 @@ describe('the machine queue card', () => {
   it('first step of a board: measure the stock, showing what’s assumed, and pass on what was measured', () => {
     setQueue([board('A')], [plan([3.175])]);
     const { rerender } = render(view());
+    // Folded until asked for: its title and size stay in view.
+    expect(card().queryByText(/1\. Measure its thickness/)).toBeNull();
+    fireEvent.click(card().getByRole('button', { name: /Board A on the bed/ }));
     expect(card().getByText(/1\. Measure its thickness/).parentElement!.textContent).toMatch(/assumed parts \+ 0\.3 mm/);
     const field = card().getByRole('textbox', { name: /Stock thickness of board A/ });
     fireEvent.change(field, { target: { value: '8,6' } });

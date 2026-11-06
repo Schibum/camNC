@@ -51,17 +51,18 @@ async function takeJob(edit: (boards: CamJobV1['boards'] & object) => CamJobV1['
 }
 
 const card = () => within(screen.getByRole('region', { name: 'CAM job' }));
-const entry = (name: RegExp) =>
-  within(card().getByRole('list', { name: 'Board queue' })).findByRole('button', { name }, { timeout: 60_000 });
+const entry = (name: RegExp) => {
+  fireEvent.click(card().getByRole('button', { name: /^Board queue/ }));
+  return within(screen.getByRole('list', { name: 'Board queue' })).findByRole('button', { name }, { timeout: 60_000 });
+};
 const loadButton = () => card().getByRole('button', { name: 'Load program' });
 
 describe('the machine queue with a real plan', () => {
   it('load; turn the board: checked as turned, loaded again; make a board fail a check on Boards: blocked and unloaded', async () => {
     const { job, client, boards } = await takeJob();
     fireEvent.click(await entry(/Board A/));
-    await waitFor(() => expect(loadButton()).toHaveProperty('disabled', false), { timeout: 60_000 });
+    await waitFor(() => expect(useStore.getState().toolpath?.gcode).toBeTruthy(), { timeout: 60_000 });
     const straight = useStore.getState().toolpath?.gcode;
-    expect(straight).toBeTruthy();
 
     // Turned, the plan fails no check of its own: the rectangle turned with it. It's loaded again by itself.
     useCamMachine.getState().setRotation(boards.find(b => b.name === 'A')!.id, 0.1);
@@ -96,6 +97,7 @@ describe('the machine queue with a real plan', () => {
     await waitFor(() => expect(useCamMachine.getState().overlay?.holds?.length).toBeGreaterThan(0), { timeout: 60_000 });
     const offset = useStore.getState().toolpathOffset;
     expect([offset.x, offset.y]).toEqual([212, 98]);
+    fireEvent.click(card().getByRole('button', { name: /Board A on the bed/ }));
     expect(card().getByText(/on the blue marks/)).toBeTruthy();
     const before = useStore.getState().toolpath?.gcode;
     const o = useCamMachine.getState().overlay!;

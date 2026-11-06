@@ -18,7 +18,7 @@ const kConnectionLabels: Record<ConnectionState, string> = {
   'taken-over': 'Taken over by another tab',
 };
 
-export function ConnectionBadge() {
+export function ConnectionBadge({ dotWhenConnected = false }: { dotWhenConnected?: boolean }) {
   'use no memo';
   const connection = getCncApi().connection.value;
   const color =
@@ -32,7 +32,7 @@ export function ConnectionBadge() {
   return (
     <span className="inline-flex items-center gap-1.5 text-xs" data-testid="machine-connection">
       <span className={cn('inline-block size-2 rounded-full', color)} />
-      {kConnectionLabels[connection]}
+      <span className={cn(dotWhenConnected && connection === 'connected' && 'sr-only')}>{kConnectionLabels[connection]}</span>
     </span>
   );
 }
@@ -85,6 +85,7 @@ export function RealtimeButtons({ compact = false }: { compact?: boolean }) {
   if (!api.isConnected.value) return null;
   const state = api.state.value;
   const holding = state === 'Hold' || state === 'Door';
+  const notHomed = state === 'Idle' && !api.homed.value;
   const size = compact ? 'icon' : 'sm';
   return (
     <div className="flex flex-row flex-wrap gap-1 items-center">
@@ -106,7 +107,12 @@ export function RealtimeButtons({ compact = false }: { compact?: boolean }) {
         </Button>
       )}
       {(state === 'Alarm' || state === 'Idle') && (
-        <Button size={size} variant="outline" title="Home all axes ($H)" onClick={() => report(api.home(), 'Homing')}>
+        <Button
+          size={size}
+          variant="outline"
+          className={cn(notHomed && 'border-amber-500/60 text-amber-700 dark:text-amber-400')}
+          title={notHomed ? 'Not homed since connecting. Home all axes ($H)' : 'Home all axes ($H)'}
+          onClick={() => report(api.home(), 'Homing')}>
           <Home /> {!compact && 'Home'}
         </Button>
       )}

@@ -17,10 +17,10 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@wbcnc/ui/c
 import { Input } from '@wbcnc/ui/components/input';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { cn } from '@wbcnc/ui/lib/utils';
-import { AlertTriangle, Check, ChevronRight, CirclePlay, FolderOpen, Home, MoveRight, Pencil, Wrench } from 'lucide-react';
+import { AlertTriangle, Check, ChevronRight, CirclePlay, FolderOpen, MoveRight, Pencil, Wrench } from 'lucide-react';
 import { useState } from 'react';
 import { AlarmCard } from './AlarmCard';
-import { JogPanel, ProbeSettings } from './controls';
+import { JogFeeds, JogPanel, ProbeSettings } from './controls';
 import { useProbeZ } from './useProbeZ';
 import { MacroButtons } from './macros';
 import { ResumeJobCard } from './ResumeJobCard';
@@ -41,26 +41,6 @@ export function Section({ title, action, children }: { title: string; action?: R
       </div>
       {children}
     </section>
-  );
-}
-
-function HomeStep() {
-  'use no memo';
-  const api = getCncApi();
-  const connected = api.isConnected.value;
-  const state = api.state.value;
-  if (!connected || state === 'Alarm') return null;
-  const homed = api.homed.value;
-  return (
-    <SetupStep
-      state={homed ? 'done' : 'warn'}
-      title={homed ? 'Homed' : 'Not homed since connecting'}
-      action={
-        <Button size="sm" variant={homed ? 'ghost' : 'outline'} disabled={state !== 'Idle'} onClick={() => report(api.home(), 'Homing')}>
-          <Home /> Home
-        </Button>
-      }
-    />
   );
 }
 
@@ -109,9 +89,9 @@ function JobStep() {
 
 function ZeroRow({ ok, label, children }: { ok: boolean; label: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-row flex-wrap items-center gap-2 min-h-8">
+    <div className="flex flex-row flex-wrap items-center gap-1.5 min-h-8">
       {ok ? <Check className="size-4 shrink-0 text-green-600" /> : <AlertTriangle className="size-4 shrink-0 text-amber-500" />}
-      <span className="flex-1">{label}</span>
+      <span className="flex-1 whitespace-nowrap">{label}</span>
       {children}
     </div>
   );
@@ -124,8 +104,7 @@ function ZeroStep() {
   const idle = api.isConnected.value && api.state.value === 'Idle';
   const hasToolpath = useStore(s => !!s.toolpath);
   const checklist = useJobChecklist();
-  const { probe, disabled, prefs } = useProbeZ();
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const { probe, disabled } = useProbeZ();
   const xy = checklist.find(i => i.id === 'xy-zero');
   const z = checklist.find(i => i.id === 'z-zero');
   const zOk = z?.ok ?? api.zZeroedAt.value !== null;
@@ -142,10 +121,10 @@ function ZeroStep() {
           disabled={!idle || !hasToolpath}
           onClick={() => setXYZeroFromToolpath()}
           title="G10 L2 at the toolpath position">
-          Set XY zero = toolpath
+          Set XY zero
         </Button>
       </ZeroRow>
-      <ZeroRow ok={zOk} label={zOk ? (z?.label ?? 'Z zeroed') : 'Z not set yet'}>
+      <ZeroRow ok={zOk} label={zOk ? (z?.label ?? 'Z zeroed') : 'Z not set'}>
         <Button size="sm" variant={zOk ? 'ghost' : 'default'} disabled={disabled} onClick={probe}>
           Probe Z
         </Button>
@@ -153,15 +132,6 @@ function ZeroStep() {
           Zero Z here
         </Button>
       </ZeroRow>
-      <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <CollapsibleTrigger asChild>
-          <button type="button" className="text-xs text-muted-foreground hover:text-foreground">
-            Plate {prefs.probePlateThickness} mm · travel {prefs.probeMaxTravel} mm · feed {prefs.probeFeed}{' '}
-            <span className="underline">{settingsOpen ? 'done' : 'change'}</span>
-          </button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="pt-2">{settingsOpen && <ProbeSettings />}</CollapsibleContent>
-      </Collapsible>
     </SetupStep>
   );
 }
@@ -183,6 +153,7 @@ function RunFooter() {
   const idle = api.isConnected.value && api.state.value === 'Idle';
   const warnings = checklist.filter(item => !item.ok);
   const blocked = checklist.some(item => item.blocking);
+  const isAlarm = (item: (typeof checklist)[number]) => item.blocking && !item.zeroFirst;
   const outside = checklist.some(item => item.id === 'position' && !item.ok);
   if (!hasToolpath) return null;
   const others = warnings.filter(w => !kShownInSteps.has(w.id));
@@ -195,8 +166,8 @@ function RunFooter() {
         <ul className="flex flex-col gap-0.5" data-testid="job-checklist">
           {others.map(item => (
             <li key={item.id} className="flex flex-row gap-2 items-start text-sm">
-              <AlertTriangle className={cn('mt-0.5 size-4 shrink-0', item.blocking ? 'text-red-600' : 'text-amber-500')} />
-              <span className={cn('text-amber-700 dark:text-amber-400', item.blocking && 'text-red-700 dark:text-red-400')}>
+              <AlertTriangle className={cn('mt-0.5 size-4 shrink-0', isAlarm(item) ? 'text-red-600' : 'text-amber-500')} />
+              <span className={cn('text-amber-700 dark:text-amber-400', isAlarm(item) && 'text-red-700 dark:text-red-400')}>
                 {item.label}
                 {item.details && (
                   <ul className="list-disc pl-4 text-xs">
@@ -226,7 +197,7 @@ function RunFooter() {
           <MoveRight /> Move into the travel
         </Button>
       )}
-      {blocked && (
+      {checklist.some(isAlarm) && (
         <p className="text-xs text-red-700 dark:text-red-400">
           {outside
             ? 'Move the machine into its travel first: FluidNC 3.9 stops any move from outside it, even a Z lift.'
@@ -264,7 +235,16 @@ function RunFooter() {
   );
 }
 
-/** Manual tools, out of the way of the job: macros, zeroing at the bit, jogging. */
+/** Always in view while preparing: moving the bit is part of placing the board and zeroing. */
+function JogStep() {
+  return (
+    <section aria-label="Jog" className="rounded-lg border px-3 py-2">
+      <JogPanel />
+    </section>
+  );
+}
+
+/** Manual tools, out of the way of the job: macros, zeroing at the bit, jog feeds. */
 function ToolsDrawer({ onEditMacros, defaultOpen }: { onEditMacros: () => void; defaultOpen: boolean }) {
   'use no memo';
   const api = getCncApi();
@@ -274,7 +254,7 @@ function ToolsDrawer({ onEditMacros, defaultOpen }: { onEditMacros: () => void; 
     <Collapsible open={open} onOpenChange={setOpen} className="flex flex-col gap-3">
       <CollapsibleTrigger asChild>
         <Button variant="ghost" size="sm" className="-ml-1 self-start px-1 text-muted-foreground">
-          <ChevronRight className={cn('transition-transform', open && 'rotate-90')} /> <Wrench /> Tools: macros, jog, zero here
+          <ChevronRight className={cn('transition-transform', open && 'rotate-90')} /> <Wrench /> Tools: macros, zero here, feeds, probe
         </Button>
       </CollapsibleTrigger>
       <CollapsibleContent className="flex flex-col gap-4">
@@ -299,8 +279,11 @@ function ToolsDrawer({ onEditMacros, defaultOpen }: { onEditMacros: () => void; 
                 </Button>
               </div>
             </Section>
-            <Section title="Jog">
-              <JogPanel />
+            <Section title="Jog feed">
+              <JogFeeds />
+            </Section>
+            <Section title="Probe">
+              <ProbeSettings />
             </Section>
           </>
         )}
@@ -310,8 +293,8 @@ function ToolsDrawer({ onEditMacros, defaultOpen }: { onEditMacros: () => void; 
 }
 
 /**
- * Everything before a job, as steps: home, the job (a CAM job's queue and board, or a G-code file), zero, run. Run
- * stays pinned at the bottom; manual tools are folded away.
+ * Everything before a job, as steps: the job (a CAM job's queue and board, or a G-code file), zero, jog, run. Homing is
+ * in the panel header. Run stays pinned at the bottom; manual tools are folded away.
  */
 export function SetupView({ onEditMacros, onShowConsole }: { onEditMacros: () => void; onShowConsole?: () => void }) {
   'use no memo';
@@ -322,11 +305,11 @@ export function SetupView({ onEditMacros, onShowConsole }: { onEditMacros: () =>
     <div className="flex min-h-full flex-col gap-3">
       <AlarmCard onShowConsole={onShowConsole} />
       <ResumeJobCard />
-      <HomeStep />
       {camJob ? <CamQueueCard /> : <JobStep />}
       {connected && (
         <>
           <ZeroStep />
+          <JogStep />
           <ToolsDrawer onEditMacros={onEditMacros} defaultOpen={!hasToolpath && !camJob} />
           <RunFooter />
         </>

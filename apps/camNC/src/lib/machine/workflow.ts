@@ -18,6 +18,8 @@ export interface ChecklistItem {
   details?: string[];
   /** The job cannot run like this (the controller would stop it with an alarm). */
   blocking?: boolean;
+  /** The problem is the zero still on the controller: it goes away with the open zero steps. */
+  zeroFirst?: boolean;
 }
 
 interface Box3Like {
@@ -108,6 +110,38 @@ export function checkTravel(input: {
   };
 }
 
+/**
+ * {@link checkTravel} for a job whose zero steps may still be open. A run starts from the zero on the controller, so
+ * that decides whether it can start. But an old zero says nothing about the job: judge it by where it is placed (XY,
+ * and Z only once zeroed), and report a problem that the zero steps will solve as just that.
+ */
+function checkJobTravel(input: {
+  toolpathBounds: Box3Like;
+  workOffset: Position;
+  travel: MachineTravel;
+  gcode: string;
+  toolpathOffset: { x: number; y: number };
+  xyPending: boolean;
+  zPending: boolean;
+}): ChecklistItem {
+  const { toolpathOffset, xyPending, zPending, ...current } = input;
+  const now = checkTravel(current);
+  if (now.ok || (!xyPending && !zPending)) return now;
+  const placed = checkTravel({
+    ...current,
+    workOffset: xyPending ? { ...current.workOffset, x: toolpathOffset.x, y: toolpathOffset.y } : current.workOffset,
+    travel: zPending ? { ...current.travel, z: null } : current.travel,
+  });
+  if (placed.blocking) return placed;
+  return {
+    id: 'travel',
+    ok: false,
+    blocking: now.blocking,
+    zeroFirst: true,
+    label: 'Set the zero first: the old zero would leave the machine travel',
+  };
+}
+
 /** An axis the machine already sits outside of, and the jog (mm, relative) that brings it back inside. */
 export interface OutsideTravel {
   axis: 'x' | 'y' | 'z';
@@ -159,6 +193,45 @@ export function checkPosition(mpos: Position, travel: MachineTravel): ChecklistI
   };
 }
 
+export interface ZeroGhost {
+  min: { x: number; y: number };
+  max: { x: number; y: number };
+  /** The parts of the outline past the machine travel. */
+  past: { min: { x: number; y: number }; max: { x: number; y: number } }[];
+  label: string;
+}
+
+/**
+ * Where a program would really run from the zero on the controller, while that isn't where it is placed. The outline
+ * in the view tells at a glance what numbers about an old zero don't.
+ */
+export function zeroGhost(input: {
+  toolpathBounds: { min: { x: number; y: number }; max: { x: number; y: number } };
+  workOffset: { x: number; y: number };
+  toolpathOffset: { x: number; y: number };
+  travel?: MachineTravel | null;
+}): ZeroGhost | null {
+  const { toolpathBounds: b, workOffset: w, toolpathOffset: placed, travel } = input;
+  if (Math.abs(w.x - placed.x) < 0.01 && Math.abs(w.y - placed.y) < 0.01) return null;
+  const min = { x: b.min.x + w.x, y: b.min.y + w.y };
+  const max = { x: b.max.x + w.x, y: b.max.y + w.y };
+  const past: ZeroGhost['past'] = [];
+  const over: string[] = [];
+  for (const axis of ['x', 'y'] as const) {
+    const limits = travel?.[axis];
+    if (!limits) continue;
+    if (min[axis] < limits.min - kTravelEpsilon) {
+      past.push({ min, max: { ...max, [axis]: limits.min } });
+      over.push(`${fmt(limits.min - min[axis])} mm past the ${axis.toUpperCase()} limit`);
+    }
+    if (max[axis] > limits.max + kTravelEpsilon) {
+      past.push({ min: { ...min, [axis]: limits.max }, max });
+      over.push(`${fmt(max[axis] - limits.max)} mm past the ${axis.toUpperCase()} limit`);
+    }
+  }
+  return { min, max, past, label: ['Would run here from the current zero', ...over].join(': ').replace(/limit: /g, 'limit, ') };
+}
+
 interface Rect {
   min: { x: number; y: number };
   max: { x: number; y: number };
@@ -205,16 +278,27 @@ export function getJobChecklist(input: ChecklistInput): ChecklistItem[] {
     items.push({ id: 'bounds', ok: inside, label: inside ? 'Inside machine bounds' : 'Toolpath extends outside the machine bounds' });
   }
 
+  const zeroMatches =
+    !!machineZero && Math.abs(machineZero.x - toolpathOffset.x) < 0.01 && Math.abs(machineZero.y - toolpathOffset.y) < 0.01;
+
   if (input.toolpathBounds3 && input.workOffset && input.travel) {
-    items.push(checkTravel({ toolpathBounds: input.toolpathBounds3, workOffset: input.workOffset, travel: input.travel, gcode }));
+    items.push(
+      checkJobTravel({
+        toolpathBounds: input.toolpathBounds3,
+        workOffset: input.workOffset,
+        travel: input.travel,
+        gcode,
+        toolpathOffset,
+        xyPending: !zeroMatches,
+        zPending: !input.zZeroed,
+      })
+    );
   }
   if (input.machinePosition && input.travel) {
     const position = checkPosition(input.machinePosition, input.travel);
     if (!position.ok) items.push(position);
   }
 
-  const zeroMatches =
-    !!machineZero && Math.abs(machineZero.x - toolpathOffset.x) < 0.01 && Math.abs(machineZero.y - toolpathOffset.y) < 0.01;
   items.push({
     id: 'xy-zero',
     ok: zeroMatches,

@@ -9,13 +9,23 @@ import {
 } from '@/scene/topViewOrientation';
 import { useMachineBoundsOrNull, useStore } from '@/store/store';
 import { Button } from '@wbcnc/ui/components/button';
-import { Checkbox } from '@wbcnc/ui/components/checkbox';
 import { Input } from '@wbcnc/ui/components/input';
 import { Label } from '@wbcnc/ui/components/label';
 import { Slider } from '@wbcnc/ui/components/slider';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { cn } from '@wbcnc/ui/lib/utils';
-import { ArrowDown, ArrowDownLeft, ArrowDownRight, ArrowLeft, ArrowRight, ArrowUp, ArrowUpLeft, ArrowUpRight, Square } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowDownLeft,
+  ArrowDownRight,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  ArrowUpLeft,
+  ArrowUpRight,
+  Keyboard,
+  Square,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 function report(promise: Promise<unknown>, what: string) {
@@ -57,14 +67,20 @@ const kStepsZ = [0.05, 0.1, 1, 5, 10];
 
 function StepPicker({ steps, value, onChange, label }: { steps: number[]; value: number; onChange: (v: number) => void; label: string }) {
   return (
-    <div className="flex flex-row gap-1 items-center">
-      <span className="text-xs text-muted-foreground w-6">{label}</span>
-      {steps.map(step => (
-        <Button key={step} size="sm" variant={step === value ? 'default' : 'outline'} className="px-2 h-7" onClick={() => onChange(step)}>
-          {step}
-        </Button>
-      ))}
-    </div>
+    <Label className="flex flex-row items-center gap-1 text-xs font-normal">
+      <span className="w-4 text-muted-foreground">{label}</span>
+      <select
+        aria-label={`${label} jog step`}
+        className="h-7 flex-1 rounded-md border bg-transparent px-1 text-xs"
+        value={value}
+        onChange={e => onChange(Number(e.target.value))}>
+        {steps.map(step => (
+          <option key={step} value={step}>
+            {step} mm
+          </option>
+        ))}
+      </select>
+    </Label>
   );
 }
 
@@ -138,6 +154,11 @@ export function JogPanel() {
   const canJog = api.canJog.value;
   const axes = useScreenAxes();
   useKeyboardJog(prefs.keyboardJog && canJog, axes);
+  // This panel stays in view, so the keys must never move the machine because of a choice made earlier.
+  useEffect(() => {
+    setPrefs({ keyboardJog: false });
+    return () => setPrefs({ keyboardJog: false });
+  }, [setPrefs]);
 
   const jog = (dx: number, dy: number, dz = 0) => {
     const xy = prefs.jogStepXY;
@@ -158,77 +179,98 @@ export function JogPanel() {
   ];
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-row gap-4 items-start">
-        <div className={cn('grid grid-cols-3 gap-1', !canJog && 'opacity-50')}>
-          {arrows.map(([sx, sy, icon], i) => {
-            if (sx === 0 && sy === 0) {
-              return (
-                <Button
-                  key={i}
-                  size="icon"
-                  variant="outline"
-                  className="size-11"
-                  title="Cancel jog"
-                  disabled={!api.isConnected.value}
-                  onClick={() => api.jogCancel()}>
-                  {icon}
-                </Button>
-              );
-            }
-            const step = screenToMachine(axes, sx, sy);
-            const label = axisStepLabel(step);
+    <div className="flex flex-row items-start gap-4">
+      <div className={cn('grid grid-cols-3 gap-1', !canJog && 'opacity-50')}>
+        {arrows.map(([sx, sy, icon], i) => {
+          if (sx === 0 && sy === 0) {
             return (
               <Button
                 key={i}
                 size="icon"
                 variant="outline"
-                className="size-11 flex-col gap-0"
-                disabled={!canJog}
-                onClick={() => jog(step.x, step.y)}
-                title={`Jog ${label}`}
-                aria-label={`Jog ${label}`}>
+                className="size-9 [&_svg]:size-3.5"
+                title="Cancel jog"
+                disabled={!api.isConnected.value}
+                onClick={() => api.jogCancel()}>
                 {icon}
-                {/* Axis buttons only; diagonals keep their label in the tooltip. */}
-                {(sx === 0 || sy === 0) && <span className="text-[10px] leading-none font-mono">{label}</span>}
               </Button>
             );
-          })}
-        </div>
-        <div className="flex flex-col gap-1">
-          <Button size="sm" variant="outline" disabled={!canJog} onClick={() => jog(0, 0, 1)}>
+          }
+          const step = screenToMachine(axes, sx, sy);
+          const label = axisStepLabel(step);
+          return (
+            <Button
+              key={i}
+              size="icon"
+              variant="outline"
+              className="size-9 flex-col gap-0 [&_svg]:size-3.5"
+              disabled={!canJog}
+              onClick={() => jog(step.x, step.y)}
+              title={`Jog ${label}`}
+              aria-label={`Jog ${label}`}>
+              {icon}
+              {/* Axis buttons only; diagonals keep their label in the tooltip. */}
+              {(sx === 0 || sy === 0) && <span className="text-[10px] leading-none font-mono">{label}</span>}
+            </Button>
+          );
+        })}
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex flex-row gap-1">
+          <Button size="sm" variant="outline" className="flex-1" disabled={!canJog} onClick={() => jog(0, 0, 1)}>
             Z+ <ArrowUp />
           </Button>
-          <Button size="sm" variant="outline" disabled={!canJog} onClick={() => jog(0, 0, -1)}>
+          <Button size="sm" variant="outline" className="flex-1" disabled={!canJog} onClick={() => jog(0, 0, -1)}>
             Z− <ArrowDown />
           </Button>
         </div>
+        <StepPicker label="XY" steps={kStepsXY} value={prefs.jogStepXY} onChange={v => setPrefs({ jogStepXY: v })} />
+        <StepPicker label="Z" steps={kStepsZ} value={prefs.jogStepZ} onChange={v => setPrefs({ jogStepZ: v })} />
+        <KeyboardJogToggle />
       </div>
-      <StepPicker label="XY" steps={kStepsXY} value={prefs.jogStepXY} onChange={v => setPrefs({ jogStepXY: v })} />
-      <StepPicker label="Z" steps={kStepsZ} value={prefs.jogStepZ} onChange={v => setPrefs({ jogStepZ: v })} />
-      <div className="flex flex-row gap-3 items-center text-xs">
-        <Label className="text-xs">
-          XY feed
-          <Input
-            type="number"
-            className="h-7 w-20"
-            value={prefs.jogFeedXY}
-            onChange={e => setPrefs({ jogFeedXY: Number(e.target.value) || prefs.jogFeedXY })}
-          />
-        </Label>
-        <Label className="text-xs">
-          Z feed
-          <Input
-            type="number"
-            className="h-7 w-20"
-            value={prefs.jogFeedZ}
-            onChange={e => setPrefs({ jogFeedZ: Number(e.target.value) || prefs.jogFeedZ })}
-          />
-        </Label>
-      </div>
-      <Label className="text-xs flex flex-row gap-2 items-center">
-        <Checkbox checked={prefs.keyboardJog} onCheckedChange={v => setPrefs({ keyboardJog: v === true })} />
-        Keyboard jog (arrows as in Top View, PgUp/PgDn = Z, hold to move)
+    </div>
+  );
+}
+
+/** Off whenever the jog panel appears, and says so: with it on, the arrow keys move the machine. */
+function KeyboardJogToggle() {
+  const on = useStore(s => s.machinePrefs.keyboardJog);
+  const setPrefs = useStore(s => s.setMachinePrefs);
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      className={cn('h-6 self-end px-1.5 text-xs font-normal text-muted-foreground', on && 'text-amber-700 dark:text-amber-400')}
+      aria-pressed={on}
+      title="Arrow keys jog X and Y as in Top View, PgUp/PgDn jog Z. Hold to move."
+      onClick={() => setPrefs({ keyboardJog: !on })}>
+      <Keyboard /> {on ? 'Keyboard on' : 'Keyboard off'}
+    </Button>
+  );
+}
+
+export function JogFeeds() {
+  const prefs = useStore(s => s.machinePrefs);
+  const setPrefs = useStore(s => s.setMachinePrefs);
+  return (
+    <div className="flex flex-row gap-3 items-center text-xs">
+      <Label className="text-xs">
+        XY feed
+        <Input
+          type="number"
+          className="h-7 w-20"
+          value={prefs.jogFeedXY}
+          onChange={e => setPrefs({ jogFeedXY: Number(e.target.value) || prefs.jogFeedXY })}
+        />
+      </Label>
+      <Label className="text-xs">
+        Z feed
+        <Input
+          type="number"
+          className="h-7 w-20"
+          value={prefs.jogFeedZ}
+          onChange={e => setPrefs({ jogFeedZ: Number(e.target.value) || prefs.jogFeedZ })}
+        />
       </Label>
     </div>
   );

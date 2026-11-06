@@ -13,6 +13,7 @@ import { DarkScope } from '@wbcnc/ui/components/dark-scope';
 import { PresentCanvas } from '@/scene/PresentCanvas';
 import { MachinePositionMarker } from '@/visualize/MachinePositionMarker';
 import { MachineZeroAxes } from '@/visualize/MachineZeroAxes';
+import { ZeroGhost } from '@/visualize/ZeroGhost';
 import { SnapPositionMarker } from '@/visualize/SnapPositionMarker';
 import { GCodeVisualizer } from '@/visualize/Toolpaths';
 import { CamBoardOverlay } from '@/cam/machine/CamBoardOverlay';
@@ -254,6 +255,7 @@ function VisualizeComponent() {
                   <MachinePositionMarker />
                   <SnapPositionMarker />
                   <MachineZeroAxes />
+                  <ZeroGhost />
                   <JobProgressPath />
                 </>
               ) : (
