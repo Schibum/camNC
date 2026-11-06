@@ -10,6 +10,158 @@
   },
   "cases": [
     {
+      "id": "board-neighbor-open-pocket",
+      "inputFile": "board-neighbor-open-pocket.input.json",
+      "inputSha256": "911787ef319a04cf466afdb3e5537e4f69557199e8fc36e0ed078b743cad3b44",
+      "warnings": [
+        "Main: Pocket 1: Open-pocket path would reach a neighboring part; using a path inside the pocket",
+        "Main: pocket z=6: 7.7mm² left in corners/narrow spots with D=6"
+      ],
+      "programs": [
+        {
+          "file": "board-neighbor-open-pocket.nc",
+          "sha256": "1534f267290752863097bdf9251a311e916ab663f3a66770ce6aa80897d78899",
+          "bytes": 1166,
+          "operations": 1,
+          "passes": 2,
+          "toolNumbers": [
+            1
+          ],
+          "setup": {
+            "schemaVersion": 1,
+            "planFingerprint": "cam-plan-v1-5baab53238e5620e",
+            "programName": "board-neighbor-open-pocket",
+            "units": "mm",
+            "origin": {
+              "xy": "stock lower left",
+              "z": "stock bottom"
+            },
+            "stockSize": [
+              140,
+              120,
+              12
+            ],
+            "stockTop": 12,
+            "safeZ": 17,
+            "retractZ": 14,
+            "spindle": "hand",
+            "post": {
+              "profileId": "fluidnc",
+              "arcs": true,
+              "arcTolerance": 0.033884832772239096,
+              "spindleDwell": 3
+            },
+            "accuracy": {
+              "scope": "features",
+              "budget": {
+                "total": 0.05,
+                "import": 0,
+                "offset": 0.004517977702965213,
+                "smoothing": 0.00677696655444782,
+                "fitting": 0.033884832772239096,
+                "polygonRounding": 0.002262741699796952,
+                "outputRounding": 0.0008660254037844386,
+                "controllerRounding": 0.0016914558667664816
+              }
+            },
+            "blankFootprint": [
+              [
+                [
+                  0,
+                  0
+                ],
+                [
+                  140,
+                  0
+                ],
+                [
+                  140,
+                  120
+                ],
+                [
+                  0,
+                  120
+                ]
+              ]
+            ],
+            "tools": [
+              {
+                "key": "[\"[null,1,6,null,null,null]\",15000]",
+                "tool": {
+                  "number": 1,
+                  "diameter": 6,
+                  "name": "synthetic flat end mill"
+                },
+                "rpm": 15000,
+                "maximumCutDepth": 6
+              }
+            ],
+            "operations": [
+              {
+                "name": "Main: Pocket 1 z=6",
+                "feature": "pocket",
+                "toolKey": "[\"[null,1,6,null,null,null]\",15000]",
+                "feeds": [
+                  480,
+                  900,
+                  1800
+                ],
+                "passes": 2,
+                "bounds": {
+                  "min": [
+                    38,
+                    33,
+                    6
+                  ],
+                  "max": [
+                    102,
+                    39,
+                    12
+                  ]
+                },
+                "roles": {
+                  "approach": 2,
+                  "ramp": 4,
+                  "cut": 10,
+                  "corner": 16
+                }
+              }
+            ],
+            "bounds": {
+              "min": [
+                38,
+                33,
+                6
+              ],
+              "max": [
+                102,
+                39,
+                12
+              ]
+            },
+            "warnings": [
+              "Main: Pocket 1: Open-pocket path would reach a neighboring part; using a path inside the pocket",
+              "Main: pocket z=6: 7.7mm² left in corners/narrow spots with D=6"
+            ],
+            "statistics": {
+              "bytes": 1166,
+              "executableBlocks": 47,
+              "motionBlocks": 39,
+              "arcBlocks": 0,
+              "cuttingLineBlocks": 32,
+              "feedChanges": 20,
+              "tinyCuttingLines": 0,
+              "tinySegmentThresholdMm": 0.1,
+              "unresolvedCuttingLines": 0,
+              "minimumCuttingLineMm": 1,
+              "averageCuttingLineMm": 12.488878603493331,
+              "maximumLineBytes": 105
+            }
+          }
+        }
+      ]
+    },
+    {
       "id": "concave-pocket",
       "inputFile": "concave-pocket.input.json",
       "inputSha256": "e173296a5c58b6d66b9c780253a17972243f0a922d390e8d63487fb8999ae8ec",

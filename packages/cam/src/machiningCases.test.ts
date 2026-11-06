@@ -117,6 +117,16 @@ describe('analytic machining regression corpus', () => {
     expect(JSON.parse(readFileSync(`${CASE_DIRECTORY}/manifest.json`, 'utf8'))).toEqual(manifest);
   });
 
+  it('retains the isolated pre-fix board input and its observed neighboring-material intrusion', () => {
+    const before = JSON.parse(readFileSync(`${CASE_DIRECTORY}/board-neighbor-open-pocket.before.json`, 'utf8'));
+    const source = cases.find(entry => entry.input.id === 'board-neighbor-open-pocket')!;
+    expect(before.sourceCommit).toBe('d506ca0067a5b8fc8f44be47bf878e7f63c88498');
+    expect(before.inputSha256).toBe(sha256(source.inputText));
+    expect(before.input).toEqual(source.input);
+    expect(before.minimumCutterClearanceMm).toBeLessThan(-2);
+    expect(before.collidingFeedChords).toBeGreaterThan(0);
+  });
+
   for (const { input, result } of generated)
     it(`${input.id}: deterministic output and machining invariants`, () => {
       expect(result.programs).toHaveLength(input.expected.programs);
@@ -180,6 +190,19 @@ describe('analytic machining regression corpus', () => {
             expect(segmentToRectangle(move.from, move.to, box)).toBeGreaterThanOrEqual(radius - (input.settings.geometryTolerance ?? 0.05));
         for (const box of input.expected.uncutRectangles ?? [])
           for (const move of cuts) expect(segmentToRectangle(move.from, move.to, box)).toBeGreaterThan(0);
+        for (const guard of input.expected.cutterClearance ?? [])
+          for (const move of cuts)
+            expect(segmentToRectangle(move.from, move.to, guard.rectangle) - radius).toBeGreaterThanOrEqual(
+              guard.minimumMm - (input.settings.geometryTolerance ?? 0.05)
+            );
+        const floorCuts = cuts.filter(
+          move => Math.abs(move.from[2] - input.expected.minimumZ) < 0.001 && Math.abs(move.to[2] - input.expected.minimumZ) < 0.001
+        );
+        for (const [x, y] of input.expected.floorCoveragePoints ?? [])
+          expect(
+            floorCuts.some(move => pointToSegment([x, y, 0], move.from, move.to) <= radius + 0.001),
+            `floor coverage ${x},${y}`
+          ).toBe(true);
         const tab = input.expected.tabPlateau;
         if (tab) {
           const grid = new DepthMap(tab.x0 - 1, tab.centerY - 1, tab.x1 + 1, tab.centerY + 1, 0.05);
