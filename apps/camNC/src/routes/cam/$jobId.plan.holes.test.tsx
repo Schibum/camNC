@@ -1,4 +1,7 @@
-import { createJob, getJob } from '@/cam/jobDb';
+import { instancesOf, reconcileBoards } from '@/cam/boards';
+import { camWorker, modelKey } from '@/cam/camQueries';
+import { createJob, getJob, saveJob } from '@/cam/jobDb';
+import * as Comlink from 'comlink';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ExtrudeGeometry, Path, Shape } from 'three';
@@ -64,5 +67,29 @@ describe('Plan step: a hole whose middle comes loose', () => {
     await screen.findByText(/Middle of a through hole/, {}, { timeout: 60_000 });
     expect(screen.queryByText(/comes loose on the last pass/)).toBeNull();
     await waitFor(async () => expect((await getJob(job.id))?.plan?.holes).toEqual({ 'part-0': { 0: 'clear' } }));
+  });
+
+  it('offers no clearing once a copy of the part is on a cut board', { timeout: 120_000 }, async () => {
+    const bytes = plateStl();
+    const job = await createJob(new File([bytes], 'plate.stl'), { name: 'Plate' });
+    const copy = new Uint8Array(bytes.slice(0));
+    const model = await camWorker().importModel(Comlink.transfer(copy, [copy.buffer]), job.fileName, modelKey(job));
+    const boards = reconcileBoards(
+      undefined,
+      instancesOf(model.parts, () => true),
+      'oak'
+    ).map(b => ({
+      ...b,
+      cut: { at: 1, keys: ['ran'] },
+    }));
+    await saveJob({ ...job, boards });
+    params.jobId = job.id;
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <PlanStep />
+      </QueryClientProvider>
+    );
+    expect(await screen.findByText(/the 34 mm piece in a through hole comes loose/, {}, { timeout: 60_000 })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Clear it/ })).toBeNull();
   });
 });

@@ -8,7 +8,7 @@ import type { BoardRequest, CamPartInfo, OpSummary, PlanResult, ReleaseProgram }
 import type { FlipRegistration } from '@wbcnc/cam';
 import { missingParts, useJobBoards, type MissingPart } from '@/cam/useJobBoards';
 import { layoutBlock, loose, planBlock, releaseProblems, unstable } from '@/cam/boardBlock';
-import { edgeNote, freezeSpacing, isCut, spacingProblem } from '@/cam/boards';
+import { cutBoardWith, edgeNote, freezeSpacing, isCut, spacingProblem } from '@/cam/boards';
 import { CutBadge } from '@/cam/boards/CutBadge';
 import { orderBoardQueue } from '@wbcnc/cam/board';
 import { CamJobBar } from '@/cam/model/CamJobBar';
@@ -339,7 +339,14 @@ function PlanStep() {
                 checked={!empty && !blocked}
                 releaseSafety={releaseSafety}
                 partOf={instance => current.request.parts.find(p => p.id === instance)}
-                onClearHole={isCut(current.board) ? undefined : (partId, hole) => savePlan(withHoleChoice(settings, partId, hole, 'clear'))}
+                canClearHole={partId =>
+                  !cutBoardWith(
+                    boards.map(b => b.board),
+                    instances,
+                    partId
+                  )
+                }
+                onClearHole={(partId, hole) => savePlan(withHoleChoice(settings, partId, hole, 'clear'))}
               />
               <p className="text-xs text-muted-foreground">
                 {result.programs.length > 1
@@ -607,6 +614,7 @@ function Checks({
   checked,
   releaseSafety,
   partOf,
+  canClearHole,
   onClearHole,
 }: {
   plan: PlanResult;
@@ -615,8 +623,10 @@ function Checks({
   releaseSafety: string[];
   /** A body on the board. */
   partOf: (instance: string) => { partId: string; name: string } | undefined;
-  /** Clear the middle of this hole, for every copy of the part. Not on a board already cut. */
-  onClearHole?: (partId: string, hole: number) => void;
+  /** Not with a copy of the part on a board already cut. */
+  canClearHole: (partId: string) => boolean;
+  /** Clear the middle of this hole, for every copy of the part. */
+  onClearHole: (partId: string, hole: number) => void;
 }) {
   // One line per hole, however many copies of its part are on the board.
   const looseHoles = [
@@ -693,7 +703,7 @@ function Checks({
               {h.name}: the {+h.size.toFixed(0)} mm piece in a through hole comes loose on the last pass and can catch the bit. Tape it,
               screw it down, or clear it.
             </p>
-            {onClearHole && (
+            {canClearHole(h.partId) && (
               <Button size="sm" variant="outline" onClick={() => onClearHole(h.partId, h.hole)}>
                 Clear it, about +{h.addMinutes.toFixed(1)} min
               </Button>

@@ -125,6 +125,17 @@ describe('the middle of a through hole', () => {
     expect(holdTimeline(cam, b, holdOptionsOf(b, { tools: [tool(3.175)] })).filter(e => e.kind === 'pivot')).toEqual([]);
   });
 
+  it('a hold in a hole is not on a part of several outlines, a hold on any of them is', () => {
+    const two = {
+      ...part([circle(50, 60, 40)]),
+      outlines: [rect(0, 0, 100, 120), rect(150, 0, 300, 120)],
+    };
+    const on = (x: number, y: number) => holdsOnParts(board(two, { holdPoints: [{ x, y, kind: 'screw', d: 10 }] }));
+    expect(on(60, 70)).toEqual([]);
+    expect(on(20, 20)).toHaveLength(1);
+    expect(on(200, 70)).toHaveLength(1);
+  });
+
   it('a hold on the part beside the hole still counts as on the part', () => {
     const b = board(part([circle(150, 60, 70)]), { holdPoints: [{ x: 50, y: 50, kind: 'screw', d: 10 }] });
     expect(holdsOnParts(b)).toHaveLength(1);

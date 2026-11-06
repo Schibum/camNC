@@ -13,6 +13,7 @@ import {
   freezeSpacing,
   holdSettingsOf,
   holdVerdict,
+  cutBoardWith,
   isCut,
   layoutSummary,
   newBoard,
@@ -556,7 +557,15 @@ function BoardsEditor({
           plans={plans.map(p => p.data)}
           fetching={plans.map(p => p.isFetching)}
           bit={plan.bit.diameter}
-          onHoleChoice={(partId, hole, choice) => save({ ...job, plan: withHoleChoice(plan, partId, hole, choice) })}
+          onHoleChoice={(partId, hole, choice) => {
+            const cut = cutBoardWith(
+              boards.map(b => b.board),
+              instances,
+              partId
+            );
+            if (cut) setNote(`Not changed: a copy of this part is on ${boardLabel(cut)}, already cut. Start it over to change this hole.`);
+            else save({ ...job, plan: withHoleChoice(plan, partId, hole, choice) });
+          }}
           selectedId={selected.board.id}
           onSelect={setSelectedId}
           onDrop={dropOn}

@@ -260,13 +260,16 @@ export function holdsOnParts(board: Pick<BoardSpec, 'parts' | 'holdPoints'>): Ho
           return { x, y };
         })
       );
-      return part.features.outlines.some(loop => {
-        const onBoard = loop.map(q => {
-          const [x, y] = partToBoard(part, [q.x, q.y, 0]);
-          return { x, y };
-        });
-        return pts.some(p => insideLoops(p, [onBoard, ...holes]));
-      });
+      const region = [
+        ...part.features.outlines.map(loop =>
+          loop.map(q => {
+            const [x, y] = partToBoard(part, [q.x, q.y, 0]);
+            return { x, y };
+          })
+        ),
+        ...holes,
+      ];
+      return pts.some(p => insideLoops(p, region));
     });
   });
 }
