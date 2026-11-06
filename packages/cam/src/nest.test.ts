@@ -107,6 +107,37 @@ describe('nestRects', () => {
     expect(nestRects(KINDER, { gap: 7, margin: 20, board: { w: 300, h: 300 } }).unplaced).toHaveLength(5);
   });
 
+  it('preserves stable ties and postponement around fixed obstacles without changing shared inputs', () => {
+    const items: NestItem[] = [
+      { id: 'first', w: 50, h: 30 },
+      { id: 'second', w: 50, h: 30 },
+      { id: 'third', w: 30, h: 50, canRotate: true },
+      { id: 'fourth', w: 30, h: 50, canRotate: true },
+      { id: 'large', w: 70, h: 40 },
+    ];
+    const opts = { gap: 3, margin: 5, board: { w: 140, h: 100 }, keepOuts: [{ x: 55, y: 35, w: 20, h: 20 }] };
+    const before = JSON.stringify({ items, opts });
+    for (const item of items) Object.freeze(item);
+    Object.freeze(items);
+    Object.freeze(opts.keepOuts[0]);
+    Object.freeze(opts.keepOuts);
+    const result = nestRects(items, opts);
+    expect(result.placements).toEqual([
+      { id: 'first', x: 5, y: 58, rotated: false },
+      { id: 'second', x: 58, y: 58, rotated: false },
+      { id: 'third', x: 5, y: 5, rotated: false },
+      { id: 'fourth', x: 78, y: 5, rotated: false },
+    ]);
+    expect(result.unplaced).toEqual(['large']);
+    checkNest(items, opts, result);
+    expect(nestRects(items, opts)).toEqual(result);
+    const moved = { ...opts, keepOuts: [{ x: 5, y: 5, w: 20, h: 20 }] };
+    const changed = nestRects(items, moved);
+    checkNest(items, moved, changed);
+    expect(changed).not.toEqual(result);
+    expect(JSON.stringify({ items, opts })).toBe(before);
+  });
+
   it('keeps out of clamp zones (+ gap)', () => {
     const board = { w: 1000, h: 700 };
     const opts = { gap: 7, margin: 10, board, keepOuts: corners(board, { w: 80, h: 60 }) };
