@@ -22,6 +22,7 @@ function plan(pts: Vec3[]): PartCam {
       maximumPlanarRemovalRate: 99,
       axialEntryExceptions: 99,
       descendingSegments: 99,
+      conservativeFrontierSegments: 99,
     },
     operations: [
       {

@@ -27,6 +27,42 @@ const policy = {
 };
 
 describe('machining output invariants', () => {
+  it('does not retract between consecutive passes whose shared endpoint requires no linking motion', () => {
+    const cam: PartCam = {
+      stockTop: 10,
+      warnings: [],
+      operations: [
+        {
+          name: 'Continuous entry and wall',
+          kind: 'pocket',
+          feature: 'pocket',
+          tool: { number: 1, diameter: 4 },
+          passes: [
+            {
+              pts: [
+                [0, 0, 5],
+                [10, 0, 5],
+              ],
+              feeds: [300, 1000],
+              link: 'retract',
+            },
+            {
+              pts: [
+                [10, 0, 5],
+                [10, 10, 5],
+              ],
+              feeds: [1000, 1000],
+              link: 'direct',
+            },
+          ],
+        },
+      ],
+    };
+    const afterMarker = toGcode(cam).split('(PASS 2/2 Z5)\n')[1];
+    expect(afterMarker).toBeDefined();
+    expect(afterMarker.trimStart().split('\n')[0]).not.toMatch(/^G0\b/);
+  });
+
   it('does not credit a long link that the emitted program retracts over', () => {
     const stock = new StockModel({ stockTop: 10 });
     const passes: Pass[] = [

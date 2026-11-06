@@ -4,6 +4,7 @@ import { fitArcs, FLUIDNC_POST_PROFILE, toGcode, validateFluidNCOutput, type Gco
 import { parsedPostNumber, quantizedArcIsSafe } from './postValidation';
 import type { PartCam, Tool } from './toolpaths';
 import type { Vec3 } from './geom';
+import { planAccuracy } from './accuracy';
 
 const tool: Tool = { number: 1, diameter: 3.175, guid: 'endmill-a', fluteLength: 20, flutes: 2 };
 const program = (
@@ -21,6 +22,17 @@ const program = (
 });
 
 describe('post input validation', () => {
+  it('requires custom plan budgets to reserve the actual controller precision', () => {
+    for (const field of ['outputRounding', 'controllerRounding'] as const) {
+      const cam = program();
+      cam.accuracy = planAccuracy();
+      cam.accuracy.budget[field] = 0;
+      expect(() => toGcode(cam, { arcs: false })).toThrow(/coordinate precision/);
+    }
+    const cam = program();
+    cam.accuracy = planAccuracy();
+    expect(() => toGcode(cam, { arcTolerance: cam.accuracy!.budget.fitting * 2 })).toThrow(/fitting budget/);
+  });
   it.each([NaN, Infinity, -Infinity, 1e22])('rejects an unrepresentable coordinate (%s)', value => {
     expect(() =>
       toGcode(

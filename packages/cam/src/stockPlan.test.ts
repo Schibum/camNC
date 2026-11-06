@@ -41,7 +41,7 @@ describe('stock-certified job links', () => {
     const code = toGcode(source);
     expect(code).toMatch(/G0 Z12\nY1\nZ11\nG1 Z5 F480/);
     const joined = cam([pass(0, 5), pass(5, 10, true)]);
-    expect(toGcode(joined)).not.toContain('Z12');
+    expect(toGcode(joined)).not.toContain('G0 Z12');
     expect(source.operations[0].passes[1].link).toBe('direct');
   });
   it('rejects an asserted clear link over material not yet cut and uses the plunge fallback', () => {

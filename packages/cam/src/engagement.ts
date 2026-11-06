@@ -14,6 +14,7 @@ import {
 import { StockModel, sweptCapsule } from './stock';
 import type { Pass, Tool } from './toolpaths';
 import type { MotionRole } from './motion';
+import { parsedPostNumber } from './postValidation';
 
 export interface ControlledPocketOptions {
   toolRadius: number;
@@ -178,6 +179,9 @@ export interface RemovalRateOptions {
   minimumFeed: number;
   sampleLength?: number;
   plungeFeed?: number;
+  /** Bound detailed polygon analysis; later moves use the conservative full-slot frontier bound. */
+  maxDetailedQueries?: number;
+  maxDetailedSweeps?: number;
 }
 
 export interface RemovalRateResult {
@@ -188,6 +192,7 @@ export interface RemovalRateResult {
   axialEntries: number;
   descendingSegments: number;
   retractedLinks: number;
+  conservativeFrontierSegments: number;
 }
 
 type RatedPass = Pass & { roles?: MotionRole[] };
@@ -199,6 +204,12 @@ export function limitRemovalRate(passes: RatedPass[], tool: Tool, stock: StockMo
   if (![radius, step, options.maxPlanarRemovalRate, options.minimumFeed].every(positive))
     throw new Error('Invalid material removal-rate policy');
   if (options.plungeFeed !== undefined && !positive(options.plungeFeed)) throw new Error('Invalid material removal plunge feed');
+  const queryBudget = options.maxDetailedQueries ?? 64,
+    sweepBudget = options.maxDetailedSweeps ?? 128;
+  if (![queryBudget, sweepBudget].every(value => Number.isInteger(value) && value >= 0))
+    throw new Error('Invalid material analysis budget');
+  let detailedQueries = 0,
+    conservativeFrontierSegments = 0;
   let limitedSegments = 0,
     maximumAreaRate = 0,
     axialEntries = 0,
@@ -206,24 +217,41 @@ export function limitRemovalRate(passes: RatedPass[], tool: Tool, stock: StockMo
     retractedLinks = 0;
   const resolve = (from: Vec3, to: Vec3, requestedFeed: number): number => {
     if (!positive(requestedFeed)) throw new Error('Cutting feed must be positive and finite');
-    const engagement = stock.measureMove(from, to, radius);
+    const length = Math.hypot(to[0] - from[0], to[1] - from[1]);
     if (to[2] < from[2]) descendingSegments++;
-    if (engagement.length === 0) {
-      if (to[2] < from[2] && engagement.newArea > 0) axialEntries++;
+    if (length === 0) {
+      if (to[2] < from[2] && to[2] < stock.stockTop) axialEntries++;
       stock.recordPath([from, to], radius);
       return requestedFeed;
     }
     // A translated disk adds at most D * length outside its occupied starting disk.
     // This excludes axial removal under that disk, which ramp/plunge limits govern separately.
-    const frontierArea = Math.min(engagement.newArea, 2 * radius * engagement.length);
-    const allowed = frontierArea > 0 ? (options.maxPlanarRemovalRate * engagement.length) / frontierArea : requestedFeed;
+    let frontierArea = 2 * radius * length;
+    let fullSlot = true;
+    if (requestedFeed > options.maxPlanarRemovalRate / (2 * radius) && detailedQueries < queryBudget && stock.checkpoint() <= sweepBudget) {
+      detailedQueries++;
+      const measured = stock.measureMove(from, to, radius).newArea;
+      if (measured < frontierArea) {
+        frontierArea = measured;
+        fullSlot = false;
+      }
+    } else conservativeFrontierSegments++;
+    const allowed = fullSlot
+      ? options.maxPlanarRemovalRate / (2 * radius)
+      : frontierArea > 0
+        ? (options.maxPlanarRemovalRate * length) / frontierArea
+        : requestedFeed;
     const target = Math.min(requestedFeed, allowed);
-    // Leave room for decimal parsing in the controller, then round down at posted feed precision.
-    const margin = frontierArea > 0 && allowed <= requestedFeed + 0.001 + requestedFeed * 2 ** -20 ? 0.001 + target * 2 ** -20 : 0;
-    const feed = Math.floor(Math.max(0, target - margin) * 1000) / 1000;
+    let feed = Math.floor(target * 1000) / 1000;
+    // Keep an exactly representable boundary feed; otherwise reserve parsing error before rounding down.
+    if (frontierArea > 0 && parsedPostNumber(feed) > allowed) {
+      const margin = 0.001 + target * 2 ** -20;
+      feed = Math.floor(Math.max(0, target - margin) * 1000) / 1000;
+      if (parsedPostNumber(feed) > allowed) throw new Error('Material removal bound is not representable at the posted feed precision');
+    }
     if (feed < options.minimumFeed - 1e-9) throw new Error('Material removal bound cannot be met at the minimum permitted feed');
     if (feed < requestedFeed - 1e-9) limitedSegments++;
-    maximumAreaRate = Math.max(maximumAreaRate, (frontierArea / engagement.length) * feed);
+    maximumAreaRate = Math.max(maximumAreaRate, (frontierArea / length) * parsedPostNumber(feed));
     stock.recordPath([from, to], radius);
     return feed;
   };
@@ -266,7 +294,15 @@ export function limitRemovalRate(passes: RatedPass[], tool: Tool, stock: StockMo
       last = pts[pts.length - 1];
       return { ...pass, pts, feeds, link, clearLink, ...(roles ? { roles } : {}) };
     });
-    return { passes: resolved, limitedSegments, maximumAreaRate, axialEntries, descendingSegments, retractedLinks };
+    return {
+      passes: resolved,
+      limitedSegments,
+      maximumAreaRate,
+      axialEntries,
+      descendingSegments,
+      retractedLinks,
+      conservativeFrontierSegments,
+    };
   } catch (error) {
     stock.rollback(checkpoint);
     throw error;

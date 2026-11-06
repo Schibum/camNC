@@ -154,9 +154,9 @@ const miter = (paths: PathsD, delta: number) => inflatePathsD(paths, delta, Join
 
 /** Morphological clean-up: closes hairline gaps between triangles and drops slivers/specks. Miter joins keep the
  * vertex count down (round joins at this scale add an arc to every tessellation vertex). */
-export function cleanRegion(paths: PathsD, eps = 0.01, minArea = 0.05): PathsD {
+export function cleanRegion(paths: PathsD, eps = 0.01, minArea = 0.05, simplifyTolerance = 0.001): PathsD {
   const closed = miter(miter(paths, eps), -eps);
-  const opened = simplifyPathsD(miter(miter(closed, -eps), eps), 0.001, true);
+  const opened = simplifyPathsD(miter(miter(closed, -eps), eps), simplifyTolerance, true);
   // Drop tiny islands (positive) and tiny holes (negative).
   return opened.filter(p => Math.abs(areaD(p)) >= minArea);
 }

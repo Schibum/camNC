@@ -1,0 +1,55 @@
+# Machining plans and router output
+
+The CAM package plans flat-end-mill, 2.5D jobs in millimetres. Board jobs use the stock's lower-left corner for XY zero and the stock bottom for Z zero. A board can rotate about that zero. Custom feature coordinates can use `GcodeOptions.xyOrigin: 'feature frame'`; the setup also identifies this frame when a declared blank surrounds XY zero rather than placing a corner there. Each physical cutter and spindle-speed combination produces its own program; measure and zero a replacement cutter before running the next program.
+
+## Motion and cutting data
+
+Every planned point can carry a motion role: approach, plunge, ramp, lead-in, cut, corner, finish, lead-out, link, or tab. The role describes the move **ending** at that point. Arc fitting stops at feed and role boundaries.
+
+Tool cutting data overrides job defaults. Feed values use mm/min. Ramp feed defaults to the resolved plunge feed, while lead and transition feeds follow the resolved cutting feed unless specified. Separate finish and reduced feeds can be supplied. Choosing another cutting preset replaces that preset's cutting data, including clearing fields the new preset does not supply; it retains physical tool dimensions and measured stickout.
+
+Profiles and through holes use contour ramps by default. `profileEntry: 'tangent'` requests tangent leads in the local free region. Tabs, insufficient entry room, or a neighboring part in the cutter envelope cause a ramp fallback with a planning note. `profileEntry: 'plunge'` remains an explicit option. All entries retain the depth-step policy.
+
+Inner-corner reduction changes feeds along the existing geometry. It uses the material side, accumulated turn, radius, and approach/recovery distance, so a reversed path receives the equivalent reduction. Outer air-side corners are not automatically slowed. `cornerFeed: false` disables this policy; a `CornerFeedSettings` object replaces the tool-size defaults. This is a geometric load precaution, not a measurement of cutting force.
+
+Wall and floor finishing use bounded depth increments. The relevant controls are `profileFinishStepdown`, `pocketWallAllowance`, `pocketFloorAllowance`, and `pocketFinishStepdown`. Intentional radial or axial stock allowance is separate from numerical geometry tolerance. Tab shoulders use `tabs.rampLength`; shoulders lie outside the requested full-width plateau. Repeated entry laps preserve every tab interval, including a tab crossing the contour seam.
+
+Optional `profileVerticalLeadRadius` adds a bounded vertical entry blend whose XY projection stays on a validated entry segment. `profileVerticalExitRadius` supports inside-hole exits over already cut material. Unsupported entry modes or holding contexts retain their original motion and report a planning note. Principal-plane blends can become G18/G19 arcs; other orientations remain planned line segments. These controls default off.
+
+`profileSpringPasses` and `pocketSpringPasses` request up to five extra finishing laps. `circularFinishFeed` optionally treats the finishing feed as contact feed on a positively validated inside circle and reduces centerline feed by the center/contact-radius ratio. It does not increase an outside contour's feed or apply a circle correction to entries or arbitrary curves. Complete flat contour laps remain available to holding and release planning.
+
+## Stock and pocket strategies
+
+The stock model starts with the uncut blank, including material in future holes and pockets. It records swept cutters with depth and accounts for ramp height. A stay-down link needs clearance for the **whole cutter** at the deepest point of the link. Prior tool-center samples alone are insufficient. Unproven links retract and approach at the plunge feed. Unknown blank bounds are treated conservatively as material extending indefinitely.
+
+Board plans retain their rotated blank footprint. Final program posting repeats link certification in the emitted operation order, including for custom plans and programs split by cutter. It does not trust a manually supplied `clearLink` flag or a link merely because it is shorter than one diameter. Standalone stock-history APIs allow applications to retain removal history explicitly; a later program does not implicitly assume an earlier program was run.
+
+The ordinary `offset` pocket strategy remains the default. The optional `controlled` strategy builds inside-out roughing loops with tangent turn radii, retains radial allowance, and adds reachable residual cleanup. A loop that cannot satisfy the geometric constraints is reported rather than silently claiming the requested turn radius. Narrow entries and unreachable residual regions remain explicit diagnostics.
+
+`maxPlanarRemovalRate` caps newly swept XY frontier area per minute, averaged over each resolved motion block and excluding the cutter's already occupied starting disk. `minimumCuttingFeed` prevents silently choosing an unusably low feed: a conflicting cap is rejected. Axial removal during plunges **and descending ramps** is excluded, counted separately, and retains plunge/ramp/stepdown limits. This planar area model does not bound instantaneous angular engagement, chip thickness, cutting force, or volume removal across variable axial depths. It is not a trochoidal or constant-engagement adaptive algorithm.
+
+## Accuracy and controller checks
+
+`geometryTolerance` allocates a common numerical budget across source uncertainty, polygon rounding, offsets, smoothing, arc fitting, output rounding, and controller floating-point arithmetic. `PartCam.accuracy` reports configured stage limits and their scope; it is not an independently measured or formal whole-pipeline accuracy certificate. Without `sourceTolerance`, the scope begins at the supplied features. Supplying a source tolerance records a caller-declared bound; it does not independently validate the original CAD or mesh.
+
+Boundary offsets, entry sampling, and roughing smoothing use their allocated local limits. The post limits arc fitting to the fitting budget and checks rounded coordinates, incremental centers, and the controller's decimal/float32 parsing. Combined XY/Z deviation, radius agreement, monotonic arc progress, and planned vertical bounds must pass. Otherwise the original planned line segments are retained. Supported circular output uses G17/G18/G19; principal vertical arcs return to G17 before subsequent XY motion. Arbitrarily oriented blends remain lines.
+
+The FluidNC post emits metric, absolute, per-minute feed modes and cancels stale cutter, length, and canned-cycle modes. It preserves the work offset established during setup. The supported absolute XYZ window is ±4096 mm, covering the reference machine's normal working range; larger coordinates are rejected before generating output. The controller arithmetic reserve assumes machine/work offsets remain within this bounded working range; the post cannot inspect an unknown active work offset. It also rejects nonfinite or unrepresentable numbers, nonpositive feeds, inconsistent point arrays, mixed physical cutters or spindle speeds, insufficient clearances, and unsupported output commands. Comments are sanitized and limited to the controller's line-byte limit. The final machine-coordinate park requires a homed machine.
+
+## Time, setup, and run evidence
+
+The worker uses `estimateProgramTime` for automatic motion and dwell time. The reference LowRider V4 profile includes axis rates, acceleration, junction deviation, arc interpolation tolerance, and a bounded planner window. It is a configurable reference, not a measurement of the connected machine. Supply a `MachineTimingProfile` derived from that machine's actual configuration for a more relevant estimate.
+
+`programStatistics` counts executable/motion/arc blocks, actual feed changes, tiny cutting lines, byte length, and unresolved linear distances. Circular blocks count once rather than once per visualization chord. The setup sheet includes these metrics and, when supplied, estimated automatic time, dwell, pause counts, and average block rate.
+
+Timing results include an ideal motion lower bound, an acceleration/lookahead estimate, a stop-at-every-segment scenario, dwell seconds, manual and optional pause counts, and unresolved-move diagnostics. Operator pauses have no invented duration. Initial positioning and machine-coordinate parking remain unknown when their starting coordinates or work offset are unavailable. The stop-at-every-segment scenario is not a wall-clock upper bound.
+
+`postProgram` returns the G-code and its `SetupSummary` together. The setup identifies tools, measured flute length and stickout when supplied, maximum planned cutting depth, clearance heights, operation bounds, and the stock-bottom datum. The posted header and setup share a deterministic plan fingerprint. The fingerprint supports reproducibility; it is not a cryptographic integrity check or a safety certificate. `setupSheet` creates a readable sidecar for the plan.
+
+`machiningRecord` retains that exact setup with machine/controller/configuration identity, material and measured thickness, and a planned, dry-run, or cut observation. Optional observations include moisture, batch, cutting time, dimensional errors, chatter, notes, and references/hashes for retained measurements, logs, or finish photos. No software-only test or library preset is promoted to a physically qualified material/process recipe.
+
+For machine qualification, retain the actual controller configuration and mounted cutter measurements with each test run. Compare observed cycle time, dimensions, finish, chatter, tab retention, and chip evacuation across shallow pockets, inner corners, narrow slots, deeper walls, and nested outlines. Change the applicable recipe only after those measurements support it.
+
+## Reusable regression inputs
+
+Analytic machining inputs, expected generated programs, and their invariants live under `packages/cam/test/machining-cases`. They exercise narrow-feature thresholds, islands, corners, entries, tab ramps, and bounded finishing. Regenerate expected programs with the documented generator only after reviewing the resulting motion changes. These files are software regression evidence, not machining approval for an arbitrary machine, cutter, material, or hold-down arrangement.

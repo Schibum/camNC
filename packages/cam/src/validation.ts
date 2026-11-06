@@ -112,6 +112,13 @@ export function validateCamSettings(settings: CamSettings): void {
   for (const key of ['leaveStock', 'pocketWallAllowance', 'innerCornerRadius'] as const) nonnegative(key, settings[key]);
   if (settings.openWallAllowance !== undefined) nonnegative('openWallAllowance', settings.openWallAllowance);
   if (settings.pocketFloorAllowance !== undefined) nonnegative('pocketFloorAllowance', settings.pocketFloorAllowance);
+  if (settings.profileVerticalLeadRadius !== undefined) nonnegative('profileVerticalLeadRadius', settings.profileVerticalLeadRadius);
+  if (settings.profileVerticalExitRadius !== undefined) nonnegative('profileVerticalExitRadius', settings.profileVerticalExitRadius);
+  for (const field of ['profileSpringPasses', 'pocketSpringPasses'] as const)
+    if (settings[field] !== undefined && (!Number.isInteger(settings[field]) || settings[field]! < 0 || settings[field]! > 5))
+      fail(field, 'must be an integer from 0 to 5');
+  if (settings.circularFinishFeed !== undefined && typeof settings.circularFinishFeed !== 'boolean')
+    fail('circularFinishFeed', 'must be true or false');
   if (settings.profileEntry !== undefined && !['plunge', 'ramp', 'tangent'].includes(settings.profileEntry))
     fail('profileEntry', 'must be plunge, ramp, or tangent');
   if (settings.cornerFeed) {

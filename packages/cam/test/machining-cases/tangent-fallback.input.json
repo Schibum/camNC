@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "id": "tangent-fallback",
+  "description": "A hole only 0.045 mm wider than the cutter cannot fit the requested tangent lead.",
+  "mode": "profiles",
+  "stockSize": [
+    14,
+    14,
+    3
+  ],
+  "outline": {
+    "type": "polygon",
+    "points": [
+      [
+        0,
+        0
+      ],
+      [
+        14,
+        0
+      ],
+      [
+        14,
+        14
+      ],
+      [
+        0,
+        14
+      ]
+    ]
+  },
+  "pockets": [],
+  "settings": {
+    "tools": [
+      {
+        "number": 1,
+        "guid": "analytic-bit-1",
+        "diameter": 3.175,
+        "name": "synthetic flat end mill",
+        "fluteLength": 12,
+        "flutes": 2,
+        "rpm": 15000
+      }
+    ],
+    "material": {
+      "name": "synthetic test material",
+      "stepdownFactor": 0.5
+    },
+    "feed": 1800,
+    "plungeFeed": 480,
+    "rampFeed": 360,
+    "leadFeed": 700,
+    "leadOutFeed": 800,
+    "transitionFeed": 1200,
+    "stepoverFactor": 0.4,
+    "maxStepdown": 0.75,
+    "profileRoughBottom": 1,
+    "leaveStock": 0.1,
+    "pocketWallAllowance": 0,
+    "pocketFinishFeedFactor": 1,
+    "innerCornerRadius": 0.3,
+    "finalZ": -0.3,
+    "finalFeedFactor": 0.5,
+    "climb": true,
+    "rampAngleDeg": 3,
+    "safeHeight": 5,
+    "retractHeight": 2,
+    "tabs": false,
+    "cutThrough": false,
+    "cornerFeed": {
+      "factor": 0.4,
+      "minAngleDeg": 30,
+      "maxRadius": 0.5,
+      "distance": 1.5
+    },
+    "profileEntry": "tangent",
+    "profileFinishStepdown": 0.75,
+    "geometryTolerance": 0.05,
+    "sourceTolerance": 0.002
+  },
+  "expected": {
+    "minimumZ": -0.3,
+    "programs": 1,
+    "warningIncludes": [
+      "Tangent entry does not fit",
+      "loop is too small"
+    ]
+  },
+  "profiles": [
+    {
+      "name": "Small hole",
+      "shape": {
+        "type": "circle",
+        "center": [
+          7,
+          7
+        ],
+        "radius": 1.61,
+        "segments": 64
+      },
+      "inside": true,
+      "toolNumber": 1
+    }
+  ]
+}

@@ -6,7 +6,8 @@ import { cleanRegion, clipLines, difference, intersect, offset, pathLength, poly
 import { applyFeedPolicy, type CornerFeedSettings, type MotionRole } from './motion';
 import { profileEntryRegion, tangentLoopPass } from './entry';
 import { applyTabMotion, repeatTabIntervals } from './tabMotion';
-import { planAccuracy, type PlanAccuracy } from './accuracy';
+import { correctCircularFinish, verticalEntryBlend, verticalExitBlend } from './finishing';
+import { geometryTolerances, planAccuracy, type PlanAccuracy } from './accuracy';
 import { planControlledPocket } from './engagement';
 import { finalizePlan, type StockSummary } from './finalizePlan';
 
@@ -65,6 +66,15 @@ export interface CamSettings {
   cornerFeed?: CornerFeedSettings | false;
   profileEntry?: 'plunge' | 'ramp' | 'tangent';
   profileLeadRadius?: number;
+  /** Optional vertical entry blend, constrained by the axial step and first segment; 0 = off. */
+  profileVerticalLeadRadius?: number;
+  /** Optional upward blend after a complete inside-hole lap; 0 = off. Outside profiles retain their final template. */
+  profileVerticalExitRadius?: number;
+  /** Repeated complete finishing laps at the final depth, 0..5. */
+  profileSpringPasses?: number;
+  pocketSpringPasses?: number;
+  /** Correct contact speed only on positively identified circular inside finishing motion. */
+  circularFinishFeed?: boolean;
   pocketStrategy?: 'offset' | 'controlled';
   minimumRoughingRadius?: number;
   /** Configured feature-to-motion tolerance. Source error is included only when explicitly declared. */
@@ -163,6 +173,10 @@ export interface Pass {
   materialSide?: 'left' | 'right';
   phase?: 'rough' | 'finish';
   entry?: 'plunge' | 'ramp' | 'tangent';
+  spring?: boolean;
+  circularFeedFactor?: number;
+  verticalBlendRadius?: number;
+  auxiliary?: 'entry' | 'exit';
   link: 'retract' | 'direct';
   /** The straight link to pts[0] runs through material already cleared at this depth (may be longer than D). */
   clearLink?: boolean;
@@ -209,8 +223,7 @@ export interface PartCam {
 
 type Loop = PathD;
 
-const offsetToleranceFor = (settings: CamSettings) =>
-  Math.min(0.005, planAccuracy(settings.geometryTolerance, settings.sourceTolerance).budget.offset);
+const offsetToleranceFor = (settings: CamSettings) => geometryTolerances(settings.geometryTolerance, settings.sourceTolerance).offset;
 
 const dist2 = (a: { x: number; y: number }, b: { x: number; y: number }) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
 
@@ -509,7 +522,7 @@ function cuttingWith(tool: Tool, s: CamSettings): CamSettings {
 }
 
 function scheduledPass(pass: Pass, s: CamSettings, tool: Tool, role: MotionRole = 'cut'): Pass {
-  return applyFeedPolicy(
+  const scheduled = applyFeedPolicy(
     { ...pass, phase: pass.phase ?? 'rough' },
     {
       plungeFeed: s.plungeFeed,
@@ -523,6 +536,13 @@ function scheduledPass(pass: Pass, s: CamSettings, tool: Tool, role: MotionRole 
     },
     role
   );
+  return s.circularFinishFeed
+    ? correctCircularFinish(
+        scheduled,
+        tool.diameter / 2,
+        Math.min(0.01, planAccuracy(s.geometryTolerance, s.sourceTolerance).budget.offset)
+      )
+    : scheduled;
 }
 
 function finishRoles(pass: Pass): Pass {
@@ -752,6 +772,34 @@ export function pocketOperation(
   validateDepthRange(topZ, floorZ, stepdownFor(tool, settings));
   const s = cuttingWith(tool, settings);
   if (s.pocketFinishStepdown !== undefined) validateDepthRange(topZ, floorZ, s.pocketFinishStepdown);
+  if ((s.pocketSpringPasses ?? 0) > 0) {
+    const base = pocketOperation(name, region, topZ, floorZ, tool, { ...s, pocketSpringPasses: 0 }, solid);
+    const passes = [...base.passes];
+    const free = offset(region, -tool.diameter / 2, offsetToleranceFor(s));
+    for (let repeat = 0; repeat < s.pocketSpringPasses!; repeat++)
+      for (const raw of free) {
+        const loop = s.climb ? raw : [...raw].reverse();
+        const last = passes.at(-1)?.pts.at(-1);
+        const oriented = rotateToNearest(loop, last ? { x: last[0], y: last[1] } : loop[0]);
+        const pts = closeLoop(oriented, floorZ),
+          feed = s.finishFeed ?? s.feed * s.pocketFinishFeedFactor;
+        passes.push(
+          scheduledPass(
+            finishRoles({
+              pts,
+              feeds: pts.map((_, i) => (i ? feed : s.plungeFeed)),
+              link: 'retract',
+              materialSide: s.climb ? 'right' : 'left',
+              spring: true,
+            }),
+            s,
+            tool,
+            'finish'
+          )
+        );
+      }
+    return { ...base, passes };
+  }
   if ((s.pocketFloorAllowance ?? 0) > 0 && topZ > floorZ + 1e-8) {
     const roughFloor = Math.min(topZ, floorZ + s.pocketFloorAllowance!);
     const withoutFloor = { ...s, pocketFloorAllowance: 0 };
@@ -779,13 +827,25 @@ export function pocketOperation(
       ...finishOperation,
       name,
       tool,
-      passes: [...(roughOperation?.passes ?? []), ...finishOperation.passes.map(finishRoles)],
+      passes: [
+        ...(roughOperation?.passes ?? []),
+        ...finishOperation.passes.map(pass => {
+          const finished = finishRoles(pass);
+          return s.circularFinishFeed
+            ? correctCircularFinish(
+                finished,
+                tool.diameter / 2,
+                Math.min(0.01, planAccuracy(s.geometryTolerance, s.sourceTolerance).budget.offset)
+              )
+            : finished;
+        }),
+      ],
       warnings: [...new Set([...(roughOperation?.warnings ?? []), ...(finishOperation.warnings ?? [])])],
     };
   }
   if (s.pocketStrategy === 'controlled') {
-    const accuracy = planAccuracy(s.geometryTolerance, s.sourceTolerance);
-    const tolerance = Math.min(0.005, accuracy.budget.offset, accuracy.budget.smoothing);
+    const local = geometryTolerances(s.geometryTolerance, s.sourceTolerance);
+    const tolerance = Math.min(local.offset, local.opening);
     const minimumTurnRadius = s.minimumRoughingRadius ?? Math.max(s.innerCornerRadius, tool.diameter * 0.1);
     const plan = planControlledPocket(region, {
       toolRadius: tool.diameter / 2,
@@ -851,7 +911,7 @@ export function pocketOperation(
     };
   }
   const offsetPaths = (paths: PathsD, delta: number) => offset(paths, delta, offsetToleranceFor(s));
-  const leadTolerance = Math.min(0.005, planAccuracy(s.geometryTolerance, s.sourceTolerance).budget.smoothing);
+  const leadTolerance = geometryTolerances(s.geometryTolerance, s.sourceTolerance).lead;
   const r = tool.diameter / 2;
   const stepover = s.stepoverFactor * tool.diameter;
   const stepdown = stepdownFor(tool, s);
@@ -897,7 +957,7 @@ export function pocketOperation(
         throw new CamInputError([{ field: 'stepoverFactor', message: 'would require more than 10000 pocket rings' }]);
       // Inner rings get rounded corners (an opening keeps them inside the ring); the wall ring keeps its shape.
       // (Simplified: the double offset leaves near-collinear micro-segments that arc fitting can't merge.)
-      const smoothingTolerance = Math.min(0.002, planAccuracy(s.geometryTolerance, s.sourceTolerance).budget.smoothing / 3);
+      const smoothingTolerance = geometryTolerances(s.geometryTolerance, s.sourceTolerance).opening;
       const rounded =
         rings.length && c > 0
           ? simplifyPathsD(offset(offset(cur, -c, smoothingTolerance), c, smoothingTolerance), smoothingTolerance, true)
@@ -1091,7 +1151,7 @@ export function profileOperation(
   if (!loops) return { name, kind: 'profile', feature: inside ? 'hole' : 'outline', tool, passes };
   const { rough, final } = loops;
   const warnings = new Set<string>();
-  const sourceLoops = new WeakMap<Pass, { loop: Loop; start: number }>();
+  const sourceLoops = new WeakMap<Pass, { loop: Loop; start: number; zFrom: number }>();
 
   // A bottom skin (outlines only): the final pass stops there, and roughing never goes below it.
   const floorZ = inside ? s.finalZ : (s.outlineFloor ?? s.finalZ);
@@ -1116,7 +1176,7 @@ export function profileOperation(
         leadRadius,
         profileEntryRegion(loopShape, r, leadRadius, inside, offsetTolerance),
         loop[0],
-        Math.min(0.005, planAccuracy(s.geometryTolerance, s.sourceTolerance).budget.smoothing)
+        geometryTolerances(s.geometryTolerance, s.sourceTolerance).lead
       );
       if (pass) pass.entry = 'tangent';
       else warnings.add('Tangent entry does not fit the cutter-centre region; using a contour ramp');
@@ -1133,12 +1193,12 @@ export function profileOperation(
         }
       }
     }
-    const record = (next: Pass, start: number) => {
+    const record = (next: Pass, start: number, entryTop = zFrom) => {
       next.phase = phase;
       next.materialSide = s.climb ? 'right' : 'left';
       if (phase === 'finish') next = finishRoles(next);
       passes.push(next);
-      sourceLoops.set(next, { loop, start });
+      sourceLoops.set(next, { loop, start, zFrom: entryTop });
     };
     pass.link = 'retract';
     const atDepth = pass.pts.findIndex(p => Math.abs(p[2] - z) < 1e-8);
@@ -1150,7 +1210,7 @@ export function profileOperation(
         false
       );
       record(entry, 0);
-      record(lap, start);
+      record(lap, start, z);
     } else record(pass, 0);
   };
   let previousZ = topZ;
@@ -1164,6 +1224,18 @@ export function profileOperation(
   for (const z of finishLevels) {
     append(final, previousZ, z, ffeed, 'finish');
     previousZ = z;
+  }
+  for (let repeat = 0; repeat < (s.profileSpringPasses ?? 0); repeat++) {
+    const pts = closeLoop(final, floorZ);
+    const pass = finishRoles({
+      pts,
+      feeds: pts.map((_, i) => (i ? ffeed : s.plungeFeed)),
+      link: 'retract',
+      materialSide: s.climb ? 'right' : 'left',
+      spring: true,
+    });
+    passes.push(pass);
+    sourceLoops.set(pass, { loop: final, start: 0, zFrom: floorZ });
   }
 
   if (s.tabs && !inside) {
@@ -1184,20 +1256,48 @@ export function profileOperation(
         travel
       );
       passes[i] = applyTabs(p, intervals, s.tabs.height, s.plungeFeed, s.tabs.rampLength);
+      sourceLoops.set(passes[i], sourceLoops.get(p)!);
     }
   }
+  if ((s.profileVerticalExitRadius ?? 0) > 0 && !inside)
+    warnings.add('Vertical exit blends are only supported inside holes; outside profiles retain their complete final contour lap');
+  const plannedPasses = passes.flatMap(pass => {
+    const scheduled = scheduledPass(pass, s, tool, pass.phase === 'finish' ? 'finish' : 'cut');
+    let entry = [scheduled];
+    if ((s.profileVerticalLeadRadius ?? 0) > 0 && pass.entry) {
+      const blend = verticalEntryBlend(scheduled, {
+        radius: s.profileVerticalLeadRadius!,
+        axialStep: Math.max(0, sourceLoops.get(pass)!.zFrom - Math.min(...pass.pts.map(p => p[2]))),
+        plungeFeed: s.plungeFeed,
+        tolerance: geometryTolerances(s.geometryTolerance, s.sourceTolerance).lead,
+      });
+      if (blend.warning) warnings.add(blend.warning);
+      entry = blend.passes;
+    }
+    if (!inside || !(s.profileVerticalExitRadius! > 0)) return entry;
+    return entry.flatMap(next => {
+      if (next.auxiliary || next.entry === 'ramp') return [next];
+      const blend = verticalExitBlend(next, {
+        radius: s.profileVerticalExitRadius!,
+        plungeFeed: s.plungeFeed,
+        tolerance: geometryTolerances(s.geometryTolerance, s.sourceTolerance).lead,
+      });
+      if (blend.warning) warnings.add(blend.warning);
+      return blend.passes;
+    });
+  });
   return {
     name,
     kind: 'profile',
     feature: inside ? 'hole' : 'outline',
     tool,
-    passes: passes.map(pass => scheduledPass(pass, s, tool, pass.phase === 'finish' ? 'finish' : 'cut')),
+    passes: plannedPasses,
     ...(warnings.size ? { warnings: [...warnings] } : {}),
   };
 }
 
 /** Where a bit of radius r can cut in a region. */
-const reachOf = (region: PathsD, r: number) => offset(offset(region, -r), r);
+const reachOf = (region: PathsD, r: number, tolerance: number) => offset(offset(region, -r, tolerance), r, tolerance);
 
 /** A bit fits a spot if it does at this share of its radius (it may be just as wide as the bit). */
 const kNarrowSpotFit = 0.9;
@@ -1207,11 +1307,14 @@ const kNarrowSpotFit = 0.9;
  * slot off a wider pocket. Rounded inside corners aren't: the bit doesn't fit into what they leave. The spots grow by
  * the bit's diameter into the rest of the region, so that the bit reaches all of them and leaves no wall where they join it.
  */
-function narrowSpots(region: PathsD, reached: PathsD, tool: Tool): PathsD {
+function narrowSpots(region: PathsD, reached: PathsD, tool: Tool, settings: CamSettings): PathsD {
   const r = tool.diameter / 2;
-  const left = cleanRegion(difference(reachOf(region, r), reached), 0.03, 0.5);
-  const spots = components(left).filter(c => offset(c, -kNarrowSpotFit * r).length > 0);
-  return spots.length ? cleanRegion(intersect(offset(spots.flat(), tool.diameter), region)) : [];
+  const tolerance = geometryTolerances(settings.geometryTolerance, settings.sourceTolerance);
+  const left = cleanRegion(difference(reachOf(region, r, tolerance.offset), reached), tolerance.cleanup, 0.5, tolerance.simplify);
+  const spots = components(left).filter(c => offset(c, -kNarrowSpotFit * r, tolerance.offset).length > 0);
+  if (!spots.length) return [];
+  const grown = intersect(offset(spots.flat(), tool.diameter, tolerance.offset), region);
+  return intersect(cleanRegion(grown, tolerance.cleanup, 0.05, tolerance.simplify), region);
 }
 
 /**
@@ -1224,12 +1327,22 @@ function narrowSpots(region: PathsD, reached: PathsD, tool: Tool): PathsD {
  * what stock is left, not the pockets).
  */
 export function throughCuts(features: PartFeatures, settings: Partial<CamSettings> = {}): Operation[] {
-  const s: CamSettings = { ...DEFAULT_SETTINGS, ...settings, tabs: false, outlineFloor: undefined, profileEntry: 'plunge' };
+  const s: CamSettings = {
+    ...DEFAULT_SETTINGS,
+    ...settings,
+    tabs: false,
+    outlineFloor: undefined,
+    profileEntry: 'plunge',
+    profileVerticalLeadRadius: 0,
+    profileVerticalExitRadius: 0,
+    profileSpringPasses: 0,
+    circularFinishFeed: false,
+  };
   validateCamSettings(s);
   validateFeatures(features);
   const top = Math.max(s.stockTop ?? 0, features.levels[0]?.z ?? features.thickness);
   const tools = [...s.tools].sort((a, b) => b.diameter - a.diameter);
-  const fits = (region: PathsD) => (t: Tool) => offset(region, -t.diameter / 2).length > 0;
+  const fits = (region: PathsD) => (t: Tool) => offset(region, -t.diameter / 2, offsetToleranceFor(s)).length > 0;
   return [
     ...features.throughHoles.flatMap((h, i) => {
       const tool = tools.find(fits([h]));
@@ -1266,7 +1379,8 @@ export function camPart(features: PartFeatures, settings: Partial<CamSettings> =
   const tools = [...s.tools].sort((a, b) => b.diameter - a.diameter);
   const warnings: string[] = [];
   const ops: Operation[] = [];
-  const fits = (region: PathsD, inward: boolean) => (t: Tool) => offset(region, (inward ? -1 : 1) * (t.diameter / 2)).length > 0;
+  const fits = (region: PathsD, inward: boolean) => (t: Tool) =>
+    offset(region, (inward ? -1 : 1) * (t.diameter / 2), offsetToleranceFor(s)).length > 0;
 
   // Pockets come top-down and each region contains the deeper ones, so a pocket starts at the previous floor --
   // unless that floor was cleared by another (bigger) bit that couldn't reach into this one.
@@ -1275,7 +1389,8 @@ export function camPart(features: PartFeatures, settings: Partial<CamSettings> =
   features.pockets.forEach((p, i) => {
     // Open to the edge: run the bit 1mm past the edge into the waste, whatever its size. A bit only has to fit
     // that extended region (a 6mm bit cuts a 3.5mm rabbet).
-    const openFor = (t: Tool) => openPocketRegion(features.outlines, p, t.diameter / 2 + 1);
+    const openFor = (t: Tool) =>
+      openPocketRegion(features.outlines, p, t.diameter / 2 + 1, geometryTolerances(s.geometryTolerance, s.sourceTolerance));
     const tool = tools.find(t => fits(openFor(t), true)(t));
     if (!tool) return warnings.push(`pocket z=${p.floorZ}: no tool fits`);
     if (prevTool && prevTool !== tool) pocketTop = top;
@@ -1285,16 +1400,16 @@ export function camPart(features: PartFeatures, settings: Partial<CamSettings> =
       ...pocketOperation(`Pocket ${i + 1} z=${p.floorZ}`, region, pocketTop, p.floorZ, tool, s, features.outlines),
       title: pocketTitle(features, i, region, pocketTop),
     });
-    let reached = reachOf(region, tool.diameter / 2);
+    let reached = reachOf(region, tool.diameter / 2, offsetToleranceFor(s));
     for (const small of tools.filter(t => t.diameter < tool.diameter)) {
-      const spots = narrowSpots(openFor(small), reached, small);
+      const spots = narrowSpots(openFor(small), reached, small, s);
       if (!spots.length) continue;
       // From the stock top: smaller bits go first, nothing has cleared these spots' surroundings yet.
       ops.push({
         ...pocketOperation(`Pocket ${i + 1} z=${p.floorZ} narrow spots`, spots, top, p.floorZ, small, s, features.outlines),
         title: `${plural(components(spots).length, 'narrow spot')} ${round2(features.thickness - p.floorZ)} deep`,
       });
-      reached = union(reached, reachOf(spots, small.diameter / 2));
+      reached = union(reached, reachOf(spots, small.diameter / 2, offsetToleranceFor(s)));
     }
     const uncut = polyArea(difference(region, reached));
     if (uncut > 1) warnings.push(`pocket z=${p.floorZ}: ${uncut.toFixed(1)}mm² left in corners/narrow spots with D=${tool.diameter}`);
@@ -1306,7 +1421,7 @@ export function camPart(features: PartFeatures, settings: Partial<CamSettings> =
       if (!tool) return warnings.push(`through hole ${i + 1}: no tool fits`);
       ops.push(profileOperation(`Hole ${i + 1}`, h, top, tool, s, true));
       // Nothing holds the piece in the middle (if the bit leaves one): free on the last lap, it can catch the bit.
-      if (Math.abs(polyArea([h])) > kLooseSlugArea && offset([h], -tool.diameter).length) {
+      if (Math.abs(polyArea([h])) > kLooseSlugArea && offset([h], -tool.diameter, offsetToleranceFor(s)).length) {
         const [xs, ys] = [h.map(q => q.x), h.map(q => q.y)];
         const size = `${round2(Math.max(...xs) - Math.min(...xs))} x ${round2(Math.max(...ys) - Math.min(...ys))} mm`;
         warnings.push(

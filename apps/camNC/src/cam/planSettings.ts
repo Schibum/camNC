@@ -1,6 +1,6 @@
 import type { CamSettings, LibraryTool } from '@wbcnc/cam';
 import { DEFAULT_TABS, MATERIALS } from '@wbcnc/cam/settings';
-import { cuttingKey, resolveCutting, type CuttingData } from './cuttingData';
+import { savedCuttingFor, resolveCutting, type CuttingData } from './cuttingData';
 
 export type MaterialKey = keyof typeof MATERIALS;
 
@@ -51,17 +51,30 @@ export function toCamSettings(
   saved: Record<string, Partial<CuttingData>> = {}
 ): Partial<CamSettings> {
   const bits = [p.bit, ...(p.smallBit && p.smallBit.diameter < p.bit.diameter ? [p.smallBit] : [])];
-  const cut = bits.map((b, i) => resolveCutting(b, material, saved[cuttingKey(b, material)], i === 0 ? jobCutting(p) : undefined).values);
+  const cut = bits.map(
+    (b, i) => resolveCutting(b, material, savedCuttingFor(saved, b, material), i === 0 ? jobCutting(p) : undefined).values
+  );
   const main = cut[0];
   return {
     // Distinct tool numbers, so the program's tools table and swaps name them apart.
     tools: bits.map((b, i) => ({
       number: i === 0 ? b.number : Math.max(b.number, p.bit.number + 1),
       diameter: b.diameter,
-      name: 'flat end mill',
+      name: b.name.toLowerCase().includes('flat') ? b.name : `flat end mill: ${b.name}`,
+      guid: b.guid,
+      presetId: b.presetId,
+      presetName: b.presetName,
+      flutes: b.flutes,
+      stickout: b.stickout,
       stepdown: cut[i].stepdown,
       feed: cut[i].feed,
       plungeFeed: cut[i].plungeFeed,
+      rampFeed: cut[i].rampFeed,
+      leadFeed: cut[i].leadFeed,
+      leadOutFeed: cut[i].leadOutFeed,
+      finishFeed: cut[i].finishFeed,
+      reducedFeed: cut[i].reducedFeed,
+      transitionFeed: cut[i].transitionFeed,
       rpm: cut[i].rpm,
       stepover: cut[i].stepover,
       finalFeedFactor: cut[i].finalFeedFactor,
@@ -70,6 +83,12 @@ export function toCamSettings(
     material: MATERIALS[material],
     feed: main.feed,
     plungeFeed: main.plungeFeed,
+    rampFeed: main.rampFeed,
+    leadFeed: main.leadFeed,
+    leadOutFeed: main.leadOutFeed,
+    finishFeed: main.finishFeed,
+    reducedFeed: main.reducedFeed,
+    transitionFeed: main.transitionFeed,
     stepoverFactor: main.stepover / p.bit.diameter,
     finalFeedFactor: main.finalFeedFactor,
     pocketWallAllowance: main.wallFinish,

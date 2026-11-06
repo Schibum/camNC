@@ -1,0 +1,173 @@
+{
+  "schemaVersion": 1,
+  "id": "tool-width-threshold",
+  "description": "Three slots: cutter diameter minus 0.001 mm, equal diameter, and plus 0.050 mm.",
+  "mode": "part",
+  "stockSize": [
+    30,
+    24,
+    4
+  ],
+  "outline": {
+    "type": "polygon",
+    "points": [
+      [
+        0,
+        0
+      ],
+      [
+        30,
+        0
+      ],
+      [
+        30,
+        24
+      ],
+      [
+        0,
+        24
+      ]
+    ]
+  },
+  "pockets": [
+    {
+      "boundary": {
+        "type": "polygon",
+        "points": [
+          [
+            3,
+            2
+          ],
+          [
+            27,
+            2
+          ],
+          [
+            27,
+            5.174
+          ],
+          [
+            3,
+            5.174
+          ]
+        ]
+      },
+      "floorZ": 2.5
+    },
+    {
+      "boundary": {
+        "type": "polygon",
+        "points": [
+          [
+            3,
+            9
+          ],
+          [
+            27,
+            9
+          ],
+          [
+            27,
+            12.175
+          ],
+          [
+            3,
+            12.175
+          ]
+        ]
+      },
+      "floorZ": 2.5
+    },
+    {
+      "boundary": {
+        "type": "polygon",
+        "points": [
+          [
+            3,
+            16
+          ],
+          [
+            27,
+            16
+          ],
+          [
+            27,
+            19.225
+          ],
+          [
+            3,
+            19.225
+          ]
+        ]
+      },
+      "floorZ": 2.5
+    }
+  ],
+  "settings": {
+    "tools": [
+      {
+        "number": 1,
+        "guid": "analytic-bit-1",
+        "diameter": 3.175,
+        "name": "synthetic flat end mill",
+        "fluteLength": 12,
+        "flutes": 2,
+        "rpm": 15000
+      }
+    ],
+    "material": {
+      "name": "synthetic test material",
+      "stepdownFactor": 0.5
+    },
+    "feed": 1800,
+    "plungeFeed": 480,
+    "rampFeed": 360,
+    "leadFeed": 700,
+    "leadOutFeed": 800,
+    "transitionFeed": 1200,
+    "stepoverFactor": 0.4,
+    "maxStepdown": 1.5,
+    "profileRoughBottom": 1,
+    "leaveStock": 0.1,
+    "pocketWallAllowance": 0,
+    "pocketFinishFeedFactor": 1,
+    "innerCornerRadius": 0.3,
+    "finalZ": -0.3,
+    "finalFeedFactor": 0.5,
+    "climb": true,
+    "rampAngleDeg": 3,
+    "safeHeight": 5,
+    "retractHeight": 2,
+    "tabs": false,
+    "cutThrough": false,
+    "cornerFeed": {
+      "factor": 0.4,
+      "minAngleDeg": 30,
+      "maxRadius": 0.5,
+      "distance": 1.5
+    },
+    "geometryTolerance": 0.05,
+    "sourceTolerance": 0
+  },
+  "expected": {
+    "minimumZ": 2.5,
+    "programs": 1,
+    "uncutRectangles": [
+      [
+        3,
+        2,
+        27,
+        5.174
+      ],
+      [
+        3,
+        9,
+        27,
+        12.175
+      ]
+    ],
+    "warningIncludes": [
+      "left in corners/narrow spots"
+    ]
+  }
+}

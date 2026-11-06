@@ -6,6 +6,8 @@ import { RotateCcw } from 'lucide-react';
 import { useId, useState } from 'react';
 import {
   cuttingKey,
+  legacyCuttingKey,
+  savedCuttingFor,
   kCuttingFields,
   kCuttingHints,
   kCuttingLabels,
@@ -43,8 +45,9 @@ export function CuttingDataEditor({
   className?: string;
 }) {
   const key = cuttingKey(bit, material);
+  const legacyKey = legacyCuttingKey(bit, material);
   const uid = useId();
-  const saved = useCuttingData(s => s.saved[key]);
+  const saved = useCuttingData(s => savedCuttingFor(s.saved, bit, material));
   const { save, reset } = useCuttingData.getState();
   const { values, source } = resolveCutting(bit, material, saved, job);
   const [draft, setDraft] = useState<Partial<Record<CuttingField, string>>>({});
@@ -70,7 +73,7 @@ export function CuttingDataEditor({
   const undo = (field: CuttingField) => {
     if (source[field] === 'job' && onJobChange) {
       onJobChange(without(job ?? {}, field));
-    } else reset(key, field);
+    } else reset(key, field, legacyKey);
   };
 
   return (
@@ -132,7 +135,7 @@ export function CuttingDataEditor({
             size="sm"
             className="h-auto min-h-8 w-full min-w-0 justify-start whitespace-normal py-1.5 text-left"
             onClick={() => {
-              save(key, parsed);
+              save(key, parsed, legacyKey);
               // A saved value replaces this job's override of it.
               if (onJobChange && job) onJobChange(Object.fromEntries(Object.entries(job).filter(([f]) => !(f in parsed))));
               done();

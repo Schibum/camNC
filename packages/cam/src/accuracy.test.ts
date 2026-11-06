@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { accuracyBudget, checkAccuracyBudget, planAccuracy } from './accuracy';
+import { accuracyBudget, checkAccuracyBudget, geometryTolerances, planAccuracy } from './accuracy';
 
 describe('job geometry accuracy', () => {
   it('reserves both polygon and XYZ output quantization inside the total', () => {
@@ -27,5 +27,13 @@ describe('job geometry accuracy', () => {
     expect(declared.budget.import).toBe(0.01);
     checkAccuracyBudget(declared.budget);
     expect(() => planAccuracy(0.01, 0.02)).toThrow();
+  });
+
+  it('shares stage allowances across extension, rest cleanup and a final opening', () => {
+    const { budget } = planAccuracy(0.01);
+    const tolerance = geometryTolerances(0.01);
+    expect(8 * tolerance.offset).toBeLessThanOrEqual(budget.offset + 1e-12);
+    expect(3 * (16 * tolerance.cleanup + tolerance.simplify) + 3 * tolerance.opening).toBeLessThanOrEqual(budget.smoothing + 1e-12);
+    expect(3 * (16 * tolerance.cleanup + tolerance.simplify) + tolerance.lead).toBeLessThanOrEqual(budget.smoothing + 1e-12);
   });
 });

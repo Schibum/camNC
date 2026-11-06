@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { mergeLibrary, readLibraryFile, useToolLibrary, type StoredBit } from './toolLibrary';
+import { mergeLibrary, offeredBits, readLibraryFile, useToolLibrary, type StoredBit } from './toolLibrary';
+import { selectToolPreset, type LibraryTool } from '@wbcnc/cam/tools';
 
 const library = JSON.stringify({
   data: [
@@ -56,7 +57,7 @@ async function zip(name: string, text: string): Promise<Uint8Array> {
 describe('Fusion tool library import', () => {
   it('reads Library.json: flat end mills, and what was skipped', async () => {
     const r = await readLibraryFile(new File([library], 'Library.json'));
-    expect(r).toEqual({
+    expect(r).toMatchObject({
       ok: true,
       file: 'Library.json',
       tools: [{ number: 1, diameter: 3.175, name: '1/8 mill v1', flutes: 1, feed: 1800, plungeFeed: 480, rpm: 15000 }],
@@ -113,5 +114,72 @@ describe('stored bits', () => {
     removeBit(custom.id);
     expect(useToolLibrary.getState().bits).toHaveLength(2);
     expect(useToolLibrary.getState().imports.map(i => [i.file, i.added])).toEqual([['Library.json', 2]]);
+  });
+
+  it('keeps the selected preset and measured stickout while refreshing library dimensions', () => {
+    const imported: LibraryTool = {
+      ...lib[0],
+      flutes: 2,
+      fluteLength: 18,
+      presets: [
+        { id: 'first', name: 'First', feed: 1000, leadOutFeed: 800, useStepdown: false, useStepover: false },
+        { id: 'second', name: 'Second', feed: 1800, useStepdown: false, useStepover: false },
+      ],
+    };
+    const previous: StoredBit = {
+      ...selectToolPreset(imported, 'second'),
+      id: 'saved',
+      source: 'library',
+      library: 'old.json',
+      stickout: 24,
+    };
+    const incoming = selectToolPreset(
+      { ...imported, diameter: 6, fluteLength: 22, presets: imported.presets!.map(p => (p.id === 'second' ? { ...p, feed: 2100 } : p)) },
+      'first'
+    );
+    const result = mergeLibrary([previous], [incoming], 'new.json');
+    expect(result.bits[0]).toMatchObject({
+      id: 'saved',
+      presetId: 'second',
+      presetName: 'Second',
+      feed: 2100,
+      stickout: 24,
+      diameter: 6,
+      fluteLength: 22,
+      library: 'new.json',
+    });
+    expect(result.bits[0].leadOutFeed).toBeUndefined();
+    expect(previous).toMatchObject({ presetId: 'second', feed: 1800, diameter: 3.175 });
+  });
+
+  it('uses the new imported selection when the former preset is removed and clears stale values', () => {
+    const previous: StoredBit = {
+      ...lib[0],
+      id: 'saved',
+      source: 'library',
+      presetId: 'removed',
+      presetName: 'Old',
+      rampFeed: 450,
+      leadOutFeed: 700,
+      stickout: 25,
+    };
+    const incoming: LibraryTool = {
+      ...lib[0],
+      presetId: 'remaining',
+      presetName: 'Remaining',
+      presets: [{ id: 'remaining', name: 'Remaining', feed: 1200, useStepdown: false, useStepover: false }],
+      feed: 1200,
+    };
+    const result = mergeLibrary([previous], [incoming], 'new.json').bits[0];
+    expect(result).toMatchObject({ presetId: 'remaining', feed: 1200, stickout: 25 });
+    expect(result.rampFeed).toBeUndefined();
+    expect(result.leadOutFeed).toBeUndefined();
+  });
+
+  it('offers physically distinct equal-label tools and deduplicates the job snapshot by GUID', () => {
+    const first = { ...lib[0], guid: 'first' },
+      second = { ...lib[0], guid: 'second' };
+    const bits = offeredBits([first, second], [{ ...first, feed: 2300 }]);
+    expect(bits.filter(b => b.guid)).toEqual([first, second]);
   });
 });

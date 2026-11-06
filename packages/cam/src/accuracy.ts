@@ -23,7 +23,7 @@ export function accuracyBudget(total = 0.05, outputDecimals = 3, sourceTolerance
   const outputRounding = (Math.sqrt(3) / 2) * 10 ** -outputDecimals;
   const controllerRounding = Math.sqrt(3) * 2 ** -10;
   // Reserve the bounded sequence of clipping/offset/cleanup operations after feature extraction.
-  const polygonRounding = 16 * (Math.sqrt(2) / 2) * 10 ** -PRECISION;
+  const polygonRounding = 32 * (Math.sqrt(2) / 2) * 10 ** -PRECISION;
   const available = total - outputRounding - controllerRounding - polygonRounding - sourceTolerance;
   if (available <= 0) throw new Error('Geometry tolerance is smaller than the coordinate quantization budget');
   if (available * 0.45 < 0.001) throw new Error('Geometry tolerance cannot reserve the minimum 0.001 mm fitting allowance');
@@ -47,6 +47,18 @@ export interface PlanAccuracy {
 
 export function planAccuracy(total = 0.05, sourceTolerance?: number): PlanAccuracy {
   return { scope: sourceTolerance === undefined ? 'features' : 'declared-source', budget: accuracyBudget(total, 3, sourceTolerance ?? 0) };
+}
+
+/** Share stage limits across extension, rest-region cleanup and final boundary generation. */
+export function geometryTolerances(total = 0.05, sourceTolerance?: number) {
+  const { budget } = planAccuracy(total, sourceTolerance);
+  return {
+    offset: Math.min(0.005, budget.offset / 8),
+    cleanup: budget.smoothing / 96,
+    simplify: budget.smoothing / 48,
+    opening: Math.min(0.002, budget.smoothing / 8),
+    lead: Math.min(0.005, budget.smoothing / 4),
+  };
 }
 
 /** Check resolved stage limits rather than treating independent tolerances as one accuracy guarantee. */

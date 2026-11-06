@@ -2,6 +2,7 @@ import { readGcode } from './analyze';
 import { toolProgramKey } from './toolIdentity';
 import { tangentEntryClashes } from './boardEntrySafety';
 import { finalizePlan } from './finalizePlan';
+import { geometryTolerances } from './accuracy';
 import { openPocketRegion, type PartFeatures } from './features';
 import { dowelOperations, partRect, type DowelSpec } from './flip';
 import { boardToPart, kDefaultSkin, planTabs, type PartHolding } from './tabPlan';
@@ -112,7 +113,12 @@ function bottomLayer(board: Pick<BoardSpec, 'parts' | 'h' | 'stockTop'>, setting
   const ext = Math.max(...(settings.tools ?? DEFAULT_SETTINGS.tools).map(t => t.diameter)) / 2 + 1;
   const add = (features: PartFeatures, toBoard: (q: Vec3) => Vec3, cut: (floorZ: number) => { from: number; to: number }) => {
     for (const pocket of features.pockets) {
-      const loops = openPocketRegion(features.outlines, pocket, ext).map(loop =>
+      const loops = openPocketRegion(
+        features.outlines,
+        pocket,
+        ext,
+        geometryTolerances(settings.geometryTolerance, settings.sourceTolerance)
+      ).map(loop =>
         loop.map(q => {
           const [x, y] = toBoard([q.x, q.y, 0]);
           return { x, y };

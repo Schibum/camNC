@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { filletLoop, limitRemovalRate, planControlledPocket } from './engagement';
 import { difference, polyArea, type PathD } from './geom';
 import { StockModel } from './stock';
@@ -186,5 +186,57 @@ describe('stock-aware material rate', () => {
     ).toThrow();
     expect(stock.certifyLink([5, 0, 5], [10, 0, 5], 1).clear).toBe(false);
     expect(stock.certifyLink([-9, -10, 5], [-6, -10, 5], 1).clear).toBe(true);
+  });
+
+  it('skips detailed area analysis when the full-slot bound already permits the requested feed', () => {
+    const stock = new StockModel({ stockTop: 10 });
+    const measure = vi.spyOn(stock, 'measureMove');
+    const result = limitRemovalRate([{ ...path, feeds: [100, 100, 100] }], { number: 1, diameter: 4 }, stock, {
+      maxPlanarRemovalRate: 1200,
+      minimumFeed: 1,
+    });
+    expect(measure).not.toHaveBeenCalled();
+    expect(result.conservativeFrontierSegments).toBeGreaterThan(0);
+    expect(result.maximumAreaRate).toBeLessThanOrEqual(1200);
+    expect(result.passes[0].feeds.every(feed => feed === 100)).toBe(true);
+  });
+
+  it('permits an exactly representable minimum feed on the configured rate boundary', () => {
+    const result = limitRemovalRate([path], { number: 1, diameter: 4 }, new StockModel({ stockTop: 10 }), {
+      maxPlanarRemovalRate: 1200,
+      minimumFeed: 300,
+      maxDetailedQueries: 0,
+    });
+    expect(result.passes[0].feeds.every(feed => feed === 300)).toBe(true);
+    expect(result.maximumAreaRate).toBeLessThanOrEqual(1200 + 1e-9);
+  });
+
+  it('bounds polygon analysis and falls back conservatively without dropping removal history', () => {
+    const stock = new StockModel({ stockTop: 10 });
+    const measure = vi.spyOn(stock, 'measureMove');
+    const result = limitRemovalRate([path], { number: 1, diameter: 4 }, stock, {
+      maxPlanarRemovalRate: 1200,
+      minimumFeed: 1,
+      maxDetailedQueries: 1,
+    });
+    expect(measure).toHaveBeenCalledTimes(1);
+    expect(result.maximumAreaRate).toBeLessThanOrEqual(1200);
+    expect(result.conservativeFrontierSegments).toBeGreaterThan(0);
+    expect(stock.certifyLink([5, 0, 5], [15, 0, 5], 1).clear).toBe(true);
+
+    const crowded = new StockModel({ stockTop: 10 });
+    for (let i = 0; i < 500; i++)
+      crowded.recordPath(
+        [
+          [-100, i, 5],
+          [-90, i, 5],
+        ],
+        2
+      );
+    const detailed = vi.spyOn(crowded, 'measureMove');
+    const fallback = limitRemovalRate([path], { number: 1, diameter: 4 }, crowded, { maxPlanarRemovalRate: 1200, minimumFeed: 1 });
+    expect(detailed).not.toHaveBeenCalled();
+    expect(fallback.maximumAreaRate).toBeLessThanOrEqual(1200);
+    expect(crowded.certifyLink([-99, 20, 5], [-91, 20, 5], 1).clear).toBe(true);
   });
 });

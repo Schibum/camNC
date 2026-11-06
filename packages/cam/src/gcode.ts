@@ -4,6 +4,8 @@ import type { Operation, PartCam, Tool } from './toolpaths';
 import { fitVerticalRun, verticalRunEnd, type VerticalPrimitive } from './verticalArcs';
 import { certifyStockLinks } from './stockPlan';
 import { checkAccuracyBudget } from './accuracy';
+import { summarizeSetup, setupXYOrigin, type SetupSummary } from './setupSummary';
+import { programStatistics } from './programStatistics';
 import {
   FLUIDNC_POST_PROFILE,
   quantizedArcIsSafe,
@@ -90,6 +92,8 @@ export interface GcodeOptions {
   /** Explicit controller dialect; preserves the work offset established during setup. */
   postProfile?: FluidNCPostProfile['id'];
   partName?: string;
+  /** Explicitly identify a custom feature datum instead of the default stock corner. */
+  xyOrigin?: SetupSummary['origin']['xy'];
   /** The board's name ("A"): the header then says XY0 is that board's lower left corner. */
   board?: string;
   stockSize?: Vec3;
@@ -146,11 +150,21 @@ const toolLine = (t: Tool, zMin: number) =>
  */
 export const kParkMachineZ = -5;
 
+export interface PostedProgram {
+  gcode: string;
+  setup: SetupSummary;
+}
+
 /**
  * FluidNC/grbl dialect G-code for one bit. Z0 = stock bottom, XY0 = lower left of the stock (the board). Several bits make
  * several programs (`splitByBit`): FluidNC can't zero Z while a program is paused, so a swap can't happen inside one.
  */
 export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
+  return postProgram(cam, opts).gcode;
+}
+
+/** Post and describe the same validated plan, including final link decisions. */
+export function postProgram(cam: PartCam, opts: GcodeOptions = {}): PostedProgram {
   if (opts.postProfile !== undefined && opts.postProfile !== FLUIDNC_POST_PROFILE.id) throw new Error('Unsupported post profile');
   const rpm = cam.operations[0]?.tool.rpm ?? opts.spindleRpm ?? 15000;
   const byHand = (opts.spindle ?? 'hand') === 'hand';
@@ -161,7 +175,12 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
   const tol = opts.arcTolerance ?? cam.accuracy?.budget.fitting ?? 0.01;
   const dwell = opts.spindleDwell ?? 3;
   validatePostInput(cam, { safeZ, retractZ, rpm, dwell, tolerance: tol, fallbackRpm: opts.spindleRpm ?? 15000, stockSize: opts.stockSize });
-  if (cam.accuracy) checkAccuracyBudget(cam.accuracy.budget);
+  if (cam.accuracy) {
+    checkAccuracyBudget(cam.accuracy.budget);
+    const budget = cam.accuracy.budget;
+    if (budget.outputRounding < Math.sqrt(3) * 0.0005 - 1e-12 || budget.controllerRounding < Math.sqrt(3) * 2 ** -10 - 1e-12)
+      throw new Error('The machining budget must reserve the post coordinate precision');
+  }
   if (useArcs && cam.accuracy && tol > cam.accuracy.budget.fitting + 1e-12)
     throw new Error('Arc tolerance exceeds the machining plan fitting budget');
   // Recheck the exact program order, including custom plans and programs split
@@ -175,10 +194,20 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
       (cam.accuracy?.budget.outputRounding ?? Math.sqrt(3) * 0.0005) +
       (cam.accuracy?.budget.controllerRounding ?? Math.sqrt(3) * 2 ** -10),
   }).cam;
+  const setup = summarizeSetup(cam, {
+    programName: opts.partName,
+    stockSize: opts.stockSize,
+    safeZ,
+    retractZ,
+    xyOrigin: setupXYOrigin(cam, opts.xyOrigin),
+    spindle: byHand ? 'hand' : 'controller',
+    spindleRpm: rpm,
+    post: { profileId: FLUIDNC_POST_PROFILE.id, arcs: useArcs, arcTolerance: tol, spindleDwell: dwell },
+  });
 
   const tools: { tool: Tool; zMin: number }[] = [];
   for (const op of cam.operations) {
-    const zMin = Math.min(...op.passes.flatMap(p => p.pts.map(q => q[2])));
+    const zMin = op.passes.reduce((minimum, pass) => pass.pts.reduce((depth, point) => Math.min(depth, point[2]), minimum), Infinity);
     const t = tools.find(t => t.tool.number === op.tool.number);
     if (t) t.zMin = Math.min(t.zMin, zMin);
     else tools.push({ tool: op.tool, zMin });
@@ -186,10 +215,20 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
 
   const out: string[] = ['(camNC CAM)'];
   if (opts.partName) out.push(`(${commentText(opts.partName, kMaxGcodeLine - 2)})`);
+  out.push(`(Plan: ${setup.planFingerprint})`);
+  out.push(`(Post: ${FLUIDNC_POST_PROFILE.id}. Safe Z${fmt(safeZ)}. Retract Z${fmt(retractZ)})`);
+  if (setup.bounds)
+    out.push(
+      `(Planned bounds: ${['X', 'Y', 'Z'].map((axis, i) => `${axis}${fmt(setup.bounds!.min[i])}..${fmt(setup.bounds!.max[i])}`).join(' ')})`
+    );
   if (opts.stockSize) out.push(`(Stock: ${opts.stockSize.map(fmt).join(' x ')} mm)`);
   const corner = opts.board ? `board ${commentText(opts.board, 40)}` : 'the stock';
   const size = opts.stockSize ? `, ${fmt(opts.stockSize[0])} x ${fmt(opts.stockSize[1])} mm` : '';
-  out.push(`(X0 Y0 = lower left corner of ${corner}${size}. Z0 = stock bottom)`);
+  out.push(
+    setup.origin.xy === 'stock lower left'
+      ? `(X0 Y0 = lower left corner of ${corner}${size}. Z0 = stock bottom)`
+      : '(X0 Y0 = programmed feature-frame origin. Z0 = stock bottom)'
+  );
   out.push('( Tools Table:)', ...tools.map(t => toolLine(t.tool, t.zMin)), '( )');
   for (const w of cam.warnings) out.push(`(WARNING: ${commentText(w, kMaxGcodeLine - '(WARNING: )'.length)})`);
   out.push(...FLUIDNC_POST_PROFILE.startup);
@@ -271,9 +310,10 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
     // Markers for the job view: which operation and pass the machine is in.
     const [opHead, opTail] = [`(OP ${oi + 1}/${cam.operations.length} `, ` - T${op.tool.number} D=${fmt(op.tool.diameter)})`];
     out.push(opHead + commentText(op.name, kMaxGcodeLine - opHead.length - opTail.length) + opTail);
+    if (op.tool.presetName) out.push(`(Cutting preset: ${commentText(op.tool.presetName, kMaxGcodeLine - '(Cutting preset: )'.length)})`);
     op.passes.forEach((pass, pi) => {
       const [p0] = pass.pts;
-      out.push(`(PASS ${pi + 1}/${op.passes.length} Z${fmt(Math.min(...pass.pts.map(p => p[2])))})`);
+      out.push(`(PASS ${pi + 1}/${op.passes.length} Z${fmt(pass.pts.reduce((minimum, point) => Math.min(minimum, point[2]), Infinity))})`);
       if (pi === 0 || pass.link === 'retract') {
         move('G0', { z: pi === 0 ? safeZ : Math.max(retractZ, z) });
         move('G0', { x: p0[0], y: p0[1] });
@@ -354,5 +394,6 @@ export function toGcode(cam: PartCam, opts: GcodeOptions = {}): string {
   out.push('M30');
   const program = out.join('\n') + '\n';
   validateFluidNCOutput(program);
-  return program;
+  setup.statistics = programStatistics(program);
+  return { gcode: program, setup };
 }

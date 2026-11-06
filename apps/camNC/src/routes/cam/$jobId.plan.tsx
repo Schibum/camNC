@@ -14,10 +14,12 @@ import { orderBoardQueue } from '@wbcnc/cam/board';
 import { CamJobBar } from '@/cam/model/CamJobBar';
 import { Hint } from '@/cam/Hint';
 import { PlanSettingsPanel } from '@/cam/plan/PlanSettingsPanel';
+import { ProgramDownloads } from '@/cam/plan/ProgramDownloads';
 import { PlanOperations, type EditProps } from '@/cam/plan/PlanOperations';
 import { usePlanLayout, type PlanTab } from '@/cam/plan/planLayoutStore';
 import { PlanView3D } from '@/cam/plan3d/PlanView3D';
 import { usePlanPlayback } from '@/cam/plan3d/planPlayback';
+import { formatDuration } from '@/visualize/stockSim/jobTimeline';
 import { jobCutting, kDefaultPlan, type PlanSettingsV1 } from '@/cam/planSettings';
 import { BitChip } from '@/cam/plan/BitPicker';
 import { clearMachineView, loadIntoMachineView } from '@/cam/showOnMachine';
@@ -35,7 +37,7 @@ import {
 } from '@wbcnc/ui/components/dropdown-menu';
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
 import { cn } from '@wbcnc/ui/lib/utils';
-import { AlertTriangle, Download, Factory, MoreHorizontal, Play, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, Factory, MoreHorizontal, Play, ShieldCheck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
 
@@ -43,8 +45,6 @@ export const Route = createFileRoute('/cam/$jobId/plan')({
   component: PlanStep,
   validateSearch: zodValidator(z.object({ board: z.string().optional(), rehearsed: z.literal(1).optional() })),
 });
-
-const fmtMin = (m: number) => `${Math.floor(m)}:${String(Math.round((m % 1) * 60)).padStart(2, '0')}`;
 
 /**
  * Step 3: one program per board, in a queue that reuses the bit in the collet. Shows each board's operations (by bit,
@@ -122,8 +122,11 @@ function PlanStep() {
     0
   );
   // One program per bit: "<job> board A.gcode", or "<job> board A T1.gcode", "… T2.gcode" with several bits.
-  const programName = (p: PlanResult['programs'][number]) =>
-    `${job.name} board ${current.board.name}${onSideB ? ' side B' : ''}${result && result.programs.length > 1 ? ` T${p.tool}` : ''}.gcode`;
+  const programName = (p: PlanResult['programs'][number]) => {
+    const repeated = result && result.programs.filter(program => program.tool === p.tool).length > 1;
+    const number = repeated ? ` P${result!.programs.indexOf(p) + 1}` : '';
+    return `${job.name} board ${current.board.name}${onSideB ? ' side B' : ''}${number}${result && result.programs.length > 1 ? ` T${p.tool}` : ''}.gcode`;
+  };
 
   const savePlan = (plan: PlanSettingsV1) =>
     save.mutate({
@@ -159,11 +162,13 @@ function PlanStep() {
     useStore.getState().setMachinePanelOpen(true);
     toMachineView();
   };
-  const download = (p: PlanResult['programs'][number]) => {
+  const download = (p: PlanResult['programs'][number], setup = false) => {
     if (!safe) return;
+    const text = setup ? p.setupSheet : p.gcode;
+    if (text === undefined) return;
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([p.gcode], { type: 'text/plain' }));
-    a.download = programName(p);
+    a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+    a.download = setup ? programName(p).replace(/\.[^.]+$/, '.setup.md') : programName(p);
     a.click();
     URL.revokeObjectURL(a.href);
   };
@@ -221,10 +226,12 @@ function PlanStep() {
           ))}
         </div>
         <span className="grow" />
-        <span className="text-[13px] text-muted-foreground">
-          Job: {queue.length} {queue.length === 1 ? 'board' : 'boards'} · {swaps} bit {swaps === 1 ? 'swap' : 'swaps'} · ≈{' '}
-          {fmtMin(totalMin)} min cutting
-        </span>
+        <Hint text="Estimated automatic motion and dwell time using reference machine limits. Add setup, tool changes, and operator pauses; unknown initial and parking distances are excluded.">
+          <span className="text-[13px] text-muted-foreground">
+            Job: {queue.length} {queue.length === 1 ? 'board' : 'boards'} · {swaps} bit {swaps === 1 ? 'swap' : 'swaps'} · ≈{' '}
+            {formatDuration(totalMin * 60)} automatic
+          </span>
+        </Hint>
         <RehearsalButton job={job} boards={boards.map(b => freezeRehearsalBoard(b.board, b.nest))} ready={allReady} />
         <BitChip value={settings} onChange={savePlan} onOpen={openSettings} />
         <Hint
@@ -263,11 +270,13 @@ function PlanStep() {
                 </span>
               </span>
             </DropdownMenuItem>
-            {result?.programs.map(p => (
-              <DropdownMenuItem key={p.tool} disabled={!safe} onSelect={() => download(p)}>
-                <Download /> Download G-code{result.programs.length > 1 ? ` · T${p.tool} ⌀${p.diameter}` : ''}
-              </DropdownMenuItem>
-            ))}
+            {result && (
+              <ProgramDownloads
+                programs={result.programs}
+                disabled={!safe}
+                onDownload={(program, kind) => download(program, kind === 'setup')}
+              />
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

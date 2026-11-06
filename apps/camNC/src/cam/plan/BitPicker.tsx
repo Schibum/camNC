@@ -1,4 +1,5 @@
 import type { LibraryTool } from '@wbcnc/cam';
+import { selectToolPreset } from '@wbcnc/cam/tools';
 import { Link } from '@tanstack/react-router';
 import { Button } from '@wbcnc/ui/components/button';
 import { Input } from '@wbcnc/ui/components/input';
@@ -50,6 +51,43 @@ function BitValue({ bit }: { bit: LibraryTool | undefined }) {
         </span>
       )}
     </SelectValue>
+  );
+}
+
+function CuttingPreset({
+  bit,
+  id,
+  label,
+  onChange,
+}: {
+  bit: LibraryTool;
+  id: string;
+  label: string;
+  onChange: (bit: LibraryTool) => void;
+}) {
+  if (!bit.presets?.length) return null;
+  const currentKnown = bit.presets.some(p => p.id === bit.presetId);
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <select
+        id={id}
+        name={id}
+        className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        value={bit.presetId ?? ''}
+        aria-describedby={`${id}-help`}
+        onChange={event => onChange(selectToolPreset(bit, event.target.value))}>
+        {!currentKnown && <option value={bit.presetId ?? ''}>{bit.presetName ?? 'Current cutting data'}</option>}
+        {bit.presets.map(preset => (
+          <option key={preset.id} value={preset.id}>
+            {preset.name}
+          </option>
+        ))}
+      </select>
+      <p id={`${id}-help`} className="text-xs text-muted-foreground">
+        Changes this job’s library values. Saved and job overrides still apply. Choose cutting data for your cutter and material.
+      </p>
+    </div>
   );
 }
 
@@ -156,6 +194,7 @@ export function BitSettings({ value, onChange }: { value: PlanSettingsV1; onChan
         <p className="text-xs text-muted-foreground">
           Flat end mill{bitSpecs(value.bit) && ` · ${bitSpecs(value.bit)}`} · {sourceOf(value.bit)}
         </p>
+        <CuttingPreset bit={value.bit} id="plan-bit-preset" label="Cutting preset" onChange={bit => set({ bit })} />
         <div className="flex flex-wrap items-center gap-2">
           <ImportToolLibrary onImport={importLibrary} />
           <Button size="sm" variant="outline" aria-expanded={custom} onClick={() => setCustom(c => !c)}>
@@ -190,6 +229,14 @@ export function BitSettings({ value, onChange }: { value: PlanSettingsV1; onChan
             ))}
           </SelectContent>
         </Select>
+        {value.smallBit && (
+          <CuttingPreset
+            bit={value.smallBit}
+            id="plan-small-bit-preset"
+            label="Second bit cutting preset"
+            onChange={smallBit => set({ smallBit })}
+          />
+        )}
         <p className="text-xs text-muted-foreground">
           {value.smallBit
             ? 'Cuts what the main bit can’t reach. Boards that need it get a second program: swap the bit and zero Z in between.'

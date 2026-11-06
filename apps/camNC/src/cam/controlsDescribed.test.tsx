@@ -199,7 +199,7 @@ describe('CAM controls explain themselves', () => {
     const { rerender } = render(view());
     const card = within(screen.getByRole('region', { name: 'CAM job' }));
     expect(card.getByRole('button', { name: 'Load parts freeing' })).toHaveProperty('disabled', true);
-    expect(card.getByText(/1 parts · 2 min/)).toBeTruthy();
+    expect(card.getByText(/1 parts · ≈2 min auto/)).toBeTruthy();
 
     queue.value = { ...queue.value, stale: new Set() };
     rerender(view());

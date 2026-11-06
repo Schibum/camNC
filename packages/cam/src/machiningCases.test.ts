@@ -1,0 +1,174 @@
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+import { CASE_DIRECTORY, generateMachiningCase, readMachiningCases, sha256 } from '../test/machining-cases/build';
+import { DepthMap, readGcode } from './analyze';
+import { validateFluidNCOutput } from './gcode';
+import type { Vec3 } from './geom';
+import { checkGcodeSafety } from './safety';
+
+const update = process.env.UPDATE_MACHINING_CASES === '1';
+const cases = readMachiningCases();
+const generated = cases.map(source => {
+  const started = performance.now();
+  const result = generateMachiningCase(source.input);
+  if (process.env.DEBUG_MACHINING_CASES === '1') console.info(`${source.input.id}: ${(performance.now() - started).toFixed(0)} ms`);
+  return { ...source, result };
+});
+const manifest = {
+  schemaVersion: 1,
+  provenance: {
+    inputKind: 'analytic primitives',
+    units: 'mm',
+    datum: 'stock lower left; Z0 stock bottom',
+    generator: '@wbcnc/cam test/machining-cases/build.ts',
+    baselineVersion: 1,
+    cuttingData: 'synthetic regression settings, not a qualified process',
+  },
+  cases: generated.map(({ input, inputFile, inputText, result }) => ({
+    id: input.id,
+    inputFile,
+    inputSha256: sha256(inputText),
+    warnings: result.cam.warnings,
+    programs: result.programs.map(({ file, gcode, cam, setup }) => ({
+      file,
+      sha256: sha256(gcode),
+      bytes: Buffer.byteLength(gcode),
+      operations: cam.operations.length,
+      passes: cam.operations.reduce((sum, operation) => sum + operation.passes.length, 0),
+      toolNumbers: [...new Set(cam.operations.map(operation => operation.tool.number))],
+      setup,
+    })),
+  })),
+};
+if (update) {
+  for (const { result } of generated) for (const { file, gcode } of result.programs) writeFileSync(`${CASE_DIRECTORY}/${file}`, gcode);
+  writeFileSync(`${CASE_DIRECTORY}/manifest.json`, JSON.stringify(manifest, null, 2) + '\n');
+}
+
+const pointToSegment = (point: Vec3, a: Vec3, b: Vec3): number => {
+  const dx = b[0] - a[0],
+    dy = b[1] - a[1];
+  const length2 = dx * dx + dy * dy;
+  const t = length2 ? Math.max(0, Math.min(1, ((point[0] - a[0]) * dx + (point[1] - a[1]) * dy) / length2)) : 0;
+  return Math.hypot(point[0] - a[0] - t * dx, point[1] - a[1] - t * dy);
+};
+
+function segmentToRectangle(a: Vec3, b: Vec3, box: [number, number, number, number]): number {
+  const [x0, y0, x1, y1] = box;
+  let lo = 0,
+    hi = 1;
+  for (const [start, delta, min, max] of [
+    [a[0], b[0] - a[0], x0, x1],
+    [a[1], b[1] - a[1], y0, y1],
+  ]) {
+    if (Math.abs(delta) < 1e-12) {
+      if (start < min || start > max) {
+        lo = 1;
+        hi = 0;
+      }
+    } else {
+      const t0 = (min - start) / delta,
+        t1 = (max - start) / delta;
+      lo = Math.max(lo, Math.min(t0, t1));
+      hi = Math.min(hi, Math.max(t0, t1));
+    }
+  }
+  if (lo <= hi) return 0;
+  const corners: Vec3[] = [
+    [x0, y0, 0],
+    [x1, y0, 0],
+    [x1, y1, 0],
+    [x0, y1, 0],
+  ];
+  const pointDistance = (point: Vec3) => Math.hypot(Math.max(x0 - point[0], 0, point[0] - x1), Math.max(y0 - point[1], 0, point[1] - y1));
+  return Math.min(pointDistance(a), pointDistance(b), ...corners.map(corner => pointToSegment(corner, a, b)));
+}
+
+describe('analytic machining regression corpus', () => {
+  it('records the exact inputs, program bytes, and observed planning diagnostics', () => {
+    expect(existsSync(`${CASE_DIRECTORY}/manifest.json`), 'Regenerate with UPDATE_MACHINING_CASES=1').toBe(true);
+    expect(JSON.parse(readFileSync(`${CASE_DIRECTORY}/manifest.json`, 'utf8'))).toEqual(manifest);
+  });
+
+  for (const { input, result } of generated)
+    it(`${input.id}: deterministic output and machining invariants`, () => {
+      expect(result.programs).toHaveLength(input.expected.programs);
+      const roles = result.cam.operations.flatMap(operation => operation.passes.flatMap(pass => pass.roles ?? []));
+      for (const role of input.expected.requiredRoles ?? []) expect(roles, role).toContain(role);
+      for (const text of input.expected.warningIncludes ?? []) expect(result.cam.warnings.join('\n')).toContain(text);
+      const polish = input.expected.polish;
+      if (polish) {
+        const inner = result.cam.operations.find(operation => operation.name === polish.insideOperation)!;
+        const outer = result.cam.operations.find(operation => operation.name === polish.outsideOperation)!;
+        expect(inner).toBeDefined();
+        expect(outer).toBeDefined();
+        for (const operation of [inner, outer]) {
+          const springs = operation.passes.filter(pass => pass.spring);
+          expect(springs).toHaveLength(polish.springPasses);
+          for (const pass of springs) {
+            expect(pass.pts[0]).toEqual(pass.pts.at(-1));
+            expect(pass.pts.every(point => Math.abs(point[2] - input.expected.minimumZ) < 1e-8)).toBe(true);
+          }
+          for (const pass of operation.passes.filter(pass => pass.auxiliary)) {
+            expect(pass.feeds.every(feed => feed <= (operation.tool.plungeFeed ?? input.settings.plungeFeed!))).toBe(true);
+            if (pass.verticalBlendRadius !== undefined) {
+              expect(pass.verticalBlendRadius).toBeGreaterThan(0);
+              expect(pass.verticalBlendRadius).toBeLessThanOrEqual(0.3);
+            }
+          }
+        }
+        const spring = inner.passes.find(pass => pass.spring)!;
+        const center = input.profiles!.find(profile => profile.name === polish.insideOperation)!.shape;
+        if (center.type !== 'circle') throw new Error('Circular finishing case requires a circle');
+        const radii = spring.pts.map(point => Math.hypot(point[0] - center.center[0], point[1] - center.center[1])).sort((a, b) => a - b);
+        const centerRadius = radii[Math.floor(radii.length / 2)];
+        const wallFeeds = spring.feeds
+          .filter((_, i) => spring.roles?.[i] === 'finish')
+          .map(feed => (feed * (centerRadius + inner.tool.diameter / 2)) / centerRadius);
+        expect(wallFeeds.length).toBeGreaterThan(10);
+        for (const feed of wallFeeds) expect(Math.abs(feed - polish.desiredWallFeed)).toBeLessThan(1);
+        const outsideFeeds = outer.passes.flatMap(pass => pass.feeds.filter((_, i) => pass.roles?.[i] === 'finish'));
+        expect(outsideFeeds.length).toBeGreaterThan(10);
+        expect(outsideFeeds.every(feed => feed === polish.desiredWallFeed)).toBe(true);
+      }
+      for (const { file, gcode, cam, setup } of result.programs) {
+        expect(gcode).toBe(readFileSync(`${CASE_DIRECTORY}/${file}`, 'utf8'));
+        expect(gcode).toContain(`(Plan: ${setup.planFingerprint})`);
+        if (polish) expect(gcode).toMatch(/\bG18\b/);
+        expect(() => validateFluidNCOutput(gcode)).not.toThrow();
+        const radius = Math.max(...cam.operations.map(operation => operation.tool.diameter / 2));
+        expect(
+          checkGcodeSafety(gcode, {
+            stockTop: cam.stockTop,
+            size: [input.stockSize[0], input.stockSize[1]],
+            minZ: input.expected.minimumZ,
+            toolRadius: radius,
+          })
+        ).toEqual([]);
+        const cuts = readGcode(gcode).filter(move => !move.rapid && Math.min(move.from[2], move.to[2]) < cam.stockTop - 1e-6);
+        expect(cuts.length).toBeGreaterThan(0);
+        expect(Math.min(...cuts.flatMap(move => [move.from[2], move.to[2]]))).toBeCloseTo(input.expected.minimumZ, 3);
+        for (const box of input.expected.protectedRectangles ?? [])
+          for (const move of cuts)
+            expect(segmentToRectangle(move.from, move.to, box)).toBeGreaterThanOrEqual(radius - (input.settings.geometryTolerance ?? 0.05));
+        for (const box of input.expected.uncutRectangles ?? [])
+          for (const move of cuts) expect(segmentToRectangle(move.from, move.to, box)).toBeGreaterThan(0);
+        const tab = input.expected.tabPlateau;
+        if (tab) {
+          const grid = new DepthMap(tab.x0 - 1, tab.centerY - 1, tab.x1 + 1, tab.centerY + 1, 0.05);
+          grid.sweep(readGcode(gcode), radius, cam.stockTop);
+          for (let x = tab.x0; x <= tab.x1; x += 0.25) {
+            const ix = Math.round((x - grid.x0) / grid.res),
+              iy = Math.round((tab.centerY - grid.y0) / grid.res);
+            expect(grid.data[iy * grid.w + ix]).toBeGreaterThanOrEqual(tab.minimumHeight - 0.001);
+          }
+        }
+        for (const operation of cam.operations)
+          for (const pass of operation.passes) {
+            expect(pass.feeds).toHaveLength(pass.pts.length);
+            expect(pass.roles).toHaveLength(pass.pts.length);
+            expect(pass.feeds.every(feed => Number.isFinite(feed) && feed > 0)).toBe(true);
+          }
+      }
+    });
+});

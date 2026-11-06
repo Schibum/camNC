@@ -34,6 +34,8 @@ import {
   usesTabs,
   summarizePart,
   toGcode,
+  postProgram,
+  setupSheet,
   type BoardSpec,
   type CamSettings,
   rotateAboutOrigin,
@@ -323,7 +325,7 @@ function releaseProgram(
 ): ReleaseProgram {
   const { tool } = cam.operations[0];
   const size: [number, number, number] = [board.w, board.h, board.stockTop];
-  const gcode = toGcode(cam, {
+  const { gcode, setup } = postProgram(cam, {
     partName: `Board ${board.name}: ${title}`,
     board: board.name,
     stockSize: size,
@@ -331,12 +333,15 @@ function releaseProgram(
     spindle: settings.spindle,
   });
   const timing = estimateProgramTime(gcode);
+  setup.timing = timing;
   return {
     kind,
     title,
     gcode,
     timeMin: timing.estimatedAutomaticSeconds / 60,
     timing,
+    setup,
+    setupSheet: setupSheet(setup),
     tool: tool.number,
     diameter: tool.diameter,
     pauses,
@@ -459,7 +464,7 @@ function summarize(
   const split = splitByBit(cam);
   const programs = split.map(p => {
     const tool = p.operations[0].tool;
-    const gcode = toGcode(p, {
+    const { gcode, setup } = postProgram(p, {
       partName: split.length > 1 ? `${name}, bit T${tool.number} D=${tool.diameter}` : name,
       board,
       stockSize: size,
@@ -467,7 +472,16 @@ function summarize(
       spindle: settings.spindle,
     });
     const timing = estimateProgramTime(gcode);
-    return { tool: tool.number, diameter: tool.diameter, gcode, timeMin: timing.estimatedAutomaticSeconds / 60, timing };
+    setup.timing = timing;
+    return {
+      tool: tool.number,
+      diameter: tool.diameter,
+      gcode,
+      timeMin: timing.estimatedAutomaticSeconds / 60,
+      timing,
+      setup,
+      setupSheet: setupSheet(setup),
+    };
   });
   const ops = opSummaries(cam, partTop);
   const safety = programs.flatMap((p, i) =>

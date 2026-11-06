@@ -12,6 +12,7 @@ export interface StockSummary {
   maximumPlanarRemovalRate: number;
   axialEntryExceptions: number;
   descendingSegments: number;
+  conservativeFrontierSegments?: number;
 }
 
 export interface FinalizeSettings {
@@ -39,6 +40,7 @@ export function finalizePlan(cam: PartCam, settings: FinalizeSettings, blank?: P
     maximumPlanarRemovalRate: 0,
     axialEntryExceptions: 0,
     descendingSegments: 0,
+    conservativeFrontierSegments: 0,
   };
   const operations = cam.operations.map(operation => {
     const rate =
@@ -56,6 +58,7 @@ export function finalizePlan(cam: PartCam, settings: FinalizeSettings, blank?: P
       summary.maximumPlanarRemovalRate = Math.max(summary.maximumPlanarRemovalRate, resolved.maximumAreaRate);
       summary.axialEntryExceptions += resolved.axialEntries;
       summary.descendingSegments += resolved.descendingSegments;
+      summary.conservativeFrontierSegments = (summary.conservativeFrontierSegments ?? 0) + resolved.conservativeFrontierSegments;
       summary.retractedLinks += resolved.retractedLinks;
       summary.certifiedLinks += resolved.passes.filter((pass, i) => i > 0 && pass.link === 'direct' && pass.clearLink).length;
       return { ...operation, passes: resolved.passes };

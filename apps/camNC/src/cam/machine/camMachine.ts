@@ -402,5 +402,6 @@ export function entryTitle(e: QueueEntry) {
   if (e.kind === 'free') return `${board} · ${e.board.request.holdDown === 'fixture-tape' ? 'cut free' : 'free parts'}`;
   const p = e.plan.programs[e.program];
   const side = e.sideB ? ' side B' : '';
-  return e.plan.programs.length > 1 ? `${board}${side} · T${p.tool} ⌀${p.diameter}` : `${board}${side} · ⌀${p.diameter}`;
+  const number = e.plan.programs.filter(program => program.tool === p.tool).length > 1 ? `P${e.program + 1} ` : '';
+  return e.plan.programs.length > 1 ? `${board}${side} · ${number}T${p.tool} ⌀${p.diameter}` : `${board}${side} · ⌀${p.diameter}`;
 }

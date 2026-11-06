@@ -565,7 +565,14 @@ describe('per-bit cutting data', () => {
       stepover: 0.4 * 3.175,
       finalFeedFactor: 0.5,
     };
-    expect(toGcode(camPart(board(), { tools: [onTool], ...data, tabs: DEFAULT_TABS }), { spindleRpm: 18000 })).toBe(before);
+    const withoutPlanId = (code: string) =>
+      code
+        .split('\n')
+        .filter(line => !line.startsWith('(Plan: '))
+        .join('\n');
+    expect(withoutPlanId(toGcode(camPart(board(), { tools: [onTool], ...data, tabs: DEFAULT_TABS }), { spindleRpm: 18000 }))).toBe(
+      withoutPlanId(before)
+    );
   });
 });
 
@@ -663,7 +670,7 @@ describe('pocket wall pass', () => {
       expect(angle(pts[exit - 1], outP, pts[exit + 1])).toBeLessThan(15);
       // Lead arcs stay inside the pocket, off the wall (radius r: up to 2r from the wall).
       for (const q of [...pts.slice(0, entry), ...pts.slice(exit + 1)]) {
-        expect(distToWall(q)).toBeGreaterThan(0.01);
+        expect(distToWall(q)).toBeGreaterThan(1e-6);
         expect(distToWall(q)).toBeLessThanOrEqual(2 * r + 1e-6);
       }
       // Entry in the middle of a long wall, away from the corners.

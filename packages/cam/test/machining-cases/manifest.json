@@ -1,0 +1,1268 @@
+{
+  "schemaVersion": 1,
+  "provenance": {
+    "inputKind": "analytic primitives",
+    "units": "mm",
+    "datum": "stock lower left; Z0 stock bottom",
+    "generator": "@wbcnc/cam test/machining-cases/build.ts",
+    "baselineVersion": 1,
+    "cuttingData": "synthetic regression settings, not a qualified process"
+  },
+  "cases": [
+    {
+      "id": "concave-pocket",
+      "inputFile": "concave-pocket.input.json",
+      "inputSha256": "e173296a5c58b6d66b9c780253a17972243f0a922d390e8d63487fb8999ae8ec",
+      "warnings": [
+        "pocket z=3: 2.7mm² left in corners/narrow spots with D=3.175"
+      ],
+      "programs": [
+        {
+          "file": "concave-pocket.nc",
+          "sha256": "2b616872373ac39b0293ded482fd2cbfb48235a934a4669c0e94ab8c582f839e",
+          "bytes": 6935,
+          "operations": 1,
+          "passes": 8,
+          "toolNumbers": [
+            1
+          ],
+          "setup": {
+            "schemaVersion": 1,
+            "planFingerprint": "cam-plan-v1-3023155a436c8ac6",
+            "programName": "concave-pocket",
+            "units": "mm",
+            "origin": {
+              "xy": "stock lower left",
+              "z": "stock bottom"
+            },
+            "stockSize": [
+              36,
+              30,
+              6
+            ],
+            "stockTop": 6,
+            "safeZ": 11,
+            "retractZ": 8,
+            "spindle": "hand",
+            "post": {
+              "profileId": "fluidnc",
+              "arcs": true,
+              "arcTolerance": 0.02033089966334346,
+              "spindleDwell": 3
+            },
+            "accuracy": {
+              "scope": "declared-source",
+              "budget": {
+                "total": 0.05,
+                "import": 0,
+                "offset": 0.01355393310889564,
+                "smoothing": 0.011294944257413033,
+                "fitting": 0.02033089966334346,
+                "polygonRounding": 0.002262741699796952,
+                "outputRounding": 0.0008660254037844386,
+                "controllerRounding": 0.0016914558667664816
+              }
+            },
+            "tools": [
+              {
+                "key": "[\"[\\\"analytic-bit-1\\\",1,3.175,12,2,null]\",15000]",
+                "tool": {
+                  "number": 1,
+                  "guid": "analytic-bit-1",
+                  "diameter": 3.175,
+                  "name": "synthetic flat end mill",
+                  "fluteLength": 12,
+                  "flutes": 2,
+                  "rpm": 15000
+                },
+                "rpm": 15000,
+                "maximumCutDepth": 3
+              }
+            ],
+            "operations": [
+              {
+                "name": "Pocket 1 z=3",
+                "feature": "pocket",
+                "toolKey": "[\"[\\\"analytic-bit-1\\\",1,3.175,12,2,null]\",15000]",
+                "feeds": [
+                  360,
+                  480,
+                  700,
+                  720,
+                  800,
+                  1800
+                ],
+                "passes": 8,
+                "bounds": {
+                  "min": [
+                    5.5875,
+                    5.5875,
+                    3
+                  ],
+                  "max": [
+                    30.4125,
+                    24.4125,
+                    6
+                  ]
+                },
+                "roles": {
+                  "approach": 8,
+                  "ramp": 134,
+                  "cut": 147,
+                  "corner": 663,
+                  "lead-in": 28,
+                  "lead-out": 28
+                }
+              }
+            ],
+            "bounds": {
+              "min": [
+                5.5875,
+                5.5875,
+                3
+              ],
+              "max": [
+                30.4125,
+                24.4125,
+                6
+              ]
+            },
+            "warnings": [
+              "pocket z=3: 2.7mm² left in corners/narrow spots with D=3.175"
+            ],
+            "statistics": {
+              "bytes": 6935,
+              "executableBlocks": 473,
+              "motionBlocks": 465,
+              "arcBlocks": 77,
+              "cuttingLineBlocks": 362,
+              "feedChanges": 82,
+              "tinyCuttingLines": 252,
+              "tinySegmentThresholdMm": 0.1,
+              "unresolvedCuttingLines": 0,
+              "minimumCuttingLineMm": 0.035128336140500746,
+              "averageCuttingLineMm": 1.2385210998033163,
+              "maximumLineBytes": 73
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "controlled-pocket-island",
+      "inputFile": "controlled-pocket-island.input.json",
+      "inputSha256": "6b3f1ce54e833520b4807a153db11b1acfeb91bea90203fa5a2113b5ca278c0b",
+      "warnings": [
+        "pocket z=3.5: 21.8mm² left in corners/narrow spots with D=3.175",
+        "2 roughing loops left for cleanup because the requested turn radius does not fit",
+        "1 controlled pocket entry locations require full-width entry; ramp feed and stepdown remain separate limits",
+        "Planar material-rate limits exclude axial removal in 238 descending moves; ramp/plunge feed and stepdown apply separately"
+      ],
+      "programs": [
+        {
+          "file": "controlled-pocket-island.nc",
+          "sha256": "5b65c611a8945b2fc4d995a85a6a70cce69712eaf3c2e12001f767f60bcc7b61",
+          "bytes": 4360,
+          "operations": 1,
+          "passes": 2,
+          "toolNumbers": [
+            1
+          ],
+          "setup": {
+            "schemaVersion": 1,
+            "planFingerprint": "cam-plan-v1-6c9b22b88e1c5834",
+            "programName": "controlled-pocket-island",
+            "units": "mm",
+            "origin": {
+              "xy": "stock lower left",
+              "z": "stock bottom"
+            },
+            "stockSize": [
+              14,
+              12,
+              5
+            ],
+            "stockTop": 5,
+            "safeZ": 10,
+            "retractZ": 7,
+            "spindle": "hand",
+            "post": {
+              "profileId": "fluidnc",
+              "arcs": true,
+              "arcTolerance": 0.02033089966334346,
+              "spindleDwell": 3
+            },
+            "accuracy": {
+              "scope": "declared-source",
+              "budget": {
+                "total": 0.05,
+                "import": 0,
+                "offset": 0.01355393310889564,
+                "smoothing": 0.011294944257413033,
+                "fitting": 0.02033089966334346,
+                "polygonRounding": 0.002262741699796952,
+                "outputRounding": 0.0008660254037844386,
+                "controllerRounding": 0.0016914558667664816
+              }
+            },
+            "tools": [
+              {
+                "key": "[\"[\\\"analytic-bit-1\\\",1,3.175,12,2,null]\",15000]",
+                "tool": {
+                  "number": 1,
+                  "guid": "analytic-bit-1",
+                  "diameter": 3.175,
+                  "name": "synthetic flat end mill",
+                  "fluteLength": 12,
+                  "flutes": 2,
+                  "rpm": 15000
+                },
+                "rpm": 15000,
+                "maximumCutDepth": 1.5
+              }
+            ],
+            "operations": [
+              {
+                "name": "Pocket 1 z=3.5",
+                "feature": "pocket",
+                "toolKey": "[\"[\\\"analytic-bit-1\\\",1,3.175,12,2,null]\",15000]",
+                "feeds": [
+                  360,
+                  480,
+                  720
+                ],
+                "passes": 2,
+                "bounds": {
+                  "min": [
+                    3.5875000000000004,
+                    3.5875000000000004,
+                    3.5
+                  ],
+                  "max": [
+                    10.4125,
+                    7.9125000000000005,
+                    5
+                  ]
+                },
+                "roles": {
+                  "approach": 2,
+                  "ramp": 238,
+                  "finish": 96,
+                  "corner": 16
+                }
+              }
+            ],
+            "bounds": {
+              "min": [
+                3.5875000000000004,
+                3.5875000000000004,
+                3.5
+              ],
+              "max": [
+                10.4125,
+                7.9125000000000005,
+                5
+              ]
+            },
+            "warnings": [
+              "pocket z=3.5: 21.8mm² left in corners/narrow spots with D=3.175",
+              "2 roughing loops left for cleanup because the requested turn radius does not fit",
+              "1 controlled pocket entry locations require full-width entry; ramp feed and stepdown remain separate limits",
+              "Planar material-rate limits exclude axial removal in 238 descending moves; ramp/plunge feed and stepdown apply separately"
+            ],
+            "statistics": {
+              "bytes": 4360,
+              "executableBlocks": 210,
+              "motionBlocks": 202,
+              "arcBlocks": 14,
+              "cuttingLineBlocks": 180,
+              "feedChanges": 6,
+              "tinyCuttingLines": 0,
+              "tinySegmentThresholdMm": 0.1,
+              "unresolvedCuttingLines": 0,
+              "minimumCuttingLineMm": 0.1329812016790351,
+              "averageCuttingLineMm": 0.39238489183183495,
+              "maximumLineBytes": 127
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "pocket-island",
+      "inputFile": "pocket-island.input.json",
+      "inputSha256": "7634e14c98327f2e81434a413bac0199c175eecec4582531eccb42734d697422",
+      "warnings": [
+        "pocket z=3: 2.2mm² left in corners/narrow spots with D=3.175"
+      ],
+      "programs": [
+        {
+          "file": "pocket-island.nc",
+          "sha256": "b0b452142070768baacaf64658c5edc621fcb234a0981f8ee66e82d13c18d5c2",
+          "bytes": 12542,
+          "operations": 1,
+          "passes": 16,
+          "toolNumbers": [
+            1
+          ],
+          "setup": {
+            "schemaVersion": 1,
+            "planFingerprint": "cam-plan-v1-c0a95101cad63fd5",
+            "programName": "pocket-island",
+            "units": "mm",
+            "origin": {
+              "xy": "stock lower left",
+              "z": "stock bottom"
+            },
+            "stockSize": [
+              40,
+              30,
+              6
+            ],
+            "stockTop": 6,
+            "safeZ": 11,
+            "retractZ": 8,
+            "spindle": "hand",
+            "post": {
+              "profileId": "fluidnc",
+              "arcs": true,
+              "arcTolerance": 0.02033089966334346,
+              "spindleDwell": 3
+            },
+            "accuracy": {
+              "scope": "declared-source",
+              "budget": {
+                "total": 0.05,
+                "import": 0,
+                "offset": 0.01355393310889564,
+                "smoothing": 0.011294944257413033,
+                "fitting": 0.02033089966334346,
+                "polygonRounding": 0.002262741699796952,
+                "outputRounding": 0.0008660254037844386,
+                "controllerRounding": 0.0016914558667664816
+              }
+            },
+            "tools": [
+              {
+                "key": "[\"[\\\"analytic-bit-1\\\",1,3.175,12,2,null]\",15000]",
+                "tool": {
+                  "number": 1,
+                  "guid": "analytic-bit-1",
+                  "diameter": 3.175,
+                  "name": "synthetic flat end mill",
+                  "fluteLength": 12,
+                  "flutes": 2,
+                  "rpm": 15000
+                },
+                "rpm": 15000,
+                "maximumCutDepth": 3
+              }
+            ],
+            "operations": [
+              {
+                "name": "Pocket 1 z=3",
+                "feature": "pocket",
+                "toolKey": "[\"[\\\"analytic-bit-1\\\",1,3.175,12,2,null]\",15000]",
+                "feeds": [
+                  360,
+                  480,
+                  700,
+                  720,
+                  800,
+                  1800
+                ],
+                "passes": 16,
+                "bounds": {
+                  "min": [
+                    5.5875,
+                    5.5875,
+                    3
+                  ],
+                  "max": [
+                    34.4125,
+                    24.4125,
+                    6
+                  ]
+                },
+                "roles": {
+                  "approach": 16,
+                  "ramp": 668,
+                  "cut": 502,
+                  "corner": 1158,
+                  "lead-in": 56,
+                  "lead-out": 56
+                }
+              }
+            ],
+            "bounds": {
+              "min": [
+                5.5875,
+                5.5875,
+                3
+              ],
+              "max": [
+                34.4125,
+                24.4125,
+                6
+              ]
+            },
+            "warnings": [
+              "pocket z=3: 2.2mm² left in corners/narrow spots with D=3.175"
+            ],
+            "statistics": {
+              "bytes": 12542,
+              "executableBlocks": 733,
+              "motionBlocks": 725,
+              "arcBlocks": 180,
+              "cuttingLineBlocks": 495,
+              "feedChanges": 130,
+              "tinyCuttingLines": 310,
+              "tinySegmentThresholdMm": 0.1,
+              "unresolvedCuttingLines": 0,
+              "minimumCuttingLineMm": 0.01615549442140517,
+              "averageCuttingLineMm": 1.8769866661221708,
+              "maximumLineBytes": 73
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "polished-profiles",
+      "inputFile": "polished-profiles.input.json",
+      "inputSha256": "a3ac683443978c0084b2c49bc8c3b03a1029a172d468cc956981b8f5dcf59d3a",
+      "warnings": [
+        "Vertical entry blend radius was reduced to fit the axial step and first segment",
+        "Vertical exit blend has no representable room on the first contour segment",
+        "Vertical exit blend radius was reduced to fit the first contour segment",
+        "Vertical exit blends are only supported inside holes; outside profiles retain their complete final contour lap"
+      ],
+      "programs": [
+        {
+          "file": "polished-profiles.nc",
+          "sha256": "1951173990b94b54402767e0b16fa68feae5e9119d89b5e3f93dc2e70460356f",
+          "bytes": 3843,
+          "operations": 2,
+          "passes": 23,
+          "toolNumbers": [
+            1
+          ],
+          "setup": {
+            "schemaVersion": 1,
+            "planFingerprint": "cam-plan-v1-ec48ce457af22f91",
+            "programName": "polished-profiles",
+            "units": "mm",
+            "origin": {
+              "xy": "stock lower left",
+              "z": "stock bottom"
+            },
+            "stockSize": [
+              32,
+              22,
+              3
+            ],
+            "stockTop": 3,
+            "safeZ": 8,
+            "retractZ": 5,
+            "spindle": "hand",
+            "post": {
+              "profileId": "fluidnc",
+              "arcs": true,
+              "arcTolerance": 0.019430899663343458,
+              "spindleDwell": 3
+            },
+            "accuracy": {
+              "scope": "declared-source",
+              "budget": {
+                "total": 0.05,
+                "import": 0.002,
+                "offset": 0.012953933108895638,
+                "smoothing": 0.010794944257413033,
+                "fitting": 0.019430899663343458,
+                "polygonRounding": 0.002262741699796952,
+                "outputRounding": 0.0008660254037844386,
+                "controllerRounding": 0.0016914558667664816
+              }
+            },
+            "tools": [
+              {
+                "key": "[\"[\\\"analytic-bit-1\\\",1,3.175,12,2,null]\",15000]",
+                "tool": {
+                  "number": 1,
+                  "guid": "analytic-bit-1",
+                  "diameter": 3.175,
+                  "name": "synthetic flat end mill",
+                  "fluteLength": 12,
+                  "flutes": 2,
+                  "rpm": 15000
+                },
+                "rpm": 15000,
+                "maximumCutDepth": 3.3
+              }
+            ],
+            "operations": [
+              {
+                "name": "Polished inner wall",
+                "feature": "hole",
+                "toolKey": "[\"[\\\"analytic-bit-1\\\",1,3.175,12,2,null]\",15000]",
+                "feeds": [
+                  480,
+                  661.8379661694163,
+                  1800
+                ],
+                "passes": 12,
+                "bounds": {
+                  "min": [
+                    11.587900000000001,
+                    6.5879,
+                    -0.3
+                  ],
+                  "max": [
+                    20.412000000000003,
+                    15.412,
+                    2.1070414989618524
+                  ]
+                },
+                "roles": {
+                  "approach": 6,
+                  "lead-in": 20,
+                  "link": 6,
+                  "cut": 260,
+                  "finish": 519,
+                  "lead-out": 4
+                }
+              },
+              {
+                "name": "Polished outer wall",
+                "feature": "outline",
+                "toolKey": "[\"[\\\"analytic-bit-1\\\",1,3.175,12,2,null]\",15000]",
+                "feeds": [
+                  480,
+                  900,
+                  1800
+                ],
+                "passes": 11,
+                "bounds": {
+                  "min": [
+                    0.3125,
+                    0.3125,
+                    -0.3
+                  ],
+                  "max": [
+                    31.6875,
+                    21.6875,
+                    2.3
+                  ]
+                },
+                "roles": {
+                  "approach": 6,
+                  "lead-in": 30,
+                  "link": 5,
+                  "cut": 156,
+                  "finish": 311
+                }
+              }
+            ],
+            "bounds": {
+              "min": [
+                0.3125,
+                0.3125,
+                -0.3
+              ],
+              "max": [
+                31.6875,
+                21.6875,
+                2.3
+              ]
+            },
+            "warnings": [
+              "Vertical entry blend radius was reduced to fit the axial step and first segment",
+              "Vertical exit blend has no representable room on the first contour segment",
+              "Vertical exit blend radius was reduced to fit the first contour segment",
+              "Vertical exit blends are only supported inside holes; outside profiles retain their complete final contour lap"
+            ],
+            "statistics": {
+              "bytes": 3843,
+              "executableBlocks": 168,
+              "motionBlocks": 150,
+              "arcBlocks": 41,
+              "cuttingLineBlocks": 71,
+              "feedChanges": 24,
+              "tinyCuttingLines": 24,
+              "tinySegmentThresholdMm": 0.1,
+              "unresolvedCuttingLines": 0,
+              "minimumCuttingLineMm": 0.04093897898091665,
+              "averageCuttingLineMm": 8.292519512159672,
+              "maximumLineBytes": 120
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "profile-tab-shoulders",
+      "inputFile": "profile-tab-shoulders.input.json",
+      "inputSha256": "bec87872c327d564c4eb7475cf34a48af07a87bfd113a6167c9effa48fc90132",
+      "warnings": [],
+      "programs": [
+        {
+          "file": "profile-tab-shoulders.nc",
+          "sha256": "aa44985b77913c90c629859c0242f287f7f31cd033e2e6cc866c8f6f8dbd9a07",
+          "bytes": 5098,
+          "operations": 1,
+          "passes": 18,
+          "toolNumbers": [
+            1
+          ],
+          "setup": {
+            "schemaVersion": 1,
+            "planFingerprint": "cam-plan-v1-36f4406da27ab971",
+            "programName": "profile-tab-shoulders",
+            "units": "mm",
+            "origin": {
+              "xy": "stock lower left",
+              "z": "stock bottom"
+            },
+            "stockSize": [
+              30,
+              20,
+              4
+            ],
+            "stockTop": 4,
+            "safeZ": 9,
+            "retractZ": 6,
+            "spindle": "hand",
+            "post": {
+              "profileId": "fluidnc",
+              "arcs": true,
+              "arcTolerance": 0.02033089966334346,
+              "spindleDwell": 3
+            },
+            "accuracy": {
+              "scope": "declared-source",
+              "budget": {
+                "total": 0.05,
+                "import": 0,
+                "offset": 0.01355393310889564,
+                "smoothing": 0.011294944257413033,
+                "fitting": 0.02033089966334346,
+                "polygonRounding": 0.002262741699796952,
+                "outputRounding": 0.0008660254037844386,
+                "controllerRounding": 0.0016914558667664816
+              }
+            },
+            "tools": [
+              {
+                "key": "[\"[\\\"analytic-bit-1\\\",1,3.175,12,2,null]\",15000]",
+                "tool": {
+                  "number": 1,
+                  "guid": "analytic-bit-1",
+                  "diameter": 3.175,
+                  "name": "synthetic flat end mill",
+                  "fluteLength": 12,
+                  "flutes": 2,
+                  "rpm": 15000
+                },
+                "rpm": 15000,
+                "maximumCutDepth": 4.3
+              }
+            ],
+            "operations": [
+              {
+                "name": "Outline 1",
+                "feature": "outline",
+                "toolKey": "[\"[\\\"analytic-bit-1\\\",1,3.175,12,2,null]\",15000]",
+                "feeds": [
+                  360,
+                  480,
+                  900,
+                  1200,
+                  1800
+                ],
+                "passes": 18,
+                "bounds": {
+                  "min": [
+                    1.3125,
+                    1.3125,
+                    -0.3
+                  ],
+                  "max": [
+                    28.6875,
+                    18.6875,
+                    4
+                  ]
+                },
+                "roles": {
+                  "approach": 10,
+                  "ramp": 706,
+                  "link": 8,
+                  "cut": 312,
+                  "tab": 26,
+                  "finish": 370
+                }
+              }
+            ],
+            "bounds": {
+              "min": [
+                1.3125,
+                1.3125,
+                -0.3
+              ],
+              "max": [
+                28.6875,
+                18.6875,
+                4
+              ]
+            },
+            "warnings": [],
+            "statistics": {
+              "bytes": 5098,
+              "executableBlocks": 257,
+              "motionBlocks": 249,
+              "arcBlocks": 82,
+              "cuttingLineBlocks": 138,
+              "feedChanges": 44,
+              "tinyCuttingLines": 0,
+              "tinySegmentThresholdMm": 0.1,
+              "unresolvedCuttingLines": 0,
+              "minimumCuttingLineMm": 1,
+              "averageCuttingLineMm": 10.885846448842353,
+              "maximumLineBytes": 73
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "split-physical-tools",
+      "inputFile": "split-physical-tools.input.json",
+      "inputSha256": "52bf13ee0d6498be9fa2d24c1c628ff430deb8bb1c15e84e5d73d886c58bb21a",
+      "warnings": [],
+      "programs": [
+        {
+          "file": "split-physical-tools.1.nc",
+          "sha256": "0cf8bfc247cf00968c4a69a6d14eb1c8518c369c73c74b377b901eb910917403",
+          "bytes": 2096,
+          "operations": 1,
+          "passes": 10,
+          "toolNumbers": [
+            1
+          ],
+          "setup": {
+            "schemaVersion": 1,
+            "planFingerprint": "cam-plan-v1-84d692e3cb472a2f",
+            "programName": "split-physical-tools",
+            "units": "mm",
+            "origin": {
+              "xy": "stock lower left",
+              "z": "stock bottom"
+            },
+            "stockSize": [
+              36,
+              20,
+              4
+            ],
+            "stockTop": 4,
+            "safeZ": 9,
+            "retractZ": 6,
+            "spindle": "hand",
+            "post": {
+              "profileId": "fluidnc",
+              "arcs": true,
+              "arcTolerance": 0.02033089966334346,
+              "spindleDwell": 3
+            },
+            "accuracy": {
+              "scope": "declared-source",
+              "budget": {
+                "total": 0.05,
+                "import": 0,
+                "offset": 0.01355393310889564,
+                "smoothing": 0.011294944257413033,
+                "fitting": 0.02033089966334346,
+                "polygonRounding": 0.002262741699796952,
+                "outputRounding": 0.0008660254037844386,
+                "controllerRounding": 0.0016914558667664816
+              }
+            },
+            "tools": [
+              {
+                "key": "[\"[\\\"analytic-bit-1\\\",1,3.175,12,2,null]\",15000]",
+                "tool": {
+                  "number": 1,
+                  "guid": "analytic-bit-1",
+                  "diameter": 3.175,
+                  "name": "synthetic flat end mill",
+                  "fluteLength": 12,
+                  "flutes": 2,
+                  "rpm": 15000
+                },
+                "rpm": 15000,
+                "maximumCutDepth": 4.3
+              }
+            ],
+            "operations": [
+              {
+                "name": "First inner profile",
+                "feature": "hole",
+                "toolKey": "[\"[\\\"analytic-bit-1\\\",1,3.175,12,2,null]\",15000]",
+                "feeds": [
+                  360,
+                  480,
+                  720,
+                  900,
+                  1200,
+                  1800
+                ],
+                "passes": 10,
+                "bounds": {
+                  "min": [
+                    5.5875,
+                    5.5875,
+                    -0.3
+                  ],
+                  "max": [
+                    12.412500000000001,
+                    12.412500000000001,
+                    4
+                  ]
+                },
+                "roles": {
+                  "approach": 5,
+                  "ramp": 30,
+                  "link": 5,
+                  "corner": 42,
+                  "cut": 10,
+                  "finish": 18
+                }
+              }
+            ],
+            "bounds": {
+              "min": [
+                5.5875,
+                5.5875,
+                -0.3
+              ],
+              "max": [
+                12.412500000000001,
+                12.412500000000001,
+                4
+              ]
+            },
+            "warnings": [],
+            "statistics": {
+              "bytes": 2096,
+              "executableBlocks": 130,
+              "motionBlocks": 122,
+              "arcBlocks": 0,
+              "cuttingLineBlocks": 105,
+              "feedChanges": 55,
+              "tinyCuttingLines": 6,
+              "tinySegmentThresholdMm": 0.1,
+              "unresolvedCuttingLines": 0,
+              "minimumCuttingLineMm": 0.05000000000000071,
+              "averageCuttingLineMm": 2.7160491620022564,
+              "maximumLineBytes": 73
+            }
+          }
+        },
+        {
+          "file": "split-physical-tools.2.nc",
+          "sha256": "969c9256aab6cfd3e12a0b3b0ca0d317d3e957f5b74e9d54152c212b2f675e76",
+          "bytes": 2140,
+          "operations": 1,
+          "passes": 10,
+          "toolNumbers": [
+            2
+          ],
+          "setup": {
+            "schemaVersion": 1,
+            "planFingerprint": "cam-plan-v1-cbea63e2f072c506",
+            "programName": "split-physical-tools",
+            "units": "mm",
+            "origin": {
+              "xy": "stock lower left",
+              "z": "stock bottom"
+            },
+            "stockSize": [
+              36,
+              20,
+              4
+            ],
+            "stockTop": 4,
+            "safeZ": 9,
+            "retractZ": 6,
+            "spindle": "hand",
+            "post": {
+              "profileId": "fluidnc",
+              "arcs": true,
+              "arcTolerance": 0.02033089966334346,
+              "spindleDwell": 3
+            },
+            "accuracy": {
+              "scope": "declared-source",
+              "budget": {
+                "total": 0.05,
+                "import": 0,
+                "offset": 0.01355393310889564,
+                "smoothing": 0.011294944257413033,
+                "fitting": 0.02033089966334346,
+                "polygonRounding": 0.002262741699796952,
+                "outputRounding": 0.0008660254037844386,
+                "controllerRounding": 0.0016914558667664816
+              }
+            },
+            "tools": [
+              {
+                "key": "[\"[\\\"analytic-bit-2\\\",2,3.175,12,1,null]\",12000]",
+                "tool": {
+                  "number": 2,
+                  "guid": "analytic-bit-2",
+                  "diameter": 3.175,
+                  "name": "second synthetic flat end mill",
+                  "fluteLength": 12,
+                  "flutes": 1,
+                  "rpm": 12000,
+                  "feed": 1200
+                },
+                "rpm": 12000,
+                "maximumCutDepth": 4.3
+              }
+            ],
+            "operations": [
+              {
+                "name": "Second inner profile",
+                "feature": "hole",
+                "toolKey": "[\"[\\\"analytic-bit-2\\\",2,3.175,12,1,null]\",12000]",
+                "feeds": [
+                  240,
+                  360,
+                  480,
+                  600,
+                  1200
+                ],
+                "passes": 10,
+                "bounds": {
+                  "min": [
+                    23.587500000000002,
+                    5.5875,
+                    -0.3
+                  ],
+                  "max": [
+                    30.4125,
+                    12.412500000000001,
+                    4
+                  ]
+                },
+                "roles": {
+                  "approach": 5,
+                  "ramp": 30,
+                  "link": 5,
+                  "corner": 42,
+                  "cut": 10,
+                  "finish": 18
+                }
+              }
+            ],
+            "bounds": {
+              "min": [
+                23.587500000000002,
+                5.5875,
+                -0.3
+              ],
+              "max": [
+                30.4125,
+                12.412500000000001,
+                4
+              ]
+            },
+            "warnings": [],
+            "statistics": {
+              "bytes": 2140,
+              "executableBlocks": 130,
+              "motionBlocks": 122,
+              "arcBlocks": 0,
+              "cuttingLineBlocks": 105,
+              "feedChanges": 53,
+              "tinyCuttingLines": 6,
+              "tinySegmentThresholdMm": 0.1,
+              "unresolvedCuttingLines": 0,
+              "minimumCuttingLineMm": 0.05000000000000071,
+              "averageCuttingLineMm": 2.716049162002256,
+              "maximumLineBytes": 73
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "tangent-fallback",
+      "inputFile": "tangent-fallback.input.json",
+      "inputSha256": "a101aa17d5d5e3a66080c82e54f2bd68695ad2f11060c8cdd11dd3d6c8d203ac",
+      "warnings": [
+        "Tangent entry does not fit the cutter-centre region; using a contour ramp",
+        "Contour entry loop is too small for a ramp; using a bounded plunge"
+      ],
+      "programs": [
+        {
+          "file": "tangent-fallback.nc",
+          "sha256": "154ec9f215052ed0eda91aa1c227a4d01d66ba66bd449c72662ff0c53d79b837",
+          "bytes": 1622,
+          "operations": 1,
+          "passes": 9,
+          "toolNumbers": [
+            1
+          ],
+          "setup": {
+            "schemaVersion": 1,
+            "planFingerprint": "cam-plan-v1-48ccf60ce030fac8",
+            "programName": "tangent-fallback",
+            "units": "mm",
+            "origin": {
+              "xy": "stock lower left",
+              "z": "stock bottom"
+            },
+            "stockSize": [
+              14,
+              14,
+              3
+            ],
+            "stockTop": 3,
+            "safeZ": 8,
+            "retractZ": 5,
+            "spindle": "hand",
+            "post": {
+              "profileId": "fluidnc",
+              "arcs": true,
+              "arcTolerance": 0.019430899663343458,
+              "spindleDwell": 3
+            },
+            "accuracy": {
+              "scope": "declared-source",
+              "budget": {
+                "total": 0.05,
+                "import": 0.002,
+                "offset": 0.012953933108895638,
+                "smoothing": 0.010794944257413033,
+                "fitting": 0.019430899663343458,
+                "polygonRounding": 0.002262741699796952,
+                "outputRounding": 0.0008660254037844386,
+                "controllerRounding": 0.0016914558667664816
+              }
+            },
+            "tools": [
+              {
+                "key": "[\"[\\\"analytic-bit-1\\\",1,3.175,12,2,null]\",15000]",
+                "tool": {
+                  "number": 1,
+                  "guid": "analytic-bit-1",
+                  "diameter": 3.175,
+                  "name": "synthetic flat end mill",
+                  "fluteLength": 12,
+                  "flutes": 2,
+                  "rpm": 15000
+                },
+                "rpm": 15000,
+                "maximumCutDepth": 3.3
+              }
+            ],
+            "operations": [
+              {
+                "name": "Small hole",
+                "feature": "hole",
+                "toolKey": "[\"[\\\"analytic-bit-1\\\",1,3.175,12,2,null]\",15000]",
+                "feeds": [
+                  360,
+                  480,
+                  720
+                ],
+                "passes": 9,
+                "bounds": {
+                  "min": [
+                    6.9794,
+                    6.9794,
+                    -0.3
+                  ],
+                  "max": [
+                    7.0205,
+                    7.0205,
+                    2.34
+                  ]
+                },
+                "roles": {
+                  "approach": 9,
+                  "corner": 585
+                }
+              }
+            ],
+            "bounds": {
+              "min": [
+                6.9794,
+                6.9794,
+                -0.3
+              ],
+              "max": [
+                7.0205,
+                7.0205,
+                2.34
+              ]
+            },
+            "warnings": [
+              "Tangent entry does not fit the cutter-centre region; using a contour ramp",
+              "Contour entry loop is too small for a ramp; using a bounded plunge"
+            ],
+            "statistics": {
+              "bytes": 1622,
+              "executableBlocks": 56,
+              "motionBlocks": 48,
+              "arcBlocks": 9,
+              "cuttingLineBlocks": 18,
+              "feedChanges": 18,
+              "tinyCuttingLines": 9,
+              "tinySegmentThresholdMm": 0.1,
+              "unresolvedCuttingLines": 0,
+              "minimumCuttingLineMm": 0.002236067977499345,
+              "averageCuttingLineMm": 1.4177847006554165,
+              "maximumLineBytes": 83
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "tool-width-threshold",
+      "inputFile": "tool-width-threshold.input.json",
+      "inputSha256": "a40a4f027bfc7b678a30ebdc052cc9b10f52138b2473e0f91dec341ad3799483",
+      "warnings": [
+        "pocket z=2.5: 170.0mm² left in corners/narrow spots with D=3.175"
+      ],
+      "programs": [
+        {
+          "file": "tool-width-threshold.nc",
+          "sha256": "c97744e7fce83c47b03ef485a04c640b3f042635afb7e236d4b8f55e775ee796",
+          "bytes": 919,
+          "operations": 1,
+          "passes": 1,
+          "toolNumbers": [
+            1
+          ],
+          "setup": {
+            "schemaVersion": 1,
+            "planFingerprint": "cam-plan-v1-02c12fb6dd1e614a",
+            "programName": "tool-width-threshold",
+            "units": "mm",
+            "origin": {
+              "xy": "stock lower left",
+              "z": "stock bottom"
+            },
+            "stockSize": [
+              30,
+              24,
+              4
+            ],
+            "stockTop": 4,
+            "safeZ": 9,
+            "retractZ": 6,
+            "spindle": "hand",
+            "post": {
+              "profileId": "fluidnc",
+              "arcs": true,
+              "arcTolerance": 0.02033089966334346,
+              "spindleDwell": 3
+            },
+            "accuracy": {
+              "scope": "declared-source",
+              "budget": {
+                "total": 0.05,
+                "import": 0,
+                "offset": 0.01355393310889564,
+                "smoothing": 0.011294944257413033,
+                "fitting": 0.02033089966334346,
+                "polygonRounding": 0.002262741699796952,
+                "outputRounding": 0.0008660254037844386,
+                "controllerRounding": 0.0016914558667664816
+              }
+            },
+            "tools": [
+              {
+                "key": "[\"[\\\"analytic-bit-1\\\",1,3.175,12,2,null]\",15000]",
+                "tool": {
+                  "number": 1,
+                  "guid": "analytic-bit-1",
+                  "diameter": 3.175,
+                  "name": "synthetic flat end mill",
+                  "fluteLength": 12,
+                  "flutes": 2,
+                  "rpm": 15000
+                },
+                "rpm": 15000,
+                "maximumCutDepth": 1.5
+              }
+            ],
+            "operations": [
+              {
+                "name": "Pocket 1 z=2.5",
+                "feature": "pocket",
+                "toolKey": "[\"[\\\"analytic-bit-1\\\",1,3.175,12,2,null]\",15000]",
+                "feeds": [
+                  360,
+                  480,
+                  720,
+                  1800
+                ],
+                "passes": 1,
+                "bounds": {
+                  "min": [
+                    4.5875,
+                    17.587500000000002,
+                    2.5
+                  ],
+                  "max": [
+                    25.4125,
+                    17.6375,
+                    4
+                  ]
+                },
+                "roles": {
+                  "approach": 1,
+                  "ramp": 3,
+                  "cut": 3,
+                  "corner": 10
+                }
+              }
+            ],
+            "bounds": {
+              "min": [
+                4.5875,
+                17.587500000000002,
+                2.5
+              ],
+              "max": [
+                25.4125,
+                17.6375,
+                4
+              ]
+            },
+            "warnings": [
+              "pocket z=2.5: 170.0mm² left in corners/narrow spots with D=3.175"
+            ],
+            "statistics": {
+              "bytes": 919,
+              "executableBlocks": 30,
+              "motionBlocks": 22,
+              "arcBlocks": 0,
+              "cuttingLineBlocks": 17,
+              "feedChanges": 7,
+              "tinyCuttingLines": 7,
+              "tinySegmentThresholdMm": 0.1,
+              "unresolvedCuttingLines": 0,
+              "minimumCuttingLineMm": 0.04899999999999949,
+              "averageCuttingLineMm": 4.200487161647814,
+              "maximumLineBytes": 76
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

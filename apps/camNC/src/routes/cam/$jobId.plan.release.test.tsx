@@ -77,7 +77,13 @@ const row = (list: HTMLElement, name: RegExp) =>
     .find(li => name.test(li.textContent!));
 const operationsTab = () =>
   within(screen.getByRole('tablist', { name: 'Operations and settings' })).getByRole('tab', { name: /^Operations/ });
-const fmtMin = (m: number) => `${Math.floor(m)}:${String(Math.round((m % 1) * 60)).padStart(2, '0')}`;
+const fmtMin = (m: number) => {
+  const seconds = Math.round(m * 60),
+    hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60),
+    rest = String(seconds % 60).padStart(2, '0');
+  return hours ? `${hours}:${String(minutes).padStart(2, '0')}:${rest}` : `${minutes}:${rest}`;
+};
 
 describe('CAM plan step, the guided programs after the cutting', () => {
   it('free parts: its own row after the cutting, pauses on the timeline, and the job time includes it', async () => {
@@ -111,7 +117,7 @@ describe('CAM plan step, the guided programs after the cutting', () => {
     expect(free.ops[0].zBottom).toBeCloseTo(-0.3);
     await waitFor(() => expect(plans.last[1]).toBeTruthy(), { timeout: 60_000 });
     const total = a.timeMin + free.timeMin + ((plans.last[1] as PlanResult)?.timeMin ?? b.timeMin);
-    await waitFor(() => expect(screen.getByText(/Job: 2 boards/).textContent).toContain(`${fmtMin(total)} min cutting`), {
+    await waitFor(() => expect(screen.getByText(/Job: 2 boards/).textContent).toContain(`${fmtMin(total)} automatic`), {
       timeout: 60_000,
     });
   }, 120_000);
