@@ -26,7 +26,7 @@ import {
   kMaxSlopedShare,
   loadStep,
   loadStl,
-  metrics,
+  estimateProgramTime,
   readGcode,
   splitByBit,
   stepdownFor,
@@ -34,6 +34,8 @@ import {
   usesTabs,
   summarizePart,
   toGcode,
+  postProgram,
+  setupSheet,
   type BoardSpec,
   type CamSettings,
   rotateAboutOrigin,
@@ -323,18 +325,23 @@ function releaseProgram(
 ): ReleaseProgram {
   const { tool } = cam.operations[0];
   const size: [number, number, number] = [board.w, board.h, board.stockTop];
-  const gcode = toGcode(cam, {
+  const { gcode, setup } = postProgram(cam, {
     partName: `Board ${board.name}: ${title}`,
     board: board.name,
     stockSize: size,
     spindleRpm: settings.spindleRpm,
     spindle: settings.spindle,
   });
+  const timing = estimateProgramTime(gcode);
+  setup.timing = timing;
   return {
     kind,
     title,
     gcode,
-    timeMin: metrics(readGcode(gcode), cam.stockTop).timeMin,
+    timeMin: timing.estimatedAutomaticSeconds / 60,
+    timing,
+    setup,
+    setupSheet: setupSheet(setup),
     tool: tool.number,
     diameter: tool.diameter,
     pauses,
@@ -360,6 +367,13 @@ const turn2 = (turn: ReturnType<typeof rotateAboutOrigin>, p: { x: number; y: nu
 };
 const turnCam = (cam: PartCam, turn: ReturnType<typeof rotateAboutOrigin>): PartCam => ({
   ...cam,
+  stockSummary: undefined,
+  stockFootprint: cam.stockFootprint?.map(path =>
+    path.map(point => {
+      const [x, y] = turn([point.x, point.y, 0]);
+      return { x, y };
+    })
+  ),
   operations: cam.operations.map(op => ({ ...op, passes: op.passes.map(p => ({ ...p, pts: p.pts.map(turn) })) })),
 });
 
@@ -450,14 +464,24 @@ function summarize(
   const split = splitByBit(cam);
   const programs = split.map(p => {
     const tool = p.operations[0].tool;
-    const gcode = toGcode(p, {
+    const { gcode, setup } = postProgram(p, {
       partName: split.length > 1 ? `${name}, bit T${tool.number} D=${tool.diameter}` : name,
       board,
       stockSize: size,
       spindleRpm: settings.spindleRpm,
       spindle: settings.spindle,
     });
-    return { tool: tool.number, diameter: tool.diameter, gcode, timeMin: metrics(readGcode(gcode), cam.stockTop).timeMin };
+    const timing = estimateProgramTime(gcode);
+    setup.timing = timing;
+    return {
+      tool: tool.number,
+      diameter: tool.diameter,
+      gcode,
+      timeMin: timing.estimatedAutomaticSeconds / 60,
+      timing,
+      setup,
+      setupSheet: setupSheet(setup),
+    };
   });
   const ops = opSummaries(cam, partTop);
   const safety = programs.flatMap((p, i) =>
@@ -486,7 +510,7 @@ function summarize(
 
 /** The numbers of each operation. `partTop`: the parts' top face, which pocket depths are measured from. */
 function opSummaries(cam: PartCam, partTop: number): OpSummary[] {
-  const one = (ops: typeof cam.operations) => metrics(readGcode(toGcode({ ...cam, operations: ops })), cam.stockTop);
+  const one = (ops: typeof cam.operations) => estimateProgramTime(toGcode({ ...cam, operations: ops })).estimatedAutomaticSeconds / 60;
   return cam.operations.map(op => {
     const zs = op.passes.flatMap(p => p.pts.map(q => q[2]));
     const levels = new Set(op.passes.map(p => Math.min(...p.pts.map(q => q[2])).toFixed(2)));
@@ -504,7 +528,7 @@ function opSummaries(cam: PartCam, partTop: number): OpSummary[] {
       depthSteps: levels.size,
       stepdown: Math.max(...depths.slice(1).map((z, i) => depths[i] - z)),
       feeds: [...new Set(op.passes.flatMap(p => p.feeds.slice(1)))].sort((a, b) => b - a),
-      timeMin: one([op]).timeMin,
+      timeMin: one([op]),
     };
   });
 }

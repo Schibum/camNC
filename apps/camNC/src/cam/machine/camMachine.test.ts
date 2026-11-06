@@ -41,6 +41,12 @@ const board = (name: string, holdDown: 'tabs' | 'tabs-guided' = 'tabs'): JobBoar
   }) as unknown as JobBoard;
 
 describe('machine queue', () => {
+  it('distinguishes programs that share a tool number', () => {
+    const duplicate = plan([3.175, 3.175]);
+    duplicate.programs[1].tool = 1;
+    const queue = machineQueue([board('A')], [duplicate]);
+    expect(queue.map(entryTitle)).toEqual(['Board A · P1 T1 ⌀3.175', 'Board A · P2 T1 ⌀3.175']);
+  });
   it('orders boards to reuse the bit in the collet, one entry per bit, tab removal last for guided boards', () => {
     const q = machineQueue(
       [board('A'), board('B', 'tabs-guided'), board('C')],

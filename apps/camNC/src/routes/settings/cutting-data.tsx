@@ -1,5 +1,5 @@
 import { PageHeader } from '@/components/page-header';
-import { bitKey, kCuttingLabels, useCuttingData, type CuttingField } from '@/cam/cuttingData';
+import { bitKey, kCuttingLabels, savedCuttingEntries, useCuttingData, type CuttingField } from '@/cam/cuttingData';
 import { CuttingDataEditor } from '@/cam/plan/CuttingDataEditor';
 import { ImportToolLibrary } from '@/cam/plan/ImportToolLibrary';
 import { kDefaultBit, type MaterialKey } from '@/cam/planSettings';
@@ -29,16 +29,7 @@ function CuttingDataPage() {
   const bits = [kDefaultBit, ...stored.filter(t => bitKey(t) !== bitKey(kDefaultBit))];
   const [bit, setBit] = useState<LibraryTool>(kDefaultBit);
   const [material, setMaterial] = useState<MaterialKey>('oak');
-  const entries = Object.entries(saved).map(([key, values]) => {
-    const [k, m] = key.split('@');
-    const entry: { key: string; bit?: LibraryTool; material: MaterialKey; values: typeof values } = {
-      key,
-      bit: bits.find(x => bitKey(x) === k),
-      material: m as MaterialKey,
-      values,
-    };
-    return entry;
-  });
+  const entries = savedCuttingEntries(saved, bits);
 
   return (
     <div className="h-full w-full">
@@ -109,7 +100,12 @@ function CuttingDataPage() {
                           setMaterial(e.material);
                         }}>
                         <span className="font-medium">
-                          {e.bit ? `⌀ ${e.bit.diameter} · ${e.bit.name}` : 'A bit no longer in the library'} · {e.material}
+                          {e.bit
+                            ? `⌀ ${e.bit.diameter} · ${e.bit.name}`
+                            : e.shared
+                              ? 'Shared legacy cutting data'
+                              : 'A bit no longer in the library'}{' '}
+                          · {e.material}
                         </span>
                         <span className="font-mono text-xs text-muted-foreground">
                           {(Object.entries(e.values) as [CuttingField, number][])

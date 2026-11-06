@@ -25,6 +25,13 @@ const cam = (...operations: Operation[]): PartCam => ({ stockTop: 8, operations,
 const limits = { stockTop: 8, size: [400, 100] as [number, number], minZ: -0.3, toolRadius: 3 };
 
 describe('the lift at the end of a program', () => {
+  it('requires a known work position after a machine-coordinate move', () => {
+    const code = 'G0 X10 Y10 Z15\nG53 G0 Z-5\nG1 X20 F600';
+    expect(checkGcodeSafety(code, limits).map(issue => issue.rule)).toContain('unknown-position');
+    expect(
+      checkGcodeSafety(`${code}\nG0 X20 Y10 Z15\nG1 X30 F600`, limits).filter(issue => issue.rule === 'unknown-position')
+    ).toHaveLength(2);
+  });
   it('is in machine coordinates: no move on the board, so no rule sees a rapid at Z-5', () => {
     const gcode = toGcode(cam(op('Outline', 2)));
     expect(gcode).toContain('G53 G0 Z-5');

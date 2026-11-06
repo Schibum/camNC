@@ -40,7 +40,7 @@ export function PlanSettingsPanel({
             <h3 className="pt-2 text-sm font-medium">
               Second bit · ⌀{value.smallBit.diameter} in {material}
             </h3>
-            <CuttingDataEditor bit={value.smallBit} material={material} fields={['stepdown']} />
+            <CuttingDataEditor bit={value.smallBit} material={material} />
           </>
         )}
       </section>
@@ -63,7 +63,7 @@ export function PlanSettingsPanel({
       </section>
 
       <p className="rounded-lg bg-muted/50 p-3 text-xs leading-relaxed text-muted-foreground">
-        Defaults: Z0 at the bottom of the board, roughing to +1 mm leaving 0.1 mm, one final pass through, climb cut.
+        Defaults: Z0 at the bottom of the board, ramped entry, depth-limited roughing and finishing, 0.1 mm outline allowance, climb cut.
       </p>
     </div>
   );

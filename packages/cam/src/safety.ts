@@ -25,7 +25,7 @@ export interface SafetyLimits {
 export const kMaxFeed = 9000;
 
 export interface SafetyIssue {
-  rule: 'rapid-in-stock' | 'outside-board' | 'too-deep' | 'spindle-off' | 'bad-feed' | 'line-too-long';
+  rule: 'rapid-in-stock' | 'outside-board' | 'too-deep' | 'spindle-off' | 'bad-feed' | 'line-too-long' | 'unknown-position';
   /** Index of the offending move (arcs count once per chord); -1 for a line that isn't one. */
   move: number;
   message: string;
@@ -59,6 +59,14 @@ export function checkGcodeSafety(gcode: string, limits: SafetyLimits): SafetyIss
   readGcode(gcode).forEach((m, i) => {
     // The machine starts wherever it is: the first move only says where it goes.
     if (i === 0 && m.rapid) return;
+    if (m.positionKnown === false) {
+      issues.push({
+        rule: 'unknown-position',
+        move: i,
+        message: 'A work move follows an unmapped machine-coordinate move; its clearance cannot be checked',
+      });
+      return;
+    }
     const lowest = Math.min(m.from[2], m.to[2]);
     const sideways = Math.hypot(m.to[0] - m.from[0], m.to[1] - m.from[1]) > 1e-6;
     // Retracting straight up out of a cut is fine; ending low or moving sideways while low is not.

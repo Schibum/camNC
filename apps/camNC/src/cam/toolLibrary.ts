@@ -1,6 +1,6 @@
 import { demoStorage } from '@/lib/demo/demo-storage';
 import type { LibraryTool } from '@wbcnc/cam';
-import { readFusionToolLibrary } from '@wbcnc/cam/tools';
+import { readFusionToolLibrary, selectToolPreset } from '@wbcnc/cam/tools';
 import { bitKey } from './cuttingData';
 import { kDefaultBit } from './planSettings';
 import { fusionLibraryText } from './unzip';
@@ -36,7 +36,28 @@ export function mergeLibrary(bits: StoredBit[], tools: LibraryTool[], file: stri
   for (const t of tools) {
     const i = out.findIndex(b => b.source === 'library' && sameTool(b, t));
     if (i >= 0) {
-      const next = { ...out[i], ...t, library: file };
+      const previous = out[i];
+      const selected = previous.presetId && t.presets?.some(p => p.id === previous.presetId) ? selectToolPreset(t, previous.presetId) : t;
+      const next = { ...previous, ...selected, library: file, stickout: previous.stickout ?? selected.stickout };
+      // Removed preset values become unknown instead of retaining data from the previous selection.
+      for (const key of [
+        'feed',
+        'plungeFeed',
+        'rampFeed',
+        'leadFeed',
+        'leadOutFeed',
+        'finishFeed',
+        'reducedFeed',
+        'transitionFeed',
+        'rpm',
+        'stepdown',
+        'stepover',
+        'finalFeedFactor',
+        'presetId',
+        'presetName',
+        'presets',
+      ] as const)
+        Object.assign(next, { [key]: selected[key] });
       if (JSON.stringify(next) !== JSON.stringify(out[i])) updated++;
       out[i] = next;
     } else {
@@ -115,9 +136,13 @@ export async function readLibraryFile(file: File): Promise<LibraryImport> {
 }
 
 /** The bits to offer: the built-in 1/8″, the stored ones, and the job's own (it may have been removed since). */
-export function useBits(current: LibraryTool[] = []) {
-  const stored = useToolLibrary(s => s.bits);
+export function offeredBits(stored: LibraryTool[], current: LibraryTool[] = []): LibraryTool[] {
   const bits: LibraryTool[] = [kDefaultBit];
   for (const b of [...stored, ...current]) if (!bits.some(x => bitKey(x) === bitKey(b))) bits.push(b);
   return bits;
+}
+
+export function useBits(current: LibraryTool[] = []) {
+  const stored = useToolLibrary(s => s.bits);
+  return offeredBits(stored, current);
 }

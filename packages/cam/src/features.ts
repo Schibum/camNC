@@ -67,10 +67,18 @@ function projectTriangle(mesh: Mesh, t: number): PathD {
  * The pocket extended `ext` past the outline where it is open to the edge (rabbets, edge grooves), so the bit runs out
  * into the waste outside the part instead of stopping at the edge. Use ext > bit radius.
  */
-export function openPocketRegion(outlines: PathsD, pocket: Pick<PocketFeature, 'strictRegion'>, ext: number): PathsD {
+export function openPocketRegion(
+  outlines: PathsD,
+  pocket: Pick<PocketFeature, 'strictRegion'>,
+  ext: number,
+  tolerance: { offset?: number; cleanup?: number; simplify?: number } = {}
+): PathsD {
   // Only past the outer outline: not into material above the floor, and not into through holes inside the part.
-  const waste = difference(offset(outlines, ext), outlines);
-  return cleanRegion(union(pocket.strictRegion, intersect(offset(pocket.strictRegion, ext), waste)), 0.01, 0.5);
+  const waste = difference(offset(outlines, ext, tolerance.offset), outlines);
+  const permitted = union(pocket.strictRegion, intersect(offset(pocket.strictRegion, ext, tolerance.offset), waste));
+  const cleaned = cleanRegion(permitted, tolerance.cleanup ?? 0.01, 0.5, tolerance.simplify);
+  // Cleanup may remove small hole loops. Preserve retained material and every supplied strict feature.
+  return union(pocket.strictRegion, intersect(cleaned, permitted));
 }
 
 /**
@@ -133,11 +141,24 @@ export function extractFeatures(mesh: Mesh, thickness: number, extendOpen = 2): 
   const pockets: PocketFeature[] = [];
   for (const level of levels) {
     if (level.z >= top - Z_TOL || level.z <= Z_TOL) continue;
-    const higher = union(
+    const cleanedHigher = union(
       levels.filter(l => l.z > level.z + Z_TOL).flatMap(l => l.region),
       slopedRegion
     );
-    const strictRegion = cleanRegion(difference(footprint, higher), 0.01, 0.5);
+    // Restore complete raw components lost to cleanup without reintroducing noisy shared boundaries.
+    const droppedMaterial = rawByZ
+      .filter(([z]) => z > level.z + Z_TOL)
+      .flatMap(([, region]) => {
+        const holes = region.filter(path => areaD(path) < 0);
+        return region
+          .filter(path => areaD(path) > 0)
+          .flatMap(outer => {
+            const component = [outer, ...holes.filter(hole => polyArea(difference([[...hole].reverse()], [outer])) < 1e-8)];
+            return polyArea(intersect(component, cleanedHigher)) < 1e-8 ? component : [];
+          });
+      });
+    const higher = droppedMaterial.length ? union(cleanedHigher, droppedMaterial) : cleanedHigher;
+    const strictRegion = difference(cleanRegion(difference(footprint, higher), 0.01, 0.5), higher);
     if (!strictRegion.length) continue;
     const pocket = { floorZ: level.z, strictRegion, above: higher, area: polyArea(strictRegion) };
     pockets.push({ ...pocket, region: openPocketRegion(outlines, pocket, extendOpen) });

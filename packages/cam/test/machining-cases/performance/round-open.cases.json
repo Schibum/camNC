@@ -1,0 +1,386 @@
+[
+  {
+    "schemaVersion": 1,
+    "mode": "part",
+    "settings": {
+      "tools": [
+        {
+          "number": 1,
+          "diameter": 6,
+          "name": "synthetic flat end mill"
+        }
+      ],
+      "cutThrough": false
+    },
+    "id": "default-open-pocket-400x12x9-d6",
+    "description": "Default D6 open-edge cavity 400 mm long, 12 mm wide and 9 mm deep; bottom edge opens at stock Y0.",
+    "stockSize": [
+      500,
+      100,
+      18
+    ],
+    "outline": {
+      "type": "polygon",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          500,
+          0
+        ],
+        [
+          500,
+          100
+        ],
+        [
+          0,
+          100
+        ]
+      ]
+    },
+    "pockets": [
+      {
+        "boundary": {
+          "type": "polygon",
+          "points": [
+            [
+              50,
+              0
+            ],
+            [
+              450,
+              0
+            ],
+            [
+              450,
+              12
+            ],
+            [
+              50,
+              12
+            ]
+          ]
+        },
+        "floorZ": 9
+      }
+    ],
+    "expected": {
+      "minimumZ": 9,
+      "programs": 1
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "mode": "part",
+    "settings": {
+      "tools": [
+        {
+          "number": 1,
+          "diameter": 6,
+          "name": "synthetic flat end mill"
+        }
+      ],
+      "cutThrough": false
+    },
+    "id": "default-open-pocket-400x40x3-d6",
+    "description": "Default D6 open-edge cavity 400 mm long, 40 mm wide and 3 mm deep; bottom edge opens at stock Y0.",
+    "stockSize": [
+      500,
+      100,
+      18
+    ],
+    "outline": {
+      "type": "polygon",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          500,
+          0
+        ],
+        [
+          500,
+          100
+        ],
+        [
+          0,
+          100
+        ]
+      ]
+    },
+    "pockets": [
+      {
+        "boundary": {
+          "type": "polygon",
+          "points": [
+            [
+              50,
+              0
+            ],
+            [
+              450,
+              0
+            ],
+            [
+              450,
+              40
+            ],
+            [
+              50,
+              40
+            ]
+          ]
+        },
+        "floorZ": 15
+      }
+    ],
+    "expected": {
+      "minimumZ": 15,
+      "programs": 1
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "mode": "part",
+    "settings": {
+      "tools": [
+        {
+          "number": 1,
+          "diameter": 6,
+          "name": "synthetic flat end mill"
+        }
+      ],
+      "cutThrough": false
+    },
+    "id": "default-round-pocket-d60x6-d6-n64",
+    "description": "Default D6 pocket from a regular 64-sided polygon inscribed in a 60 mm circle; source uncertainty is undeclared and tolerance begins at supplied polygon features.",
+    "stockSize": [
+      80,
+      80,
+      12
+    ],
+    "outline": {
+      "type": "polygon",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          80,
+          0
+        ],
+        [
+          80,
+          80
+        ],
+        [
+          0,
+          80
+        ]
+      ]
+    },
+    "pockets": [
+      {
+        "boundary": {
+          "type": "circle",
+          "center": [
+            40,
+            40
+          ],
+          "radius": 30,
+          "segments": 64
+        },
+        "floorZ": 6
+      }
+    ],
+    "expected": {
+      "minimumZ": 6,
+      "programs": 1
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "mode": "part",
+    "settings": {
+      "tools": [
+        {
+          "number": 1,
+          "diameter": 6,
+          "name": "synthetic flat end mill"
+        }
+      ],
+      "cutThrough": false
+    },
+    "id": "default-round-pocket-d60x6-d6-n128",
+    "description": "Default D6 pocket from a regular 128-sided polygon inscribed in a 60 mm circle; source uncertainty is undeclared and tolerance begins at supplied polygon features.",
+    "stockSize": [
+      80,
+      80,
+      12
+    ],
+    "outline": {
+      "type": "polygon",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          80,
+          0
+        ],
+        [
+          80,
+          80
+        ],
+        [
+          0,
+          80
+        ]
+      ]
+    },
+    "pockets": [
+      {
+        "boundary": {
+          "type": "circle",
+          "center": [
+            40,
+            40
+          ],
+          "radius": 30,
+          "segments": 128
+        },
+        "floorZ": 6
+      }
+    ],
+    "expected": {
+      "minimumZ": 6,
+      "programs": 1
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "mode": "part",
+    "settings": {
+      "tools": [
+        {
+          "number": 1,
+          "diameter": 6,
+          "name": "synthetic flat end mill"
+        }
+      ],
+      "cutThrough": false
+    },
+    "id": "default-round-pocket-d60x6-d6-n256",
+    "description": "Default D6 pocket from a regular 256-sided polygon inscribed in a 60 mm circle; source uncertainty is undeclared and tolerance begins at supplied polygon features.",
+    "stockSize": [
+      80,
+      80,
+      12
+    ],
+    "outline": {
+      "type": "polygon",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          80,
+          0
+        ],
+        [
+          80,
+          80
+        ],
+        [
+          0,
+          80
+        ]
+      ]
+    },
+    "pockets": [
+      {
+        "boundary": {
+          "type": "circle",
+          "center": [
+            40,
+            40
+          ],
+          "radius": 30,
+          "segments": 256
+        },
+        "floorZ": 6
+      }
+    ],
+    "expected": {
+      "minimumZ": 6,
+      "programs": 1
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "mode": "part",
+    "settings": {
+      "tools": [
+        {
+          "number": 1,
+          "diameter": 6,
+          "name": "synthetic flat end mill"
+        }
+      ],
+      "cutThrough": false
+    },
+    "id": "default-round-pocket-d60x6-d6-n512",
+    "description": "Default D6 pocket from a regular 512-sided polygon inscribed in a 60 mm circle; source uncertainty is undeclared and tolerance begins at supplied polygon features.",
+    "stockSize": [
+      80,
+      80,
+      12
+    ],
+    "outline": {
+      "type": "polygon",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          80,
+          0
+        ],
+        [
+          80,
+          80
+        ],
+        [
+          0,
+          80
+        ]
+      ]
+    },
+    "pockets": [
+      {
+        "boundary": {
+          "type": "circle",
+          "center": [
+            40,
+            40
+          ],
+          "radius": 30,
+          "segments": 512
+        },
+        "floorZ": 6
+      }
+    ],
+    "expected": {
+      "minimumZ": 6,
+      "programs": 1
+    }
+  }
+]

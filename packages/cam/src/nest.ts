@@ -86,7 +86,25 @@ function splitFree(free: Rect[], used: Rect): Rect[] {
     if (used.y + used.h < f.y + f.h - EPS) out.push({ x: f.x, y: used.y + used.h, w: f.w, h: f.y + f.h - used.y - used.h });
   }
   // Drop rectangles inside others (of two equal ones keep the first).
-  return out.filter((r, i) => !out.some((o, j) => j !== i && contains(o, r) && (j < i || !contains(r, o))));
+  const maximal: Rect[] = [];
+  for (let i = 0; i < out.length; i++) {
+    const r = out[i];
+    let contained = false;
+    for (let j = 0; j < out.length; j++)
+      if (j !== i && contains(out[j], r) && (j < i || !contains(r, out[j]))) {
+        contained = true;
+        break;
+      }
+    if (!contained) maximal.push(r);
+  }
+  return maximal;
+}
+
+/** The board and its obstacles are identical for every order and placement-rule trial. */
+function initialFree(bin: Rect, gap: number, keepOuts: Rect[]): Rect[] {
+  let free: Rect[] = bin.w > 0 && bin.h > 0 ? [bin] : [];
+  for (const k of keepOuts) free = splitFree(free, { x: k.x, y: k.y, w: k.w + gap, h: k.h + gap });
+  return free;
 }
 
 /**
@@ -96,53 +114,71 @@ function splitFree(free: Rect[], used: Rect): Rect[] {
  */
 function pack(
   items: NestItem[],
-  bin: Rect,
+  initial: Rect[],
   gap: number,
-  keepOuts: Rect[],
   heuristic: Heuristic,
   /** Fit mode: give up once the board (parts + `margin`) exceeds this area. */
   abort?: { area: number; margin: number }
 ): Packed | undefined {
-  let free: Rect[] = bin.w > 0 && bin.h > 0 ? [bin] : [];
-  for (const k of keepOuts) free = splitFree(free, { x: k.x, y: k.y, w: k.w + gap, h: k.h + gap });
+  // splitFree returns a new array and never changes these shared rectangles.
+  let free = initial;
   const placements: Placement[] = [];
   const unplaced: string[] = [];
   let maxX = 0,
     maxY = 0,
     area = 0;
   for (const item of items) {
-    let best: { r: Rect; rotated: boolean; s1: number; s2: number } | undefined;
-    for (const rotated of item.canRotate && item.w !== item.h ? [false, true] : [false]) {
-      const { w, h } = placedSize(item, rotated);
-      const gw = w + gap,
-        gh = h + gap;
+    let best: Rect | undefined;
+    let bestRotated = false,
+      bestWidth = 0,
+      bestHeight = 0,
+      bestScore1 = Infinity,
+      bestScore2 = Infinity;
+    const orientations = item.canRotate && item.w !== item.h ? 2 : 1;
+    for (let orientation = 0; orientation < orientations; orientation++) {
+      const rotated = orientation === 1;
+      const gw = (rotated ? item.h : item.w) + gap,
+        gh = (rotated ? item.w : item.h) + gap;
       for (const f of free) {
         if (gw > f.w + EPS || gh > f.h + EPS) continue;
         const lw = f.w - gw,
           lh = f.h - gh;
         // Lower scores win; full ties go to the lower, then the more left position.
-        const [s1, s2] =
-          heuristic === 'bssf'
-            ? [Math.min(lw, lh), Math.max(lw, lh)]
-            : heuristic === 'baf'
-              ? [f.w * f.h - gw * gh, Math.min(lw, lh)]
-              : [f.y + gh, f.x];
+        let s1: number, s2: number;
+        if (heuristic === 'bssf') {
+          s1 = Math.min(lw, lh);
+          s2 = Math.max(lw, lh);
+        } else if (heuristic === 'baf') {
+          s1 = f.w * f.h - gw * gh;
+          s2 = Math.min(lw, lh);
+        } else {
+          s1 = f.y + gh;
+          s2 = f.x;
+        }
         const better =
           !best ||
-          s1 < best.s1 - EPS ||
-          (s1 < best.s1 + EPS &&
-            (s2 < best.s2 - EPS || (s2 < best.s2 + EPS && (f.y < best.r.y - EPS || (f.y < best.r.y + EPS && f.x < best.r.x - EPS)))));
-        if (better) best = { r: { x: f.x, y: f.y, w: gw, h: gh }, rotated, s1, s2 };
+          s1 < bestScore1 - EPS ||
+          (s1 < bestScore1 + EPS &&
+            (s2 < bestScore2 - EPS || (s2 < bestScore2 + EPS && (f.y < best.y - EPS || (f.y < best.y + EPS && f.x < best.x - EPS)))));
+        if (better) {
+          best = f;
+          bestRotated = rotated;
+          bestWidth = gw;
+          bestHeight = gh;
+          bestScore1 = s1;
+          bestScore2 = s2;
+        }
       }
     }
     if (!best) {
       unplaced.push(item.id);
       continue;
     }
-    free = splitFree(free, best.r);
-    placements.push({ id: item.id, x: best.r.x, y: best.r.y, rotated: best.rotated });
-    maxX = Math.max(maxX, best.r.x + best.r.w - gap);
-    maxY = Math.max(maxY, best.r.y + best.r.h - gap);
+    const used = { x: best.x, y: best.y, w: bestWidth, h: bestHeight };
+    free = splitFree(free, used);
+    placements.push({ id: item.id, x: used.x, y: used.y, rotated: bestRotated });
+    maxX = Math.max(maxX, used.x + used.w - gap);
+    maxY = Math.max(maxY, used.y + used.h - gap);
     area += item.w * item.h;
     if (abort && (maxX + abort.margin) * (maxY + abort.margin) > abort.area * (1 + 1e-9)) return undefined;
   }
@@ -158,10 +194,9 @@ const ORDERS: ((a: NestItem, b: NestItem) => number)[] = [
 const HEURISTICS: Heuristic[] = ['bl', 'bssf', 'baf'];
 
 /** Every run that is tried: sort order x placement rule. Sorts are stable, so ties keep the input order. */
-const runs = (items: NestItem[], postpone = 0) =>
-  ORDERS.flatMap(order => {
-    const sorted = [...items].sort(order);
-    sorted.push(...sorted.splice(0, postpone));
+const runs = (orders: NestItem[][], postpone = 0) =>
+  orders.flatMap(order => {
+    const sorted = postpone ? [...order.slice(postpone), ...order.slice(0, postpone)] : order;
     return HEURISTICS.map(h => ({ sorted, h }));
   });
 
@@ -211,6 +246,7 @@ const elongation = (b: { w: number; h: number }) => Math.max(b.w, b.h) / Math.mi
 export function nestRects(items: NestItem[], opts: NestOptions): NestResult {
   const { gap, margin } = opts;
   const keepOuts = opts.keepOuts ?? [];
+  const orders = ORDERS.map(order => [...items].sort(order));
   const index = new Map(items.map((it, i) => [it.id, i]));
   const byInput = <T>(xs: T[], id: (x: T) => string) => [...xs].sort((a, b) => index.get(id(a))! - index.get(id(b))!);
   const finish = (board: { w: number; h: number }, p: Packed): NestResult => ({
@@ -222,12 +258,13 @@ export function nestRects(items: NestItem[], opts: NestOptions): NestResult {
 
   if (opts.board) {
     const bin = { x: margin, y: margin, w: opts.board.w - 2 * margin + gap, h: opts.board.h - 2 * margin + gap };
+    const initial = initialFree(bin, gap, keepOuts);
     let best: Packed | undefined;
     // When not everything fits, big parts first can block several smaller ones that would fill the board better:
     // also try with the first 1..6 parts of each order moved to the end.
     for (let postpone = 0; postpone <= (opts.quick ? 0 : Math.min(6, items.length - 1)) && (!postpone || best!.unplaced.length); postpone++)
-      for (const { sorted, h } of runs(items, postpone)) {
-        const p = pack(sorted, bin, gap, keepOuts, h)!;
+      for (const { sorted, h } of runs(orders, postpone)) {
+        const p = pack(sorted, initial, gap, h)!;
         // Most part area placed, then the most compact layout (leaves the biggest offcut).
         if (!best || p.area > best.area + EPS || (p.area > best.area - EPS && p.maxX * p.maxY < best.maxX * best.maxY - EPS)) best = p;
       }
@@ -243,8 +280,9 @@ export function nestRects(items: NestItem[], opts: NestOptions): NestResult {
   let best: { board: { w: number; h: number }; p: Packed } | undefined;
   for (const w of candidateWidths(items, gap, minW, maxW, items.length > 20 ? 12 : 40)) {
     const bin = { x: margin, y: margin, w: w + gap, h: height + gap };
-    for (const { sorted, h } of runs(items)) {
-      const p = pack(sorted, bin, gap, keepOuts, h, best && { area: best.board.w * best.board.h, margin });
+    const initial = initialFree(bin, gap, keepOuts);
+    for (const { sorted, h } of runs(orders)) {
+      const p = pack(sorted, initial, gap, h, best && { area: best.board.w * best.board.h, margin });
       if (!p || p.unplaced.length) continue;
       const board = { w: p.maxX + margin, h: p.maxY + margin };
       const a = board.w * board.h,

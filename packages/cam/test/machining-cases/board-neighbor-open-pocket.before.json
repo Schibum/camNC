@@ -1,0 +1,231 @@
+{
+  "sourceCommit": "d506ca0067a5b8fc8f44be47bf878e7f63c88498",
+  "inputSha256": "911787ef319a04cf466afdb3e5537e4f69557199e8fc36e0ed078b743cad3b44",
+  "programSha256": "09e0385c5c1012aa35f3d453db4d8dd05a2002c521ec92e8a92025ba9aa9f11f",
+  "input": {
+    "schemaVersion": 1,
+    "id": "board-neighbor-open-pocket",
+    "description": "An edge-open pocket must protect a second retained part across a 2 mm nesting gap; constrained clearing stays within the main part.",
+    "mode": "board",
+    "stockSize": [
+      140,
+      120,
+      12
+    ],
+    "outline": {
+      "type": "polygon",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          140,
+          0
+        ],
+        [
+          140,
+          120
+        ],
+        [
+          0,
+          120
+        ]
+      ]
+    },
+    "pockets": [],
+    "board": {
+      "holdDown": "none",
+      "parts": [
+        {
+          "id": "main",
+          "name": "Main",
+          "size": [
+            100,
+            70,
+            12
+          ],
+          "x": 20,
+          "y": 30,
+          "rotated": false,
+          "outline": {
+            "type": "polygon",
+            "points": [
+              [
+                0,
+                0
+              ],
+              [
+                100,
+                0
+              ],
+              [
+                100,
+                70
+              ],
+              [
+                0,
+                70
+              ]
+            ]
+          },
+          "pockets": [
+            {
+              "boundary": {
+                "type": "polygon",
+                "points": [
+                  [
+                    15,
+                    0
+                  ],
+                  [
+                    85,
+                    0
+                  ],
+                  [
+                    85,
+                    12
+                  ],
+                  [
+                    15,
+                    12
+                  ]
+                ]
+              },
+              "floorZ": 6
+            }
+          ]
+        },
+        {
+          "id": "neighbor",
+          "name": "Neighbor",
+          "size": [
+            110,
+            18,
+            12
+          ],
+          "x": 15,
+          "y": 10,
+          "rotated": false,
+          "outline": {
+            "type": "polygon",
+            "points": [
+              [
+                0,
+                0
+              ],
+              [
+                110,
+                0
+              ],
+              [
+                110,
+                18
+              ],
+              [
+                0,
+                18
+              ]
+            ]
+          },
+          "pockets": []
+        }
+      ]
+    },
+    "settings": {
+      "tools": [
+        {
+          "number": 1,
+          "diameter": 6,
+          "name": "synthetic flat end mill"
+        }
+      ],
+      "cutThrough": false
+    },
+    "expected": {
+      "minimumZ": 6,
+      "programs": 1,
+      "requiredRoles": [
+        "ramp"
+      ],
+      "protectedRectangles": [
+        [
+          15,
+          10,
+          125,
+          28
+        ]
+      ],
+      "cutterClearance": [
+        {
+          "rectangle": [
+            15,
+            10,
+            125,
+            28
+          ],
+          "minimumMm": 2
+        }
+      ],
+      "floorCoveragePoints": [
+        [
+          40,
+          30.5
+        ],
+        [
+          70,
+          30.5
+        ],
+        [
+          100,
+          30.5
+        ],
+        [
+          40,
+          36
+        ],
+        [
+          70,
+          36
+        ],
+        [
+          100,
+          36
+        ],
+        [
+          40,
+          41.5
+        ],
+        [
+          70,
+          41.5
+        ],
+        [
+          100,
+          41.5
+        ]
+      ]
+    }
+  },
+  "statistics": {
+    "bytes": 2571,
+    "executableBlocks": 102,
+    "motionBlocks": 94,
+    "arcBlocks": 32,
+    "cuttingLineBlocks": 48,
+    "feedChanges": 24,
+    "tinyCuttingLines": 0,
+    "tinySegmentThresholdMm": 0.1,
+    "unresolvedCuttingLines": 0,
+    "minimumCuttingLineMm": 1,
+    "averageCuttingLineMm": 21.765799848362516,
+    "maximumLineBytes": 75
+  },
+  "minimumCenterDistanceMm": 0.9899999999999984,
+  "minimumCutterClearanceMm": -2.0100000000000016,
+  "collidingFeedChords": 131,
+  "cutChordCount": 159,
+  "warnings": [
+    "Main: pocket z=6: 31.6mm² left in corners/narrow spots with D=6"
+  ]
+}

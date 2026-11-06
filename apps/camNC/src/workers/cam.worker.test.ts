@@ -35,6 +35,18 @@ describe('programs for boards lying askew', () => {
     const straight = request(shelf, b => ({ ...b, guidedTabs: true }));
     const turned = await camWorker().generateBoard('worker-shelf', { ...straight, rotationDeg: 10 }, settings);
     expect(turned.safety).toEqual([]);
+    expect(turned.programs[0].timing).toMatchObject({ profileId: 'lowrider-v4-reference', profileProvenance: 'reference' });
+    expect(turned.programs[0].timeMin).toBe(turned.programs[0].timing!.estimatedAutomaticSeconds / 60);
+    expect(turned.programs[0].timing!.manualPauseCount).toBeGreaterThan(0);
+    expect(turned.programs[0].timing!.motionEstimateSeconds).toBeGreaterThanOrEqual(turned.programs[0].timing!.motionLowerBoundSeconds);
+    expect(turned.programs[0].gcode).toContain(`(Plan: ${turned.programs[0].setup!.planFingerprint})`);
+    expect(turned.programs[0].setupSheet).toContain('Z0: stock bottom');
+    for (const release of turned.release ?? []) {
+      expect(release.gcode).toContain(`(Plan: ${release.setup!.planFingerprint})`);
+      expect(release.setup!.accuracy).toBeDefined();
+      const footprint = release.setup!.blankFootprint!.flat();
+      expect(Math.min(...footprint.map(point => point[0]))).toBeLessThan(0);
+    }
     expect(turned.release?.length).toBeGreaterThan(0);
     for (const r of turned.release!) expect(r.safety).toEqual([]);
     // It really is turned: the program reaches past the straight board, the check above would have failed on it.

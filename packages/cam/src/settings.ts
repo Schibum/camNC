@@ -25,6 +25,8 @@ export interface TabSettings {
   minCount: number;
   /** Target distance between tabs; more tabs on longer outlines. */
   spacing: number;
+  /** Sloped shoulders outside the full-height holding width; 0 keeps vertical transitions. */
+  rampLength?: number;
   /** Where exactly (part coordinates, on the outline): placed by the board's tab plan. Default: spread over straight runs. */
   centers?: { x: number; y: number }[];
 }

@@ -7,7 +7,7 @@ import { bounds2, difference, polyArea, type Vec3 } from './geom';
 import { detectFlat, loadStep } from './import';
 import { checkGcodeSafety, kMaxFeed } from './safety';
 import { splitByBit } from './board';
-import { camPart, DEFAULT_TABS, type Pass, type Tool } from './toolpaths';
+import { camPart, DEFAULT_SETTINGS, DEFAULT_TABS, type Pass, type Tool } from './toolpaths';
 
 function segDist(a: number[], b: number[], x: number, y: number) {
   const dx = b[0] - a[0],
@@ -49,22 +49,39 @@ function board(): PartFeatures {
 
 describe('stepdown', () => {
   const levels = (op: { passes: { pts: number[][] }[] }) => [...new Set(op.passes.map(p => +Math.min(...p.pts.map(q => q[2])).toFixed(3)))];
+  const rough = (op: { passes: Pass[] }) => ({ passes: op.passes.filter(p => p.phase === 'rough') });
+  const fullDepthFinish = (op: { passes: Pass[] }) => {
+    expect([...new Set(op.passes.filter(p => p.phase === 'finish').map(p => Math.min(...p.pts.map(q => q[2]))))]).toEqual([-0.3]);
+  };
+  const boundedFinish = (op: { passes: Pass[] }, maxStep: number) => {
+    const zs = [8, ...new Set(op.passes.filter(p => p.phase === 'finish').map(p => Math.min(...p.pts.map(q => q[2]))))];
+    expect(zs.at(-1)).toBeCloseTo(-0.3);
+    for (let i = 1; i < zs.length; i++) expect(zs[i - 1] - zs[i]).toBeLessThanOrEqual(maxStep + 1e-8);
+  };
 
   it('a max stepdown limits pockets and outline roughing alike', () => {
     const [pocket, , outline] = camPart(board(), { maxStepdown: 4 }).operations;
     expect(levels(pocket)).toEqual([4]);
-    expect(levels(outline)).toEqual([4.5, 1, -0.3]);
+    expect(levels(rough(outline))).toEqual([4.5, 1]);
+    fullDepthFinish(outline);
   });
 
-  it('an outline-only stepdown (Fusion setups) leaves the pockets alone', () => {
+  it('an outline-only stepdown leaves the pockets alone', () => {
     const [pocket, , outline] = camPart(board(), { profileStepdown: 4 }).operations;
     expect(levels(pocket)).toEqual([6.667, 5.333, 4]);
-    expect(levels(outline)).toEqual([4.5, 1, -0.3]);
+    expect(levels(rough(outline))).toEqual([4.5, 1]);
+    fullDepthFinish(outline);
   });
 
   it('softer materials take deeper steps', () => {
     const [, , outline] = camPart(board(), { material: { name: 'mdf', stepdownFactor: 1 } }).operations;
-    expect(levels(outline)).toEqual([5.667, 3.333, 1, -0.3]);
+    expect(levels(rough(outline))).toEqual([5.667, 3.333, 1]);
+    fullDepthFinish(outline);
+  });
+
+  it('bounds radial finishing depths only when explicitly requested', () => {
+    const [, , outline] = camPart(board(), { profileFinishStepdown: 0.75 }).operations;
+    boundedFinish(outline, 0.75);
   });
 });
 
@@ -87,10 +104,14 @@ describe('spike 3/4: toolpaths + gcode', () => {
     // Oak: 0.5D = 1.59 mm stepdown. The pocket, 4 mm deep, takes 3 levels.
     const pocketLevels = [...new Set(pocket.passes.map(p => Math.min(...p.pts.map(q => q[2])).toFixed(3)))];
     expect(pocketLevels).toEqual(['6.667', '5.333', '4.000']);
-    // Outline: roughing 8 -> 1 in <= 1.59 mm steps (5 levels), then the final pass at -0.3, half feed.
-    expect(outline.passes.map(p => +p.pts[1][2].toFixed(3))).toEqual([6.6, 5.2, 3.8, 2.4, 1, -0.3]);
-    expect(outline.passes.at(-1)!.feeds[1]).toBe(900);
-    expect(hole.passes.at(-1)!.pts[1][2]).toBe(-0.3);
+    // Roughing respects the axial stepdown; radial finishing uses one full-depth lap.
+    expect([...new Set(outline.passes.filter(p => p.phase === 'rough').map(p => +Math.min(...p.pts.map(q => q[2])).toFixed(3)))]).toEqual([
+      6.6, 5.2, 3.8, 2.4, 1,
+    ]);
+    const finish = outline.passes.at(-1)!;
+    expect(finish.feeds.filter((_, i) => finish.roles?.[i] === 'finish').every(f => f === 900)).toBe(true);
+    expect(finish.feeds.filter((_, i) => finish.roles?.[i] === 'ramp').every(f => f === 480)).toBe(true);
+    expect(Math.min(...hole.passes.at(-1)!.pts.map(q => q[2]))).toBeCloseTo(-0.3);
     // Climb: outline loop runs clockwise (negative signed area).
     const pts = outline.passes.at(-1)!.pts;
     let a = 0;
@@ -207,7 +228,7 @@ describe('spike 3/4: toolpaths + gcode', () => {
       // The rows of the first depth level.
       const level = pocket.passes[0].pts.at(-1)![2];
       const ys = pocket.passes
-        .filter(p => p.pts.at(-1)![2] === level)
+        .filter(p => p.phase === 'rough' && p.pts.at(-1)![2] === level)
         // Each row's y: that of its longest segment (the run along the rabbet).
         .map(p => {
           let best = 1;
@@ -219,9 +240,12 @@ describe('spike 3/4: toolpaths + gcode', () => {
       const gaps = ys.slice(1).map((y, i) => y - ys[i]);
       expect(gaps.length).toBeGreaterThan(1);
       for (const g of gaps) expect(g).toBeLessThanOrEqual(1.25 * 0.4 * d + 1e-6);
-      // The last row stays 0.2 off the wall; the finishing pass at the floor takes it to size along y = 3.5 - r with
+      // Roughing retains at least the selected 0.2 allowance plus its uncertainty reserve; the floor finish takes
+      // it to size along y = 3.5 - r with
       // the wall on its right (climb): towards -x.
-      expect(ys.at(-1)).toBeCloseTo(3.5 - d / 2 - 0.2, 2);
+      const roughAllowance = 3.5 - d / 2 - ys.at(-1)!;
+      expect(roughAllowance).toBeGreaterThanOrEqual(0.2);
+      expect(roughAllowance).toBeLessThanOrEqual(0.2 + (DEFAULT_SETTINGS.geometryTolerance ?? 0.05));
       const finish = pocket.passes.at(-1)!;
       expect(finish.pts.every(q => q[2] === 3.5)).toBe(true);
       const wall = finish.pts.filter(q => Math.abs(q[1] - (3.5 - d / 2)) < 1e-3);
@@ -250,9 +274,9 @@ describe('spike 3/4: toolpaths + gcode', () => {
   });
 
   it.each([false, true])('preserves planned ramp depths when fitting helical arcs (ascending=%s)', ascending => {
-    const pts: Vec3[] = Array.from({ length: 13 }, (_, i) => {
-      const a = (i * Math.PI) / 6;
-      return [10 + Math.cos(a), 10 + Math.sin(a), ascending ? 0.64 + i * 0.03 : 1 - i * 0.03];
+    const pts: Vec3[] = Array.from({ length: 37 }, (_, i) => {
+      const a = (i * Math.PI) / 18;
+      return [10 + Math.cos(a), 10 + Math.sin(a), ascending ? 0.64 + i * 0.01 : 1 - i * 0.01];
     });
     const gcode = toGcode({
       stockTop: 1,
@@ -421,15 +445,14 @@ describe('tab borders', () => {
       expect(p.feeds).toHaveLength(p.pts.length);
       for (let i = 1; i < p.pts.length; i++) {
         const sideways = Math.hypot(p.pts[i][0] - p.pts[i - 1][0], p.pts[i][1] - p.pts[i - 1][1]);
-        if (sideways > 1e-9) {
-          expect(p.feeds[i]).toBeGreaterThan(480);
-        } else if (p.pts[i][2] < p.pts[i - 1][2]) {
+        if (p.roles?.[i] === 'ramp') expect(p.feeds[i]).toBe(480);
+        if (sideways < 1e-9 && p.pts[i][2] < p.pts[i - 1][2]) {
           expect(p.feeds[i]).toBe(480);
           steps++;
         }
       }
     }
-    expect(steps).toBeGreaterThanOrEqual(3 * below.length);
+    expect(steps).toBeGreaterThanOrEqual(3 * below.filter(p => !p.roles?.includes('ramp')).length);
   });
 
   it('comes out in the G-code: F480 on the way down, the feed again on the way along, arcs still fitted', () => {
@@ -466,20 +489,23 @@ describe('profile depth', () => {
     const [op] = camPart(pinBoard(6), { tools: [{ number: 1, diameter: 3.175, stepdown: 1.6 }], finalZ: -6 }).operations;
     const z = [18.3, ...levels(op)];
     expect(z.at(-1)).toBeCloseTo(-6);
-    for (let i = 1; i < z.length; i++) {
-      expect(z[i - 1] - z[i]).toBeGreaterThan(0);
-      expect(z[i - 1] - z[i]).toBeLessThanOrEqual(1.6);
+    const zs = [18.3, ...new Set(levels(op))];
+    for (let i = 1; i < zs.length; i++) {
+      expect(zs[i - 1] - zs[i]).toBeGreaterThan(0);
+      expect(zs[i - 1] - zs[i]).toBeLessThanOrEqual(1.6 + 1e-8);
     }
     // One pass at full depth, on the final path: what tab removal and freeing look for.
-    expect(z.filter(v => Math.abs(v + 6) < 1e-6)).toHaveLength(1);
+    expect(op.passes.filter(p => p.pts.every(q => Math.abs(q[2] + 6) < 1e-6))).toHaveLength(1);
   });
 
-  it('a normal through cut stays as it was: rough to 1 mm, then the final pass', () => {
+  it('keeps a light through pass and subdivides a deeper release strip', () => {
     const [op] = camPart(pinBoard(10), { tools: [{ number: 1, diameter: 3.175, stepdown: 1.6 }] }).operations;
-    expect(levels(op).slice(-2)).toEqual([1, -0.3]);
-    expect(
-      levels(camPart(pinBoard(10), { tools: [{ number: 1, diameter: 3.175, stepdown: 1.6 }], finalZ: -1 }).operations[0]).slice(-2)
-    ).toEqual([1, -1]);
+    expect(levels({ passes: op.passes.filter(p => p.phase === 'rough') }).at(-1)).toBe(1);
+    expect(levels(op).at(-1)).toBeCloseTo(-0.3);
+    const deepOp = camPart(pinBoard(10), { tools: [{ number: 1, diameter: 3.175, stepdown: 1.6 }], finalZ: -1 }).operations[0];
+    expect(levels(deepOp).at(-1)).toBeCloseTo(-1);
+    const deeper = [18.3, ...new Set(levels(deepOp))];
+    for (let i = 1; i < deeper.length; i++) expect(deeper[i - 1] - deeper[i]).toBeLessThanOrEqual(1.6 + 1e-9);
   });
 
   it('a hole hardly wider than the bit is still cut', () => {
@@ -511,8 +537,21 @@ describe('per-bit cutting data', () => {
     const [ofSmall, ofMain] = [cam.operations.filter(o => o.tool === small), cam.operations.filter(o => o.tool === main)];
     expect(ofSmall.length).toBeGreaterThan(0);
     expect(ofMain.length).toBeGreaterThan(0);
-    expect(allFeeds(ofSmall)).toEqual(new Set([500, 150]));
-    expect([...allFeeds(ofMain)].every(f => f === 3000 || f === 900 || f === 1500)).toBe(true);
+    expect(allFeeds(ofSmall)).toEqual(new Set([500, 150, 250]));
+    const budget = cam.accuracy!.budget;
+    const deviation = budget.fitting + budget.outputRounding + budget.controllerRounding;
+    let transitions = 0;
+    for (const operation of ofMain)
+      for (const pass of operation.passes)
+        for (const [i, feed] of pass.feeds.entries()) {
+          if (i <= 1 && pass.cuttingTransition && pass.pts[0].every((value, axis) => value === pass.cuttingTransition!.from[axis])) {
+            transitions++;
+            expect(feed).toBeGreaterThan(0);
+            expect(feed).toBeLessThanOrEqual(main.feed!);
+            expect(feed * (main.diameter + 2 * deviation)).toBeLessThanOrEqual(main.feed! * main.stepover!);
+          } else expect([3000, 900, 1500, 750]).toContain(feed);
+        }
+    expect(transitions).toBeGreaterThan(0);
     const programs = splitByBit(cam).map(p => toGcode(p, { spindleRpm: main.rpm }));
     expect(programs).toHaveLength(2);
     expect(programs[0]).toMatch(/^M3 S24000$/m);
@@ -526,7 +565,10 @@ describe('per-bit cutting data', () => {
     const rings = (tool: Tool) => camPart(board(), { tools: [{ ...tool, diameter: 3 }] }).operations[0].passes.length;
     expect(rings({ number: 1, diameter: 3, stepover: 0.6 })).toBeGreaterThan(rings({ number: 1, diameter: 3, stepover: 2 }));
     const outline = camPart(board(), { tools: [small] }).operations.at(-1)!;
-    expect(outline.passes.at(-1)!.feeds[1]).toBeCloseTo(400);
+    const final = outline.passes.at(-1)!;
+    const finishing = final.feeds.filter((_, i) => final.roles?.[i] === 'finish');
+    expect(finishing.length).toBeGreaterThan(0);
+    expect(finishing.every(f => f === 400)).toBe(true);
   });
 
   it('a job with one bit comes out identical, the data on the bit or in the settings', () => {
@@ -543,7 +585,14 @@ describe('per-bit cutting data', () => {
       stepover: 0.4 * 3.175,
       finalFeedFactor: 0.5,
     };
-    expect(toGcode(camPart(board(), { tools: [onTool], ...data, tabs: DEFAULT_TABS }), { spindleRpm: 18000 })).toBe(before);
+    const withoutPlanId = (code: string) =>
+      code
+        .split('\n')
+        .filter(line => !line.startsWith('(Plan: '))
+        .join('\n');
+    expect(withoutPlanId(toGcode(camPart(board(), { tools: [onTool], ...data, tabs: DEFAULT_TABS }), { spindleRpm: 18000 }))).toBe(
+      withoutPlanId(before)
+    );
   });
 });
 
@@ -625,22 +674,23 @@ describe('pocket wall pass', () => {
 
   it('joins and leaves the wall on tangent arcs inside the pocket, never pushing into it', () => {
     const [pocket] = camPart(mortiseBoard(), { cutThrough: false }).operations;
-    const walls = pocket.passes.filter(p => p.clearLink);
+    const walls = pocket.passes.filter(p => p.roles?.includes('lead-in') && p.roles?.includes('lead-out'));
     // One wall pass per depth step (3 for 4.2mm at 0.5D in oak).
     expect(walls).toHaveLength(3);
     for (const pass of walls) {
       const pts = pass.pts;
-      const lead = 6; // quarter arc samples before the wall, and after it
-      const inP = pts[lead],
-        outP = pts[pts.length - 1 - lead];
+      const entry = pass.roles!.lastIndexOf('lead-in'),
+        exit = pass.roles!.indexOf('lead-out') - 1;
+      const inP = pts[entry],
+        outP = pts[exit];
       expect(distToWall(inP)).toBeCloseTo(0, 3);
       expect(distToWall(outP)).toBeCloseTo(0, 3);
       // Tangent: the arc arrives along the wall direction and leaves along it (chord vs. wall < 15°).
-      expect(angle(pts[lead - 1], inP, pts[lead + 1])).toBeLessThan(15);
-      expect(angle(pts[pts.length - 2 - lead], outP, pts[pts.length - lead])).toBeLessThan(15);
+      expect(angle(pts[entry - 1], inP, pts[entry + 1])).toBeLessThan(15);
+      expect(angle(pts[exit - 1], outP, pts[exit + 1])).toBeLessThan(15);
       // Lead arcs stay inside the pocket, off the wall (radius r: up to 2r from the wall).
-      for (const q of [...pts.slice(0, lead), ...pts.slice(pts.length - lead)]) {
-        expect(distToWall(q)).toBeGreaterThan(0.01);
+      for (const q of [...pts.slice(0, entry), ...pts.slice(exit + 1)]) {
+        expect(distToWall(q)).toBeGreaterThan(1e-6);
         expect(distToWall(q)).toBeLessThanOrEqual(2 * r + 1e-6);
       }
       // Entry in the middle of a long wall, away from the corners.
@@ -648,14 +698,16 @@ describe('pocket wall pass', () => {
     }
   });
 
-  it('with a wall allowance: roughing stays off the walls, one full-depth pass cuts them to size', () => {
+  it('with a wall allowance: roughing stays off the walls and bounded finishing passes cut them to size', () => {
     const [pocket] = camPart(mortiseBoard(), { cutThrough: false, pocketWallAllowance: 0.2, pocketFinishFeedFactor: 0.5 }).operations;
     const finish = pocket.passes.at(-1)!;
-    const rough = pocket.passes.slice(0, -1).flatMap(p => p.pts);
+    const rough = pocket.passes.filter(p => p.phase === 'rough').flatMap(p => p.pts);
     expect(Math.min(...rough.map(distToWall))).toBeCloseTo(0.2, 3);
     expect(new Set(finish.pts.map(q => q[2]))).toEqual(new Set([3.8]));
     expect(Math.min(...finish.pts.map(distToWall))).toBeCloseTo(0, 3);
-    expect(finish.feeds.slice(1).every(f => f === 900)).toBe(true);
+    expect(finish.feeds.filter((_, i) => finish.roles?.[i] === 'finish').every(f => f === 900)).toBe(true);
+    const levels = [8, ...pocket.passes.filter(p => p.phase === 'finish').map(p => Math.min(...p.pts.map(q => q[2])))];
+    for (let i = 1; i < levels.length; i++) expect(levels[i - 1] - levels[i]).toBeLessThanOrEqual(3.175 / 2 + 1e-8);
   });
 });
 

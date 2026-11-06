@@ -130,6 +130,8 @@ export function holdState(cam: PartCam, board: { w: number; h: number }, opts: H
     if (op.kind !== 'profile') continue;
     const r = op.tool.diameter / 2;
     for (const pass of op.passes) {
+      // The separate complete contour lap already includes every through-cut made by its entry ramp.
+      if (pass.entry === 'ramp' || pass.auxiliary) continue;
       if (!pass.pts.some(q => through(q[2]))) continue;
       // The cut-through stretches, at the bit's width; the raised ones in between are tabs.
       const lines: PathsD = [];

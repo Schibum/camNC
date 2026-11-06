@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "board-neighbor-open-pocket",
+  "description": "An edge-open pocket must protect a second retained part across a 2 mm nesting gap; constrained clearing stays within the main part.",
+  "mode": "board",
+  "stockSize": [140, 120, 12],
+  "outline": { "type": "polygon", "points": [[0,0],[140,0],[140,120],[0,120]] },
+  "pockets": [],
+  "board": {
+    "holdDown": "none",
+    "parts": [
+      {
+        "id": "main", "name": "Main", "size": [100,70,12], "x": 20, "y": 30, "rotated": false,
+        "outline": { "type": "polygon", "points": [[0,0],[100,0],[100,70],[0,70]] },
+        "pockets": [{ "boundary": { "type": "polygon", "points": [[15,0],[85,0],[85,12],[15,12]] }, "floorZ": 6 }]
+      },
+      {
+        "id": "neighbor", "name": "Neighbor", "size": [110,18,12], "x": 15, "y": 10, "rotated": false,
+        "outline": { "type": "polygon", "points": [[0,0],[110,0],[110,18],[0,18]] }, "pockets": []
+      }
+    ]
+  },
+  "settings": {
+    "tools": [{ "number": 1, "diameter": 6, "name": "synthetic flat end mill" }],
+    "cutThrough": false
+  },
+  "expected": {
+    "minimumZ": 6,
+    "programs": 1,
+    "requiredRoles": ["ramp"],
+    "protectedRectangles": [[15,10,125,28]],
+    "cutterClearance": [{ "rectangle": [15,10,125,28], "minimumMm": 2 }],
+    "floorCoveragePoints": [[40,30.5],[70,30.5],[100,30.5],[40,36],[70,36],[100,36],[40,41.5],[70,41.5],[100,41.5]]
+  }
+}

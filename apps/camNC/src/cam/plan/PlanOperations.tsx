@@ -5,7 +5,7 @@ import { Checkbox } from '@wbcnc/ui/components/checkbox';
 import { useState, type ComponentProps } from 'react';
 import { formatDuration } from '@/visualize/stockSim/jobTimeline';
 import type { OpSummary, PlanResult } from '../camTypes';
-import { cuttingKey, kCuttingLabels, kSourceLabels, resolveCutting, useCuttingData, type CuttingField } from '../cuttingData';
+import { savedCuttingFor, kCuttingLabels, kSourceLabels, resolveCutting, useCuttingData, type CuttingField } from '../cuttingData';
 import { Hint } from '../Hint';
 import { OpList } from '../plan3d/OpList';
 import { usePlan3dView } from '../plan3d/plan3dViewStore';
@@ -51,7 +51,7 @@ export function PlanOperations({
   const saved = useCuttingData(s => s.saved);
   const stepover = (op: OpSummary) => {
     const e = editFor(op);
-    return resolveCutting(e.bit, e.material, saved[cuttingKey(e.bit, e.material)], e.job).values.stepover;
+    return resolveCutting(e.bit, e.material, savedCuttingFor(saved, e.bit, e.material), e.job).values.stepover;
   };
   const label = `Operations for ${name}`;
   return (
@@ -228,7 +228,7 @@ function ProgramNumbers({ group, seconds }: { group: PlanOpGroup; seconds: numbe
 
 /** A cutting value: click to edit it, for the bit + material or for this job. */
 function CuttingValue({ edit, field, children }: { edit: EditProps; field: CuttingField; children: React.ReactNode }) {
-  const saved = useCuttingData(s => s.saved[cuttingKey(edit.bit, edit.material)]);
+  const saved = useCuttingData(s => savedCuttingFor(s.saved, edit.bit, edit.material));
   const { source } = resolveCutting(edit.bit, edit.material, saved, edit.job);
   const [open, setOpen] = useState(false);
   return (

@@ -7,6 +7,10 @@ import { defineConfig } from "astro/config";
 export default defineConfig({
   vite: {
     plugins: [tailwindcss()],
+    ssr: {
+      // Keep CommonJS embed dependencies and Zod's namespace in the same bundle.
+      noExternal: ["zod"],
+    },
   },
   site: "https://www.camnc.app/",
   integrations: [icon()],

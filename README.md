@@ -180,9 +180,17 @@ Checks (also run in CI):
 pnpm run check-format  # prettier (a pre-commit hook formats staged files)
 pnpm run lint          # eslint
 pnpm run check-types   # tsc --noEmit in every package
-pnpm run test          # vitest, runs in headless Chromium via Playwright
+pnpm run test          # functional tests, then isolated performance gates
+pnpm run test:performance # only the performance gates (Node, then headless Chromium)
 pnpm run build
 ```
 
 Tests run in the browser, so install Chromium once with `pnpm exec playwright install chromium`. Run a single
 package's tests with `pnpm turbo run test --filter <package>`.
+
+The `[performance]` tests run separately from the parallel functional suites. The root test command waits for
+all functional packages to finish, then runs the holding and nesting benchmarks one package at a time, in their
+usual Node and Chromium runtimes. Benchmark results are not cached. Each gate keeps its fixed reference workload
+and ratio limit; both workloads are warmed, and seven nearby pairs alternate order before taking the median ratio.
+Run `pnpm --filter <package> test:performance` for one package's performance gates. Avoid running other CPU-heavy
+commands alongside these measurements.

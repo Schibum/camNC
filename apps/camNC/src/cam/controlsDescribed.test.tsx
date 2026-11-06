@@ -221,7 +221,7 @@ describe('CAM controls explain themselves', () => {
     const card = within(screen.getByRole('region', { name: 'CAM job' }));
     expect(card.getByRole('button', { name: 'Load parts freeing' })).toHaveProperty('disabled', true);
     fireEvent.click(card.getByRole('button', { name: /^Board queue/ }));
-    expect(screen.getByText(/1 parts · 2 min/)).toBeTruthy();
+    expect(screen.getByText(/1 parts · ≈2 min auto/)).toBeTruthy();
     fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
 
     queue.value = { ...queue.value, stale: new Set() };

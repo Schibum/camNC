@@ -7,7 +7,7 @@ import * as Comlink from 'comlink';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ComponentType } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import stepUrl from '../../../../../packages/cam/test/fixtures/kinderregal-eiche.step?url';
 import messerUrl from '../../../../../packages/cam/test/fixtures/messerblock-klein.step?url';
 import { Route } from './$jobId.plan';
@@ -26,6 +26,9 @@ vi.mock('@tanstack/react-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
 }));
 vi.mock('@/components/page-header', () => ({ PageHeader: () => null }));
+// These route tests exercise the real importer, worker, G-code and controls. Rendering is covered by the dedicated
+// preview/release tests; an unrelated WebGL scene need not compete with each replan here.
+vi.mock('@/cam/plan3d/PlanView3D', () => ({ PlanView3D: () => null }));
 vi.mock('@/store/store', () => ({
   useStore: Object.assign((pick: (s: object) => unknown) => pick({ machinePrefs: {} }), { getState: () => store }),
   selectMachineBounds: () => bed.bounds,
@@ -34,8 +37,14 @@ vi.mock('@/visualize/depthViewStore', () => ({ useDepthView: { getState: () => d
 
 const PlanStep = (Route as unknown as { options: { component: ComponentType } }).options.component;
 
+beforeEach(() => {
+  // Persisted recipes from another browser test must not change this job's initial depth or planning workload.
+  useCuttingData.setState({ saved: {} });
+});
+
 afterEach(() => {
   cleanup();
+  useCuttingData.setState({ saved: {} });
   usePlanLayout.setState(usePlanLayout.getInitialState(), true);
   localStorage.removeItem('camnc-plan-layout');
 });
@@ -63,6 +72,12 @@ const description = (el: Element) =>
     .map(id => document.getElementById(id)?.textContent ?? '')
     .join(' ')
     .trim();
+
+const stepdowns = (table: HTMLElement) =>
+  within(table)
+    .getAllByRole('row')
+    .slice(1)
+    .map(r => parseFloat(within(r).getAllByRole('cell')[5].textContent!));
 
 describe('CAM plan step', () => {
   it('accepts the numeric return flag decoded from the rehearsal URL', () => {
@@ -120,11 +135,6 @@ describe('CAM plan step', () => {
     expect(screen.queryByText(/tabs would hold it/)).toBeNull();
     expect(screen.queryByText(/bottom skin/)).toBeNull();
     // Oak with the 1/8" bit: no pass deeper than half the diameter, shown per operation.
-    const stepdowns = (t: HTMLElement) =>
-      within(t)
-        .getAllByRole('row')
-        .slice(1)
-        .map(r => parseFloat(within(r).getAllByRole('cell')[5].textContent!));
     expect(Math.max(...stepdowns(table))).toBeLessThanOrEqual(1.59);
 
     // The job goes to the machine once every board's program is ready (board B's may still be computing).
@@ -149,9 +159,39 @@ describe('CAM plan step', () => {
     expect(store.setToolDiameter).toHaveBeenCalledWith(3.175);
     expect(depth.setZeroAt).toHaveBeenCalledWith('bottom');
     expect(depth.setToolShape).toHaveBeenCalledWith('flat');
+  }, 120_000);
 
-    // This job only: 3.5 mm per pass (what the Fusion setups use for the outline) makes fewer, deeper passes: the
-    // 7.3 mm of outline roughing in 3 even steps of 2.43 instead of 5 of 1.46.
+  it('replans job cutting data and replaces it with a saved bit/material recipe', async () => {
+    const bytes = await (await fetch(stepUrl)).arrayBuffer();
+    const job = await createJob(new File([bytes], 'kinderregal-eiche.step'));
+    const copy = new Uint8Array(bytes.slice(0));
+    const model = await camWorker().importModel(Comlink.transfer(copy, [copy.buffer]), job.fileName, modelKey(job));
+    // The real 8 mm shelf is enough to prove saved/job precedence and actual depth changes. The full five-part,
+    // two-board safety and machine handoff are checked separately, without repeating that whole job for each edit.
+    const shelf = model.parts.find(p => p.names.includes('Part 2'))!;
+    expect(shelf.thickness).toBeCloseTo(8, 6);
+    await saveJob({
+      ...job,
+      parts: model.parts.map(p => ({ id: p.id, name: p.name, quantity: p.names.length, milled: p.id === shelf.id })),
+    });
+    params.jobId = job.id;
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <PlanStep />
+      </QueryClientProvider>
+    );
+    await screen.findByRole('list', { name: 'Operations for board A' }, { timeout: 60_000 });
+    await waitFor(() => expect(screen.getByRole('button', { name: /Take the job to the machine/ })).toHaveProperty('disabled', false), {
+      timeout: 60_000,
+    });
+    expect(within(screen.getByRole('tablist', { name: /Boards/ })).getAllByRole('tab')).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Table' }));
+    const deepest = () => Math.max(...stepdowns(screen.getByRole('table', { name: 'Operations for board A' })));
+    expect(deepest()).toBeLessThanOrEqual(1.59);
+    fireEvent.click(sidebarTab('Settings'));
+
+    // This job only: 3.5 mm per pass makes fewer, deeper passes: the 7.3 mm of outline roughing in 3 even steps of
+    // 2.43 instead of 5 of 1.46.
     const panel = screen.getByRole('region', { name: 'Cutting data' });
     fireEvent.change(within(panel).getByRole('textbox', { name: /^Stepdown/ }), { target: { value: '3.5' } });
     fireEvent.click(within(panel).getByRole('button', { name: 'Only this job' }));
@@ -161,7 +201,6 @@ describe('CAM plan step', () => {
     await closeMenu();
     fireEvent.click(sidebarTab('Operations'));
     expect(screen.getByRole('table', { name: 'Operations for board A' })).toBeTruthy();
-    const deepest = () => Math.max(...stepdowns(screen.getByRole('table', { name: 'Operations for board A' })));
     await vi
       .waitFor(() => expect(deepest()).toBeGreaterThan(2.4), { timeout: 30_000 })
       .catch(async (e: Error) => {
@@ -187,8 +226,8 @@ describe('CAM plan step', () => {
     const popover = await screen.findByRole('dialog');
     fireEvent.change(within(popover).getByRole('textbox', { name: /^Stepdown/ }), { target: { value: '1' } });
     fireEvent.click(within(popover).getByRole('button', { name: /^Save for ⌀3.175 .* \+ oak$/ }));
-    // Every pass at most 1 mm, except the outline's final pass: from 1 mm above the bottom through to -0.3.
-    await vi.waitFor(() => expect(deepest()).toBeLessThanOrEqual(1.3), { timeout: 30_000 });
+    // Rough and final contour passes both obey the new 1 mm axial limit.
+    await vi.waitFor(() => expect(deepest()).toBeLessThanOrEqual(1), { timeout: 30_000 });
     expect(Object.values(useCuttingData.getState().saved)).toEqual([{ stepdown: 1 }]);
     // An IndexedDB read: with the worker busy it alone can take longer than waitFor's default second.
     await vi.waitFor(async () => expect((await getJob(job.id))!.plan!.cutting).toEqual({}), { timeout: 10_000 });

@@ -1,4 +1,8 @@
 import { readGcode } from './analyze';
+import { toolProgramKey } from './toolIdentity';
+import { pocketOperationClashes, tangentEntryClashes } from './boardEntrySafety';
+import { finalizePlan } from './finalizePlan';
+import { geometryTolerances } from './accuracy';
 import { openPocketRegion, type PartFeatures } from './features';
 import { dowelOperations, partRect, type DowelSpec } from './flip';
 import { boardToPart, kDefaultSkin, planTabs, type PartHolding } from './tabPlan';
@@ -109,7 +113,12 @@ function bottomLayer(board: Pick<BoardSpec, 'parts' | 'h' | 'stockTop'>, setting
   const ext = Math.max(...(settings.tools ?? DEFAULT_SETTINGS.tools).map(t => t.diameter)) / 2 + 1;
   const add = (features: PartFeatures, toBoard: (q: Vec3) => Vec3, cut: (floorZ: number) => { from: number; to: number }) => {
     for (const pocket of features.pockets) {
-      const loops = openPocketRegion(features.outlines, pocket, ext).map(loop =>
+      const loops = openPocketRegion(
+        features.outlines,
+        pocket,
+        ext,
+        geometryTolerances(settings.geometryTolerance, settings.sourceTolerance)
+      ).map(loop =>
         loop.map(q => {
           const [x, y] = toBoard([q.x, q.y, 0]);
           return { x, y };
@@ -264,6 +273,43 @@ export function rotateAboutOrigin(deg: number): (q: Vec3) => Vec3 {
   return q => [q[0] * c - q[1] * s, q[0] * s + q[1] * c, q[2]];
 }
 
+/** Placement moves cutting-transition evidence into the same frame as its actual toolpath. */
+function transformOperation(operation: Operation, transform: (point: Vec3) => Vec3): Operation {
+  return {
+    ...operation,
+    ...(operation.pocketTransition && {
+      pocketTransition: {
+        ...operation.pocketTransition,
+        region: operation.pocketTransition.region.map(loop =>
+          loop.map(point => {
+            const [x, y] = transform([point.x, point.y, 0]);
+            return { x, y };
+          })
+        ),
+        ...(operation.pocketTransition.retainedSolid && {
+          retainedSolid: operation.pocketTransition.retainedSolid.map(loop =>
+            loop.map(point => {
+              const [x, y] = transform([point.x, point.y, 0]);
+              return { x, y };
+            })
+          ),
+        }),
+      },
+    }),
+    passes: operation.passes.map(pass => ({
+      ...pass,
+      pts: pass.pts.map(transform),
+      ...(pass.cuttingTransition && {
+        cuttingTransition: {
+          ...pass.cuttingTransition,
+          from: transform(pass.cuttingTransition.from),
+          to: transform(pass.cuttingTransition.to),
+        },
+      }),
+    })),
+  };
+}
+
 const kFeatureOrder = { pocket: 0, hole: 1, outline: 2 } as const;
 
 /**
@@ -295,14 +341,56 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
           : h?.how === 'unheld'
             ? { tabs: false }
             : {};
-    const cam = camPart(part.features, { ...settings, tabs, stockTop, ...own });
+    const requested: Partial<CamSettings> = { ...settings, tabs, stockTop, ...own };
+    // Future holes in a neighbor are not proved cleared stock; protect its complete outer silhouette.
+    const pocketNeighbors = board.parts
+      .filter(other => other.id !== part.id)
+      .flatMap(other =>
+        other.features.outlines.map(loop =>
+          loop.map(point => {
+            const [x, y] = partToBoard(other, [point.x, point.y, 0]);
+            return { x, y };
+          })
+        )
+      );
+    // The path budget includes its own source scope; the neighbor's independently declared boundary may also move.
+    // An omitted source tolerance keeps this a nominal-feature check, not an independently certified CAD bound.
+    const context = pocketNeighbors.length
+      ? {
+          pocketClashes: (operation: Operation) =>
+            pocketOperationClashes(
+              operation,
+              pocketNeighbors,
+              point => partToBoard(part, point),
+              (requested.geometryTolerance ?? DEFAULT_SETTINGS.geometryTolerance ?? 0.05) + (requested.sourceTolerance ?? 0)
+            ),
+        }
+      : {};
+    let cam = camPart(part.features, requested, context);
+    if (requested.profileEntry === 'tangent') {
+      const neighbors = board.parts
+        .filter(other => other.id !== part.id)
+        .flatMap(other =>
+          other.features.footprint.map(loop =>
+            loop.map(q => {
+              const [x, y] = partToBoard(other, [q.x, q.y, 0]);
+              return { x, y };
+            })
+          )
+        );
+      const tolerance =
+        'geometryTolerance' in settings && typeof settings.geometryTolerance === 'number' ? settings.geometryTolerance : 0.05;
+      if (tangentEntryClashes(cam, neighbors, q => partToBoard(part, q), tolerance)) {
+        cam = camPart(part.features, { ...requested, profileEntry: 'ramp' }, context);
+        cam.warnings.push('Tangent profile lead intersects a neighboring part; using contour ramps');
+      }
+    }
     warnings.push(...cam.warnings.map(w => `${part.name}: ${w}`));
     cam.operations.forEach((op, index) =>
       ops.push({
         op: {
-          ...op,
+          ...transformOperation(op, q => turn(partToBoard(part, q))),
           name: `${part.name}: ${op.name}`,
-          passes: op.passes.map(p => ({ ...p, pts: p.pts.map(q => turn(partToBoard(part, q))) })),
         },
         part,
         index,
@@ -315,7 +403,7 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
   if (board.dowels) {
     const pins = dowelOperations(board, board.dowels, settings);
     warnings.push(...fluteWarnings(pins, stockTop));
-    operations.push(...pins.map(op => ({ ...op, passes: op.passes.map(p => ({ ...p, pts: p.pts.map(q => turn(q)) })) })));
+    operations.push(...pins.map(op => transformOperation(op, turn)));
   }
   let pos = { x: 0, y: 0 };
   // Per bit, inner features before outlines. When every part keeps a layer until the end, the inner features of every
@@ -352,7 +440,22 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
       }
     }
   }
-  return { stockTop, operations, warnings, ...(holding && { holding: [...holding.values()] }), ...aboveHolds(board, stockTop, settings) };
+  const blank = [
+    [
+      [0, 0, 0],
+      [board.w, 0, 0],
+      [board.w, board.h, 0],
+      [0, board.h, 0],
+    ].map(point => {
+      const q = turn(point as Vec3);
+      return { x: q[0], y: q[1] };
+    }),
+  ];
+  return finalizePlan(
+    { stockTop, operations, warnings, ...(holding && { holding: [...holding.values()] }), ...aboveHolds(board, stockTop, settings) },
+    { ...DEFAULT_SETTINGS, ...settings },
+    blank
+  );
 }
 
 /** Bits in the order a board program uses them. */
@@ -393,12 +496,15 @@ export function splitByBit(cam: PartCam): PartCam[] {
   const out: PartCam[] = [];
   for (const op of cam.operations) {
     const last = out.at(-1);
-    if (last && last.operations[0].tool.diameter === op.tool.diameter) last.operations.push(op);
+    if (last && toolProgramKey(last.operations[0].tool) === toolProgramKey(op.tool)) last.operations.push(op);
     else
       out.push({
         stockTop: cam.stockTop,
         safeZ: cam.safeZ,
         retractZ: cam.retractZ,
+        accuracy: cam.accuracy,
+        stockFootprint: cam.stockFootprint,
+        stockSummary: cam.stockSummary,
         operations: [op],
         warnings: out.length ? [] : cam.warnings,
       });

@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "id": "profile-tab-shoulders",
+  "description": "A bounded-depth outline with repeated ramp laps, one holding tab, and 1 mm shoulders.",
+  "mode": "part",
+  "stockSize": [
+    30,
+    20,
+    4
+  ],
+  "outline": {
+    "type": "polygon",
+    "points": [
+      [
+        3,
+        3
+      ],
+      [
+        27,
+        3
+      ],
+      [
+        27,
+        17
+      ],
+      [
+        3,
+        17
+      ]
+    ]
+  },
+  "pockets": [],
+  "settings": {
+    "tools": [
+      {
+        "number": 1,
+        "guid": "analytic-bit-1",
+        "diameter": 3.175,
+        "name": "synthetic flat end mill",
+        "fluteLength": 12,
+        "flutes": 2,
+        "rpm": 15000
+      }
+    ],
+    "material": {
+      "name": "synthetic test material",
+      "stepdownFactor": 0.5
+    },
+    "feed": 1800,
+    "plungeFeed": 480,
+    "rampFeed": 360,
+    "leadFeed": 700,
+    "leadOutFeed": 800,
+    "transitionFeed": 1200,
+    "stepoverFactor": 0.4,
+    "maxStepdown": 1,
+    "profileRoughBottom": 1,
+    "leaveStock": 0.1,
+    "pocketWallAllowance": 0,
+    "pocketFinishFeedFactor": 1,
+    "innerCornerRadius": 0.3,
+    "finalZ": -0.3,
+    "finalFeedFactor": 0.5,
+    "climb": true,
+    "rampAngleDeg": 0.5,
+    "safeHeight": 5,
+    "retractHeight": 2,
+    "tabs": {
+      "height": 1.2,
+      "width": 3,
+      "spacing": 200,
+      "minCount": 1,
+      "centers": [
+        {
+          "x": 15,
+          "y": 3
+        }
+      ],
+      "rampLength": 1
+    },
+    "cutThrough": true,
+    "cornerFeed": {
+      "factor": 0.4,
+      "minAngleDeg": 30,
+      "maxRadius": 0.5,
+      "distance": 1.5
+    },
+    "profileFinishStepdown": 1,
+    "geometryTolerance": 0.05,
+    "sourceTolerance": 0
+  },
+  "expected": {
+    "minimumZ": -0.3,
+    "programs": 1,
+    "requiredRoles": [
+      "ramp",
+      "tab"
+    ],
+    "tabPlateau": {
+      "x0": 14,
+      "x1": 16,
+      "centerY": 1.4125,
+      "minimumHeight": 1.2
+    }
+  }
+}

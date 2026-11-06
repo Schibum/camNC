@@ -1,0 +1,66 @@
+{
+  "default-panel-600x400x18-d6": {
+    "executableBlocks": 120,
+    "tinyFeedLineBlocks": 0,
+    "retracts": 4,
+    "estimatedAutomaticSeconds": 720
+  },
+  "default-outline-120x80x12-d3.175": {
+    "executableBlocks": 140,
+    "tinyFeedLineBlocks": 0,
+    "retracts": 4,
+    "estimatedAutomaticSeconds": 200
+  },
+  "default-pocket-150x120x6-d3.175": {
+    "executableBlocks": 4200,
+    "tinyFeedLineBlocks": 0,
+    "retracts": 12,
+    "estimatedAutomaticSeconds": 2150
+  },
+  "default-round-pocket-d60x6-d6-n64": {
+    "executableBlocks": 165,
+    "tinyFeedLineBlocks": 4,
+    "retracts": 4,
+    "estimatedAutomaticSeconds": 115,
+    "feedLineBlocks": 48,
+    "minimumArcBlocks": 20
+  },
+  "default-round-pocket-d60x6-d6-n128": {
+    "executableBlocks": 145,
+    "tinyFeedLineBlocks": 6,
+    "retracts": 6,
+    "estimatedAutomaticSeconds": 118,
+    "feedLineBlocks": 42,
+    "minimumArcBlocks": 20
+  },
+  "default-round-pocket-d60x6-d6-n256": {
+    "executableBlocks": 135,
+    "tinyFeedLineBlocks": 6,
+    "retracts": 6,
+    "estimatedAutomaticSeconds": 118,
+    "feedLineBlocks": 36,
+    "minimumArcBlocks": 20
+  },
+  "default-round-pocket-d60x6-d6-n512": {
+    "executableBlocks": 135,
+    "tinyFeedLineBlocks": 6,
+    "retracts": 6,
+    "estimatedAutomaticSeconds": 118,
+    "feedLineBlocks": 36,
+    "minimumArcBlocks": 20
+  },
+  "default-open-pocket-400x12x9-d6": {
+    "executableBlocks": 175,
+    "tinyFeedLineBlocks": 2,
+    "retracts": 8,
+    "estimatedAutomaticSeconds": 315,
+    "feedLineBlocks": 85
+  },
+  "default-open-pocket-400x40x3-d6": {
+    "executableBlocks": 155,
+    "tinyFeedLineBlocks": 2,
+    "retracts": 5,
+    "estimatedAutomaticSeconds": 280,
+    "feedLineBlocks": 90
+  }
+}

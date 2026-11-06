@@ -8,6 +8,7 @@
     "preview": "vite preview",
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run --config vitest.worker.config.ts && vitest",
+    "test:performance": "vitest run --config vitest.performance.config.ts",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
     "smoke:setup": "node e2e/setup-smoke.mjs",

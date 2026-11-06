@@ -175,8 +175,8 @@ export function CamQueueCard() {
                         {!e.plan || e.kind === 'flip'
                           ? ''
                           : e.release
-                            ? `${e.release.parts ? `${e.release.parts.length} parts` : `${e.release.tabs?.length ?? 0} tabs`} · ${Math.ceil(e.release.timeMin)} min`
-                            : `${Math.ceil(e.plan.programs[e.program].timeMin)} min`}
+                            ? `${e.release.parts ? `${e.release.parts.length} parts` : `${e.release.tabs?.length ?? 0} tabs`} · ≈${Math.ceil(e.release.timeMin)} min auto`
+                            : `≈${Math.ceil(e.plan.programs[e.program].timeMin)} min auto`}
                       </span>
                     </button>
                   </li>

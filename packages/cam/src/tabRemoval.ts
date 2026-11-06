@@ -1,6 +1,7 @@
 import type { TurnedOver } from './flip';
 import type { Vec3 } from './geom';
 import type { Operation, Pass, PartCam } from './toolpaths';
+import { releaseMetadata } from './releaseMetadata';
 
 /** One tab to cut free in a guided tab removal program. */
 export interface TabStop {
@@ -36,7 +37,7 @@ export function tabRemovalProgram(
   const operations: Operation[] = [];
   for (const op of cam.operations.filter(o => o.feature === 'outline')) {
     const deepest = Math.min(...op.passes.flatMap(p => p.pts.map(q => q[2])));
-    const final = op.passes.find(p => Math.min(...p.pts.map(q => q[2])) === deepest);
+    const final = op.passes.filter(p => Math.abs(Math.min(...p.pts.map(q => q[2])) - deepest) < 1e-6).at(-1);
     if (!final) continue;
     const part = op.name.includes(': ') ? op.name.split(': ')[0] : op.name;
     const xs = final.pts.map(q => q[0]),
@@ -57,7 +58,13 @@ export function tabRemovalProgram(
         : run.map(q => [q[0], q[1], deepest]);
       const last = passes.length === runs.length - 1;
       const feed = opts.perPart && !last ? (opts.fullFeed ?? opts.feed) : opts.feed;
-      const pass: Pass = { pts, feeds: pts.map((_, k) => (k === 0 ? opts.plungeFeed : feed)), link: 'retract' };
+      const pass: Pass = {
+        pts,
+        feeds: pts.map((_, k) => (k === 0 ? opts.plungeFeed : feed)),
+        roles: pts.map((_, k) => (k === 0 ? 'approach' : 'finish')),
+        phase: 'finish',
+        link: 'retract',
+      };
       passes.push(pass);
       if (opts.perPart) continue;
       operations.push({
@@ -80,16 +87,23 @@ export function tabRemovalProgram(
         part,
       });
   }
-  if (opts.perPart) return { cam: { stockTop: cam.stockTop, safeZ: cam.safeZ, retractZ: cam.retractZ, operations, warnings: [] }, tabs };
+  const released: PartCam = { ...cam, ...releaseMetadata(cam, turned), holding: undefined, operations, warnings: [] };
+  if (opts.perPart) return { cam: released, tabs };
   tabs.forEach(
     t => (operations[t.index - 1].pauseBefore = `Tab ${t.index} of ${tabs.length}: spindle off until Resume. Hold away from bit: ${t.part}`)
   );
-  return { cam: { stockTop: cam.stockTop, safeZ: cam.safeZ, retractZ: cam.retractZ, operations, warnings: [] }, tabs };
+  return { cam: released, tabs };
 }
 
 /** Stretches of a closed pass that are lifted above its deepest Z (the tabs), with their end points. */
 function raisedRuns(pts: Vec3[], deepest: number): Vec3[][] {
   const low = (q: Vec3) => q[2] <= deepest + 1e-6;
+  const closed = pts.length > 2 && Math.hypot(pts[0][0] - pts.at(-1)![0], pts[0][1] - pts.at(-1)![1]) < 1e-7;
+  if (closed) {
+    const loop = pts.slice(0, -1),
+      start = loop.findIndex(low);
+    if (start >= 0) pts = [...loop.slice(start), ...loop.slice(0, start), loop[start]];
+  }
   const runs: Vec3[][] = [];
   let cur: Vec3[] | null = null;
   for (let i = 1; i < pts.length; i++) {

@@ -10,16 +10,21 @@ type MaterialKey = keyof typeof MATERIALS;
 export interface CuttingData {
   feed: number;
   plungeFeed: number;
+  rampFeed: number;
+  leadFeed: number;
+  leadOutFeed: number;
+  finishFeed: number;
+  reducedFeed: number;
+  transitionFeed: number;
   /** Depth per pass, pockets and outline roughing. */
   stepdown: number;
   /** Sideways step between pocket rings. */
   stepover: number;
   rpm: number;
-  /** Final outline pass feed as a share of the feed: 0.5 for a clean edge, 1 like Fusion. */
+  /** Default outline finishing feed as a share of cutting feed. */
   finalFeedFactor: number;
   /**
-   * Pocket walls: the depth passes stay this far off them, then one full-depth pass cuts them to size (cleaner
-   * walls). 0 = off; pockets open to the edge then still leave 0.2.
+   * Pocket radial stock left by roughing and removed by depth-limited wall finishing.
    */
   wallFinish: number;
 }
@@ -28,28 +33,51 @@ export type CuttingField = keyof CuttingData;
 /** Where a value comes from, most specific first. */
 export type CuttingSource = 'job' | 'saved' | 'library' | 'default';
 
-export const kCuttingFields: CuttingField[] = ['feed', 'plungeFeed', 'stepdown', 'stepover', 'rpm', 'finalFeedFactor', 'wallFinish'];
+const baseFields = ['feed', 'plungeFeed', 'stepdown', 'stepover', 'rpm', 'finalFeedFactor', 'wallFinish'] as const;
+const motionFields = ['rampFeed', 'leadFeed', 'leadOutFeed', 'finishFeed', 'reducedFeed', 'transitionFeed'] as const;
+export const kCuttingFields: CuttingField[] = [
+  'feed',
+  'plungeFeed',
+  ...motionFields,
+  'stepdown',
+  'stepover',
+  'rpm',
+  'finalFeedFactor',
+  'wallFinish',
+];
 
 export const kCuttingLabels: Record<CuttingField, { label: string; unit: string; step: number; min?: number }> = {
   feed: { label: 'Feed', unit: 'mm/min', step: 50 },
   plungeFeed: { label: 'Plunge feed', unit: 'mm/min', step: 10 },
+  rampFeed: { label: 'Ramp feed', unit: 'mm/min', step: 10 },
+  leadFeed: { label: 'Lead-in feed', unit: 'mm/min', step: 50 },
+  leadOutFeed: { label: 'Lead-out feed', unit: 'mm/min', step: 50 },
+  finishFeed: { label: 'Finishing feed', unit: 'mm/min', step: 50 },
+  reducedFeed: { label: 'Inner-corner feed', unit: 'mm/min', step: 50 },
+  transitionFeed: { label: 'Link feed', unit: 'mm/min', step: 50 },
   stepdown: { label: 'Stepdown', unit: 'mm', step: 0.1 },
   stepover: { label: 'Stepover', unit: 'mm', step: 0.1 },
   rpm: { label: 'Spindle speed', unit: 'rpm', step: 500 },
   finalFeedFactor: { label: 'Final pass feed', unit: '× feed', step: 0.1 },
-  wallFinish: { label: 'Wall finish', unit: 'mm left, then full depth · 0 = off', step: 0.05, min: 0 },
+  wallFinish: { label: 'Wall finish', unit: 'mm radial stock · 0 = off', step: 0.05, min: 0 },
 };
 
 /** What each value does, for its tooltip: the consequence, not the mechanism. */
 export const kCuttingHints: Record<CuttingField, string> = {
   feed: 'How fast the bit moves through the wood. Faster saves time but loads the bit; too slow can burn the wood.',
   plungeFeed: 'How fast the bit goes down into the wood. Slower is gentler on the bit.',
+  rampFeed: 'Speed while entering along a sloped path. Follows the resolved plunge feed unless you set it separately.',
+  leadFeed: 'Speed while joining a wall on a tangent lead. Defaults to the resolved cutting feed.',
+  leadOutFeed: 'Speed while leaving a wall on a tangent lead. Defaults to the resolved cutting feed.',
+  finishFeed: 'Speed of finishing cuts. Defaults to cutting feed × final pass feed; a value set here takes precedence over that factor.',
+  reducedFeed: 'Feed cap for tight inner-wall turns. Defaults to half the cutting feed; straight cuts keep their cutting feed.',
+  transitionFeed: 'Speed of permitted links between cuts. Retracts and plunges still use their own movement limits.',
   stepdown: 'How deep each pass cuts. Less is gentler on the bit and slower.',
   stepover: 'How far each pocket pass moves sideways. Less leaves a smoother floor and is slower.',
   rpm: 'How fast the spindle turns. The program starts the spindle at this speed; with a router, set its dial to match.',
-  finalFeedFactor: 'Speed of the last pass around each part, as a share of the feed: slower gives a cleaner edge.',
+  finalFeedFactor: 'Default finishing speed as a share of cutting feed. A separate finishing-feed value takes precedence.',
   wallFinish:
-    'Depth passes stay this far off the pocket walls, then one full-depth pass cuts them to size: cleaner walls, a little slower. 0 turns it off.',
+    'Roughing stays this far off pocket walls, then finishing passes remove that radial stock in limited depth increments. 0 turns it off.',
 };
 
 export const kSourceLabels: Record<CuttingSource, string> = {
@@ -66,9 +94,41 @@ export function without<T extends object>(o: T, key: keyof T): T {
   return copy;
 }
 
-export const bitKey = (b: LibraryTool) => `${b.number}|${b.diameter}|${b.name}`;
+export const legacyBitKey = (b: LibraryTool) => `${b.number}|${b.diameter}|${b.name}`;
+export const bitKey = (b: LibraryTool) => (b.guid ? `guid:${encodeURIComponent(b.guid)}` : legacyBitKey(b));
 /** The saved table's key: one bit (as the library names it) in one material. */
 export const cuttingKey = (bit: LibraryTool, material: MaterialKey) => `${bitKey(bit)}@${material}`;
+export const legacyCuttingKey = (bit: LibraryTool, material: MaterialKey) => `${legacyBitKey(bit)}@${material}`;
+
+/** Old name-based recipes stay shared until a physical tool is explicitly edited; no ambiguous recipe is moved. */
+export function savedCuttingFor(
+  saved: Record<string, Partial<CuttingData>>,
+  bit: LibraryTool,
+  material: MaterialKey
+): Partial<CuttingData> | undefined {
+  const key = cuttingKey(bit, material);
+  if (Object.prototype.hasOwnProperty.call(saved, key)) return saved[key];
+  return saved[legacyCuttingKey(bit, material)];
+}
+
+/** Match saved recipes without assigning an ambiguous legacy name to one physical cutter. */
+export function savedCuttingEntries(saved: Record<string, Partial<CuttingData>>, bits: LibraryTool[]) {
+  return Object.entries(saved)
+    .filter(([, values]) => Object.keys(values).length > 0)
+    .map(([key, values]) => {
+      const separator = key.lastIndexOf('@');
+      const identity = key.slice(0, separator);
+      const exact = bits.filter(bit => bitKey(bit) === identity);
+      const matches = exact.length ? exact : bits.filter(bit => legacyBitKey(bit) === identity);
+      return {
+        key,
+        values,
+        material: key.slice(separator + 1) as MaterialKey,
+        bit: matches.length === 1 ? matches[0] : undefined,
+        shared: matches.length > 1,
+      };
+    });
+}
 
 const round = (v: number) => +v.toFixed(2);
 
@@ -77,6 +137,12 @@ export function defaultCutting(diameter: number, material: MaterialKey): Cutting
   return {
     feed: 1800,
     plungeFeed: 480,
+    rampFeed: 480,
+    leadFeed: 1800,
+    leadOutFeed: 1800,
+    finishFeed: 900,
+    reducedFeed: 900,
+    transitionFeed: 1800,
     stepdown: round(MATERIALS[material].stepdownFactor * diameter),
     stepover: round(0.4 * diameter),
     rpm: 15000,
@@ -85,14 +151,11 @@ export function defaultCutting(diameter: number, material: MaterialKey): Cutting
   };
 }
 
-/** What the tool library says for this bit (Fusion presets aren't per material here). */
+/** The selected library cutting data, without inferring a material match. */
 export function libraryCutting(bit: LibraryTool): Partial<CuttingData> {
   const out: Partial<CuttingData> = {};
-  if (bit.feed) out.feed = bit.feed;
-  if (bit.plungeFeed) out.plungeFeed = bit.plungeFeed;
-  if (bit.rpm) out.rpm = bit.rpm;
-  if (bit.stepdown) out.stepdown = bit.stepdown;
-  if (bit.stepover) out.stepover = bit.stepover;
+  for (const field of ['feed', 'plungeFeed', ...motionFields, 'rpm', 'stepdown', 'stepover', 'finalFeedFactor'] as const)
+    if (bit[field] !== undefined) out[field] = bit[field];
   return out;
 }
 
@@ -116,10 +179,23 @@ export function resolveCutting(
   ];
   const values = {} as CuttingData;
   const source = {} as Record<CuttingField, CuttingSource>;
-  for (const field of kCuttingFields) {
+  for (const field of baseFields) {
     const [from, layer] = layers.find(([, l]) => l[field] !== undefined)!;
     values[field] = layer[field]!;
     source[field] = from;
+  }
+  const derived: Pick<CuttingData, (typeof motionFields)[number]> = {
+    rampFeed: values.plungeFeed,
+    leadFeed: values.feed,
+    leadOutFeed: values.feed,
+    finishFeed: round(values.feed * values.finalFeedFactor),
+    reducedFeed: round(values.feed * 0.5),
+    transitionFeed: values.feed,
+  };
+  for (const field of motionFields) {
+    const explicit = layers.slice(0, -1).find(([, layer]) => layer[field] !== undefined);
+    values[field] = explicit ? explicit[1][field]! : derived[field];
+    source[field] = explicit ? explicit[0] : 'default';
   }
   return { values, source };
 }
@@ -128,11 +204,17 @@ export function resolveCutting(
 export const useCuttingData = create(
   persist(
     combine({ saved: {} as Record<string, Partial<CuttingData>> }, set => ({
-      save: (key: string, patch: Partial<CuttingData>) => set(s => ({ saved: { ...s.saved, [key]: { ...s.saved[key], ...patch } } })),
+      save: (key: string, patch: Partial<CuttingData>, legacyKey?: string) =>
+        set(s => ({ saved: { ...s.saved, [key]: { ...(s.saved[key] ?? (legacyKey ? s.saved[legacyKey] : undefined)), ...patch } } })),
       /** Forget one value (or the whole entry): the library or default applies again. */
-      reset: (key: string, field?: CuttingField) =>
+      reset: (key: string, field?: CuttingField, legacyKey?: string) =>
         set(s => {
-          const { [key]: entry, ...rest } = s.saved;
+          const { [key]: current, ...rest } = s.saved;
+          const entry = current ?? (legacyKey ? s.saved[legacyKey] : undefined);
+          if (legacyKey && legacyKey !== key) {
+            // An empty own entry deliberately blocks fallback after reset, including across reloads.
+            return { saved: { ...rest, [key]: field && entry ? without(entry, field) : {} } };
+          }
           if (!field || !entry) return { saved: rest };
           const others = without(entry, field);
           return { saved: Object.keys(others).length ? { ...rest, [key]: others } : rest };

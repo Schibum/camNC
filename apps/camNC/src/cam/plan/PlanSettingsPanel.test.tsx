@@ -7,12 +7,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { kDefaultPlan, type PlanSettingsV1 } from '../planSettings';
 import { useToolLibrary } from '../toolLibrary';
 import { PlanSettingsPanel } from './PlanSettingsPanel';
+import { selectToolPreset, type LibraryTool } from '@wbcnc/cam/tools';
+import { cuttingKey, legacyCuttingKey, useCuttingData } from '../cuttingData';
 
 vi.mock('@tanstack/react-router', () => ({ Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a> }));
 
 afterEach(() => {
   cleanup();
   useToolLibrary.setState({ bits: [], imports: [] });
+  useCuttingData.setState({ saved: {} });
 });
 
 const description = (el: Element) =>
@@ -23,8 +26,8 @@ const description = (el: Element) =>
     .join(' ')
     .trim();
 
-function Panel({ onChange }: { onChange: (v: PlanSettingsV1) => void }) {
-  const [value, setValue] = useState(kDefaultPlan);
+function Panel({ onChange, initial = kDefaultPlan }: { onChange: (v: PlanSettingsV1) => void; initial?: PlanSettingsV1 }) {
+  const [value, setValue] = useState(initial);
   return (
     <TooltipProvider>
       <PlanSettingsPanel
@@ -93,5 +96,48 @@ describe('Plan settings', () => {
     // On as many lines as it takes, not cut off.
     expect(getComputedStyle(name).whiteSpace).toBe('normal');
     expect(name.scrollWidth).toBeLessThanOrEqual(name.clientWidth + 1);
+  });
+
+  it('selects cutting data in the job snapshot, clears missing preset values and keeps explicit overrides', () => {
+    const tool: LibraryTool = {
+      number: 1,
+      diameter: 3.175,
+      name: 'flat',
+      guid: 'cutter',
+      stickout: 23,
+      presets: [
+        { id: 'rough', name: 'Roughing', feed: 1800, rampFeed: 350, leadOutFeed: 700, useStepdown: false, useStepover: false },
+        { id: 'finish', name: 'Finishing', feed: 1200, useStepdown: false, useStepover: false },
+      ],
+    };
+    const bit = selectToolPreset(tool, 'rough');
+    useToolLibrary.setState({ bits: [{ ...bit, id: 'stored', source: 'library' }], imports: [] });
+    const onChange = vi.fn();
+    render(<Panel initial={{ ...kDefaultPlan, bit, cutting: { feed: 2200 } }} onChange={onChange} />);
+    const select = screen.getByRole('combobox', { name: 'Cutting preset' }) as HTMLSelectElement;
+    expect(select.value).toBe('rough');
+    expect(description(select)).toContain('Saved and job overrides still apply');
+    fireEvent.change(select, { target: { value: 'finish' } });
+    const changed = onChange.mock.lastCall![0] as PlanSettingsV1;
+    expect(changed.bit).toMatchObject({ presetId: 'finish', presetName: 'Finishing', guid: 'cutter', stickout: 23, feed: 1200 });
+    expect(changed.bit.rampFeed).toBeUndefined();
+    expect(changed.bit.leadOutFeed).toBeUndefined();
+    expect(changed.cutting).toEqual({ feed: 2200 });
+    expect((screen.getByRole('textbox', { name: /^Ramp feed/ }) as HTMLInputElement).value).toBe('480');
+    expect((screen.getByRole('textbox', { name: /^Lead-out feed/ }) as HTMLInputElement).value).toBe('2200');
+    expect(useToolLibrary.getState().bits[0].presetId).toBe('rough');
+  });
+
+  it('resets a legacy saved feed once instead of restoring it from the shared fallback', () => {
+    const bit = { ...kDefaultPlan.bit, guid: 'physical' };
+    const legacy = legacyCuttingKey(bit, 'oak');
+    useCuttingData.setState({ saved: { [legacy]: { rampFeed: 390 } } });
+    render(<Panel initial={{ ...kDefaultPlan, bit }} onChange={() => {}} />);
+    const ramp = screen.getByRole('textbox', { name: /^Ramp feed/ }) as HTMLInputElement;
+    expect(ramp.value).toBe('390');
+    fireEvent.click(screen.getByRole('button', { name: 'Ramp feed: back to the library or default value' }));
+    expect(ramp.value).toBe('480');
+    expect(useCuttingData.getState().saved[cuttingKey(bit, 'oak')]).toEqual({});
+    expect(useCuttingData.getState().saved[legacy]).toEqual({ rampFeed: 390 });
   });
 });

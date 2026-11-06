@@ -119,7 +119,7 @@ function expectAllPlaced(res: ReturnType<typeof autoFillFromStock>, instances: P
   }
 }
 
-/** The most the 30-part nest may take, as a multiple of `referenceWork`: about 2.5 in this file now, so twice as slow fails. */
+/** Fixed ceiling relative to independent allocation/sorting work, measured in the serial performance phase. */
 const kNestRatio = 5;
 
 /** A fixed piece of work like nesting's: small objects, sorting, arithmetic. */
@@ -279,7 +279,7 @@ describe('boards', () => {
       }
     );
 
-    it('nests 30 parts fast: within a set multiple of a fixed piece of work timed alongside', () => {
+    it('[performance] nests 30 parts fast: within a set multiple of a fixed piece of work timed alongside', () => {
       const rnd = random(7);
       const instances = Array.from({ length: 30 }, (_, i) => inst(`p${i}`, Math.round(60 + rnd() * 500), Math.round(40 + rnd() * 300), 18));
       const stock = [
@@ -289,25 +289,27 @@ describe('boards', () => {
       ];
       const boards = reconcileBoards(undefined, instances, 'oak');
       autoFillFromStock(boards, instances, stock, bit, 'oak');
-      // Against a fixed piece of work timed in turn with it, so both see the same load: a slow CI runner slows both, a
-      // slower nest only the one. The fastest of a few runs each, as a busy machine only ever adds time.
+      referenceWork();
       const timed = <T>(work: () => T) => {
         const t0 = performance.now();
         const out = work();
         return { out, ms: performance.now() - t0 };
       };
-      const runs = Array.from({ length: 7 }, () => ({
-        nest: timed(() => autoFillFromStock(boards, instances, stock, bit, 'oak')),
-        reference: timed(referenceWork),
-      }));
+      const work = () => autoFillFromStock(boards, instances, stock, bit, 'oak');
+      // Nearby pairs see similar runner load; alternating order removes a systematic first/second bias.
+      // Keep a fixed sample count and median, so an isolated pause cannot dominate the gate.
+      const runs = Array.from({ length: 7 }, (_, i) => {
+        const run = i % 2 ? { reference: timed(referenceWork), nest: timed(work) } : { nest: timed(work), reference: timed(referenceWork) };
+        return { ...run, ratio: run.nest.ms / run.reference.ms };
+      });
       const res = runs[0].nest.out;
-      const ms = Math.min(...runs.map(r => r.nest.ms));
-      const reference = Math.min(...runs.map(r => r.reference.ms));
-      console.info(
-        `30 parts, 3 sheet sizes: ${ms.toFixed(0)} ms, reference ${reference.toFixed(1)} ms, ratio ${(ms / reference).toFixed(2)}, ${res.boards.length} boards`
+      const ratio = runs.map(r => r.ratio).sort((a, b) => a - b)[3];
+      const samples = runs.map(
+        (r, i) => `${i % 2 ? 'R first' : 'W first'}: W ${r.nest.ms.toFixed(1)}/R ${r.reference.ms.toFixed(1)} ms=${r.ratio.toFixed(2)}`
       );
+      console.info(`30 parts, 3 sheet sizes: median ratio ${ratio.toFixed(2)}, ${res.boards.length} boards, samples ${samples.join(', ')}`);
       expectAllPlaced(res, instances, bit, stock);
-      expect(ms / reference).toBeLessThan(kNestRatio);
+      expect(ratio).toBeLessThan(kNestRatio);
     });
 
     it('keeps parts moved by hand on their board and nests the rest', () => {

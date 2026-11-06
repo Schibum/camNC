@@ -1,9 +1,28 @@
 import { camPart, splitByBit, toGcode, type PartFeatures } from '@wbcnc/cam';
 import { afterEach, describe, expect, it } from 'vitest';
-import { cuttingKey, defaultCutting, resolveCutting, useCuttingData } from './cuttingData';
+import {
+  bitKey,
+  cuttingKey,
+  legacyCuttingKey,
+  savedCuttingFor,
+  savedCuttingEntries,
+  defaultCutting,
+  resolveCutting,
+  useCuttingData,
+} from './cuttingData';
 import { kDefaultPlan, toCamSettings } from './planSettings';
 
 const bit = { number: 1, diameter: 3.175, name: '1/8 mill v1', feed: 2400, plungeFeed: 360, rpm: 18000, stepover: 1.27 };
+
+it('shows unambiguous legacy recipes and hides reset markers without guessing between physical cutters', () => {
+  const first = { ...bit, guid: 'cutter-1', name: 'Mill @ shop' },
+    second = { ...first, guid: 'cutter-2' };
+  const legacy = legacyCuttingKey(first, 'oak');
+  const saved = { [legacy]: { feed: 2200 }, [cuttingKey(first, 'oak')]: {} };
+  expect(savedCuttingEntries(saved, [first])).toMatchObject([{ key: legacy, bit: first, material: 'oak', shared: false }]);
+  expect(savedCuttingEntries(saved, [first, second])).toMatchObject([{ key: legacy, bit: undefined, material: 'oak', shared: true }]);
+  expect(savedCuttingFor(saved, first, 'oak')).toEqual({});
+});
 
 afterEach(() => useCuttingData.setState({ saved: {} }));
 
@@ -31,16 +50,154 @@ const part = (): PartFeatures => {
 describe('cutting data', () => {
   it('takes each value from this job, else saved for the bit + material, else the library, else the default', () => {
     const { values, source } = resolveCutting(bit, 'oak', { feed: 2000, stepdown: 1.2 }, { stepdown: 2 });
-    expect(values).toEqual({ feed: 2000, plungeFeed: 360, stepdown: 2, stepover: 1.27, rpm: 18000, finalFeedFactor: 0.5, wallFinish: 0 });
+    expect(values).toEqual({
+      feed: 2000,
+      plungeFeed: 360,
+      rampFeed: 360,
+      leadFeed: 2000,
+      leadOutFeed: 2000,
+      finishFeed: 1000,
+      reducedFeed: 1000,
+      transitionFeed: 2000,
+      stepdown: 2,
+      stepover: 1.27,
+      rpm: 18000,
+      finalFeedFactor: 0.5,
+      wallFinish: 0,
+    });
     expect(source).toEqual({
       feed: 'saved',
       plungeFeed: 'library',
+      rampFeed: 'default',
+      leadFeed: 'default',
+      leadOutFeed: 'default',
+      finishFeed: 'default',
+      reducedFeed: 'default',
+      transitionFeed: 'default',
       stepdown: 'job',
       stepover: 'library',
       rpm: 'library',
       finalFeedFactor: 'default',
       wallFinish: 'default',
     });
+  });
+
+  it('derives independent feed defaults from the resolved job values', () => {
+    const { values, source } = resolveCutting({ number: 1, diameter: 3.175, name: 'flat' }, 'oak', undefined, {
+      feed: 2200,
+      plungeFeed: 420,
+      finalFeedFactor: 0.6,
+    });
+    expect(values).toMatchObject({
+      rampFeed: 420,
+      leadFeed: 2200,
+      leadOutFeed: 2200,
+      finishFeed: 1320,
+      reducedFeed: 1100,
+      transitionFeed: 2200,
+    });
+    for (const field of ['rampFeed', 'leadFeed', 'leadOutFeed', 'finishFeed', 'reducedFeed', 'transitionFeed'] as const)
+      expect(source[field]).toBe('default');
+  });
+
+  it('resolves each independent feed from job, saved, library, then its dependent default', () => {
+    const enriched = { ...bit, rampFeed: 300, leadFeed: 700, leadOutFeed: 800, finishFeed: 900, reducedFeed: 600, transitionFeed: 1300 };
+    const { values, source } = resolveCutting(
+      enriched,
+      'oak',
+      { rampFeed: 350, leadFeed: 750, leadOutFeed: 850 },
+      { rampFeed: 400, leadOutFeed: 950 }
+    );
+    expect(values).toMatchObject({
+      rampFeed: 400,
+      leadFeed: 750,
+      leadOutFeed: 950,
+      finishFeed: 900,
+      reducedFeed: 600,
+      transitionFeed: 1300,
+    });
+    expect(source).toMatchObject({
+      rampFeed: 'job',
+      leadFeed: 'saved',
+      leadOutFeed: 'job',
+      finishFeed: 'library',
+      reducedFeed: 'library',
+      transitionFeed: 'library',
+    });
+  });
+
+  it('preserves mounted cutter identity and independent feeds through the job settings', () => {
+    const physical = {
+      ...bit,
+      guid: 'physical-tool',
+      flutes: 2,
+      fluteLength: 20,
+      stickout: 25,
+      presetId: 'wood',
+      presetName: 'Selected data',
+      rampFeed: 310,
+      leadFeed: 640,
+      leadOutFeed: 730,
+      finishFeed: 890,
+      reducedFeed: 530,
+      transitionFeed: 1200,
+    };
+    const settings = toCamSettings({ ...kDefaultPlan, bit: physical });
+    expect(settings.tools![0]).toMatchObject({
+      guid: 'physical-tool',
+      flutes: 2,
+      fluteLength: 20,
+      stickout: 25,
+      presetId: 'wood',
+      presetName: 'Selected data',
+      rampFeed: 310,
+      leadFeed: 640,
+      leadOutFeed: 730,
+      finishFeed: 890,
+      reducedFeed: 530,
+      transitionFeed: 1200,
+    });
+    expect(settings.tools![0].name).toContain(bit.name);
+    expect(settings).toMatchObject({
+      rampFeed: 310,
+      leadFeed: 640,
+      leadOutFeed: 730,
+      finishFeed: 890,
+      reducedFeed: 530,
+      transitionFeed: 1200,
+    });
+  });
+
+  it('keeps legacy keys for unnamed identity and separates physical tools by GUID', () => {
+    expect(bitKey(bit)).toBe(`${bit.number}|${bit.diameter}|${bit.name}`);
+    expect(bitKey({ ...bit, guid: 'first' })).not.toBe(bitKey({ ...bit, guid: 'second' }));
+    expect(cuttingKey({ ...bit, guid: 'a@b|c' }, 'oak')).toBe('guid:a%40b%7Cc@oak');
+    expect(bitKey({ ...bit, guid: 'first', name: 'renamed', number: 9 })).toBe(bitKey({ ...bit, guid: 'first' }));
+  });
+
+  it('copies a legacy shared recipe on edit without assigning it to another physical tool, and reset blocks fallback', () => {
+    const first = { ...bit, guid: 'first' },
+      second = { ...bit, guid: 'second' };
+    const legacy = legacyCuttingKey(first, 'oak'),
+      key = cuttingKey(first, 'oak');
+    useCuttingData.setState({ saved: { [legacy]: { feed: 2000, stepdown: 1 } } });
+    const read = (tool: typeof first) => savedCuttingFor(useCuttingData.getState().saved, tool, 'oak');
+    expect(read(first)).toEqual({ feed: 2000, stepdown: 1 });
+    expect(read(second)).toEqual({ feed: 2000, stepdown: 1 });
+    useCuttingData.getState().save(key, { feed: 2200 }, legacy);
+    expect(read(first)).toEqual({ feed: 2200, stepdown: 1 });
+    expect(read(second)).toEqual({ feed: 2000, stepdown: 1 });
+    useCuttingData.getState().reset(key, 'stepdown', legacy);
+    expect(read(first)).toEqual({ feed: 2200 });
+    useCuttingData.getState().reset(key, 'feed', legacy);
+    expect(read(first)).toEqual({});
+    expect(read(second)).toEqual({ feed: 2000, stepdown: 1 });
+    useCuttingData.getState().save(key, { plungeFeed: 300 }, legacy);
+    expect(read(first)).toEqual({ plungeFeed: 300 });
+    useCuttingData.getState().reset(cuttingKey(second, 'oak'), undefined, legacy);
+    expect(read(second)).toEqual({});
+    expect(useCuttingData.getState().saved[legacy]).toEqual({ feed: 2000, stepdown: 1 });
+    expect(toCamSettings({ ...kDefaultPlan, bit: first }, 'oak', useCuttingData.getState().saved).feed).toBe(bit.feed);
   });
 
   it('defaults to half the bit per pass in hardwood, deeper in softer material', () => {
@@ -108,7 +265,14 @@ describe('cutting data', () => {
   it('a job with one bit makes the same G-code as with one set of feeds', () => {
     const s = toCamSettings({ ...kDefaultPlan, bit, cutting: { feed: 2100 } }, 'oak');
     const plain = { ...s, tools: s.tools!.map(t => ({ number: t.number, diameter: t.diameter, name: t.name, stepdown: t.stepdown })) };
-    expect(toGcode(camPart(part(), s), { spindleRpm: s.spindleRpm })).toBe(toGcode(camPart(part(), plain), { spindleRpm: s.spindleRpm }));
+    const withoutPlanId = (code: string) =>
+      code
+        .split('\n')
+        .filter(line => !line.startsWith('(Plan: '))
+        .join('\n');
+    expect(withoutPlanId(toGcode(camPart(part(), s), { spindleRpm: s.spindleRpm }))).toBe(
+      withoutPlanId(toGcode(camPart(part(), plain), { spindleRpm: s.spindleRpm }))
+    );
   });
 
   it('turns the wall finish on for pockets when set (off by default)', () => {
