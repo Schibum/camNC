@@ -97,7 +97,6 @@ export {
   holdOptionsOf,
   holdsOnParts,
   jobHoldClashes,
-  kTapeLayer,
   orderBoardQueue,
   partToBoard,
   releasesAtEnd,

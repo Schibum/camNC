@@ -3,7 +3,7 @@ import { cn } from '@wbcnc/ui/lib/utils';
 import { useId, useState } from 'react';
 import type { BoardNest, PartInstance, PartPosition } from '../boards';
 import type { CamPartInfo, PlanResult } from '../camTypes';
-import { place, toD } from './outline';
+import { place, tabBar, toD } from './outline';
 import { holdBox, pathClearance, type HoldKind } from '@wbcnc/cam/holdPoints';
 import type { BoardSide, EdgeFit } from '@wbcnc/cam/settle';
 
@@ -415,24 +415,16 @@ export function NestView({
               const dragged = tabDrag?.part === h.part && tabDrag.i === i;
               const pos = dragged ? tabDrag : t.at;
               return (
-                <circle
+                <g
                   key={`tab-${h.part}-${i}`}
-                  data-tab={h.part}
                   role="button"
                   aria-label={`${h.part}: tab ${i + 1}, drag along the outline to move; double-click or Delete removes it`}
                   tabIndex={0}
-                  cx={pos.x}
-                  cy={pos.y}
-                  r={stroke * 6}
-                  className={cn(
-                    'cursor-move stroke-amber-600 dark:stroke-amber-500',
-                    dragged ? 'fill-amber-500/70' : 'fill-amber-500/0 hover:fill-amber-500/40'
-                  )}
-                  strokeWidth={stroke * 1.5}
+                  className="group cursor-move outline-none"
                   onPointerDown={e => {
                     e.stopPropagation();
                     e.preventDefault();
-                    (e.currentTarget as SVGCircleElement).setPointerCapture(e.pointerId);
+                    (e.currentTarget as SVGGElement).setPointerCapture(e.pointerId);
                     setTabDrag({ part: h.part, i, x: t.at.x, y: t.at.y });
                   }}
                   onPointerMove={e => {
@@ -467,7 +459,33 @@ export function NestView({
                       ? `${h.part}: drag the tab along the outline; double-click removes it`
                       : `${h.part}: its only tab, drag it along the outline`}
                   </title>
-                </circle>
+                  {/* The whole bar takes the pointer, not only the ring on it. */}
+                  {tabBar(tabSegments, t.at).map(([a, b], k) => (
+                    <line
+                      key={k}
+                      data-tab-bar
+                      x1={a[0]}
+                      y1={a[1]}
+                      x2={b[0]}
+                      y2={b[1]}
+                      className="stroke-transparent"
+                      pointerEvents="stroke"
+                      strokeWidth={stroke * 8}
+                      strokeLinecap="square"
+                    />
+                  ))}
+                  <circle
+                    data-tab={h.part}
+                    cx={pos.x}
+                    cy={pos.y}
+                    r={stroke * 6}
+                    className={cn(
+                      'stroke-amber-600 group-focus-visible:stroke-primary dark:stroke-amber-500',
+                      dragged ? 'fill-amber-500/70' : 'fill-amber-500/0 group-hover:fill-amber-500/40'
+                    )}
+                    strokeWidth={stroke * 1.5}
+                  />
+                </g>
               );
             });
           })}

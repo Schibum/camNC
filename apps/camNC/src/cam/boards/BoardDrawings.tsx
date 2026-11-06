@@ -38,6 +38,7 @@ import type { JobBoard } from '../useJobBoards';
 import { BoardHeadingFields } from './BoardHeadingFields';
 import { BoardOverlay } from './BoardOverlay';
 import { BoardRail } from './BoardRail';
+import { fittedScale } from './fittedScale';
 import { PartBadges, PartMenuContent, type PartMenuProps } from './PartMenu';
 import { NestView } from './NestView';
 import { CutBadge } from './CutBadge';
@@ -222,15 +223,11 @@ export function BoardDrawings({
     measure();
     return () => ro.disconnect();
   }, []);
-  // One board fits the area, with room left to drag it bigger. All boards: one scale, the widest fits the column, the
-  // tallest takes at most half its height, so several boards are in view to drag between.
   const unit = Math.max(...shown.map(b => Math.max(b.nest.board.w, b.nest.board.h)));
   const pad = 2 * unit * 0.05;
   const maxW = Math.max(...shown.map(b => b.nest.board.w)) + pad;
   const maxH = Math.max(...shown.map(b => b.nest.board.h)) + pad;
-  const fitPxPerMm = focus
-    ? 0.92 * Math.min(1.5, Math.max(0.15, Math.min(((view_.w || 600) - 34) / maxW, ((view_.h || 800) - 96) / maxH)))
-    : Math.min(1.5, Math.max(0.15, Math.min(((view_.w || 600) - 34) / maxW, ((view_.h || 800) * 0.5 - 40) / maxH)));
+  const fitPxPerMm = fittedScale(view, { w: view_.w || 600, h: view_.h || 800 }, { w: maxW, h: maxH });
   // Zoom on top of the fitted scale (Ctrl/⌘ + wheel, a trackpad or touch pinch, the buttons); scrolling or dragging
   // the background pans.
   const [zoom, setZoom] = useState(1);
