@@ -1,6 +1,7 @@
 import { createSampleJob } from '@/cam/samples/createSampleJob';
 import { camWorker } from '@/cam/camQueries';
-import { getJob, createJob, saveJob } from '@/cam/jobDb';
+import { getJob, createJob, saveJob, deleteJob } from '@/cam/jobDb';
+import { toast } from '@wbcnc/ui/components/sonner';
 import * as Comlink from 'comlink';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -33,7 +34,10 @@ vi.mock('@/cam/model/ModelViewport', () => ({ ModelViewport: () => <div data-tes
 
 const ModelStep = (Route as unknown as { options: { component: ComponentType } }).options.component;
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 // Loading the CAD kernel (occt wasm, ~2.3 MB) and compiling it is the slow part of the first import, slower still on a
 // loaded CI runner: do it once up front, so the tests below measure the Model step, not the kernel's cold start.
@@ -43,6 +47,32 @@ beforeAll(async () => {
 }, 120_000);
 
 describe('CAM model step', () => {
+  it('explains a replacement failure and refreshes a job deleted during the file read', async () => {
+    const job = await createJob(new File(['original'], 'model.step'));
+    params.jobId = job.id;
+    const client = new QueryClient();
+    render(
+      <QueryClientProvider client={client}>
+        <ModelStep />
+      </QueryClientProvider>
+    );
+    const replace = await screen.findByRole('button', { name: 'Replace model…' });
+    const file = new File(['replacement'], 'updated.step');
+    let release!: (bytes: ArrayBuffer) => void;
+    vi.spyOn(file, 'arrayBuffer').mockImplementation(() => new Promise<ArrayBuffer>(resolve => (release = resolve)));
+    const errorToast = vi.spyOn(toast, 'error');
+    picked.file = file;
+    fireEvent.click(replace);
+    await waitFor(() => expect(release).toBeTypeOf('function'));
+    await deleteJob(job.id);
+    release(new ArrayBuffer(0));
+    await screen.findByText("This job doesn't exist (any more).");
+    expect(errorToast).toHaveBeenCalledWith('Could not replace the model', {
+      description: 'This job no longer exists. Open another job before replacing its model.',
+    });
+    expect(await getJob(job.id)).toBeNull();
+  });
+
   it('introduces the shelf sample as assembled, with an explicit switch to machining orientation', async () => {
     const job = await createSampleJob();
     params.jobId = job.id;

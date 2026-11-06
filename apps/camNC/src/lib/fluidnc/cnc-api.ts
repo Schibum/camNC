@@ -27,6 +27,7 @@ import { Macro, macroCommands } from '../machine/macros';
 import { kIntoTravel, OutsideTravel, outsideTravel } from '../machine/workflow';
 import { waitForSignal } from '../signals-helper';
 import { isLoopbackPage, localNetworkPermission } from './machine-support';
+import { workOffsetCommand } from './work-offset';
 
 export type ConnectionState =
   /** No host configured, or disconnected on purpose */
@@ -478,7 +479,7 @@ export class CncApi {
   /** Set the workspace XY zero point to given machine coordinates. */
   async setWorkspaceXYZero(x: number, y: number) {
     this.currentZero.value = { x, y, z: this.currentZero.value?.z ?? 0 };
-    return this.api.send(`G10 L2 P0 X${x} Y${y}`);
+    return this.api.send(workOffsetCommand({ x, y }));
   }
 
   async setWorkspaceXYZeroAndMove(x: number, y: number) {
@@ -499,7 +500,7 @@ export class CncApi {
    */
   async probeZ({ plateThickness, maxTravel, feed }: { plateThickness: number; maxTravel: number; feed: number }) {
     const api = this.api;
-    await api.send('G21 G91');
+    await api.send('G21 G91 G94');
     try {
       await api.send(`G38.2 Z-${Math.abs(maxTravel)} F${feed}`, { timeoutMs: 0 });
       await api.send(`G10 L20 P0 Z${plateThickness}`);

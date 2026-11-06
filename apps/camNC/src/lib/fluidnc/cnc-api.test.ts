@@ -74,6 +74,23 @@ describe('CncApi', () => {
     expect(fake.received.filter(l => l.includes('max_rate'))).toHaveLength(2);
   });
 
+  it('sets millimetre work offsets explicitly after an inch-mode program', async () => {
+    const fake = new FakeFluidnc('v4');
+    const api = await connected(fake);
+    await api.send('G20');
+    await api.setWorkspaceXYZero(25.4, 50.8);
+    expect(fake.received.at(-1)).toBe('G21 G10 L2 P0 X25.400 Y50.800');
+  });
+
+  it('probes at mm per minute after an inverse-time feed program', async () => {
+    const fake = new FakeFluidnc('v4');
+    const api = await connected(fake);
+    await api.send('G93');
+    const beforeProbe = fake.received.length;
+    await api.probeZ({ plateThickness: 0.5, maxTravel: 50, feed: 100 });
+    expect(fake.received.slice(beforeProbe)).toEqual(['G21 G91 G94', 'G38.2 Z-50 F100', 'G10 L20 P0 Z0.5', 'G0 Z5', 'G90']);
+  });
+
   it('reports alarms and rejects queued commands', async () => {
     const fake = new FakeFluidnc('v4');
     const api = await connected(fake);

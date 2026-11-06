@@ -37,10 +37,15 @@ function ModelStep() {
   if (!job) return <Shell message="This job doesn't exist (any more)." />;
 
   const replace = async () => {
-    const file = await pickModelFile();
-    if (!file) return;
-    if (!kModelFile.test(file.name)) return toastNotAModel(file.name);
-    queryClient.setQueryData(camKeys.job(job.id), await replaceModel(job, file));
+    try {
+      const file = await pickModelFile();
+      if (!file) return;
+      if (!kModelFile.test(file.name)) return toastNotAModel(file.name);
+      queryClient.setQueryData(camKeys.job(job.id), await replaceModel(job, file));
+    } catch (error) {
+      toast.error('Could not replace the model', { description: error instanceof Error ? error.message : String(error) });
+      await queryClient.invalidateQueries({ queryKey: camKeys.job(job.id) });
+    }
   };
   const remove = async () => {
     await deleteJob(job.id);

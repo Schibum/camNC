@@ -1,4 +1,5 @@
 import { getCncApi } from '@/lib/fluidnc/machine';
+import { workOffsetCommand } from '@/lib/fluidnc/work-offset';
 import { dismissInterruptedJob, interruptedJob } from '@/lib/machine/jobRecovery';
 import { errorText, kResumeFileName, prepareResume, runResume } from '@/lib/machine/jobs';
 import { findRestartLine, parseProgram, passContaining, passStarts, type PassStart } from '@/lib/machine/resume';
@@ -103,7 +104,7 @@ export function ResumeJobCard() {
   const wcs = api.currentOffsetModal.value ?? 'G54';
   const p = Number(wcs.slice(1)) - 53;
   const restore = (axes: ('x' | 'y' | 'z')[]) =>
-    report(api.send(`G10 L2 P${p} ${axes.map(a => `${a.toUpperCase()}${saved[a].toFixed(3)}`).join(' ')}`), 'Restoring the zero').then(() =>
+    report(api.send(workOffsetCommand(Object.fromEntries(axes.map(a => [a, saved[a]])), p)), 'Restoring the zero').then(() =>
       api.getCurrentZero().catch(() => {})
     );
   const restartLine = line !== null ? program.lines[line] : null;

@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { getCncApi } from '@/lib/fluidnc/machine';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ResumeJobCard } from './ResumeJobCard';
 
@@ -40,7 +41,7 @@ vi.mock('@/lib/fluidnc/machine', () => {
     zZeroedAt: v(null),
     currentOffsetModal: v('G54'),
     ensureTravel: () => {},
-    send: () => Promise.resolve(),
+    send: vi.fn(() => Promise.resolve()),
     home: () => Promise.resolve(),
     getCurrentZero: () => Promise.resolve(),
   };
@@ -61,11 +62,28 @@ vi.mock('@/lib/machine/jobRecovery', () => ({
   },
 }));
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+  const api = getCncApi();
+  api.status.value = { wco: zero } as typeof api.status.value;
+});
 
 const restartLine = () => (screen.getByRole('spinbutton', { name: 'Restart line' }) as HTMLInputElement).value;
 
 describe('ResumeJobCard', () => {
+  it.each([
+    ['Restore XY and Z', 'G21 G10 L2 P1 X100.000 Y50.000 Z-20.000'],
+    ['Restore XY only', 'G21 G10 L2 P1 X100.000 Y50.000'],
+  ])('restores saved millimetre offsets with %s', (button, command) => {
+    state.job = jobFor(kCamJob);
+    const api = getCncApi();
+    api.status.value = { wco: { x: 0, y: 0, z: 0 } } as typeof api.status.value;
+    render(<ResumeJobCard />);
+    fireEvent.click(screen.getByRole('button', { name: button }));
+    expect(api.send).toHaveBeenCalledWith(command);
+  });
+
   it('restarts a CAM job at the start of the pass it stopped in, or the previous pass, or where it stopped', () => {
     state.job = jobFor(kCamJob);
     render(<ResumeJobCard />);

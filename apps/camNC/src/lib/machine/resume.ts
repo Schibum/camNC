@@ -154,6 +154,11 @@ export function parseProgram(gcode: string): ParsedProgram {
       else if (g === 'G80') next.motion = null;
     }
     const scale = next.units === 'G20' ? 25.4 : 1;
+    // FluidNC keeps a G94 feed internally in mm/min when units change without a new F word.
+    if (next.feedMode !== state.feedMode) next.feed = null;
+    else if (next.feedMode === 'G94' && next.feed !== null && next.units !== state.units) {
+      next.feed = (next.feed * (state.units === 'G20' ? 25.4 : 1)) / scale;
+    }
     const param: Record<string, number> = {};
     for (const w of ws) {
       if (w.letter === 'F') next.feed = w.value;
@@ -310,15 +315,32 @@ export function resumeWarnings(program: ParsedProgram, line: number): string[] {
   return warnings;
 }
 
-/** The plunge feed: the feed of the last Z-only G1 move down before the restart, or the feed at the restart. */
-function plungeFeed(program: ParsedProgram, line: number): number | null {
+/** The effective G94 feed of a line in mm/min, including an F word or units set on that line. */
+function lineFeedMm(line: GcodeLine): number | null {
+  const gs = gCodes(line.code);
+  const mode = gs.find(g => g === 'G93' || g === 'G94') ?? line.before.feedMode;
+  if (mode !== 'G94') return null;
+  const explicit = words(line.code).find(w => w.letter === 'F');
+  const units = gs.find(g => g === 'G20' || g === 'G21') ?? line.before.units;
+  const feed = explicit
+    ? explicit.value * (units === 'G20' ? 25.4 : 1)
+    : line.before.feedMode === 'G94' && line.before.feed !== null
+      ? line.before.feed * (line.before.units === 'G20' ? 25.4 : 1)
+      : null;
+  return feed !== null && Number.isFinite(feed) && feed > 0 ? feed : null;
+}
+
+/** The last usable Z-only G1 plunge feed, or the restart line's own feed, in mm/min. */
+function plungeFeedMm(program: ParsedProgram, line: number): number | null {
   for (let i = line - 1; i >= 0; i--) {
     const l = program.lines[i]!;
-    const after = program.lines[i + 1]!.before;
-    if (!l.motion || after.motion !== 'G1') continue;
-    if (l.end.z < l.start.z && l.end.x === l.start.x && l.end.y === l.start.y) return after.feed;
+    if (!l.motion || motionCode(l) !== 'G1') continue;
+    if (l.end.z < l.start.z && l.end.x === l.start.x && l.end.y === l.start.y) {
+      const feed = lineFeedMm(l);
+      if (feed !== null) return feed;
+    }
   }
-  return program.lines[line]?.before.feed ?? null;
+  return program.lines[line] ? lineFeedMm(program.lines[line]!) : null;
 }
 
 /**
@@ -333,10 +355,8 @@ export function buildResumeProgram(program: ParsedProgram, options: ResumeOption
   if (!isKnown(target.start)) throw new Error(`The position before line ${line + 1} is not known (after a G53/G28 move)`);
   const state = target.before;
   const start = target.start;
-  const scale = state.units === 'G20' ? 25.4 : 1;
-  const feedMm = state.feed !== null ? state.feed * scale : null;
-  const plunge = plungeFeed(program, line);
-  const plungeMm = plunge !== null ? plunge * scale : feedMm;
+  const plungeMm = plungeFeedMm(program, line);
+  if (plungeMm === null) throw new Error('Cannot resume without a known positive feed rate in units per minute (G94)');
 
   const out: string[] = [];
   out.push(`(camNC resume${options.name ? ` of ${options.name.replace(/[()]/g, '')}` : ''} from line ${line + 1})`);
@@ -352,7 +372,7 @@ export function buildResumeProgram(program: ParsedProgram, options: ResumeOption
   if (state.mist) out.push('M7');
   if (state.flood) out.push('M8');
   out.push(`G0 Z${fmt(start.z + plungeClearance)}`);
-  out.push(`G1 Z${fmt(start.z)}${plungeMm !== null ? ` F${fmt(plungeMm)}` : ''}`);
+  out.push(`G1 Z${fmt(start.z)} F${fmt(plungeMm)}`);
   // The program's own modes for the rest.
   out.push(
     [state.units, state.distance, state.plane, state.feedMode, state.feed !== null ? `F${fmt(state.feed)}` : ''].filter(Boolean).join(' ')
