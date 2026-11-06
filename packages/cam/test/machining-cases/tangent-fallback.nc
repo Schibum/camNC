@@ -1,6 +1,6 @@
 (camNC CAM)
 (tangent-fallback)
-(Plan: cam-plan-v1-48ccf60ce030fac8)
+(Plan: cam-plan-v1-bd9cad7fbccdb2b3)
 (Post: fluidnc. Safe Z8. Retract Z5)
 (Planned bounds: X6.979..7.021 Y6.979..7.021 Z-0.3..2.34)
 (Stock: 14 x 14 x 3 mm)

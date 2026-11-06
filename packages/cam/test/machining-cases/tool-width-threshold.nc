@@ -1,6 +1,6 @@
 (camNC CAM)
 (tool-width-threshold)
-(Plan: cam-plan-v1-02c12fb6dd1e614a)
+(Plan: cam-plan-v1-bb6cc177b1ce768b)
 (Post: fluidnc. Safe Z9. Retract Z6)
 (Planned bounds: X4.588..25.413 Y17.588..17.637 Z2.5..4)
 (Stock: 30 x 24 x 4 mm)
@@ -25,16 +25,12 @@ X25.413 Z2.909 F360
 Y17.637 Z2.906
 X17.666 Z2.5
 X6.088 F1800
-X6.038 F720
-X4.588
+X4.588 F720
 Y17.588
-X6.038
 X6.088
 X23.913 F1800
-X23.962 F720
-X25.413
+X25.413 F720
 Y17.637
-X23.962
 X23.913
 X17.666 F1800
 G0 Z9

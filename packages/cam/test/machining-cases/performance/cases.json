@@ -1,0 +1,37 @@
+[
+  {
+    "schemaVersion": 1,
+    "id": "default-panel-600x400x18-d6",
+    "description": "600 by 400 mm outside panel profile, 18 mm thick, with default machining settings and a 6 mm tool.",
+    "mode": "profiles",
+    "stockSize": [630, 430, 18],
+    "outline": { "type": "polygon", "points": [[15,15],[615,15],[615,415],[15,415]] },
+    "pockets": [],
+    "profiles": [{ "name": "Panel outline", "shape": { "type": "polygon", "points": [[15,15],[615,15],[615,415],[15,415]] }, "inside": false, "toolNumber": 1 }],
+    "settings": { "tools": [{ "number": 1, "diameter": 6, "name": "synthetic flat end mill" }] },
+    "expected": { "minimumZ": -0.3, "programs": 1, "requiredRoles": ["ramp", "finish"] }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "default-outline-120x80x12-d3.175",
+    "description": "120 by 80 mm outside profile, 12 mm thick, with the default 3.175 mm tool and machining settings.",
+    "mode": "profiles",
+    "stockSize": [140, 100, 12],
+    "outline": { "type": "polygon", "points": [[10,10],[130,10],[130,90],[10,90]] },
+    "pockets": [],
+    "profiles": [{ "name": "Outline", "shape": { "type": "polygon", "points": [[10,10],[130,10],[130,90],[10,90]] }, "inside": false, "toolNumber": 1 }],
+    "settings": {},
+    "expected": { "minimumZ": -0.3, "programs": 1, "requiredRoles": ["ramp", "finish"] }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "default-pocket-150x120x6-d3.175",
+    "description": "150 by 120 mm rectangular pocket, 6 mm deep in 12 mm stock; default 3.175 mm tool and machining settings, outline cutting disabled.",
+    "mode": "part",
+    "stockSize": [170, 140, 12],
+    "outline": { "type": "polygon", "points": [[0,0],[170,0],[170,140],[0,140]] },
+    "pockets": [{ "boundary": { "type": "polygon", "points": [[10,10],[160,10],[160,130],[10,130]] }, "floorZ": 6 }],
+    "settings": { "cutThrough": false },
+    "expected": { "minimumZ": 6, "programs": 1, "requiredRoles": ["ramp", "corner"] }
+  }
+]

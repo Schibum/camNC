@@ -1,6 +1,12 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { CASE_DIRECTORY, generateMachiningCase, readMachiningCases, sha256 } from '../test/machining-cases/build';
+import {
+  measurePerformanceCase,
+  performanceCases,
+  performanceLimits,
+  PERFORMANCE_INPUT_TEXT,
+} from '../test/machining-cases/performance/measure';
 import { DepthMap, readGcode } from './analyze';
 import { validateFluidNCOutput } from './gcode';
 import type { Vec3 } from './geom';
@@ -40,9 +46,23 @@ const manifest = {
     })),
   })),
 };
+const performanceGenerated = performanceCases.map(measurePerformanceCase);
+if (process.env.DEBUG_MACHINING_CASES === '1')
+  for (const { input, metrics } of performanceGenerated) console.info(input.id, JSON.stringify(metrics));
+const performanceManifest = {
+  schemaVersion: 1,
+  inputSha256: sha256(PERFORMANCE_INPUT_TEXT),
+  tinyFeedLineThresholdMm: 0.1,
+  retractDefinition: 'initial clearance command and subsequent positive-Z work-coordinate G0 moves; machine-coordinate parking excluded',
+  timingProfile: 'lowrider-v4-reference',
+  cases: performanceGenerated.map(({ input, resolvedSettings, metrics }) => ({ id: input.id, resolvedSettings, metrics })),
+};
 if (update) {
   for (const { result } of generated) for (const { file, gcode } of result.programs) writeFileSync(`${CASE_DIRECTORY}/${file}`, gcode);
   writeFileSync(`${CASE_DIRECTORY}/manifest.json`, JSON.stringify(manifest, null, 2) + '\n');
+  for (const { result } of performanceGenerated)
+    for (const { file, gcode } of result.programs) writeFileSync(`${CASE_DIRECTORY}/performance/${file}`, gcode);
+  writeFileSync(`${CASE_DIRECTORY}/performance/manifest.json`, JSON.stringify(performanceManifest, null, 2) + '\n');
 }
 
 const pointToSegment = (point: Vec3, a: Vec3, b: Vec3): number => {
@@ -169,6 +189,89 @@ describe('analytic machining regression corpus', () => {
             expect(pass.roles).toHaveLength(pass.pts.length);
             expect(pass.feeds.every(feed => Number.isFinite(feed) && feed > 0)).toBe(true);
           }
+      }
+    });
+});
+
+describe('default machining output cost', () => {
+  it('records explicit inputs, expanded defaults and output metrics independently of byte snapshots', () => {
+    expect(JSON.parse(readFileSync(`${CASE_DIRECTORY}/performance/manifest.json`, 'utf8'))).toEqual(performanceManifest);
+    const before = JSON.parse(readFileSync(`${CASE_DIRECTORY}/performance/baseline-before.json`, 'utf8'));
+    expect(before.sourceCommit).toBe('f5c76b20287b84f736d3e5bb19e01029281796d5');
+    expect(before.inputSha256).toBe(performanceManifest.inputSha256);
+    expect(before.cases.map((c: { input: unknown }) => c.input)).toEqual(performanceCases);
+    expect(Object.keys(performanceLimits).sort()).toEqual(performanceCases.map(input => input.id).sort());
+    for (const entry of before.cases) {
+      const limit = performanceLimits[entry.id],
+        observed = entry.metrics[0];
+      expect(observed.executableBlocks).toBeGreaterThan(limit.executableBlocks);
+      expect(observed.retracts).toBeGreaterThan(limit.retracts);
+      expect(observed.estimatedAutomaticSeconds).toBeGreaterThan(limit.estimatedAutomaticSeconds);
+      if (entry.input.mode !== 'profiles') expect(observed.tinyFeedLineBlocks).toBeGreaterThan(limit.tinyFeedLineBlocks);
+    }
+  });
+
+  for (const { input, result, metrics } of performanceGenerated)
+    it(`${input.id}: bounded blocks, tiny moves, retracts and modeled time with retained geometry`, () => {
+      expect(result.programs).toHaveLength(1);
+      const roles = result.cam.operations.flatMap(operation => operation.passes.flatMap(pass => pass.roles ?? []));
+      for (const role of input.expected.requiredRoles ?? []) expect(roles, role).toContain(role);
+      const limit = performanceLimits[input.id];
+      expect(limit).toBeDefined();
+      for (const metric of metrics) {
+        for (const field of ['executableBlocks', 'tinyFeedLineBlocks', 'retracts', 'estimatedAutomaticSeconds'] as const)
+          expect(metric[field], `${input.id} ${field}`).toBeLessThanOrEqual(limit[field]);
+        expect(metric.timingSkippedMotionCount).toBeLessThanOrEqual(3);
+      }
+      const { gcode, cam } = result.programs[0];
+      expect(gcode).toBe(readFileSync(`${CASE_DIRECTORY}/performance/${result.programs[0].file}`, 'utf8'));
+      const radius = cam.operations[0].tool.diameter / 2;
+      expect(
+        checkGcodeSafety(gcode, {
+          stockTop: cam.stockTop,
+          size: [input.stockSize[0], input.stockSize[1]],
+          minZ: input.expected.minimumZ,
+          toolRadius: radius,
+        })
+      ).toEqual([]);
+      const cuts = readGcode(gcode).filter(move => !move.rapid && Math.min(move.from[2], move.to[2]) < cam.stockTop - 1e-6);
+      const floor = cuts.filter(
+        move => Math.abs(move.from[2] - input.expected.minimumZ) < 0.001 && Math.abs(move.to[2] - input.expected.minimumZ) < 0.001
+      );
+      expect(floor.length).toBeGreaterThan(0);
+      expect(Math.min(...cuts.flatMap(move => [move.from[2], move.to[2]]))).toBeCloseTo(input.expected.minimumZ, 3);
+      if (input.mode === 'profiles') {
+        const source = input.profiles![0].shape;
+        if (source.type !== 'polygon') throw new Error('Performance profile requires an analytic rectangle');
+        const xs = source.points.map(p => p[0]),
+          ys = source.points.map(p => p[1]);
+        const box: [number, number, number, number] = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+        for (const cut of cuts) expect(segmentToRectangle(cut.from, cut.to, box)).toBeGreaterThanOrEqual(radius - 0.05);
+        const [x0, y0, x1, y1] = box;
+        // The four finished wall midpoints must still be reached at final depth; dropping laps cannot satisfy a cost cap.
+        for (const point of [
+          [x0 - radius, (y0 + y1) / 2, 0],
+          [x1 + radius, (y0 + y1) / 2, 0],
+          [(x0 + x1) / 2, y0 - radius, 0],
+          [(x0 + x1) / 2, y1 + radius, 0],
+        ] as Vec3[])
+          expect(floor.some(move => pointToSegment(point, move.from, move.to) < 0.05)).toBe(true);
+      } else {
+        // A convex rectangle permits an analytical whole-cutter envelope check for every posted feed chord.
+        for (const cut of cuts)
+          for (const point of [cut.from, cut.to]) {
+            expect(point[0]).toBeGreaterThanOrEqual(10 + radius - 0.05);
+            expect(point[0]).toBeLessThanOrEqual(160 - radius + 0.05);
+            expect(point[1]).toBeGreaterThanOrEqual(10 + radius - 0.05);
+            expect(point[1]).toBeLessThanOrEqual(130 - radius + 0.05);
+          }
+        // Retain floor coverage across the cavity, rather than accepting fewer blocks by leaving most of it uncut.
+        for (const x of [15, 35, 85, 135, 155])
+          for (const y of [15, 40, 70, 100, 125])
+            expect(
+              floor.some(move => pointToSegment([x, y, 0], move.from, move.to) <= radius + 0.001),
+              `floor ${x},${y}`
+            ).toBe(true);
       }
     });
 });

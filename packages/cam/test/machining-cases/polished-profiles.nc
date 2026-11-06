@@ -1,6 +1,6 @@
 (camNC CAM)
 (polished-profiles)
-(Plan: cam-plan-v1-ec48ce457af22f91)
+(Plan: cam-plan-v1-053fb32b47319f0f)
 (Post: fluidnc. Safe Z8. Retract Z5)
 (Planned bounds: X0.313..31.688 Y0.313..21.688 Z-0.3..2.3)
 (Stock: 32 x 22 x 3 mm)

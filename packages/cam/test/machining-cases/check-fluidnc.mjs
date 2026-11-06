@@ -7,7 +7,9 @@ if (url.protocol !== 'ws:' || !['127.0.0.1', 'localhost', '[::1]'].includes(url.
   throw new Error('Parser checks require a loopback simulator URL');
 const directory = fileURLToPath(new URL('.', import.meta.url));
 const files = process.argv.slice(3);
-if (!files.length) files.push(...readdirSync(directory).filter(file => file.endsWith('.nc')).sort().map(file => `${directory}/${file}`));
+const programsIn = folder => readdirSync(folder, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name)).flatMap(entry =>
+  entry.isDirectory() ? programsIn(`${folder}/${entry.name}`) : entry.name.endsWith('.nc') ? [`${folder}/${entry.name}`] : []);
+if (!files.length) files.push(...programsIn(directory));
 if (!files.length) throw new Error('No generated programs to check');
 
 const socket = new WebSocket(url);

@@ -1,0 +1,401 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "f5c76b20287b84f736d3e5bb19e01029281796d5",
+  "inputSha256": "ee308cb6f8e02b1176c23f99d72cbae9e434ec9fb96796a970d6d685a0116c95",
+  "timingProfile": "lowrider-v4-reference",
+  "tinyFeedLineThresholdMm": 0.1,
+  "retractDefinition": "initial clearance command and subsequent positive-Z work-coordinate G0 moves; machine-coordinate parking excluded",
+  "cases": [
+    {
+      "id": "default-panel-600x400x18-d6",
+      "input": {
+        "schemaVersion": 1,
+        "id": "default-panel-600x400x18-d6",
+        "description": "600 by 400 mm outside panel profile, 18 mm thick, with default machining settings and a 6 mm tool.",
+        "mode": "profiles",
+        "stockSize": [
+          630,
+          430,
+          18
+        ],
+        "outline": {
+          "type": "polygon",
+          "points": [
+            [
+              15,
+              15
+            ],
+            [
+              615,
+              15
+            ],
+            [
+              615,
+              415
+            ],
+            [
+              15,
+              415
+            ]
+          ]
+        },
+        "pockets": [],
+        "profiles": [
+          {
+            "name": "Panel outline",
+            "shape": {
+              "type": "polygon",
+              "points": [
+                [
+                  15,
+                  15
+                ],
+                [
+                  615,
+                  15
+                ],
+                [
+                  615,
+                  415
+                ],
+                [
+                  15,
+                  415
+                ]
+              ]
+            },
+            "inside": false,
+            "toolNumber": 1
+          }
+        ],
+        "settings": {
+          "tools": [
+            {
+              "number": 1,
+              "diameter": 6,
+              "name": "synthetic flat end mill"
+            }
+          ]
+        },
+        "expected": {
+          "minimumZ": -0.3,
+          "programs": 1,
+          "requiredRoles": [
+            "ramp",
+            "finish"
+          ]
+        }
+      },
+      "resolvedSettings": {
+        "tools": [
+          {
+            "number": 1,
+            "diameter": 6,
+            "name": "synthetic flat end mill"
+          }
+        ],
+        "material": {
+          "name": "oak",
+          "stepdownFactor": 0.5
+        },
+        "feed": 1800,
+        "plungeFeed": 480,
+        "stepoverFactor": 0.4,
+        "profileRoughBottom": 1,
+        "leaveStock": 0.1,
+        "pocketWallAllowance": 0,
+        "pocketFinishFeedFactor": 1,
+        "innerCornerRadius": 0.3,
+        "finalZ": -0.3,
+        "finalFeedFactor": 0.5,
+        "climb": true,
+        "rampAngleDeg": 3,
+        "profileEntry": "ramp",
+        "pocketStrategy": "offset",
+        "geometryTolerance": 0.05,
+        "safeHeight": 5,
+        "retractHeight": 2,
+        "tabs": false,
+        "cutThrough": true
+      },
+      "metrics": [
+        {
+          "file": "default-panel-600x400x18-d6.nc",
+          "sha256": "0f2538f0ee020ab761e9d050befa02953491c043c7d105df9b14299e915003b8",
+          "bytes": 3444,
+          "executableBlocks": 205,
+          "motionBlocks": 197,
+          "tinyFeedLineBlocks": 0,
+          "feedLineBlocks": 104,
+          "retracts": 14,
+          "estimatedAutomaticSeconds": 1473.5877858322947,
+          "motionLowerBoundSeconds": 1457.1768469208023,
+          "fullStopAutomaticSeconds": 1543.0127985296524,
+          "timingSkippedMotionCount": 3,
+          "timingUncertainty": [
+            "Axis limits are a reference configuration, not measurements of the connected machine.",
+            "The estimate assumes a filled planner buffer and models acceleration and junction speeds; it is not measured machine time.",
+            "The full-stop scenario stops at every interpolated segment; controller starvation or external waits can still take longer.",
+            "Operator pauses, tool changes, transport latency, and spindle spin-up without an explicit dwell have no assigned duration.",
+            "Unresolved motion is excluded; all reported times cover only the interpreted portion of the program."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "default-outline-120x80x12-d3.175",
+      "input": {
+        "schemaVersion": 1,
+        "id": "default-outline-120x80x12-d3.175",
+        "description": "120 by 80 mm outside profile, 12 mm thick, with the default 3.175 mm tool and machining settings.",
+        "mode": "profiles",
+        "stockSize": [
+          140,
+          100,
+          12
+        ],
+        "outline": {
+          "type": "polygon",
+          "points": [
+            [
+              10,
+              10
+            ],
+            [
+              130,
+              10
+            ],
+            [
+              130,
+              90
+            ],
+            [
+              10,
+              90
+            ]
+          ]
+        },
+        "pockets": [],
+        "profiles": [
+          {
+            "name": "Outline",
+            "shape": {
+              "type": "polygon",
+              "points": [
+                [
+                  10,
+                  10
+                ],
+                [
+                  130,
+                  10
+                ],
+                [
+                  130,
+                  90
+                ],
+                [
+                  10,
+                  90
+                ]
+              ]
+            },
+            "inside": false,
+            "toolNumber": 1
+          }
+        ],
+        "settings": {},
+        "expected": {
+          "minimumZ": -0.3,
+          "programs": 1,
+          "requiredRoles": [
+            "ramp",
+            "finish"
+          ]
+        }
+      },
+      "resolvedSettings": {
+        "tools": [
+          {
+            "number": 1,
+            "diameter": 3.175,
+            "name": "flat end mill"
+          }
+        ],
+        "material": {
+          "name": "oak",
+          "stepdownFactor": 0.5
+        },
+        "feed": 1800,
+        "plungeFeed": 480,
+        "stepoverFactor": 0.4,
+        "profileRoughBottom": 1,
+        "leaveStock": 0.1,
+        "pocketWallAllowance": 0,
+        "pocketFinishFeedFactor": 1,
+        "innerCornerRadius": 0.3,
+        "finalZ": -0.3,
+        "finalFeedFactor": 0.5,
+        "climb": true,
+        "rampAngleDeg": 3,
+        "profileEntry": "ramp",
+        "pocketStrategy": "offset",
+        "geometryTolerance": 0.05,
+        "safeHeight": 5,
+        "retractHeight": 2,
+        "tabs": false,
+        "cutThrough": true
+      },
+      "metrics": [
+        {
+          "file": "default-outline-120x80x12-d3.175.nc",
+          "sha256": "704efa37f9ecbe9ec055b50a50f57defa32d5f41ce7b0e29ab8ab1138e4c3275",
+          "bytes": 4112,
+          "executableBlocks": 235,
+          "motionBlocks": 227,
+          "tinyFeedLineBlocks": 0,
+          "feedLineBlocks": 120,
+          "retracts": 16,
+          "estimatedAutomaticSeconds": 408.92634130440416,
+          "motionLowerBoundSeconds": 391.7763460560994,
+          "fullStopAutomaticSeconds": 465.68343443586855,
+          "timingSkippedMotionCount": 3,
+          "timingUncertainty": [
+            "Axis limits are a reference configuration, not measurements of the connected machine.",
+            "The estimate assumes a filled planner buffer and models acceleration and junction speeds; it is not measured machine time.",
+            "The full-stop scenario stops at every interpolated segment; controller starvation or external waits can still take longer.",
+            "Operator pauses, tool changes, transport latency, and spindle spin-up without an explicit dwell have no assigned duration.",
+            "Unresolved motion is excluded; all reported times cover only the interpreted portion of the program."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "default-pocket-150x120x6-d3.175",
+      "input": {
+        "schemaVersion": 1,
+        "id": "default-pocket-150x120x6-d3.175",
+        "description": "150 by 120 mm rectangular pocket, 6 mm deep in 12 mm stock; default 3.175 mm tool and machining settings, outline cutting disabled.",
+        "mode": "part",
+        "stockSize": [
+          170,
+          140,
+          12
+        ],
+        "outline": {
+          "type": "polygon",
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              170,
+              0
+            ],
+            [
+              170,
+              140
+            ],
+            [
+              0,
+              140
+            ]
+          ]
+        },
+        "pockets": [
+          {
+            "boundary": {
+              "type": "polygon",
+              "points": [
+                [
+                  10,
+                  10
+                ],
+                [
+                  160,
+                  10
+                ],
+                [
+                  160,
+                  130
+                ],
+                [
+                  10,
+                  130
+                ]
+              ]
+            },
+            "floorZ": 6
+          }
+        ],
+        "settings": {
+          "cutThrough": false
+        },
+        "expected": {
+          "minimumZ": 6,
+          "programs": 1,
+          "requiredRoles": [
+            "ramp",
+            "corner"
+          ]
+        }
+      },
+      "resolvedSettings": {
+        "tools": [
+          {
+            "number": 1,
+            "diameter": 3.175,
+            "name": "flat end mill"
+          }
+        ],
+        "material": {
+          "name": "oak",
+          "stepdownFactor": 0.5
+        },
+        "feed": 1800,
+        "plungeFeed": 480,
+        "stepoverFactor": 0.4,
+        "profileRoughBottom": 1,
+        "leaveStock": 0.1,
+        "pocketWallAllowance": 0,
+        "pocketFinishFeedFactor": 1,
+        "innerCornerRadius": 0.3,
+        "finalZ": -0.3,
+        "finalFeedFactor": 0.5,
+        "climb": true,
+        "rampAngleDeg": 3,
+        "profileEntry": "ramp",
+        "pocketStrategy": "offset",
+        "geometryTolerance": 0.05,
+        "safeHeight": 5,
+        "retractHeight": 2,
+        "tabs": false,
+        "cutThrough": false
+      },
+      "metrics": [
+        {
+          "file": "default-pocket-150x120x6-d3.175.nc",
+          "sha256": "9cad675bca00d33e074fe36bef5101e462bcfe8938291cd6d20f482e69206f5a",
+          "bytes": 154753,
+          "executableBlocks": 12910,
+          "motionBlocks": 12902,
+          "tinyFeedLineBlocks": 9024,
+          "feedLineBlocks": 11261,
+          "retracts": 185,
+          "estimatedAutomaticSeconds": 2209.623559070098,
+          "motionLowerBoundSeconds": 2064.9036146420485,
+          "fullStopAutomaticSeconds": 2863.8258291500856,
+          "timingSkippedMotionCount": 3,
+          "timingUncertainty": [
+            "Axis limits are a reference configuration, not measurements of the connected machine.",
+            "The estimate assumes a filled planner buffer and models acceleration and junction speeds; it is not measured machine time.",
+            "The full-stop scenario stops at every interpolated segment; controller starvation or external waits can still take longer.",
+            "Operator pauses, tool changes, transport latency, and spindle spin-up without an explicit dwell have no assigned duration.",
+            "Unresolved motion is excluded; all reported times cover only the interpreted portion of the program."
+          ]
+        }
+      ]
+    }
+  ]
+}

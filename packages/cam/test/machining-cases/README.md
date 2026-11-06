@@ -17,6 +17,8 @@ Each `.input.json` specifies stock, geometry, tools/settings, and independently 
 
 The expected programs characterize the implementation. They are reviewed alongside geometric invariants: protected-island clearance, safe/depth-limited output, retained tab material after a swept-tool simulation, semantic feed alignment, unsupported slot outcomes, and physical tool separation. The exact-width slot currently has no positive-area cutter-center region; this case records that limitation rather than treating it as supported centerline slotting. The independent assertions must continue to hold when a deliberate algorithm improvement changes program bytes.
 
+Three larger [default-policy cases](./performance/README.md) retain panel/outline/pocket output and independently cap executable blocks, tiny feed lines, retracts, and modeled automatic time. Their tests check cutter envelopes and final-wall/floor coverage, so omitting machining cannot satisfy the cost limits. The same command below regenerates both sets. Historical pre-change measurements remain separate from the current manifest and are not rewritten by regeneration.
+
 Run from the repository root:
 
 ```sh

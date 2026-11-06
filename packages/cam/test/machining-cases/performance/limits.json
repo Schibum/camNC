@@ -1,0 +1,5 @@
+{
+  "default-panel-600x400x18-d6": { "executableBlocks": 120, "tinyFeedLineBlocks": 0, "retracts": 4, "estimatedAutomaticSeconds": 720 },
+  "default-outline-120x80x12-d3.175": { "executableBlocks": 140, "tinyFeedLineBlocks": 0, "retracts": 4, "estimatedAutomaticSeconds": 200 },
+  "default-pocket-150x120x6-d3.175": { "executableBlocks": 4200, "tinyFeedLineBlocks": 0, "retracts": 12, "estimatedAutomaticSeconds": 2150 }
+}
