@@ -40,6 +40,12 @@ const description = (el: Element) =>
 /** A board's drawing: its header, the parts on it, the ones that don't fit. */
 const drawing = (board: string) => screen.getByRole('region', { name: `Board ${board} drawing` });
 
+/** Every board, with the job-wide layout tools. */
+const showAll = () => fireEvent.click(screen.getByRole('tab', { name: 'All boards' }));
+
+/** One board on its own, from the rail: what edits it is on its drawing and in the sidebar. */
+const openBoard = (board: string) => fireEvent.click(screen.getByRole('button', { name: `Board ${board}` }));
+
 /** Pointer drag of a part (its outline, or its chip where it doesn't fit) to the middle of another board's drawing. */
 function drag(part: Element, board: string) {
   const start = part.getBoundingClientRect();
@@ -96,8 +102,8 @@ describe('CAM boards step', () => {
     expect(within(c).getByText('Part 2')).toBeTruthy();
     expect(description(within(c).getByRole('img', { name: 'Placed by hand' }))).toMatch(/^Pinned:/);
 
-    // One 8 mm stock board size, as many as needed: the stock list opens next to Auto-fill.
-    fireEvent.click(screen.getByRole('button', { name: /^Stock list/ }));
+    // One 8 mm stock board size, as many as needed: the stock list is next to Auto-fill.
+    showAll();
     const stockList = within(screen.getByRole('region', { name: 'Stock list' }));
     fireEvent.change(stockList.getByLabelText('Stock thickness'), { target: { value: '8' } });
     fireEvent.change(stockList.getByLabelText('Stock width'), { target: { value: '1220' } });
@@ -141,6 +147,7 @@ describe('CAM boards step', () => {
 
   it('nests the parts on one board per thickness and regroups them by drag and drop', async () => {
     const job = await openKinderregal();
+    showAll();
     const a = drawing('A');
     const b = drawing('B');
     for (const name of ['left', 'right', 'Part 1a', 'Part 1b', 'Part 2']) expect(within(a).getByText(name)).toBeTruthy();
@@ -193,17 +200,18 @@ describe('CAM boards step', () => {
     fireEvent.click(drawing('A'));
     const holdsOnA = () => screen.getByRole('region', { name: 'Board A drawing' }).querySelectorAll('[data-hold]').length;
     expect(holdsOnA()).toBe(0);
-    fireEvent.click(screen.getByRole('button', { name: 'Suggest holds' }));
-    await waitFor(() => expect(holdsOnA()).toBeGreaterThanOrEqual(3));
+    fireEvent.click(await screen.findByRole('button', { name: 'Suggest holds' }, { timeout: 10_000 }));
+    await waitFor(() => expect(holdsOnA()).toBeGreaterThanOrEqual(3), { timeout: 10_000 });
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
-    await waitFor(() => expect(holdsOnA()).toBe(0));
+    await waitFor(() => expect(holdsOnA()).toBe(0), { timeout: 10_000 });
   }, 90_000);
 
   it('drags a part’s outline from one board drawing onto another, where it lands exactly at the drop point', async () => {
     const job = await openKinderregal();
     // Board C: a 1220 × 610 sheet, empty.
+    showAll();
     fireEvent.click(screen.getByRole('button', { name: /New 8 mm board/ }));
-    await screen.findByRole('region', { name: 'Board C drawing' });
+    fireEvent.click(await screen.findByRole('region', { name: 'Board C drawing' }));
     for (const [label, value] of [
       ['Width', '1220'],
       ['Height', '610'],
@@ -220,6 +228,7 @@ describe('CAM boards step', () => {
       { timeout: 10_000 }
     );
 
+    showAll();
     // Grab the left side (560 × 140) at its lower left corner + (20, 10) mm.
     const left = partIn('A', 'left');
     const box = (left as unknown as SVGGElement).getBBox();
@@ -369,7 +378,7 @@ describe('CAM boards step', () => {
 
   it('says plainly when holds there don’t surround the work and Suggest can’t fix it', async () => {
     const job = await openKinderregal();
-    fireEvent.click(drawing('B'));
+    openBoard('B');
     const boardB = async () => (await getJob(job.id))!.boards!.find(b => b.name === 'B')!;
     await waitFor(async () => expect((await boardB()).layout).toBeTruthy(), { timeout: 10_000 });
     const saved = (await getJob(job.id))!;
@@ -386,8 +395,8 @@ describe('CAM boards step', () => {
         <BoardsStep />
       </QueryClientProvider>
     );
-    await screen.findByRole('region', { name: 'Board B drawing' }, { timeout: 60_000 });
-    fireEvent.click(drawing('B'));
+    await screen.findByRole('button', { name: 'Board B' }, { timeout: 60_000 });
+    openBoard('B');
     fireEvent.click(screen.getByRole('button', { name: 'Suggest holds' }));
     await waitFor(() => expect(document.body.textContent).toMatch(/These holds don’t surround the work’s middle/), { timeout: 10_000 });
     expect(document.body.textContent).not.toMatch(/already surround/);
@@ -447,7 +456,7 @@ describe('CAM boards step', () => {
 
     it('grows it and says by how much, moves the holds there with the part, and Undo restores it', async () => {
       const job = await openKinderregal();
-      fireEvent.click(drawing('B'));
+      openBoard('B');
       await waitFor(async () => expect((await boardB(job.id)).layout).toBeTruthy(), { timeout: 10_000 });
       // A screw the user put there first: a single clamp would already give the board the room for more.
       cleanup();
@@ -459,8 +468,8 @@ describe('CAM boards step', () => {
           <BoardsStep />
         </QueryClientProvider>
       );
-      await screen.findByRole('region', { name: 'Board B drawing' }, { timeout: 60_000 });
-      fireEvent.click(drawing('B'));
+      await screen.findByRole('button', { name: 'Board B' }, { timeout: 60_000 });
+      openBoard('B');
       const before = await boardB(job.id);
 
       fireEvent.click(screen.getByRole('button', { name: 'Suggest holds' }));
@@ -481,7 +490,7 @@ describe('CAM boards step', () => {
 
     it('leaves a fixed board its size', async () => {
       const job = await openKinderregal();
-      fireEvent.click(drawing('B'));
+      openBoard('B');
       await waitFor(async () => expect((await boardB(job.id)).layout).toBeTruthy(), { timeout: 10_000 });
       const { w } = (await boardB(job.id)).layout!;
       const input = screen.getByLabelText('Width', { selector: '[id^="board-"]' }) as HTMLInputElement;
@@ -499,13 +508,13 @@ describe('CAM boards step', () => {
 
     it('grows it no further than the machine', async () => {
       const job = await openKinderregal();
-      fireEvent.click(drawing('B'));
+      openBoard('B');
       await waitFor(async () => expect((await boardB(job.id)).layout).toBeTruthy(), { timeout: 10_000 });
       const before = await boardB(job.id);
       useStore.setState({ machineBounds: new Box2(new Vector2(0, 0), new Vector2(before.layout!.w + 2, before.layout!.h + 2)) });
       // The store's bounds are read as the page renders: selecting the board again brings them in.
-      fireEvent.click(drawing('A'));
-      fireEvent.click(drawing('B'));
+      openBoard('A');
+      openBoard('B');
       fireEvent.click(screen.getByRole('button', { name: 'Suggest holds' }));
       await waitFor(() => expect(status()).toMatch(noRoom));
       expect(await boardB(job.id)).toStrictEqual(before);
@@ -514,22 +523,27 @@ describe('CAM boards step', () => {
 
   it('keeps the stick-out with the job’s bit, not the board', async () => {
     const job = await openKinderregal();
-    fireEvent.click(drawing('A'));
     const field = () => document.getElementById('hold-stickout') as HTMLInputElement;
-    await waitFor(() => expect(field()).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'Clamp and screw sizes…' }));
+    await waitFor(() => expect(field()).toBeTruthy(), { timeout: 10_000 });
     fireEvent.change(field(), { target: { value: '42' } });
     fireEvent.blur(field());
-    await waitFor(async () => {
-      const saved = (await getJob(job.id))!;
-      expect(saved.plan?.bit.stickout).toBe(42);
-    });
-    // Every board of the job shows it.
-    fireEvent.click(drawing('B'));
-    await waitFor(() => expect(field().value).toBe('42'));
+    await waitFor(
+      async () => {
+        const saved = (await getJob(job.id))!;
+        expect(saved.plan?.bit.stickout).toBe(42);
+      },
+      { timeout: 10_000 }
+    );
+    // Every board of the job shows it: the open dialog follows the selected board.
+    fireEvent.click(screen.getByRole('button', { name: 'Board B', hidden: true }));
+    await screen.findByRole('region', { name: 'Board B drawing', hidden: true }, { timeout: 10_000 });
+    expect(field().value).toBe('42');
   }, 90_000);
 
   it('auto-fill optimizes for fewest boards unless the job says least wood', async () => {
     const job = await openKinderregal();
+    showAll();
     // Tabs only where they hold: no tab marked red on the drawings once the programs are made.
     const tabs = () => document.querySelectorAll('line[class*="stroke-amber"]').length;
     const floating = () => [...document.querySelectorAll('circle > title')].filter(t => /this tab holds nothing/.test(t.textContent ?? ''));
@@ -562,6 +576,7 @@ describe('CAM boards step', () => {
 
     // Everything: unpinned (no stock list, so the boards keep their parts and nest afresh).
     toastSuccess.mockClear();
+    showAll();
     fireEvent.pointerDown(screen.getByRole('button', { name: 'More layout actions' }), { button: 0, ctrlKey: false });
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Re-lay out everything (unpin all)' }));
     await waitFor(async () => expect(await pinnedBoards()).toEqual([]), { timeout: 10_000 });
@@ -570,7 +585,7 @@ describe('CAM boards step', () => {
     action.onClick();
     await waitFor(async () => expect((await getJob(job.id))!.boards).toStrictEqual(before), { timeout: 10_000 });
 
-    // One board: select C's drawing, re-lay it out from its inspector.
+    // One board: open C, re-lay it out from its inspector.
     fireEvent.click(await screen.findByRole('region', { name: 'Board C drawing' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Tighten layout' }));
     await waitFor(async () => expect(await pinnedBoards()).toEqual([]), { timeout: 10_000 });
@@ -584,19 +599,22 @@ describe('CAM boards step', () => {
     // Part 2 on a board of its own, then that board made too small for it.
     await openMenu('A', 'Part 2');
     fireEvent.click(await screen.findByRole('menuitem', { name: /New board/ }));
-    fireEvent.click(await screen.findByRole('region', { name: 'Board C drawing' }));
+    await screen.findByRole('region', { name: 'Board C drawing' });
     for (const id of ['board-w', 'board-h']) {
       const input = () => document.getElementById(id) as HTMLInputElement;
       await waitFor(() => expect(input()).toBeTruthy());
       fireEvent.change(input(), { target: { value: '50' } });
       fireEvent.blur(input());
     }
-    const tray = await screen.findByRole('group', { name: 'Doesn’t fit on board C' }, { timeout: 10_000 });
-    expect(within(tray).getByText('Part 2')).toBeTruthy();
+    expect(
+      within(await screen.findByRole('group', { name: 'Doesn’t fit on board C' }, { timeout: 10_000 })).getByText('Part 2')
+    ).toBeTruthy();
     expect(within(drawing('C')).getByText('1 don’t fit')).toBeTruthy();
     expect(screen.getByRole('alert').textContent).toMatch(/^Part 2 doesn’t fit on this board\./);
 
     // Dragged from the tray back onto board A.
+    showAll();
+    const tray = screen.getByRole('group', { name: 'Doesn’t fit on board C' });
     drag(tray.querySelector('[data-unplaced="Part 2"]')!, 'A');
     await waitFor(
       async () => {
@@ -621,16 +639,24 @@ describe('CAM boards step', () => {
       timeout: 10_000,
     });
     // Margin and gap follow the bit, with room for a strip that holds the tabs: 6 + 3.5 and 2 × 6 + 3.5.
-    await waitFor(() => expect(screen.getByText(/edge margin 9.5 mm · gap 16 mm/)).toBeTruthy(), { timeout: 10_000 });
+    await waitFor(
+      () => {
+        expect((screen.getByLabelText('Edge margin') as HTMLInputElement).value).toBe('9.5');
+        expect((screen.getByLabelText('Gap between parts') as HTMLInputElement).value).toBe('16');
+      },
+      { timeout: 10_000 }
+    );
   }, 90_000);
 
   it('labels the stock fields, takes comma decimals, says what is wrong, and shows no size for an empty board', async () => {
     const job = await openKinderregal();
     // Fitted boards are whole mm.
+    showAll();
     expect(within(drawing('A')).getByText('574 × 750')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /New 8 mm board/ }));
     const c = await screen.findByRole('region', { name: 'Board C drawing' });
     expect(within(c).getByText('–')).toBeTruthy();
+    fireEvent.click(c);
     const width = screen.getByLabelText('Width', { selector: '#board-w' }) as HTMLInputElement;
     expect(width.value).toBe('');
     expect(width.placeholder).toBe('–');
@@ -642,7 +668,7 @@ describe('CAM boards step', () => {
     expect(description(width)).toMatch(/^5 is out of range: at least 10 mm\./);
     expect((await getJob(job.id))!.boards!.find(b => b.name === 'C')!.size).toEqual({ fit: true });
 
-    fireEvent.click(screen.getByRole('button', { name: /^Stock list/ }));
+    showAll();
     const stockList = within(await screen.findByRole('region', { name: 'Stock list' }));
     for (const label of ['Thickness', 'Width', 'Height', 'Count']) expect(stockList.getByText(label).tagName).toBe('LABEL');
     fireEvent.change(stockList.getByLabelText('Stock thickness'), { target: { value: '8' } });

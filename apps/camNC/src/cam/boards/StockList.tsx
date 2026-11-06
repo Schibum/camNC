@@ -1,6 +1,5 @@
 import { Button } from '@wbcnc/ui/components/button';
 import { Input } from '@wbcnc/ui/components/input';
-import { Popover, PopoverContent, PopoverTrigger } from '@wbcnc/ui/components/popover';
 import { Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import type { StockBoardV1 } from '../boards';
@@ -108,23 +107,5 @@ export function StockList({ stock, onChange }: { stock: StockBoardV1[]; onChange
         it can and keeps parts you moved by hand where they are.
       </p>
     </section>
-  );
-}
-
-/** The stock list behind a button next to "Auto-fill from stock", the only thing that uses it. */
-export function StockPopover({ stock, onChange }: { stock: StockBoardV1[]; onChange: (s: StockBoardV1[]) => void }) {
-  return (
-    <Popover>
-      <Hint text="The boards you have: auto-fill puts the parts on them.">
-        <PopoverTrigger asChild>
-          <Button size="sm" variant="outline">
-            Stock list{stock.length > 0 && <span className="text-muted-foreground"> · {stock.length}</span>}
-          </Button>
-        </PopoverTrigger>
-      </Hint>
-      <PopoverContent align="start" className="w-80">
-        <StockList stock={stock} onChange={onChange} />
-      </PopoverContent>
-    </Popover>
   );
 }

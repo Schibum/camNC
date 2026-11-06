@@ -2,7 +2,10 @@ import { TooltipProvider } from '@wbcnc/ui/components/tooltip';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { kDefaultTabs, layoutSummary, type BoardNest, type BoardV1 } from './boards';
+import { BoardHeadingFields } from './boards/BoardHeadingFields';
 import { BoardInspector } from './boards/BoardInspector';
+import { HoldSizesDialog } from './boards/HoldSizesDialog';
+import { kDefaultHardware, useHoldHardware } from './holdHardware';
 import { kCuttingFields, kCuttingHints, kCuttingLabels } from './cuttingData';
 import { useCamMachine } from './machine/camMachine';
 import { CamQueueCard } from './machine/CamQueueCard';
@@ -54,40 +57,57 @@ const nest: BoardNest = {
 };
 
 describe('CAM controls explain themselves', () => {
-  it('board settings: holding options, spacing, stock thickness, tabs and Tighten layout have descriptions', () => {
+  it('board settings: holding options, tabs and Tighten layout have descriptions', () => {
     render(
       <TooltipProvider>
-        <BoardInspector board={board} nest={nest} stock={[]} bit={3.175} onChange={() => {}} onRelayout={() => {}} />
+        <BoardInspector board={board} nest={nest} stock={[]} onChange={() => {}} onRelayout={() => {}} />
       </TooltipProvider>
     );
     expect(description(screen.getByRole('checkbox', { name: 'Tape under the board' }))).toMatch(/Double-sided tape/);
     expect(description(screen.getByRole('radio', { name: 'Tabs' }))).toMatch(/bridges hold each part/);
     expect(description(screen.getByRole('radio', { name: 'Bottom skin' }))).toMatch(/bridges hold each part/);
     expect(description(screen.getByRole('checkbox', { name: 'Stop at each tab at the machine' }))).toMatch(/stops at each tab/);
-    expect(description(screen.getByLabelText('Screw head ⌀'))).toMatch(/screw head/);
-    expect(description(screen.getByLabelText('Clamp reach'))).toMatch(/toe reaches/);
-    expect(description(screen.getByLabelText('Edge margin'))).toMatch(/border inside the board edge/);
-    expect(description(screen.getByLabelText('Gap between parts'))).toMatch(/outline cuts never meet/);
-    expect(description(screen.getByLabelText('Stock thickness'))).toMatch(/caliper/);
     expect(description(screen.getByLabelText('Tab W'))).toMatch(/^Tab width/);
     expect(description(screen.getByLabelText('Tab H'))).toMatch(/^Tab height/);
     expect(description(screen.getByLabelText('Min #'))).toMatch(/^Fewest tabs/);
     expect(description(screen.getByRole('button', { name: 'Tighten layout' }))).toMatch(/placed by hand may move/);
   });
 
+  it('clamp and screw sizes: each field is described, and a side view shows what its numbers mean', () => {
+    render(
+      <TooltipProvider>
+        <HoldSizesDialog open onOpenChange={() => {}} bit={3.175} stockTop={8.5} nutAbove={11.5} stickout={20} onStickout={() => {}} />
+      </TooltipProvider>
+    );
+    expect(description(screen.getByLabelText('Screw head ⌀'))).toMatch(/screw head/);
+    expect(description(screen.getByLabelText('Clamp reach'))).toMatch(/toe reaches/);
+    expect(description(screen.getByLabelText('Bit stick-out'))).toMatch(/below the collet nut/);
+    const clamp = within(screen.getByRole('figure', { name: 'What the clamp sizes mean' }));
+    expect(clamp.getByText(/^reach /)).toBeTruthy();
+    expect(clamp.getByText(/^width /)).toBeTruthy();
+    expect(clamp.getByText('stick-out 20')).toBeTruthy();
+    expect(within(screen.getByRole('figure', { name: 'What the screw sizes mean' })).getByText(/^⌀\d+\+2$/)).toBeTruthy();
+    // The numbers are what's in the fields: a clamp that reaches further is drawn so.
+    fireEvent.change(screen.getByLabelText('Clamp reach'), { target: { value: '7.5' } });
+    fireEvent.blur(screen.getByLabelText('Clamp reach'));
+    expect(clamp.getByText('reach 7.5')).toBeTruthy();
+    useHoldHardware.setState({ hardware: kDefaultHardware });
+  });
+
+  it('stock thickness on the board’s heading is described', () => {
+    render(
+      <TooltipProvider>
+        <BoardHeadingFields board={board} nest={nest} onChange={() => {}} />
+      </TooltipProvider>
+    );
+    expect(description(screen.getByLabelText('Stock thickness'))).toMatch(/caliper/);
+  });
+
   it('nothing above the settings moves with what is chosen: no warning among them, the note keeps its room', () => {
     const skin = vi.fn();
     render(
       <TooltipProvider>
-        <BoardInspector
-          board={{ ...board, retention: 'skin' }}
-          nest={nest}
-          stock={[]}
-          bit={3.175}
-          onChange={() => {}}
-          skin={1}
-          onSkin={skin}
-        />
+        <BoardInspector board={{ ...board, retention: 'skin' }} nest={nest} stock={[]} onChange={() => {}} skin={1} onSkin={skin} />
       </TooltipProvider>
     );
     expect(screen.queryByText(/Too tight for tabs/)).toBeNull();
@@ -101,7 +121,7 @@ describe('CAM controls explain themselves', () => {
   it('a tooltip opens on keyboard focus, with the same text as the description', async () => {
     render(
       <TooltipProvider>
-        <BoardInspector board={board} nest={nest} stock={[]} bit={3.175} onChange={() => {}} onRelayout={() => {}} />
+        <BoardInspector board={board} nest={nest} stock={[]} onChange={() => {}} onRelayout={() => {}} />
       </TooltipProvider>
     );
     const button = screen.getByRole('button', { name: 'Tighten layout' });

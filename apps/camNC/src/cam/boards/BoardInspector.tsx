@@ -1,69 +1,15 @@
 import type { FlipRegistration } from '@wbcnc/cam';
-import { MATERIALS } from '@wbcnc/cam/settings';
 import { Button } from '@wbcnc/ui/components/button';
 import { Label } from '@wbcnc/ui/components/label';
+import { Input } from '@wbcnc/ui/components/input';
+import { useEffect, useState } from 'react';
+import { cn } from '@wbcnc/ui/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wbcnc/ui/components/select';
-import { kColletClearance } from '@wbcnc/cam/holdPoints';
-import { fixtureCount, kRetentionLabels, stockTopOf, type BoardNest, type BoardV1, type Retention, type StockBoardV1 } from '../boards';
-import { useHoldHardware } from '../holdHardware';
-import type { MaterialKey } from '../planSettings';
+import { boardLabel, fixtureCount, kRetentionLabels, type BoardNest, type BoardV1, type Retention, type StockBoardV1 } from '../boards';
 import { Hint } from '../Hint';
-import { NumberInput } from '../NumberInput';
+import { NumberField } from './NumberField';
 
 const fmt = (v: number) => `${+v.toFixed(1)}`;
-
-function NumberField({
-  id,
-  label,
-  value,
-  onCommit,
-  min = 0,
-  integer,
-  empty,
-  hint,
-  side,
-}: {
-  id: string;
-  label: string;
-  value: number;
-  onCommit: (v: number) => void;
-  min?: number;
-  integer?: boolean;
-  /** Nothing to show yet: the field shows "–". */
-  empty?: boolean;
-  /** What the value does: tooltip and the input's accessible description. */
-  hint?: string;
-  /** Where the tooltip opens: beside the field where one above or below would cover what's next to it. */
-  side?: 'top' | 'left';
-}) {
-  const field = (
-    <div className="flex flex-col gap-1">
-      <Label htmlFor={id} className="text-xs font-normal text-muted-foreground">
-        {label}
-      </Label>
-      <NumberInput
-        id={id}
-        value={value}
-        digits={1}
-        min={min}
-        integer={integer}
-        unit={integer ? undefined : 'mm'}
-        empty={empty}
-        placeholder={empty ? '–' : undefined}
-        className="h-8"
-        onCommit={onCommit}
-        aria-describedby={hint ? `${id}-hint` : undefined}
-      />
-    </div>
-  );
-  return hint ? (
-    <Hint text={hint} id={`${id}-hint`} side={side}>
-      {field}
-    </Hint>
-  ) : (
-    field
-  );
-}
 
 const kRetentionNotes: Record<Retention, string> = {
   tabs: 'Small bridges hold each part. A part where tabs can’t hold turns red and blocks the job until you move it or switch to bottom skin.',
@@ -88,22 +34,53 @@ const kFlipHints: Record<FlipRegistration | 'off', string> = {
     'Push the board against a fence on the left and a stop at the front, for both sides. Side B is mirrored about the board’s height: measure it, and enter it as the board’s size.',
 };
 
+/** The board's name: typed over where it stands; a name that can't be stays in the field until it's fixed (or Escape). */
+function BoardName({ board, onRename }: { board: BoardV1; onRename: (name: string) => boolean }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  useEffect(() => setDraft(null), [board.id]);
+  const take = () => {
+    if (draft === null) return;
+    const name = draft.trim();
+    if (name === board.name || name === boardLabel(board) || onRename(name)) setDraft(null);
+  };
+  return (
+    <Input
+      id="board-name"
+      aria-label="Board name"
+      autoComplete="off"
+      className="h-7 min-w-0 flex-1 rounded-none border-0 border-b border-dashed border-muted-foreground/60 bg-transparent px-0.5 text-[15px] font-semibold shadow-none focus-visible:border-solid focus-visible:border-primary focus-visible:ring-0 dark:bg-transparent"
+      value={draft ?? boardLabel(board)}
+      onFocus={e => e.target.select()}
+      onChange={e => setDraft(e.target.value)}
+      onBlur={take}
+      onKeyDown={e => {
+        if (e.key === 'Enter') e.currentTarget.blur();
+        if (e.key === 'Escape') setDraft(null);
+      }}
+    />
+  );
+}
+
 /**
- * The selected board's settings. Nothing here changes height with what's chosen and nothing is said in between, so no
- * control moves: fixtures are placed on the drawing, what needs attention is said under it.
+ * The selected board's settings that have no place on the drawing; what has one (size, material, margin, gap, fixtures, tabs)
+ * is edited there. Nothing here changes height with what's chosen and nothing is said in between, so no control moves: what
+ * needs attention is said over the drawing.
  */
 export function BoardInspector({
   board,
   nest,
   stock,
-  bit,
-  onStickout,
   onChange,
   onRelayout,
   onDelete,
   flip,
   skin,
   onSkin,
+  onRename,
+  tools,
+  verdict,
+  onHoldSizes,
+  gap,
 }: {
   /** The bottom skin of the job's boards. */
   skin?: number;
@@ -113,29 +90,36 @@ export function BoardInspector({
   board: BoardV1;
   nest: BoardNest;
   stock: StockBoardV1[];
-  bit: number;
-  /** The job's bit's stick-out changed, mm. */
-  onStickout?: (stickout: number) => void;
   onChange: (b: BoardV1) => void;
   /** Nest this board's parts afresh, moving only as far as its fixtures need. */
   onRelayout?: () => void;
   onDelete?: () => void;
+  /** A new name for it; false: it can't have that one (and has been told why). */
+  onRename?: (name: string) => boolean;
+  /** The buttons that place fixtures. */
+  tools?: React.ReactNode;
+  /** What holds the board, in a word, and what that means. */
+  verdict?: { tone: 'ok' | 'warn' | 'none'; text: string };
+  /** The clamps' and screws' sizes. */
+  onHoldSizes?: () => void;
+  /** The gap between parts, with no two parts on the drawing to show it between: at least this, mm. */
+  gap?: { min: number };
 }) {
-  const hardware = useHoldHardware(s => s.hardware);
-  const setHardware = useHoldHardware(s => s.setHardware);
   const matching = stock.filter(s => +s.thickness.toFixed(1) === board.thickness);
   const sizeValue = board.size.fit
     ? 'fit'
     : (matching.find(s => !board.size.fit && s.w === board.size.w && s.h === board.size.h)?.id ?? 'custom');
   const tabs = board.retention === 'tabs';
   const taped = !!board.taped;
-  // A fitted board with nothing on it has no size yet (only its margins): "–", and a size typed in sets both sides.
-  const emptyFit = board.size.fit && !nest.placements.length;
+  const held = fixtureCount(board.fixtures);
   return (
-    <aside className="flex min-h-0 flex-col gap-3.5 overflow-y-auto border-l p-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto p-4">
       <div className="flex items-center gap-2">
-        <h2 className="text-[15px] font-semibold">Board {board.name}</h2>
-        <span className="grow" />
+        {onRename ? (
+          <BoardName board={board} onRename={onRename} />
+        ) : (
+          <h2 className="grow text-[15px] font-semibold">{boardLabel(board)}</h2>
+        )}
         {onRelayout && board.items.length > 0 && (
           <Hint text="Back to the tight nest, moved only as far as the fixtures need. On “Fit to parts” the board gets as small as it can. Parts you placed by hand may move.">
             <Button size="sm" variant="outline" onClick={onRelayout}>
@@ -144,86 +128,27 @@ export function BoardInspector({
           </Hint>
         )}
       </div>
-      <div className="flex flex-col gap-1">
-        <Label htmlFor="board-size" className="text-xs font-normal text-muted-foreground">
-          Size
-        </Label>
-        <Select
-          value={sizeValue}
-          onValueChange={v => {
-            if (v === 'fit') onChange({ ...board, size: { fit: true } });
-            else if (v === 'custom') onChange({ ...board, size: { fit: false, w: nest.board.w, h: nest.board.h } });
-            const s = matching.find(x => x.id === v);
-            if (s) onChange({ ...board, size: { fit: false, w: s.w, h: s.h } });
-          }}>
-          <SelectTrigger id="board-size" className="h-8 w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="fit">Fit to parts (grows if needed)</SelectItem>
-            <SelectItem value="custom">Fixed at this size</SelectItem>
-            {matching.map(s => (
-              <SelectItem key={s.id} value={s.id}>
-                Stock {fmt(s.w)} × {fmt(s.h)}
-                {s.quantity !== undefined && ` (${s.quantity} pcs)`}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      {/* Always there, so what's below stays put; a size typed in makes the board fixed at it. */}
-      <div className="grid grid-cols-2 gap-2">
-        <NumberField
-          id="board-w"
-          label="Width"
-          value={nest.board.w}
-          empty={emptyFit}
-          onCommit={w => onChange({ ...board, size: { fit: false, w, h: emptyFit ? w : nest.board.h } })}
-          min={10}
-        />
-        <NumberField
-          id="board-h"
-          label="Height"
-          value={nest.board.h}
-          empty={emptyFit}
-          onCommit={h => onChange({ ...board, size: { fit: false, w: emptyFit ? h : nest.board.w, h } })}
-          min={10}
-        />
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <NumberField
-          id="board-thickness"
-          label="Stock thickness"
-          hint={`Measure the board with a caliper: cutting starts at this height. The parts are ${fmt(board.thickness)} mm. Too high cuts air at first, too low makes the first pass deeper.`}
-          value={stockTopOf(board)}
-          onCommit={t => onChange({ ...board, measuredThickness: t })}
-          min={board.thickness}
-        />
-        <div className="flex flex-col gap-1">
-          <Label htmlFor="board-material" className="text-xs font-normal text-muted-foreground">
-            Material
-          </Label>
-          <Select value={board.material} onValueChange={m => onChange({ ...board, material: m as MaterialKey })}>
-            <SelectTrigger id="board-material" className="h-8 w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(MATERIALS).map(([k, m]) => (
-                <SelectItem key={k} value={k}>
-                  {m.name[0].toUpperCase() + m.name.slice(1)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
 
       <fieldset className="flex flex-col gap-1.5">
         <legend className="mb-1.5 text-[13px] font-semibold">Board held by</legend>
-        <p className="font-mono text-xs text-muted-foreground" data-fixture-count>
-          {fixtureCount(board.fixtures) || 'No fixtures yet'}
-        </p>
-        <p className="text-xs text-muted-foreground">Place them on the drawing. None is fine.</p>
+        <Hint text={verdict?.text ?? 'Place them on the drawing. None is fine.'} id="board-verdict-hint" side="left">
+          <p
+            className="flex items-center gap-2 self-start font-mono text-xs text-muted-foreground"
+            data-fixture-count
+            aria-describedby="board-verdict-hint">
+            {verdict && (
+              <span
+                aria-hidden
+                className={cn(
+                  'size-2 shrink-0 rounded-full',
+                  verdict.tone === 'ok' ? 'bg-emerald-500' : verdict.tone === 'warn' ? 'bg-amber-500' : 'bg-muted-foreground'
+                )}
+              />
+            )}
+            {held ? (taped ? `${held} and tape` : held) : taped ? 'Tape' : 'No fixtures yet'}
+          </p>
+        </Hint>
+        {tools}
         <Hint
           text="Double-sided tape under the board: it stays put without fixtures. Use both if you like."
           id="board-tape-hint"
@@ -239,6 +164,11 @@ export function BoardInspector({
             Tape under the board
           </label>
         </Hint>
+        {onHoldSizes && (
+          <Button size="sm" variant="outline" onClick={onHoldSizes}>
+            Clamp and screw sizes…
+          </Button>
+        )}
       </fieldset>
 
       <fieldset className="flex flex-col gap-1.5">
@@ -275,28 +205,37 @@ export function BoardInspector({
         </p>
       </fieldset>
 
+      <div className="flex flex-col gap-1">
+        <Label htmlFor="board-size" className="text-xs font-normal text-muted-foreground">
+          Board size
+        </Label>
+        <Select
+          value={sizeValue}
+          onValueChange={v => {
+            if (v === 'fit') onChange({ ...board, size: { fit: true } });
+            else if (v === 'custom') onChange({ ...board, size: { fit: false, w: nest.board.w, h: nest.board.h } });
+            const s = matching.find(x => x.id === v);
+            if (s) onChange({ ...board, size: { fit: false, w: s.w, h: s.h } });
+          }}>
+          <SelectTrigger id="board-size" className="h-8 w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="fit">Fit to parts (grows if needed)</SelectItem>
+            <SelectItem value="custom">Fixed at this size</SelectItem>
+            {matching.map(s => (
+              <SelectItem key={s.id} value={s.id}>
+                Stock {fmt(s.w)} × {fmt(s.h)}
+                {s.quantity !== undefined && ` (${s.quantity} pcs)`}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <details>
-        <summary className="cursor-pointer text-xs text-muted-foreground">Spacing, tabs and skin</summary>
+        <summary className="cursor-pointer text-xs text-muted-foreground">Tabs and skin</summary>
         <div className="mt-2 flex flex-col gap-2">
-          <div className="grid grid-cols-2 gap-2">
-            <NumberField
-              id="board-margin"
-              label="Edge margin"
-              side="left"
-              hint="Free border inside the board edge, so the outline cut and its lead-in stay on the board: about the bit plus 2 mm, more with tabs."
-              value={nest.margin}
-              onCommit={margin => onChange({ ...board, margin })}
-            />
-            <NumberField
-              id="board-gap"
-              label="Gap between parts"
-              side="left"
-              hint="Space between parts, so neighbouring outline cuts never meet. At least the bit; with tabs, room for a strip of stock that holds them."
-              value={nest.gap}
-              onCommit={gap => onChange({ ...board, gap })}
-              min={bit}
-            />
-          </div>
           <div className="grid grid-cols-3 gap-2">
             <NumberField
               id="tab-w"
@@ -338,6 +277,17 @@ export function BoardInspector({
               min={0.2}
             />
           )}
+          {gap && (
+            <NumberField
+              id="board-gap"
+              label="Gap between parts"
+              side="left"
+              hint="Space between parts, so neighbouring outline cuts never meet. At least the bit; with tabs, room for a strip of stock that holds them."
+              value={nest.gap}
+              onCommit={g => onChange({ ...board, gap: g })}
+              min={gap.min}
+            />
+          )}
           <p className="text-xs text-muted-foreground">
             Drag a tab along its part’s outline to move it, double-click a part’s edge to add one, double-click a tab to remove it.
           </p>
@@ -346,64 +296,6 @@ export function BoardInspector({
               Place tabs automatically again
             </Button>
           )}
-        </div>
-      </details>
-
-      <details>
-        <summary className="cursor-pointer text-xs text-muted-foreground">Clamp and screw sizes (all jobs)</summary>
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <NumberField
-            id="clamp-reach"
-            label="Clamp reach"
-            side="left"
-            hint="How far the clamp’s toe reaches onto the board from its edge. The bit keeps clear of the toe."
-            value={hardware.clamp.d}
-            onCommit={d => setHardware({ ...hardware, clamp: { ...hardware.clamp, d } })}
-            min={0.5}
-          />
-          <NumberField
-            id="clamp-width"
-            label="Clamp width"
-            side="left"
-            hint="The clamp’s toe along the edge."
-            value={hardware.clamp.w}
-            onCommit={w => setHardware({ ...hardware, clamp: { ...hardware.clamp, w } })}
-            min={2}
-          />
-          <NumberField
-            id="clamp-height"
-            label="Clamp height"
-            side="left"
-            hint={`How far it stands above the board's top. Every rapid passes above the tallest fixture, so measure it. Where it stands higher than the collet nut gets down to, cuts also keep ${kColletClearance} mm from it for the nut.`}
-            value={hardware.clamp.height}
-            onCommit={height => setHardware({ ...hardware, clamp: { ...hardware.clamp, height } })}
-          />
-          <NumberField
-            id="screw-d"
-            label="Screw head ⌀"
-            side="left"
-            hint="The screw head. The bit keeps clear of it."
-            value={hardware.screw.d}
-            onCommit={d => setHardware({ ...hardware, screw: { ...hardware.screw, d } })}
-            min={2}
-          />
-          <NumberField
-            id="screw-height"
-            label="Screw height"
-            side="left"
-            hint="How far the head stands above the board's top. Every rapid passes above the tallest fixture."
-            value={hardware.screw.height}
-            onCommit={height => setHardware({ ...hardware, screw: { ...hardware.screw, height } })}
-          />
-          <NumberField
-            id="hold-stickout"
-            label="Bit stick-out"
-            side="left"
-            hint="How far the job's bit sticks out below the collet nut: measure it once the bit is in. It's kept with the bit (for every board of the job, and the next job with this bit). With the deepest cut it says how low the nut gets, so whether it can hit a fixture."
-            value={nest.stickout}
-            onCommit={v => onStickout?.(v)}
-            min={1}
-          />
         </div>
       </details>
 
@@ -449,6 +341,6 @@ export function BoardInspector({
           Delete empty board
         </Button>
       )}
-    </aside>
+    </div>
   );
 }

@@ -37,6 +37,8 @@ export interface FixtureEditing {
   onDrag: (i: number, p: P2) => void;
   onDrop: (i: number) => void;
   onRemove: (i: number) => void;
+  /** Right-click on one: its menu. */
+  onMenu?: (i: number) => void;
 }
 
 /**
@@ -495,6 +497,8 @@ export function NestView({
               onPointerDown={
                 interactive
                   ? e => {
+                      // A right-click is for its menu: it never moves the fixture, however the mouse drifts.
+                      if (e.button !== 0 || e.ctrlKey) return;
                       e.stopPropagation();
                       e.preventDefault();
                       (e.currentTarget as SVGGElement).setPointerCapture(e.pointerId);
@@ -536,7 +540,15 @@ export function NestView({
                   : undefined
               }
               onFocus={interactive ? () => fixtures!.onSelect(i) : undefined}
-              onClick={e => e.stopPropagation()}>
+              onClick={e => e.stopPropagation()}
+              onContextMenu={
+                interactive && fixtures?.onMenu
+                  ? e => {
+                      e.preventDefault();
+                      fixtures.onMenu!(i);
+                    }
+                  : undefined
+              }>
               {body && (
                 <rect
                   {...body}
