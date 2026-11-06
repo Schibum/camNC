@@ -70,6 +70,9 @@ export function certifyStockLinks(cam: PartCam, options: StockPlanOptions, histo
     const operations = cam.operations.map((operation, oi) => {
       const radius = operation.tool.diameter / 2;
       let last: Vec3 | undefined;
+      // These closures own copied geometry and live only for this operation's traversal.
+      // A later post or reorder prepares fresh evidence from the caller's current policy.
+      const cuttingCertifiers = new Map<'rough' | 'finish', ReturnType<StockModel['prepareCuttingTransition']>>();
       const plungeFeed = operation.plungeFeed ?? operation.tool.plungeFeed ?? options.plungeFeed;
       if (!Number.isFinite(plungeFeed) || plungeFeed <= 0) throw new Error('Stock link fallback requires a positive operation plunge feed');
       const passes = operation.passes.map((input, pi): Pass => {
@@ -81,10 +84,16 @@ export function certifyStockLinks(cam: PartCam, options: StockPlanOptions, histo
         if (source.cuttingTransition && operation.kind === 'pocket' && operation.pocketTransition && last && source.link === 'direct') {
           const marker = source.cuttingTransition;
           if (samePose(last, marker.from) && samePose(first, marker.to)) {
-            const certificate = stock.certifyCuttingTransition(last, first, radius, {
-              ...operation.pocketTransition,
-              wallAllowance: source.phase === 'finish' ? 0 : operation.pocketTransition.wallAllowance,
-            });
+            const phase = source.phase === 'finish' ? 'finish' : 'rough';
+            let certify = cuttingCertifiers.get(phase);
+            if (!certify) {
+              certify = stock.prepareCuttingTransition({
+                ...operation.pocketTransition,
+                wallAllowance: phase === 'finish' ? 0 : operation.pocketTransition.wallAllowance,
+              });
+              cuttingCertifiers.set(phase, certify);
+            }
+            const certificate = certify(last, first, radius);
             cuttingCertificates.push({ operation: oi, pass: pi, certificate });
             const feed = Math.min(representedFeedAtMost(certificate.feed), source.feeds[0]);
             if (certificate.allowed && feed > 0) {

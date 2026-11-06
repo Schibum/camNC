@@ -72,6 +72,44 @@ describe('posted pocket cutting transitions', () => {
     expect(toGcode(once)).toEqual(toGcode(twice));
   });
 
+  it('prepares fresh opening evidence when part geometry changes between posting traversals', () => {
+    const original = fixture();
+    original.operations[0].pocketTransition!.region = [rect(-10, -10, 8, 10)];
+    original.operations[0].pocketTransition!.retainedSolid = [rect(-20, -20, 7, 20)];
+    const first = resolve(original);
+    expect(first.cuttingCertificates[0].certificate.allowed).toBe(true);
+    const solid = first.cam.operations[0].pocketTransition!.retainedSolid!;
+    solid[0][1].x = 20;
+    solid[0][2].x = 20;
+    const edited = resolve(first.cam);
+    expect(edited.cuttingCertificates[0].certificate.reason).toBe('outside-pocket');
+    expect(edited.cam.operations[0].passes[1].link).toBe('retract');
+    expect(edited.cam.operations[0].passes[1].pts[0]).toEqual([6, 0, 5]);
+    expect(edited.cam.operations[0].passes[1].feeds[0]).toBe(120);
+  });
+
+  it('keeps rough and finish allowance policies separate in the same traversal', () => {
+    const original = fixture();
+    const operation = original.operations[0];
+    operation.pocketTransition!.region = [rect(-10, -2.15, 30, 10)];
+    operation.pocketTransition!.wallAllowance = 0.2;
+    operation.passes[1].phase = 'finish';
+    operation.passes.push({
+      pts: [
+        [11, 0, 5],
+        [15, 0, 5],
+      ],
+      feeds: [1800, 1800],
+      link: 'direct',
+      phase: 'rough',
+      cuttingTransition: { from: [10, 0, 5], to: [11, 0, 5] },
+    });
+    const result = resolve(original);
+    expect(result.cuttingCertificates.map(proof => proof.certificate.allowed)).toEqual([true, false]);
+    expect(result.cam.operations[0].passes[1].clearLink).toBe(true);
+    expect(result.cam.operations[0].passes[2].link).toBe('retract');
+  });
+
   it('removes an embedded bridge when its preceding pass is missing or reordered', () => {
     const resolved = resolve(fixture()).cam;
     const operation = resolved.operations[0];

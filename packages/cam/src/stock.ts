@@ -63,6 +63,8 @@ export interface CuttingTransitionCertificate {
   feed: number;
 }
 
+type OpeningGeometry = { material: PathsD; interior: PathsD };
+
 function finitePoint(point: Vec3): void {
   if (point.length !== 3 || point.some(value => !Number.isFinite(value))) throw new Error('Stock paths require finite XYZ points');
 }
@@ -395,6 +397,38 @@ export class StockModel {
 
   /** A material-engaging pocket stepover, anchored to the actual immediately preceding cutter pose. */
   certifyCuttingTransition(from: Vec3, to: Vec3, radius: number, policy: PocketTransitionPolicy): CuttingTransitionCertificate {
+    return this.checkCuttingTransition(from, to, radius, policy, () => ({
+      material: materialEnvelope(policy.retainedSolid!),
+      interior: pocketInterior(policy.region),
+    }));
+  }
+
+  /** Immutable policy snapshot for one synchronous traversal; every call still checks the current cutter pose. */
+  prepareCuttingTransition(policy: PocketTransitionPolicy): (from: Vec3, to: Vec3, radius: number) => CuttingTransitionCertificate {
+    const copy = (paths: PathsD) => paths.map(path => path.map(point => ({ ...point })));
+    const snapshot: PocketTransitionPolicy = {
+      ...policy,
+      region: copy(policy.region),
+      retainedSolid: policy.retainedSolid && copy(policy.retainedSolid),
+    };
+    let opening: OpeningGeometry | undefined;
+    return (from, to, radius) =>
+      this.checkCuttingTransition(
+        from,
+        to,
+        radius,
+        snapshot,
+        () => (opening ??= { material: materialEnvelope(snapshot.retainedSolid!), interior: pocketInterior(snapshot.region) })
+      );
+  }
+
+  private checkCuttingTransition(
+    from: Vec3,
+    to: Vec3,
+    radius: number,
+    policy: PocketTransitionPolicy,
+    openingGeometry: () => OpeningGeometry
+  ): CuttingTransitionCertificate {
     finitePoint(from);
     finitePoint(to);
     positiveRadius(radius);
@@ -423,6 +457,9 @@ export class StockModel {
     const clearanceRadius = radius + this.pathTolerance + allowance;
     if (!capsuleInsideRegion(a, b, clearanceRadius, policy.region)) {
       if (!policy.retainedSolid || !capsuleInsideRegion(a, b, this.pathTolerance, policy.region)) return result(false, 'outside-pocket');
+      // Exterior waste cannot help a cutter envelope wholly inside the part. Reject this closed-pocket
+      // case before constructing the more expensive guarded polygon opening certificate.
+      if (capsuleInsideRegion(a, b, clearanceRadius, policy.retainedSolid)) return result(false, 'outside-pocket');
       for (const path of [...policy.region, ...policy.retainedSolid]) {
         if (path.length < 3 || path.some(point => !Number.isFinite(point.x) || !Number.isFinite(point.y)))
           throw new Error('Open pocket transition boundaries require finite polygon paths');
@@ -432,7 +469,8 @@ export class StockModel {
       // Resolve this short opening certificate more finely than a general removed-stock query; otherwise the
       // polygon's conservative circle envelope can consume the reserved rough-wall clearance at a mouth corner.
       const query = [sweptCapsule(a, b, clearanceRadius, Math.min(this.tolerance, kGridGuard / 2), 'outer')];
-      const retainedOverlap = difference(intersect(query, materialEnvelope(policy.retainedSolid)), pocketInterior(policy.region));
+      const opening = openingGeometry();
+      const retainedOverlap = difference(intersect(query, opening.material), opening.interior);
       if (retainedOverlap.length) return result(false, 'outside-pocket');
     }
     return result(true, 'bounded-cut');

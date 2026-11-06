@@ -211,4 +211,43 @@ describe('bounded pocket cutting transitions', () => {
     stock.rollback(0);
     expect(stock.certifyCuttingTransition(from, to, 2, policy).allowed).toBe(false);
   });
+
+  it('does not use exterior waste to excuse an enclosed pocket boundary, and rechecks changed part geometry', () => {
+    const stock = occupied();
+    const opening = { ...policy, region: [rect(-10, -10, 8, 10)], retainedSolid: [rect(-20, -20, 20, 20)] };
+    expect(stock.certifyCuttingTransition(from, to, 2, opening).reason).toBe('outside-pocket');
+    opening.retainedSolid = [rect(-20, -20, 7, 20)];
+    expect(stock.certifyCuttingTransition(from, to, 2, opening).allowed).toBe(true);
+    opening.retainedSolid = [rect(-20, -20, 20, 20)];
+    expect(stock.certifyCuttingTransition(from, to, 2, opening).reason).toBe('outside-pocket');
+    expect(stock.certifyLink(from, to, 2).clear).toBe(false);
+  });
+
+  it('prepares an immutable opening policy while fresh calls observe edited geometry', () => {
+    const stock = occupied();
+    const opening = { ...policy, region: [rect(-10, -10, 8, 10)], retainedSolid: [rect(-20, -20, 7, 20)] };
+    const prepared = stock.prepareCuttingTransition(opening);
+    expect(prepared(from, to, 2).allowed).toBe(true);
+    // Mutate the original points, not just the containing arrays: the prepared traversal owns its snapshot.
+    opening.retainedSolid[0][1].x = 20;
+    opening.retainedSolid[0][2].x = 20;
+    expect(prepared(from, to, 2).allowed).toBe(true);
+    expect(stock.certifyCuttingTransition(from, to, 2, opening).reason).toBe('outside-pocket');
+    expect(stock.prepareCuttingTransition(opening)(from, to, 2).reason).toBe('outside-pocket');
+  });
+
+  it('rechecks the actual current pose when prepared opening geometry is reused', () => {
+    const stock = occupied();
+    const prepared = stock.prepareCuttingTransition({
+      ...policy,
+      region: [rect(-10, -10, 8, 10)],
+      retainedSolid: [rect(-20, -20, 7, 20)],
+    });
+    expect(prepared(from, to, 2).allowed).toBe(true);
+    const checkpoint = stock.checkpoint();
+    stock.recordPath([[20, 0, 5]], 2);
+    expect(prepared(from, to, 2).reason).toBe('pose-unproven');
+    stock.rollback(checkpoint);
+    expect(prepared(from, to, 2).allowed).toBe(true);
+  });
 });
