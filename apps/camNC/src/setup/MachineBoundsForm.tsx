@@ -27,7 +27,8 @@ function UseFluidNcSettingsButton() {
     formContext.setValue('ymax', settings.ymax);
   }
   return (
-    <Button disabled={!isConnected} onClick={handleClick} variant="outline">
+    // Not a submit button: Enter in a field must submit the form, not read over what was typed.
+    <Button type="button" disabled={!isConnected} onClick={handleClick} variant="outline">
       Read FluidNC Settings
     </Button>
   );
@@ -141,7 +142,7 @@ export function MachineBoundsForm({
             )}
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {showReadButton && <UseFluidNcSettingsButton />}
           <Button type="submit">{submitLabel}</Button>
         </div>

@@ -1,12 +1,12 @@
 import '@/style.css';
 import { useBoardsLayout } from '@/cam/boards/boardsLayoutStore';
 import { createJob, getJob, saveJob } from '@/cam/jobDb';
+import { boardLayoutFile } from '@/test/boardLayoutFile';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { page, userEvent } from '@vitest/browser/context';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ComponentType } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import stepUrl from '../../../../../packages/cam/test/fixtures/kinderregal-eiche.step?url';
 import { Route } from './$jobId.boards';
 
 const params = vi.hoisted(() => ({ jobId: '' }));
@@ -33,8 +33,10 @@ afterEach(() => {
 const drawing = (name: string) => screen.queryByRole('region', { name: `${name} drawing` });
 
 async function open() {
-  const bytes = await (await fetch(stepUrl)).arrayBuffer();
-  const job = await createJob(new File([bytes], 'kinderregal-eiche.step'));
+  // Keep the real import, nesting and planning path; full STEP models are covered by the Boards and Plan integration suites.
+  const job = await createJob(boardLayoutFile(), {
+    parts: ['left', 'right', 'back'].map((name, i) => ({ id: `part-${i}`, name, quantity: 1, milled: true })),
+  });
   params.jobId = job.id;
   render(
     <QueryClientProvider client={new QueryClient()}>
@@ -143,8 +145,8 @@ describe('CAM boards layout', () => {
         if (size.fit) return;
         expect(size.w % 10).toBe(0);
         expect(size.h % 10).toBe(0);
-        expect(size.w).toBeGreaterThan(574);
-        expect(size.h).toBeGreaterThan(750);
+        expect(size.w).toBeGreaterThan(was.layout!.w);
+        expect(size.h).toBeGreaterThan(was.layout!.h);
       },
       { timeout: 10_000 }
     );
