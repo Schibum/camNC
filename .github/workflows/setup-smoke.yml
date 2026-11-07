@@ -32,6 +32,13 @@ jobs:
       group: setup-smoke-${{ (github.event_name == 'check_run' || github.event_name == 'schedule') && 'production' || github.ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
+    container:
+      # Keep this version in sync with the lockfile; CI's test:ci checks it.
+      image: mcr.microsoft.com/playwright:v1.54.1-noble
+      options: --ipc=host
+    defaults:
+      run:
+        shell: bash
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -41,7 +48,6 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
       - name: Verify deployed setup
         run: pnpm --filter @wbcnc/camNC smoke:setup
         env:

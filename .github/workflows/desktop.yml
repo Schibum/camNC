@@ -79,11 +79,21 @@ jobs:
           node-version-file: .nvmrc
           cache: 'pnpm'
       - uses: dtolnay/rust-toolchain@stable
+        id: rust
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: apps/camnc-desktop/src-tauri -> target
           # Also keep what a failed build compiled, so the next run does not start cold.
           cache-on-failure: true
+      # Rust-cache prunes generated crate sources, lockfiles and executables under target/.
+      # Save the complete helper before that cleanup (post steps run in reverse order).
+      # Tauri only rewrites its sources when they change and still signs each new app bundle.
+      - name: Cache macOS CEF helper
+        if: runner.os == 'macOS'
+        uses: actions/cache@v4
+        with:
+          path: apps/camnc-desktop/src-tauri/target/tauri-cef-helper
+          key: desktop-cef-helper-v1-${{ matrix.target }}-${{ steps.rust.outputs.cachekey }}-${{ hashFiles('pnpm-lock.yaml', 'apps/camnc-desktop/src-tauri/Cargo.lock', 'apps/camnc-desktop/src-tauri/Cargo.toml') }}
       # CEF's C++ wrapper is built with CMake and Ninja.
       - uses: seanmiddleditch/gha-setup-ninja@v5
       - name: Install Linux dependencies
@@ -106,6 +116,14 @@ jobs:
             ~/.cache/tauri-cef
           key: tauri-cef-${{ matrix.target }}-${{ steps.cef.outputs.version }}
       - run: pnpm install --frozen-lockfile
+      - name: Cache desktop frontend
+        uses: actions/cache@v4
+        with:
+          path: .turbo/cache
+          key: desktop-frontend-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: desktop-frontend-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}-
+      - name: Build desktop frontend
+        run: pnpm exec turbo run build --filter=@wbcnc/camNC
       - name: Download go2rtc
         run: node apps/camnc-desktop/scripts/fetch-go2rtc.mjs ${{ matrix.target }}
       - name: Build
@@ -120,7 +138,8 @@ jobs:
           node -e '
             const release = process.env.RELEASE === "true";
             const config = { version: process.env.VERSION, bundle: { createUpdaterArtifacts: release, macOS: { signingIdentity: "-" } } };
-            config.build = { beforeBundleCommand: "node scripts/cef-bundle-files.mjs" };
+            // The frontend was built above through Turbo; local builds retain their usual command.
+            config.build = { beforeBuildCommand: "", beforeBundleCommand: "node scripts/cef-bundle-files.mjs" };
             require("fs").writeFileSync("release.conf.json", JSON.stringify(config));
           '
           pnpm tauri build --bundles ${{ matrix.bundles }} --config release.conf.json
@@ -151,6 +170,8 @@ jobs:
           name: camnc-desktop-${{ matrix.target }}
           path: dist/*
           if-no-files-found: error
+          # Installers and updater archives are already compressed.
+          compression-level: 0
 
   release:
     needs: build
