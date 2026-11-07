@@ -36,7 +36,10 @@ import {
   type StockBoardV1,
   withinMachine,
   keepWithinMachine,
-  movedBottomEdge,
+  notAside,
+  resizedBoard,
+  setAsidePart,
+  tightestSide,
 } from './boards';
 import { missingParts } from './useJobBoards';
 import type { NestObjective } from './autoNest';
@@ -742,32 +745,111 @@ describe('boards', () => {
       expect(back.layout!.w).toBe(nest.board.w);
     });
 
-    it('moving the bottom edge keeps everything under the top edge, and pushes up only what it reaches', () => {
-      const board = stored();
+    it('lays a board out for a new size: what has no room goes off it, and comes back when there is', () => {
+      const board: BoardV1 = { ...newBoard([], 8, 'plywood', ['left', 'right', 'top']), size: { fit: true } };
+      const bit = 3;
       const nest = nestBoard(board, parts, bit);
-      const [id] = board.items;
-      const y = nest.placements.find(p => p.id === id)!.y;
-      const withFixtures = {
-        ...board,
-        fixtures: [
-          { kind: 'clamp', side: 'left', at: 40 },
-          { kind: 'clamp', side: 'bottom', at: 40 },
-          { kind: 'screw', x: 20, y: nest.board.h - 20 },
-        ] as Fixture[],
-      };
-      const on = nestBoard(withFixtures, parts, bit);
-      const down = movedBottomEdge(withFixtures, on, parts, on.board.h + 100);
-      expect(down.layout!.at[id].y).toBeCloseTo(on.placements.find(p => p.id === id)!.y + 100, 3);
-      expect(down.fixtures).toEqual([
-        { kind: 'clamp', side: 'left', at: 140 },
-        { kind: 'clamp', side: 'bottom', at: 40 },
-        { kind: 'screw', x: 20, y: on.board.h + 80 },
-      ]);
+      const laid = withLayout(board, nest);
 
-      // Room above and none below: the parts go up by what the edge takes, and stay on the board.
-      const tall = { ...board, size: { fit: false as const, w: nest.board.w, h: nest.board.h + 100 } };
-      const moved = movedBottomEdge(tall, { ...nest, board: { ...nest.board, h: nest.board.h + 100 } }, parts, nest.board.h + 40);
-      expect(moved.layout!.at[id].y).toBeCloseTo(y, 3);
+      // Smaller than the parts' extents: it fits as much as it can, and nothing is taken off its list.
+      const small = resizedBoard(laid, nest, { w: 300, h: 300 }, parts, bit);
+      expect(small.size).toEqual({ fit: false, w: 300, h: 300 });
+      expect(small.items).toEqual(laid.items);
+      const onSmall = nestBoard(small, parts, bit);
+      expect(onSmall.board).toEqual({ w: 300, h: 300 });
+      expect(onSmall.unplaced.length).toBeGreaterThan(0);
+
+      // A shape where they only fit turned, and tight: it re-lays instead of refusing.
+      const narrow = nestBoard(resizedBoard(laid, nest, { w: 200, h: 1600 }, parts, bit), parts, bit);
+      expect(narrow.unplaced).toEqual([]);
+      expect(narrow.placements.every(p => p.rotated)).toBe(true);
+
+      // Back up: all of it again.
+      const back = resizedBoard(small, onSmall, { w: 800, h: 800 }, parts, bit);
+      expect(nestBoard(back, parts, bit).unplaced).toEqual([]);
+    });
+
+    it('a new size keeps screws and side clamps from the top edge, and drops only the screws it cuts off', () => {
+      const board: BoardV1 = { ...newBoard([], 8, 'plywood', ['top']), size: { fit: false, w: 700, h: 500 } };
+      const bit = 3;
+      const nest = nestBoard(board, parts, bit);
+      const withFixtures: BoardV1 = {
+        ...withLayout(board, nest),
+        fixtures: [
+          { kind: 'clamp', side: 'left', at: 400 },
+          { kind: 'clamp', side: 'bottom', at: 40 },
+          { kind: 'screw', x: 600, y: 450 },
+          { kind: 'screw', x: 20, y: 30 },
+        ],
+      };
+      const down = resizedBoard(withFixtures, nest, { w: 700, h: 600 }, parts, bit);
+      expect(down.fixtures).toContainEqual({ kind: 'clamp', side: 'left', at: 500 });
+      expect(down.fixtures).toContainEqual({ kind: 'clamp', side: 'bottom', at: 40 });
+      expect(down.fixtures?.some(f => f.kind === 'screw' && f.x === 600 && f.y === 550)).toBe(true);
+      // 100 mm less: the screw 30 mm from the bottom edge would be below the new one.
+      const up = resizedBoard(withFixtures, nest, { w: 700, h: 400 }, parts, bit);
+      expect(up.fixtures?.filter(f => f.kind === 'screw').map(f => (f.kind === 'screw' ? f.x : 0))).toEqual([600]);
+    });
+
+    it('keeps the fixtures of a board too small for any of its parts', () => {
+      const board: BoardV1 = {
+        ...newBoard([], 8, 'plywood', ['top']),
+        size: { fit: false, w: 700, h: 500 },
+        fixtures: [{ kind: 'clamp', side: 'bottom', at: 300 }],
+      };
+      const nest = nestBoard(board, parts, 3);
+      const tiny = resizedBoard(withLayout(board, nest), nest, { w: 100, h: 100 }, parts, 3);
+      expect(tiny.layout).toBeUndefined();
+      expect(tiny.fixtures).toHaveLength(1);
+    });
+
+    it('finds the smallest side where every part still fits', () => {
+      const board: BoardV1 = { ...newBoard([], 8, 'plywood', ['top']), size: { fit: false, w: 700, h: 500 } };
+      const nest = nestBoard(board, parts, 3);
+      const w = tightestSide(board, nest, 'w', 2000, parts, 3)!;
+      expect(w % 10).toBe(0);
+      expect(nestBoard({ ...board, size: { fit: false, w, h: 500 } }, parts, 3).unplaced).toEqual([]);
+      expect(nestBoard({ ...board, size: { fit: false, w: w - 10, h: 500 } }, parts, 3).unplaced).not.toEqual([]);
+      // Too small now: how far it has to grow.
+      const small = { ...board, size: { fit: false as const, w: 700, h: 100 } };
+      const onSmall = nestBoard(small, parts, 3);
+      expect(onSmall.unplaced).toEqual(['top']);
+      const h = tightestSide(small, onSmall, 'h', 2000, parts, 3)!;
+      expect(h).toBeGreaterThan(100);
+      expect(nestBoard({ ...small, size: { fit: false, w: 700, h } }, parts, 3).unplaced).toEqual([]);
+      expect(
+        tightestSide({ ...small, size: { fit: false, w: 150, h: 100 } }, { board: { w: 150, h: 100 } }, 'h', 110, parts, 3)
+      ).toBeNull();
+    });
+
+    it('a part set aside isn’t nested or cut, stays on the list, and goes back when asked', () => {
+      const board: BoardV1 = { ...newBoard([], 8, 'plywood', ['left', 'top']), size: { fit: true } };
+      const bit = 3;
+      const laid = withLayout(board, nestBoard(board, parts, bit));
+      const aside = setAsidePart(laid, 'left', { x: 900, y: 40, rotated: true });
+      const nest = nestBoard(aside, parts, bit);
+      expect(aside.items).toContain('left');
+      expect(aside.layout!.at.left).toBeUndefined();
+      expect(nest.unplaced).toEqual(['left']);
+      expect(nest.placements.map(p => p.id)).toEqual(['top']);
+      expect(missingParts([{ board: aside, nest, request: boardRequest(aside, nest, parts) }], parts).map(m => m.id)).toEqual(['left']);
+      // It's still set aside however the job's boards are worked out again.
+      const again = reconcileBoards(
+        [aside],
+        parts.filter(p => aside.items.includes(p.id)),
+        'plywood'
+      )[0];
+      expect(again.setAside).toEqual(aside.setAside);
+      const machine = keepWithinMachine([aside], parts, bit, { machine: { w: 1000, h: 1000 } });
+      expect(machine).toHaveLength(1);
+      expect(machine[0].setAside).toEqual(aside.setAside);
+      // A new size leaves it where it is; dropped on the board, or a fresh layout, brings it back.
+      expect(nestBoard(resizedBoard(aside, nest, { w: 900, h: 900 }, parts, bit), parts, bit).unplaced).toEqual(['left']);
+      const dropped = dropPart(aside, parts, bit, 'left', { x: -1e6, y: -1e6, rotated: false });
+      expect(dropped.at).toBeTruthy();
+      expect(dropped.board.setAside).toBeUndefined();
+      expect(nestBoard(relayoutBoard(aside, parts, bit), parts, bit).unplaced).toEqual([]);
+      expect(notAside(aside, 'left').setAside).toBeUndefined();
     });
 
     it('a fixture’s own sizes reach its hold point and what parts keep clear of, moved or not', () => {

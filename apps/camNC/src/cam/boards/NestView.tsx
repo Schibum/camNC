@@ -65,6 +65,8 @@ export function NestView({
   className,
   unit,
   pxPerMm,
+  padMm,
+  quiet,
   dragging,
   preview,
   label,
@@ -90,6 +92,10 @@ export function NestView({
   /** Reference size in mm for padding, lines and text; default the board's longer side. */
   unit?: number;
   pxPerMm?: number;
+  /** Around the board, mm; default from `unit`. What's drawn beyond it still shows. */
+  padMm?: number;
+  /** Not the board being edited: without the label of its XY zero. */
+  quiet?: boolean;
   /** The body being dragged out of this board: drawn faint. */
   dragging?: string | null;
   preview?: NestPreview | null;
@@ -115,7 +121,7 @@ export function NestView({
 }) {
   const { w, h } = nest.board;
   const u = unit ?? Math.max(w, h);
-  const pad = u * 0.05;
+  const pad = padMm ?? u * 0.05;
   const stroke = u / 600;
   const byInst = new Map(instances.map(i => [i.id, i]));
   const byPart = new Map(parts.map(p => [p.id, p]));
@@ -750,7 +756,8 @@ export function NestView({
             y={-(p.y + ph / 2)}
             textAnchor="middle"
             dominantBaseline="middle"
-            fontSize={u / 45}
+            // On a small part at a small scale, as big as still fits it.
+            fontSize={Math.min(u / 45, (1.6 * pw) / Math.max(1, inst.name.length))}
             className={cn('pointer-events-none fill-foreground', dragging === p.id && 'opacity-30')}>
             {inst.name}
           </text>
@@ -777,9 +784,15 @@ export function NestView({
           ±{Math.round(fixtures.play.r)} mm
         </text>
       )}
-      <text x={0} y={pad * 0.8} fontSize={u / 50} className="pointer-events-none fill-emerald-700 dark:fill-emerald-400">
-        XY zero · lower left
-      </text>
+      {!quiet && (
+        <text
+          x={0}
+          y={padMm === undefined ? pad * 0.8 : u / 22}
+          fontSize={u / 50}
+          className="pointer-events-none fill-emerald-700 dark:fill-emerald-400">
+          XY zero · lower left
+        </text>
+      )}
     </svg>
   );
 }

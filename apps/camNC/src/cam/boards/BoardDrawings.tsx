@@ -11,21 +11,24 @@ import {
   DropdownMenuTrigger,
 } from '@wbcnc/ui/components/dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '@wbcnc/ui/components/popover';
-import { Check, CircleHelp, Maximize, Minus, MoreHorizontal, Plus, Ruler, Trash2, WandSparkles } from 'lucide-react';
+import { Check, CircleHelp, LayoutGrid, Maximize, Minus, MoreHorizontal, Plus, Ruler, Trash2, WandSparkles } from 'lucide-react';
 import { kVacuumSlug } from '@wbcnc/cam/settings';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { clampPlay, largestOffcut, reserved, screwPlay } from '@wbcnc/cam/settle';
 import {
   boardLabel,
   boardSizeLabel,
   dropPart,
   fixtureAt,
+  holdVerdict,
   isCut,
   layoutChange,
   nestBoard,
   placedRect,
   settleBoard,
   settleInputOf,
+  tightestSide,
+  type BoardNest,
   type BoardV1,
   type NestOptions,
   type PartDrop,
@@ -37,9 +40,8 @@ import { kDefaultHardware } from '../holdHardware';
 import type { JobBoard } from '../useJobBoards';
 import { BoardHeadingFields } from './BoardHeadingFields';
 import { BoardOverlay } from './BoardOverlay';
-import { BoardRail } from './BoardRail';
 import { SelectionBar } from './SelectionBar';
-import { fittedScale } from './fittedScale';
+import { bestColumns, fitScale, kBoardPad, kMaxScale, kMinScale, kTableGap, layoutTable, type TableBoard, type TableRect } from './table';
 import { PartBadges, PartMenuContent, type PartMenuProps } from './PartMenu';
 import { NestView } from './NestView';
 import { CutBadge } from './CutBadge';
@@ -53,16 +55,21 @@ const sameThickness = (a: number, b: number) => +a.toFixed(1) === +b.toFixed(1);
 const round = (v: number) => Math.round(v * 10) / 10;
 /** Pointer travel (px) before a press on a part becomes a drag. */
 const kDragStart = 4;
-/** Zoom range over the fitted scale. */
-const kMinZoom = 0.5;
-const kMaxZoom = 8;
+/** Empty table around what's on it, mm: room to lay parts down, and what a part dropped is kept within. */
+const kTableMargin = 600;
+/** Lines and labels stay this size on screen at any zoom: the `unit` of a drawing is this many px. */
+const kUnitPx = 600;
+/** Narrower than this on screen, a board's drawing doesn't have its margin and gap labels. */
+const kLabelsFrom = 240;
 /** Within this many px of the nest's spot, a dropped part snaps to it. */
 const kSnapPx = 14;
 
 export type DrawingTarget =
   | { kind: 'drawing'; board: string; at: PartPosition; drop: PartDrop | null }
-  /** A board in the rail: it has no spot to point at, so the part goes into its nest. */
+  /** A board in the list: it has no spot to point at, so the part goes into its nest. */
   | { kind: 'rail'; board: string; drop: PartDrop | null }
+  /** On the table, off every board: its upper left corner there. */
+  | { kind: 'table'; at: PartPosition }
   | { kind: 'new' };
 
 interface ShapeDrag {
@@ -131,13 +138,13 @@ function HoleMenu({
 }
 
 /**
- * The drawings. `view` "board": the selected board fills the area with everything that edits it on the drawing, the others
- * small in a rail. `view` "all": every board at one scale without those details, to arrange parts across them.
+ * The table: every board at one scale, with what edits a board on the selected one. Zoom and pan decide how much of it is in view,
+ * and the list above it goes to a board or back to all of them.
  *
- * Drag a part's outline out of one board and drop it on another of the same thickness (or on "New board"), on its drawing
- * or in the rail. While dragging, the outline follows the pointer and the target board shows where the part lands: exactly
- * at the drop point when there is room, else where the board's nest puts it, in red when it doesn't fit. A focused part
- * moves with the arrow keys (Shift: 10 mm).
+ * Drag a part's outline anywhere: onto a board of its thickness (or "New board"), on its drawing or in the list, or onto the table,
+ * where it stays, off every board, and isn't cut. While dragging, the outline follows the pointer and the target board shows where
+ * the part lands: exactly at the drop point when there is room, else where the board's nest puts it, in red when it doesn't fit. R
+ * turns it. A focused part moves with the arrow keys (Shift: 10 mm).
  */
 export function BoardDrawings({
   boards,
@@ -158,18 +165,19 @@ export function BoardDrawings({
   machine,
   onTabsMove,
   onHoleChoice,
-  view,
   holds,
   onOpen,
   onBoardChange,
+  resizedTo,
   onResize,
   onHoldSizes,
-  railClosed,
-  onRailToggle,
   status,
+  allShown,
   onAll,
-  railTools,
+  tools,
   onTabSize,
+  onSetAside,
+  startOnBoard,
 }: {
   boards: JobBoard[];
   instances: PartInstance[];
@@ -181,7 +189,7 @@ export function BoardDrawings({
   onHoleChoice?: (partId: string, hole: number, choice: HoleChoice | undefined) => void;
   selectedId: string;
   onSelect: (id: string) => void;
-  /** Dropped on a board: `drop` is null when it doesn't fit there or has another thickness. `fromRail`: stay on the board it came from. */
+  /** Dropped on a board: `drop` is null when it doesn't fit there or has another thickness. `fromRail`: in the list, the board selected stays. */
   onDrop: (item: string, board: string, drop: PartDrop | null, fromRail?: boolean) => void;
   /** A body's menu (move it, unpin it, what holds it): opened from the ⋯ on the part, right-click, or Enter. */
   partMenu: (board: JobBoard, item: string) => PartMenuProps;
@@ -198,29 +206,32 @@ export function BoardDrawings({
   machine?: { w: number; h: number };
   /** A tab dragged: all tabs of that body (instance id), part frame (mm). */
   onTabsMove?: (board: string, item: string, tabs: { x: number; y: number }[]) => void;
-  view: 'board' | 'all';
   holds: HoldEditing;
-  /** Edit this board on its own. */
+  /** Edit this board. */
   onOpen: (id: string) => void;
   /** Its material, thickness, size, margin or gap changed on the drawing. */
   onBoardChange: (board: BoardV1) => void;
+  /** The selected board as it would be at this size: laid out for it. */
+  resizedTo: (w: number, h: number) => BoardV1;
   /** Its size dragged, in the selected board's handles. */
   onResize: (w: number, h: number) => void;
   /** The clamps' and screws' sizes, from a fixture's menu. */
   onHoldSizes: () => void;
-  railClosed: boolean;
-  onRailToggle?: () => void;
   /** What needs attention, in a strip of fixed height under the drawing: it covers none of it and never rescales it. */
   status?: React.ReactNode;
+  /** "All boards" is what the sidebar is about. */
+  allShown: boolean;
   /** Show every board. */
   onAll: () => void;
-  /** The tools in the board list, as they fit. */
-  railTools?: (strip: boolean) => React.ReactNode;
+  /** The tools, in the row over the table. */
+  tools?: React.ReactNode;
   /** A size of the tabs on the selected board. */
   onTabSize: (key: 'width' | 'height', value: number) => void;
+  /** Dropped on the table, off every board: its upper left corner there. */
+  onSetAside: (item: string, at: PartPosition) => void;
+  /** In view at first: the selected board, not all of them. */
+  startOnBoard?: boolean;
 }) {
-  const focus = view === 'board';
-  const shown = focus ? boards.filter(b => b.board.id === selectedId) : boards;
   const byId = new Map(instances.map(i => [i.id, i]));
   const byPart = new Map(parts.map(p => [p.id, p]));
   const scroller = useRef<HTMLDivElement>(null);
@@ -234,43 +245,109 @@ export function BoardDrawings({
     measure();
     return () => ro.disconnect();
   }, []);
-  const unit = Math.max(...shown.map(b => Math.max(b.nest.board.w, b.nest.board.h)));
-  const pad = 2 * unit * 0.05;
-  const maxW = Math.max(...shown.map(b => b.nest.board.w)) + pad;
-  const maxH = Math.max(...shown.map(b => b.nest.board.h)) + pad;
-  const fitPxPerMm = fittedScale(view, { w: view_.w || 600, h: view_.h || 800 }, { w: maxW, h: maxH });
-  // Zoom on top of the fitted scale (Ctrl/⌘ + wheel, a trackpad or touch pinch, the buttons); scrolling or dragging
-  // the background pans.
-  const [zoom, setZoom] = useState(1);
-  const pxPerMm = fitPxPerMm * zoom;
-  // The content point that stays under the pointer while zooming, applied once the new scale is laid out.
-  const anchor = useRef<{ cx: number; cy: number; vx: number; vy: number; ratio: number } | null>(null);
+  const area = { w: view_.w || 600, h: view_.h || 800 };
+
+  // The selected board at a size being dragged to, as it would be laid out, with what it stays until the drop.
+  const [sizing, setSizing] = useState<{ board: BoardV1; nest: BoardNest } | null>(null);
+  const nestOf = (b: JobBoard) => (sizing?.board.id === b.board.id ? sizing.nest : b.nest);
+  const tableBoards: TableBoard[] = boards.map(b => {
+    const nest = nestOf(b);
+    return {
+      id: b.board.id,
+      w: nest.board.w,
+      h: nest.board.h,
+      off: nest.unplaced.flatMap(id => {
+        const inst = byId.get(id);
+        if (!inst) return [];
+        const at = b.board.setAside?.[id];
+        return [{ id, at, w: inst.size[at?.rotated ? 1 : 0], h: inst.size[at?.rotated ? 0 : 1] }];
+      }),
+    };
+  });
+  // Decided when boards come or go, or the area changes: a board resized doesn't send the others to another row.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const cols = useMemo(() => bestColumns(tableBoards, area), [boards.length, area.w, area.h]);
+  const table = layoutTable(tableBoards, cols);
+  const fitAll = fitScale(area, table.bounds);
+
+  // How much is in view: scale, and scroll position. Left at "fitted", it stays so when the area changes; zoomed or panned, as it is.
+  const fitted = useRef<'all' | 'board' | null>(startOnBoard ? 'board' : 'all');
+  const [scale, setScale] = useState(0);
+  const pxPerMm = scale || fitAll;
+  /** A table point (mm) -> content px. The content has half a view around it, so any point can come to the middle. */
+  const toPx = (p: { x: number; y: number }, s = pxPerMm) => ({
+    x: (p.x + kTableMargin) * s + area.w / 2,
+    y: (p.y + kTableMargin) * s + area.h / 2,
+  });
+  /** A view point (px) -> table point (mm). */
+  const fromView = (vx: number, vy: number) => {
+    const el = scroller.current;
+    return {
+      x: ((el?.scrollLeft ?? 0) + vx - area.w / 2) / pxPerMm - kTableMargin,
+      y: ((el?.scrollTop ?? 0) + vy - area.h / 2) / pxPerMm - kTableMargin,
+    };
+  };
+  // The table point to bring under a view point, once the new scale is laid out.
+  const aim = useRef<{ x: number; y: number; vx: number; vy: number } | null>(null);
+  const [, redraw] = useState(0);
+  const show = (r: TableRect, what: 'all' | 'board') => {
+    fitted.current = what;
+    aim.current = { x: r.x + r.w / 2, y: r.y + r.h / 2, vx: area.w / 2, vy: area.h / 2 };
+    setScale(fitScale(area, r));
+    redraw(n => n + 1);
+  };
+  const boardRect = (id: string): TableRect | null => {
+    const at = table.boards.get(id);
+    const b = tableBoards.find(x => x.id === id);
+    return at && b ? { ...at, w: b.w, h: b.h } : null;
+  };
+  const showAll = () => show(table.bounds, 'all');
+  const showBoard = (id: string) => {
+    const r = boardRect(id);
+    if (r) show(r, 'board');
+  };
   const zoomTo = (next: number, at?: { x: number; y: number }) => {
     const el = scroller.current;
-    const z = Math.min(kMaxZoom, Math.max(kMinZoom, next));
-    if (!el || z === zoom) return;
+    const s = Math.min(kMaxScale, Math.max(Math.max(kMinScale, fitAll * 0.5), next));
+    if (!el || s === pxPerMm) return;
     const box = el.getBoundingClientRect();
     const vx = at ? at.x - box.left : el.clientWidth / 2,
       vy = at ? at.y - box.top : el.clientHeight / 2;
-    anchor.current = { cx: el.scrollLeft + vx, cy: el.scrollTop + vy, vx, vy, ratio: z / zoom };
-    setZoom(z);
+    aim.current = { ...fromView(vx, vy), vx, vy };
+    fitted.current = null;
+    setScale(s);
   };
   useLayoutEffect(() => {
-    const a = anchor.current,
+    const a = aim.current,
       el = scroller.current;
     if (!a || !el) return;
-    anchor.current = null;
-    el.scrollLeft = a.cx * a.ratio - a.vx;
-    el.scrollTop = a.cy * a.ratio - a.vy;
-  }, [zoom]);
-  // Another board, or the other view: back to fitted, from the top.
-  const focusedId = focus ? selectedId : null;
+    aim.current = null;
+    const p = toPx(a);
+    el.scrollLeft = p.x - a.vx;
+    el.scrollTop = p.y - a.vy;
+  });
+  const boundsKey = `${table.bounds.x},${table.bounds.y},${table.bounds.w},${table.bounds.h}`;
+  // Fitted and the area changed: still fitted. With all in view and something on the table now out of view, it comes into view; else
+  // the scale stays. Not while something is being dragged.
+  const busy = useRef(false);
+  const fittedArea = useRef('');
   useEffect(() => {
-    setZoom(1);
-    scroller.current?.scrollTo({ left: 0, top: 0 });
-  }, [focusedId]);
-  const zoomRef = useRef({ zoom, zoomTo });
-  zoomRef.current = { zoom, zoomTo };
+    if (!view_.w || busy.current || !fitted.current) return;
+    const areaKey = `${view_.w},${view_.h},${cols}`;
+    const same = fittedArea.current === areaKey;
+    fittedArea.current = areaKey;
+    if (fitted.current === 'board') {
+      if (!same) showBoard(selectedId);
+      return;
+    }
+    const b = table.bounds;
+    const [lo, hi] = [fromView(0, 0), fromView(view_.w, view_.h)];
+    if (same && b.x >= lo.x && b.y >= lo.y && b.x + b.w <= hi.x && b.y + b.h <= hi.y) return;
+    showAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view_.w, view_.h, cols, boundsKey]);
+  const zoomRef = useRef({ zoom: pxPerMm, zoomTo });
+  zoomRef.current = { zoom: pxPerMm, zoomTo };
   useEffect(() => {
     const el = scroller.current;
     if (!el) return;
@@ -319,7 +396,7 @@ export function BoardDrawings({
       touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (touches.current.size === 2) {
         const [a, b] = [...touches.current.values()];
-        pinch.current = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom };
+        pinch.current = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom: pxPerMm };
         pan.current = null;
         return;
       }
@@ -349,6 +426,7 @@ export function BoardDrawings({
     if (!p.moved) (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     p.moved = true;
     panned.current = true;
+    fitted.current = null;
     scroller.current!.scrollLeft = p.left - dx;
     scroller.current!.scrollTop = p.top - dy;
   };
@@ -359,8 +437,8 @@ export function BoardDrawings({
   };
 
   const [drag, setDrag] = useState<ShapeDrag | null>(null);
-  const latest = useRef({ boards, instances, bit, pxPerMm, onDrop, onNewBoard, onSelect, nestOptions });
-  latest.current = { boards, instances, bit, pxPerMm, onDrop, onNewBoard, onSelect, nestOptions };
+  const latest = useRef({ boards, instances, bit, pxPerMm, onDrop, onNewBoard, onSelect, onSetAside, nestOptions, fromView });
+  latest.current = { boards, instances, bit, pxPerMm, onDrop, onNewBoard, onSelect, onSetAside, nestOptions, fromView };
   // The part last clicked or focused: its ⋯ menu button shows on it. `menu`: that menu is open.
   const [active, setActive] = useState<string | null>(null);
   const [menu, setMenu] = useState(false);
@@ -371,8 +449,17 @@ export function BoardDrawings({
   };
 
   const targetAt = (d: ShapeDrag, x: number, y: number): DrawingTarget | null => {
-    const { boards, instances, bit, pxPerMm, nestOptions } = latest.current;
+    const { boards, instances, bit, pxPerMm, nestOptions, fromView } = latest.current;
     const el = document.elementFromPoint(x, y);
+    const inst = instances.find(i => i.id === d.item)!;
+    const r = placedRect({ x: 0, y: 0, rotated: d.rotated }, inst);
+    const onTable = (): DrawingTarget | null => {
+      const box = scroller.current?.getBoundingClientRect();
+      if (!box || !el || !scroller.current!.contains(el)) return null;
+      const p = fromView(x - box.left, y - box.top);
+      const keep = (v: number) => Math.max(-kTableMargin, round(v));
+      return { kind: 'table', at: { x: keep(p.x - d.grab.x), y: keep(p.y - (r.h - d.grab.y)), rotated: d.rotated } };
+    };
     if (el?.closest('[data-new-board-drop]')) return { kind: 'new' };
     const inRail = el?.closest<HTMLElement>('[data-rail-drop]')?.dataset.railDrop;
     if (inRail) {
@@ -392,14 +479,20 @@ export function BoardDrawings({
     const card = el?.closest<HTMLElement>('[data-board-drop]');
     const id = card?.dataset.boardDrop;
     const board = boards.find(b => b.board.id === id)?.board;
-    if (!card || !board) return null;
+    if (!card || !board) return onTable();
     const frame = card.querySelector<SVGGraphicsElement>('[data-board-frame]');
     const p = frame && toBoard(frame, x, y);
     if (!p) return null;
     const at = { x: round(p.x - d.grab.x), y: round(p.y - d.grab.y), rotated: d.rotated };
+    // The pointer and the part's middle both beyond the board's edge: laid down beside it, not on it. A fitted board with nothing
+    // on it is only its margins: anywhere near it counts.
+    const { nest } = boards.find(b => b.board.id === id)!;
+    const size = nest.board;
+    const within = (q: { x: number; y: number }) => q.x >= 0 && q.y >= 0 && q.x <= size.w && q.y <= size.h;
+    const onlyMargins = board.size.fit && !nest.placements.length;
+    if (!onlyMargins && !within(p) && !within({ x: at.x + r.w / 2, y: at.y + r.h / 2 })) return onTable();
     const prev = d.target;
     if (prev?.kind === 'drawing' && prev.board === board.id && prev.at.x === at.x && prev.at.y === at.y) return prev;
-    const inst = instances.find(i => i.id === d.item)!;
     const drop = sameThickness(inst.thickness, board.thickness)
       ? dropPart(board, instances, bit, d.item, at, kSnapPx / pxPerMm, nestOptions)
       : null;
@@ -415,9 +508,13 @@ export function BoardDrawings({
       // Near the column's top or bottom edge: scroll, so every board can be reached. Not when it's so short that it's
       // all edge: it would run away from the board under the pointer.
       const box = moved && scroller.current?.getBoundingClientRect();
-      if (box && box.height > 200 && e.clientX >= box.left && e.clientX <= box.right) {
-        if (e.clientY < box.top + 48) scroller.current!.scrollBy(0, -24);
-        else if (e.clientY > box.bottom - 48) scroller.current!.scrollBy(0, 24);
+      if (box && box.height > 200 && e.clientX >= box.left && e.clientX <= box.right && e.clientY >= box.top && e.clientY <= box.bottom) {
+        const by = (at: number, lo: number, hi: number) => (at < lo + 48 ? -24 : at > hi - 48 ? 24 : 0);
+        const [dx, dy] = [by(e.clientX, box.left, box.right), by(e.clientY, box.top, box.bottom)];
+        if (dx || dy) {
+          fitted.current = null;
+          scroller.current!.scrollBy(dx, dy);
+        }
       }
       const next = { ...d, moved, pointer: { x: e.clientX, y: e.clientY } };
       update(moved ? { ...next, target: targetAt(next, e.clientX, e.clientY) } : next);
@@ -434,10 +531,20 @@ export function BoardDrawings({
       if (target?.kind === 'new') on.onNewBoard(d.item);
       else if (target?.kind === 'drawing') on.onDrop(d.item, target.board, target.drop?.at ? target.drop : null);
       else if (target?.kind === 'rail') on.onDrop(d.item, target.board, target.drop?.at ? target.drop : null, true);
+      else if (target?.kind === 'table') on.onSetAside(d.item, target.at);
     };
     const up = (e: PointerEvent) => finish(e);
     const cancel = () => finish(null);
-    const key = (e: KeyboardEvent) => e.key === 'Escape' && cancel();
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') cancel();
+      const d = dragRef.current;
+      if (e.key.toLowerCase() !== 'r' || !d?.moved) return;
+      // Turned about the pointer's spot on it.
+      const inst = latest.current.instances.find(i => i.id === d.item)!;
+      const was = placedRect({ x: 0, y: 0, rotated: d.rotated }, inst);
+      const turned = { ...d, rotated: !d.rotated, grab: { x: (d.grab.x * was.h) / was.w, y: (d.grab.y * was.w) / was.h } };
+      update({ ...turned, target: targetAt(turned, d.pointer.x, d.pointer.y) });
+    };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
     window.addEventListener('pointercancel', cancel);
@@ -486,15 +593,20 @@ export function BoardDrawings({
     const inst = byId.get(item);
     const frame = (e.currentTarget as SVGGElement).closest('svg')?.querySelector<SVGGraphicsElement>('[data-board-frame]');
     const p = frame && toBoard(frame, e.clientX, e.clientY);
-    // A part that doesn't fit has no spot on the board: it's held at its middle, as laid flat.
+    const aside = board.board.setAside?.[item];
+    // A part off the board has no spot on it: it's held at its middle, as it lies.
     const grab =
-      placed && p ? { x: p.x - placed.x, y: p.y - placed.y } : !placed && inst ? { x: inst.size[0] / 2, y: inst.size[1] / 2 } : null;
+      placed && p
+        ? { x: p.x - placed.x, y: p.y - placed.y }
+        : !placed && inst
+          ? { x: inst.size[aside?.rotated ? 1 : 0] / 2, y: inst.size[aside?.rotated ? 0 : 1] / 2 }
+          : null;
     if (!grab) return;
     const pointer = { x: e.clientX, y: e.clientY };
     update({
       item,
       from: board.board.id,
-      rotated: placed?.rotated ?? false,
+      rotated: placed?.rotated ?? aside?.rotated ?? false,
       grab,
       start: pointer,
       pointer,
@@ -519,6 +631,7 @@ export function BoardDrawings({
   };
 
   const dragging = drag?.moved ? drag : null;
+  busy.current = !!dragging || !!sizing;
   const dragInst = dragging && byId.get(dragging.item);
   const overRail =
     dragging?.target?.kind === 'rail'
@@ -527,29 +640,110 @@ export function BoardDrawings({
         ? ('new' as const)
         : null;
   const anyHolds = boards.some(b => b.nest.holds.length > 0);
+  const hardware = nestOptions.hardware ?? kDefaultHardware;
+
+  // What's measured on the selected board, for its heading and its drawing.
+  const selJob = boards.find(b => b.board.id === selectedId);
+  const selEditing = edit?.board === selectedId ? edit : null;
+  const selNest = selJob && (selEditing?.nest ?? nestOf(selJob));
+  const selHere = !!selJob && !isCut(selJob.board);
+  const selInput = selJob && selNest ? settleInputOf(sizing?.board ?? selJob.board, selNest, instances, bit, nestOptions) : null;
+  const selFixtures = selEditing?.fixtures ?? sizing?.board.fixtures ?? selJob?.board.fixtures ?? [];
+  const selOffcut = selInput && largestOffcut(selInput.input, selInput.spots, selFixtures);
+  const contentW = toPx({ x: table.bounds.x + table.bounds.w + kTableMargin, y: 0 }).x + area.w / 2;
+  const contentH = toPx({ x: 0, y: table.bounds.y + table.bounds.h + kTableMargin }).y + area.h / 2;
   return (
     <div className="relative flex min-h-0 flex-1">
-      <BoardRail
-        boards={boards}
-        instances={instances}
-        parts={parts}
-        selectedId={selectedId}
-        hardware={nestOptions.hardware ?? kDefaultHardware}
-        closed={railClosed}
-        dragging={!!dragging}
-        dropOn={overRail}
-        pointerX={dragging?.pointer.x}
-        onOpen={onOpen}
-        onToggle={onRailToggle}
-        all={!focus}
-        onAll={onAll}
-        tools={railTools}
-      />
       <div className="relative flex min-w-0 flex-1 flex-col">
-        {focus && tool && (
+        <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b bg-background px-2 py-1">
+          {tools}
+          <nav aria-label="Boards" className="flex min-w-0 flex-wrap items-center gap-1">
+            <button
+              type="button"
+              aria-current={allShown ? 'page' : undefined}
+              onClick={() => {
+                onAll();
+                showAll();
+              }}
+              className={cn(
+                'flex items-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-xs whitespace-nowrap hover:bg-muted',
+                allShown && 'border-primary/60 bg-muted'
+              )}>
+              <LayoutGrid className="size-3.5 shrink-0" /> All boards
+            </button>
+            {boards.map(({ board, nest }) => {
+              const over = overRail && overRail !== 'new' && overRail.board === board.id ? overRail : null;
+              const tone = holdVerdict(board, nest, hardware, instances).tone;
+              return (
+                <button
+                  key={board.id}
+                  type="button"
+                  data-rail-drop={board.id}
+                  aria-label={boardLabel(board)}
+                  aria-current={board.id === selectedId && !allShown ? 'true' : undefined}
+                  title={`${boardLabel(board)}: go to it, or drop a part on it`}
+                  onClick={() => {
+                    onOpen(board.id);
+                    showBoard(board.id);
+                  }}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-xs whitespace-nowrap hover:bg-muted',
+                    board.id === selectedId && !allShown && 'border-primary/60 bg-muted',
+                    dragging && 'border-dashed border-primary/60',
+                    over?.ok && 'border-solid border-primary bg-primary/10 ring-1 ring-primary',
+                    over && !over.ok && 'border-solid border-red-500 ring-1 ring-red-500'
+                  )}>
+                  <span
+                    aria-hidden
+                    className={cn(
+                      'size-2 shrink-0 rounded-full',
+                      tone === 'ok' ? 'bg-emerald-500' : tone === 'warn' ? 'bg-amber-500' : 'bg-muted-foreground'
+                    )}
+                  />
+                  {board.name}
+                  {nest.unplaced.length > 0 && (
+                    <span className="font-medium text-amber-600 dark:text-amber-400">{nest.unplaced.length} off</span>
+                  )}
+                </button>
+              );
+            })}
+            {dragging && (
+              <div
+                data-new-board-drop
+                aria-label="New board"
+                className={cn(
+                  'flex items-center gap-1 rounded-md border border-dashed px-2 py-1 text-xs text-muted-foreground',
+                  overRail === 'new' && 'border-primary bg-primary/5 text-foreground'
+                )}>
+                <Plus className="size-3" /> New board
+              </div>
+            )}
+          </nav>
+        </div>
+        {selJob && selNest && (
+          <div data-board-head className="flex min-h-8 shrink-0 flex-wrap items-center gap-x-2 border-b bg-background px-3 py-0.5 text-sm">
+            <span className="font-medium">{boardLabel(selJob.board)}</span>
+            {isCut(selJob.board) && <CutBadge board={selJob.board} />}
+            {selHere ? (
+              <BoardHeadingFields board={selJob.board} nest={selNest} onChange={onBoardChange} />
+            ) : (
+              <span className="whitespace-nowrap text-muted-foreground">
+                {MATERIALS[selJob.board.material].name[0].toUpperCase() + MATERIALS[selJob.board.material].name.slice(1)}{' '}
+                {fmt(selJob.board.thickness)} mm · <span className="font-mono text-xs">{boardSizeLabel(selJob.board, selNest)}</span>
+              </span>
+            )}
+            <span className="truncate font-mono text-xs leading-4 text-muted-foreground" data-offcut-row>
+              <span data-offcut-label>
+                {selOffcut ? `Offcut ${Math.round(selOffcut.w)} × ${Math.round(selOffcut.h)}` : 'No offcut over 60 mm'}
+              </span>
+              {selNest.placements.length > 0 && ` · Yield ${Math.round(selNest.yield * 100)} %`}
+            </span>
+          </div>
+        )}
+        {tool && (
           <div
             data-armed-bar
-            className="absolute top-2 left-1/2 z-20 flex max-w-[calc(100%-1rem)] -translate-x-1/2 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border bg-background px-3 py-1.5 text-xs shadow-lg">
+            className="absolute top-24 left-1/2 z-20 flex max-w-[calc(100%-1rem)] -translate-x-1/2 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border bg-background px-3 py-1.5 text-xs shadow-lg">
             <span className="whitespace-nowrap">
               {tool === 'clamp' ? 'Click near an edge.' : tool === 'screw' ? 'Click in the waste.' : 'Click on a part’s outline.'} Esc to
               stop.
@@ -594,7 +788,7 @@ export function BoardDrawings({
         <div
           ref={scroller}
           data-board-scroller
-          className="relative min-h-0 flex-1 overflow-auto px-4 pt-3 pb-4"
+          className="relative min-h-0 flex-1 overflow-auto"
           onPointerDown={onBackgroundDown}
           onPointerMove={onBackgroundMove}
           onPointerUp={onBackgroundUp}
@@ -606,20 +800,20 @@ export function BoardDrawings({
               e.stopPropagation();
             }
           }}>
-          <div className={cn('flex flex-wrap items-start gap-4', focus && 'justify-center')}>
+          <div className="relative" style={{ width: contentW, height: contentH }}>
             {boards.map((b, i) => {
               const { board } = b;
-              if (focus && board.id !== selectedId) return null;
+              const selected = board.id === selectedId;
               const editing = edit?.board === board.id ? edit : null;
-              const nest = editing?.nest ?? b.nest;
-              const here = focus && !isCut(board);
+              const nest = editing?.nest ?? nestOf(b);
+              const here = selected && !isCut(board);
               const held = selectedHold?.board === board.id ? selectedHold.i : null;
-              const shownFixtures = editing?.fixtures ?? board.fixtures ?? [];
+              const shownFixtures = (selected && selFixtures) || (editing?.fixtures ?? board.fixtures ?? []);
               const pointed = editing ? (editing.i ?? shownFixtures.length - 1) : held;
               // Measured on what's shown, on the selected board only: these are a little work per pointer move.
-              const input = focus && board.id === selectedId ? settleInputOf(board, nest, instances, bit, nestOptions) : null;
+              const input = selected ? selInput : null;
               const pointedAt = pointed === null ? undefined : shownFixtures[pointed];
-              const offcut = input && largestOffcut(input.input, input.spots, shownFixtures);
+              const offcut = selected ? selOffcut : null;
               const play =
                 !input || !pointedAt || editing?.settled === null
                   ? null
@@ -634,76 +828,75 @@ export function BoardDrawings({
                 board.retention === 'tabs' ? plans[i]?.holding?.find(h => h.name === byId.get(id)?.name)?.how : undefined;
               const unheld = new Set(nest.placements.filter(p => holdingOf(p.id) === 'unheld').map(p => p.id));
               const nutHits = nest.nutAbove < 0;
-              const padPx = unit * 0.05 * pxPerMm;
+              const padPx = kBoardPad * pxPerMm;
+              const spot = toPx(table.boards.get(board.id)!);
               return (
                 <section
                   key={board.id}
                   aria-label={`${boardLabel(board)} drawing`}
                   data-board-drop={board.id}
                   data-board-drawing
-                  title={focus ? undefined : `Edit ${boardLabel(board)}`}
+                  title={selected ? undefined : `Edit ${boardLabel(board)}`}
+                  style={{ left: spot.x - padPx, top: spot.y - padPx }}
                   onClick={e => {
                     // Not what's on it, nor a menu of it (React brings a portal's clicks here too).
                     const on = e.target as Element;
-                    if (focus || !e.currentTarget.contains(on) || on.closest('button,input,[data-part-marks],[data-unplaced]')) return;
+                    if (!e.currentTarget.contains(on) || on.closest('button,input,[data-part-marks],[data-unplaced]')) return;
                     onOpen(board.id);
                   }}
+                  onDoubleClick={e => {
+                    if (!(e.target as Element).closest('[data-item],[data-hold],button,input')) showBoard(board.id);
+                  }}
                   className={cn(
-                    'flex w-fit min-w-[220px] shrink-0 flex-col gap-1 rounded-lg border border-transparent bg-background/60 p-2 transition-colors',
-                    !focus && 'cursor-pointer hover:border-primary/40',
-                    focus && 'border-primary/60',
+                    'absolute rounded-lg border border-transparent transition-colors',
+                    !selected && 'cursor-pointer hover:border-primary/40',
+                    selected && 'z-10 border-primary/60',
                     dragging && fits && 'border-dashed border-primary/60',
                     dragging && !fits && 'opacity-50',
                     target && fits && 'border-solid border-primary bg-primary/5 ring-2 ring-primary',
                     target && !target.drop?.at && 'border-red-500 ring-red-500'
                   )}>
-                  <div className="flex w-0 min-w-full flex-wrap items-center gap-x-2 px-1 text-sm">
+                  <div
+                    className="pointer-events-none absolute flex items-center gap-x-2 overflow-hidden text-xs whitespace-nowrap *:shrink-0"
+                    // Stops short of the next board's label.
+                    style={{ left: padPx, bottom: `calc(100% - ${padPx}px + 12px)`, maxWidth: (nest.board.w + 0.7 * kTableGap) * pxPerMm }}>
                     <span className="font-medium">{boardLabel(board)}</span>
                     {isCut(board) && <CutBadge board={board} />}
-                    {here ? (
-                      <BoardHeadingFields board={board} nest={nest} onChange={onBoardChange} />
-                    ) : (
-                      <span className="whitespace-nowrap text-muted-foreground">
-                        {MATERIALS[board.material].name[0].toUpperCase() + MATERIALS[board.material].name.slice(1)} {fmt(board.thickness)}{' '}
-                        mm · <span className="font-mono text-xs">{boardSizeLabel(board, nest)}</span>
+                    <span className="!shrink truncate text-muted-foreground">
+                      {fmt(board.thickness)} mm ·{' '}
+                      <span className="font-mono text-[11px]">
+                        {boardSizeLabel(sizing?.board.id === board.id ? sizing.board : board, nest)}
                       </span>
-                    )}
+                    </span>
                     {nest.unplaced.length > 0 && (
-                      <span className="text-xs font-medium whitespace-nowrap text-destructive">{nest.unplaced.length} don’t fit</span>
+                      <span className="font-medium text-amber-600 dark:text-amber-400">{nest.unplaced.length} off it</span>
                     )}
-                    {unheld.size > 0 && (
-                      <span className="text-xs font-medium whitespace-nowrap text-destructive">{unheld.size} can’t hold</span>
-                    )}
-                    {nutHits && <span className="text-xs font-medium whitespace-nowrap text-destructive">collet nut hits</span>}
-                    <span className="grow" />
+                    {unheld.size > 0 && <span className="font-medium text-destructive">{unheld.size} can’t hold</span>}
+                    {nutHits && <span className="font-medium text-destructive">collet nut hits</span>}
                     {fetching[i] && <LoadingSpinner className="size-3" />}
                     <DropStatus dragging={!!dragging} fits={!!fits} target={target} from={dragging?.from === board.id} />
                   </div>
-                  {focus && (
-                    <div
-                      className="h-4 w-0 min-w-full shrink-0 truncate px-1 font-mono text-xs leading-4 text-muted-foreground"
-                      data-offcut-row>
-                      <span data-offcut-label>
-                        {offcut ? `Offcut ${Math.round(offcut.w)} × ${Math.round(offcut.h)}` : 'No offcut over 60 mm'}
-                      </span>
-                      {nest.placements.length > 0 && ` · Yield ${Math.round(nest.yield * 100)} %`}
-                    </div>
-                  )}
                   <div className="relative shrink-0">
                     <NestView
                       nest={nest}
                       instances={instances}
                       parts={parts}
-                      plan={plans[i]}
+                      // Its tabs are for the layout it had: not over the one being dragged to.
+                      plan={sizing?.board.id === board.id ? undefined : plans[i]}
                       tabHeight={tabHeight}
-                      unit={unit}
+                      unit={kUnitPx / pxPerMm}
                       pxPerMm={pxPerMm}
+                      padMm={kBoardPad}
+                      quiet={!here}
                       label={
                         boardSizeLabel(board, nest) === '–'
                           ? `${boardLabel(board)}, empty`
                           : `${boardLabel(board)}, ${fmt(nest.board.w)} by ${fmt(nest.board.h)} mm, with ${nest.placements.length} parts`
                       }
-                      className={cn('shrink-0 touch-none transition-opacity', fetching[i] && plans[i] && 'opacity-70')}
+                      className={cn(
+                        'block shrink-0 touch-none overflow-visible transition-opacity',
+                        fetching[i] && plans[i] && 'opacity-70'
+                      )}
                       dragging={dragging?.from === board.id ? dragging.item : null}
                       preview={
                         target && dragging
@@ -789,7 +982,7 @@ export function BoardDrawings({
                       selectedTab={selectedTab?.board === board.id ? selectedTab : null}
                       onTabSelect={(part, k) => setSelectedTab({ board: board.id, part, i: k })}
                       onTabsChange={
-                        onTabsMove && focus && board.retention === 'tabs' && !holdTool
+                        onTabsMove && selected && board.retention === 'tabs' && !holdTool
                           ? (item, tabs) => onTabsMove(board.id, item, tabs)
                           : undefined
                       }
@@ -803,8 +996,32 @@ export function BoardDrawings({
                         padPx={padPx}
                         bit={bit}
                         machine={machine}
+                        compact={nest.board.w * pxPerMm < kLabelsFrom}
+                        tight={grip => {
+                          const most = (other: number) => {
+                            if (!machine) return 3000;
+                            return Math.max(machine.w, machine.h) === other
+                              ? Math.min(machine.w, machine.h)
+                              : Math.max(machine.w, machine.h);
+                          };
+                          const of = (side: 'w' | 'h') =>
+                            tightestSide(board, b.nest, side, most(b.nest.board[side === 'w' ? 'h' : 'w']), instances, bit, nestOptions);
+                          return { w: grip !== 'h' ? of('w') : undefined, h: grip !== 'w' ? of('h') : undefined };
+                        }}
+                        onDraft={size => {
+                          if (!size) return setSizing(null);
+                          const next = resizedTo(size.w, size.h);
+                          const nested = nestBoard(next, instances, bit, nestOptions);
+                          setSizing({ board: next, nest: nested });
+                          const off = nested.unplaced.filter(id => !next.setAside?.[id]).map(id => byId.get(id)?.name ?? id);
+                          onNote(
+                            `${nested.board.w} × ${nested.board.h} mm · ${((nested.board.w * nested.board.h) / 1e6).toFixed(2)} m² · ${Math.round(nested.yield * 100)} % yield` +
+                              (off.length
+                                ? ` · ${off.join(', ')} ${off.length === 1 ? 'goes' : 'go'} off the board. Drag back to keep ${off.length === 1 ? 'it' : 'them'}.`
+                                : '')
+                          );
+                        }}
                         onResize={onResize}
-                        onResizing={onNote}
                         onMargin={margin => onBoardChange({ ...board, margin })}
                         onGap={gap => onBoardChange({ ...board, gap })}
                       />
@@ -1002,59 +1219,54 @@ export function BoardDrawings({
                         );
                       })}
                   </div>
-                  {nest.unplaced.length > 0 && (
-                    <div
-                      role="group"
-                      aria-label={`Doesn’t fit on board ${board.name}`}
-                      className="flex w-0 min-w-full flex-col gap-1 rounded-md border border-dashed border-destructive/60 bg-destructive/5 p-1.5">
-                      <span className="text-xs text-destructive">
-                        Doesn’t fit on this board: drag onto another {fmt(board.thickness)} mm board, or use its ⋯ menu.
-                      </span>
-                      <div className="flex flex-wrap gap-1">
-                        {nest.unplaced.map(id => {
-                          const name = byId.get(id)?.name ?? id;
-                          return (
-                            <span
-                              key={id}
-                              data-item={id}
-                              data-unplaced={name}
-                              tabIndex={-1}
-                              onPointerDown={e => startDrag(b, id, e)}
-                              className={cn(
-                                'inline-flex cursor-grab touch-none items-center gap-0.5 rounded-full bg-background py-0.5 pr-0.5 pl-2 text-xs text-destructive ring-1 ring-destructive outline-none active:cursor-grabbing',
-                                dragging?.item === id && 'opacity-30'
-                              )}>
-                              {name}
-                              <PartBadges pinned={!!board.pinned?.includes(id)} holding={holdingOf(id)} />
-                              <DropdownMenu modal={false}>
-                                <DropdownMenuTrigger asChild>
-                                  <button
-                                    aria-label={`${name} menu`}
-                                    onPointerDown={e => e.stopPropagation()}
-                                    className="ml-0.5 rounded-full px-1 text-muted-foreground hover:bg-muted hover:text-foreground">
-                                    <MoreHorizontal className="size-3" />
-                                  </button>
-                                </DropdownMenuTrigger>
-                                <PartMenuContent {...partMenu(b, id)} />
-                              </DropdownMenu>
-                            </span>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
                 </section>
               );
             })}
-            {dragging && !focus && (
+            {boards.flatMap(b =>
+              nestOf(b).unplaced.map(id => {
+                const inst = byId.get(id);
+                const part = inst && byPart.get(inst.partId);
+                const at = table.off.get(id);
+                if (!inst || !part || !at) return null;
+                const spot = toPx(at);
+                const rotated = !!b.board.setAside?.[id]?.rotated;
+                return (
+                  <OffBoardPart
+                    key={id}
+                    inst={inst}
+                    part={part}
+                    rotated={rotated}
+                    left={spot.x}
+                    top={spot.y}
+                    pxPerMm={pxPerMm}
+                    faint={dragging?.item === id}
+                    menuOpen={active === id && menu}
+                    onMenuOpen={open => {
+                      setActive(id);
+                      setMenu(open);
+                    }}
+                    menuProps={partMenu(b, id)}
+                    pinned={!!b.board.pinned?.includes(id)}
+                    onPointerDown={e => startDrag(b, id, e)}
+                  />
+                );
+              })
+            )}
+            {dragging && (
               <div
                 data-new-board-drop
                 aria-label="New board"
+                style={{
+                  left: toPx(table.newBoard).x,
+                  top: toPx(table.newBoard).y,
+                  width: table.newBoard.w * pxPerMm,
+                  height: table.newBoard.h * pxPerMm,
+                }}
                 className={cn(
-                  'flex h-32 w-56 items-center justify-center gap-2 rounded-lg border-2 border-dashed bg-background/60 text-sm text-muted-foreground',
+                  'absolute flex items-center justify-center gap-2 rounded-lg border-2 border-dashed bg-background/60 text-center text-sm text-muted-foreground',
                   dragging.target?.kind === 'new' && 'border-primary bg-primary/5 text-foreground'
                 )}>
-                <Plus className="size-4" /> New board: drop here
+                <Plus className="size-4 shrink-0" /> New board
               </div>
             )}
           </div>
@@ -1065,6 +1277,7 @@ export function BoardDrawings({
               drag={dragging}
               pxPerMm={pxPerMm}
               bad={(dragging.target?.kind === 'drawing' || dragging.target?.kind === 'rail') && !dragging.target.drop?.at}
+              offBoard={dragging.target?.kind === 'table'}
             />
           )}
         </div>
@@ -1109,20 +1322,19 @@ export function BoardDrawings({
               type="button"
               aria-label="Zoom out"
               title="Zoom out (Ctrl/⌘ + wheel)"
-              onClick={() => zoomTo(zoom / 1.25)}
-              disabled={zoom <= kMinZoom}
+              onClick={() => zoomTo(pxPerMm / 1.25)}
               className="rounded p-1 hover:bg-muted disabled:opacity-40">
               <Minus className="size-3.5" />
             </button>
             <span className="w-10 text-center font-mono text-[11px] text-muted-foreground" aria-live="polite">
-              {Math.round(zoom * 100)} %
+              {Math.round((pxPerMm / fitAll) * 100)} %
             </span>
             <button
               type="button"
               aria-label="Zoom in"
               title="Zoom in (Ctrl/⌘ + wheel)"
-              onClick={() => zoomTo(zoom * 1.25)}
-              disabled={zoom >= kMaxZoom}
+              onClick={() => zoomTo(pxPerMm * 1.25)}
+              disabled={pxPerMm >= kMaxScale}
               className="rounded p-1 hover:bg-muted disabled:opacity-40">
               <Plus className="size-3.5" />
             </button>
@@ -1130,10 +1342,7 @@ export function BoardDrawings({
               type="button"
               aria-label="Fit boards to view"
               title="Fit to view"
-              onClick={() => {
-                setZoom(1);
-                scroller.current?.scrollTo({ left: 0, top: 0 });
-              }}
+              onClick={showAll}
               className="rounded p-1 hover:bg-muted">
               <Maximize className="size-3.5" />
             </button>
@@ -1189,12 +1398,15 @@ function Ghost({
   drag,
   pxPerMm,
   bad,
+  offBoard,
 }: {
   inst: PartInstance;
   part: CamPartInfo | undefined;
   drag: ShapeDrag;
   pxPerMm: number;
   bad: boolean;
+  /** It would lie on the table, off every board. */
+  offBoard: boolean;
 }) {
   if (!part) return null;
   const r = placedRect({ x: 0, y: 0, rotated: drag.rotated }, inst);
@@ -1211,7 +1423,13 @@ function Ghost({
       <g transform="scale(1,-1)">
         <path
           d={toD(part.shape.outlines, f)}
-          className={bad ? 'fill-red-500/25 stroke-red-500' : 'fill-violet-500/35 stroke-violet-500'}
+          className={
+            bad
+              ? 'fill-red-500/25 stroke-red-500'
+              : offBoard
+                ? 'fill-amber-500/20 stroke-amber-500'
+                : 'fill-violet-500/35 stroke-violet-500'
+          }
           strokeWidth={1.5 / pxPerMm}
         />
         <path d={toD(part.shape.holes, f)} className="fill-background/80" />
@@ -1225,6 +1443,113 @@ function Ghost({
         className="fill-foreground font-medium">
         {inst.name}
       </text>
+      {offBoard && (
+        <text
+          x={r.w / 2}
+          y={-r.h - 8 / pxPerMm}
+          textAnchor="middle"
+          fontSize={12 / pxPerMm}
+          className="fill-amber-600 font-medium dark:fill-amber-400">
+          Off the board: won’t be cut
+        </text>
+      )}
     </svg>
+  );
+}
+
+/** A part off every board, on the table: drawn at the table's scale, dragged like any part. */
+function OffBoardPart({
+  inst,
+  part,
+  rotated,
+  left,
+  top,
+  pxPerMm,
+  faint,
+  menuOpen,
+  onMenuOpen,
+  menuProps,
+  pinned,
+  onPointerDown,
+}: {
+  inst: PartInstance;
+  part: CamPartInfo;
+  rotated: boolean;
+  left: number;
+  top: number;
+  pxPerMm: number;
+  faint: boolean;
+  menuOpen: boolean;
+  onMenuOpen: (open: boolean) => void;
+  menuProps: PartMenuProps;
+  pinned: boolean;
+  onPointerDown: (e: React.PointerEvent) => void;
+}) {
+  const r = placedRect({ x: 0, y: 0, rotated }, inst);
+  const f = place({ x: 0, y: 0, rotated }, inst.size);
+  const [hover, setHover] = useState(false);
+  return (
+    <div
+      data-off-board={inst.name}
+      className={cn('absolute z-10', faint && 'opacity-30')}
+      style={{ left, top, width: r.w * pxPerMm, height: r.h * pxPerMm }}
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}>
+      <svg
+        role="button"
+        tabIndex={0}
+        aria-label={`${inst.name}: off the board, won’t be cut. Drag it onto a board; Enter opens its menu`}
+        data-item={inst.id}
+        data-unplaced={inst.name}
+        viewBox={`0 ${-r.h} ${r.w} ${r.h}`}
+        width={r.w * pxPerMm}
+        height={r.h * pxPerMm}
+        className="block cursor-grab touch-none overflow-visible outline-none focus-visible:drop-shadow-[0_0_2px_var(--primary)] active:cursor-grabbing"
+        onPointerDown={onPointerDown}
+        onContextMenu={e => {
+          e.preventDefault();
+          onMenuOpen(true);
+        }}
+        onKeyDown={e => {
+          if (e.key !== 'Enter' && e.key !== 'ContextMenu') return;
+          e.preventDefault();
+          onMenuOpen(true);
+        }}>
+        <g transform="scale(1,-1)">
+          <path
+            d={toD(part.shape.outlines, f)}
+            className="fill-amber-500/10 stroke-amber-500"
+            strokeWidth={1.5 / pxPerMm}
+            strokeDasharray={`${6 / pxPerMm} ${4 / pxPerMm}`}
+          />
+          <path d={toD(part.shape.holes, f)} className="fill-background/70" />
+        </g>
+        <text
+          x={r.w / 2}
+          y={-r.h / 2}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fontSize={Math.min(13.3 / pxPerMm, (1.6 * r.w) / Math.max(1, inst.name.length))}
+          className="pointer-events-none fill-foreground">
+          {inst.name}
+        </text>
+      </svg>
+      <div className="pointer-events-none absolute top-0 right-0 flex items-center gap-0.5 p-0.5 *:pointer-events-auto">
+        <PartBadges pinned={pinned} />
+        {(hover || menuOpen) && (
+          <DropdownMenu modal={false} open={menuOpen} onOpenChange={onMenuOpen}>
+            <DropdownMenuTrigger asChild>
+              <button
+                aria-label={`${inst.name} menu`}
+                onPointerDown={e => e.stopPropagation()}
+                className="rounded-full border bg-background px-1 text-muted-foreground shadow-sm hover:text-foreground">
+                <MoreHorizontal className="size-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <PartMenuContent {...menuProps} />
+          </DropdownMenu>
+        )}
+      </div>
+    </div>
   );
 }
