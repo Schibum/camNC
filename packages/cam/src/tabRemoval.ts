@@ -1,5 +1,5 @@
 import type { TurnedOver } from './flip';
-import type { Vec3 } from './geom';
+import { maxOf, minOf, type Vec3 } from './geom';
 import type { Operation, Pass, PartCam } from './toolpaths';
 import { releaseMetadata } from './releaseMetadata';
 
@@ -36,13 +36,13 @@ export function tabRemovalProgram(
   const tabs: TabStop[] = [];
   const operations: Operation[] = [];
   for (const op of cam.operations.filter(o => o.feature === 'outline')) {
-    const deepest = Math.min(...op.passes.flatMap(p => p.pts.map(q => q[2])));
-    const final = op.passes.filter(p => Math.abs(Math.min(...p.pts.map(q => q[2])) - deepest) < 1e-6).at(-1);
+    const deepest = minOf(op.passes.flatMap(p => p.pts.map(q => q[2])));
+    const final = op.passes.filter(p => Math.abs(minOf(p.pts.map(q => q[2])) - deepest) < 1e-6).at(-1);
     if (!final) continue;
     const part = op.name.includes(': ') ? op.name.split(': ')[0] : op.name;
     const xs = final.pts.map(q => q[0]),
       ys = final.pts.map(q => q[1]);
-    const box = { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) };
+    const box = { x0: minOf(xs), y0: minOf(ys), x1: maxOf(xs), y1: maxOf(ys) };
     const runs = raisedRuns(final.pts, deepest);
     const passes: Pass[] = [];
     for (const run of runs) {
@@ -52,7 +52,7 @@ export function tabRemovalProgram(
       tabs.push({ index, part, at: at({ x: mid[0], y: mid[1] }), hold: at(holdPoint(box, mid)), length });
       // Turned over after side B, the tab hangs from the new top: cut from there through it, as far past it as the
       // deepest pass went below the bottom; mirrored and reversed, so the bit cuts the same way as before.
-      const top = Math.max(...run.map(q => q[2]));
+      const top = maxOf(run.map(q => q[2]));
       const pts: Vec3[] = turned
         ? [...run].reverse().map(q => [q[0], turned.h - q[1], cam.stockTop - top + deepest])
         : run.map(q => [q[0], q[1], deepest]);

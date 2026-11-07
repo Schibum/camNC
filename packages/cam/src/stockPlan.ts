@@ -1,4 +1,4 @@
-import type { PathsD, Vec3 } from './geom';
+import { minOf, type PathsD, type Vec3 } from './geom';
 import { StockModel, type CuttingTransitionCertificate, type LinkCertificate } from './stock';
 import type { PartCam, Pass } from './toolpaths';
 import type { MotionRole } from './motion';
@@ -39,7 +39,7 @@ function withoutCuttingPrefix(pass: Pass): Pass {
     const point = pass.pts[i];
     if (samePose(point, to)) {
       const feeds = pass.feeds.slice(i);
-      feeds[0] = Math.min(...pass.feeds.slice(1, i + 1));
+      feeds[0] = minOf(pass.feeds.slice(1, i + 1));
       return { ...pass, pts: pass.pts.slice(i), feeds, ...(pass.roles ? { roles: pass.roles.slice(i) } : {}) };
     }
     const t = ((point[0] - from[0]) * dx + (point[1] - from[1]) * dy) / square;

@@ -23,6 +23,45 @@ function request(model: ModelImport, change: (b: BoardV1) => BoardV1): BoardRequ
 const settings = {};
 const moves = (gcode: string) => readGcode(gcode).filter(m => !m.rapid);
 
+/** A binary STL: a flat ring, thickness `t`, outer and hole radius in mm. */
+function ringStl(outer: number, hole: number, t: number) {
+  const n = 96;
+  const on = (r: number, i: number, z: number) => [r * Math.cos((i / n) * 2 * Math.PI), r * Math.sin((i / n) * 2 * Math.PI), z];
+  const quad = (a: number[], b: number[], c: number[], d: number[]) => [a, b, c, a, c, d];
+  const corners = Array.from({ length: n }, (_, i) => [
+    ...quad(on(hole, i, t), on(outer, i, t), on(outer, i + 1, t), on(hole, i + 1, t)),
+    ...quad(on(hole, i, 0), on(hole, i + 1, 0), on(outer, i + 1, 0), on(outer, i, 0)),
+    ...quad(on(outer, i, 0), on(outer, i + 1, 0), on(outer, i + 1, t), on(outer, i, t)),
+    ...quad(on(hole, i + 1, 0), on(hole, i, 0), on(hole, i, t), on(hole, i + 1, t)),
+  ]).flat();
+  const triangles = corners.length / 3;
+  const bytes = new Uint8Array(84 + triangles * 50);
+  const view = new DataView(bytes.buffer);
+  view.setUint32(80, triangles, true);
+  corners.forEach((corner, i) => {
+    const at = 84 + Math.floor(i / 3) * 50 + 12 + (i % 3) * 12;
+    corner.forEach((v, k) => view.setFloat32(at + k * 4, v, true));
+  });
+  return bytes;
+}
+
+describe('programs of a big hole to clear', () => {
+  it('summarize more points than fit on the call stack', async () => {
+    const bytes = ringStl(280, 100, 18);
+    const model = await camWorker().importModel(Comlink.transfer(bytes, [bytes.buffer]), 'worker-ring.stl', 'worker-ring');
+    const instances = instancesOf(model.parts, () => true);
+    const board = reconcileBoards(undefined, instances, 'oak').find(b => b.name === 'A')!;
+    const clear = boardRequest(board, nestBoard(board, instances, 3.175), instances, {
+      holes: { [instances[0].partId]: { 0: 'clear' } },
+    });
+    const plan = await camWorker().generateBoard('worker-ring', clear, settings);
+    expect(plan.holeMiddles?.map(m => m.state)).toEqual(['cleared']);
+    const middle = plan.ops.find(op => op.name.includes('middle'))!;
+    expect(middle.zBottom).toBeCloseTo(-0.3);
+    expect(plan.safety).toEqual([]);
+  }, 120_000);
+});
+
 describe('programs for boards lying askew', () => {
   let shelf: ModelImport;
   let box: ModelImport;

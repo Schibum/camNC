@@ -1,5 +1,5 @@
 /** G-code geometry, ideal-feed metrics, and path registration for diagnostics and stock analysis. */
-import { distPointSeg, type Vec3 } from './geom';
+import { distPointSeg, maxOf, minOf, type Vec3 } from './geom';
 
 export interface Move {
   from: Vec3;
@@ -174,7 +174,7 @@ export function metrics(moves: Move[], stockTop: number, rapidXY = 9000, rapidZ 
 
 /** XY polyline points of cutting moves at (within tol of) the deepest Z: the final outline pass. */
 export function finalPassPoints(moves: Move[], step = 0.5, tol = 0.01): [number, number][] {
-  const zMin = Math.min(...moves.filter(m => !m.rapid).map(m => m.to[2]));
+  const zMin = minOf(moves.filter(m => !m.rapid).map(m => m.to[2]));
   const pts: [number, number][] = [];
   for (const m of moves) {
     if (m.rapid || Math.abs(m.to[2] - zMin) > tol || Math.abs(m.from[2] - zMin) > tol) continue;
@@ -345,10 +345,10 @@ export class DepthMap {
 /** SVG top view: cutting moves colored by depth (deep = dark blue, top = yellow), rapids light gray. */
 export function toSvg(panels: { title: string; moves: Move[] }[], zRange: [number, number], scale = 2): string {
   const all = panels.flatMap(p => p.moves.flatMap(m => [m.from, m.to])).filter(p => p[2] < zRange[1] + 0.5);
-  const minX = Math.min(...all.map(p => p[0])) - 5,
-    maxX = Math.max(...all.map(p => p[0])) + 5;
-  const minY = Math.min(...all.map(p => p[1])) - 5,
-    maxY = Math.max(...all.map(p => p[1])) + 5;
+  const minX = minOf(all.map(p => p[0])) - 5,
+    maxX = maxOf(all.map(p => p[0])) + 5;
+  const minY = minOf(all.map(p => p[1])) - 5,
+    maxY = maxOf(all.map(p => p[1])) + 5;
   const pw = (maxX - minX) * scale,
     ph = (maxY - minY) * scale;
   const color = (z: number) => {

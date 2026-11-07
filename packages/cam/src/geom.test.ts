@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { offset, polyArea } from './geom';
+import { maxOf, minOf, offset, polyArea } from './geom';
 
 const square = (s: number) => [
   [
@@ -9,6 +9,17 @@ const square = (s: number) => [
     { x: 0, y: s },
   ],
 ];
+
+describe('minOf and maxOf', () => {
+  it('take more values than fit on the call stack, and say what Math.min and Math.max say otherwise', () => {
+    const many = Array.from({ length: 1_000_000 }, (_, i) => i - 5);
+    expect(() => Math.min(...many)).toThrow(RangeError);
+    expect(minOf(many)).toBe(-5);
+    expect(maxOf(many)).toBe(999_994);
+    expect(minOf([])).toBe(Infinity);
+    expect(maxOf([])).toBe(-Infinity);
+  });
+});
 
 describe('offset', () => {
   it('gives the same answer when asked again, and what it hands out can be changed without changing it', () => {

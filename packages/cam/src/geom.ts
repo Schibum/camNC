@@ -186,6 +186,20 @@ export function bounds2(paths: PathsD) {
   return { minX, minY, maxX, maxY };
 }
 
+/** `Math.min(...values)` for as many values as a toolpath has: spread, they overflow the call stack at about 120k. */
+export function minOf(values: number[]) {
+  let min = Infinity;
+  for (const v of values) min = Math.min(min, v);
+  return min;
+}
+
+/** `Math.max(...values)` for as many values as a toolpath has, see `minOf`. */
+export function maxOf(values: number[]) {
+  let max = -Infinity;
+  for (const v of values) max = Math.max(max, v);
+  return max;
+}
+
 /** Distance from point to segment ab. */
 export function distPointSeg(px: number, py: number, ax: number, ay: number, bx: number, by: number) {
   const dx = bx - ax,

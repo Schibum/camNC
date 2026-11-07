@@ -1,5 +1,6 @@
 export { loadStep, detectFlat, flipPart, flatMatrix, groupIdentical, analyzeFaces, kMaxSlopedShare } from './import';
 export type { StepBody, FlatPart, LoadStepOptions } from './import';
+export { maxOf, minOf } from './geom';
 export { extractFeatures } from './features';
 export type { PartFeatures, PocketFeature, Level } from './features';
 export {
