@@ -7,6 +7,7 @@ import { useStore } from '@/store/store';
 import { CamBedEditor } from './CamBedEditor';
 const h = vi.hoisted(() => ({ api: null as unknown as import('@/lib/fluidnc/cnc-api').CncApi, entry: null as unknown as QueueEntry }));
 vi.mock('@/lib/fluidnc/machine', () => ({ getCncApi: () => h.api, getExistingCncApi: () => h.api }));
+vi.mock('@/lib/fluidnc/machineInstance', () => ({ getExistingCncApi: () => h.api }));
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => vi.fn() }));
 vi.mock('./useMachineQueue', () => ({
   useMachineQueue: () => ({ current: h.entry, queue: [h.entry], done: [], instances: [], nestBit: 3, updateBoard: vi.fn() }),

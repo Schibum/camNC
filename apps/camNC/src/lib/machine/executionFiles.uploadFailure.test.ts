@@ -11,6 +11,7 @@ import { runResume, uploadAndRun } from './jobs';
 
 const h = vi.hoisted(() => ({ api: null as unknown as CncApi, files: new Map<string, string>() }));
 vi.mock('../fluidnc/machine', () => ({ getCncApi: () => h.api, getExistingCncApi: () => h.api }));
+vi.mock('@/lib/fluidnc/machineInstance', () => ({ getExistingCncApi: () => h.api }));
 vi.mock('@wbcnc/ui/components/sonner', () => ({ toast: Object.assign(vi.fn(), { promise: vi.fn(), error: vi.fn(), warning: vi.fn() }) }));
 let host: string;
 const gcode = 'G21 G90\nG0 Z5\nG1 X80 F300\nM30\n';

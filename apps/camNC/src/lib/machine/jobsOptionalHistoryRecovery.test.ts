@@ -27,6 +27,7 @@ const h = vi.hoisted(() => ({
   progressReads: vi.fn(),
 }));
 vi.mock('@/lib/fluidnc/machine', () => ({ getCncApi: () => h.api, getExistingCncApi: () => h.api }));
+vi.mock('@/lib/fluidnc/machineInstance', () => ({ getExistingCncApi: () => h.api }));
 vi.mock('@/lib/machine/jobRecord', async original => {
   const actual = await original<typeof import('@/lib/machine/jobRecord')>();
   return {

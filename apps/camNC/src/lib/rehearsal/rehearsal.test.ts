@@ -28,6 +28,7 @@ vi.mock('@/lib/fluidnc/machine', () => ({
   getCncApi: () => context.api,
   setSimulatedMachine: vi.fn(),
 }));
+vi.mock('@/lib/fluidnc/machineInstance', () => ({ getExistingCncApi: () => context.api }));
 
 afterEach(() => {
   setDemoModeForTest(false);

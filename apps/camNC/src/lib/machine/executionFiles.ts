@@ -1,5 +1,5 @@
 import type { CncApi } from '../fluidnc/cnc-api';
-import { getExistingCncApi } from '../fluidnc/machine';
+import { getExistingCncApi } from '../fluidnc/machineInstance';
 import { isDemoMode } from '../demo/demo-mode';
 import { useCamMachine } from '@/cam/machine/camMachine';
 import { readJobRecordHead, type JobRecord } from './jobRecord';

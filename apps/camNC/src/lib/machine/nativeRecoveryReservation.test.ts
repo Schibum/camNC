@@ -10,6 +10,7 @@ import type { JobRecord } from './jobRecord';
 
 const h = vi.hoisted(() => ({ api: null as unknown as CncApi, load: vi.fn<() => Promise<JobRecord | null>>(), percent: 40 }));
 vi.mock('@/lib/fluidnc/machine', () => ({ getExistingCncApi: () => h.api, getCncApi: () => h.api }));
+vi.mock('@/lib/fluidnc/machineInstance', () => ({ getExistingCncApi: () => h.api }));
 vi.mock('./jobRecord', async original => ({
   ...(await original<typeof import('./jobRecord')>()),
   loadJobRecord: h.load,

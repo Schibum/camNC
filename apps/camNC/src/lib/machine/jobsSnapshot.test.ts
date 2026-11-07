@@ -46,6 +46,7 @@ vi.mock('@/cam/machine/nativeRunHistory', () => ({
   recordNativeRun: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('@/lib/fluidnc/machine', () => ({ getCncApi: () => h.api, getExistingCncApi: () => h.api }));
+vi.mock('@/lib/fluidnc/machineInstance', () => ({ getExistingCncApi: () => h.api }));
 vi.mock('./jobRecord', async importOriginal => ({
   ...(await importOriginal<typeof import('./jobRecord')>()),
   readJobRecordHead: async (host: string, demo = false) => ({

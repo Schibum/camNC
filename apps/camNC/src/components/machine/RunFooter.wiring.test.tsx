@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
   move: vi.fn(),
 }));
 vi.mock('@/lib/fluidnc/machine', () => ({ getCncApi: () => h.api, getExistingCncApi: () => h.api }));
+vi.mock('@/lib/fluidnc/machineInstance', () => ({ getExistingCncApi: () => h.api }));
 vi.mock('@/lib/machine/jobs', () => ({
   zeroAndRun: h.zero,
   uploadAndRun: h.keep,

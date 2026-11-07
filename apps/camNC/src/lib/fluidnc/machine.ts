@@ -3,10 +3,9 @@ import { desktopMachineTransport, isDesktopApp } from '../desktop/desktop';
 import { watchJobRecovery } from '../machine/jobRecovery';
 import { CncApi } from './cnc-api';
 import { hostBlockedReason, machineSupport } from './machine-support';
+import { getExistingCncApi, setExistingCncApi } from './machineInstance';
 
-let cncApi: CncApi | null = null;
-/** Inspect an existing connection without starting one (e.g. while offering a hardware-free rehearsal). */
-export const getExistingCncApi = () => cncApi;
+export { getExistingCncApi };
 
 let simulated: { WebSocket: typeof WebSocket; fetch: typeof fetch } | null = null;
 
@@ -20,11 +19,12 @@ export function setSimulatedMachine(transport: { WebSocket: typeof WebSocket; fe
  * (and the browser can reach the LAN), disconnects when it is cleared.
  */
 export function getCncApi() {
-  if (cncApi) return cncApi;
+  const existing = getExistingCncApi();
+  if (existing) return existing;
   // The desktop app talks to the controller through its Rust side, which no mixed-content or LAN permission blocks.
   const transport = simulated ?? (isDesktopApp() ? desktopMachineTransport : null);
   const api = new CncApi(transport?.WebSocket, transport?.fetch, !!simulated);
-  cncApi = api;
+  setExistingCncApi(api);
   api.onVariantDetected = variant => {
     if (useStore.getState().machine?.variant !== variant) useStore.getState().setMachineVariant(variant);
   };
@@ -57,6 +57,6 @@ export function getCncApi() {
 
 // In development, a hot reload of this module would otherwise leave the old connection (and its Web Lock) open.
 import.meta.hot?.dispose(() => {
-  cncApi?.disconnect();
-  cncApi = null;
+  getExistingCncApi()?.disconnect();
+  setExistingCncApi(null);
 });

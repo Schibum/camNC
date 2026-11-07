@@ -2,7 +2,7 @@ import { effect, signal } from '@preact/signals-react';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { cleanupRetiredExecutionFiles, retireExecutionFiles } from './executionFiles';
 import { Vector3 } from 'three';
-import { getExistingCncApi } from '../fluidnc/machine';
+import { getExistingCncApi } from '../fluidnc/machineInstance';
 import { isDemoMode } from '../demo/demo-mode';
 import { recordNativeRun } from '@/cam/machine/nativeRunHistory';
 import { matchesResumableSetup, captureManufacturingSnapshot } from '@/cam/machine/manufacturingSnapshot';
@@ -10,6 +10,7 @@ import { useCamMachine } from '@/cam/machine/camMachine';
 import { useStore } from '../../store/store';
 import type { CncApi } from '../fluidnc/cnc-api';
 import type { MachineStatus } from '@wbcnc/fluidnc';
+import { interruptedJob, recoveryPending } from './jobRecoveryState';
 import { rememberExecutionProgram } from './executionProgram';
 import { executionReference, sameExecutionReference, type ExecutionReference } from './executionOwnership';
 import {
@@ -26,14 +27,7 @@ import {
   saveJobProgressForRecord,
 } from './jobRecord';
 
-export interface InterruptedJob {
-  record: JobRecord;
-  progress: JobProgressLog;
-  reason: string;
-}
-export const interruptedJob = signal<InterruptedJob | null>(null);
-/** Durable setup discovery precedes queue replacement, including while the socket connects. */
-export const recoveryPending = signal(false);
+export { interruptedJob, recoveryPending, type InterruptedJob } from './jobRecoveryState';
 export const runningJobName = signal<string | null>(null);
 
 export function dismissInterruptedJob() {

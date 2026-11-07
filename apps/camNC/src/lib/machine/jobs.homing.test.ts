@@ -38,6 +38,7 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/fluidnc/machine', () => ({ getCncApi: () => h.realApi ?? h.api, getExistingCncApi: () => null }));
+vi.mock('@/lib/fluidnc/machineInstance', () => ({ getExistingCncApi: () => null }));
 vi.mock('./jobRecord', async original => ({ ...(await original<object>()), saveJobRecord: vi.fn(async () => {}) }));
 vi.mock('@/store/store', () => ({ useStore: { getState: () => h.state }, getMachineBounds: () => null }));
 vi.mock('@wbcnc/ui/components/sonner', () => ({ toast: { error: h.toastError, promise: vi.fn(), success: vi.fn() } }));

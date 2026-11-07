@@ -21,6 +21,7 @@ const h = vi.hoisted(() => ({
   files: new Map<string, string>(),
 }));
 vi.mock('@/lib/fluidnc/machine', () => ({ getCncApi: () => h.api, getExistingCncApi: () => h.api }));
+vi.mock('@/lib/fluidnc/machineInstance', () => ({ getExistingCncApi: () => h.api }));
 vi.mock('@/cam/machine/nativeRunPreparation', async original => ({
   ...(await original<typeof import('@/cam/machine/nativeRunPreparation')>()),
   prepareNativeRun: async (...args: Parameters<typeof import('@/cam/machine/nativeRunPreparation').prepareNativeRun>) => {
