@@ -21,6 +21,7 @@ import {
 } from '@wbcnc/ui/components/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@wbcnc/ui/components/popover';
 import { Slider } from '@wbcnc/ui/components/slider';
+import { cn } from '@wbcnc/ui/lib/utils';
 import { Camera, Diameter, FolderOpen, MonitorPause, MonitorPlay, Palette, PencilRuler } from 'lucide-react';
 import { useState } from 'react';
 import { BoundsInfoButton } from '../BoundsInfo';
@@ -31,6 +32,9 @@ import { FluidncButton } from './FluidncButton';
 import { TooltipIconButton } from './TooltipIconButton';
 import { openGcodeFile } from '../openGcodeFile';
 import { useNavigate } from '@tanstack/react-router';
+
+/** A value beside its icon: with the machine panel open on a narrower window, only in its dialog, for the bar to stay one row. */
+const kValue = (panelOpen: boolean) => cn('text-xs text-muted-foreground', panelOpen && 'max-[1680px]:hidden');
 
 function PlayPauseButton() {
   const showStillFrame = useShowStillFrame();
@@ -69,12 +73,13 @@ function OpenFileButton() {
 
 function ToolDiameterButton({ onClick }: { onClick: () => void }) {
   const toolDiameter = useStore(s => s.toolDiameter);
+  const panelOpen = useStore(s => s.machinePanelOpen);
   return (
     <TooltipIconButton
       label="Tool Diameter"
       icon={
         <>
-          <Diameter /> <span className="text-xs text-muted-foreground">{toolDiameter}mm</span>
+          <Diameter /> <span className={kValue(panelOpen)}>{toolDiameter}mm</span>
         </>
       }
       shortcut="t"
@@ -172,6 +177,7 @@ function ToolDiameterDialogButton() {
 
 function StockHeightButton({ onClick }: { onClick: () => void }) {
   const stockHeight = useStore(s => s.stockHeight);
+  const panelOpen = useStore(s => s.machinePanelOpen);
   return (
     <TooltipIconButton
       onClick={onClick}
@@ -179,7 +185,7 @@ function StockHeightButton({ onClick }: { onClick: () => void }) {
       className={stockHeight === 0 ? 'bg-warning' : ''}
       icon={
         <>
-          <PencilRuler /> <span className="text-xs text-muted-foreground">{stockHeight}mm</span>
+          <PencilRuler /> <span className={kValue(panelOpen)}>{stockHeight}mm</span>
         </>
       }
       shortcut="h"
@@ -221,7 +227,7 @@ function ColorLegendButton() {
 export function VisualizeToolbar() {
   const cameraReady = useIsCameraReady();
   return (
-    <div className="flex gap-0 items-center pl-2">
+    <div className="flex flex-wrap gap-0 items-center pl-2">
       <OpenFileButton />
       {cameraReady ? (
         <>

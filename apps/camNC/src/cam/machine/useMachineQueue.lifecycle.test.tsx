@@ -17,7 +17,7 @@ import { nativeCadModel } from '../nativeCadModel';
 import { isManufacturingLocked, machineQueue, pinManufacturingRun, useCamMachine } from './camMachine';
 import { recordNativeRun } from './nativeRunHistory';
 import { CamQueueCard } from './CamQueueCard';
-import { CamMachineJobNav } from './CamMachineJobNav';
+import { RecordCuts } from './CamMachineHeader';
 import { useMachineQueue } from './useMachineQueue';
 
 const hooks = vi.hoisted(() => ({
@@ -142,7 +142,7 @@ it('M1 records a completed native run after CAD acceptance without erasing board
   const accepted = await acceptDesign(await saveDesignDraft(f.job, changed), changed);
   f.client.setQueryData(camKeys.job(f.job.id), accepted);
   hooks.model = { data: undefined, isError: false, error: null };
-  render(f.view(<CamMachineJobNav />));
+  render(f.view(<RecordCuts />));
   await waitFor(async () => {
     const saved = (await getJob(f.job.id))!;
     expect(saved.boards?.map(b => b.id)).toEqual(f.boards.map(b => b.id));

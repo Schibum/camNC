@@ -4,7 +4,7 @@ import { createPlateDocument, type CadDocument } from '@wbcnc/cad';
 import { type ComponentType } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { CamJobV1 } from '@/cam/jobDb';
-import type { CamStageDestination } from '@/cam/model/CamJobBar';
+import type { CamStageDestination } from '@/cam/CamJobBar';
 import { Route } from '@/routes/cam/$jobId.design';
 import { endCadSession } from './session';
 
@@ -24,7 +24,7 @@ vi.mock('@/cam/cadDesign', () => ({
   saveDesignDraft: async (job: CamJobV1, document: CadDocument) => ({ ...job, design: { ...job.design!, draft: document } }),
   acceptDesign: (...args: unknown[]) => state.accept(...args),
 }));
-vi.mock('@/cam/model/CamJobBar', () => ({
+vi.mock('@/cam/CamJobBar', () => ({
   CamJobBar: ({ onStageNavigate }: { onStageNavigate: (destination: CamStageDestination) => void }) => (
     <nav style={{ height: 40, flexShrink: 0 }}>
       <button onClick={() => onStageNavigate({ stage: 'boards' })}>Go Boards</button>

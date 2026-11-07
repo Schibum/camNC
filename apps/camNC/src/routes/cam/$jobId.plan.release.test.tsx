@@ -150,7 +150,7 @@ describe('CAM plan step, the guided programs after the cutting', () => {
     expect(free.ops[0].zBottom).toBeCloseTo(-0.3);
     await waitFor(() => expect(plans.last[1]).toBeTruthy(), { timeout: 60_000 });
     const total = a.timeMin + free.timeMin + ((plans.last[1] as PlanResult)?.timeMin ?? b.timeMin);
-    await waitFor(() => expect(screen.getByText(/Job: 2 boards/).textContent).toContain(`${fmtMin(total)} automatic`), {
+    await waitFor(() => expect(screen.getByText(/Job: 2 boards/).parentElement?.textContent).toContain(`${fmtMin(total)} automatic`), {
       timeout: 60_000,
     });
   }, 120_000);

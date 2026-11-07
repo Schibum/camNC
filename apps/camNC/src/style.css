@@ -35,3 +35,11 @@
 html:not(.dark) .cam-page {
   --muted-foreground: oklch(0.5 0.016 285.938);
 }
+
+/* A whole-screen page: the height there is above the tabs at the bottom of a phone. */
+@utility h-app {
+  height: 100dvh;
+  @media (width < 48rem) {
+    height: calc(100dvh - 3.5rem);
+  }
+}

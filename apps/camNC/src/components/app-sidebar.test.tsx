@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { SidebarProvider, SidebarTrigger } from '@wbcnc/ui/components/sidebar';
 import type { ReactNode } from 'react';
+import { page } from '@vitest/browser/context';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import '../style.css';
 import { AppSidebar } from './app-sidebar';
@@ -11,6 +12,7 @@ vi.mock('@tanstack/react-router', () => ({
 }));
 vi.mock('./CamSourceSelector', () => ({ CamSourceSelector: () => <button>Camera source</button> }));
 vi.mock('./sidebar-auth', () => ({ SidebarAuthStatus: () => null }));
+vi.mock('./nav/useAppSteps', () => ({ useAppSteps: () => ({ jobName: 'Standing shelf', steps: [] }) }));
 
 afterEach(cleanup);
 
@@ -47,5 +49,30 @@ describe('app sidebar theme', () => {
     expectDarkSidebar(sidebar);
     expect(getComputedStyle(sidebar).backgroundColor).toBe('oklch(0.21 0.006 285.885)');
     expect(screen.getByRole('link', { name: 'About' }).getAttribute('href')).toBe('/about');
+  });
+
+  it('names each place once: the machine is a step of the job, not a second view', async () => {
+    await page.viewport(1440, 900);
+    render(
+      <SidebarProvider>
+        <AppSidebar collapsible="none" pinned />
+      </SidebarProvider>
+    );
+    for (const name of [
+      'CAM/CAD',
+      'Get started',
+      'Connection',
+      'Work area',
+      'Cameras',
+      'Hide machine',
+      'Bits',
+      'Cutting data',
+      'Backup & restore',
+      'Advanced settings',
+    ])
+      expect(screen.getByRole('link', { name: new RegExp(`^${name}`) })).toBeTruthy();
+    expect(screen.queryByText('Top View')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Collapse to icons' })).toBeTruthy();
+    expect(screen.getByText('Standing shelf')).toBeTruthy();
   });
 });

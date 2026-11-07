@@ -46,7 +46,7 @@ import { BitChip } from '@/cam/plan/BitPicker';
 import { isManufacturingLocked } from '@/cam/machine/camMachine';
 import { camKeys, useBoardPlans, useCamJob, useCamModel, useSaveCamJob } from '@/cam/camQueries';
 import type { CamJobV1 } from '@/cam/jobDb';
-import { CamJobBar } from '@/cam/model/CamJobBar';
+import { CamJobBar } from '@/cam/CamJobBar';
 import { clearDesignIssue } from '@/cam/designTabAnchors';
 import { forgetCut } from '@/cam/machine/camMachine';
 import { Hint } from '@/cam/Hint';
@@ -97,10 +97,7 @@ function BoardsStep() {
   if (!job) return <Shell message="This job doesn't exist (any more)." />;
   const bar = (
     <CamJobBar
-      jobId={job.id}
-      fileName={job.fileName}
-      origin={job.origin}
-      step="Boards"
+      job={job}
       actions={
         <>
           {instances.length > 0 && boards.length > 0 && (
@@ -378,6 +375,8 @@ function BoardsEditor({
     const bit = plan.bit.diameter;
     const before = boards.map(b => b.board);
     let next = before;
+    const skipped = boards.filter(({ board }) => isCut(board)).flatMap(({ nest }) => nest.unplaced);
+    let placed = 0;
     // No spot it could take: the nest decides.
     const anywhere = { x: -1e6, y: -1e6, rotated: false };
     for (const { board, nest } of boards) {
@@ -393,9 +392,14 @@ function BoardsEditor({
         };
         const gone = next.map(b => (b.id === taker.id ? taker : without(b, id)));
         next = gone.some(b => b.id === taker.id) ? gone : [...gone, taker];
+        placed++;
       }
     }
-    if (saveBoards(next)) setNote('Parts off the boards placed.', undoTo(before));
+    const skippedNote = skipped.length
+      ? `Not placed: ${skipped.map(id => byId.get(id)?.name ?? id).join(', ')} ${skipped.length === 1 ? 'is' : 'are'} on already-cut boards. Start over on a new sheet first.`
+      : '';
+    if (!placed) return setNote(skippedNote || 'No parts could be placed.');
+    if (saveBoards(next)) setNote(`Parts off the boards placed. ${skippedNote}`.trim(), undoTo(before));
   };
 
   // One board per thickness to start with: a new board, with the body on it.
@@ -486,13 +490,25 @@ function BoardsEditor({
     res.boards = [...kept, ...res.boards];
     saveBoards(res.boards);
     const names = (ids: string[]) => ids.map(id => byId.get(id)?.name ?? id).join(', ');
+    const returned = before
+      .flatMap(b => Object.keys(b.setAside ?? {}))
+      .filter(id =>
+        res.boards.some(
+          b =>
+            b.items.includes(id) &&
+            !b.setAside?.[id] &&
+            nestBoard(b, instances, plan.bit.diameter, nestOptions).placements.some(p => p.id === id)
+        )
+      );
+    const returnedNote = returned.length ? ` Set-aside parts brought back onto boards: ${names(returned)}.` : '';
     const problems = [
       res.tooBig.length && `${names(res.tooBig)}: too big for every stock board${machine ? ' and the machine' : ''}, even turned.`,
       res.short.length && `${names(res.short)}: not enough stock left, put on more boards of the stock's sizes.`,
     ].filter(Boolean);
     const stockBoards = res.boards.filter(b => !b.size.fit && stock.some(s => +s.thickness.toFixed(1) === b.thickness)).length;
     setNote(
-      problems.length ? problems.join(' ') : `Parts placed on ${stockBoards} ${stockBoards === 1 ? 'board' : 'boards'} from stock.`,
+      (problems.length ? problems.join(' ') : `Parts placed on ${stockBoards} ${stockBoards === 1 ? 'board' : 'boards'} from stock.`) +
+        returnedNote,
       undoTo(before)
     );
   };
@@ -920,8 +936,7 @@ function Shell({
 }) {
   return (
     <CamPage className="min-h-dvh md:h-dvh">
-      <PageHeader title="CAM (beta)" />
-      {bar}
+      {bar ?? <PageHeader title="CAM (beta)" />}
       {message && <p className="m-8 text-muted-foreground">{message}</p>}
       {loading && (
         <div className="flex flex-1 items-center justify-center gap-2 text-muted-foreground">

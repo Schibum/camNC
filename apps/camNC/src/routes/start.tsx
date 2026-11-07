@@ -65,12 +65,9 @@ function StartComponent() {
   useEffect(() => {
     if (!toolpath || toolpath === toolpathOnEntry.current) return;
     if (!picked && !savedBed && !readBed) {
-      toast.info(
-        `Showing it on a ${bed.xmax - bed.xmin} × ${bed.ymax - bed.ymin} mm bed. Change the size under Machine Bounds in the menu.`,
-        {
-          duration: 10_000,
-        }
-      );
+      toast.info(`Showing it on a ${bed.xmax - bed.xmin} × ${bed.ymax - bed.ymin} mm bed. Change the size under Work area in the menu.`, {
+        duration: 10_000,
+      });
     }
     saveBedAndOpenWorkspace();
     // Only when a new program arrives.
@@ -79,7 +76,7 @@ function StartComponent() {
 
   return (
     <DarkScope>
-      <div className="dark flex h-dvh w-full flex-col text-foreground" style={{ background: kDepthSceneBackground }}>
+      <div className="dark flex h-app w-full flex-col text-foreground" style={{ background: kDepthSceneBackground }}>
         <PageHeader title={fromCam ? 'Pick your bed' : 'Get started'} className="dark" />
         <div className="relative min-h-0 flex-1">
           <DrawnBed bounds={bed} className="absolute inset-0 size-full p-3" />

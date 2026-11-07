@@ -59,7 +59,7 @@ function CamIndex() {
   };
 
   return (
-    <CamPage className="h-dvh">
+    <CamPage className="h-app">
       <PageHeader title="CAM (beta)" />
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 overflow-y-auto p-6">
         <button onClick={() => void design()} className="flex items-center gap-4 rounded-xl border p-6 text-left hover:bg-muted/50">

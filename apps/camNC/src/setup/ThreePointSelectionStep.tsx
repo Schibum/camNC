@@ -183,7 +183,7 @@ export function ThreePointSelectionStep() {
   const canSave = markers.length >= 4;
 
   return (
-    <div className="w-full h-dvh flex flex-col gap-1 overflow-hidden">
+    <div className="w-full h-app flex flex-col gap-1 overflow-hidden">
       <PageHeader title="Markers in Camera" className="absolute" />
 
       <div className="flex-1 overflow-hidden">

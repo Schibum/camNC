@@ -2,7 +2,7 @@ import { PageHeader } from '@/components/page-header';
 import { CamPage } from '@/cam/CamPage';
 import { camKeys, useCamJob, useCamModel, useSaveCamJob } from '@/cam/camQueries';
 import { deleteJob, replaceModel } from '@/cam/jobDb';
-import { CamJobBar } from '@/cam/model/CamJobBar';
+import { CamJobBar } from '@/cam/CamJobBar';
 import { Hint } from '@/cam/Hint';
 import { ModelViewport, type ModelView } from '@/cam/model/ModelViewport';
 import { PartInspector } from '@/cam/model/PartInspector';
@@ -64,10 +64,7 @@ function ModelStep() {
       : null;
   const bar = (
     <CamJobBar
-      jobId={job.id}
-      fileName={job.fileName}
-      origin={job.origin}
-      step="Model"
+      job={job}
       actions={
         <>
           <Hint text="Open a new version of the model (STEP or STL). The job keeps its boards and settings.">
@@ -195,8 +192,7 @@ const kViewHints: Record<ModelView, string> = {
 function Shell({ bar, message, children }: { bar?: React.ReactNode; message?: string; children?: React.ReactNode }) {
   return (
     <CamPage className="min-h-dvh md:h-dvh">
-      <PageHeader title="CAM (beta)" />
-      {bar}
+      {bar ?? <PageHeader title="CAM (beta)" />}
       {message && <p className="m-8 text-muted-foreground">{message}</p>}
       {children}
     </CamPage>

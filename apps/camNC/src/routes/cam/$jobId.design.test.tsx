@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDesignJob, getJob, type CamJobV1 } from '@/cam/jobDb';
 import { acknowledgeCadSession, cadSession, commitCadSession } from '@/cad/session';
 import type { CadEditorController } from '@/cad/CadEditor';
-import type { CamStageDestination } from '@/cam/model/CamJobBar';
+import type { CamStageDestination } from '@/cam/CamJobBar';
 import { Route } from './$jobId.design';
 
 const state = vi.hoisted(() => ({
@@ -37,7 +37,7 @@ vi.mock('@/cam/cadDesign', () => ({
   acceptDesign: (...args: unknown[]) => state.accept(...args),
 }));
 vi.mock('@/cam/machine/openAtMachine', () => ({ openAtMachine: (jobId: string, boardId?: string) => state.openAtMachine(jobId, boardId) }));
-vi.mock('@/cam/model/CamJobBar', () => ({
+vi.mock('@/cam/CamJobBar', () => ({
   CamJobBar: ({
     onStageNavigate,
     navigationPending,

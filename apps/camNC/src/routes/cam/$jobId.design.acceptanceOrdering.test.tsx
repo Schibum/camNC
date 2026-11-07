@@ -1,3 +1,5 @@
+import { StepControl } from '@/components/nav/StepControl';
+import { useAppSteps } from '@/components/nav/useAppSteps';
 import '@/style.css';
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -20,6 +22,8 @@ const h = vi.hoisted(() => ({
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (options: unknown) => ({ options }),
   useParams: () => ({ jobId: h.jobId }),
+  useLocation: ({ select }: { select: (l: { pathname: string }) => unknown }) => select({ pathname: `/cam/${h.jobId}/design` }),
+  useRouter: () => ({ preloadRoute: () => undefined }),
   useSearch: () => ({}),
   useNavigate: () => h.navigate,
   Navigate: () => null,
@@ -39,6 +43,19 @@ vi.mock('@/cad/solveCad', async original => ({
   ...(await original<typeof import('@/cad/solveCad')>()),
   solveCadDocument: h.solve,
 }));
+
+function StageControls() {
+  const { steps } = useAppSteps();
+  return (
+    <nav aria-label="Steps">
+      {steps.map(step => (
+        <StepControl key={step.key} step={step}>
+          {step.label}
+        </StepControl>
+      ))}
+    </nav>
+  );
+}
 
 const Design = (Route as unknown as { options: { component: ComponentType } }).options.component;
 const releases: (() => void)[] = [];
@@ -143,6 +160,7 @@ it.each(['toolbar', 'Boards stage'] as const)(
     client.setQueryData(camKeys.job(job.id), job);
     const app = () => (
       <QueryClientProvider client={client}>
+        <StageControls />
         <Design />
       </QueryClientProvider>
     );

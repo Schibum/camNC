@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { Box, Bug, Cctv, Grid2x2, Gauge, HardDriveDownload, Info, Layers, Puzzle, Rocket, Scale3d, Wrench } from 'lucide-react';
+import { Box, Bug, Cctv, ChevronsLeft, Gauge, HardDriveDownload, Layers, Info, Pin, Puzzle, Rocket, Scale3d, Wrench } from 'lucide-react';
 import * as React from 'react';
 
 import { useLocation } from '@tanstack/react-router';
@@ -18,6 +18,11 @@ import { useEffect } from 'react';
 import { cn } from '@wbcnc/ui/lib/utils';
 import { CamNcBrand } from './CamNcLogo';
 import { CamSourceSelector } from './CamSourceSelector';
+import { StepControl } from './nav/StepControl';
+import { useRoomForFullPanel } from './nav/useRoomForFullPanel';
+import { useAppRail } from './nav/appRailStore';
+import { useAppSteps } from './nav/useAppSteps';
+import { useIsMobile } from '@wbcnc/ui/hooks/use-mobile';
 import { SidebarAuthStatus } from './sidebar-auth';
 
 // Remove or comment out the mock data
@@ -34,78 +39,74 @@ type NavRoute = {
 
 const routes: NavRoute[] = [
   {
-    title: 'Top View',
-    to: '/visualize/2DView',
-    icon: Grid2x2,
-  },
-  {
-    title: 'CAM',
+    title: 'CAM/CAD',
     to: '/cam',
     icon: Box,
     badge: 'Beta',
   },
   {
-    title: 'Get Started',
+    title: 'Get started',
     to: '/start',
     icon: Rocket,
   },
 ];
 
+// Each camera's source and setup steps are on its own page, reached from here or the camera switcher.
 const machineRoutes: NavRoute[] = [
   {
-    title: 'FluidNC',
+    title: 'Connection',
     to: '/setup/fluidnc',
     icon: Puzzle,
   },
   {
-    title: 'Machine Bounds',
+    title: 'Work area',
     to: '/setup/machine-bounds',
     icon: Scale3d,
   },
-];
-
-// Each camera's source and setup steps are on its own page, reached from here or the camera switcher.
-const cameraRoutes: NavRoute[] = [
   {
     title: 'Cameras',
     to: '/setup/cameras',
     icon: Cctv,
   },
-];
-const settingsRoutes: NavRoute[] = [
   {
-    title: 'Backup & Restore',
-    to: '/settings/backup',
-    icon: HardDriveDownload,
-  },
-  {
-    title: 'Hide Machine',
+    title: 'Hide machine',
     to: '/settings/hide-machine',
     icon: Layers,
+    badge: 'Beta',
   },
+];
+
+const toolRoutes: NavRoute[] = [
   {
     title: 'Bits',
     to: '/settings/bits',
     icon: Wrench,
   },
   {
-    title: 'Cutting Data',
+    title: 'Cutting data',
     to: '/settings/cutting-data',
     icon: Gauge,
   },
+];
+
+const appRoutes: NavRoute[] = [
+  { title: 'About', to: '/about', icon: Info },
   {
-    title: 'Debug',
+    title: 'Backup & restore',
+    to: '/settings/backup',
+    icon: HardDriveDownload,
+  },
+  {
+    title: 'Advanced settings',
     to: '/setup/edit-settings',
     icon: Bug,
   },
 ];
 
-const helpRoutes: NavRoute[] = [{ title: 'About', to: '/about', icon: Info }];
-
-function NavRoutes({ routes, label }: { routes: NavRoute[]; label: string }) {
+function NavRoutes({ routes, label }: { routes: NavRoute[]; label?: string }) {
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>{label}</SidebarGroupLabel>
+      {label && <SidebarGroupLabel>{label}</SidebarGroupLabel>}
       <SidebarMenu>
         {routes.map(route => (
           <SidebarMenuItem key={route.to}>
@@ -132,9 +133,37 @@ function NavRoutes({ routes, label }: { routes: NavRoute[]; label: string }) {
   );
 }
 
-type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {};
+/** The job's steps, on a phone they're in the tabs at the bottom. */
+function JobSteps() {
+  const { steps, jobName } = useAppSteps();
+  return (
+    <SidebarGroup>
+      <SidebarGroupLabel className="truncate">{jobName}</SidebarGroupLabel>
+      <SidebarMenu>
+        {steps.map(step => (
+          <SidebarMenuItem key={step.key}>
+            <SidebarMenuButton asChild isActive={step.current} disabled={step.disabled} className="disabled:opacity-40">
+              <StepControl step={step}>
+                <step.icon className="size-4" />
+                <span>{step.label}</span>
+              </StepControl>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        ))}
+      </SidebarMenu>
+    </SidebarGroup>
+  );
+}
 
-export function AppSidebar({ className, ...props }: AppSidebarProps) {
+type AppSidebarProps = React.ComponentProps<typeof Sidebar> & {
+  /** Open beside the page, rather than over it. */
+  pinned?: boolean;
+};
+
+export function AppSidebar({ className, pinned = false, ...props }: AppSidebarProps) {
+  const setRail = useAppRail(s => s.setRail);
+  const roomForFull = useRoomForFullPanel();
+  const phone = useIsMobile();
   const location = useLocation({ select: l => l.pathname });
   const { setOpenMobile: setOpen } = useSidebar();
   // Auto-close the sidebar when the location changes
@@ -156,12 +185,20 @@ export function AppSidebar({ className, ...props }: AppSidebarProps) {
         <CamSourceSelector />
       </SidebarHeader>
       <SidebarContent>
-        <NavRoutes routes={routes} label="Views" />
-        <NavRoutes routes={machineRoutes} label="Machine" />
-        <NavRoutes routes={cameraRoutes} label="Camera (optional)" />
-        <NavRoutes routes={settingsRoutes} label="Settings" />
-        <NavRoutes routes={helpRoutes} label="Help" />
+        {!phone && <JobSteps />}
+        <NavRoutes routes={routes} />
+        <NavRoutes routes={machineRoutes} label="Machine setup" />
+        <NavRoutes routes={toolRoutes} label="Tools" />
+        <NavRoutes routes={appRoutes} label="App" />
       </SidebarContent>
+      {!phone && (pinned || roomForFull) && (
+        <div className="px-2 pb-1">
+          <SidebarMenuButton onClick={() => (setOpen(false), setRail(pinned ? 'icons' : 'full'))}>
+            {pinned ? <ChevronsLeft className="size-4" /> : <Pin className="size-4" />}
+            <span>{pinned ? 'Collapse to icons' : 'Keep open'}</span>
+          </SidebarMenuButton>
+        </div>
+      )}
       <SidebarAuthStatus />
     </Sidebar>
   );

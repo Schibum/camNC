@@ -50,7 +50,7 @@ export function DemoBanner() {
       <div
         role="region"
         aria-label="Demo mode"
-        className="fixed bottom-3 left-3 z-50 flex max-w-[calc(100vw-1.5rem)] flex-row flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border bg-background/95 px-3 py-2 text-sm shadow-lg backdrop-blur">
+        className="fixed bottom-3 max-md:bottom-17 left-3 md:left-[calc(var(--app-rail,0rem)+0.75rem)] z-50 flex max-w-[calc(100vw-1.5rem)] flex-row flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border bg-background/95 px-3 py-2 text-sm shadow-lg backdrop-blur">
         <span className="flex flex-row items-center gap-1.5 font-medium">
           <FlaskConical className="size-4" /> Demo machine
         </span>

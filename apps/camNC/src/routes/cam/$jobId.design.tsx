@@ -5,9 +5,8 @@ import { zodValidator } from '@tanstack/zod-adapter';
 import { z } from 'zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@wbcnc/ui/components/button';
-import { PageHeader } from '@/components/page-header';
 import { CamPage } from '@/cam/CamPage';
-import { CamJobBar, type CamStageDestination } from '@/cam/model/CamJobBar';
+import { CamJobBar, type CamStageDestination } from '@/cam/CamJobBar';
 import { camKeys, useCamJob } from '@/cam/camQueries';
 import { acceptDesign, saveDesignDraft } from '@/cam/cadDesign';
 import { createDesignJob, getJob, type CamJobV1 } from '@/cam/jobDb';
@@ -39,14 +38,12 @@ function DesignStep() {
   if (isPending)
     return (
       <CamPage className="h-dvh">
-        <PageHeader title="Design" />
         <p className="p-6">Opening design…</p>
       </CamPage>
     );
   if (!job)
     return (
       <CamPage className="h-dvh">
-        <PageHeader title="Design" />
         <p className="p-6">This design no longer exists.</p>
       </CamPage>
     );
@@ -207,14 +204,7 @@ function DesignSession({ initialJob, context }: { initialJob: CamJobV1; context:
   };
   return (
     <CamPage className="h-dvh">
-      <PageHeader title="Design" />
-      <CamJobBar
-        jobId={initialJob.id}
-        fileName={initialJob.name}
-        step="Design"
-        onStageNavigate={destination => void navigateStage(destination)}
-        navigationPending={navigationPending}
-      />
+      <CamJobBar job={initialJob} onStageNavigate={destination => void navigateStage(destination)} navigationPending={navigationPending} />
       <div className="relative min-h-0 flex-1">
         {conflicted && (
           <div

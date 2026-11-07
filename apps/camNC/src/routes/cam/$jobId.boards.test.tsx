@@ -1,3 +1,4 @@
+import { setAsidePart } from '@/cam/boards';
 import { useCamMachine } from '@/cam/machine/camMachine';
 import { createJob, getJob, saveJob, type CamJobV1 } from '@/cam/jobDb';
 // Pointer coordinates and fitted SVG dimensions must use the page's real layout, including the fixed-height status.
@@ -148,6 +149,45 @@ describe('CAM boards step', () => {
     expect(await screen.findByText(/This replacement sheet has changed or been used/)).toBeTruthy();
     expect(screen.queryByText('Undone.')).toBeNull();
     expect((await getJob(job.id))!.boards!.find(b => b.id === board.id)!.cut!.keys).toEqual(['new-sheet-cut']);
+  }, 90000);
+
+  it('names set-aside parts brought back by auto-fill', async () => {
+    const client = new QueryClient();
+    const job = await openKinderregal(client);
+    await waitFor(async () => expect((await getJob(job.id))!.boards?.length).toBeGreaterThan(0));
+    const original = (await getJob(job.id))!,
+      board = original.boards![0],
+      id = board.items[0];
+    const edited = await saveJob({
+      ...original,
+      stock: [{ id: 'stock', thickness: board.thickness, w: 1220, h: 610 }],
+      boards: original.boards!.map(b => (b.id === board.id ? setAsidePart(b, id, { x: -1000, y: -1000, rotated: false }) : b)),
+    });
+    act(() => client.setQueryData(['cam', 'job', job.id], edited));
+    showAll();
+    fireEvent.click(await screen.findByRole('button', { name: 'Auto-fill from stock' }));
+    const note = await screen.findByText(/Set-aside parts brought back onto boards:/);
+    expect(note.textContent).toContain(original.parts.find(p => p.id === id.split('#')[0])?.name ?? id);
+  }, 90000);
+
+  it('does not claim to place a part skipped on an already-cut board', async () => {
+    const client = new QueryClient();
+    const job = await openKinderregal(client);
+    await waitFor(async () => expect((await getJob(job.id))!.boards?.length).toBeGreaterThan(0));
+    const original = (await getJob(job.id))!,
+      board = original.boards![0],
+      id = board.items[0];
+    const edited = await saveJob({
+      ...original,
+      boards: original.boards!.map(b =>
+        b.id === board.id ? setAsidePart({ ...b, cut: { at: 1, keys: ['cut'] } }, id, { x: -1000, y: -1000, rotated: false }) : b
+      ),
+    });
+    act(() => client.setQueryData(['cam', 'job', job.id], edited));
+    fireEvent.click(await screen.findByRole('button', { name: 'Place on boards' }));
+    expect(await screen.findByText(/Not placed: .*already-cut boards/)).toBeTruthy();
+    expect(screen.queryByText('Parts off the boards placed.')).toBeNull();
+    expect((await getJob(job.id))!.boards!.find(b => b.id === board.id)).toEqual(edited.boards!.find(b => b.id === board.id));
   }, 90000);
 
   it('auto-fill keeps parts moved by hand, and Undo restores the boards exactly', async () => {
