@@ -253,18 +253,19 @@ export function sketchRegions(sketch: CadSketch, tolerance = 0.01): CadSketchReg
   });
   const bySignature = new Map<string, typeof named>();
   for (const face of named) bySignature.set(face.signature, [...(bySignature.get(face.signature) ?? []), face]);
-  return [...bySignature.entries()]
-    .flatMap(([signature, group]) => {
-      // The lenses between a wavy curve and a line share a signature: their order along the curves tells them apart.
-      group.sort((a, b) => {
-        const i = a.order.findIndex((value, n) => value !== b.order[n]);
-        return i < 0 ? 0 : a.order[i]! - b.order[i]!;
-      });
-      return group.map((face, n) => ({
-        id: `${sketch.id}:region:${signature}${group.length > 1 ? `#${n}` : ''}`,
-        curveIds: [...new Set([...face.sides.keys()].map(side => side.slice(0, side.lastIndexOf(':'))))],
-        points: face.points,
-      }));
-    })
-    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  // The lenses between a wavy curve and a line share a signature: their order along the curves tells them apart.
+  for (const group of bySignature.values())
+    group.sort((a, b) => {
+      const i = a.order.findIndex((value, n) => value !== b.order[n]);
+      return i < 0 ? 0 : a.order[i]! - b.order[i]!;
+    });
+  // Regions keep the order they were found in, because IDs hold random curve IDs and drawings must stay reproducible.
+  return named.map(face => {
+    const group = bySignature.get(face.signature)!;
+    return {
+      id: `${sketch.id}:region:${face.signature}${group.length > 1 ? `#${group.indexOf(face)}` : ''}`,
+      curveIds: [...new Set([...face.sides.keys()].map(side => side.slice(0, side.lastIndexOf(':'))))],
+      points: face.points,
+    };
+  });
 }

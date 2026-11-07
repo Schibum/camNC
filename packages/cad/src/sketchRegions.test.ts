@@ -19,6 +19,10 @@ import {
 import { sketchRegions } from './sketchRegions';
 
 const sketchRegionLoops = (sketch: CadSketch) => sketchRegions(sketch).map(region => region.points);
+const regionIds = (sketch: CadSketch) =>
+  sketchRegions(sketch)
+    .map(region => region.id)
+    .sort();
 
 function area(sketch: CadSketch) {
   return sketchRegionLoops(sketch).reduce((sum, loop) => sum + polygonArea(loop), 0);
@@ -202,10 +206,22 @@ describe('CAD sketch region IDs', () => {
     expect(sketchRegions(sketch).some(region => region.id.includes('#'))).toBe(false);
   });
 
+  it('returns regions in an order that doesn’t depend on their random IDs', () => {
+    const areas = () => {
+      let sketch = createPlateDocument({ width: 100, height: 60 }).parts[0]!.sketch;
+      sketch = addLine(sketch, { x1: 30, y1: 0, x2: 30, y2: 60 });
+      sketch = addLine(sketch, { x1: 70, y1: 0, x2: 70, y2: 60 });
+      return sketchRegions(sketch).map(region => Math.round(polygonArea(region.points)));
+    };
+    const first = areas();
+    expect(first).toHaveLength(3);
+    for (let i = 0; i < 20; i++) expect(areas()).toEqual(first);
+  });
+
   it('keeps IDs when the sketch lists its entities in a different order', () => {
     const sketch = overlappingCircles(),
       reordered = { ...sketch, entities: [...sketch.entities].reverse() };
-    expect(sketchRegions(reordered).map(region => region.id)).toEqual(sketchRegions(sketch).map(region => region.id));
+    expect(regionIds(reordered)).toEqual(regionIds(sketch));
   });
 
   it('keeps IDs when coincident curves are listed in a different order', () => {
@@ -215,7 +231,7 @@ describe('CAD sketch region IDs', () => {
     const curves = sketch.entities.filter(e => e.type !== 'point'),
       points = sketch.entities.filter(e => e.type === 'point'),
       reordered = { ...sketch, entities: [...points, ...[...curves].reverse()] };
-    expect(sketchRegions(reordered).map(region => region.id)).toEqual(sketchRegions(sketch).map(region => region.id));
+    expect(regionIds(reordered)).toEqual(regionIds(sketch));
   });
 
   it('keeps IDs through moving, resizing and scaling that leave the same curves bounding each face', () => {
@@ -228,7 +244,11 @@ describe('CAD sketch region IDs', () => {
       entities: sketch.entities.map(e => (e.type === 'circle' ? { ...e, radius: e.radius + 5 } : e)),
     };
     expect(idAt(resized, { x: 60, y: 40 })).toBe(lens);
-    expect(sketchRegions(sketch, 0.001).map(region => region.id)).toEqual(sketchRegions(sketch).map(region => region.id));
+    expect(
+      sketchRegions(sketch, 0.001)
+        .map(region => region.id)
+        .sort()
+    ).toEqual(regionIds(sketch));
   });
 
   it('keeps IDs through solving, a dimension change and reloading', async () => {
@@ -237,8 +257,8 @@ describe('CAD sketch region IDs', () => {
     part.sketch = addRectangle(part.sketch, { x: 0, y: 0, width: 100, height: 60, dimensioned: true });
     part.sketch = addCircle(part.sketch, { x: 50, y: 30, radius: 10 });
     document.parts.push(part);
-    const ids = (sketch: CadSketch) => sketchRegions(sketch).map(region => region.id);
-    const before = ids(part.sketch);
+    const ids = regionIds,
+      before = ids(part.sketch);
     expect(before).toHaveLength(2);
     const solved = await solveCadDocument(document);
     expect(solved.status).toBe('solved');
