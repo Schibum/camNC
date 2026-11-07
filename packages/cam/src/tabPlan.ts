@@ -1,5 +1,6 @@
 import { holdOptionsOf, partToBoard, type BoardPart, type BoardSpec } from './board';
 import type { TurnedOver } from './flip';
+import { maxOf, minOf } from './geom';
 import { holdState, layerAcross, tabWhole } from './hold';
 import { releaseMetadata } from './releaseMetadata';
 import {
@@ -407,17 +408,17 @@ export function freePartsProgram(
     const pts = op.passes.at(-1)?.pts ?? [];
     const xs = pts.map(q => q[0]),
       ys = pts.map(q => q[1]);
-    return pts.length ? (Math.max(...xs) - Math.min(...xs)) * (Math.max(...ys) - Math.min(...ys)) : 0;
+    return pts.length ? (maxOf(xs) - minOf(xs)) * (maxOf(ys) - minOf(ys)) : 0;
   };
   const outlines = pause ? cam.operations : [...cam.operations].sort((a, b) => footprint(a) - footprint(b));
   for (const op of outlines) {
     if (op.feature !== 'outline') continue;
     const final = op.passes.at(-1);
-    if (!final || Math.min(...final.pts.map(q => q[2])) <= opts.finalZ + 1e-6) continue;
+    if (!final || minOf(final.pts.map(q => q[2])) <= opts.finalZ + 1e-6) continue;
     const name = op.name.replace(/: [^:]*$/, '');
     // Turned over after side B, the skin is on top now: from the new top through it, as far past it as finalZ goes below
     // the bottom. Mirrored, the path runs the other way round: reversed, the bit cuts the same way as before.
-    const skin = Math.min(...final.pts.map(q => q[2]));
+    const skin = minOf(final.pts.map(q => q[2]));
     const bottom = turned ? cam.stockTop - skin + opts.finalZ : opts.finalZ;
     const depth = skin - opts.finalZ;
     const laps = Math.max(1, Math.ceil(depth / (opts.stepdown?.(op.tool) ?? depth) - 1e-6));
@@ -440,7 +441,7 @@ export function freePartsProgram(
     });
     const xs = pts.map(q => q[0]),
       ys = pts.map(q => q[1]);
-    parts.push({ name, at: { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2 } });
+    parts.push({ name, at: { x: (minOf(xs) + maxOf(xs)) / 2, y: (minOf(ys) + maxOf(ys)) / 2 } });
   }
   return { cam: { ...cam, ...releaseMetadata(cam, turned), operations: ops, warnings: [] }, parts };
 }

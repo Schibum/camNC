@@ -2,7 +2,7 @@ import type { SpindleSwitch } from './gcode';
 import { CamInputError, validateCamSettings, validateFeatures, validateDepthRange, validatePaths, validateTool } from './validation';
 import { areaD, pointInPolygonD, PointInPolygonResult, simplifyPathsD, type PathD, type PathsD } from 'clipper2-ts';
 import { openPocketRegion, type PartFeatures } from './features';
-import { cleanRegion, clipLines, difference, intersect, offset, pathLength, polyArea, union, PRECISION, type Vec3 } from './geom';
+import { cleanRegion, clipLines, difference, intersect, minOf, offset, pathLength, polyArea, union, PRECISION, type Vec3 } from './geom';
 import { applyFeedPolicy, type CornerFeedSettings, type MotionRole } from './motion';
 import { profileEntryRegion, tangentLoopPass } from './entry';
 import { applyTabMotion, repeatTabIntervals } from './tabMotion';
@@ -1381,7 +1381,7 @@ export function profileOperation(
     const half = (s.tabs.width + tool.diameter) / 2;
     for (let i = 0; i < passes.length; i++) {
       const p = passes[i];
-      if (Math.min(...p.pts.map(q => q[2])) >= s.tabs.height) continue;
+      if (minOf(p.pts.map(q => q[2])) >= s.tabs.height) continue;
       const { loop, start } = sourceLoops.get(p)!;
       const perimeter = pathLength(loop, true);
       const travel = pathLength(
@@ -1405,7 +1405,7 @@ export function profileOperation(
     if ((s.profileVerticalLeadRadius ?? 0) > 0 && pass.entry) {
       const blend = verticalEntryBlend(scheduled, {
         radius: s.profileVerticalLeadRadius!,
-        axialStep: Math.max(0, sourceLoops.get(pass)!.zFrom - Math.min(...pass.pts.map(p => p[2]))),
+        axialStep: Math.max(0, sourceLoops.get(pass)!.zFrom - minOf(pass.pts.map(p => p[2]))),
         plungeFeed: s.plungeFeed,
         tolerance: geometryTolerances(s.geometryTolerance, s.sourceTolerance).lead,
       });
@@ -1500,7 +1500,7 @@ export function fluteWarnings(ops: Operation[], stockTop: number): string[] {
   for (const tool of new Set(ops.map(o => o.tool))) {
     if (!tool.fluteLength) continue;
     const zs = ops.filter(o => o.tool === tool).flatMap(o => o.passes.flatMap(p => p.pts.map(q => q[2])));
-    const depth = stockTop - Math.min(...zs);
+    const depth = stockTop - minOf(zs);
     if (depth > tool.fluteLength + 1e-6)
       out.push(`bit D=${tool.diameter} cuts ${round2(depth)} mm deep from the stock top, its flutes are ${tool.fluteLength} mm long`);
   }

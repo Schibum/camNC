@@ -1,5 +1,5 @@
 import { EndType, inflatePathsD, JoinType, pointInPolygonD, PointInPolygonResult, type PathsD } from 'clipper2-ts';
-import { difference, offset, polyArea, PRECISION, union } from './geom';
+import { difference, maxOf, minOf, offset, polyArea, PRECISION, union } from './geom';
 import { heldByPoints } from './holdPoints';
 import type { PartCam } from './toolpaths';
 
@@ -136,7 +136,7 @@ export function holdState(cam: PartCam, board: { w: number; h: number }, opts: H
       // The cut-through stretches, at the bit's width; the raised ones in between are tabs.
       const lines: PathsD = [];
       const tabs: Tab[] = [];
-      const height = Math.max(...pass.pts.slice(1).map(q => q[2]));
+      const height = maxOf(pass.pts.slice(1).map(q => q[2]));
       const tabLines: PathsD = [];
       let run: P2[] = [];
       let tab: P2[] = [];
@@ -217,10 +217,10 @@ export function holdState(cam: PartCam, board: { w: number; h: number }, opts: H
     const pts = piece.flat();
     return {
       piece,
-      x0: Math.min(...pts.map(q => q.x)),
-      y0: Math.min(...pts.map(q => q.y)),
-      x1: Math.max(...pts.map(q => q.x)),
-      y1: Math.max(...pts.map(q => q.y)),
+      x0: minOf(pts.map(q => q.x)),
+      y0: minOf(pts.map(q => q.y)),
+      x1: maxOf(pts.map(q => q.x)),
+      y1: maxOf(pts.map(q => q.y)),
     };
   });
   const held = (p: P2) => boxes.some(b => p.x >= b.x0 && p.x <= b.x1 && p.y >= b.y0 && p.y <= b.y1 && inside(p, b.piece));
@@ -311,8 +311,8 @@ export function holdTimeline(cam: PartCam, board: { w: number; h: number }, opts
       const pts = p.interior.flat();
       const at = pts.length
         ? {
-            x: (Math.min(...pts.map(q => q.x)) + Math.max(...pts.map(q => q.x))) / 2,
-            y: (Math.min(...pts.map(q => q.y)) + Math.max(...pts.map(q => q.y))) / 2,
+            x: (minOf(pts.map(q => q.x)) + maxOf(pts.map(q => q.x))) / 2,
+            y: (minOf(pts.map(q => q.y)) + maxOf(pts.map(q => q.y))) / 2,
           }
         : { x: 0, y: 0 };
       events.push({ step: i, after: op.name, kind: 'loose', what: p.part, at });
@@ -340,8 +340,8 @@ function pocketEvents(
   const step = cam.operations.length - 1;
   const after = cam.operations.at(-1)?.name ?? '';
   const middle = (pts: P2[]) => ({
-    x: (Math.min(...pts.map(q => q.x)) + Math.max(...pts.map(q => q.x))) / 2,
-    y: (Math.min(...pts.map(q => q.y)) + Math.max(...pts.map(q => q.y))) / 2,
+    x: (minOf(pts.map(q => q.x)) + maxOf(pts.map(q => q.x))) / 2,
+    y: (minOf(pts.map(q => q.y)) + maxOf(pts.map(q => q.y))) / 2,
   });
   const events: HoldEvent[] = [];
   for (const { part, tabs, r, interior } of holdState(cam, board, opts).parts) {
@@ -355,7 +355,7 @@ function pocketEvents(
   for (const op of cam.operations) {
     if (op.feature !== 'outline') continue;
     const final = op.passes.at(-1);
-    const skin = final && Math.min(...final.pts.map(q => q[2]));
+    const skin = final && minOf(final.pts.map(q => q[2]));
     if (!final || skin === undefined || through(skin)) continue;
     const loop = final.pts.map(q => ({ x: q[0], y: q[1] }));
     const kept = alongLoop(loop, 3).filter(p => {

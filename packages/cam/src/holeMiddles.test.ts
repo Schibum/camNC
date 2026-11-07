@@ -80,6 +80,18 @@ describe('the middle of a through hole', () => {
     expect(middleOps(cam).map(o => o.name)).toEqual(['P: Hole 2 middle']);
   });
 
+  it('a big hole to clear is more points than fit on the call stack, and the flutes are still checked over all of them', () => {
+    const outline = rect(0, 0, 340, 340);
+    const hole = circle(170, 170, 300);
+    const features = { ...part([hole]), footprint: [outline, [...hole].reverse()], outlines: [outline] };
+    const b = board(features, { w: 360, h: 360 });
+    Object.assign(b.parts[0], { size: [340, 340, T], holes: { 0: 'clear' } });
+    const cam = camBoard(b, { tools: [{ ...tool(3.175), fluteLength: 10 }] });
+    const points = middleOps(cam)[0].passes.reduce((n, p) => n + p.pts.length, 0);
+    expect(points).toBeGreaterThan(130_000);
+    expect(cam.warnings.join()).toMatch(/flutes are 10 mm long/);
+  });
+
   it('clearing cuts the same wall, and leaves no piece: stays in the hole, posts, and passes the safety checks', () => {
     const hole = circle(150, 60, 40);
     const without = camBoard(board(part([hole]), { clearHoles: false }), { tools: [tool(3.175)] });
