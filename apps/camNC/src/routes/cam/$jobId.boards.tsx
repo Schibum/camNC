@@ -22,6 +22,7 @@ import {
   relayoutBoard,
   resizedBoard,
   respaceBoard,
+  restoreBoards,
   setAsidePart,
   stockTopOf,
   physicalSheetIdOf,
@@ -42,6 +43,7 @@ import type { JobBoard } from '@/cam/useJobBoards';
 import type { ModelImport, PlanResult } from '@/cam/camTypes';
 import { useHoldHardware } from '@/cam/holdHardware';
 import { BitChip } from '@/cam/plan/BitPicker';
+import { isManufacturingLocked } from '@/cam/machine/camMachine';
 import { camKeys, useBoardPlans, useCamJob, useCamModel, useSaveCamJob } from '@/cam/camQueries';
 import type { CamJobV1 } from '@/cam/jobDb';
 import { CamJobBar } from '@/cam/model/CamJobBar';
@@ -211,6 +213,10 @@ function BoardsEditor({
   };
   const nestOptions = { stickout: plan.bit.stickout, hardware, machine, preserveLayout: !!job.design };
   const startOver = (board: BoardV1) => {
+    if (isManufacturingLocked()) {
+      setNote('Review or dismiss the machine job before starting over.');
+      return;
+    }
     const { cut } = board;
     const rest = startOverBoard(board);
     history.current = [];
@@ -301,7 +307,7 @@ function BoardsEditor({
         future.current = [...future.current, boards.map(b => b.board)];
         setNote('Undone.');
         const latest = queryClient.getQueryData<CamJobV1>(camKeys.job(job.id)) ?? job;
-        save({ ...latest, boards: before });
+        save({ ...latest, boards: restoreBoards(before, latest.boards ?? []) });
       }
     : undefined;
   const redo = future.current.length
@@ -311,7 +317,7 @@ function BoardsEditor({
         history.current = [...history.current, boards.map(b => b.board)];
         setNote('Redone.');
         const latest = queryClient.getQueryData<CamJobV1>(camKeys.job(job.id)) ?? job;
-        save({ ...latest, boards: after });
+        save({ ...latest, boards: restoreBoards(after, latest.boards ?? []) });
       }
     : undefined;
   const undoKeys = useRef({ undo, redo });
@@ -443,7 +449,7 @@ function BoardsEditor({
   // job (the stock list may have changed since).
   const undoTo = (before: BoardV1[]) => () => {
     const latest = queryClient.getQueryData<CamJobV1>(camKeys.job(job.id)) ?? job;
-    save({ ...latest, boards: before });
+    save({ ...latest, boards: restoreBoards(before, latest.boards ?? []) });
   };
   /** One board's parts nested afresh, around its fixtures: they stay on it, unpinned. */
   const relayout = (board: BoardV1) => {

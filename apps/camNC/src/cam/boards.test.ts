@@ -3,6 +3,7 @@ import { kDefaultHardware } from './holdHardware';
 import { describe, expect, it } from 'vitest';
 import {
   changesCutBoard,
+  restoreBoards,
   cutBoardWith,
   autoFillFromStock,
   boardRequest,
@@ -1238,5 +1239,27 @@ describe('cutBoardWith', () => {
     ];
     expect(cutBoardWith(boards, instances, 'part-0')?.id).toBe('b');
     expect(cutBoardWith(boards, instances, 'part-1')).toBeUndefined();
+  });
+});
+
+describe('restoreBoards', () => {
+  const board = (id: string, extra = {}) => ({ ...newBoard([], 18, 'oak', ['a']), id, ...extra });
+  const cut = (at: number, keys: string[]) => ({ cut: { at, keys } });
+
+  it('keeps a cut made after the undo snapshot', () => {
+    const snapshot = [board('a'), board('b', { gap: 9 })];
+    const current = [board('a', cut(2, ['top'])), board('b')];
+    expect(restoreBoards(snapshot, current)).toEqual([current[0], snapshot[1]]);
+  });
+
+  it('keeps cuts that grew since the snapshot', () => {
+    const current = [board('a', cut(3, ['top', 'bottom']))];
+    expect(restoreBoards([board('a', cut(2, ['top']))], current)).toEqual(current);
+  });
+
+  it('keeps a cut board the snapshot never had, and restores the rest as they were', () => {
+    const later = board('c', cut(1, ['top']));
+    const snapshot = [board('a', { gap: 9 })];
+    expect(restoreBoards(snapshot, [board('a'), board('d'), later])).toEqual([snapshot[0], later]);
   });
 });

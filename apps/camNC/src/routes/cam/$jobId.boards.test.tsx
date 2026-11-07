@@ -22,6 +22,11 @@ vi.mock('@tanstack/react-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
 }));
 vi.mock('@/components/page-header', () => ({ PageHeader: () => null }));
+const manufacturing = vi.hoisted(() => ({ locked: false }));
+vi.mock('@/cam/machine/camMachine', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/cam/machine/camMachine')>();
+  return { ...actual, isManufacturingLocked: () => manufacturing.locked || actual.isManufacturingLocked() };
+});
 vi.mock('@wbcnc/ui/components/sonner', () => ({
   toast: Object.assign(vi.fn(), { error: toastError, success: toastSuccess, warning: vi.fn() }),
 }));
@@ -100,6 +105,30 @@ async function openKinderregal(client = new QueryClient()) {
 }
 
 describe('CAM boards step', () => {
+  it('refuses Start over while a machine job is protected', async () => {
+    const client = new QueryClient();
+    const job = await openKinderregal(client);
+    await waitFor(async () => expect((await getJob(job.id))!.boards!.length).toBeGreaterThan(0), { timeout: 20000 });
+    const original = (await getJob(job.id))!;
+    const board = original.boards![0];
+    const cut = await saveJob({
+      ...original,
+      boards: original.boards!.map(b => (b.id === board.id ? { ...b, cut: { at: 1, keys: ['original'] } } : b)),
+    });
+    act(() => client.setQueryData(['cam', 'job', job.id], cut));
+    const startOver = await screen.findByRole('button', { name: 'Start over' });
+    manufacturing.locked = true;
+    try {
+      fireEvent.click(startOver);
+      expect(await screen.findByText('Review or dismiss the machine job before starting over.')).toBeTruthy();
+    } finally {
+      manufacturing.locked = false;
+    }
+    const after = (await getJob(job.id))!.boards!.find(b => b.id === board.id)!;
+    expect(after.cut!.keys).toEqual(['original']);
+    expect(after.physicalSheetId).toBe(board.physicalSheetId);
+  }, 90000);
+
   it('keeps the refusal message when Start over Undo targets a replacement sheet already used', async () => {
     const client = new QueryClient();
     const job = await openKinderregal(client);

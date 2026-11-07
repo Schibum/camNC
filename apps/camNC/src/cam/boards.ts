@@ -1108,6 +1108,20 @@ export interface PartDrop {
   board: BoardV1;
 }
 
+/**
+ * The boards to save for an undo or redo: what is cut stays as it is now. A program can finish after the snapshot was taken,
+ * and restoring that snapshot would forget the cut and offer the same program again.
+ */
+export function restoreBoards(snapshot: BoardV1[], current: BoardV1[]): BoardV1[] {
+  const now = new Map(current.map(b => [b.id, b]));
+  const restored = snapshot.map(b => {
+    const latest = now.get(b.id);
+    return latest && isCut(latest) ? latest : b;
+  });
+  const kept = new Set(snapshot.map(b => b.id));
+  return [...restored, ...current.filter(b => isCut(b) && !kept.has(b.id))];
+}
+
 /** The board with this body no longer set aside: it's nested like the rest again. */
 export function notAside(board: BoardV1, item: string): BoardV1 {
   const out = { ...board };
