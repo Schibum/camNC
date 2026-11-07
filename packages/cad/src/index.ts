@@ -6,6 +6,7 @@ export * from './fillet';
 export * from './curves';
 export * from './pointEquivalence';
 export * from './curveContacts';
+export * from './sketchRegions';
 
 export * from './dimensions';
 export * from './dimensionPlacement';

@@ -191,11 +191,12 @@ acknowledged separately from local work. A stale view cannot save against a
 newer draft; recovery explicitly saves a sketch copy or adopts the saved
 source. Drafts live in the job database; undo history remains session-local.
 
-Sketch shading and cutting validation have different jobs. `sketchRegions.ts`
-builds a display arrangement and shades every bounded face, including nested
-regions and closed areas beside open geometry. `evaluateCadPart` requires a
-valid closed cutting profile and classifies material holes. Gray shading alone
-does not enable Finish.
+Sketch shading and cutting validation have different jobs. `sketchRegions` in
+`@wbcnc/cad` builds an arrangement of every bounded face, including nested
+regions and closed areas beside open geometry, and the sketch shades them. Each
+region has a stable ID from its bounding curves and the side of each it lies on.
+`evaluateCadPart` requires a valid closed cutting profile and classifies material
+holes. Gray shading alone does not enable Finish.
 
 `src/cam/cadDesign.ts` separates saved drafts from accepted CAM geometry.
 Accepting a solved design preserves CAM settings by permanent part ID, carries

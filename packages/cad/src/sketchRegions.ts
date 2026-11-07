@@ -1,4 +1,18 @@
-import { CAD_GEOMETRY_TOLERANCE, tessellateCurve, type CadPoint, type CadPointEntity, type CadSketch } from '@wbcnc/cad';
+import { tessellateCurve } from './curves';
+import { CAD_GEOMETRY_TOLERANCE } from './tolerances';
+import type { CadPoint, CadPointEntity, CadSketch } from './types';
+
+/** A bounded face of the drawing. Nested faces are separate regions, so `points` is the outer boundary only. */
+export interface CadSketchRegion {
+  /**
+   * Stable lineage: the bounding curves and the side of each that the region lies on, never coordinates or list
+   * indices. It survives solving, dragging and reloading while the same curves bound the same face. Splitting, merging
+   * or trimming a region can change it.
+   */
+  id: string;
+  curveIds: string[];
+  points: CadPoint[];
+}
 
 const epsilon = CAD_GEOMETRY_TOLERANCE;
 const distance = (a: CadPoint, b: CadPoint) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -12,10 +26,19 @@ interface Segment {
   minY: number;
   maxY: number;
   cuts: number[];
+  curveId: string;
+  /** Span of this segment along its curve, 0 to 1. */
+  start: number;
+  end: number;
 }
 interface Edge {
   a: number;
   b: number;
+  /** The curve this edge belongs to. Coincident curves resolve to the lowest ID, whatever their order in the sketch. */
+  curveId: string;
+  /** The curve runs from a to b. */
+  forward: boolean;
+  position: number;
 }
 
 function splitContacts(a: Segment, b: Segment): void {
@@ -92,10 +115,10 @@ function signedArea(points: CadPoint[]): number {
   );
 }
 /**
- * CAD shading uses the bounded faces of the drawing, independently of strict single-part CAM validation.
- * Curves remain analytic in the source; only this display arrangement is tessellated.
+ * The bounded faces of the drawing, independently of strict single-part CAM validation.
+ * Curves remain analytic in the source; only this arrangement is tessellated.
  */
-export function sketchRegionLoops(sketch: CadSketch, tolerance = 0.01): CadPoint[][] {
+export function sketchRegions(sketch: CadSketch, tolerance = 0.01): CadSketchRegion[] {
   const points = new Map(
     sketch.entities.filter((entity): entity is CadPointEntity => entity.type === 'point').map(point => [point.id, point])
   );
@@ -123,6 +146,9 @@ export function sketchRegionLoops(sketch: CadSketch, tolerance = 0.01): CadPoint
         minY: Math.min(a.y, b.y),
         maxY: Math.max(a.y, b.y),
         cuts: [0, 1],
+        curveId: entity.id,
+        start: (i - 1) / (path.length - 1),
+        end: i / (path.length - 1),
       });
     }
   }
@@ -148,7 +174,7 @@ export function sketchRegionLoops(sketch: CadSketch, tolerance = 0.01): CadPoint
     return index;
   };
   const edges: Edge[] = [],
-    keys = new Set<string>();
+    keys = new Map<string, number>();
   for (const segment of segments) {
     segment.cuts.sort((a, b) => a - b);
     const cuts = segment.cuts.filter((cut, i, all) => i === 0 || (cut - all[i - 1]!) * segment.length > epsilon);
@@ -157,10 +183,16 @@ export function sketchRegionLoops(sketch: CadSketch, tolerance = 0.01): CadPoint
       const a = node(at(cuts[i - 1]!)),
         b = node(at(cuts[i]!));
       if (a === b) continue;
-      const key = a < b ? `${a}:${b}` : `${b}:${a}`;
-      if (!keys.has(key)) {
-        keys.add(key);
-        edges.push({ a, b });
+      const key = a < b ? `${a}:${b}` : `${b}:${a}`,
+        position = segment.start + ((segment.end - segment.start) * (cuts[i - 1]! + cuts[i]!)) / 2,
+        known = keys.get(key);
+      if (known === undefined) {
+        keys.set(key, edges.length);
+        edges.push({ a, b, curveId: segment.curveId, forward: true, position });
+      } else {
+        const edge = edges[known]!;
+        if (segment.curveId < edge.curveId || (segment.curveId === edge.curveId && position < edge.position))
+          Object.assign(edge, { curveId: segment.curveId, forward: edge.a === a, position });
       }
     }
   }
@@ -192,23 +224,48 @@ export function sketchRegionLoops(sketch: CadSketch, tolerance = 0.01): CadPoint
     });
   });
   const visited = new Set<number>(),
-    faces: { points: CadPoint[]; area: number }[] = [];
+    faces: { points: CadPoint[]; area: number; sides: Map<string, number> }[] = [];
   for (const list of outgoing)
     for (const first of list) {
       if (visited.has(first)) continue;
-      const polygon: CadPoint[] = [];
+      const polygon: CadPoint[] = [],
+        sides = new Map<string, number>();
       let half = first;
       while (!visited.has(half)) {
         visited.add(half);
         polygon.push(nodes[from(half)]!);
+        // Faces are counterclockwise, so the face lies to the left of the direction of travel.
+        const edge = edges[half >> 1]!,
+          side = `${edge.curveId}:${(half % 2 === 0) === edge.forward ? 'L' : 'R'}`;
+        sides.set(side, Math.min(sides.get(side) ?? Infinity, edge.position));
         const next = outgoing[to(half)]!,
           reverse = half ^ 1;
         half = next[(position[reverse]! + next.length - 1) % next.length]!;
       }
       if (half !== first || polygon.length < 3) continue;
       const area = signedArea(polygon);
-      if (area > epsilon * epsilon * polygon.length) faces.push({ points: polygon, area });
+      if (area > epsilon * epsilon * polygon.length) faces.push({ points: polygon, area, sides });
     }
-  // Sketch mode shades every bounded region, including nested discs. Material holes are a CAM decision.
-  return faces.map(face => face.points);
+  // Every bounded region counts, including nested discs. Material holes are a CAM decision.
+  const named = faces.map(face => {
+    const sides = [...face.sides.keys()].sort();
+    return { ...face, signature: sides.join('|'), order: sides.map(side => face.sides.get(side)!) };
+  });
+  const bySignature = new Map<string, typeof named>();
+  for (const face of named) bySignature.set(face.signature, [...(bySignature.get(face.signature) ?? []), face]);
+  // The lenses between a wavy curve and a line share a signature: their order along the curves tells them apart.
+  for (const group of bySignature.values())
+    group.sort((a, b) => {
+      const i = a.order.findIndex((value, n) => value !== b.order[n]);
+      return i < 0 ? 0 : a.order[i]! - b.order[i]!;
+    });
+  // Regions keep the order they were found in, because IDs hold random curve IDs and drawings must stay reproducible.
+  return named.map(face => {
+    const group = bySignature.get(face.signature)!;
+    return {
+      id: `${sketch.id}:region:${face.signature}${group.length > 1 ? `#${group.indexOf(face)}` : ''}`,
+      curveIds: [...new Set([...face.sides.keys()].map(side => side.slice(0, side.lastIndexOf(':'))))],
+      points: face.points,
+    };
+  });
 }
