@@ -3,7 +3,6 @@ import { getRehearsalId, isDemoMode } from '@/lib/demo/demo-mode';
 import { cn } from '@wbcnc/ui/lib/utils';
 import { UnprojectVideoMesh } from '@/calibration/Unproject';
 import { LoadingVideoOverlay } from '@/components/LoadingVideoOverlay';
-import { PageHeader } from '@/components/page-header';
 import { useAutoScanMarkers } from '@/hooks/useAutoScanMarkers';
 import { DepthBlendWorker } from '@/hooks/useDepthBlendWorker';
 import { useInitToolpathOffset } from '@/hooks/useInitToolpathOffset';
@@ -20,7 +19,7 @@ import { GCodeVisualizer } from '@/visualize/Toolpaths';
 import { CamBoardOverlay } from '@/cam/machine/CamBoardOverlay';
 import { CamBedEditor } from '@/cam/machine/CamBedEditor';
 import { CamTopViewShow } from '@/cam/machine/CamTopViewShow';
-import { CamMachineJobNav } from '@/cam/machine/CamMachineJobNav';
+import { CamMachineHeader } from '@/cam/machine/CamMachineHeader';
 import { MachineBedMesh } from '@/visualize/MachineBed';
 import { nearestPointOnToolpath } from '@/visualize/nearestPoint';
 import { VisualizeToolbar } from '@/visualize/toolbar/VisualizeToolbar';
@@ -283,16 +282,11 @@ function VisualizeComponent() {
           )}
 
           <div className="pointer-events-none absolute inset-0 flex h-dvh flex-col">
-            <PageHeader
+            <CamMachineHeader
               title={viewModeTitle(view)}
-              className="dark pointer-events-auto pr-2 flex-wrap h-auto p-1 text-foreground"
-              hideDemoMark>
-              <div className="pl-2">
-                <ViewSwitcher view={view} hasToolpath={!!toolpath} onSelect={selectView} />
-              </div>
-              <CamMachineJobNav />
-              <VisualizeToolbar />
-            </PageHeader>
+              tools={<ViewSwitcher view={view} hasToolpath={!!toolpath} onSelect={selectView} />}
+              actions={<VisualizeToolbar />}
+            />
             {isTop && (
               <div className="pointer-events-none flex flex-wrap items-start gap-2 px-2 pt-2 [&>*]:pointer-events-auto">
                 <CamBedEditor />

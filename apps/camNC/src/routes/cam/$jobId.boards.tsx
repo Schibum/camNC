@@ -40,7 +40,7 @@ import { useHoldHardware } from '@/cam/holdHardware';
 import { BitChip } from '@/cam/plan/BitPicker';
 import { camKeys, useBoardPlans, useCamJob, useCamModel, useSaveCamJob } from '@/cam/camQueries';
 import type { CamJobV1 } from '@/cam/jobDb';
-import { CamJobBar } from '@/cam/model/CamJobBar';
+import { CamJobBar } from '@/cam/CamJobBar';
 import { forgetCut } from '@/cam/machine/camMachine';
 import { Hint } from '@/cam/Hint';
 import { bitKey } from '@/cam/cuttingData';
@@ -92,8 +92,7 @@ function BoardsStep() {
   const bar = (
     <CamJobBar
       jobId={job.id}
-      fileName={job.fileName}
-      origin={job.origin}
+      job={job}
       step="Boards"
       actions={
         <>
@@ -785,8 +784,7 @@ function Shell({
 }) {
   return (
     <CamPage className="min-h-dvh md:h-dvh">
-      <PageHeader title="CAM (beta)" />
-      {bar}
+      {bar ?? <PageHeader title="CAM (beta)" />}
       {message && <p className="m-8 text-muted-foreground">{message}</p>}
       {loading && (
         <div className="flex flex-1 items-center justify-center gap-2 text-muted-foreground">

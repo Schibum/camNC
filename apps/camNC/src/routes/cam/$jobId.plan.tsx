@@ -11,7 +11,7 @@ import { layoutBlock, loose, planBlock, releaseProblems, unstable } from '@/cam/
 import { cutBoardWith, edgeNote, freezeSpacing, isCut, spacingProblem } from '@/cam/boards';
 import { CutBadge } from '@/cam/boards/CutBadge';
 import { orderBoardQueue } from '@wbcnc/cam/board';
-import { CamJobBar } from '@/cam/model/CamJobBar';
+import { CamJobBar } from '@/cam/CamJobBar';
 import { Hint } from '@/cam/Hint';
 import { PlanSettingsPanel } from '@/cam/plan/PlanSettingsPanel';
 import { ProgramDownloads } from '@/cam/plan/ProgramDownloads';
@@ -73,12 +73,12 @@ function PlanStep() {
 
   if (isPending) return <Shell />;
   if (!job) return <Shell message="This job doesn't exist (any more)." />;
-  const bar = <CamJobBar jobId={job.id} fileName={job.fileName} origin={job.origin} step="Plan" />;
-  if (model.isError) return <Shell bar={bar} message={model.error.message} />;
-  if (!model.data) return <Shell bar={bar} loading={`Reading ${job.fileName}…`} />;
+  const emptyBar = <CamJobBar jobId={job.id} job={job} step="Plan" />;
+  if (model.isError) return <Shell bar={emptyBar} message={model.error.message} />;
+  if (!model.data) return <Shell bar={emptyBar} loading={`Reading ${job.fileName}…`} />;
   if (!active.length)
     return (
-      <Shell bar={bar}>
+      <Shell bar={emptyBar}>
         <NoPartsToMill jobId={job.id} />
       </Shell>
     );
@@ -194,21 +194,12 @@ function PlanStep() {
 
   // Settings here are the job's: a change plans cut boards again too, which no longer match what's cut.
   const cut = queue.filter(e => isCut(e.board));
-  return (
-    <Shell bar={bar}>
-      {rehearsed && (
-        <p role="status" className="border-b bg-primary/5 px-4 py-2 text-sm">
-          Back in your saved project. Rehearsal progress was discarded; your cut history is unchanged.
-        </p>
-      )}
-      {cut.length > 0 && (
-        <p role="note" className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm">
-          {cut.length === 1 ? `Board ${cut[0].board.name} is` : `Boards ${cut.map(e => e.board.name).join(', ')} are`} already cut at the
-          machine. The bit, material and tab settings here are for the whole job: a change plans {cut.length === 1 ? 'it' : 'them'} again,
-          and the new programs no longer match what’s cut. Start over in Boards for a new sheet.
-        </p>
-      )}
-      <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2.5">
+  const bar = (
+    <CamJobBar
+      jobId={job.id}
+      job={job}
+      step="Plan"
+      tools={
         <div role="tablist" aria-label="Boards in cutting order" className="flex flex-wrap gap-1">
           {queue.map((e, i) => (
             <button
@@ -225,61 +216,80 @@ function PlanStep() {
             </button>
           ))}
         </div>
-        <span className="grow" />
-        <Hint text="Estimated automatic motion and dwell time using reference machine limits. Add setup, tool changes, and operator pauses; unknown initial and parking distances are excluded.">
-          <span className="text-[13px] text-muted-foreground">
-            Job: {queue.length} {queue.length === 1 ? 'board' : 'boards'} · {swaps} bit {swaps === 1 ? 'swap' : 'swaps'} · ≈{' '}
-            {formatDuration(totalMin * 60)} automatic
-          </span>
-        </Hint>
-        <RehearsalButton job={job} boards={boards.map(b => freezeRehearsalBoard(b.board, b.nest))} ready={allReady} />
-        <BitChip value={settings} onChange={savePlan} onOpen={openSettings} />
-        <Hint
-          wrap
-          text={
-            allReady
-              ? 'Opens the machine view with every board in cutting order: place, align, zero and cut each one, with the bit swaps in between.'
-              : 'Opens the machine view with every board in cutting order, once every board has toolpaths that pass the checks.'
-          }>
-          <Button disabled={!allReady} onClick={takeToMachine}>
-            <Factory /> Take the job to the machine
-          </Button>
-        </Hint>
-        <DropdownMenu>
-          <Hint text={`More actions for board ${current.board.name}: show it on the machine on its own, download its G-code.`}>
-            <DropdownMenuTrigger asChild>
-              <Button size="icon" variant="ghost" aria-label="More actions">
-                <MoreHorizontal />
-              </Button>
-            </DropdownMenuTrigger>
+      }
+      actions={
+        <>
+          <Hint text="Estimated automatic motion and dwell time using reference machine limits. Add setup, tool changes, and operator pauses; unknown initial and parking distances are excluded.">
+            <span className="text-xs text-muted-foreground">
+              Job: {queue.length} {queue.length === 1 ? 'board' : 'boards'} · {swaps} bit {swaps === 1 ? 'swap' : 'swaps'} · ≈{' '}
+              {formatDuration(totalMin * 60)} automatic
+            </span>
           </Hint>
-          <DropdownMenuContent align="end" className="max-w-80">
-            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Board {current.board.name}</DropdownMenuLabel>
-            <DropdownMenuItem
-              disabled={!safe}
-              onSelect={showOnMachine}
-              aria-label={`Show board ${current.board.name} on machine`}
-              aria-describedby="plan-show-on-machine-hint"
-              className="items-start">
-              <Play className="mt-0.5" />
-              <span className="flex flex-col gap-0.5">
-                <span>Show board {current.board.name} on machine</span>
-                <span id="plan-show-on-machine-hint" className="text-xs text-muted-foreground">
-                  Loads only board {current.board.name}’s {result && result.programs.length > 1 ? 'first program' : 'program'} into the
-                  machine view, to check or run it on its own.
-                </span>
-              </span>
-            </DropdownMenuItem>
-            {result && (
-              <ProgramDownloads
-                programs={result.programs}
+          <RehearsalButton job={job} boards={boards.map(b => freezeRehearsalBoard(b.board, b.nest))} ready={allReady} inBar />
+          <BitChip value={settings} onChange={savePlan} onOpen={openSettings} />
+          <DropdownMenu>
+            <Hint text={`More actions for board ${current.board.name}: show it on the machine on its own, download its G-code.`}>
+              <DropdownMenuTrigger asChild>
+                <Button size="icon" variant="ghost" className="size-8" aria-label="More actions">
+                  <MoreHorizontal />
+                </Button>
+              </DropdownMenuTrigger>
+            </Hint>
+            <DropdownMenuContent align="end" className="max-w-80">
+              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Board {current.board.name}</DropdownMenuLabel>
+              <DropdownMenuItem
                 disabled={!safe}
-                onDownload={(program, kind) => download(program, kind === 'setup')}
-              />
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+                onSelect={showOnMachine}
+                aria-label={`Show board ${current.board.name} on machine`}
+                aria-describedby="plan-show-on-machine-hint"
+                className="items-start">
+                <Play className="mt-0.5" />
+                <span className="flex flex-col gap-0.5">
+                  <span>Show board {current.board.name} on machine</span>
+                  <span id="plan-show-on-machine-hint" className="text-xs text-muted-foreground">
+                    Loads only board {current.board.name}’s {result && result.programs.length > 1 ? 'first program' : 'program'} into the
+                    machine view, to check or run it on its own.
+                  </span>
+                </span>
+              </DropdownMenuItem>
+              {result && (
+                <ProgramDownloads
+                  programs={result.programs}
+                  disabled={!safe}
+                  onDownload={(program, kind) => download(program, kind === 'setup')}
+                />
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Hint
+            wrap
+            text={
+              allReady
+                ? 'Opens the machine view with every board in cutting order: place, align, zero and cut each one, with the bit swaps in between.'
+                : 'Opens the machine view with every board in cutting order, once every board has toolpaths that pass the checks.'
+            }>
+            <Button size="sm" disabled={!allReady} onClick={takeToMachine}>
+              <Factory /> Take the job to the machine
+            </Button>
+          </Hint>
+        </>
+      }
+    />
+  );
+  return (
+    <Shell bar={bar}>
+      {rehearsed && (
+        <p role="status" className="border-b bg-primary/5 px-4 py-2 text-sm">
+          Back in your saved project. Rehearsal progress was discarded; your cut history is unchanged.
+        </p>
+      )}
+      {cut.length > 0 && (
+        <p role="note" className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm">
+          {cut.length === 1 ? `Board ${cut[0].board.name} is` : `Boards ${cut.map(e => e.board.name).join(', ')} are`} already cut at the
+          machine. The bit, material and tab settings here are for the whole job: a change plans {cut.length === 1 ? 'it' : 'them'} again,
+          and the new programs no longer match what’s cut. Start over in Boards for a new sheet.
+        </p>
+      )}
       <PlanWorkspace
         plan={result && !empty ? result : undefined}
         release={shownRelease}
@@ -750,8 +760,7 @@ function Shell({
 }) {
   return (
     <CamPage className="min-h-dvh md:h-dvh">
-      <PageHeader title="CAM (beta)" />
-      {bar}
+      {bar ?? <PageHeader title="CAM (beta)" />}
       {message && <p className="m-8 text-muted-foreground">{message}</p>}
       {loading && (
         <div className="flex flex-1 items-center justify-center gap-2 text-muted-foreground">

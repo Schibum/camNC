@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { TooltipProvider } from '@wbcnc/ui/components/tooltip';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CamJobV1 } from '@/cam/jobDb';
 import { RehearsalButton } from './RehearsalButton';
@@ -23,6 +24,14 @@ describe('rehearsal entry', () => {
     view.rerender(<RehearsalButton job={job} boards={[]} ready />);
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Try on demo machine' }).disabled).toBe(true);
     expect(screen.getByText(/real machine job first/)).toBeTruthy();
+  });
+
+  it('explains a disabled state as a hint in the top bar, with no second line', () => {
+    render(<RehearsalButton job={job} boards={[]} ready={false} inBar />, { wrapper: TooltipProvider });
+    const button = screen.getByRole<HTMLButtonElement>('button', { name: 'Try on demo machine' });
+    expect(button.disabled).toBe(true);
+    expect(document.getElementById(button.getAttribute('aria-describedby') ?? '')?.textContent).toMatch(/every board to pass/);
+    expect(screen.getByText(/every board to pass/).hidden).toBe(true);
   });
 
   it('opens a named modal, allows cancellation and launches only from the confirmation', async () => {

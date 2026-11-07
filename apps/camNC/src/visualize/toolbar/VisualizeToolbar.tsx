@@ -221,7 +221,7 @@ function ColorLegendButton() {
 export function VisualizeToolbar() {
   const cameraReady = useIsCameraReady();
   return (
-    <div className="flex gap-0 items-center pl-2">
+    <div className="flex flex-wrap gap-0 items-center pl-2">
       <OpenFileButton />
       {cameraReady ? (
         <>
