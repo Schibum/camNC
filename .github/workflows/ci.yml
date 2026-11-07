@@ -141,7 +141,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Run sketch behaviour specs
-        timeout-minutes: 25
+        timeout-minutes: 15
         run: pnpm --filter @wbcnc/camNC spec:cad
       - name: Upload spec results
         if: failure()

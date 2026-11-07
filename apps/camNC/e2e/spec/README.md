@@ -22,7 +22,10 @@ running app. CI runs the same command.
 pnpm --filter @wbcnc/camNC spec:cad
 ```
 
-Options: `--url <running dev server>`, `--only <id prefix>`, `--headed`, `--list`, `--update-goldens`.
+Options: `--url <running dev server>`, `--only <id prefix>`, `--headed`, `--list`, `--update-goldens`, `--workers <n>`.
+
+Scenarios run 4 at a time, each in its own browser context, so they share no saved state. Use `--workers 1` to rule out
+load when debugging a failure. Goldens are always rewritten one at a time.
 
 Results are one of `PASS`, `FAIL`, `XFAIL` (a listed known gap still fails) and
 `XPASS` (a known gap now passes, so remove its `known` field). The run fails on
