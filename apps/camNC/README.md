@@ -23,7 +23,7 @@ pnpm dev --filter @wbcnc/camNC   # from the repo root
 `wrangler.jsonc` defines the `camnc` Worker (static assets from `dist/`, `/api/*` handled by
 `worker/index.ts`) and a `preview` env (`camnc-preview` Worker, `camnc-preview` D1 database,
 Clerk development keys). Both Workers deploy through Cloudflare Workers Builds, connected to this
-repository in the Cloudflare dashboard (plainoss account):
+repository (`plainoss/camNC`) in the Cloudflare dashboard (plainoss account):
 
 | Setting                                     | `camnc`                                                  | `camnc-preview`           |
 | ------------------------------------------- | -------------------------------------------------------- | ------------------------- |
@@ -32,6 +32,12 @@ repository in the Cloudflare dashboard (plainoss account):
 | Deploy command (`main`)                     | `pnpm run deploy`                                        | `pnpm run deploy:preview` |
 | Preview command (other branches)            | builds off                                               | `pnpm run deploy:preview` |
 | Build variable `VITE_CLERK_PUBLISHABLE_KEY` | Clerk production key                                     | Clerk development key     |
+
+The preview Worker's build, deploy and version commands skip GitHub's temporary
+`gh-readonly-queue/*` branches using `WORKERS_CI_BRANCH`. Wrap each command in
+`case "$WORKERS_CI_BRANCH" in gh-readonly-queue/*) echo "Skipping merge queue preview" ;; *) COMMAND ;; esac`,
+substituting the command from the table for `COMMAND`. Queue validation runs in
+GitHub Actions; ordinary branches still get previews.
 
 Cloudflare posts the preview URL on each PR. Both deploy scripts apply pending D1 migrations first.
 
