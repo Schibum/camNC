@@ -1,4 +1,5 @@
 import { MATERIALS } from '@wbcnc/cam/settings';
+import { cn } from '@wbcnc/ui/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wbcnc/ui/components/select';
 import { stockTopOf, type BoardNest, type BoardV1 } from '../boards';
 import { Hint } from '../Hint';
@@ -74,6 +75,26 @@ export function BoardHeadingFields({ board, nest, onChange }: { board: BoardV1; 
         className={kInline}
         onCommit={h => onChange({ ...board, size: { fit: false, w: emptyFit ? h : nest.board.w, h } })}
       />
+      <Hint
+        text={
+          board.size.fit
+            ? 'The board grows to fit its parts and holds. Off: it stays at this size.'
+            : `Fixed at this size: parts and holds that have no room are refused. On: the board grows to fit them.`
+        }
+        id="board-fit-hint">
+        <button
+          type="button"
+          aria-pressed={board.size.fit}
+          aria-label="Grow to fit"
+          aria-describedby="board-fit-hint"
+          className={cn(
+            'ml-1 h-6 rounded border px-1.5 text-xs',
+            board.size.fit ? 'border-primary bg-primary/15 text-foreground' : 'border-muted-foreground/40 text-muted-foreground'
+          )}
+          onClick={() => onChange({ ...board, size: board.size.fit ? { fit: false, w: nest.board.w, h: nest.board.h } : { fit: true } })}>
+          Fit
+        </button>
+      </Hint>
     </span>
   );
 }

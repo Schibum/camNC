@@ -4,6 +4,7 @@ import { nestRects, placedSize, type NestResult, type Placement, type Rect } fro
 import {
   fewerHolds,
   fixturesAround,
+  fixtureFree,
   partDist,
   settle,
   fitsMachine,
@@ -796,6 +797,20 @@ export function settleBoard(
   const { input, spots } = settleInput(board, at, nest.board, instances, bit, opts);
   const r = settle(input, spots, fixtures, board.size.fit, opts.budget);
   return r && { ...withSpots(board, at, r.spots, r.w, r.h), fixtures };
+}
+
+/**
+ * A fitted board whose holds are in the parts' way: a layout stays where it was stored, but a new clamp size, bit or
+ * stick-out asks for more room around the holds. The parts move and the board grows as for a hold just placed. A fixed
+ * size or a cut board stays as it is: there the job's own check (`jobHoldClashes`) points at the hold.
+ */
+export function keepFixturesClear(board: BoardV1, instances: PartInstance[], bit: number, opts: NestOptions = {}): BoardV1 {
+  const fixtures = board.fixtures ?? [];
+  if (!board.size.fit || isCut(board) || !board.layout || !fixtures.length) return board;
+  const nest = nestBoard(board, instances, bit, { ...opts, holds: false });
+  const { input, spots } = settleInputOf(board, nest, instances, bit, opts);
+  if (fixtures.every(f => fixtureFree(input, spots, f))) return board;
+  return settleBoard(board, instances, bit, fixtures, opts) ?? board;
 }
 
 /**

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import {
   boardRequest,
   instancesOf,
+  keepFixturesClear,
   keepWithinMachine,
   nestBoard,
   reconcileBoards,
@@ -55,9 +56,10 @@ export function useJobBoards(job: CamJobV1 | null | undefined, model: ModelImpor
     const opts = { stickout: plan.bit.stickout, hardware, machine };
     const reconciledAll = keepWithinMachine(reconcileBoards(job.boards, instances, plan.material), instances, plan.bit.diameter, opts);
     const boards = reconciledAll.map(reconciled => {
-      const nest = nestBoard(reconciled, instances, plan.bit.diameter, opts);
+      const clear = keepFixturesClear(reconciled, instances, plan.bit.diameter, opts);
+      const nest = nestBoard(clear, instances, plan.bit.diameter, opts);
       // Stored once nested: from then on its parts stay where they are.
-      const board = withLayout(reconciled, nest);
+      const board = withLayout(clear, nest);
       return { board, nest, request: boardRequest(board, nest, instances, { skin: plan.skin, holes: plan.holes }) };
     });
     const changed = JSON.stringify(boards.map(b => b.board)) !== JSON.stringify(job.boards ?? []);

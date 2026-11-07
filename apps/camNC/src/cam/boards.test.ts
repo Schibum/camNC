@@ -26,6 +26,7 @@ import {
   settleBoard,
   settleInputOf,
   holdVerdict,
+  keepFixturesClear,
   nudgeFixtures,
   suggestFixtures,
   withLayout,
@@ -1081,6 +1082,39 @@ describe('boards', () => {
         ).find(x => x.id === placed.id)!.layout!.at
       ).toEqual({});
     });
+  });
+});
+
+describe('keepFixturesClear', () => {
+  const teardrop: [number, number][] = [
+    ...Array.from({ length: 76 }, (_, i): [number, number] => {
+      const a = ((-180 + i * 3) * Math.PI) / 180;
+      return [28.3 + 28.3 * Math.cos(a), 28.3 + 28.3 * Math.sin(a)];
+    }),
+    [0, 73.6],
+  ];
+  const part: PartInstance = { ...inst('p', 56.6, 73.6, 18.3), outline: { outer: [teardrop], holes: [] } };
+  const small = { ...kDefaultHardware, clamp: { ...kDefaultHardware.clamp, d: 0.5 } };
+  const big = { ...kDefaultHardware, clamp: { ...kDefaultHardware.clamp, d: 5 } };
+  const clamp: Fixture = { kind: 'clamp', side: 'bottom', at: 53 };
+  const placed = () => settleBoard(newBoard([], 18.3, 'oak', ['p']), [part], 3.175, [clamp], { hardware: small })!;
+  const free = (b: BoardV1, hardware: typeof big) => {
+    const { input, spots } = settleInputOf(b, nestBoard(b, [part], 3.175, { hardware, holds: false }), [part], 3.175, { hardware });
+    return fixtureFree(input, spots, clamp);
+  };
+
+  it('makes room on a fitted board when a bigger clamp reaches a round part', () => {
+    const b = placed();
+    expect(free(b, big)).toBe(false);
+    const clear = keepFixturesClear(b, [part], 3.175, { hardware: big });
+    expect(free(clear, big)).toBe(true);
+  });
+
+  it('leaves a board alone that is clear or a fixed size', () => {
+    const b = placed();
+    expect(keepFixturesClear(b, [part], 3.175, { hardware: small })).toBe(b);
+    const fixed: BoardV1 = { ...b, size: { fit: false, w: b.layout!.w, h: b.layout!.h } };
+    expect(keepFixturesClear(fixed, [part], 3.175, { hardware: big })).toBe(fixed);
   });
 });
 
