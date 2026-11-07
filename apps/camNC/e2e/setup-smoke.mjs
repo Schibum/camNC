@@ -323,11 +323,11 @@ export async function runSetupSmoke(
       onProgress('SKIP 3D views are not deployed at this URL yet');
     }
 
-    await navigate('Debug');
+    await navigate('Advanced settings');
     const configuration = JSON.parse(await page.getByRole('textbox', { name: 'Camera Source Configuration', exact: true }).inputValue());
     assert.deepEqual(configuration.machineBounds, [0, 0, 600, 500]);
     assert.deepEqual(configuration.markerPositions, markers.positions);
-    await navigate('Backup & Restore');
+    await navigate('Backup & restore');
     const downloading = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Download backup', exact: true }).click();
     const exportedFile = path.join(outputDir, 'settings-backup.json');

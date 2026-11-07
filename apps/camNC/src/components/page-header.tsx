@@ -21,7 +21,7 @@ export function PageHeader({
         'flex min-h-11 shrink-0 items-center gap-2 z-10 w-full border-b border-black/5 bg-background/75 shadow-sm backdrop-blur-md dark:border-white/10',
         className
       )}>
-      <RailButtonSlot />
+      <RailButtonSlot className="ml-3" />
       <div className="flex items-center gap-2 px-4">
         <Breadcrumb>
           <BreadcrumbList>

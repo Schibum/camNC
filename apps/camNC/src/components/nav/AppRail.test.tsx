@@ -8,6 +8,7 @@ import '@/style.css';
 import { page } from '@vitest/browser/context';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useCamMachine } from '@/cam/machine/camMachine';
+import { PageHeader } from '@/components/page-header';
 import { AppRail } from './AppRail';
 import { useAppRail } from './appRailStore';
 
@@ -124,6 +125,19 @@ describe('the left panel', () => {
     await page.viewport(1440, 900);
     show();
     expect(screen.getByText('The full panel')).toBeTruthy();
+  });
+
+  it('once hidden, keeps the way back to the menu clear of the window edge in a page header', async () => {
+    useAppRail.setState({ rail: 'hidden' });
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <SidebarProvider forceMobile>
+          <PageHeader title="Get started" />
+        </SidebarProvider>
+      </QueryClientProvider>
+    );
+    const button = await screen.findByRole('button', { name: /^Open the menu/ });
+    expect(button.getBoundingClientRect().left).toBeGreaterThanOrEqual(8);
   });
 
   it('is tabs at the bottom of a phone, whole and on screen', async () => {

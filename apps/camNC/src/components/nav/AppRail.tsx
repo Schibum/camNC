@@ -120,7 +120,7 @@ export function AppRail() {
 }
 
 /** In the top bar while the panel is hidden: where you are, and the way to everything else. Not on a phone, which has tabs. */
-export function HiddenRailButton() {
+export function HiddenRailButton({ className }: { className?: string }) {
   const { current } = useAppSteps();
   const { toggleSidebar } = useSidebar();
   return (
@@ -128,7 +128,10 @@ export function HiddenRailButton() {
       type="button"
       onClick={toggleSidebar}
       aria-label={current ? `Open the menu, current step ${current.label}` : 'Open the menu'}
-      className="hidden h-8 shrink-0 items-center gap-1.5 rounded-md bg-primary px-2.5 text-sm text-primary-foreground md:inline-flex [&_svg]:size-4">
+      className={cn(
+        'hidden h-8 shrink-0 items-center gap-1.5 rounded-md bg-primary px-2.5 text-sm text-primary-foreground md:inline-flex [&_svg]:size-4',
+        className
+      )}>
       <Menu aria-hidden />
       {current?.label}
     </button>
