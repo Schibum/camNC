@@ -13,7 +13,7 @@ const fmt = (v: number) => `${+v.toFixed(1)}`;
 
 const kRetentionNotes: Record<Retention, string> = {
   tabs: 'Small bridges hold each part. A part where tabs can’t hold turns red and blocks the job until you move it or switch to bottom skin.',
-  skin: 'Every outline stops a thin skin above the board’s bottom. At the machine, a last program cuts the parts free. On tape, it cuts them all together.',
+  skin: 'Every outline stops a thin skin above the board’s bottom. At the machine, a last program cuts the parts free and, on one-sided boards, trims their walls to size. On tape, it cuts them all together.',
   none: 'Each part is free once its outline is cut through. Fine for big, heavy parts; small ones can be thrown.',
 };
 

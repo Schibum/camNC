@@ -1,6 +1,6 @@
 import { holdOptionsOf, partToBoard, type BoardPart, type BoardSpec } from './board';
 import type { TurnedOver } from './flip';
-import { maxOf, minOf } from './geom';
+import { maxOf, minOf, type Vec3 } from './geom';
 import { holdState, layerAcross, tabWhole } from './hold';
 import { releaseMetadata } from './releaseMetadata';
 import {
@@ -452,7 +452,9 @@ export function boardToPart(p: Pick<BoardPart, 'x' | 'y' | 'rotated' | 'size'>, 
  * After cutting a board with bottom-skin parts: frees them one at a time (`pause` false, for a taped board: all of
  * them in one go, smallest first, no pauses). For each, the bit cuts the skin along the
  * outline at the final depth, goes up, stops the spindle and pauses: "Take out <part>". The spindle starts again before
- * the next part; nothing moves while paused. A skin deeper than the bit's `stepdown` is cut in several laps.
+ * the next part; nothing moves while paused. A skin deeper than the bit's `stepdown` is cut in several laps. An outline
+ * with `finishAtRelease` is on its roughing path until now: the first lap trims the wall to size too, entering and
+ * leaving through the cleared kerf so the bit doesn't plunge or retract against the finished wall.
  */
 export function freePartsProgram(
   cam: PartCam,
@@ -479,14 +481,16 @@ export function freePartsProgram(
     // Turned over after side B, the skin is on top now: from the new top through it, as far past it as finalZ goes below
     // the bottom. Mirrored, the path runs the other way round: reversed, the bit cuts the same way as before.
     const skin = minOf(final.pts.map(q => q[2]));
+    const path = op.finishAtRelease?.loop ?? final.pts;
     const bottom = turned ? cam.stockTop - skin + opts.finalZ : opts.finalZ;
     const depth = skin - opts.finalZ;
     const laps = Math.max(1, Math.ceil(depth / (opts.stepdown?.(op.tool) ?? depth) - 1e-6));
     const passes: Pass[] = Array.from({ length: laps }, (_, lap) => {
       const z = bottom + (depth * (laps - 1 - lap)) / laps;
-      const pts = turned
-        ? [...final.pts].reverse().map(q => [q[0], turned.h - q[1], z] as [number, number, number])
-        : final.pts.map(q => [q[0], q[1], z] as [number, number, number]);
+      const place = (q: Vec3): Vec3 => (turned ? [q[0], turned.h - q[1], z] : [q[0], q[1], z]);
+      const lapPts = (turned ? [...path].reverse() : path).map(place);
+      const approach = op.finishAtRelease && place(op.finishAtRelease.approach);
+      const pts = [...(approach && lap === 0 ? [approach] : []), ...lapPts, ...(approach && lap === laps - 1 ? [approach] : [])];
       return { pts, feeds: pts.map((_, k) => (k === 0 ? opts.plungeFeed : opts.feed)), link: lap ? 'direct' : 'retract' };
     });
     const pts = passes[0].pts;
