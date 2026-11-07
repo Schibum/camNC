@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { parse } from 'yaml';
 
@@ -45,4 +45,20 @@ test('the required check rejects a failed, cancelled or skipped dependency', () 
       assert.notEqual(run({ ...allPassed, [key]: status }).status, 0, `${key}=${status} must fail the required check`);
     }
   }
+});
+
+test('the CI suites cover every package test exactly once and retain every performance gate', () => {
+  const suites = parse(read('.github/workflows/ci.yml')).jobs.test.strategy.matrix.include;
+  const selected = filters => {
+    const plan = execFileSync(process.execPath, [require.resolve('turbo/bin/turbo'), 'run', 'test', ...filters, '--dry=json', '--', 'run'], {
+      cwd: root,
+      encoding: 'utf8',
+      maxBuffer: 8 * 1024 * 1024,
+    });
+    return JSON.parse(plan).tasks.filter(task => task.task === 'test').map(task => task.taskId);
+  };
+  const assigned = suites.flatMap(suite => selected(suite.filter.split(/\s+/)));
+  assert.deepEqual(assigned.sort(), selected([]).sort(), 'no test task may be omitted or duplicated across runners');
+  const scripts = JSON.parse(read('package.json')).scripts;
+  assert.deepEqual(suites.map(suite => suite.performance).filter(Boolean).sort(), scripts['test:performance'].split(' && ').sort());
 });

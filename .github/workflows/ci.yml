@@ -54,7 +54,21 @@ jobs:
         run: pnpm run build
 
   test:
-    name: Test packages
+    name: Tests (${{ matrix.suite }})
+    # CAD/WASM, the app browser suite, and OpenCV must not compete for one runner's CPUs.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: cam
+            filter: --filter=@wbcnc/cam
+            performance: pnpm --filter @wbcnc/cam test:performance
+          - suite: app
+            filter: --filter=@wbcnc/camNC
+            performance: pnpm --filter @wbcnc/camNC test:performance
+          - suite: packages
+            filter: --filter=!@wbcnc/cam --filter=!@wbcnc/camNC --concurrency=1
+            performance: ''
     runs-on: ubuntu-latest
     container:
       # Keep this version in sync with the lockfile; test:ci checks both browser workflows.
@@ -84,10 +98,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .git/turbo-cache
-          key: turbo-test-${{ github.sha }}
-          restore-keys: turbo-test-
+          key: turbo-test-${{ matrix.suite }}-${{ github.sha }}
+          restore-keys: turbo-test-${{ matrix.suite }}-
       - name: Run tests
-        run: pnpm run test
+        run: node scripts/turbo-shared-cache.mjs run test ${{ matrix.filter }} -- run
+      # Each gate gets an otherwise idle runner, just as in the root test script.
+      - name: Performance gates
+        if: matrix.performance != ''
+        run: ${{ matrix.performance }}
 
   results:
     # Keep the check required by main's ruleset, including builds now running in checks.
