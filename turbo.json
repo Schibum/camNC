@@ -37,6 +37,7 @@
       "cache": false,
       "persistent": true,
       "env": [
+        "CAMNC_SKIP_TYPECHECK",
         "VITE_CLERK_PUBLISHABLE_KEY"
       ]
     }

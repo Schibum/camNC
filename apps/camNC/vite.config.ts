@@ -36,8 +36,8 @@ export default defineConfig(({ command }) => {
       },
     }),
   ];
-  // Type errors show in dev; builds skip it since CI runs check-types.
-  if (command === 'serve') {
+  // Type errors show in dev; builds skip it since CI runs check-types, and so do servers only automation looks at.
+  if (command === 'serve' && !process.env.CAMNC_SKIP_TYPECHECK) {
     plugins.push(
       checker({
         typescript: true,

@@ -93,38 +93,78 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       # Turborepo's local cache, so packages whose inputs did not change replay their result.
-      # `pnpm run test` keeps turbo's cache in the git dir (scripts/turbo-shared-cache.mjs).
+      # Git refuses this container's checkout, so scripts/turbo-shared-cache.mjs can't find the git dir. Name the
+      # directory here, or the cache action saves a path turbo never wrote.
       - name: Cache Turborepo
         uses: actions/cache@v4
         with:
-          path: .git/turbo-cache
+          path: .turbo/cache
           key: turbo-test-${{ matrix.suite }}-${{ github.sha }}
           restore-keys: turbo-test-${{ matrix.suite }}-
+      # A module that never finishes importing hits no test timeout, so bound the step. Turbo groups logs in CI, which
+      # would leave a hung run with no output; stream them to show which files finished.
       - name: Run tests
-        run: node scripts/turbo-shared-cache.mjs run test ${{ matrix.filter }} -- run
-      - name: Run sketch behaviour specs
-        if: matrix.suite == 'app'
-        run: pnpm --filter @wbcnc/camNC spec:cad
+        timeout-minutes: 20
+        env:
+          TURBO_CACHE_DIR: .turbo/cache
+        run: node scripts/turbo-shared-cache.mjs run test --log-order=stream ${{ matrix.filter }} -- run
       # Each gate gets an otherwise idle runner, just as in the root test script.
       - name: Performance gates
         if: matrix.performance != ''
         run: ${{ matrix.performance }}
 
+  specs:
+    name: Behaviour specs
+    runs-on: ubuntu-latest
+    container:
+      # Keep this version in sync with the lockfile; test:ci checks both browser workflows.
+      image: mcr.microsoft.com/playwright:v1.54.1-noble
+      options: --ipc=host
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        name: Install pnpm
+        with:
+          run_install: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run sketch behaviour specs
+        timeout-minutes: 25
+        run: pnpm --filter @wbcnc/camNC spec:cad
+      - name: Upload spec results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: behaviour-specs
+          path: output/playwright/spec
+
   results:
     # Keep the check required by main's ruleset, including builds now running in checks.
     name: Run tests
     if: always()
-    needs: [checks, test, fluidnc-sim]
+    needs: [checks, test, specs, fluidnc-sim]
     runs-on: ubuntu-latest
     steps:
       - name: Require all validation jobs to pass
         env:
           CHECKS_RESULT: ${{ needs.checks.result }}
           TEST_RESULT: ${{ needs.test.result }}
+          SPECS_RESULT: ${{ needs.specs.result }}
           SIM_RESULT: ${{ needs.fluidnc-sim.result }}
         run: |
           test "$CHECKS_RESULT" = success
           test "$TEST_RESULT" = success
+          test "$SPECS_RESULT" = success
           test "$SIM_RESULT" = success
 
   fluidnc-sim:

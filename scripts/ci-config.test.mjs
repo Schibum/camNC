@@ -10,8 +10,8 @@ const read = file => readFileSync(new URL(file, root), 'utf8');
 const lock = parse(read('pnpm-lock.yaml'));
 const require = createRequire(import.meta.url);
 
-for (const [workflow, job] of [['ci.yml', 'test'], ['setup-smoke.yml', 'setup-smoke']]) {
-  test(`${workflow}: preinstalled browsers match the locked and installed Playwright versions`, () => {
+for (const [workflow, job] of [['ci.yml', 'test'], ['ci.yml', 'specs'], ['setup-smoke.yml', 'setup-smoke']]) {
+  test(`${workflow} ${job}: preinstalled browsers match the locked and installed Playwright versions`, () => {
     const { container } = parse(read(`.github/workflows/${workflow}`)).jobs[job];
     const version = lock.importers['.'].devDependencies.playwright.version;
     assert.equal(container.image, `mcr.microsoft.com/playwright:v${version}-noble`);
@@ -21,6 +21,16 @@ for (const [workflow, job] of [['ci.yml', 'test'], ['setup-smoke.yml', 'setup-sm
     assert.equal(appRequire('playwright/package.json').version, version);
   });
 }
+
+test('browser test steps are bounded and the turbo cache action saves the directory turbo writes', () => {
+  const { jobs } = parse(read('.github/workflows/ci.yml'));
+  const step = (job, name) => jobs[job].steps.find(s => s.name === name);
+  const tests = step('test', 'Run tests');
+  assert(tests['timeout-minutes'] > 0);
+  assert(step('specs', 'Run sketch behaviour specs')['timeout-minutes'] > 0);
+  assert.match(tests.run, /--log-order=stream/);
+  assert.equal(step('test', 'Cache Turborepo').with.path, tests.env.TURBO_CACHE_DIR);
+});
 
 test('the required Run tests check waits for every validation job and cannot hide failures', () => {
   const { jobs } = parse(read('.github/workflows/ci.yml'));
