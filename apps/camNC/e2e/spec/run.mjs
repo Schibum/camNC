@@ -117,6 +117,7 @@ if (!options.url) {
   options.url = `http://127.0.0.1:${port}`;
   server = spawn('pnpm', ['vite', '--port', String(port), '--host', '127.0.0.1', '--strictPort'], {
     cwd: path.resolve(root, '../..'),
+    env: { ...process.env, CAMNC_SKIP_TYPECHECK: '1' },
     stdio: 'ignore',
     detached: true,
   });

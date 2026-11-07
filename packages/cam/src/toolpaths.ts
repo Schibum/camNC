@@ -123,6 +123,8 @@ export interface CamSettings {
    * until it's freed at the machine. Holes still go through.
    */
   outlineFloor?: number;
+  /** With `outlineFloor` and a light `leaveStock`: skip the final lap, the cut-free program trims the wall as it frees the part. */
+  outlineFinishAtRelease?: boolean;
   finalFeedFactor: number;
   climb: boolean;
   rampAngleDeg: number;
@@ -207,6 +209,8 @@ export interface Operation {
   pauseAfter?: string;
   /** The part this operation frees or cuts the tabs of: named in the pause marker (`pauseMarker`) for the machine view. */
   part?: string;
+  /** The final lap left to the cut-free program, and a point in the cleared kerf to reach it from. */
+  finishAtRelease?: { loop: Vec3[]; approach: Vec3 };
 }
 
 /** The piece a through hole's cut would leave in its middle. */
@@ -1074,7 +1078,8 @@ export function pocketOperation(
     };
     // Where the bit center may go (the wall ring is its boundary), and where roughing stops.
     const free = offsetPaths(comps[ci], -r);
-    const allowance = s.pocketWallAllowance;
+    // A pocket hardly wider than the bit has no room for the allowance: rough on the wall ring, or nothing would be cut.
+    const allowance = offsetPaths(comps[ci], -r - s.pocketWallAllowance).length ? s.pocketWallAllowance : 0;
     const rings: PathsD[] = [];
     const c = s.innerCornerRadius;
     let inset = r + allowance;
@@ -1288,12 +1293,21 @@ export function profileOperation(
   // A bottom skin (outlines only): the final pass stops there, and roughing never goes below it.
   const floorZ = inside ? s.finalZ : (s.outlineFloor ?? s.finalZ);
   const roughBottom = Math.min(topZ, Math.max(s.profileRoughBottom, floorZ));
+  // Only a light skim: a depth-limited finish has to stay in the main program. Without roughing nothing would mark the skin.
+  const finishAtRelease =
+    !inside &&
+    !!s.outlineFinishAtRelease &&
+    s.outlineFloor !== undefined &&
+    s.leaveStock > 0 &&
+    s.profileFinishStepdown === undefined &&
+    !s.profileSpringPasses &&
+    topZ - floorZ > 0.01;
   const profileStep = s.profileStepdown ?? stepdownFor(tool, s);
   validateDepthRange(topZ, floorZ, profileStep);
   if (s.profileFinishStepdown !== undefined) validateDepthRange(topZ, floorZ, s.profileFinishStepdown);
   // The strip under the roughing floor is a new axial cut, even with a light radial finish allowance.
-  const extendRoughing = roughBottom - floorZ > profileStep + 1e-9;
-  const roughTo = extendRoughing ? floorZ : roughBottom;
+  const extendRoughing = !finishAtRelease && roughBottom - floorZ > profileStep + 1e-9;
+  const roughTo = extendRoughing || finishAtRelease ? floorZ : roughBottom;
   const roughLevels = topZ - roughTo > 0.01 ? depthLevels(topZ, roughTo, profileStep) : [];
   if (extendRoughing) roughLevels.pop();
   const append = (baseLoop: Loop, zFrom: number, z: number, feed: number, phase: 'rough' | 'finish') => {
@@ -1359,10 +1373,11 @@ export function profileOperation(
   const finishTop = s.leaveStock > 0 && s.profileFinishStepdown !== undefined ? topZ : previousZ;
   const finishLevels = s.profileFinishStepdown !== undefined ? depthLevels(finishTop, floorZ, s.profileFinishStepdown) : [floorZ];
   previousZ = finishTop;
-  for (const z of finishLevels) {
-    append(final, previousZ, z, ffeed, 'finish');
-    previousZ = z;
-  }
+  if (!finishAtRelease)
+    for (const z of finishLevels) {
+      append(final, previousZ, z, ffeed, 'finish');
+      previousZ = z;
+    }
   for (let repeat = 0; repeat < (s.profileSpringPasses ?? 0); repeat++) {
     const pts = closeLoop(final, floorZ);
     const pass = finishRoles({
@@ -1431,6 +1446,9 @@ export function profileOperation(
     tool,
     plungeFeed: s.plungeFeed,
     passes: plannedPasses,
+    ...(finishAtRelease && {
+      finishAtRelease: { loop: closeLoop(final, floorZ), approach: [rough[0].x, rough[0].y, floorZ] as Vec3 },
+    }),
     ...(warnings.size ? { warnings: [...warnings] } : {}),
   };
 }

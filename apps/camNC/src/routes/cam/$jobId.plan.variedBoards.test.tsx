@@ -42,32 +42,47 @@ afterEach(() => {
   localStorage.removeItem('camnc-plan-layout');
 });
 
+/** A board from one STEP fixture, laid out and ready for hold suggestions. */
+async function laidOutBoard(id: string, url: string) {
+  const bytes = await (await fetch(url)).arrayBuffer();
+  const job = await createJob(new File([bytes], `${id}.step`));
+  const stored = (await getModelBytes(job.id))!;
+  const model = await camWorker().importModel(Comlink.transfer(stored, [stored.buffer as ArrayBuffer]), job.fileName, modelKey(job));
+  const instances = instancesOf(model.parts, () => true);
+  const [board] = reconcileBoards(undefined, instances, 'oak');
+  return { laid: withLayout(board, nestBoard(board, instances, 3.175)), instances };
+}
+
+const HOLD_BOARDS = [
+  ['frame-01', frameUrl],
+  ['gear-02', gearUrl],
+  ['round-02', ringsUrl],
+  ['tray-02', trayUrl],
+];
+
 describe('varied STEP boards, end to end', () => {
-  it.each([
-    ['frame-01', frameUrl],
-    ['gear-02', gearUrl],
-    ['round-02', ringsUrl],
-    ['tray-02', trayUrl],
-  ])(
-    '%s gets its holds in under 300 ms, clear of every cut at the app’s real clearances',
+  it.each(HOLD_BOARDS)(
+    '[performance] %s gets its holds in under 300 ms',
     async (id, url) => {
-      const bytes = await (await fetch(url)).arrayBuffer();
-      const job = await createJob(new File([bytes], `${id}.step`));
-      const stored = (await getModelBytes(job.id))!;
-      const model = await camWorker().importModel(Comlink.transfer(stored, [stored.buffer as ArrayBuffer]), job.fileName, modelKey(job));
-      const instances = instancesOf(model.parts, () => true);
-      const [board] = reconcileBoards(undefined, instances, 'oak');
-      const laid = withLayout(board, nestBoard(board, instances, 3.175));
-      // Best of three: the suite shares its runner, and a busy moment is not a slower algorithm.
-      let next = laid;
+      const { laid, instances } = await laidOutBoard(id, url);
+      // Best of three: even the performance phase shares a CI machine, and a busy moment is not a slower algorithm.
       let ms = Infinity;
       for (let run = 0; run < 3; run++) {
         const t = performance.now();
-        next = suggestFixtures(laid, instances, 3.175);
+        suggestFixtures(laid, instances, 3.175);
         ms = Math.min(ms, performance.now() - t);
       }
-      console.info(`${id}: ${ms.toFixed(0)} ms, ${next.fixtures?.length} holds`);
+      console.info(`${id}: ${ms.toFixed(0)} ms`);
       expect(ms).toBeLessThan(300);
+    },
+    120_000
+  );
+
+  it.each(HOLD_BOARDS)(
+    '%s gets holds clear of every cut at the app’s real clearances',
+    async (id, url) => {
+      const { laid, instances } = await laidOutBoard(id, url);
+      const next = suggestFixtures(laid, instances, 3.175);
       const nest = nestBoard(next, instances, 3.175);
       const { input, spots } = settleInputOf(next, nest, instances, 3.175);
       for (const f of next.fixtures ?? []) expect(fixtureFree(input, spots, f)).toBe(true);

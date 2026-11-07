@@ -23,6 +23,7 @@ import {
   type PartCam,
   type TabSettings,
 } from './toolpaths';
+import { CamInputError } from './validation';
 
 /**
  * How the parts are held while cutting. `tabs` / `tabs-guided`: tabs into stock that reaches the board's edge (removed
@@ -67,6 +68,8 @@ export interface BoardSpec {
   h: number;
   thickness: number;
   holdDown: HoldDown;
+  /** Skin parts get their walls trimmed by the cut-free lap. Not for a board that's turned over before that lap. */
+  finishWallsAtRelease?: boolean;
   tabs?: TabSettings;
   /**
    * Turn the whole board (counterclockwise, degrees) about its lower left corner, the XY zero: aligning to a board that
@@ -323,6 +326,12 @@ function transformOperation(operation: Operation, transform: (point: Vec3) => Ve
         }),
       },
     }),
+    ...(operation.finishAtRelease && {
+      finishAtRelease: {
+        loop: operation.finishAtRelease.loop.map(transform),
+        approach: transform(operation.finishAtRelease.approach),
+      },
+    }),
     passes: operation.passes.map(pass => ({
       ...pass,
       pts: pass.pts.map(transform),
@@ -365,7 +374,7 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
       h?.how === 'placed' && tabs
         ? { tabs: { ...tabs, centers: h.tabs.map(q => boardToPart(part, q)) } }
         : h?.how === 'skin'
-          ? { tabs: false, outlineFloor: layer }
+          ? { tabs: false, outlineFloor: layer, outlineFinishAtRelease: board.finishWallsAtRelease }
           : h?.how === 'unheld'
             ? { tabs: false }
             : {};
@@ -421,6 +430,19 @@ export function camBoard(board: BoardSpec, settings: Partial<CamSettings>): Part
         cam.warnings.push('Tangent profile lead intersects a neighboring part; using contour ramps');
       }
     }
+    // The usual allowance fits the required gap; more can push the roughing path into a neighbor.
+    if (
+      (requested.leaveStock ?? 0) > (DEFAULT_SETTINGS.leaveStock ?? 0) &&
+      cam.operations.some(
+        op => op.feature === 'outline' && pocketOperationClashes(op, pocketNeighbors, point => partToBoard(part, point), 0)
+      )
+    )
+      throw new CamInputError([
+        {
+          field: 'leaveStock',
+          message: `${part.name}: the outline cut reaches a neighboring part. Widen the gap or lower the outline wall finish.`,
+        },
+      ]);
     warnings.push(...cam.warnings.map(w => `${part.name}: ${w}`));
     holeMiddles.push(...(cam.holeMiddles ?? []).map(m => ({ ...m, part: part.id })));
     cam.operations.forEach((op, index) =>

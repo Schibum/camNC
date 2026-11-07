@@ -256,11 +256,11 @@ function stability(flat: PartCam, spec: BoardSpec, settings: Partial<CamSettings
 
 /**
  * The guided programs after the cutting, from the board as laid out (not turned on the bed): `freePartsProgram` for
- * parts that keep a skin or the layer on the tape, `tabRemovalProgram` for "tabs + guided removal". No new toolpaths:
- * they follow the outlines' last passes.
+ * parts that keep a skin or the layer on the tape, `tabRemovalProgram` for "tabs + guided removal". They follow the
+ * outlines' finished paths.
  */
 function releasePrograms(flat: PartCam, board: BoardRequest, settings: Partial<CamSettings>, turned: boolean, perPart: boolean) {
-  const feed = (settings.feed ?? 1800) * (settings.finalFeedFactor ?? 0.5);
+  const feed = settings.finishFeed ?? (settings.feed ?? 1800) * (settings.finalFeedFactor ?? 0.5);
   const plungeFeed = settings.plungeFeed ?? 480;
   const finalZ = settings.finalZ ?? -0.3;
   const flipped = turned ? { turned: { h: board.h } } : {};
@@ -306,7 +306,7 @@ function releasePrograms(flat: PartCam, board: BoardRequest, settings: Partial<C
       feed,
       plungeFeed,
       ...flipped,
-      ...(perPart && { perPart, fullFeed: settings.feed ?? 1800 }),
+      ...(perPart && { perPart }),
     });
     add(
       'tabs',
@@ -392,6 +392,8 @@ const turnCam = (cam: PartCam, turn: ReturnType<typeof rotateAboutOrigin>): Part
 function boardSpec(key: string, board: BoardRequest): BoardSpec {
   return {
     ...board,
+    // Turned over, the cut-free lap depends on how well the board was realigned: the main program finishes the walls.
+    finishWallsAtRelease: !board.flip,
     tabs: { ...DEFAULT_TABS, ...board.tabs },
     parts: board.parts.map(p => {
       const { part, features } = loaded(key, p.partId);
