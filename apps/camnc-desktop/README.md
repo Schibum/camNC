@@ -13,7 +13,7 @@ adds what a browser cannot do:
 - **Machine control without browser restrictions.** The FluidNC socket and file upload go through Rust
   (`tauri-plugin-websocket`, `tauri-plugin-http`), so no mixed-content blocking or local network permission applies.
 
-Users install it from the [latest release](https://github.com/Schibum/camNC/releases/latest); the root
+Users install it from the [latest release](https://github.com/plainoss/camNC/releases/latest); the root
 [README](../../README.md#desktop-app-recommended) has the user-facing install notes. This file is for building and
 releasing it.
 

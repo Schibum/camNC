@@ -248,7 +248,7 @@ export async function runSetupSmoke(
     assert.deepEqual(await page.evaluate(() => window.__camncSmokeFluidNc.rejected), []);
     check('connects to a simulated FluidNC 3.9.9 on port 81 and reads its bounds from single config items');
 
-    await navigate('Machine');
+    await navigate('At the machine');
     await page.getByLabel('breadcrumb').getByText(topViewTitle).waitFor();
     await page.reload();
     await page.getByLabel('breadcrumb').getByText(topViewTitle).waitFor();
@@ -355,7 +355,8 @@ export async function runSetupSmoke(
     const imported = await waitForSavedCamera('extrinsics');
     assert.deepEqual(imported.calibration, reloaded.calibration);
     assert.deepEqual(imported.extrinsics, reloaded.extrinsics);
-    await navigate('Machine');
+    // Restoring the backup already returns to the default machine view.
+    await page.waitForURL('**/visualize/2DView');
     await page.getByLabel('breadcrumb').getByText(topViewTitle).waitFor();
     check('camera configuration exports and imports through the UI');
     assert.deepEqual(pageErrors, [], `Uncaught browser errors: ${pageErrors.join('; ')}`);
