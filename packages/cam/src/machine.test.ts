@@ -142,10 +142,10 @@ describe('at the machine', () => {
     expect(checkGcodeSafety(gcode, { stockTop: 8, size: [340, 140], minZ: -0.3, toolRadius: 3.175 / 2 })).toEqual([]);
   });
 
-  it('guided tab removal, one pause per part: its tabs in a row, the last slower, then bit up, spindle off, take it out', () => {
+  it('guided tab removal, one pause per part: its tabs in a row, then bit up, spindle off, take it out', () => {
     const cam = camBoard(board(), { tabs: DEFAULT_TABS });
     const perTab = tabRemovalProgram(cam, { feed: 600, plungeFeed: 300 });
-    const { cam: removal, tabs } = tabRemovalProgram(cam, { feed: 600, fullFeed: 1800, plungeFeed: 300, perPart: true });
+    const { cam: removal, tabs } = tabRemovalProgram(cam, { feed: 600, plungeFeed: 300, perPart: true });
     // The same tabs, cut the same way, only the pauses differ.
     expect(tabs).toEqual(perTab.tabs);
     const parts = new Set(tabs.map(t => t.part));
@@ -162,9 +162,9 @@ describe('at the machine', () => {
       expect(lines[i - 2]).toBe('M5');
       expect(lines[i - 3]).toMatch(/Z13$/);
     }
-    // Per part: every tab at the full feed but the last one, which frees the part.
-    const feeds = removal.operations.map(o => o.passes.map(p => p.feeds[1]));
-    for (const f of feeds) expect(f).toEqual([...f.slice(0, -1).map(() => 1800), 600]);
+    // These cuts land on the finished wall: every tab at the finishing feed.
+    const feeds = removal.operations.flatMap(o => o.passes.map(p => p.feeds[1]));
+    expect(new Set(feeds)).toEqual(new Set([600]));
     expect(Math.min(...cuts(gcode).map(m => m.to[2]))).toBeCloseTo(-0.3, 3);
     expect(checkGcodeSafety(gcode, { stockTop: 8, size: [340, 140], minZ: -0.3, toolRadius: 3.175 / 2 })).toEqual([]);
   });

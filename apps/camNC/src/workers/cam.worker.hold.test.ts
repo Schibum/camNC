@@ -50,6 +50,31 @@ describe('the worker: holds on a real board with a second side', () => {
       )
     );
 
+  describe('skin parts: where the walls get finished', () => {
+    const settings = { tools: [{ number: 1, diameter: kBit, stepdown: 3 }], finishFeed: 777 };
+    const request = (flip: boolean) => {
+      const r = boardRequest(sheet, nestBoard(sheet, parts, kBit), parts);
+      return { ...r, holdDown: 'skin' as const, ...(!flip && { flip: undefined }) };
+    };
+    // An outline's final lap runs level on top of the skin; holes keep theirs, deeper.
+    const finishing = (gcode: string, skin: number) =>
+      readGcode(gcode).some(m => !m.rapid && m.feed === 777 && Math.abs(m.from[2] - skin) < 1e-6 && Math.abs(m.to[2] - skin) < 1e-6);
+
+    it('a one-sided board: the cut-free program, at the finishing feed, and not before', async () => {
+      const p = await camWorker().generateBoard(key, request(false), settings);
+      expect(p.sideB).toBeFalsy();
+      const free = p.release!.find(r => r.kind === 'free')!;
+      expect(readGcode(free.gcode).some(m => !m.rapid && m.feed === 777)).toBe(true);
+      expect(p.programs.some(q => finishing(q.gcode, p.skin!))).toBe(false);
+    }, 120_000);
+
+    it('a board turned over before release: the main program, so it doesn’t depend on the realignment', async () => {
+      const p = await camWorker().generateBoard(key, request(true), settings);
+      expect(p.sideB).toBeTruthy();
+      expect(p.programs.some(q => finishing(q.gcode, p.skin!))).toBe(true);
+    }, 120_000);
+  });
+
   it('with suggested clamps: not blocked, and rapids clear them', async () => {
     const p = await plan(held(sheet));
     expect(p.sideB).toBeTruthy();

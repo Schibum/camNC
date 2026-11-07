@@ -23,13 +23,12 @@ export interface TabStop {
  * spindle starts again and it cuts through the tab at the final depth and slower feed. The last tab of a part frees it,
  * so nothing flies off.
  *
- * `perPart`: no stop per tab. A part's tabs are cut in a row (at `fullFeed`, the last one, which frees it, at `feed`),
- * then the bit goes up, the spindle stops and the program pauses: "Take out <part>". The spindle starts again before
+ * `perPart`: no stop per tab. A part's tabs are cut in a row, then the bit goes up, the spindle stops and the program pauses: "Take out <part>". The spindle starts again before
  * the next part; nothing moves while paused.
  */
 export function tabRemovalProgram(
   cam: PartCam,
-  opts: { feed: number; plungeFeed: number; turned?: TurnedOver; perPart?: boolean; fullFeed?: number }
+  opts: { feed: number; plungeFeed: number; turned?: TurnedOver; perPart?: boolean }
 ): { cam: PartCam; tabs: TabStop[] } {
   const turned = opts.turned;
   const at = (p: { x: number; y: number }) => (turned ? { x: p.x, y: turned.h - p.y } : p);
@@ -56,11 +55,9 @@ export function tabRemovalProgram(
       const pts: Vec3[] = turned
         ? [...run].reverse().map(q => [q[0], turned.h - q[1], cam.stockTop - top + deepest])
         : run.map(q => [q[0], q[1], deepest]);
-      const last = passes.length === runs.length - 1;
-      const feed = opts.perPart && !last ? (opts.fullFeed ?? opts.feed) : opts.feed;
       const pass: Pass = {
         pts,
-        feeds: pts.map((_, k) => (k === 0 ? opts.plungeFeed : feed)),
+        feeds: pts.map((_, k) => (k === 0 ? opts.plungeFeed : opts.feed)),
         roles: pts.map((_, k) => (k === 0 ? 'approach' : 'finish')),
         phase: 'finish',
         link: 'retract',
