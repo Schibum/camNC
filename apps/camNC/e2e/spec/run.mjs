@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import { createServer } from 'node:net';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -10,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.dirname(fileURLToPath(import.meta.url));
 
 function parseArgs(args) {
-  const options = { url: null, only: '', headed: false, list: false, update: false };
+  const options = { url: null, only: '', headed: false, list: false, update: false, workers: 4 };
   for (let i = 0; i < args.length; i++) {
     const flag = args[i];
     if (flag === '--') continue;
@@ -19,9 +20,22 @@ function parseArgs(args) {
     else if (flag === '--headed') options.headed = true;
     else if (flag === '--list') options.list = true;
     else if (flag === '--update-goldens') options.update = true;
+    else if (flag === '--workers') options.workers = Math.max(1, Number(args[++i]) || 1);
     else throw new Error(`Unknown option: ${flag}`);
   }
   return options;
+}
+
+/** A port nothing is using, so runs from different worktrees don't collide. */
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const probe = createServer();
+    probe.once('error', reject);
+    probe.listen(0, '127.0.0.1', () => {
+      const { port } = probe.address();
+      probe.close(() => resolve(port));
+    });
+  });
 }
 
 async function loadScenarios(only) {
@@ -113,7 +127,7 @@ await mkdir(outDir, { recursive: true });
 let server = null;
 if (!options.url) {
   // Own a server unless given one, so one command runs everything, locally and in CI.
-  const port = 5196;
+  const port = await freePort();
   options.url = `http://127.0.0.1:${port}`;
   server = spawn('pnpm', ['vite', '--port', String(port), '--host', '127.0.0.1', '--strictPort'], {
     cwd: path.resolve(root, '../..'),
@@ -133,16 +147,30 @@ const { chromium } = createRequire(import.meta.url)('playwright');
 const browser = await chromium.launch({ headless: !options.headed });
 const counts = { PASS: 0, FAIL: 0, XFAIL: 0, XPASS: 0 };
 const results = [];
-for (const scenario of scenarios) {
+const run = async (scenario, index) => {
   const failures = await runScenario(browser, scenario, options, outDir);
   const result = failures.length ? (scenario.known ? 'XFAIL' : 'FAIL') : scenario.known ? 'XPASS' : 'PASS';
   counts[result]++;
-  results.push({ id: scenario.id, result, failures });
-  console.log(`${result.padEnd(5)} ${scenario.id}`);
-  if (result === 'FAIL') for (const failure of failures) console.log(`        ${failure}`);
-  if (result === 'XFAIL') console.log(`        known: ${scenario.known}`);
-  if (result === 'XPASS') console.log(`        now passes; remove known: ${scenario.known}`);
-}
+  results[index] = { id: scenario.id, result, failures };
+  const lines = [`${result.padEnd(5)} ${scenario.id}`];
+  if (result === 'FAIL') lines.push(...failures.map(failure => `        ${failure}`));
+  if (result === 'XFAIL') lines.push(`        known: ${scenario.known}`);
+  if (result === 'XPASS') lines.push(`        now passes; remove known: ${scenario.known}`);
+  console.log(lines.join('\n'));
+};
+// The first scenario runs alone, so the dev server's cold start can't eat into the timeouts of several at once.
+if (scenarios.length) await run(scenarios[0], 0);
+// Rewriting goldens stays serial, so a run can be compared with what it replaced in order.
+const workers = options.update ? 1 : options.workers;
+let next = 1;
+await Promise.all(
+  Array.from({ length: workers }, async () => {
+    while (next < scenarios.length) {
+      const index = next++;
+      await run(scenarios[index], index);
+    }
+  })
+);
 await browser.close();
 if (server) process.kill(-server.pid);
 await writeFile(path.join(outDir, 'results.json'), JSON.stringify(results, null, 2) + '\n');
