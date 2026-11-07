@@ -1,3 +1,4 @@
+import { getCncApi } from '@/lib/fluidnc/machine';
 import { useStore } from '@/store/store';
 import { Button } from '@wbcnc/ui/components/button';
 import { Checkbox } from '@wbcnc/ui/components/checkbox';
@@ -29,7 +30,7 @@ const holdKindName = (e: QueueEntry) => (e.board.request?.holdPoints?.[0]?.kind 
  */
 export function CamQueueCard() {
   const [queueOpen, setQueueOpen] = useState(false);
-  const { jobId, active, setActive, markDone, rotation, leave, setOverlay, pauseEachTab, setPauseEachTab } = useCamMachine();
+  const { jobId, active, setActive, markDone, rotation, leave, setOverlay, pauseEachTab, setPauseEachTab, setMidBoard } = useCamMachine();
   const spindle = useStore(s => s.machinePrefs.spindleSwitch ?? 'hand');
   const { job, queue, current, done, stale, loading, modelError, setStockThickness, parts } = useMachineQueue();
   const gcodeOf = (e: QueueEntry) => (e.blocked || stale?.has(e.board.board.id) ? undefined : entryProgram(e)?.gcode);
@@ -60,9 +61,14 @@ export function CamQueueCard() {
     );
   };
   const load = (e: QueueEntry) => {
+    // Another bit means another length: a Z zero, measured or marked as done before, no longer holds.
+    const bit = entryProgram(e)?.diameter;
+    if (e.key !== active && bit !== undefined && bit !== e.bitBefore) getCncApi().zZeroedAt.value = null;
     setActive(e.key);
     show(e, true);
   };
+  const midBoard = !!current && !current.firstOfBoard;
+  useEffect(() => setMidBoard(midBoard), [midBoard, setMidBoard]);
   const gcode = current ? gcodeOf(current) : undefined;
   const shownDeg = current ? entryRotation(current, rotation) : 0;
   const busy = useMachineBusy();
@@ -242,6 +248,7 @@ export function CamQueueCard() {
             <SetupStep
               key={board.id}
               state="todo"
+              markable
               startFolded={board.measuredThickness !== undefined}
               label="Board"
               title={<span className="whitespace-nowrap">{`Board ${board.name} on the bed`}</span>}
@@ -309,7 +316,9 @@ export function CamQueueCard() {
           )}
           {swap && (
             <SetupStep
+              key={current.key}
               state="todo"
+              markable
               startFolded={current.firstOfBoard}
               label="Bit"
               title={<span className="whitespace-nowrap">{swapText}</span>}

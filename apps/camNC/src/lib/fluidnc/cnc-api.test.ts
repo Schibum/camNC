@@ -36,6 +36,42 @@ describe('CncApi', () => {
     expect(api.canJog.value).toBe(true);
   });
 
+  describe('going to XY zero', () => {
+    const z = { min: -97, max: 3, softLimits: true };
+    const ready = async (mposZ: number, homed: boolean, travel = true) => {
+      const fake = new FakeFluidnc('v4');
+      const api = await connected(fake);
+      fake.mpos.z = mposZ;
+      fake.pushStatus();
+      await until(() => api.status.value?.mpos.z === mposZ);
+      api.homed.value = homed;
+      if (travel) api.travel.value = { x: null, y: null, z };
+      const before = fake.received.length;
+      await api.goToXYZero();
+      return fake.received.slice(before);
+    };
+
+    it('lifts to just below the top of the Z travel first, once homed', async () => {
+      expect(await ready(-40, true)).toEqual(['G53 G0 Z2', 'G90 G0 X0 Y0']);
+    });
+
+    it('does not lift what is already that high', async () => {
+      expect(await ready(2.5, true)).toEqual(['G90 G0 X0 Y0']);
+    });
+
+    it('lifts by a fixed distance when unhomed', async () => {
+      expect(await ready(-40, false)).toEqual(['G91 G0 Z10.000', 'G90', 'G90 G0 X0 Y0']);
+    });
+
+    it('lifts only as far as the travel allows when unhomed', async () => {
+      expect(await ready(-2, false)).toEqual(['G91 G0 Z5.000', 'G90', 'G90 G0 X0 Y0']);
+    });
+
+    it('lifts by the fixed distance while the travel is unknown', async () => {
+      expect(await ready(-40, false, false)).toEqual(['G91 G0 Z10.000', 'G90', 'G90 G0 X0 Y0']);
+    });
+  });
+
   it('jogs, zeroes and probes with the expected commands', async () => {
     const fake = new FakeFluidnc('v4');
     const api = await connected(fake);

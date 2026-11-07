@@ -1,7 +1,9 @@
 import { getCncApi } from '@/lib/fluidnc/machine';
 import { useStore, getMachineBounds } from '@/store/store';
+import { signal } from '@preact/signals-react';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { useEffect } from 'react';
+import { Vector3 } from 'three';
 import { JobRecord, saveJobRecord } from './jobRecord';
 import { applyRecord, InterruptedJob, interruptedJob, noteJobStopRequested, runningJobName } from './jobRecovery';
 import type { Macro } from './macros';
@@ -51,6 +53,11 @@ export async function stopJob() {
   api.softReset();
 }
 
+/** Shows where the program would run from the zero on the controller, while the user looks at running from there. */
+export const machineZeroPreview = signal(false);
+/** Shows the way the bit would go, in machine coordinates, while the user points at a move. */
+export const moveTargetPreview = signal<{ x: number; y: number } | null>(null);
+
 /** Set the machine's work XY zero to where the toolpath is placed on the camera view. */
 export function setXYZeroFromToolpath(move = false) {
   const api = getCncApi();
@@ -62,6 +69,33 @@ export function setXYZeroFromToolpath(move = false) {
     error: err => `Setting XY zero failed: ${errorText(err)}`,
   });
   return promise.catch(() => {});
+}
+
+/** Move the toolpath onto the zero on the controller. The drag flag makes a CAM job keep this as the board's spot. */
+export async function moveToolpathToMachineZero() {
+  const zero = await getCncApi()
+    .getCurrentZero()
+    .catch(() => null);
+  if (!zero) {
+    toast.error('Unable to read machine zero');
+    return;
+  }
+  const store = useStore.getState();
+  store.setIsToolpathDragging(true);
+  store.setToolpathOffset(new Vector3(zero.x, zero.y, zero.z));
+  setTimeout(() => useStore.getState().setIsToolpathDragging(false));
+  toast.success('Toolpath moved to the machine zero', { description: `${zero.x.toFixed(2)}, ${zero.y.toFixed(2)}` });
+}
+
+/** Zero XY at the bit, and the toolpath follows: what's drawn stays where it will cut. */
+export async function zeroXYAtBit() {
+  try {
+    await getCncApi().zeroAxes(['x', 'y']);
+  } catch (err) {
+    toast.error('Zeroing failed', { description: errorText(err) });
+    return;
+  }
+  await moveToolpathToMachineZero();
 }
 
 const kUploadToast = 'upload-gcode';
@@ -91,7 +125,15 @@ function recordJob(fields: Pick<JobRecord, 'gcode' | 'sdFile' | 'toolpathName'>)
   }).catch(() => {});
 }
 
-/** Upload the current G-code and run it. Zeroing is a separate step (see the checklist). */
+/** Set XY zero to where the toolpath is placed, then upload and run: it cuts where it's drawn. */
+export async function zeroAndRun() {
+  assertInsideTravel();
+  const { x, y } = useStore.getState().toolpathOffset;
+  await step(getCncApi().setWorkspaceXYZero(x, y), 'Setting XY zero…', `XY zero set to ${x.toFixed(2)}, ${y.toFixed(2)}`);
+  await uploadAndRun();
+}
+
+/** Upload the current G-code and run it from the zero on the controller. */
 export async function uploadAndRun() {
   const api = getCncApi();
   const { toolpath, toolpathName } = useStore.getState();
