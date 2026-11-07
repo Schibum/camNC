@@ -28,9 +28,9 @@ afterEach(cleanup);
 
 const drawing = (name: string) => screen.queryByRole('region', { name: `${name} drawing` });
 
-async function open() {
+async function open(file = boardLayoutFile()) {
   // Keep the real import, nesting and planning path; full STEP models are covered by the Boards and Plan integration suites.
-  const job = await createJob(boardLayoutFile(), {
+  const job = await createJob(file, {
     parts: ['left', 'right', 'back'].map((name, i) => ({ id: `part-${i}`, name, quantity: 1, milled: true })),
   });
   params.jobId = job.id;
@@ -240,6 +240,38 @@ describe('CAM boards layout', () => {
     await waitFor(async () => expect(Object.values((await saved(job.id)).setAside ?? {})).toMatchObject([{ rotated: true }]), {
       timeout: 10_000,
     });
+  }, 90_000);
+
+  it('saves a square part turned with R on a board, where turning it moves nothing', async () => {
+    const job = await open(
+      boardLayoutFile([
+        { x: 0, w: 300, h: 300, t: 8 },
+        { x: 400, w: 200, h: 200, t: 8 },
+      ])
+    );
+    await waitFor(async () => expect((await saved(job.id)).layout).toBeTruthy(), { timeout: 10_000 });
+    // Room to set it down exactly where it's dropped.
+    const width = document.getElementById('board-w') as HTMLInputElement;
+    fireEvent.change(width, { target: { value: '1100' } });
+    fireEvent.blur(width);
+    await waitFor(async () => expect((await saved(job.id)).size).toMatchObject({ fit: false, w: 1100 }), { timeout: 10_000 });
+    const part = await within(drawing('Board A')!).findByRole('button', { name: /^left: drag, or move/ });
+    const start = part.getBoundingClientRect();
+    fireEvent.pointerDown(part, { clientX: start.x + 20, clientY: start.y + 20, button: 0 });
+    const frame = drawing('Board A')!.querySelector<SVGGraphicsElement>('[data-board-frame]')!;
+    const p = new DOMPoint(800, 400).matrixTransform(frame.getScreenCTM()!);
+    const to = { clientX: p.x, clientY: p.y };
+    fireEvent.pointerMove(window, to);
+    fireEvent.keyDown(window, { key: 'r' });
+    fireEvent.pointerUp(window, to);
+    await waitFor(
+      async () => {
+        const a = await saved(job.id);
+        const id = a.items.find(i => a.layout!.at[i]?.x > 500)!;
+        expect(a.layout!.at[id].rotated).toBe(true);
+      },
+      { timeout: 10_000 }
+    );
   }, 90_000);
 
   it('sizes one selected clamp, then offers the same for the others, with Undo and Redo', async () => {

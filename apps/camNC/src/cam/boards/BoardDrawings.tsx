@@ -492,7 +492,8 @@ export function BoardDrawings({
     const onlyMargins = board.size.fit && !nest.placements.length;
     if (!onlyMargins && !within(p) && !within({ x: at.x + r.w / 2, y: at.y + r.h / 2 })) return onTable();
     const prev = d.target;
-    if (prev?.kind === 'drawing' && prev.board === board.id && prev.at.x === at.x && prev.at.y === at.y) return prev;
+    if (prev?.kind === 'drawing' && prev.board === board.id && prev.at.x === at.x && prev.at.y === at.y && prev.at.rotated === at.rotated)
+      return prev;
     const drop = sameThickness(inst.thickness, board.thickness)
       ? dropPart(board, instances, bit, d.item, at, kSnapPx / pxPerMm, nestOptions)
       : null;
