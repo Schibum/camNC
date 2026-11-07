@@ -1306,8 +1306,11 @@ export function profileOperation(
   validateDepthRange(topZ, floorZ, profileStep);
   if (s.profileFinishStepdown !== undefined) validateDepthRange(topZ, floorZ, s.profileFinishStepdown);
   // The strip under the roughing floor is a new axial cut, even with a light radial finish allowance.
-  const extendRoughing = !finishAtRelease && roughBottom - floorZ > profileStep + 1e-9;
-  const roughTo = extendRoughing || finishAtRelease ? floorZ : roughBottom;
+  // With no wall stock, cut straight to the requested floor at the cutting feed. An explicit
+  // finishing depth limit still controls the bottom strip independently of the radial allowance.
+  const finishWithRoughing = s.leaveStock === 0 && s.profileFinishStepdown === undefined;
+  const extendRoughing = !finishAtRelease && !finishWithRoughing && roughBottom - floorZ > profileStep + 1e-9;
+  const roughTo = extendRoughing || finishAtRelease || finishWithRoughing ? floorZ : roughBottom;
   const roughLevels = topZ - roughTo > 0.01 ? depthLevels(topZ, roughTo, profileStep) : [];
   if (extendRoughing) roughLevels.pop();
   const append = (baseLoop: Loop, zFrom: number, z: number, feed: number, phase: 'rough' | 'finish') => {
@@ -1373,7 +1376,7 @@ export function profileOperation(
   const finishTop = s.leaveStock > 0 && s.profileFinishStepdown !== undefined ? topZ : previousZ;
   const finishLevels = s.profileFinishStepdown !== undefined ? depthLevels(finishTop, floorZ, s.profileFinishStepdown) : [floorZ];
   previousZ = finishTop;
-  if (!finishAtRelease)
+  if (!finishAtRelease && !finishWithRoughing)
     for (const z of finishLevels) {
       append(final, previousZ, z, ffeed, 'finish');
       previousZ = z;

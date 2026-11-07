@@ -107,7 +107,6 @@ describe('finishing a skin part’s walls as it is cut free', () => {
 
   it.each([
     ['not asked for', { finishWallsAtRelease: false }, {}],
-    ['no stock to trim', {}, { leaveStock: 0 }],
     ['too much stock for one lap', {}, { leaveStock: 1, profileFinishStepdown: 6 }],
   ])('keeps the final lap in the main program: %s', (_, spec, cutting) => {
     const cam = camBoard(board(spec), { ...settings, ...cutting });
@@ -118,6 +117,19 @@ describe('finishing a skin part’s walls as it is cut free', () => {
     // And the cut-free lap still follows the finished path, with no approach added.
     const { pts } = free(cam).operations[0].passes[0];
     expect(Math.max(...xs(pts))).toBeCloseTo(153, 2);
+  });
+
+  it('with zero wall stock, cuts to the skin once and still frees the part on the finished path', () => {
+    const cam = camBoard(board(), { ...settings, leaveStock: 0 });
+    const outline = cam.operations.find(o => o.feature === 'outline')!;
+    expect(outline.finishAtRelease).toBeUndefined();
+    expect(outline.passes.every(pass => pass.phase === 'rough')).toBe(true);
+    const last = outline.passes.at(-1)!;
+    expect(last.pts.every(point => point[2] === 1)).toBe(true);
+    expect(Math.max(...xs(last.pts))).toBeCloseTo(153, 2);
+    const released = free(cam);
+    expect(Math.max(...xs(released.operations[0].passes[0].pts))).toBeCloseTo(153, 2);
+    expect(checkGcodeSafety(toGcode(released), { stockTop: 12, size: [300, 200], minZ: -0.3, toolRadius: 3 })).toEqual([]);
   });
 
   it('tabs are not affected', () => {

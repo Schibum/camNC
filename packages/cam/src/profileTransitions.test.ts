@@ -18,6 +18,61 @@ const length = (pass: Pass) =>
   );
 
 describe('profile finishing and depth transitions', () => {
+  it.each([
+    { name: 'through outline', inside: false, outlineFloor: undefined, finalZ: -0.3 },
+    { name: 'skin outline', inside: false, outlineFloor: 1, finalZ: -0.3 },
+    { name: 'through hole', inside: true, outlineFloor: 1, finalZ: -0.3 },
+    { name: 'deep outline', inside: false, outlineFloor: undefined, finalZ: -6 },
+  ])('cuts $name to depth without a finishing lap when wall stock is zero', ({ inside, outlineFloor, finalZ }) => {
+    const floor = inside ? finalZ : (outlineFloor ?? finalZ);
+    const operation = profileOperation(
+      'zero finish',
+      rectangle(20, 20, 70, 50),
+      12,
+      tool,
+      {
+        ...settings,
+        leaveStock: 0,
+        outlineFloor,
+        outlineFinishAtRelease: true,
+        finalZ,
+        maxStepdown: 12,
+      },
+      inside
+    );
+    expect(operation.passes.every(pass => pass.phase === 'rough')).toBe(true);
+    expect(operation.passes.at(-1)!.pts.every(point => point[2] === floor)).toBe(true);
+    const depths = [12, ...uniqueDepths(operation.passes)];
+    for (let i = 1; i < depths.length; i++) expect(depths[i - 1] - depths[i]).toBeLessThanOrEqual(12 + 1e-9);
+    const laps = operation.passes.filter(pass => !pass.entry);
+    expect(laps.filter(pass => minimum(pass) === floor)).toHaveLength(1);
+    expect(laps.at(-1)!.pts[0]).toEqual(laps.at(-1)!.pts.at(-1));
+    expect(
+      laps
+        .at(-1)!
+        .feeds.slice(1)
+        .every(feed => feed === settings.feed)
+    ).toBe(true);
+    expect(() => toGcode(program(operation))).not.toThrow();
+  });
+
+  it('retains tabs and explicitly requested spring laps with zero wall stock', () => {
+    const operation = profileOperation('zero finish with tabs', rectangle(20, 20, 70, 50), 12, tool, {
+      ...settings,
+      leaveStock: 0,
+      tabs: { height: 3, width: 6, minCount: 3, spacing: 200 },
+      profileSpringPasses: 1,
+    });
+    const rough = operation.passes.filter(pass => pass.phase === 'rough');
+    expect(minimum(rough.at(-1)!)).toBe(settings.finalZ);
+    expect(rough.at(-1)!.pts.some(point => point[2] === 3)).toBe(true);
+    const finish = operation.passes.filter(pass => pass.phase === 'finish');
+    expect(finish).toHaveLength(1);
+    expect(finish[0].spring).toBe(true);
+    expect(finish[0].pts.some(point => point[2] === 3)).toBe(true);
+    expect(() => toGcode(program(operation))).not.toThrow();
+  });
+
   it('finishes a radial allowance with one complete full-depth lap by default', () => {
     const operation = profileOperation('outline', rectangle(20, 20, 70, 50), 12, tool, settings);
     const rough = operation.passes.filter(pass => pass.phase === 'rough');
