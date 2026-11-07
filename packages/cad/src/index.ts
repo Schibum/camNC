@@ -7,6 +7,8 @@ export * from './curves';
 export * from './pointEquivalence';
 export * from './curveContacts';
 export * from './sketchRegions';
+export * from './featureModel';
+export * from './features';
 
 export * from './dimensions';
 export * from './dimensionPlacement';

@@ -1,5 +1,7 @@
 import { Algorithm, GcsWrapper, init_planegcs_module, SolveStatus, type ModuleStatic, type SketchPrimitive } from '@salusoft89/planegcs';
-import { validateCadDocument, evaluateCadDocument, CAD_GEOMETRY_TOLERANCE } from './geometry';
+import { sketchTargets } from './featureModel';
+import { evaluateCadDocument } from './features';
+import { validateCadDocument, CAD_GEOMETRY_TOLERANCE } from './geometry';
 import type {
   CadArcEntity,
   CadConstraint,
@@ -411,7 +413,10 @@ function solvedCurveEquationsHold(part: CadPart): boolean {
 /** Solve a detached revision. Callers retain their accepted model while an invalid draft is edited. */
 export async function solveCadDocument(document: CadDocument, options: CadSolveOptions = {}): Promise<CadSolveResult> {
   const next = migrateDimensionPlacements(document);
-  for (const part of next.parts) part.sketch = withSplineHandleSegments(part.sketch);
+  for (const part of next.parts) {
+    part.sketch = withSplineHandleSegments(part.sketch);
+    for (const feature of part.features ?? []) if (feature.type === 'sketch') feature.sketch = withSplineHandleSegments(feature.sketch);
+  }
   const diagnostics = validateCadDocument(next);
   const sketches: CadSolveResult['sketches'] = [];
   if (diagnostics.some(d => d.severity === 'error')) return { document: next, status: 'invalid', diagnostics, parts: [], sketches };
@@ -441,7 +446,8 @@ export async function solveCadDocument(document: CadDocument, options: CadSolveO
     nativePromise = modulePromise!;
     let module = await nativePromise;
     nativeModule = module;
-    for (const part of next.parts) {
+    // Solving replaces each sketch's contents in place, so the face sketches update through their targets.
+    for (const part of next.parts.flatMap(sketchTargets)) {
       const fixedConflicts = fixedConstraintConflicts(part);
       if (fixedConflicts.length) {
         diagnostics.push(...fixedConflicts);
@@ -710,7 +716,9 @@ export async function solveCadDocument(document: CadDocument, options: CadSolveO
           // Open profiles are intentionally excluded: they remain normal editable sketch geometry.
           if (
             solvedCurveEquationsHold(solvedPart) &&
-            !validateCadDocument({ ...next, parts: [solvedPart] }).some(diagnostic => diagnostic.severity === 'error')
+            !validateCadDocument({ ...next, version: solvedPart.features?.length ? 2 : 1, parts: [solvedPart] }).some(
+              diagnostic => diagnostic.severity === 'error'
+            )
           ) {
             candidate = solvedPart;
             break;

@@ -591,12 +591,13 @@ export function parseCadDocument(input: unknown): CadDocument {
   if (!input || typeof input !== 'object') throw new Error('Invalid CAD document');
   const d = input as CadDocument;
   if (
-    d.version !== 1 ||
+    (d.version !== 1 && d.version !== 2) ||
     typeof d.id !== 'string' ||
     typeof d.name !== 'string' ||
     !Number.isSafeInteger(d.revision) ||
     d.revision < 0 ||
-    !Array.isArray(d.parts)
+    !Array.isArray(d.parts) ||
+    (d.version === 2 && !d.parts.some(p => p?.features?.length))
   )
     throw new Error('Invalid CAD document');
   const ids = new Set<string>([d.id]);
@@ -613,7 +614,6 @@ export function parseCadDocument(input: unknown): CadDocument {
   for (const p of d.parts) {
     if (!p || typeof p !== 'object' || !p.sketch || typeof p.sketch !== 'object') throw new Error('Invalid CAD part');
     addId(p.id);
-    addId(p.sketch?.id);
     if (
       typeof p.name !== 'string' ||
       typeof p.thickness !== 'number' ||
@@ -622,183 +622,208 @@ export function parseCadDocument(input: unknown): CadDocument {
     )
       throw new Error('Invalid CAD part');
     number(p.thickness);
-    for (const e of p.sketch.entities) {
-      if (!e || typeof e !== 'object') throw new Error('Invalid CAD entity');
-      addId(e.id);
-      if (!['point', 'line', 'circle', 'arc', 'conic', 'bezier', 'spline'].includes(e.type)) throw new Error('Unknown CAD entity');
-      if (e.construction !== undefined && typeof e.construction !== 'boolean') throw new Error('Invalid construction flag');
-      if (e.type === 'point') {
-        number(e.x);
-        number(e.y);
-        if (e.fixed !== undefined && typeof e.fixed !== 'boolean') throw new Error('Invalid fixed flag');
-        if (e.standalone !== undefined && typeof e.standalone !== 'boolean') throw new Error('Invalid standalone point flag');
-      } else {
-        if (e.type === 'bezier' || e.type === 'spline') {
-          if (!Array.isArray(e.controlPointIds)) throw new Error('Invalid curve controls');
-        }
-        if (e.type === 'spline') {
-          if (![e.fitPointIds, e.fitParameters, e.knots, e.weights].every(Array.isArray)) throw new Error('Invalid spline data');
-          e.fitPointIds.forEach(reference);
-          e.fitParameters.forEach(number);
-          e.knots.forEach(number);
-          e.weights.forEach(number);
-          number(e.degree);
-          if (e.closed !== undefined && typeof e.closed !== 'boolean') throw new Error('Invalid closed spline flag');
-        }
-        if (e.type === 'conic') number(e.rho);
-        entityPointIds(e).forEach(reference);
-        if (e.type === 'circle' || e.type === 'arc') number(e.radius);
-        if (e.type === 'arc') {
-          number(e.startAngle);
-          number(e.endAngle);
-        }
-      }
+    if (d.version === 1 && p.features !== undefined) throw new Error('Invalid CAD document');
+    if (p.features !== undefined && !Array.isArray(p.features)) throw new Error('Invalid CAD features');
+    const sketches = [p.sketch];
+    for (const f of p.features ?? []) {
+      if (!f || typeof f !== 'object') throw new Error('Invalid CAD feature');
+      addId(f.id);
+      if (f.type === 'sketch') {
+        if (!f.sketch || typeof f.sketch !== 'object' || !Array.isArray(f.sketch.entities) || !Array.isArray(f.sketch.constraints))
+          throw new Error('Invalid CAD feature');
+        if (f.on !== 'top' && f.on !== 'underside' && (typeof f.on !== 'object' || !f.on)) throw new Error('Invalid CAD feature');
+        if (typeof f.on === 'object') reference(f.on.floorOf);
+        sketches.push(f.sketch);
+      } else if (f.type === 'cut') {
+        reference(f.sketchId);
+        reference(f.regionId);
+        if (f.depth !== 'through') number(f.depth);
+      } else throw new Error('Invalid CAD feature');
     }
-    const entityMap = new Map(p.sketch.entities.map(e => [e.id, e]));
-    for (const entity of p.sketch.entities) {
-      const issue = splineHandleIssue(entity, entityMap);
-      if (issue) throw new Error(issue);
-    }
-    for (const c of p.sketch.constraints) {
-      if (!c || typeof c !== 'object') throw new Error('Invalid CAD constraint');
-      addId(c.id);
-      if (
-        ![
-          'horizontal',
-          'vertical',
-          'coincident',
-          'symmetricPoints',
-          'horizontalPoints',
-          'verticalPoints',
-          'pointOnLine',
-          'pointOnCircle',
-          'pointOnCurve',
-          'midpoint',
-          'distance',
-          'distanceX',
-          'distanceY',
-          'pointLineDistance',
-          'lineLineDistance',
-          'pointArcDistance',
-          'lineCircleDistance',
-          'circleCircleDistance',
-          'radius',
-          'diameter',
-          'positionX',
-          'positionY',
-          'parallel',
-          'perpendicular',
-          'equal',
-          'tangent',
-          'angle',
-          'offset',
-        ].includes(c.type)
-      )
-        throw new Error('Unknown CAD constraint');
-      if (c.label !== undefined && typeof c.label !== 'string') throw new Error('Invalid constraint label');
-      if (c.type === 'offset') {
-        if (!Array.isArray(c.members) || c.members.length === 0) throw new Error('An offset needs copied geometry.');
-        for (const member of c.members) {
-          if (!member || !['line', 'circle', 'arc'].includes(member.kind) || (member.side !== 1 && member.side !== -1))
-            throw new Error('Invalid offset member.');
-          if ((member.kind === 'line' || member.kind === 'arc') && typeof member.endpoints !== 'boolean')
-            throw new Error('Invalid offset endpoint relationship.');
-          reference(member.sourceId);
-          reference(member.targetId);
+    for (const sketch of sketches) {
+      addId(sketch.id);
+      for (const e of sketch.entities) {
+        if (!e || typeof e !== 'object') throw new Error('Invalid CAD entity');
+        addId(e.id);
+        if (!['point', 'line', 'circle', 'arc', 'conic', 'bezier', 'spline'].includes(e.type)) throw new Error('Unknown CAD entity');
+        if (e.construction !== undefined && typeof e.construction !== 'boolean') throw new Error('Invalid construction flag');
+        if (e.type === 'point') {
+          number(e.x);
+          number(e.y);
+          if (e.fixed !== undefined && typeof e.fixed !== 'boolean') throw new Error('Invalid fixed flag');
+          if (e.standalone !== undefined && typeof e.standalone !== 'boolean') throw new Error('Invalid standalone point flag');
+        } else {
+          if (e.type === 'bezier' || e.type === 'spline') {
+            if (!Array.isArray(e.controlPointIds)) throw new Error('Invalid curve controls');
+          }
+          if (e.type === 'spline') {
+            if (![e.fitPointIds, e.fitParameters, e.knots, e.weights].every(Array.isArray)) throw new Error('Invalid spline data');
+            e.fitPointIds.forEach(reference);
+            e.fitParameters.forEach(number);
+            e.knots.forEach(number);
+            e.weights.forEach(number);
+            number(e.degree);
+            if (e.closed !== undefined && typeof e.closed !== 'boolean') throw new Error('Invalid closed spline flag');
+          }
+          if (e.type === 'conic') number(e.rho);
+          entityPointIds(e).forEach(reference);
+          if (e.type === 'circle' || e.type === 'arc') number(e.radius);
+          if (e.type === 'arc') {
+            number(e.startAngle);
+            number(e.endAngle);
+          }
         }
       }
-      if (c.labelPosition !== undefined) {
-        if (!c.labelPosition || typeof c.labelPosition !== 'object') throw new Error('Invalid constraint label position');
-        number(c.labelPosition.x);
-        number(c.labelPosition.y);
+      const entityMap = new Map(sketch.entities.map(e => [e.id, e]));
+      for (const entity of sketch.entities) {
+        const issue = splineHandleIssue(entity, entityMap);
+        if (issue) throw new Error(issue);
       }
-      if ('labelPlacement' in c && c.labelPlacement !== undefined) {
-        if (!('value' in c) || !c.labelPlacement || typeof c.labelPlacement !== 'object')
-          throw new Error('Invalid dimension label placement');
-        const placement = c.labelPlacement;
-        if (placement.kind === 'linear') {
-          if (c.type === 'radius' || c.type === 'diameter' || c.type === 'angle') throw new Error('Invalid dimension label placement kind');
-          number(placement.fraction);
-          number(placement.normalOffset);
-          if (placement.overshoot !== undefined) number(placement.overshoot);
-        } else if (placement.kind === 'radial') {
-          if (c.type !== 'radius' && c.type !== 'diameter') throw new Error('Invalid dimension label placement kind');
-          number(placement.angle);
-          number(placement.radiusRatio);
-          if (placement.radiusRatio < 0) throw new Error('Invalid dimension label radius ratio');
-          if (placement.radiusOffset !== undefined) {
-            number(placement.radiusOffset);
-            if (placement.radiusOffset < 0) throw new Error('Invalid dimension label radius offset');
+      for (const c of sketch.constraints) {
+        if (!c || typeof c !== 'object') throw new Error('Invalid CAD constraint');
+        addId(c.id);
+        if (
+          ![
+            'horizontal',
+            'vertical',
+            'coincident',
+            'symmetricPoints',
+            'horizontalPoints',
+            'verticalPoints',
+            'pointOnLine',
+            'pointOnCircle',
+            'pointOnCurve',
+            'midpoint',
+            'distance',
+            'distanceX',
+            'distanceY',
+            'pointLineDistance',
+            'lineLineDistance',
+            'pointArcDistance',
+            'lineCircleDistance',
+            'circleCircleDistance',
+            'radius',
+            'diameter',
+            'positionX',
+            'positionY',
+            'parallel',
+            'perpendicular',
+            'equal',
+            'tangent',
+            'angle',
+            'offset',
+          ].includes(c.type)
+        )
+          throw new Error('Unknown CAD constraint');
+        if (c.label !== undefined && typeof c.label !== 'string') throw new Error('Invalid constraint label');
+        if (c.type === 'offset') {
+          if (!Array.isArray(c.members) || c.members.length === 0) throw new Error('An offset needs copied geometry.');
+          for (const member of c.members) {
+            if (!member || !['line', 'circle', 'arc'].includes(member.kind) || (member.side !== 1 && member.side !== -1))
+              throw new Error('Invalid offset member.');
+            if ((member.kind === 'line' || member.kind === 'arc') && typeof member.endpoints !== 'boolean')
+              throw new Error('Invalid offset endpoint relationship.');
+            reference(member.sourceId);
+            reference(member.targetId);
           }
-          if (placement.distance !== undefined) {
-            number(placement.distance);
-            if (placement.distance < 0) throw new Error('Invalid dimension label distance');
-          }
-        } else if (placement.kind === 'angle') {
-          if (c.type !== 'angle') throw new Error('Invalid dimension label placement kind');
-          number(placement.radius);
-          number(placement.angleOffset);
-          if (placement.radius < 0) throw new Error('Invalid dimension label radius');
-          if (placement.frame !== undefined && placement.frame !== 'local') throw new Error('Invalid dimension label frame');
-        } else if (placement.kind === 'fallback') {
-          if (!placement.offset || typeof placement.offset !== 'object') throw new Error('Invalid dimension label fallback');
-          number(placement.offset.x);
-          number(placement.offset.y);
-        } else throw new Error('Invalid dimension label placement kind');
+        }
+        if (c.labelPosition !== undefined) {
+          if (!c.labelPosition || typeof c.labelPosition !== 'object') throw new Error('Invalid constraint label position');
+          number(c.labelPosition.x);
+          number(c.labelPosition.y);
+        }
+        if ('labelPlacement' in c && c.labelPlacement !== undefined) {
+          if (!('value' in c) || !c.labelPlacement || typeof c.labelPlacement !== 'object')
+            throw new Error('Invalid dimension label placement');
+          const placement = c.labelPlacement;
+          if (placement.kind === 'linear') {
+            if (c.type === 'radius' || c.type === 'diameter' || c.type === 'angle')
+              throw new Error('Invalid dimension label placement kind');
+            number(placement.fraction);
+            number(placement.normalOffset);
+            if (placement.overshoot !== undefined) number(placement.overshoot);
+          } else if (placement.kind === 'radial') {
+            if (c.type !== 'radius' && c.type !== 'diameter') throw new Error('Invalid dimension label placement kind');
+            number(placement.angle);
+            number(placement.radiusRatio);
+            if (placement.radiusRatio < 0) throw new Error('Invalid dimension label radius ratio');
+            if (placement.radiusOffset !== undefined) {
+              number(placement.radiusOffset);
+              if (placement.radiusOffset < 0) throw new Error('Invalid dimension label radius offset');
+            }
+            if (placement.distance !== undefined) {
+              number(placement.distance);
+              if (placement.distance < 0) throw new Error('Invalid dimension label distance');
+            }
+          } else if (placement.kind === 'angle') {
+            if (c.type !== 'angle') throw new Error('Invalid dimension label placement kind');
+            number(placement.radius);
+            number(placement.angleOffset);
+            if (placement.radius < 0) throw new Error('Invalid dimension label radius');
+            if (placement.frame !== undefined && placement.frame !== 'local') throw new Error('Invalid dimension label frame');
+          } else if (placement.kind === 'fallback') {
+            if (!placement.offset || typeof placement.offset !== 'object') throw new Error('Invalid dimension label fallback');
+            number(placement.offset.x);
+            number(placement.offset.y);
+          } else throw new Error('Invalid dimension label placement kind');
+        }
+        if ('sourceEntityId' in c && c.sourceEntityId !== undefined) {
+          if (c.type !== 'distance' && c.type !== 'distanceX' && c.type !== 'distanceY')
+            throw new Error('Only point-pair dimensions can reference a source line');
+          reference(c.sourceEntityId);
+        }
+        constraintEntityIds(c).forEach(reference);
+        if ((c.type === 'pointArcDistance' || c.type === 'lineCircleDistance') && c.side !== 'inside' && c.side !== 'outside')
+          throw new Error('Invalid circular distance side');
+        if (
+          (c.type === 'pointArcDistance' || c.type === 'lineCircleDistance') &&
+          c.radiusSide !== undefined &&
+          c.radiusSide !== 'near' &&
+          c.radiusSide !== 'far'
+        )
+          throw new Error('Invalid circular witness side');
+        if (c.type === 'circleCircleDistance' && ![c.radiusASign, c.radiusBSign, c.direction].every(value => value === 1 || value === -1))
+          throw new Error('Invalid circular dimension direction');
+        if ('expression' in c && c.expression !== undefined && (!('value' in c) || typeof c.expression !== 'string'))
+          throw new Error('Invalid dimension expression');
+        if ('driven' in c && c.driven !== undefined && (!('value' in c) || typeof c.driven !== 'boolean'))
+          throw new Error('Invalid driven dimension flag');
+        if (c.type === 'angle') {
+          if (c.orientation !== undefined && c.orientation !== 1 && c.orientation !== -1)
+            throw new Error('Invalid angular dimension orientation');
+          if ([c.reversedA, c.reversedB].some(value => value !== undefined && typeof value !== 'boolean'))
+            throw new Error('Invalid angular dimension ray');
+        }
+        if (c.type === 'pointOnCurve') {
+          number(c.parameter);
+          if (c.parameterFixed !== undefined && typeof c.parameterFixed !== 'boolean') throw new Error('Invalid curve parameter flag');
+        }
+        if (
+          [
+            'distance',
+            'distanceX',
+            'distanceY',
+            'pointLineDistance',
+            'lineLineDistance',
+            'pointArcDistance',
+            'lineCircleDistance',
+            'circleCircleDistance',
+            'radius',
+            'diameter',
+            'positionX',
+            'positionY',
+            'angle',
+            'offset',
+          ].includes(c.type)
+        )
+          number((c as { value: unknown }).value);
       }
-      if ('sourceEntityId' in c && c.sourceEntityId !== undefined) {
-        if (c.type !== 'distance' && c.type !== 'distanceX' && c.type !== 'distanceY')
-          throw new Error('Only point-pair dimensions can reference a source line');
-        reference(c.sourceEntityId);
-      }
-      constraintEntityIds(c).forEach(reference);
-      if ((c.type === 'pointArcDistance' || c.type === 'lineCircleDistance') && c.side !== 'inside' && c.side !== 'outside')
-        throw new Error('Invalid circular distance side');
-      if (
-        (c.type === 'pointArcDistance' || c.type === 'lineCircleDistance') &&
-        c.radiusSide !== undefined &&
-        c.radiusSide !== 'near' &&
-        c.radiusSide !== 'far'
-      )
-        throw new Error('Invalid circular witness side');
-      if (c.type === 'circleCircleDistance' && ![c.radiusASign, c.radiusBSign, c.direction].every(value => value === 1 || value === -1))
-        throw new Error('Invalid circular dimension direction');
-      if ('expression' in c && c.expression !== undefined && (!('value' in c) || typeof c.expression !== 'string'))
-        throw new Error('Invalid dimension expression');
-      if ('driven' in c && c.driven !== undefined && (!('value' in c) || typeof c.driven !== 'boolean'))
-        throw new Error('Invalid driven dimension flag');
-      if (c.type === 'angle') {
-        if (c.orientation !== undefined && c.orientation !== 1 && c.orientation !== -1)
-          throw new Error('Invalid angular dimension orientation');
-        if ([c.reversedA, c.reversedB].some(value => value !== undefined && typeof value !== 'boolean'))
-          throw new Error('Invalid angular dimension ray');
-      }
-      if (c.type === 'pointOnCurve') {
-        number(c.parameter);
-        if (c.parameterFixed !== undefined && typeof c.parameterFixed !== 'boolean') throw new Error('Invalid curve parameter flag');
-      }
-      if (
-        [
-          'distance',
-          'distanceX',
-          'distanceY',
-          'pointLineDistance',
-          'lineLineDistance',
-          'pointArcDistance',
-          'lineCircleDistance',
-          'circleCircleDistance',
-          'radius',
-          'diameter',
-          'positionX',
-          'positionY',
-          'angle',
-          'offset',
-        ].includes(c.type)
-      )
-        number((c as { value: unknown }).value);
     }
   }
   const parsed = migrateDimensionPlacements(d);
-  for (const part of parsed.parts) part.sketch = withSplineHandleSegments(part.sketch);
+  for (const part of parsed.parts) {
+    part.sketch = withSplineHandleSegments(part.sketch);
+    for (const feature of part.features ?? []) if (feature.type === 'sketch') feature.sketch = withSplineHandleSegments(feature.sketch);
+  }
   return parsed;
 }

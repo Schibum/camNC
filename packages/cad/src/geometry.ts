@@ -1,4 +1,5 @@
 import { constraintEntityIds, entityPointIds, originId } from './document';
+import { sketchTargets, validateCadFeatures } from './featureModel';
 import type {
   CadArcEntity,
   CadCircleEntity,
@@ -32,11 +33,17 @@ export function validateCadDocument(document: CadDocument): CadDiagnostic[] {
     ids.add(id);
   };
   addId(document.id);
-  if (document.version !== 1 || !Number.isSafeInteger(document.revision) || document.revision < 0)
+  if ((document.version !== 1 && document.version !== 2) || !Number.isSafeInteger(document.revision) || document.revision < 0)
     diagnostics.push({ code: 'invalid-document', message: 'Unsupported or invalid CAD document.', severity: 'error' });
   if (!document.parts.length) diagnostics.push({ code: 'no-parts', message: 'Add a part before preparing a cut.', severity: 'error' });
-  for (const part of document.parts) {
-    addId(part.id, part.id);
+  if ((document.version === 2) !== document.parts.some(part => part.features?.length))
+    diagnostics.push({ code: 'invalid-document', message: 'Unsupported or invalid CAD document.', severity: 'error' });
+  for (const owner of document.parts) {
+    addId(owner.id, owner.id);
+    diagnostics.push(...validateCadFeatures(owner));
+    for (const feature of owner.features ?? []) addId(feature.id, owner.id);
+  }
+  for (const part of document.parts.flatMap(sketchTargets)) {
     addId(part.sketch.id, part.id);
     const error = (code: string, message: string, entityIds?: string[], constraintIds?: string[]) =>
       diagnostics.push({ code, message, severity: 'error', partId: part.id, entityIds, constraintIds });
@@ -524,16 +531,4 @@ export function evaluateCadPart(part: CadPart): { part?: EvaluatedCadPart; diagn
     },
     diagnostics,
   };
-}
-
-export function evaluateCadDocument(document: CadDocument): { parts: EvaluatedCadPart[]; diagnostics: CadDiagnostic[] } {
-  const diagnostics = validateCadDocument(document);
-  if (diagnostics.some(d => d.severity === 'error')) return { parts: [], diagnostics };
-  const parts: EvaluatedCadPart[] = [];
-  for (const part of document.parts) {
-    const result = evaluateCadPart(part);
-    diagnostics.push(...result.diagnostics);
-    if (result.part) parts.push(result.part);
-  }
-  return { parts: diagnostics.some(d => d.severity === 'error') ? [] : parts, diagnostics };
 }

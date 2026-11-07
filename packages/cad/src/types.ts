@@ -176,9 +176,31 @@ export interface CadPart {
   name: string;
   thickness: number;
   sketch: CadSketch;
+  /** Ordered: a sketch can sit on the floor of an earlier cut. Parts without features are plain flat profiles. */
+  features?: CadFeature[];
 }
+/** The face a sketch is drawn on. All sketches share the part's x and y, seen from above, whichever face they're on. */
+export type CadFaceRef = 'top' | 'underside' | { floorOf: string };
+export interface CadFaceSketch {
+  type: 'sketch';
+  id: string;
+  on: CadFaceRef;
+  sketch: CadSketch;
+}
+/** mm below the sketch's face. Zero leaves the region uncut, which is how an inner loop stops being a through-hole. */
+export type CadCutDepth = number | 'through';
+export interface CadCut {
+  type: 'cut';
+  id: string;
+  /** The part's profile sketch or a face sketch. */
+  sketchId: string;
+  regionId: string;
+  depth: CadCutDepth;
+}
+export type CadFeature = CadFaceSketch | CadCut;
 export interface CadDocument {
-  version: 1;
+  /** 2 when any part has features, so builds that don't know them refuse the file. */
+  version: 1 | 2;
   id: string;
   name: string;
   /** Increases on source edits; solving preserves the source revision. */
@@ -208,6 +230,21 @@ export interface EvaluatedCadPart {
   outline: CadPoint[];
   holes: CadPoint[][];
   loops: EvaluatedCadLoop[];
+  /** Cuts beyond the through-holes above, in feature order. Absent on plain profiles. */
+  cuts?: EvaluatedCadCut[];
+}
+export interface EvaluatedCadCut {
+  id: string;
+  regionId: string;
+  side: 'top' | 'underside';
+  /** mm below that side's surface: where the cut starts and its floor. */
+  from: number;
+  to: number;
+  through: boolean;
+  /** Counterclockwise, in the part's sketch coordinates. Not clipped to the part. */
+  outline: CadPoint[];
+  /** Regions nested in the outline, left uncut by this cut. */
+  islands: CadPoint[][];
 }
 export type CadEntityFreedom = 'fully-constrained' | 'underconstrained' | 'unknown';
 export interface CadSketchSolveStatus {

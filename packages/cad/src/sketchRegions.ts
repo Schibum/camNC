@@ -1,8 +1,9 @@
 import { tessellateCurve } from './curves';
+import { pointInPolygon } from './geometry';
 import { CAD_GEOMETRY_TOLERANCE } from './tolerances';
 import type { CadPoint, CadPointEntity, CadSketch } from './types';
 
-/** A bounded face of the drawing. Nested faces are separate regions, so `points` is the outer boundary only. */
+/** A bounded face of the drawing. Nested faces are separate regions too. */
 export interface CadSketchRegion {
   /**
    * Stable lineage: the bounding curves and the side of each that the region lies on, never coordinates or list
@@ -11,7 +12,26 @@ export interface CadSketchRegion {
    */
   id: string;
   curveIds: string[];
+  /** The outer boundary. */
   points: CadPoint[];
+  /** Boundaries of whatever is nested inside: these don't change the ID. */
+  holes: CadPoint[][];
+}
+export interface CadSketchRegionOptions {
+  /** A closed curve that also bounds regions, such as the part's outline. Only regions inside it are returned. */
+  boundary?: { id: string; points: CadPoint[] };
+}
+/** A point strictly inside a simple counterclockwise polygon: the centre of its first triangle that lies inside. */
+function interiorPoint(points: CadPoint[]): CadPoint | null {
+  for (let i = 0; i < points.length; i++) {
+    const a = points[i]!,
+      b = points[(i + 1) % points.length]!,
+      c = points[(i + 2) % points.length]!;
+    if (cross(b.x - a.x, b.y - a.y, c.x - a.x, c.y - a.y) <= 0) continue;
+    const centre = { x: (a.x + b.x + c.x) / 3, y: (a.y + b.y + c.y) / 3 };
+    if (pointInPolygon(centre, points)) return centre;
+  }
+  return null;
 }
 
 const epsilon = CAD_GEOMETRY_TOLERANCE;
@@ -118,7 +138,7 @@ function signedArea(points: CadPoint[]): number {
  * The bounded faces of the drawing, independently of strict single-part CAM validation.
  * Curves remain analytic in the source; only this arrangement is tessellated.
  */
-export function sketchRegions(sketch: CadSketch, tolerance = 0.01): CadSketchRegion[] {
+export function sketchRegions(sketch: CadSketch, tolerance = 0.01, options: CadSketchRegionOptions = {}): CadSketchRegion[] {
   const points = new Map(
     sketch.entities.filter((entity): entity is CadPointEntity => entity.type === 'point').map(point => [point.id, point])
   );
@@ -152,6 +172,25 @@ export function sketchRegions(sketch: CadSketch, tolerance = 0.01): CadSketchReg
       });
     }
   }
+  const boundary = options.boundary?.points ?? [];
+  boundary.forEach((a, i) => {
+    const b = boundary[(i + 1) % boundary.length]!,
+      length = distance(a, b);
+    if (length <= epsilon) return;
+    segments.push({
+      a,
+      b,
+      length,
+      minX: Math.min(a.x, b.x),
+      maxX: Math.max(a.x, b.x),
+      minY: Math.min(a.y, b.y),
+      maxY: Math.max(a.y, b.y),
+      cuts: [0, 1],
+      curveId: options.boundary!.id,
+      start: i / boundary.length,
+      end: (i + 1) / boundary.length,
+    });
+  });
   segments.sort((a, b) => a.minX - b.minX || a.minY - b.minY);
   let active: Segment[] = [];
   for (const segment of segments) {
@@ -224,7 +263,8 @@ export function sketchRegions(sketch: CadSketch, tolerance = 0.01): CadSketchReg
     });
   });
   const visited = new Set<number>(),
-    faces: { points: CadPoint[]; area: number; sides: Map<string, number> }[] = [];
+    faces: { points: CadPoint[]; area: number; sides: Map<string, number> }[] = [],
+    outerCycles: { points: CadPoint[]; area: number }[] = [];
   for (const list of outgoing)
     for (const first of list) {
       if (visited.has(first)) continue;
@@ -245,12 +285,28 @@ export function sketchRegions(sketch: CadSketch, tolerance = 0.01): CadSketchReg
       if (half !== first || polygon.length < 3) continue;
       const area = signedArea(polygon);
       if (area > epsilon * epsilon * polygon.length) faces.push({ points: polygon, area, sides });
+      else if (area < -epsilon * epsilon * polygon.length) outerCycles.push({ points: polygon, area: -area });
     }
   // Every bounded region counts, including nested discs. Material holes are a CAM decision.
-  const named = faces.map(face => {
-    const sides = [...face.sides.keys()].sort();
-    return { ...face, signature: sides.join('|'), order: sides.map(side => face.sides.get(side)!) };
-  });
+  // A clockwise cycle is the outside of a connected drawing: it's a hole in the smallest face that contains it.
+  const holes = new Map(faces.map(face => [face, [] as CadPoint[][]]));
+  for (const cycle of outerCycles) {
+    const host = faces
+      // A face of the same drawing shares its nodes, including a disc's own outline.
+      .filter(face => !face.points.includes(cycle.points[0]!) && pointInPolygon(cycle.points[0]!, face.points))
+      .reduce<(typeof faces)[number] | null>((best, face) => (!best || face.area < best.area ? face : best), null);
+    if (host) holes.get(host)!.push(cycle.points);
+  }
+  const named = faces
+    .filter(face => {
+      if (!options.boundary) return true;
+      const inside = interiorPoint(face.points);
+      return !!inside && pointInPolygon(inside, boundary);
+    })
+    .map(face => {
+      const sides = [...face.sides.keys()].sort();
+      return { ...face, signature: sides.join('|'), order: sides.map(side => face.sides.get(side)!) };
+    });
   const bySignature = new Map<string, typeof named>();
   for (const face of named) bySignature.set(face.signature, [...(bySignature.get(face.signature) ?? []), face]);
   return [...bySignature.entries()]
@@ -264,6 +320,7 @@ export function sketchRegions(sketch: CadSketch, tolerance = 0.01): CadSketchReg
         id: `${sketch.id}:region:${signature}${group.length > 1 ? `#${n}` : ''}`,
         curveIds: [...new Set([...face.sides.keys()].map(side => side.slice(0, side.lastIndexOf(':'))))],
         points: face.points,
+        holes: holes.get(faces.find(candidate => candidate.points === face.points)!)!,
       }));
     })
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));

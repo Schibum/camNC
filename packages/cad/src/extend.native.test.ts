@@ -11,7 +11,8 @@ import {
   parseCadDocument,
 } from './document';
 import { extendSketchCurve, type CadExtendOptions } from './extend';
-import { evaluateCadDocument, polygonArea, validateCadDocument } from './geometry';
+import { evaluateCadDocument } from './features';
+import { polygonArea, validateCadDocument } from './geometry';
 import { solveCadDocument } from './solver';
 import type { CadArcEntity, CadDocument, CadLineEntity, CadPointEntity, CadSketch } from './types';
 const point = (sketch: CadSketch, id: string) =>

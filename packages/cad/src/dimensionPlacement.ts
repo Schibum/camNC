@@ -228,7 +228,7 @@ export function withDimensionPlacement<T extends Dimension>(sketch: CadSketch, d
 /** Upgrade a detached source snapshot without creating an edit command or changing its revision. */
 export function migrateDimensionPlacements(document: CadDocument): CadDocument {
   const next = structuredClone(document);
-  for (const part of next.parts)
+  for (const part of next.parts.flatMap(owner => [owner, ...(owner.features ?? []).filter(f => f.type === 'sketch')]))
     part.sketch.constraints = part.sketch.constraints.map(constraint => {
       if (!('value' in constraint)) return constraint;
       let current = constraint;
