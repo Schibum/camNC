@@ -67,16 +67,20 @@ async function runScenario(browser, scenario, options, outDir) {
   const { createAdapter } = await import(`./adapters/${scenario.id.split('/')[0]}.mjs`);
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'en-US' });
   const page = await context.newPage();
-  page.setDefaultTimeout(8000);
+  // A cold Vite server can still compile lazy editor modules after DOMContentLoaded.
+  page.setDefaultTimeout(45000);
   const runtime = [];
   page.on('pageerror', error => runtime.push(`page error: ${error.message}`));
   page.on('console', message => {
     if (message.type() === 'error') runtime.push(`console error: ${message.text()}`);
   });
   const failures = [];
+  let phase = 'bootstrap';
   try {
     const adapter = await createAdapter(page, options.url);
+    page.setDefaultTimeout(8000);
     for (const [index, step] of scenario.steps.entries()) {
+      phase = `step ${index + 1}`;
       if (typeof step === 'object') {
         await adapter.settle();
         failures.push(...(await adapter.check(step.expect)).map(failure => `step ${index + 1}: ${failure}`));
@@ -90,7 +94,7 @@ async function runScenario(browser, scenario, options, outDir) {
     }
     await adapter.settle();
   } catch (error) {
-    failures.push(`stopped: ${String(error.message).split('\n')[0]}`);
+    failures.push(`stopped during ${phase}: ${String(error.message).split('\n').slice(0, 12).join('\n        ')}`);
   }
   failures.push(...runtime);
   if (failures.length) await page.screenshot({ path: path.join(outDir, `${scenario.id.replaceAll('/', '.')}.png`) }).catch(() => {});
