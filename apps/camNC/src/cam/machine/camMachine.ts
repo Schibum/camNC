@@ -75,18 +75,21 @@ export const useCamMachine = create(
         pauseEachTab: false,
         /** What the top view shows besides the loaded program: the whole parts (default), or every program too. */
         showInTopView: 'parts' as ShowInTopView,
+        /** The loaded program isn't the board's first: moving XY zero now puts it out of line with the cuts already made. */
+        midBoard: false,
       },
       set => ({
         /** Nothing is loaded for the job yet, also when taking the same job again. What's cut stays, while it's the same program. */
         start: (jobId: string) =>
           set(s => (s.jobId === jobId ? { active: null, overlay: null } : { jobId, done: [], active: null, rotation: {}, overlay: null })),
-        leave: () => set({ jobId: null, done: [], active: null, rotation: {}, overlay: null }),
+        leave: () => set({ jobId: null, done: [], active: null, rotation: {}, overlay: null, midBoard: false }),
         setActive: (active: string | null) => set({ active }),
         markDone: (doneId: string) => set(s => ({ done: s.done.includes(doneId) ? s.done : [...s.done, doneId] })),
         setRotation: (key: string, deg: number) => set(s => ({ rotation: { ...s.rotation, [key]: deg } })),
         setOverlay: (overlay: BoardOverlay | null) => set({ overlay }),
         setPauseEachTab: (pauseEachTab: boolean) => set({ pauseEachTab }),
         setShowInTopView: (showInTopView: ShowInTopView) => set({ showInTopView }),
+        setMidBoard: (midBoard: boolean) => set({ midBoard }),
       })
     ),
     {

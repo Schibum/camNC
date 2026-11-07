@@ -55,7 +55,6 @@ import { Button } from '@wbcnc/ui/components/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@wbcnc/ui/components/dropdown-menu';
 import { useIsMobile } from '@wbcnc/ui/hooks/use-mobile';
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
-import { toast } from '@wbcnc/ui/components/sonner';
 import { ChevronDown, Plus, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -185,7 +184,10 @@ function BoardsEditor({
   // The machine's work area, when it is set up: no board comes out bigger (stock cut down, fitted boards and borders).
   const machine = useMachineArea();
   // What just happened on the drawing, and the boards before each change, to go back to.
-  const [note, setNote] = useState('');
+  // Everything this step has to say goes in its one status box, each message replacing the last.
+  const [notice, setNotice] = useState<{ text: string; undo?: () => void }>({ text: '' });
+  const note = notice.text;
+  const setNote = (text: string, undo?: () => void) => setNotice({ text, undo });
   const history = useRef<BoardV1[][]>([]);
   const future = useRef<BoardV1[][]>([]);
   const plan = job.plan ?? kDefaultPlan;
@@ -195,7 +197,7 @@ function BoardsEditor({
     const byNewId = new Map(next.map(b => [b.id, b]));
     const cut = boards.find(b => changesCutBoard(b.board, byNewId.get(b.board.id)));
     if (cut) {
-      toast.error(
+      setNote(
         `Board ${cut.board.name} is ${cutLabel(cut.board).toLowerCase()}: its parts and holds stay as they are. Start over to change them.`
       );
       return false;
@@ -211,17 +213,13 @@ function BoardsEditor({
     void cut;
     save({ ...job, boards: boards.map(b => (b.board.id === board.id ? rest : b.board)) });
     forgetCut(job.id, board.id);
-    toast.success(`Board ${board.name} can be changed again`, {
-      description: 'What was cut on it is forgotten: at the machine, all its programs are to cut again.',
-      action: {
-        label: 'Undo',
-        onClick: () => {
-          const latest = queryClient.getQueryData<CamJobV1>(camKeys.job(job.id)) ?? job;
-          save({ ...latest, boards: (latest.boards ?? []).map(b => (b.id === board.id ? { ...b, cut } : b)) });
-        },
-      },
-      duration: 10_000,
-    });
+    setNote(
+      `Board ${board.name} can be changed again. What was cut on it is forgotten: at the machine, all its programs are to cut again.`,
+      () => {
+        const latest = queryClient.getQueryData<CamJobV1>(camKeys.job(job.id)) ?? job;
+        save({ ...latest, boards: (latest.boards ?? []).map(b => (b.id === board.id ? { ...b, cut } : b)) });
+      }
+    );
   };
   const updateBoard = (b: BoardV1) => saveBoards(boards.map(x => (x.board.id === b.id ? b : x.board)));
   const open = (id: string) => {
@@ -236,7 +234,7 @@ function BoardsEditor({
       boards.map(b => b.board),
       selected.board.id
     );
-    if (problem) toast.error(problem);
+    if (problem) setNote(problem);
     else updateBoard({ ...selected.board, name });
     return !problem;
   };
@@ -312,7 +310,7 @@ function BoardsEditor({
     const inst = byId.get(itemId);
     if (!target || !inst) return false;
     if (+inst.thickness.toFixed(1) !== target.thickness) {
-      toast.error(`${inst.name} is ${+inst.thickness.toFixed(1)} mm thick, board ${target.name} is ${target.thickness} mm.`);
+      setNote(`${inst.name} is ${+inst.thickness.toFixed(1)} mm thick, board ${target.name} is ${target.thickness} mm.`);
       return false;
     }
     // Moved by hand: pinned to the target board, so auto-fill leaves it there.
@@ -359,11 +357,11 @@ function BoardsEditor({
     const inst = byId.get(itemId);
     if (!target || !inst) return;
     if (+inst.thickness.toFixed(1) !== target.thickness) {
-      toast.error(`${inst.name} is ${+inst.thickness.toFixed(1)} mm thick, board ${target.name} is ${target.thickness} mm.`);
+      setNote(`${inst.name} is ${+inst.thickness.toFixed(1)} mm thick, board ${target.name} is ${target.thickness} mm.`);
       return;
     }
     if (!drop) {
-      toast.error(`${inst.name} doesn’t fit on board ${target.name}.`);
+      setNote(`${inst.name} doesn’t fit on board ${target.name}.`);
       return;
     }
     place(itemId, drop.board);
@@ -380,18 +378,15 @@ function BoardsEditor({
 
   // Auto-fill and re-layout replace the user's grouping: offer the way back. Undo restores the boards on the latest
   // job (the stock list may have changed since).
-  const undoTo = (before: BoardV1[]) => ({
-    label: 'Undo',
-    onClick: () => {
-      const latest = queryClient.getQueryData<CamJobV1>(camKeys.job(job.id)) ?? job;
-      save({ ...latest, boards: before });
-    },
-  });
+  const undoTo = (before: BoardV1[]) => () => {
+    const latest = queryClient.getQueryData<CamJobV1>(camKeys.job(job.id)) ?? job;
+    save({ ...latest, boards: before });
+  };
   /** One board's parts nested afresh, around its fixtures: they stay on it, unpinned. */
   const relayout = (board: BoardV1) => {
     const before = boards.map(b => b.board);
     if (!saveBoards(before.map(b => (b.id === board.id ? relayoutBoard(b, instances, plan.bit.diameter, nestOptions) : b)))) return;
-    toast.success(`Board ${board.name} laid out again`, { action: undoTo(before), duration: 10_000 });
+    setNote(`Board ${board.name} laid out again.`, undoTo(before));
   };
   /** Everything unpinned, then nested from scratch: from the stock list when there is one. */
   const relayoutAll = () => {
@@ -399,13 +394,13 @@ function BoardsEditor({
     const free = before.map(b => (isCut(b) ? b : relayoutBoard(b, instances, plan.bit.diameter, nestOptions)));
     if (!(job.stock ?? []).length) {
       saveBoards(free);
-      return toast.success('All boards laid out again', { action: undoTo(before), duration: 10_000 });
+      return setNote('All boards laid out again.', undoTo(before));
     }
     autoFill(free, before);
   };
   const autoFill = (start = boards.map(b => b.board), before = start) => {
     const stock = job.stock ?? [];
-    if (!stock.length) return toast.error('Add the boards you have to the stock list first.');
+    if (!stock.length) return setNote('Add the boards you have to the stock list first.');
     // Cut boards stay as they are, with their parts: the rest is filled around them.
     const kept = start.filter(isCut);
     const onKept = new Set(kept.flatMap(b => b.items));
@@ -427,9 +422,10 @@ function BoardsEditor({
       res.short.length && `${names(res.short)}: not enough stock left, put on more boards of the stock's sizes.`,
     ].filter(Boolean);
     const stockBoards = res.boards.filter(b => !b.size.fit && stock.some(s => +s.thickness.toFixed(1) === b.thickness)).length;
-    const action = undoTo(before);
-    if (problems.length) toast.warning(problems.join(' '), { action, duration: 10_000 });
-    else toast.success(`Parts placed on ${stockBoards} ${stockBoards === 1 ? 'board' : 'boards'} from stock`, { action, duration: 10_000 });
+    setNote(
+      problems.length ? problems.join(' ') : `Parts placed on ${stockBoards} ${stockBoards === 1 ? 'board' : 'boards'} from stock.`,
+      undoTo(before)
+    );
   };
 
   const addBoard = () => {
@@ -504,21 +500,36 @@ function BoardsEditor({
   const status = (
     <div
       aria-label={`${boardLabel(sel)} status`}
-      hidden={!issue && !note}
       className={cn(
-        // Over the drawing, but a part can be dropped or a fixture grabbed through it; only its buttons take the pointer.
-        'pointer-events-none absolute bottom-3 left-4 z-20 flex max-h-40 max-w-[calc(100%-13rem)] items-start gap-2 overflow-y-auto rounded-md border bg-background/95 px-3 py-2 text-[13px] shadow-md [&_button]:pointer-events-auto',
-        issue && 'border-amber-500/70'
+        // Always this tall, empty or not: a message coming or going never rescales the drawing, and it covers none of it.
+        'flex h-16 shrink-0 items-start gap-2 overflow-y-auto border-t bg-background px-4 py-1.5 pr-44 text-[13px]',
+        issue && 'border-t-amber-500/70'
       )}>
       <div className="flex min-w-0 flex-col gap-1">
+        {view === 'board' && alerts}
+        {note && (
+          <p className="flex flex-wrap items-center gap-2 text-muted-foreground">
+            {note}
+            {notice.undo && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-6 px-2 text-xs"
+                onClick={() => {
+                  notice.undo!();
+                  setNote('Undone.');
+                }}>
+                Undo that
+              </Button>
+            )}
+          </p>
+        )}
         {view === 'board' && verdict.tone === 'warn' && (
           <p role="status" className="flex gap-2">
             <span aria-hidden className="mt-1.5 size-2 shrink-0 rounded-full bg-amber-500" />
             {verdict.text}
           </p>
         )}
-        {view === 'board' && alerts}
-        {note && <p className="text-muted-foreground">{note}</p>}
       </div>
       {note && (
         <button
@@ -534,7 +545,8 @@ function BoardsEditor({
 
   return (
     <div className="grid flex-1 grid-cols-1 md:min-h-0 md:grid-cols-[1fr_300px]">
-      <main className="flex min-h-[320px] min-w-0 flex-col bg-muted/30">
+      {/* A height of its own when stacked: the drawing scales to it, so it can't follow the drawing's content. */}
+      <main className="flex h-[70dvh] min-h-[320px] min-w-0 flex-col bg-muted/30 md:h-auto">
         {view === 'board' && isCut(sel) && (
           <div
             role="note"

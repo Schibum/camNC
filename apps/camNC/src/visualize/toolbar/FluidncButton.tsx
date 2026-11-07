@@ -1,7 +1,7 @@
 import { getCncApi } from '@/lib/fluidnc/machine';
 import { machineSupport } from '@/lib/fluidnc/machine-support';
 import { workOffsetCommand } from '@/lib/fluidnc/work-offset';
-import { setXYZeroFromToolpath } from '@/lib/machine/jobs';
+import { moveToolpathToMachineZero, setXYZeroFromToolpath } from '@/lib/machine/jobs';
 import {
   useHasToolpath,
   useSetShowMachinePosMarker,
@@ -25,7 +25,6 @@ import {
 import { toast } from '@wbcnc/ui/components/sonner';
 import { CircleArrowRight, CircleOff, ClipboardCopy, Crosshair, Download, Eye, EyeOff, Gamepad2, Joystick, Puzzle } from 'lucide-react';
 import { useHotkeys } from 'react-hotkeys-hook';
-import { Vector3 } from 'three';
 import { TooltipIconButton } from './TooltipIconButton';
 
 function copyZeroGcodePosition() {
@@ -35,22 +34,6 @@ function copyZeroGcodePosition() {
   toast.success('Zero command copied to clipboard', {
     description: zeroGcodePosition,
   });
-}
-
-async function syncToolpathZeroWithMachine() {
-  const cncApi = getCncApi();
-  const setToolpathOffset = useStore.getState().setToolpathOffset;
-
-  const zero = await cncApi.getCurrentZero().catch(() => null);
-  console.log('zero from machine', zero);
-  if (zero) {
-    setToolpathOffset(new Vector3(zero.x, zero.y, zero.z));
-    toast.success('Toolpath zero synced from machine', {
-      description: `${zero?.x.toFixed(2)}, ${zero?.y.toFixed(2)}`,
-    });
-  } else {
-    toast.error('Unable to read machine zero');
-  }
 }
 
 export function FluidncButton() {
@@ -92,7 +75,7 @@ export function FluidncButton() {
             <DropdownMenuShortcut>J</DropdownMenuShortcut>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem disabled={!cncApi.isConnected.value} onClick={syncToolpathZeroWithMachine}>
+          <DropdownMenuItem disabled={!cncApi.isConnected.value} onClick={moveToolpathToMachineZero}>
             <Download /> Read machine zero → move toolpath
           </DropdownMenuItem>
           <DropdownMenuSeparator />

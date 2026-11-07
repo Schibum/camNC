@@ -55,6 +55,8 @@ const kAlarmContextBeforeMs = 3000;
 const kAlarmContextAfterMs = 1500;
 /** Click-to-jog feed when the controller does not report its max rate. */
 const kFallbackJogFeed = 3000;
+/** How far (mm) to lift Z before a move to XY zero on a machine not homed since connecting. */
+const kLiftUnhomed = 10;
 /** Feed (mm/min) for the short jog back into the travel. */
 const kIntoTravelFeed = 600;
 /**
@@ -484,7 +486,29 @@ export class CncApi {
 
   async setWorkspaceXYZeroAndMove(x: number, y: number) {
     await this.setWorkspaceXYZero(x, y);
+    return this.goToXYZero();
+  }
+
+  /** Lift Z clear of the board and its clamps, then go to XY zero: the bit may be low, right after probing. */
+  async goToXYZero() {
+    await this.liftClear();
     return this.api.send('G90 G0 X0 Y0');
+  }
+
+  /** Just below the top of the Z travel once homed. Unhomed, machine Z means nothing: lift by a fixed distance. */
+  private async liftClear() {
+    const limits = this.travel.value?.z;
+    const at = this.status.value?.mpos.z;
+    if (this.homed.value && limits && at !== undefined) {
+      const safe = limits.max - 1;
+      if (at < safe) await this.api.send(`G53 G0 Z${safe}`);
+      return;
+    }
+    const room = limits && at !== undefined ? limits.max - at : kLiftUnhomed;
+    const lift = Math.min(kLiftUnhomed, room);
+    if (lift <= 0) return;
+    await this.api.send(`G91 G0 Z${lift.toFixed(3)}`);
+    await this.api.send('G90');
   }
 
   /** Zero the given axes at the current position (G10 L20). */

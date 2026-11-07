@@ -71,8 +71,8 @@ describe('varied STEP boards, end to end', () => {
   );
 
   it.each([
-    // Knobs and gears have no straight runs for tabs: the job is blocked until the board changes.
-    ['frame-01', frameUrl, 11, false],
+    // Knobs take tabs on their gentle curves. A gear's teeth are all corners: the job is blocked until the board changes.
+    ['frame-01', frameUrl, 11, true],
     ['gear-02', gearUrl, 4, false],
     ['round-02', ringsUrl, 12, true],
     ['tray-02', trayUrl, 60, true],

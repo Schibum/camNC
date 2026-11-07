@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { checkPosition, checkTravel, g53Targets, getJobChecklist, kHomeFirst, machineView, outsideTravel, zeroGhost } from './workflow';
+import {
+  checkPosition,
+  checkTravel,
+  g53Targets,
+  getJobChecklist,
+  kHomeFirst,
+  machineView,
+  nextRunStep,
+  outsideTravel,
+  zeroGhost,
+} from './workflow';
 
 describe('machineView', () => {
   it('switches to running while a job is active or the machine is running/held', () => {
@@ -50,6 +60,15 @@ describe('getJobChecklist', () => {
 
   it('accepts G-code that probes Z itself', () => {
     expect(getJobChecklist({ ...base, gcode: 'G38.2 Z-20 F100', zZeroed: false }).find(i => i.id === 'z-zero')?.ok).toBe(true);
+  });
+});
+
+describe('nextRunStep', () => {
+  it('goes from home to Z to run, whichever is still open', () => {
+    expect(nextRunStep({ homed: false, zOk: false })).toBe('home');
+    expect(nextRunStep({ homed: false, zOk: true })).toBe('home');
+    expect(nextRunStep({ homed: true, zOk: false })).toBe('z');
+    expect(nextRunStep({ homed: true, zOk: true })).toBe('run');
   });
 });
 
@@ -127,12 +146,17 @@ describe('getJobChecklist travel with open zero steps', () => {
   };
   const check = (input: Partial<typeof base>) => getJobChecklist({ ...base, ...input }).find(i => i.id === 'travel')!;
 
-  it('asks for the zero, and still blocks, when only the old zero is out of the travel', () => {
+  it('asks for Z, and still blocks, when only the old Z zero is out of the travel', () => {
     const item = check({});
     expect(item.zeroFirst).toBe(true);
     expect(item.blocking).toBe(true);
-    expect(item.label).toMatch(/^Set the zero first/);
+    expect(item.label).toMatch(/^Set Z first/);
     expect(item.details).toBeUndefined();
+  });
+
+  it('judges XY by where the job is placed, since Run sets XY zero there: an old XY zero is no problem', () => {
+    const item = check({ workOffset: { x: 6.48, y: 416.49, z: -60 }, zZeroed: true });
+    expect(item.ok).toBe(true);
   });
 
   it('reports a job that does not fit where it is placed, with the numbers', () => {

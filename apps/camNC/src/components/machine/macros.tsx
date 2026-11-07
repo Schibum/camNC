@@ -1,15 +1,22 @@
 import { getCncApi } from '@/lib/fluidnc/machine';
 import { errorText, runMacro } from '@/lib/machine/jobs';
-import { kDefaultMacros, Macro, MacroKind, parseWebUiMacros } from '@/lib/machine/macros';
+import { kDefaultMacros, Macro, MacroKind, parseWebUiMacros, splitMacros } from '@/lib/machine/macros';
 import { useStore } from '@/store/store';
 import { Button } from '@wbcnc/ui/components/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@wbcnc/ui/components/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@wbcnc/ui/components/dropdown-menu';
 import { Input } from '@wbcnc/ui/components/input';
 import { Label } from '@wbcnc/ui/components/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@wbcnc/ui/components/select';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { Textarea } from '@wbcnc/ui/components/textarea';
-import { Download, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { ChevronDown, Download, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
 const kKindLabels: Record<MacroKind, string> = {
@@ -133,19 +140,52 @@ function ImportDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-export function MacroButtons() {
+/** One row beside the jog controls, the rest under More: manual control, one click away. */
+export function MacroButtons({ onEdit }: { onEdit: () => void }) {
   'use no memo';
   const macros = useStore(s => s.macros);
   const api = getCncApi();
   const idle = api.state.value === 'Idle';
+  const { row, more } = splitMacros(macros);
   return (
-    <div className="flex flex-row flex-wrap gap-1" data-testid="macro-buttons">
-      {macros.map(macro => (
-        <Button key={macro.id} size="sm" variant="secondary" disabled={!idle} title={macro.content} onClick={() => runMacro(macro)}>
-          {macro.name}
+    <div className="flex flex-row items-center gap-1 border-t pt-2" data-testid="macro-buttons">
+      {row.map(macro => (
+        <Button
+          key={macro.id}
+          size="sm"
+          variant="secondary"
+          className="min-w-0 shrink px-1.5 text-xs"
+          disabled={!idle}
+          title={`${macro.name}\n${macro.content}`}
+          onClick={() => runMacro(macro)}>
+          <span className="truncate">{macro.name}</span>
         </Button>
       ))}
-      {macros.length === 0 && <span className="text-xs text-muted-foreground">No macros yet</span>}
+      {macros.length === 0 && (
+        <Button size="sm" variant="ghost" className="px-2 text-muted-foreground" onClick={onEdit}>
+          <Plus /> Add macro
+        </Button>
+      )}
+      {macros.length > 0 && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="icon" variant="ghost" className="ml-auto size-8 shrink-0" aria-label="More macros" title="More macros">
+              <ChevronDown />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {more.map(macro => (
+              <DropdownMenuItem key={macro.id} disabled={!idle} title={macro.content} onClick={() => runMacro(macro)}>
+                {macro.name}
+              </DropdownMenuItem>
+            ))}
+            {more.length > 0 && <DropdownMenuSeparator />}
+            <DropdownMenuItem onClick={onEdit}>
+              <Pencil /> Edit macros
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </div>
   );
 }

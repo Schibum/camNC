@@ -1,16 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { uploadAndRun } from './jobs';
+import { uploadAndRun, zeroAndRun } from './jobs';
 
 const h = vi.hoisted(() => ({
   api: {
     homed: { value: false },
+    setWorkspaceXYZero: vi.fn(async () => {}),
     uploadGcode: vi.fn(async () => {}),
     runFile: vi.fn(async () => {}),
     status: { value: null as null | { mpos: { x: number; y: number; z: number } } },
     travel: { value: null as null | Record<'x' | 'y' | 'z', { min: number; max: number; softLimits: boolean }> },
     host: { value: null },
   },
-  state: { toolpath: { gcode: '' } as { gcode: string }, toolpathName: 'Board A' },
+  state: { toolpath: { gcode: '' } as { gcode: string }, toolpathName: 'Board A', toolpathOffset: { x: 12, y: 34, z: 0 } },
   toastError: vi.fn(),
 }));
 
@@ -55,5 +56,40 @@ describe('uploadAndRun, homing and travel', () => {
     h.state.toolpath = { gcode: 'G1 X10 F100\nM30' };
     await uploadAndRun();
     expect(h.api.runFile).toHaveBeenCalledOnce();
+  });
+});
+
+describe('zeroAndRun', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    h.api.status.value = null;
+    h.api.travel.value = null;
+    h.state.toolpath = { gcode: 'G1 X10 F100\nM30' };
+    h.api.setWorkspaceXYZero.mockResolvedValue(undefined);
+  });
+
+  it('sets XY zero where the job is placed, before anything runs', async () => {
+    await zeroAndRun();
+    expect(h.api.setWorkspaceXYZero).toHaveBeenCalledWith(12, 34);
+    expect(h.api.setWorkspaceXYZero.mock.invocationCallOrder[0]).toBeLessThan(h.api.uploadGcode.mock.invocationCallOrder[0]!);
+    expect(h.api.runFile).toHaveBeenCalledOnce();
+  });
+
+  it('starts nothing if the zero could not be set', async () => {
+    h.api.setWorkspaceXYZero.mockRejectedValue(new Error('no answer'));
+    await expect(zeroAndRun()).rejects.toThrow('no answer');
+    expect(h.api.uploadGcode).not.toHaveBeenCalled();
+    expect(h.api.runFile).not.toHaveBeenCalled();
+  });
+
+  it('leaves the zero alone while the machine sits outside its travel', async () => {
+    h.api.status.value = { mpos: { x: 2.99, y: 120, z: -10 } };
+    h.api.travel.value = {
+      x: { min: 3, max: 1223, softLimits: true },
+      y: { min: 3, max: 2443, softLimits: true },
+      z: { min: -297, max: 3, softLimits: true },
+    };
+    await expect(zeroAndRun()).rejects.toThrow('X is at 2.99');
+    expect(h.api.setWorkspaceXYZero).not.toHaveBeenCalled();
   });
 });

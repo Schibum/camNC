@@ -26,7 +26,8 @@ export function parseListJson(lines: string[]): SdListing {
       const wrapped = line.match(/^\[(?:MSG:)?JSON:(.*)\]$/);
       return wrapped ? wrapped[1]! : line;
     })
-    .filter(line => !line.startsWith('[MSG:'))
+    // Report lines that happen to arrive meanwhile, like the `[G54:…]` after a G10 that was just acknowledged.
+    .filter(line => !/^\[[A-Z][A-Z0-9.]*:/.test(line))
     .join('\n');
   const raw = JSON.parse(text) as {
     path?: string;

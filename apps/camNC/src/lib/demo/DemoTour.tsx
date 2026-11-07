@@ -47,7 +47,7 @@ const kSteps: TourStep[] = [
   },
   {
     title: 'Run the job',
-    body: 'Press “Set XY zero”, then “Run job” (the checklist also asks for Home and a Z probe, as on a real machine). camNC uploads the file to the simulated SD card and starts it, and a green line shows the progress. The speed buttons in the demo bar slow it down or speed it up.',
+    body: 'Press the big button at the bottom: it homes, probes Z, then runs the job, as on a real machine. Running sets XY zero where the job is drawn, uploads the file to the simulated SD card and starts it, and a green line shows the progress. The speed buttons in the demo bar slow it down or speed it up.',
   },
   {
     title: 'Try your own G-code',
