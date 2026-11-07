@@ -76,6 +76,11 @@ export interface BoardV1 {
   /** Bodies the user put on this board by hand: auto-fill leaves them here. */
   pinned?: string[];
   /**
+   * Bodies on this board's list that the user dragged off it, onto the table: not nested and not cut, until they are put on
+   * a board again. Where each lies: its upper left corner, on the table (mm, Y down, see `layoutTable`).
+   */
+  setAside?: Record<string, PartPosition>;
+  /**
    * Where the parts are, and the board's size when fitted: stored, so nothing moves unless asked to. Nesting only fills in
    * bodies that have no spot here.
    */
@@ -373,7 +378,8 @@ export function reconcileBoards(
       : b.items.filter(id => byId.get(id)?.thickness !== undefined && thicknessKey(byId.get(id)!.thickness) === b.thickness);
     // Saved before `retention`: tabs, which say so if they can't hold.
     const held = { ...b, retention: b.retention ?? ('tabs' as const), items };
-    const kept = b.pinned ? { ...held, pinned: b.pinned.filter(id => items.includes(id)) } : held;
+    const pins = b.pinned ? { ...held, pinned: b.pinned.filter(id => items.includes(id)) } : held;
+    const kept = b.setAside ? { ...pins, setAside: onlyFor(b.setAside, items) } : pins;
     // Saved before layouts were stored: its parts get new spots, so what was cut on it no longer applies.
     if (!b.layout) {
       return kept.cut ? startOverBoard(kept) : kept;
@@ -614,7 +620,8 @@ export function fixtureOf(h: Pick<HoldPoint, 'kind' | 'x' | 'y' | 'dir' | 'd' | 
  */
 export function nestBoard(board: BoardV1, instances: PartInstance[], bit: number, opts: NestOptions = {}): BoardNest {
   const byId = new Map(instances.map(i => [i.id, i]));
-  const ids = board.items.filter(id => byId.has(id));
+  const ids = board.items.filter(id => byId.has(id) && !board.setAside?.[id]);
+  const aside = board.items.filter(id => byId.has(id) && board.setAside?.[id]);
   const gap = board.gap ?? boardGap(bit, board.retention);
   const margin = board.margin ?? defaultMargin(bit, board.retention);
   const hw = opts.hardware ?? kDefaultHardware;
@@ -704,7 +711,7 @@ export function nestBoard(board: BoardV1, instances: PartInstance[], bit: number
       if (!insideMargin(r, margin, out) || (capacity && !insideMargin(r, 0, capacity))) invalid.push(placement.id);
     }
   }
-  const unplaced = [...new Set([...n.unplaced, ...invalid])];
+  const unplaced = [...new Set([...n.unplaced, ...invalid, ...aside])];
   const rejected = new Set(unplaced);
   const area = placements.reduce((a, p) => a + (rejected.has(p.id) ? 0 : byId.get(p.id)!.size[0] * byId.get(p.id)!.size[1]), 0);
   return {
@@ -738,7 +745,7 @@ export function keepWithinMachine(boards: BoardV1[], instances: PartInstance[], 
   for (let i = 0; i < out.length; i++) {
     const b = out[i];
     if (!movable(b)) continue;
-    const over = nest(b).unplaced.filter(id => !b.pinned?.includes(id));
+    const over = nest(b).unplaced.filter(id => !b.pinned?.includes(id) && !b.setAside?.[id]);
     // Alone on a board it still doesn't fit: moving it wouldn't help.
     const spill = over.filter(id => !nest({ ...b, items: [id], pinned: [], layout: undefined, fixtures: [] }).unplaced.length);
     if (!spill.length) continue;
@@ -877,18 +884,84 @@ export function keepFixturesClear(board: BoardV1, instances: PartInstance[], bit
 }
 
 /**
- * Laid out again: its bodies stay on it, none pinned any more, nested tight and then moved only as far as the fixtures
- * need. If they leave no such way, nested around them.
+ * Laid out again: its bodies stay on it, none pinned any more, those set aside back on it, nested tight and then moved only
+ * as far as the fixtures need. If they leave no such way, nested around them.
  */
 export function relayoutBoard(board: BoardV1, instances: PartInstance[], bit: number, opts: NestOptions = {}): BoardV1 {
   const fresh = { ...board };
+  delete fresh.setAside;
   delete fresh.pinned;
+  return nestAfresh(fresh, instances, bit, opts);
+}
+
+/**
+ * A board of this size, laid out for it: what's on it nests again, what has no room goes off it (it stays on its list, and
+ * comes back when there is room), and it stays on the table. Screws and the clamps along its sides keep their distance to the
+ * top edge, like the board's material does: the size comes or goes at the bottom.
+ */
+export function resizedBoard(
+  board: BoardV1,
+  nest: Pick<BoardNest, 'board'>,
+  size: { w: number; h: number },
+  instances: PartInstance[],
+  bit: number,
+  opts: NestOptions = {}
+): BoardV1 {
+  const dy = size.h - nest.board.h;
+  return nestAfresh(
+    {
+      ...board,
+      size: { fit: false, ...size },
+      ...(board.fixtures && {
+        fixtures: board.fixtures.map(f =>
+          f.kind === 'screw' ? { ...f, y: f.y + dy } : f.side === 'left' || f.side === 'right' ? { ...f, at: f.at + dy } : f
+        ),
+      }),
+    },
+    instances,
+    bit,
+    opts
+  );
+}
+
+/** The smallest whole 10 mm of this side (the other as it is) where the board's parts all still fit, or null if nothing up to `most` does. */
+export function tightestSide(
+  board: BoardV1,
+  nest: Pick<BoardNest, 'board'>,
+  side: 'w' | 'h',
+  most: number,
+  instances: PartInstance[],
+  bit: number,
+  opts: NestOptions = {}
+): number | null {
+  const fits = (v: number) =>
+    !nestBoard({ ...board, layout: undefined, size: { fit: false, ...nest.board, [side]: v } }, instances, bit, {
+      ...opts,
+      holds: false,
+    }).unplaced.filter(id => !board.setAside?.[id]).length;
+  const step = 10;
+  let v = Math.ceil(nest.board[side] / step) * step;
+  if (fits(v)) {
+    while (v > step && fits(v - step)) v -= step;
+    return v;
+  }
+  while (v < most) {
+    v += step;
+    if (fits(v)) return v;
+  }
+  return null;
+}
+
+function nestAfresh(board: BoardV1, instances: PartInstance[], bit: number, opts: NestOptions): BoardV1 {
+  const fresh = { ...board };
   delete fresh.layout;
   const bare = { ...fresh };
   delete bare.fixtures;
   const tight = withLayout(bare, nestBoard(bare, instances, bit, { ...opts, holds: false }));
-  if (!board.fixtures?.length || !tight.layout) return tight;
   const hw = opts.hardware ?? kDefaultHardware;
+  if (!board.fixtures?.length) return tight;
+  // None of its parts fit: the fixtures stay, as far as they're on it.
+  if (!tight.layout) return { ...tight, fixtures: board.size.fit ? board.fixtures : fixturesOn(board.fixtures, board.size, hw) };
   // As small as it gets with the fixtures still on it.
   const need = fixturesNeed(board.fixtures, hw);
   const sized = board.size.fit
@@ -923,40 +996,6 @@ function fixturesNeed(fixtures: Fixture[] | undefined, hw: HoldHardware) {
     else w = Math.max(w, f.at + (f.w ?? hw.clamp.w) / 2);
   }
   return { w: ceilMm(w), h: ceilMm(h) };
-}
-
-/** How far the bottom edge can rise before it reaches a part's margin, a screw or a clamp along a side, mm. */
-export function roomBelow(nest: Pick<BoardNest, 'board' | 'placements' | 'holds' | 'margin'>, instances: PartInstance[]) {
-  const parts = nest.placements.flatMap(p => {
-    const inst = instances.find(i => i.id === p.id);
-    return inst ? [placedRect(p, inst).y - nest.margin] : [];
-  });
-  const holds = nest.holds.filter(hp => hp.kind === 'screw' || hp.dir?.y === 0).map(hp => holdBox(hp).y);
-  return Math.max(0, Math.min(nest.board.h, ...parts, ...holds));
-}
-
-/**
- * The board as it is about to have its bottom edge moved to this height: what's on it keeps its distance to the top edge, so
- * the room comes or goes at the bottom. Positions count from XY zero, which goes with that edge, so they change. Clamps on the
- * bottom edge go along with it. A bottom edge rising past what's there pushes it up, which takes the room above.
- */
-export function movedBottomEdge(board: BoardV1, nest: BoardNest, instances: PartInstance[], h: number): BoardV1 {
-  const dy = Math.max(h - nest.board.h, -roomBelow(nest, instances));
-  const laid = withLayout(board, nest);
-  return {
-    ...laid,
-    ...(laid.layout && {
-      layout: {
-        ...laid.layout,
-        at: Object.fromEntries(Object.entries(laid.layout.at).map(([id, p]) => [id, { ...p, y: p.y + dy }])),
-      },
-    }),
-    ...(board.fixtures && {
-      fixtures: board.fixtures.map(f =>
-        f.kind === 'screw' ? { ...f, y: f.y + dy } : f.side === 'left' || f.side === 'right' ? { ...f, at: f.at + dy } : f
-      ),
-    }),
-  };
 }
 
 const spacingOf = (b: BoardV1) => JSON.stringify([b.size, b.margin, b.gap, b.retention]);
@@ -1069,6 +1108,22 @@ export interface PartDrop {
   board: BoardV1;
 }
 
+/** The board with this body no longer set aside: it's nested like the rest again. */
+export function notAside(board: BoardV1, item: string): BoardV1 {
+  const out = { ...board };
+  const rest = Object.entries(board.setAside ?? {}).filter(([id]) => id !== item);
+  if (rest.length) out.setAside = Object.fromEntries(rest);
+  else delete out.setAside;
+  return out;
+}
+
+/** The board with this body off it, on the table at `at`. */
+export function setAsidePart(board: BoardV1, item: string, at: PartPosition): BoardV1 {
+  const out: BoardV1 = { ...board, setAside: { ...board.setAside, [item]: at } };
+  if (board.layout) out.layout = { ...board.layout, at: Object.fromEntries(Object.entries(board.layout.at).filter(([id]) => id !== item)) };
+  return out;
+}
+
 /**
  * Drop a body (from this board or another one of the same thickness) with its lower left corner at `at`. Close to where
  * the nest would put it among the others (within `snap` mm), it goes there. Otherwise, when that spot is free (inside the
@@ -1086,6 +1141,7 @@ export function dropPart(
 ): PartDrop {
   const inst = instances.find(i => i.id === item);
   if (!inst) return { at: null, exact: false, board };
+  if (board.setAside?.[item]) board = notAside(board, item);
   const same = board.items.includes(item);
   const now = nestBoard(board, instances, bit, opts);
   const others = now.placements.filter(p => p.id !== item);
@@ -1244,7 +1300,9 @@ export function autoFillFromStock(
     const kept = old.flatMap(b => {
       const pinned = (b.pinned ?? []).filter(id => b.items.includes(id) && mine.includes(id));
       if (!pinned.length) return [];
-      return [{ ...b, items: pinned, pinned, ...(b.layout && { layout: { ...b.layout, at: onlyFor(b.layout.at, pinned) } }) }];
+      const held: BoardV1 = { ...b, items: pinned, pinned, ...(b.layout && { layout: { ...b.layout, at: onlyFor(b.layout.at, pinned) } }) };
+      delete held.setAside;
+      return [held];
     });
     let free = mine.filter(id => !kept.some(b => b.items.includes(id)));
     const left = new Map(sheets.map(s => [s.id, s.quantity ?? Infinity]));

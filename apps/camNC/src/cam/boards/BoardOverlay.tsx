@@ -1,14 +1,19 @@
 import { useRef, useState } from 'react';
 import { cn } from '@wbcnc/ui/lib/utils';
-import { holdBox } from '@wbcnc/cam/holdPoints';
-import { placedRect, roomBelow, type BoardNest, type PartInstance } from '../boards';
+import { placedRect, type BoardNest, type PartInstance } from '../boards';
 import { Hint } from '../Hint';
 import { NumberInput } from '../NumberInput';
 
 /** A size dragged to lands on whole 10 mm (Shift: 1 mm). */
 const kSnap = 10;
+/** Within this many px of the size where every part just fits, a size dragged to lands on it. */
+const kTightSnap = 14;
+/** No board comes out smaller than this, mm. */
+const kLeast = 50;
 
 type Grip = 'w' | 'h' | 'wh';
+/** The sizes where every part just fits, on the sides being dragged. */
+export type TightSizes = { w?: number | null; h?: number | null };
 
 /** The grips stand this far (px) off the edge they move, past the clamps' bodies, so they never cover a clamp. */
 const kGripOff = 10;
@@ -81,8 +86,9 @@ function Chip({
 
 /**
  * What's edited right on the selected board's drawing: its size by the handles on its right and bottom edge (the upper left
- * corner stays, XY zero goes with the bottom edge), the edge margin and the gap between parts by their labels. While dragging,
- * nothing else moves: the new outline is drawn over the board at the same scale, and the board changes on the drop.
+ * corner stays, XY zero goes with the bottom edge), the edge margin and the gap between parts by their labels. An edge drags
+ * right through the parts: while dragging, the board is laid out for that size and what has no room goes off it, undone by
+ * dragging back. A line shows the size where every part just fits, and the edge snaps to it.
  */
 export function BoardOverlay({
   nest,
@@ -91,8 +97,10 @@ export function BoardOverlay({
   padPx,
   bit,
   machine,
+  compact,
+  tight,
   onResize,
-  onResizing,
+  onDraft,
   onMargin,
   onGap,
 }: {
@@ -103,42 +111,25 @@ export function BoardOverlay({
   padPx: number;
   bit: number;
   machine?: { w: number; h: number };
+  /** Too small on screen for the margin and gap labels. */
+  compact?: boolean;
+  /** Worked out when an edge is picked up. */
+  tight: (grip: Grip) => TightSizes;
   onResize: (w: number, h: number) => void;
-  /** The size being dragged to, and what it would give. */
-  onResizing: (note: string) => void;
+  /** The size being dragged to; null: none any more. */
+  onDraft: (size: { w: number; h: number } | null) => void;
   onMargin: (margin: number) => void;
   onGap: (gap: number) => void;
 }) {
   const { w, h } = nest.board;
   const [draft, setDraft] = useState<{ w: number; h: number } | null>(null);
-  const start = useRef<{ grip: Grip; x: number; y: number } | null>(null);
-  const shown = draft ?? { w, h };
+  const start = useRef<{ grip: Grip; x: number; y: number; w: number; h: number; tight: TightSizes } | null>(null);
   const px = (mm: number) => mm * pxPerMm;
-  const right = padPx + px(shown.w);
-  const bottom = padPx + px(shown.h);
-
-  const edges = nest.placements.flatMap(p => {
-    const inst = instances.find(i => i.id === p.id);
-    return inst ? [placedRect(p, inst)] : [];
-  });
-  // Not over the parts, nor the screws and the clamps along the edges that would stay: dragging takes none of them off.
-  const holds = nest.holds.map(hp => ({ hp, box: holdBox(hp) }));
-  const leastW = Math.max(
-    10,
-    ...edges.map(r => Math.ceil(r.x + r.w + nest.margin)),
-    ...holds.filter(({ hp }) => hp.kind === 'screw' || hp.dir?.x === 0).map(({ box }) => Math.ceil(box.x + box.w))
-  );
-  // Going up, the bottom edge pushes what's in its way along, until that reaches the top edge.
-  const below = roomBelow(nest, instances);
-  const leastH = Math.max(
-    10,
-    ...edges.map(r => Math.ceil(r.y + r.h + nest.margin - below)),
-    ...holds.filter(({ hp }) => hp.kind === 'screw' || hp.dir?.y === 0).map(({ box }) => Math.ceil(box.y + box.h - below))
-  );
+  const right = padPx + px(w);
+  const bottom = padPx + px(h);
   /** On the machine, either way round, as a board may lie on it. */
   const fits = (s: { w: number; h: number }) =>
     !machine || (s.w <= machine.w && s.h <= machine.h) || (s.w <= machine.h && s.h <= machine.w);
-  const parts = nest.yield * w * h;
 
   const handle = (grip: Grip) => ({
     'data-resize': grip,
@@ -148,34 +139,39 @@ export function BoardOverlay({
       e.preventDefault();
       e.stopPropagation();
       (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-      start.current = { grip, x: e.clientX, y: e.clientY };
+      start.current = { grip, x: e.clientX, y: e.clientY, w, h, tight: tight(grip) };
     },
     onPointerMove: (e: React.PointerEvent) => {
       const s = start.current;
       if (!s) return;
       const step = e.shiftKey ? 1 : kSnap;
-      const snap = (v: number) => Math.round(v / step) * step;
-      const next = {
-        w: s.grip === 'h' ? w : Math.max(Math.min(leastW, w), snap(w + (e.clientX - s.x) / pxPerMm)),
-        h: s.grip === 'w' ? h : Math.max(Math.min(leastH, h), snap(h + (e.clientY - s.y) / pxPerMm)),
+      const to = (from: number, by: number, near?: number | null) => {
+        const v = Math.max(kLeast, Math.round((from + by / pxPerMm) / step) * step);
+        return !e.shiftKey && near && Math.abs(near - v) * pxPerMm < kTightSnap ? near : v;
       };
+      const next = {
+        w: s.grip === 'h' ? s.w : to(s.w, e.clientX - s.x, s.tight.w),
+        h: s.grip === 'w' ? s.h : to(s.h, e.clientY - s.y, s.tight.h),
+      };
+      if (next.w === (draft ?? s).w && next.h === (draft ?? s).h) return;
       // Past the machine it stops growing, where it was; a board that's already too big can still shrink.
-      if ((next.w > shown.w || next.h > shown.h) && !fits(next)) return;
+      if ((next.w > (draft ?? s).w || next.h > (draft ?? s).h) && !fits(next)) return;
       setDraft(next);
-      onResizing(
-        `${next.w} × ${next.h} mm · ${((next.w * next.h) / 1e6).toFixed(2)} m² · ${Math.min(100, Math.round((100 * parts) / (next.w * next.h)))} % yield`
-      );
+      onDraft(next);
     },
     onPointerUp: (e: React.PointerEvent) => {
-      if (!start.current) return;
+      const s = start.current;
+      if (!s) return;
       e.stopPropagation();
       start.current = null;
       setDraft(null);
-      if (draft && (draft.w !== w || draft.h !== h)) onResize(draft.w, draft.h);
+      if (draft && (draft.w !== s.w || draft.h !== s.h)) onResize(draft.w, draft.h);
+      onDraft(null);
     },
     onPointerCancel: () => {
       start.current = null;
       setDraft(null);
+      onDraft(null);
     },
     onClick: (e: React.MouseEvent) => e.stopPropagation(),
   });
@@ -183,7 +179,7 @@ export function BoardOverlay({
   return (
     <div data-board-overlay className="pointer-events-none absolute inset-0 *:pointer-events-auto">
       {/* The edge margin, inside which the parts go. */}
-      {!draft && (
+      {!draft && !compact && (
         <div
           data-margin-line
           className="!pointer-events-none absolute border border-dotted border-primary/70"
@@ -195,14 +191,27 @@ export function BoardOverlay({
           }}
         />
       )}
-      {draft && (
+      {draft && start.current?.tight.w && (
         <div
-          data-resize-outline
-          className="!pointer-events-none absolute border-2 border-dashed border-primary bg-primary/5"
-          style={{ left: padPx, top: padPx, width: px(draft.w), height: px(draft.h) }}
-        />
+          data-tight="w"
+          className="!pointer-events-none absolute border-l border-dashed border-emerald-500"
+          style={{ left: padPx + px(start.current.tight.w), top: padPx - 24, height: px(h) + 72 }}>
+          <span className="absolute top-full ml-1 whitespace-nowrap text-[11px] text-emerald-600 dark:text-emerald-400">
+            Every part fits down to {start.current.tight.w}
+          </span>
+        </div>
       )}
-      {!draft && (
+      {draft && start.current?.tight.h && (
+        <div
+          data-tight="h"
+          className="!pointer-events-none absolute border-t border-dashed border-emerald-500"
+          style={{ top: padPx + px(start.current.tight.h), left: padPx - 24, width: px(w) + 72 }}>
+          <span className="absolute left-full ml-1 -translate-y-1/2 whitespace-nowrap text-[11px] text-emerald-600 dark:text-emerald-400">
+            Every part fits down to {start.current.tight.h}
+          </span>
+        </div>
+      )}
+      {!draft && !compact && (
         <>
           <Chip
             id="board-margin"
@@ -235,13 +244,13 @@ export function BoardOverlay({
         className={cn(
           'absolute h-9 w-1.5 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none rounded-full bg-primary ring-1 ring-background'
         )}
-        style={{ left: right + kGripOff, top: padPx + px(shown.h) / 2 }}
+        style={{ left: right + kGripOff, top: padPx + px(h) / 2 }}
       />
       <div
         {...handle('h')}
         title="Drag to change the board's height"
         className="absolute h-1.5 w-9 -translate-x-1/2 -translate-y-1/2 cursor-ns-resize touch-none rounded-full bg-primary ring-1 ring-background"
-        style={{ left: padPx + px(shown.w) / 2, top: bottom + kGripOff }}
+        style={{ left: padPx + px(w) / 2, top: bottom + kGripOff }}
       />
       <div
         {...handle('wh')}

@@ -10,6 +10,11 @@ on:
     branches:
       - main
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
+  # A new PR commit supersedes its previous checks; main pushes can still run independently.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   checks:
     name: Format, lint and types
@@ -29,6 +34,8 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Check CI configuration
+        run: pnpm run test:ci
       # Turborepo's local cache, so packages whose inputs did not change replay their result.
       - name: Cache Turborepo
         uses: actions/cache@v4
@@ -42,10 +49,34 @@ jobs:
         run: pnpm run lint
       - name: Check types
         run: pnpm run check-types
+      # This job already persists the default build cache. Keep builds off the browser test path.
+      - name: Build
+        run: pnpm run build
 
   test:
-    name: Run tests
+    name: Tests (${{ matrix.suite }})
+    # CAD/WASM, the app browser suite, and OpenCV must not compete for one runner's CPUs.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: cam
+            filter: --filter=@wbcnc/cam
+            performance: pnpm --filter @wbcnc/cam test:performance
+          - suite: app
+            filter: --filter=@wbcnc/camNC
+            performance: pnpm --filter @wbcnc/camNC test:performance
+          - suite: packages
+            filter: --filter=!@wbcnc/cam --filter=!@wbcnc/camNC --concurrency=1
+            performance: ''
     runs-on: ubuntu-latest
+    container:
+      # Keep this version in sync with the lockfile; test:ci checks both browser workflows.
+      image: mcr.microsoft.com/playwright:v1.54.1-noble
+      options: --ipc=host
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -67,30 +98,34 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .git/turbo-cache
-          key: turbo-test-${{ github.sha }}
-          restore-keys: turbo-test-
-      - name: Get the Playwright version
-        id: playwright
-        run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-      - name: Cache Playwright browsers
-        id: playwright-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
-      - name: Install Playwright Browsers
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm exec playwright install --with-deps chromium #--no-shell
-      # The cached browsers still need their system libraries.
-      - name: Install Playwright system dependencies
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: pnpm exec playwright install-deps chromium
+          key: turbo-test-${{ matrix.suite }}-${{ github.sha }}
+          restore-keys: turbo-test-${{ matrix.suite }}-
       - name: Run tests
-        run: pnpm run test
+        run: node scripts/turbo-shared-cache.mjs run test ${{ matrix.filter }} -- run
       - name: Run sketch behaviour specs
+        if: matrix.suite == 'app'
         run: pnpm --filter @wbcnc/camNC spec:cad
-      - name: Build
-        run: pnpm run build
+      # Each gate gets an otherwise idle runner, just as in the root test script.
+      - name: Performance gates
+        if: matrix.performance != ''
+        run: ${{ matrix.performance }}
+
+  results:
+    # Keep the check required by main's ruleset, including builds now running in checks.
+    name: Run tests
+    if: always()
+    needs: [checks, test, fluidnc-sim]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all validation jobs to pass
+        env:
+          CHECKS_RESULT: ${{ needs.checks.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          SIM_RESULT: ${{ needs.fluidnc-sim.result }}
+        run: |
+          test "$CHECKS_RESULT" = success
+          test "$TEST_RESULT" = success
+          test "$SIM_RESULT" = success
 
   fluidnc-sim:
     name: FluidNC simulator integration
@@ -113,19 +148,37 @@ jobs:
           python-version: "3.12"
       - name: Install PlatformIO
         run: pip install platformio
+      - name: Get simulator toolchain
+        id: simulator-toolchain
+        run: |
+          set -o pipefail
+          {
+            cat /etc/os-release
+            g++ --version
+            ldd --version
+            pio --version
+            python --version
+          } | sha256sum | awk '{print "hash=" $1}' >> "$GITHUB_OUTPUT"
       - name: Cache FluidNC simulator build
         uses: actions/cache@v4
         with:
           path: |
             ~/.cache/camnc
             ~/.platformio
-          key: fluidnc-sim-v4.1.1-${{ runner.os }}
+          # sim.mjs pins FluidNC and controls its build; the patch and toolchain must match the binary.
+          key: fluidnc-sim-${{ runner.os }}-${{ runner.arch }}-${{ steps.simulator-toolchain.outputs.hash }}-${{ hashFiles('packages/fluidnc/scripts/sim.mjs', 'packages/fluidnc/sim/sim-speed.patch') }}
       - name: Start simulator with the 3.9.9 personality proxy
         working-directory: packages/fluidnc
         run: |
+          started=$SECONDS
           node scripts/sim.mjs --v3 > sim.log 2>&1 &
           for i in $(seq 1 600); do
-            (echo > /dev/tcp/127.0.0.1/8848) 2>/dev/null && (echo > /dev/tcp/127.0.0.1/8851) 2>/dev/null && exit 0
+            if (echo > /dev/tcp/127.0.0.1/8848) 2>/dev/null && (echo > /dev/tcp/127.0.0.1/8851) 2>/dev/null; then
+              echo "Simulator ready after $((SECONDS - started)) s"
+              # Show whether a cache hit reused the binary or rebuilt it, even on successful runs.
+              cat sim.log
+              exit 0
+            fi
             sleep 1
           done
           echo "::error::The simulator did not open ports 8848 and 8851 within 600 s"
