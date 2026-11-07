@@ -8,6 +8,7 @@ import { clearJobRecord, saveJobRecord, type JobRecord } from './jobRecord';
 
 const h = vi.hoisted(() => ({ api: null as unknown as CncApi }));
 vi.mock('../fluidnc/machine', () => ({ getExistingCncApi: () => h.api, getCncApi: () => h.api }));
+vi.mock('@/lib/fluidnc/machineInstance', () => ({ getExistingCncApi: () => h.api }));
 let host: string;
 const file = () => `camnc-${crypto.randomUUID()}.gcode`;
 function record(sdFile: string): JobRecord {

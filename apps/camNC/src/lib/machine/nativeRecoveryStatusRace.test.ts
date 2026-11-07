@@ -15,6 +15,7 @@ const h = vi.hoisted(() => ({
   savedReceipt: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('@/lib/fluidnc/machine', () => ({ getExistingCncApi: () => h.api, getCncApi: () => h.api }));
+vi.mock('@/lib/fluidnc/machineInstance', () => ({ getExistingCncApi: () => h.api }));
 vi.mock('@/cam/machine/nativeRunHistory', () => ({
   recordNativeRun: h.history,
 }));

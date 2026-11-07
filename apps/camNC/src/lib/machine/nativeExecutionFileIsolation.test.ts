@@ -10,6 +10,7 @@ import { kJobFileName, uploadAndRun } from './jobs';
 
 const h = vi.hoisted(() => ({ api: null as unknown as CncApi, history: vi.fn<() => Promise<void>>() }));
 vi.mock('@/lib/fluidnc/machine', () => ({ getCncApi: () => h.api, getExistingCncApi: () => h.api }));
+vi.mock('@/lib/fluidnc/machineInstance', () => ({ getExistingCncApi: () => h.api }));
 // Isolate controller/receipt races from the separately real-IDB-tested physical claim kernel.
 vi.mock('@/cam/machine/nativeRunPreparation', async () => ({
   NativePreparationFailure: class extends Error {},

@@ -26,6 +26,7 @@ const h = vi.hoisted(() => ({
 
 // These mocks cannot contact a controller; only storage and controller completion are deferred.
 vi.mock('@/lib/fluidnc/machine', () => ({ getCncApi: () => h.api, getExistingCncApi: () => h.api }));
+vi.mock('@/lib/fluidnc/machineInstance', () => ({ getExistingCncApi: () => h.api }));
 vi.mock('./jobRecord', async original => ({
   ...(await original<typeof import('./jobRecord')>()),
   saveJobRecord: h.saveRecord,

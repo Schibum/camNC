@@ -11,9 +11,9 @@ import type { PlanResult, ReleaseProgram } from '../camTypes';
 import type { JobBoard } from '../useJobBoards';
 import type { GhostPart, ShowInTopView } from './partGhost';
 import { captureManufacturingSnapshot, matchesResumableSetup, type ManufacturingSnapshot } from './manufacturingSnapshot';
-import { getExistingCncApi } from '@/lib/fluidnc/machine';
+import { getExistingCncApi } from '@/lib/fluidnc/machineInstance';
 import { useStore } from '@/store/store';
-import { interruptedJob, recoveryPending } from '@/lib/machine/jobRecovery';
+import { interruptedJob, recoveryPending } from '@/lib/machine/jobRecoveryState';
 
 export interface BoardOverlay {
   w: number;

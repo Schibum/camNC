@@ -16,6 +16,7 @@ const h = vi.hoisted(() => ({
   save: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('@/lib/fluidnc/machine', () => ({ getCncApi: () => h.api, getExistingCncApi: () => h.api }));
+vi.mock('@/lib/fluidnc/machineInstance', () => ({ getExistingCncApi: () => h.api }));
 vi.mock('@/cam/machine/nativeRunPreparation', async () => ({
   NativePreparationFailure: class extends Error {},
   prepareNativeRun: async (snapshot: import('@/cam/machine/manufacturingSnapshot').ManufacturingSnapshot, executionId: string) => {

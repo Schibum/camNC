@@ -9,6 +9,7 @@ import { uploadAndRun } from './jobs';
 
 const h = vi.hoisted(() => ({ api: null as unknown as CncApi }));
 vi.mock('@/lib/fluidnc/machine', () => ({ getCncApi: () => h.api, getExistingCncApi: () => h.api }));
+vi.mock('@/lib/fluidnc/machineInstance', () => ({ getExistingCncApi: () => h.api }));
 vi.mock('@/cam/machine/nativeRunPreparation', async () => ({
   NativePreparationFailure: class extends Error {},
   prepareNativeRun: async (snapshot: import('@/cam/machine/manufacturingSnapshot').ManufacturingSnapshot, executionId: string) => {

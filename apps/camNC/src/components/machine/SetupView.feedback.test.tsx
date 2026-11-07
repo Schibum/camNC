@@ -7,6 +7,7 @@ import { useStore } from '@/store/store';
 import { SetupView } from './SetupView';
 const h = vi.hoisted(() => ({ api: null as unknown as import('@/lib/fluidnc/cnc-api').CncApi, run: vi.fn() }));
 vi.mock('@/lib/fluidnc/machine', () => ({ getCncApi: () => h.api, getExistingCncApi: () => h.api }));
+vi.mock('@/lib/fluidnc/machineInstance', () => ({ getExistingCncApi: () => h.api }));
 vi.mock('@/lib/machine/jobs', () => ({
   uploadAndRun: h.run,
   zeroAndRun: h.run,
