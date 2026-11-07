@@ -3,7 +3,8 @@ import { camBoard, type BoardSpec } from './board';
 import type { PartFeatures } from './features';
 import { toGcode } from './gcode';
 import { checkGcodeSafety } from './safety';
-import { candidates, freePartsProgram, planTabs } from './tabPlan';
+import { holdCheck } from './hold';
+import { candidates, curvedSpots, freePartsProgram, planTabs } from './tabPlan';
 import { DEFAULT_TABS } from './toolpaths';
 
 const rect = (x0: number, y0: number, x1: number, y1: number) => [
@@ -66,6 +67,57 @@ describe('tab placement', () => {
     );
     expect(line.length).toBeGreaterThan(3);
     for (const c of line) expect(c.at.x >= 5 && c.at.x <= 25).toBe(true);
+  });
+
+  describe('round parts', () => {
+    const arc = (cx: number, cy: number, r: number, from: number, to: number, step: number) =>
+      Array.from({ length: Math.round((to - from) / step) + 1 }, (_, i) => ({
+        x: cx + r * Math.cos(((from + i * step) * Math.PI) / 180),
+        y: cy + r * Math.sin(((from + i * step) * Math.PI) / 180),
+      }));
+    const shaped = (loop: { x: number; y: number }[], w: number, h: number, boardW: number, boardH: number, at: number) => {
+      const f = { ...plain(), footprint: [loop], outlines: [loop] };
+      return roomy([{ id: 'p', name: 'p', features: f, size: [w, h, 8], x: at, y: at, rotated: false }], boardW, boardH);
+    };
+    // Straight edges facing left and up only: on a board fitted to it, with the margin it gets by default.
+    const teardrop = () => shaped([...arc(28.3, 28.3, 28.3, -180, 45, 3), ...arc(5, 68.6, 5, 45, 180, 5)], 56.6, 73.6, 70, 87, 6.7);
+    const disc = () => shaped(arc(30, 30, 30, 0, 357, 3), 60, 60, 74, 74, 7);
+
+    it.each([
+      ['a teardrop', teardrop],
+      ['a disc', disc],
+    ])('holds %s by tabs on opposite sides, and the hold check agrees', (_, make) => {
+      const b = make();
+      const h = planTabs(b, {}).get('p')!;
+      expect(h.how).toBe('placed');
+      expect(h.tabs.length).toBeGreaterThanOrEqual(2);
+      const cam = camBoard(b, {});
+      expect(holdCheck(cam, b).every(c => c.ok)).toBe(true);
+    });
+
+    it('a teardrop takes the round below, and the straight edge above', () => {
+      const h = planTabs(teardrop(), {}).get('p')!;
+      expect(h.tabs.some(t => t.y < 10)).toBe(true);
+      // On the path along the straight diagonal, from (5 + 3.5, 72.1) to (48.3, 48.3), 6.7 mm in from the board's corner.
+      const top = h.tabs.find(t => t.y > 40)!;
+      expect(Math.abs((top.x - 6.7 - 8.5) * 0.5 + (top.y - 6.7 - 72.1) * 0.87)).toBeLessThan(20);
+    });
+
+    it('takes gentle curves but no corners, rounded or sharp', () => {
+      expect(curvedSpots(arc(0, 0, 50, 0, 357, 3), 8, 10).length).toBeGreaterThan(20);
+      // 90° corners with a small round: nothing within reach of them.
+      const rounded = [
+        ...arc(197, 3, 3, -90, 0, 10),
+        ...arc(197, 97, 3, 0, 90, 10),
+        ...arc(3, 97, 3, 90, 180, 10),
+        ...arc(3, 3, 3, 180, 270, 10),
+      ];
+      const spots = curvedSpots(rounded, 8, 10);
+      expect(spots.length).toBeGreaterThan(0);
+      for (const c of spots) expect((c.at.x < 9 || c.at.x > 191) && (c.at.y < 9 || c.at.y > 91)).toBe(false);
+      for (const c of curvedSpots(rect(0, 0, 200, 100), 8, 10))
+        expect((c.at.x < 10 || c.at.x > 190) && (c.at.y < 10 || c.at.y > 90)).toBe(false);
+    });
   });
 
   it('a few tabs on two opposite sides, spread along them, off the corners: none in a notch', () => {

@@ -130,10 +130,7 @@ describe('CAM boards step', () => {
     expect(before.find(b => b.name === 'C')!.pinned).toEqual([before.find(b => b.name === 'C')!.items[0]]);
 
     fireEvent.click(screen.getByRole('button', { name: 'Auto-fill from stock' }));
-    await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
-    const [message, { action }] = toastSuccess.mock.calls.at(-1)! as [string, { action: { label: string; onClick: () => void } }];
-    expect(message).toBe('Parts placed on 1 board from stock');
-    expect(action.label).toBe('Undo');
+    await screen.findByText('Parts placed on 1 board from stock.');
     let after: typeof before = [];
     await waitFor(async () => {
       after = (await getJob(job.id))!.boards!;
@@ -146,7 +143,7 @@ describe('CAM boards step', () => {
     expect(stockBoard.size).toEqual({ fit: false, w: 1220, h: 610 });
     expect(stockBoard.items).toHaveLength(4);
 
-    action.onClick();
+    fireEvent.click(screen.getByRole('button', { name: 'Undo that' }));
     await waitFor(async () => expect((await getJob(job.id))!.boards).toStrictEqual(before));
     expect(drawing('C')).toBeTruthy();
     // Undo leaves the stock list alone.
@@ -172,7 +169,7 @@ describe('CAM boards step', () => {
 
     // The 3 mm back can't go on an 8 mm board.
     drag(partIn('B', 'back'), 'A');
-    expect(toastError).toHaveBeenCalledWith(expect.stringContaining('3 mm thick'));
+    await screen.findByText(/3 mm thick/);
 
     // Without dragging: ⋯ › Move to › New board.
     await openMenu('A', 'Part 1b');
@@ -707,21 +704,19 @@ describe('CAM boards step', () => {
     const before = (await getJob(job.id))!.boards!;
 
     // Everything: unpinned (no stock list, so the boards keep their parts and nest afresh).
-    toastSuccess.mockClear();
     showAll();
     fireEvent.pointerDown(screen.getByRole('button', { name: 'More layout actions' }), { button: 0, ctrlKey: false });
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Re-lay out everything (unpin all)' }));
     await waitFor(async () => expect(await pinnedBoards()).toEqual([]), { timeout: 10_000 });
-    const [message, { action }] = toastSuccess.mock.calls.at(-1)! as [string, { action: { label: string; onClick: () => void } }];
-    expect(message).toBe('All boards laid out again');
-    action.onClick();
+    await screen.findByText('All boards laid out again.');
+    fireEvent.click(screen.getByRole('button', { name: 'Undo that' }));
     await waitFor(async () => expect((await getJob(job.id))!.boards).toStrictEqual(before), { timeout: 10_000 });
 
     // One board: open C, re-lay it out from its inspector.
     fireEvent.click(await screen.findByRole('region', { name: 'Board C drawing' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Tighten layout' }));
     await waitFor(async () => expect(await pinnedBoards()).toEqual([]), { timeout: 10_000 });
-    expect(toastSuccess.mock.calls.at(-1)![0]).toBe('Board C laid out again');
+    await screen.findByText('Board C laid out again.');
     // Part 2 is still on board C.
     expect((await getJob(job.id))!.boards!.find(b => b.name === 'C')!.items).toHaveLength(1);
   }, 90_000);

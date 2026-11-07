@@ -210,7 +210,7 @@ export function BoardDrawings({
   onHoldSizes: () => void;
   railClosed: boolean;
   onRailToggle?: () => void;
-  /** What needs attention, over the drawing: it takes no room, so it never rescales it. */
+  /** What needs attention, in a strip of fixed height under the drawing: it covers none of it and never rescales it. */
   status?: React.ReactNode;
   /** Show every board. */
   onAll: () => void;

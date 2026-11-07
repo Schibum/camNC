@@ -62,6 +62,34 @@ describe('CAM boards layout', () => {
     expect(drawing('Board B')).toBeTruthy();
   }, 90_000);
 
+  it('holds the drawing still when stacked: its scale can’t follow a heading that wraps', async () => {
+    await page.viewport(750, 1000);
+    await open();
+    await waitFor(() => expect(document.querySelector('main')!.clientHeight).toBe(700));
+    // The status is under the drawing, with or without a message: it covers nothing and takes the same room.
+    const scroller = document.querySelector('[data-board-scroller]')!;
+    const status = screen.getByLabelText('Board A status');
+    expect(status.getBoundingClientRect().top).toBeGreaterThanOrEqual(scroller.getBoundingClientRect().bottom);
+    const height = scroller.clientHeight;
+    fireEvent.click(screen.getByRole('button', { name: 'Tighten layout' }));
+    await within(status).findByText(/laid out again/);
+    expect(scroller.clientHeight).toBe(height);
+    const frame = () => new Promise(requestAnimationFrame);
+    for (let width = 520; width <= 760; width += 40) {
+      await page.viewport(width, 1000);
+      // Settling after a resize changes it once or twice; a loop keeps changing it.
+      let [last, changes] = ['', 0];
+      for (let i = 0; i < 40; i++) {
+        const box = document.querySelector('[data-board-drawing]')!.getBoundingClientRect();
+        const size = `${box.width} ${box.height}`;
+        if (size !== last) changes++;
+        last = size;
+        await frame();
+      }
+      expect(changes, `at ${width} px`).toBeLessThan(5);
+    }
+  }, 150_000);
+
   it('edits one board at a time, with every board as an overview that leads back to it', async () => {
     await open();
     expect(drawing('Board B')).toBeNull();
@@ -324,11 +352,11 @@ describe('CAM boards layout', () => {
     expect(useBoardsLayout.getState().railClosed).toBe(false);
   }, 90_000);
 
-  it('says nothing over the drawing while all is well, only an issue or what just happened', async () => {
+  it('says nothing under the drawing while all is well, only an issue or what just happened', async () => {
     const job = await open();
     const status = () => screen.getByLabelText('Board A status');
     await waitFor(async () => expect((await saved(job.id)).layout).toBeTruthy(), { timeout: 10_000 });
-    expect(status().hidden).toBe(true);
+    expect(status().textContent).toBe('');
 
     // An issue stays until it's fixed; the sidebar has the verdict either way.
     fireEvent.click(screen.getByRole('button', { name: 'Clamp' }));
@@ -338,7 +366,6 @@ describe('CAM boards layout', () => {
     fireEvent.pointerMove(svg, { clientX: p.x, clientY: p.y });
     fireEvent.click(svg, { clientX: p.x, clientY: p.y });
     await waitFor(() => expect(status().textContent).toMatch(/1 clamp: the board can still turn/), { timeout: 10_000 });
-    expect(status().hidden).toBe(false);
     expect(document.querySelector('[data-fixture-count]')!.textContent).toBe('1 clamp');
   }, 90_000);
 

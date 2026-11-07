@@ -568,6 +568,8 @@ export function NestView({
                 y={box.y - keep}
                 width={box.w + 2 * keep}
                 height={box.h + 2 * keep}
+                // Round at the corners: the distance kept from the toe, which is what a round part is held to.
+                rx={keep}
                 fill={`url(#${hatch})`}
                 className="pointer-events-none stroke-red-500/40"
                 strokeWidth={stroke / 2}
