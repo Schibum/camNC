@@ -16,10 +16,13 @@ import {
   cutBoardWith,
   isCut,
   layoutSummary,
+  nestBoard,
   newBoard,
+  notAside,
   relayoutBoard,
-  movedBottomEdge,
+  resizedBoard,
   respaceBoard,
+  setAsidePart,
   stockTopOf,
   type BoardV1,
   type PartDrop,
@@ -28,7 +31,6 @@ import {
 } from '@/cam/boards';
 import { BoardDrawings } from '@/cam/boards/BoardDrawings';
 import { BoardInspector } from '@/cam/boards/BoardInspector';
-import { useBoardsLayout } from '@/cam/boards/boardsLayoutStore';
 import { HoldSizesDialog } from '@/cam/boards/HoldSizesDialog';
 import { HoldTools } from '@/cam/boards/HoldTools';
 import { useHoldEditing } from '@/cam/boards/useHoldEditing';
@@ -53,7 +55,6 @@ import { zodValidator } from '@tanstack/zod-adapter';
 import { z } from 'zod';
 import { Button } from '@wbcnc/ui/components/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@wbcnc/ui/components/dropdown-menu';
-import { useIsMobile } from '@wbcnc/ui/hooks/use-mobile';
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
 import { ChevronDown, Plus, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -153,7 +154,7 @@ function BoardsStep() {
   );
 }
 
-/** The boards of a job with parts to mill: a board at a time, or all of them with the job-wide layout tools. */
+/** The boards of a job with parts to mill, on one table: the sidebar is about the board selected, or about all of them. */
 function BoardsEditor({
   job,
   parts,
@@ -174,13 +175,10 @@ function BoardsEditor({
 }) {
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(firstBoard ?? null);
-  // A board at a time gets the room: every board is an overview, for arranging parts across them.
-  const [view, setView] = useState<'board' | 'all'>('board');
+  // What the sidebar is about.
+  const [panel, setPanel] = useState<'board' | 'all'>('board');
   const [holdSizes, setHoldSizes] = useState(false);
   const hardware = useHoldHardware(s => s.hardware);
-  const narrow = useIsMobile();
-  const railClosed = useBoardsLayout(s => s.railClosed);
-  const setRailClosed = useBoardsLayout(s => s.setRailClosed);
   // The machine's work area, when it is set up: no board comes out bigger (stock cut down, fitted boards and borders).
   const machine = useMachineArea();
   // What just happened on the drawing, and the boards before each change, to go back to.
@@ -224,10 +222,35 @@ function BoardsEditor({
   const updateBoard = (b: BoardV1) => saveBoards(boards.map(x => (x.board.id === b.id ? b : x.board)));
   const open = (id: string) => {
     setSelectedId(id);
-    setView('board');
+    setPanel('board');
+  };
+  /** The selected board at this size, laid out for it. A fitted board with nothing on it is only its margins: one side set sets both. */
+  const resizedTo = (w: number, h: number) => {
+    const { board, nest } = selected;
+    const empty = board.size.fit && !nest.placements.length;
+    const size = empty && h === nest.board.h ? { w, h: w } : empty && w === nest.board.w ? { w: h, h } : { w, h };
+    return resizedBoard(board, nest, size, instances, plan.bit.diameter, nestOptions);
+  };
+  /** A new size, however it's given: the board is laid out for it, and says what no longer fits. */
+  const resize = (w: number, h: number) => {
+    const before = boards.map(b => b.board);
+    const next = resizedTo(w, h);
+    if (!updateBoard(next)) return;
+    const nested = nestBoard(next, instances, plan.bit.diameter, nestOptions);
+    const off = nested.unplaced.filter(id => !next.setAside?.[id]).map(id => byId.get(id)?.name ?? id);
+    setNote(
+      `${boardLabel(next)} is fixed at ${nested.board.w} × ${nested.board.h} mm.${
+        off.length ? ` ${off.join(', ')} ${off.length === 1 ? 'doesn’t' : 'don’t'} fit and moved off it.` : ''
+      }`,
+      undoTo(before)
+    );
   };
   /** Changed where it's drawn or in its settings: the parts make room for what that takes. */
-  const respaced = (next: BoardV1) => updateBoard(respaceBoard(selected.board, next, instances, plan.bit.diameter, nestOptions));
+  const respaced = (next: BoardV1) => {
+    const now = selected.nest.board;
+    if (!next.size.fit && (next.size.w !== now.w || next.size.h !== now.h)) return resize(next.size.w, next.size.h);
+    return updateBoard(respaceBoard(selected.board, next, instances, plan.bit.diameter, nestOptions));
+  };
   const rename = (name: string) => {
     const problem = boardNameProblem(
       name,
@@ -246,7 +269,7 @@ function BoardsEditor({
     nestOptions,
     machine,
     onNote: setNote,
-    active: view === 'board',
+    active: true,
     onBoardEdit: (b, text) => {
       setNote(text);
       updateBoard(b);
@@ -296,13 +319,6 @@ function BoardsEditor({
     const t = setTimeout(() => setNote(''), 6000 + 50 * note.length);
     return () => clearTimeout(t);
   }, [note, holds.tool]);
-  const showView = (next: 'board' | 'all') => {
-    if (next === 'all') {
-      holds.setTool(null);
-      holds.setEdit(null);
-    }
-    setView(next);
-  };
   const byId = new Map(instances.map(i => [i.id, i]));
 
   const move = (itemId: string, boardId: string) => {
@@ -327,6 +343,38 @@ function BoardsEditor({
     );
     setSelectedId(boardId);
     return true;
+  };
+
+  // Dropped on the table: it stays on its board's list, off the board.
+  const setAside = (itemId: string, at: PartPosition) => {
+    const from = boards.find(b => b.board.items.includes(itemId))?.board;
+    if (from && updateBoard(setAsidePart(from, itemId, at)))
+      setNote(`${byId.get(itemId)?.name ?? itemId} is off the board and won’t be cut.`);
+  };
+
+  /** Every part off a board that isn't cut: onto a board of its thickness with room, or else a new one. */
+  const placeOffBoard = () => {
+    const bit = plan.bit.diameter;
+    const before = boards.map(b => b.board);
+    let next = before;
+    // No spot it could take: the nest decides.
+    const anywhere = { x: -1e6, y: -1e6, rotated: false };
+    for (const { board, nest } of boards) {
+      if (isCut(board)) continue;
+      for (const id of nest.unplaced) {
+        const home = notAside(next.find(b => b.id === board.id)!, id);
+        const others = next.filter(b => b.id !== board.id && !isCut(b) && b.thickness === board.thickness);
+        const drop = [home, ...others].map(t => dropPart(t, instances, bit, id, anywhere, 0, nestOptions)).find(d => d.at);
+        const taker = drop?.board ?? {
+          ...newBoard(next, board.thickness, board.material, [id]),
+          ...holdSettingsOf(board),
+          pinned: [id],
+        };
+        const gone = next.map(b => (b.id === taker.id ? taker : without(b, id)));
+        next = gone.some(b => b.id === taker.id) ? gone : [...gone, taker];
+      }
+    }
+    if (saveBoards(next)) setNote('Parts off the boards placed.', undoTo(before));
   };
 
   // One board per thickness to start with: a new board, with the body on it.
@@ -444,7 +492,10 @@ function BoardsEditor({
     const name = byId.get(id)?.name ?? id;
     return {
       name,
-      targets: boards.filter(b => b.board.id !== board.id && b.board.thickness === board.thickness).map(b => b.board),
+      // Set aside: back onto its own board is a move too.
+      targets: boards
+        .filter(b => (b.board.id !== board.id || board.setAside?.[id]) && b.board.thickness === board.thickness)
+        .map(b => b.board),
       onMoveTo: target => (target === 'new' ? toNewBoard(id) : void move(id, target)),
       pinned: !!board.pinned?.includes(id),
       onUnpin: () => unpin(id),
@@ -457,19 +508,20 @@ function BoardsEditor({
         : undefined,
     };
   };
-  // What needs attention on the selected board: over its drawing, whose heading says which board has some.
+  // What needs attention: on any board for what's off them, else on the selected board.
   const sel = selected.board,
     selNest = selected.nest;
-  const unplacedNames = selNest.unplaced.map(id => byId.get(id)?.name ?? id);
+  const unplacedNames = boards.flatMap(b => b.nest.unplaced.map(id => byId.get(id)?.name ?? id));
   const cantHold = sel.retention === 'tabs' ? (planOf(sel)?.holding ?? []).filter(h => h.how === 'unheld').map(h => h.name) : [];
   const verdict = holdVerdict(sel, selNest, hardware, instances);
   const alerts = (
     <>
       {unplacedNames.length > 0 && (
-        <p role="alert" className="text-xs text-destructive">
-          {`${unplacedNames.join(', ')} ${unplacedNames.length === 1 ? 'doesn’t' : 'don’t'} fit on this board. Drag ${
-            unplacedNames.length === 1 ? 'it' : 'them'
-          } from under its drawing onto another ${sel.thickness} mm board or onto “New board”, or make this board larger.`}
+        <p role="alert" className="flex flex-wrap items-center gap-2 text-xs text-amber-700 dark:text-amber-400">
+          {`${unplacedNames.join(', ')} ${unplacedNames.length === 1 ? 'is' : 'are'} off the boards and won’t be cut.`}
+          <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={placeOffBoard}>
+            Place on boards
+          </Button>
         </p>
       )}
       {selNest.nutAbove < 0 && (
@@ -495,18 +547,18 @@ function BoardsEditor({
     </>
   );
 
-  const issue = view === 'board' && (verdict.tone === 'warn' || unplacedNames.length > 0 || selNest.nutAbove < 0 || cantHold.length > 0);
+  const issue = verdict.tone === 'warn' || unplacedNames.length > 0 || selNest.nutAbove < 0 || cantHold.length > 0;
 
   const status = (
     <div
       aria-label={`${boardLabel(sel)} status`}
       className={cn(
         // Always this tall, empty or not: a message coming or going never rescales the drawing, and it covers none of it.
-        'flex h-16 shrink-0 items-start gap-2 overflow-y-auto border-t bg-background px-4 py-1.5 pr-44 text-[13px]',
+        'flex h-20 shrink-0 items-start gap-2 overflow-y-auto border-t bg-background px-4 py-1.5 pr-44 text-[13px]',
         issue && 'border-t-amber-500/70'
       )}>
       <div className="flex min-w-0 flex-col gap-1">
-        {view === 'board' && alerts}
+        {alerts}
         {note && (
           <p className="flex flex-wrap items-center gap-2 text-muted-foreground">
             {note}
@@ -524,7 +576,7 @@ function BoardsEditor({
             )}
           </p>
         )}
-        {view === 'board' && verdict.tone === 'warn' && (
+        {verdict.tone === 'warn' && (
           <p role="status" className="flex gap-2">
             <span aria-hidden className="mt-1.5 size-2 shrink-0 rounded-full bg-amber-500" />
             {verdict.text}
@@ -547,7 +599,7 @@ function BoardsEditor({
     <div className="grid flex-1 grid-cols-1 md:min-h-0 md:grid-cols-[1fr_300px]">
       {/* A height of its own when stacked: the drawing scales to it, so it can't follow the drawing's content. */}
       <main className="flex h-[70dvh] min-h-[320px] min-w-0 flex-col bg-muted/30 md:h-auto">
-        {view === 'board' && isCut(sel) && (
+        {isCut(sel) && (
           <div
             role="note"
             aria-label={`${boardLabel(sel)} is cut`}
@@ -567,32 +619,20 @@ function BoardsEditor({
             </Hint>
           </div>
         )}
-        {/* The sidebar is under the drawing on a small screen: the tools stay with the drawing. */}
-        {narrow && view === 'board' && <HoldTools holds={holds} onUndo={undo} onRedo={redo} layout="row" />}
         <BoardDrawings
-          view={view}
           holds={holds}
           status={status}
           onOpen={open}
-          onAll={() => showView('all')}
-          railTools={
-            narrow
-              ? undefined
-              : strip => <HoldTools holds={holds} onUndo={undo} onRedo={redo} layout={strip ? 'strip' : 'grid'} off={view === 'all'} />
-          }
+          allShown={panel === 'all'}
+          onAll={() => setPanel('all')}
+          tools={<HoldTools holds={holds} onUndo={undo} onRedo={redo} />}
           onTabSize={(key, value) => holds.setTabSize(key, value, false)}
           onBoardChange={respaced}
-          onResize={(w, h) => {
-            // A fitted board with nothing on it is only its margins: one side dragged sets both, as when typed in.
-            const empty = sel.size.fit && !selNest.placements.length;
-            const size = empty && h === selNest.board.h ? { w, h: w } : empty && w === selNest.board.w ? { w: h, h } : { w, h };
-            setNote(`${boardLabel(sel)} is fixed at ${size.w} × ${size.h} mm.`);
-            const moved = movedBottomEdge(sel, selNest, instances, size.h);
-            updateBoard(respaceBoard(moved, { ...moved, size: { fit: false, ...size } }, instances, plan.bit.diameter, nestOptions));
-          }}
+          resizedTo={resizedTo}
+          onResize={resize}
+          onSetAside={setAside}
+          startOnBoard={!!firstBoard}
           onHoldSizes={() => setHoldSizes(true)}
-          railClosed={railClosed || narrow}
-          onRailToggle={narrow ? undefined : () => setRailClosed(!railClosed)}
           nestOptions={nestOptions}
           machine={machine}
           onNote={setNote}
@@ -629,7 +669,7 @@ function BoardsEditor({
       </main>
       <aside className="flex min-h-0 flex-col border-l">
         <div className="flex min-h-0 flex-1 flex-col">
-          {view === 'board' ? (
+          {panel === 'board' ? (
             <BoardInspector
               board={sel}
               nest={selNest}
@@ -778,7 +818,7 @@ const unpositioned = (board: BoardV1, itemId: string) =>
   board.layout && { layout: { ...board.layout, at: Object.fromEntries(Object.entries(board.layout.at).filter(([id]) => id !== itemId)) } };
 /** The board without this body (nor its pin and spot). */
 const without = (board: BoardV1, itemId: string): BoardV1 => ({
-  ...board,
+  ...notAside(board, itemId),
   items: board.items.filter(i => i !== itemId),
   ...(board.pinned && { pinned: unpinned(board, itemId) }),
   ...unpositioned(board, itemId),
