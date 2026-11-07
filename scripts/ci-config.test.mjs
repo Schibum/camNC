@@ -72,3 +72,17 @@ test('the CI suites cover every package test exactly once and retain every perfo
   const scripts = JSON.parse(read('package.json')).scripts;
   assert.deepEqual(suites.map(suite => suite.performance).filter(Boolean).sort(), scripts['test:performance'].split(' && ').sort());
 });
+
+
+test('merge queue runs all validation and isolates concurrent candidate builds', () => {
+  const workflow = parse(read('.github/workflows/ci.yml'));
+  assert.deepEqual(workflow.on.merge_group.types, ['checks_requested']);
+  assert(workflow.on.pull_request, 'ordinary PR checks must still run');
+  assert(workflow.on.push, 'main checks must still run');
+  assert.equal(workflow.concurrency.group, 'ci-${{ github.event.pull_request.number || github.run_id }}');
+  assert.equal(workflow.concurrency['cancel-in-progress'], "${{ github.event_name == 'pull_request' }}");
+  for (const [id, job] of Object.entries(workflow.jobs)) {
+    assert.equal(job.if, id === 'results' ? 'always()' : undefined,
+      `${id} must not skip validation on merge_group events`);
+  }
+});
