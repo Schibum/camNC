@@ -1,3 +1,4 @@
+import { useCamMachine } from '@/cam/machine/camMachine';
 import { createJob, getJob, saveJob, type CamJobV1 } from '@/cam/jobDb';
 // Pointer coordinates and fitted SVG dimensions must use the page's real layout, including the fixed-height status.
 import '@/style.css';
@@ -22,11 +23,6 @@ vi.mock('@tanstack/react-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
 }));
 vi.mock('@/components/page-header', () => ({ PageHeader: () => null }));
-const manufacturing = vi.hoisted(() => ({ locked: false }));
-vi.mock('@/cam/machine/camMachine', async importOriginal => {
-  const actual = await importOriginal<typeof import('@/cam/machine/camMachine')>();
-  return { ...actual, isManufacturingLocked: () => manufacturing.locked || actual.isManufacturingLocked() };
-});
 vi.mock('@wbcnc/ui/components/sonner', () => ({
   toast: Object.assign(vi.fn(), { error: toastError, success: toastSuccess, warning: vi.fn() }),
 }));
@@ -117,12 +113,12 @@ describe('CAM boards step', () => {
     });
     act(() => client.setQueryData(['cam', 'job', job.id], cut));
     const startOver = await screen.findByRole('button', { name: 'Start over' });
-    manufacturing.locked = true;
+    useCamMachine.setState({ preparingRun: true });
     try {
       fireEvent.click(startOver);
       expect(await screen.findByText('Review or dismiss the machine job before starting over.')).toBeTruthy();
     } finally {
-      manufacturing.locked = false;
+      useCamMachine.setState({ preparingRun: false });
     }
     const after = (await getJob(job.id))!.boards!.find(b => b.id === board.id)!;
     expect(after.cut!.keys).toEqual(['original']);
