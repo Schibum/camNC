@@ -130,11 +130,10 @@ export async function runSetupSmoke(
   try {
     await page.goto(target.href);
     // A first visit lands on Get started, which works without a camera; the camera setup is one link away.
-    await page.getByRole('link', { name: 'Set it up now', exact: true }).click();
+    await page.getByRole('link', { name: 'Add a camera', exact: true }).click();
     await page.waitForURL('**/setup/url-entry');
     check('first visit opens Get started, with a link to the camera setup');
     await page.getByRole('tab', { name: 'Webcam', exact: true }).click();
-    await page.getByRole('textbox', { name: 'Name of camera/machine setup' }).fill('Setup smoke camera');
     await page.getByText('camNC smoke camera', { exact: true }).waitFor();
     await page.waitForFunction(() => document.querySelector('video')?.videoWidth === 960);
     await page.getByRole('button', { name: 'Confirm', exact: true }).click();
@@ -201,6 +200,17 @@ export async function runSetupSmoke(
     assert.deepEqual(positioned.markerPositions, markers.positions);
     check('four rendered ArUco tags are detected and a low-error camera pose is saved');
 
+    // New cameras take their name from the source; names are edited on the camera's settings page.
+    await navigate('Cameras');
+    await page.getByRole('link', { name: 'Open camNC smoke camera', exact: true }).click();
+    const cameraName = page.getByRole('textbox', { name: 'Camera name', exact: true });
+    await cameraName.fill('Setup smoke camera');
+    await cameraName.press('Enter');
+    await page.waitForFunction(() => {
+      const state = JSON.parse(localStorage.getItem('settings')).json.state;
+      return state.camSources[state.activeCamId]?.name === 'Setup smoke camera';
+    });
+
     await navigate('FluidNC');
     await page.getByText('Connect to FluidNC', { exact: true }).waitFor();
     await page.getByText('Not connected', { exact: true }).waitFor();
@@ -259,11 +269,11 @@ export async function runSetupSmoke(
     await waitForCanvasChange(pixels => pixels - blankPixels > 2000);
     check('top-view canvas renders live camera scene changes');
 
-    const fileChooser = page.waitForEvent('filechooser');
-    await page.getByRole('button', { name: 'Open gcode File', exact: true }).click();
-    await (
-      await fileChooser
-    ).setFiles({
+    const [fileChooser] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      page.getByRole('button', { name: 'Open G-code file', exact: true }).click(),
+    ]);
+    await fileChooser.setFiles({
       name: 'smoke.nc',
       mimeType: 'text/plain',
       buffer: Buffer.from('G21\nG90\nG0 X0 Y0 Z5\nG1 Z-1 F100\nG1 X100 Y0\nG1 X100 Y80\nG1 X0 Y80\nG1 X0 Y0\nG0 Z5\n'),
@@ -317,20 +327,25 @@ export async function runSetupSmoke(
     const configuration = JSON.parse(await page.getByRole('textbox', { name: 'Camera Source Configuration', exact: true }).inputValue());
     assert.deepEqual(configuration.machineBounds, [0, 0, 600, 500]);
     assert.deepEqual(configuration.markerPositions, markers.positions);
+    await navigate('Backup & Restore');
     const downloading = page.waitForEvent('download');
-    await page.getByRole('button', { name: 'Export', exact: true }).click();
-    const exportedFile = path.join(outputDir, 'camera-source.json');
+    await page.getByRole('button', { name: 'Download backup', exact: true }).click();
+    const exportedFile = path.join(outputDir, 'settings-backup.json');
     await (await downloading).saveAs(exportedFile);
     const exported = JSON.parse(await readFile(exportedFile, 'utf8'));
-    assert.equal(exported.json.name, 'Setup smoke camera');
+    const exportedSettings = exported.json.settings;
+    const exportedCamera = exportedSettings.camSources[exportedSettings.activeCamId];
+    assert.equal(exportedCamera.name, 'Setup smoke camera');
     // A changed name makes completion observable: re-importing identical data
     // could otherwise pass before the application's FileReader had run.
-    exported.json.name = 'Imported smoke camera';
-    const importedFile = path.join(outputDir, 'camera-source-import.json');
+    exportedCamera.name = 'Imported smoke camera';
+    const importedFile = path.join(outputDir, 'settings-backup-import.json');
     await writeFile(importedFile, JSON.stringify(exported));
     const importing = page.waitForEvent('filechooser');
-    await page.getByRole('button', { name: 'Import', exact: true }).click();
+    await page.getByRole('button', { name: 'Choose backup file…', exact: true }).click();
     await (await importing).setFiles(importedFile);
+    await page.getByRole('button', { name: 'Restore', exact: true }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Replace', exact: true }).click();
     await page.waitForFunction(() => {
       const raw = localStorage.getItem('settings');
       if (!raw) return false;

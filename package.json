@@ -6,6 +6,7 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "test": "node scripts/turbo-shared-cache.mjs run test -- run && pnpm run test:performance",
+    "test:ci": "node --test scripts/ci-config.test.mjs",
     "test:performance": "pnpm --filter @wbcnc/cam test:performance && pnpm --filter @wbcnc/camNC test:performance",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-format": "prettier --check \"**/*.{ts,tsx,md}\"",
@@ -23,7 +24,8 @@
     "turbo": "catalog:",
     "typescript": "catalog:",
     "vite-plugin-node-polyfills": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "yaml": "catalog:"
   },
   "packageManager": "pnpm@10.13.1",
   "engines": {

@@ -190,7 +190,7 @@ describe('settle', () => {
     expect(r.w).toBeGreaterThanOrEqual(604);
   });
 
-  it('runs fast enough for a pointer on real outlines', () => {
+  it('[performance] runs fast enough for a pointer on real outlines', () => {
     const { b, spots } = sample('kinderregal-standing');
     const t = performance.now();
     for (let at = 40; at < 700; at += 60) settle(b, spots, [clamp('left', at), clamp('right', 700 - at)], false, 80);
@@ -199,7 +199,7 @@ describe('settle', () => {
 });
 
 describe('largestOffcut', () => {
-  it('stays quick on a tray of many parts, and finds the same offcut', () => {
+  it('[performance] stays quick on a tray of many parts, and finds the same offcut', () => {
     const parts = Array.from({ length: 48 }, (_, i) => square(`p${i}`, 90, 90));
     const spots: Spots = Object.fromEntries(parts.map((p, i) => [p.id, { x: 8 + (i % 8) * 110, y: 8 + Math.floor(i / 8) * 110 }]));
     const b = open(1100, 900, parts);
