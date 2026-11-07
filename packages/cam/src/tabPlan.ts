@@ -33,9 +33,10 @@ export interface PartHolding {
 export const kDefaultSkin = 1;
 
 /**
- * Where each part's tabs go: only on straight runs of its outer edges (no notch, curve or corner: room for the tab and
- * the bit, and a saw gets at it) whose far side is stock that holds (wide enough all the way to the board's edge, see
- * the hold check), a few on two opposite sides (`pickTabs`). A part that can't be held like that is `unheld`.
+ * Where each part's tabs go: on straight runs of its outer edges (no notch, curve or corner: room for the tab and the
+ * bit, and a saw gets at it) whose far side is stock that holds (wide enough all the way to the board's edge, see the
+ * hold check), a few on two opposite sides (`pickTabs`). A round part has no straight run on some side: there, gentle
+ * curves count too (`curvedSpots`). A part that can't be held like that is `unheld`.
  */
 export function planTabs(
   board: BoardSpec,
@@ -92,11 +93,13 @@ export function planTabs(
     // inside of a hook, but a long free edge set back from the part's hull is fine.
     const hull = convexHull(loop);
     // Nor where a pocket of either side eats into the tab: side B's would cut the part free with the bit at depth.
-    const spots = candidates(loop, room, kCornerClear)
-      .filter(c => Math.hypot(c.at.x - seam.x, c.at.y - seam.y) > room)
-      .filter(c => !layer || tabWhole(layerAcross(layer, c.at, c.dir, r, tabs.width), tabs.height))
-      .map(c => ({ ...c, out: outward(c, r, ccw) }))
-      .filter(c => reachable(c, loop, hull));
+    const usable = (list: { at: P2; dir: P2 }[]) =>
+      list
+        .filter(c => Math.hypot(c.at.x - seam.x, c.at.y - seam.y) > room)
+        .filter(c => !layer || tabWhole(layerAcross(layer, c.at, c.dir, r, tabs.width), tabs.height))
+        .map(c => ({ ...c, out: outward(c, r, ccw) }))
+        .filter(c => reachable(c, loop, hull));
+    const spots = usable(candidates(loop, room, kCornerClear));
     // Not on a thin finger (a hook, a tongue) when the part has sturdier spots: it flexes, and the part pivots about it.
     const thick = new Map(spots.map(c => [c, widthBehind(c, loop, r)]));
     const thickest = Math.max(0, ...thick.values());
@@ -107,6 +110,12 @@ export function planTabs(
     const centre = centroid(loop);
     let { tabs: picked, wanted } = pickTabs(sturdy, hf, loop, tabs.minCount, room, centre);
     if (picked.length < minTabs) ({ tabs: picked, wanted } = pickTabs(spots, hf, loop, tabs.minCount, room, centre));
+    // No opposite sides on the straight: curves too, where a side has no straight run that holds.
+    if (picked.length < minTabs) {
+      const straight = new Set(spots.filter(hf).map(c => c.out.side));
+      const round = usable(curvedSpots(loop, room, kCornerClear)).filter(c => !straight.has(c.out.side));
+      ({ tabs: picked, wanted } = pickTabs([...spots, ...round], hf, loop, tabs.minCount, room, centre));
+    }
     out.set(
       part.id,
       picked.length >= minTabs
@@ -378,6 +387,57 @@ export function candidates(loop: P2[], room: number, clear = 0): { at: P2; dir: 
       b = run.at(-1)!.b;
     const dir = { x: (b.x - a.x) / length, y: (b.y - a.y) / length };
     for (let d = margin; d <= length - margin + 1e-6; d += 3) out.push({ at: { x: a.x + dir.x * d, y: a.y + dir.y * d }, dir });
+  }
+  return out;
+}
+
+/** One step of a curve turns less than this, degrees: more is a corner, however finely the rest is tessellated. */
+const kCornerTurn = 20;
+/** A curve turns at most this within `clear` mm either side of a tab, degrees: gentler than a rounded corner. */
+const kCurveTurn = 75;
+
+/**
+ * Tab spots on the gentle curves of a closed path, every 3 mm: where it turns little and has no corner for `clear` mm
+ * either side (or the tab and the bit's turn, if that's more). `dir` is the chord across the tab.
+ */
+export function curvedSpots(path: P2[], room: number, clear = 0): { at: P2; dir: P2 }[] {
+  const closed = Math.hypot(path[0].x - path[path.length - 1].x, path[0].y - path[path.length - 1].y) < 1e-6;
+  const open = closed ? path.slice(0, -1) : path;
+  const loop = open.filter((p, i) => Math.hypot(p.x - open.at(i - 1)!.x, p.y - open.at(i - 1)!.y) > 1e-6);
+  const n = loop.length;
+  if (n < 3) return [];
+  const from = [0];
+  for (let i = 1; i <= n; i++) from.push(from[i - 1] + Math.hypot(loop[i % n].x - loop[i - 1].x, loop[i % n].y - loop[i - 1].y));
+  const length = from[n];
+  const turn = loop.map((p, i) => {
+    const [a, b] = [loop.at(i - 1)!, loop[(i + 1) % n]];
+    const v = Math.atan2(b.y - p.y, b.x - p.x) - Math.atan2(p.y - a.y, p.x - a.x);
+    return (Math.abs(Math.atan2(Math.sin(v), Math.cos(v))) * 180) / Math.PI;
+  });
+  const pointAt = (d: number): P2 => {
+    const w = ((d % length) + length) % length;
+    let i = 0;
+    while (i < n - 1 && from[i + 1] < w) i++;
+    const [a, b] = [loop[i], loop[(i + 1) % n]];
+    const t = (w - from[i]) / (from[i + 1] - from[i]);
+    return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+  };
+  const half = room / 2 + 1;
+  const margin = Math.max(half, clear);
+  if (length < 4 * margin) return [];
+  const out: { at: P2; dir: P2 }[] = [];
+  for (let d = 0; d < length; d += 3) {
+    let total = 0;
+    let fine = true;
+    for (let i = 0; i < n && fine; i++) {
+      const off = Math.abs(from[i] - d);
+      if (Math.min(off, length - off) > margin) continue;
+      total += turn[i];
+      fine = turn[i] <= kCornerTurn && total <= kCurveTurn;
+    }
+    if (!fine) continue;
+    const [a, b] = [pointAt(d - half), pointAt(d + half)];
+    out.push({ at: pointAt(d), dir: { x: b.x - a.x, y: b.y - a.y } });
   }
   return out;
 }
