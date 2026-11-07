@@ -9,4 +9,4 @@ export function isDesktopApp() {
 }
 
 /** Where to get the desktop app: the installers of the latest release. */
-export const kDesktopDownloadUrl = 'https://github.com/Schibum/camNC/releases/latest';
+export const kDesktopDownloadUrl = 'https://github.com/plainoss/camNC/releases/latest';
