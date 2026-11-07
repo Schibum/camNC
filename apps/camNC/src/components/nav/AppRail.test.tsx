@@ -192,7 +192,7 @@ it('uses Design and guards ordinary, modified and middle-click rail exits with t
   expect(navigate).toHaveBeenLastCalledWith({ stage: 'boards', board: 'a', newTab: true });
   fireEvent(boards, new MouseEvent('auxclick', { button: 1, bubbles: true, cancelable: true }));
   expect(navigate).toHaveBeenLastCalledWith({ stage: 'boards', board: 'a', newTab: true });
-  fireEvent.click(panel().getByText('Machine'));
+  fireEvent.click(panel().getByRole('button', { name: 'At the machine' }));
   expect(navigate).toHaveBeenLastCalledWith({ stage: 'machine', board: 'a', newTab: false });
   act(() => useStageNavigation.setState({ guard: { jobId: 'job', navigate, pending: true } }));
   fireEvent.click(panel().getByText('Plan'));
