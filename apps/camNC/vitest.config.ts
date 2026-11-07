@@ -19,6 +19,7 @@ export default defineConfig({
       'vite-plugin-node-polyfills/shims/global',
       'vite-plugin-node-polyfills/shims/process',
       'react-timeago-i18n',
+      '@radix-ui/react-tabs',
       'react-hotkeys-hook',
       '@wbcnc/ui > @radix-ui/react-popover',
       '@wbcnc/ui > @radix-ui/react-dropdown-menu',

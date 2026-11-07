@@ -27,6 +27,11 @@
       "env": ["FLUIDNC_SIM_HOST", "FLUIDNC_SIM_VARIANT"],
       "passThroughEnv": ["PLAYWRIGHT_BROWSERS_PATH", "CAM_OUT_DIR"]
     },
+    // Its own task, so a run without the slowest files can never replay as a passed "test".
+    "test:fast": {
+      "dependsOn": ["transit"],
+      "passThroughEnv": ["PLAYWRIGHT_BROWSERS_PATH"]
+    },
     "smoke:setup": {
       "cache": false,
       "env": ["CAMNC_SMOKE_URL", "CAMNC_SMOKE_HEADED", "CAMNC_SMOKE_OUTPUT"]

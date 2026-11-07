@@ -1,0 +1,22 @@
+[
+  "src/cad/CadEditor.context.test.tsx",
+  "src/cad/CadEditor.dimensions.test.tsx",
+  "src/cad/CadEditor.splineHandleConstraints.test.tsx",
+  "src/cad/CadEditor.test.tsx",
+  "src/cam/machine/CamQueueCard.job.test.tsx",
+  "src/cam/model/modelGeometry.test.ts",
+  "src/cam/samples/createSampleJob.test.ts",
+  "src/lib/machine/jobs.homing.test.ts",
+  "src/routes/cam/$jobId.boards.layout.test.tsx",
+  "src/routes/cam/$jobId.boards.test.tsx",
+  "src/routes/cam/$jobId.model.test.tsx",
+  "src/routes/cam/$jobId.plan.empty.test.tsx",
+  "src/routes/cam/$jobId.plan.flip.test.tsx",
+  "src/routes/cam/$jobId.plan.release.test.tsx",
+  "src/routes/cam/$jobId.plan.test.tsx",
+  "src/routes/cam/$jobId.plan.variedBoards.test.tsx",
+  "src/routes/cam/$jobId.plan.view3d.test.tsx",
+  "src/start/CamJobRehearsal.test.tsx",
+  "src/workers/cam.worker.hold.test.ts",
+  "src/workers/cam.worker.test.ts"
+]
