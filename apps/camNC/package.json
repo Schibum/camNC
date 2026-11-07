@@ -8,6 +8,7 @@
     "preview": "vite preview",
     "lint": "eslint . --max-warnings 0",
     "test": "node --test e2e/cad/licenses.node.mjs && vitest run --config vitest.worker.config.ts && vitest",
+    "test:fast": "vitest run --config vitest.fast.config.ts",
     "test:performance": "vitest run --config vitest.performance.config.ts",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",

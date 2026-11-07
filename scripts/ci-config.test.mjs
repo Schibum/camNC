@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { test } from 'node:test';
@@ -21,6 +21,13 @@ for (const [workflow, job] of [['ci.yml', 'test'], ['ci.yml', 'specs'], ['setup-
     assert.equal(appRequire('playwright/package.json').version, version);
   });
 }
+
+test('every file the fast test set skips still exists and CI still runs the full test task', () => {
+  const skipped = JSON.parse(read('apps/camNC/vitest.fast-excludes.json'));
+  assert.equal(skipped.length, 20);
+  for (const file of skipped) assert(existsSync(new URL(`apps/camNC/${file}`, root)), `${file} is gone; update the list`);
+  assert.doesNotMatch(read('.github/workflows/ci.yml'), /test:fast/);
+});
 
 test('browser test steps are bounded and the turbo cache action saves the directory turbo writes', () => {
   const { jobs } = parse(read('.github/workflows/ci.yml'));
