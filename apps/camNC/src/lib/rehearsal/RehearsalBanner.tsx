@@ -15,7 +15,7 @@ export function RehearsalBanner() {
       role="region"
       aria-label="Machine rehearsal"
       className={cn(
-        'fixed bottom-3 left-3 z-50 flex max-w-[calc(100vw-1.5rem)] flex-col gap-2 rounded-lg border bg-background p-3 text-sm shadow-lg',
+        'fixed bottom-3 max-md:bottom-17 left-3 md:left-[calc(var(--app-rail,0rem)+0.75rem)] z-50 flex max-w-[calc(100vw-1.5rem)] flex-col gap-2 rounded-lg border bg-background p-3 text-sm shadow-lg',
         machinePanelOpen && 'max-sm:bottom-[calc(60dvh+0.75rem)]'
       )}>
       <div className="flex flex-wrap items-center gap-3">

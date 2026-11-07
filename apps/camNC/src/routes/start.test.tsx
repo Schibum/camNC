@@ -1,6 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { page } from '@vitest/browser/context';
 import type { ComponentType, ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import '@/style.css';
 import { Route } from './start';
 
 const router = vi.hoisted(() => ({ navigate: vi.fn(), search: {} as { for?: 'cam'; job?: string; board?: string } }));
@@ -193,5 +195,16 @@ describe('getting started', () => {
     render(<Start />);
     expect(screen.queryByRole('link', { name: 'Try the demo' })).toBeNull();
     expect(screen.getByRole('link', { name: 'Add a camera' }).getAttribute('href')).toBe('/setup/url-entry?new=true');
+  });
+
+  it('keeps its links above the tabs on a phone', async () => {
+    await page.viewport(375, 812);
+    try {
+      render(<Start />);
+      const kTabsTop = 812 - 56;
+      expect(screen.getByRole('link', { name: 'Add a camera' }).getBoundingClientRect().bottom).toBeLessThanOrEqual(kTabsTop);
+    } finally {
+      await page.viewport(1280, 800);
+    }
   });
 });

@@ -135,7 +135,8 @@ export function MachineStatusBar() {
   'use no memo';
   const api = getCncApi();
   const panelOpen = useStore(s => s.machinePanelOpen);
-  if (api.connection.value === 'disconnected') return null;
+  // The open panel says all this itself, and has its own Hold and Reset buttons.
+  if (api.connection.value === 'disconnected' || panelOpen) return null;
   return (
     <div className="flex flex-row gap-2 items-center pl-2" data-testid="machine-status-bar">
       <button
@@ -147,8 +148,7 @@ export function MachineStatusBar() {
         <MachineStateBadge />
         <JobProgressBadge />
       </button>
-      {/* The open panel has its own Hold/Reset buttons. */}
-      {!panelOpen && <RealtimeButtons compact />}
+      <RealtimeButtons compact />
     </div>
   );
 }

@@ -70,7 +70,7 @@ function ConfiguredCameraCalibration() {
 
 function RouteComponent() {
   return (
-    <div className="w-full h-dvh flex flex-col gap-1 overflow-hidden">
+    <div className="w-full h-app flex flex-col gap-1 overflow-hidden">
       <PageHeader title="Camera Calibration" className="absolute" />
       <Suspense fallback={<LoadingVideoOverlay />}>
         <ConfiguredCameraCalibration />

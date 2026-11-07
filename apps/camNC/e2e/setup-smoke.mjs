@@ -82,7 +82,7 @@ export async function runSetupSmoke(
       return raw ? JSON.parse(raw).json.state : null;
     });
   const navigate = async name => {
-    await page.getByRole('button', { name: 'Toggle Sidebar' }).click();
+    await page.getByRole('button', { name: 'Menu', exact: true }).click();
     await page.getByRole('link', { name, exact: true }).click();
     await page.keyboard.press('Escape');
   };
@@ -211,7 +211,7 @@ export async function runSetupSmoke(
       return state.camSources[state.activeCamId]?.name === 'Setup smoke camera';
     });
 
-    await navigate('FluidNC');
+    await navigate('Connection');
     await page.getByText('Connect to FluidNC', { exact: true }).waitFor();
     await page.getByText('Not connected', { exact: true }).waitFor();
     // The camera is fully set up by now, so Continue skips the remaining setup steps.
@@ -219,12 +219,12 @@ export async function runSetupSmoke(
     await page.waitForURL('**/visualize/2DView');
     check('optional machine connection can be skipped, straight to the top view once the camera is set up');
 
-    await navigate('FluidNC');
+    await navigate('Connection');
     await page.getByLabel('Controller IP address').fill('192.168.77.7');
     await page.getByRole('button', { name: 'Connect', exact: true }).click();
     await page.getByText('Connected', { exact: true }).waitFor();
     await page.getByText(/FluidNC 3\.9\.9/).waitFor();
-    await navigate('Machine Bounds');
+    await navigate('Work area');
     await page.waitForURL('**/setup/machine-bounds');
     const readSettings = page.getByRole('button', { name: 'Read FluidNC Settings', exact: true });
     await page.waitForFunction(() => {
@@ -248,7 +248,7 @@ export async function runSetupSmoke(
     assert.deepEqual(await page.evaluate(() => window.__camncSmokeFluidNc.rejected), []);
     check('connects to a simulated FluidNC 3.9.9 on port 81 and reads its bounds from single config items');
 
-    await navigate('Top View');
+    await navigate('Machine');
     await page.getByLabel('breadcrumb').getByText(topViewTitle).waitFor();
     await page.reload();
     await page.getByLabel('breadcrumb').getByText(topViewTitle).waitFor();
@@ -323,11 +323,11 @@ export async function runSetupSmoke(
       onProgress('SKIP 3D views are not deployed at this URL yet');
     }
 
-    await navigate('Debug');
+    await navigate('Advanced settings');
     const configuration = JSON.parse(await page.getByRole('textbox', { name: 'Camera Source Configuration', exact: true }).inputValue());
     assert.deepEqual(configuration.machineBounds, [0, 0, 600, 500]);
     assert.deepEqual(configuration.markerPositions, markers.positions);
-    await navigate('Backup & Restore');
+    await navigate('Backup & restore');
     const downloading = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Download backup', exact: true }).click();
     const exportedFile = path.join(outputDir, 'settings-backup.json');
@@ -355,7 +355,7 @@ export async function runSetupSmoke(
     const imported = await waitForSavedCamera('extrinsics');
     assert.deepEqual(imported.calibration, reloaded.calibration);
     assert.deepEqual(imported.extrinsics, reloaded.extrinsics);
-    await navigate('Top View');
+    await navigate('Machine');
     await page.getByLabel('breadcrumb').getByText(topViewTitle).waitFor();
     check('camera configuration exports and imports through the UI');
     assert.deepEqual(pageErrors, [], `Uncaught browser errors: ${pageErrors.join('; ')}`);
