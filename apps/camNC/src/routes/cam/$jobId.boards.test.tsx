@@ -51,7 +51,7 @@ const holdsMenu = async (name: string) => {
 };
 const suggestHolds = async () => fireEvent.click(await holdsMenu('Suggest holds'));
 
-/** One board on its own, from the rail: what edits it is on its drawing and in the sidebar. */
+/** A board from the list: what edits it is on its drawing and in the sidebar. */
 const openBoard = (board: string) => fireEvent.click(screen.getByRole('button', { name: `Board ${board}` }));
 
 /** Pointer drag of a part (its outline, or its chip where it doesn't fit) to the middle of another board's drawing. */
@@ -721,7 +721,7 @@ describe('CAM boards step', () => {
     expect((await getJob(job.id))!.boards!.find(b => b.name === 'C')!.items).toHaveLength(1);
   }, 90_000);
 
-  it('shows parts that don’t fit under their board’s drawing, to drag or move from there', async () => {
+  it('shows parts that don’t fit next to their board at their shape, to drag or move from there', async () => {
     const job = await openKinderregal();
     // Part 2 on a board of its own, then that board made too small for it.
     await openMenu('A', 'Part 2');
@@ -733,16 +733,14 @@ describe('CAM boards step', () => {
       fireEvent.change(input(), { target: { value: '50' } });
       fireEvent.blur(input());
     }
-    expect(
-      within(await screen.findByRole('group', { name: 'Doesn’t fit on board C' }, { timeout: 10_000 })).getByText('Part 2')
-    ).toBeTruthy();
-    expect(within(drawing('C')).getByText('1 don’t fit')).toBeTruthy();
-    expect(screen.getByRole('alert').textContent).toMatch(/^Part 2 doesn’t fit on this board\./);
+    const off = () => document.querySelector('[data-unplaced="Part 2"]');
+    await waitFor(() => expect(off()).toBeTruthy(), { timeout: 10_000 });
+    expect(off()!.querySelector('path')!.getAttribute('d')).toMatch(/^M/);
+    expect(within(drawing('C')).getByText('1 off it')).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toMatch(/^Part 2 is off the boards and won’t be cut\./);
 
-    // Dragged from the tray back onto board A.
-    showAll();
-    const tray = screen.getByRole('group', { name: 'Doesn’t fit on board C' });
-    drag(tray.querySelector('[data-unplaced="Part 2"]')!, 'A');
+    // Dragged from the table back onto board A.
+    drag(off()!, 'A');
     await waitFor(
       async () => {
         const boards = (await getJob(job.id))!.boards!;
@@ -751,7 +749,7 @@ describe('CAM boards step', () => {
       },
       { timeout: 10_000 }
     );
-    expect(screen.queryByRole('group', { name: 'Doesn’t fit on board C' })).toBeNull();
+    expect(off()).toBeNull();
   }, 90_000);
 
   it('chooses the bit before nesting, also one that is in no library', async () => {
@@ -765,7 +763,9 @@ describe('CAM boards step', () => {
     await waitFor(async () => expect((await getJob(job.id))!.plan?.bit).toMatchObject({ diameter: 6, name: '6 mm upcut' }), {
       timeout: 10_000,
     });
-    // Margin and gap follow the bit, with room for a strip that holds the tabs: 6 + 3.5 and 2 × 6 + 3.5.
+    // Margin and gap follow the bit, with room for a strip that holds the tabs: 6 + 3.5 and 2 × 6 + 3.5. Their labels
+    // are on the drawing, at the board's own scale on a screen this small.
+    openBoard('A');
     await waitFor(
       () => {
         expect((screen.getByLabelText('Edge margin') as HTMLInputElement).value).toBe('9.5');

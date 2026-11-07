@@ -1,10 +1,11 @@
 /** Two thick parts and one thin back: enough for two boards, without CAD import or pocketing in layout tests. */
-export function boardLayoutFile(): File {
-  const boxes = [
+export function boardLayoutFile(
+  boxes = [
     { x: 0, w: 560, h: 360, t: 8 },
     { x: 600, w: 560, h: 350, t: 8 },
     { x: 1200, w: 300, h: 400, t: 3 },
-  ];
+  ]
+): File {
   const triangles = [
     [0, 2, 1],
     [0, 3, 2],

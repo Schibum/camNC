@@ -26,38 +26,22 @@ const TabIcon = () => (
 const kButton =
   'relative flex items-center justify-center rounded-md text-foreground hover:bg-muted disabled:pointer-events-none disabled:opacity-35 aria-pressed:bg-primary aria-pressed:text-primary-foreground';
 
-/**
- * The tools for the selected board, as in a drawing app: select, what to place, Suggest holds, Undo and Redo. `layout`: in
- * the board list ("grid", or "strip" when it's collapsed), or one row above the drawing on a small screen. `off`: no single
- * board is shown.
- */
-export function HoldTools({
-  holds,
-  onUndo,
-  onRedo,
-  layout,
-  off,
-}: {
-  holds: HoldEditing;
-  onUndo?: () => void;
-  onRedo?: () => void;
-  layout: 'grid' | 'strip' | 'row';
-  off?: boolean;
-}) {
+/** The tools for the selected board, in a row above the table, as in a drawing app: select, what to place, Suggest holds, Undo and Redo. */
+export function HoldTools({ holds, onUndo, onRedo }: { holds: HoldEditing; onUndo?: () => void; onRedo?: () => void }) {
   const { tool, setTool, setEdit, canPlace, tabsOn, holdCount, suggest, nudgeHolds, setSelectedHold } = holds;
-  const size = layout === 'strip' ? 'size-9' : 'size-8';
+  const size = 'size-8';
   const pick = (next: HoldTool | null) => {
     setTool(next);
     setEdit(null);
     setSelectedHold(null);
   };
   const toolButton = (id: HoldTool, label: string, key: string, hint: string, icon: ReactNode, disabled = false) => (
-    <Hint key={id} text={hint} side="right" wrap>
+    <Hint key={id} text={hint} side="bottom" wrap>
       <button
         type="button"
         aria-label={label}
         aria-pressed={tool === id}
-        disabled={off || !canPlace || disabled}
+        disabled={!canPlace || disabled}
         onClick={() => pick(tool === id ? null : id)}
         className={cn(kButton, size)}>
         {icon}
@@ -68,22 +52,9 @@ export function HoldTools({
     </Hint>
   );
   return (
-    <div
-      role="toolbar"
-      aria-label="Fixtures"
-      className={cn(
-        layout === 'grid' && 'grid grid-cols-4 justify-items-center gap-0.5',
-        layout === 'strip' && 'flex flex-col items-center gap-0.5',
-        layout === 'row' && 'flex flex-wrap items-center gap-1 px-4 py-2'
-      )}>
-      <Hint text="Select and move what's on the drawing." side="right" wrap>
-        <button
-          type="button"
-          aria-label="Select"
-          aria-pressed={!tool && !off}
-          disabled={off}
-          onClick={() => pick(null)}
-          className={cn(kButton, size)}>
+    <div role="toolbar" aria-label="Fixtures" className="flex flex-wrap items-center gap-0.5">
+      <Hint text="Select and move what's on the drawing." side="bottom" wrap>
+        <button type="button" aria-label="Select" aria-pressed={!tool} onClick={() => pick(null)} className={cn(kButton, size)}>
           <MousePointer2 className="size-[18px]" />
           <kbd aria-hidden className="absolute right-0.5 bottom-0 font-mono text-[8px] opacity-60">
             V
@@ -115,14 +86,14 @@ export function HoldTools({
         !tabsOn
       )}
       <DropdownMenu modal={false}>
-        <Hint text="Suggest holds, or one clamp fewer or more." side="right" wrap>
+        <Hint text="Suggest holds, or one clamp fewer or more." side="bottom" wrap>
           <DropdownMenuTrigger asChild>
-            <button type="button" aria-label="Suggest holds" disabled={off || !canPlace} className={cn(kButton, size)}>
+            <button type="button" aria-label="Suggest holds" disabled={!canPlace} className={cn(kButton, size)}>
               <WandSparkles className="size-[18px]" />
             </button>
           </DropdownMenuTrigger>
         </Hint>
-        <DropdownMenuContent side="right" align="start">
+        <DropdownMenuContent side="bottom" align="start">
           <DropdownMenuItem onSelect={suggest}>
             <WandSparkles className="size-4" /> Suggest holds
           </DropdownMenuItem>
