@@ -31,7 +31,7 @@ function JobHeader({ jobId, tools, actions }: { jobId: string; tools: ReactNode;
   return (
     <>
       <RecordCuts />
-      <CamJobBar jobId={jobId} job={job} step="Machine" board={board} tools={tools} actions={actions} className={kOverCamera} />
+      <CamJobBar job={job} board={board?.name} tools={tools} actions={actions} hideDemoMark className={kOverCamera} />
     </>
   );
 }

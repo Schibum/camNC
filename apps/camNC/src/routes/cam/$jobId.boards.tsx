@@ -90,9 +90,7 @@ function BoardsStep() {
   if (!job) return <Shell message="This job doesn't exist (any more)." />;
   const bar = (
     <CamJobBar
-      jobId={job.id}
       job={job}
-      step="Boards"
       actions={
         <>
           {instances.length > 0 && boards.length > 0 && (

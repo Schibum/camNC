@@ -1,4 +1,5 @@
 import { AppSidebar } from '@/components/app-sidebar';
+import { AppRail } from '@/components/nav/AppRail';
 import { GcodeDropZone } from '@/visualize/GcodeDropZone';
 import { SidebarProvider } from '@wbcnc/ui/components/sidebar';
 import { Toaster } from '@wbcnc/ui/components/sonner';
@@ -22,7 +23,10 @@ function RootComponent() {
         <SidebarProvider defaultOpen={false} forceMobile={true}>
           <Toaster />
           <AppSidebar />
-          <Outlet />
+          <AppRail />
+          <div className="flex min-w-0 flex-1 max-md:pb-14">
+            <Outlet />
+          </div>
           <GcodeDropZone />
         </SidebarProvider>
       </TooltipProvider>

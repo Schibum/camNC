@@ -63,9 +63,7 @@ function ModelStep() {
       : null;
   const bar = (
     <CamJobBar
-      jobId={job.id}
       job={job}
-      step="Model"
       actions={
         <>
           <Hint text="Open a new version of the model (STEP or STL). The job keeps its boards and settings.">

@@ -216,13 +216,13 @@ function VisualizeComponent() {
   return (
     // The page is dark (its header, overlays and the machine panel carry the `dark` class), and so are their menus.
     <DarkScope>
-      <div className="flex flex-row w-full h-dvh">
+      <div className="flex flex-row w-full h-app">
         <div className="relative flex-1 min-w-0 h-full">
           {cameraReady && <DepthBlendWorker />}
 
           {/* One canvas for all views: the camera video keeps running when switching between them. */}
           {/* The canvas is transparent: all views share one dark backdrop around the camera image and the 3D scene. */}
-          <div className="w-full h-dvh absolute top-0 left-0" style={{ background: kDepthSceneBackground }}>
+          <div className="w-full h-app absolute top-0 left-0" style={{ background: kDepthSceneBackground }}>
             <PresentCanvas worldScale="machine" defaultControls={isTop}>
               {/* <group rotation={[0, 0, Math.PI / 2]}> */}
               {/*
@@ -270,7 +270,7 @@ function VisualizeComponent() {
           </div>
 
           {isTop && cameraReady && (videoError || videoLoading) && (
-            <div className="dark pointer-events-none absolute inset-0 h-dvh text-foreground">
+            <div className="dark pointer-events-none absolute inset-0 h-app text-foreground">
               {videoError ? (
                 <div className="flex h-full items-center justify-center p-4 text-center text-red-500">
                   Error loading video: {videoError.message || 'unknown error'}
@@ -281,7 +281,7 @@ function VisualizeComponent() {
             </div>
           )}
 
-          <div className="pointer-events-none absolute inset-0 flex h-dvh flex-col">
+          <div className="pointer-events-none absolute inset-0 flex h-app flex-col">
             <CamMachineHeader
               title={viewModeTitle(view)}
               tools={<ViewSwitcher view={view} hasToolpath={!!toolpath} onSelect={selectView} />}

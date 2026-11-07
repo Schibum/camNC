@@ -89,7 +89,7 @@ export function DemoTour() {
     <div
       role="dialog"
       aria-label="Demo tour"
-      className="fixed bottom-16 left-3 z-50 flex w-80 max-w-[calc(100vw-1.5rem)] flex-col gap-2 rounded-lg border bg-background p-4 shadow-xl">
+      className="fixed bottom-16 max-md:bottom-30 left-3 md:left-[calc(var(--app-rail,0rem)+0.75rem)] z-50 flex w-80 max-w-[calc(100vw-1.5rem)] flex-col gap-2 rounded-lg border bg-background p-4 shadow-xl">
       <div className="flex flex-row items-start justify-between gap-2">
         <h2 className="font-semibold leading-tight">{current.title}</h2>
         <Button size="icon" variant="ghost" className="-mr-2 -mt-1 size-6" aria-label="Close tour" onClick={close}>

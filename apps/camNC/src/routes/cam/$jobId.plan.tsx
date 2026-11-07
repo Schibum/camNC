@@ -73,7 +73,7 @@ function PlanStep() {
 
   if (isPending) return <Shell />;
   if (!job) return <Shell message="This job doesn't exist (any more)." />;
-  const emptyBar = <CamJobBar jobId={job.id} job={job} step="Plan" />;
+  const emptyBar = <CamJobBar job={job} />;
   if (model.isError) return <Shell bar={emptyBar} message={model.error.message} />;
   if (!model.data) return <Shell bar={emptyBar} loading={`Reading ${job.fileName}…`} />;
   if (!active.length)
@@ -196,9 +196,7 @@ function PlanStep() {
   const cut = queue.filter(e => isCut(e.board));
   const bar = (
     <CamJobBar
-      jobId={job.id}
       job={job}
-      step="Plan"
       tools={
         <div role="tablist" aria-label="Boards in cutting order" className="flex flex-wrap gap-1">
           {queue.map((e, i) => (
@@ -219,10 +217,14 @@ function PlanStep() {
       }
       actions={
         <>
-          <Hint text="Estimated automatic motion and dwell time using reference machine limits. Add setup, tool changes, and operator pauses; unknown initial and parking distances are excluded.">
+          <Hint
+            text={`${queue.length} ${queue.length === 1 ? 'board' : 'boards'}, ${swaps} bit ${swaps === 1 ? 'swap' : 'swaps'}. Estimated automatic motion and dwell time using reference machine limits. Add setup, tool changes, and operator pauses; unknown initial and parking distances are excluded.`}>
             <span className="text-xs text-muted-foreground">
-              Job: {queue.length} {queue.length === 1 ? 'board' : 'boards'} · {swaps} bit {swaps === 1 ? 'swap' : 'swaps'} · ≈{' '}
-              {formatDuration(totalMin * 60)} automatic
+              {/* Only the time on a narrower window, for the bar to stay one row; the rest is in its hint there too. */}
+              <span className="hidden min-[1680px]:inline">
+                Job: {queue.length} {queue.length === 1 ? 'board' : 'boards'} · {swaps} bit {swaps === 1 ? 'swap' : 'swaps'} ·{' '}
+              </span>
+              ≈ {formatDuration(totalMin * 60)} <span className="hidden min-[1680px]:inline">automatic</span>
             </span>
           </Hint>
           <RehearsalButton job={job} boards={boards.map(b => freezeRehearsalBoard(b.board, b.nest))} ready={allReady} inBar />
