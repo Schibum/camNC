@@ -1,5 +1,6 @@
 import { camKeys } from '@/cam/camQueries';
 import { kModelFile } from '@/cam/jobDb';
+import { isManufacturingLocked } from '@/cam/machine/camMachine';
 import { createJobFromFile } from '@/cam/openModelFile';
 import { isDemoMode } from '@/lib/demo/demo-mode';
 import { useStore } from '@/store/store';
@@ -29,6 +30,10 @@ export function useOpenFile() {
   const queryClient = useQueryClient();
   return useCallback(
     async (file: File) => {
+      if (isManufacturingLocked()) {
+        toast.info('Review or dismiss the original machine job before loading another file.');
+        return;
+      }
       if (kModelFile.test(file.name)) {
         const job = await createJobFromFile(file);
         void queryClient.invalidateQueries({ queryKey: camKeys.jobs });
@@ -39,7 +44,9 @@ export function useOpenFile() {
         toast.error(wrongFileMessage(window.location.pathname));
         return;
       }
-      useStore.getState().updateToolpath(await file.text(), file.name);
+      const gcode = await file.text();
+      if (isManufacturingLocked()) return;
+      useStore.getState().updateToolpath(gcode, file.name);
       toast.success(isDemoMode() ? `Loaded ${file.name}. It stays in your browser.` : `Loaded ${file.name}`);
     },
     [navigate, queryClient]

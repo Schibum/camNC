@@ -118,6 +118,137 @@ User saves carry the snapshot they edited, so the database transaction applies
 only their changes onto the current job and retains import results committed
 meanwhile. Demo jobs use an isolated in-memory equivalent.
 
+### Native 2D CAD
+
+`packages/cad` owns the editable document and geometry independently of React,
+CAM and the native solver. All coordinates are millimetres. Permanent part,
+entity and constraint IDs carry identity through edits; coordinates and array
+positions do not identify objects. Source curves remain analytic: lines,
+circles, arcs, rational conics, Bezier curves and interpolating B-splines.
+Tessellation is an evaluated output for display and cutting.
+
+`solver.ts` adapts the source to PlaneGCS WASM. Native B-spline equations retain
+fit points and independent endpoint tangent handles. Solved results undergo
+geometric and curve-equation checks before publication. The app calls the
+solver through one lazy worker (`src/cad/solveCad.ts`); source revision checks
+prevent a delayed result from replacing a later edit or drag preview.
+
+Shared geometry services keep editing operations consistent:
+
+`splineHandles.ts` gives structural tangent segments explicit parent ownership
+without adding points or degrees of freedom. `rectangleCorners.ts` creates
+independent edge endpoints joined by removable Coincident relations; matching
+coordinates do not create identity. `offsetGeometry.ts` shares directed-support
+construction and intersections between command creation and detached native
+seeds. These services preserve source IDs and driver ownership without turning
+numerical seed choices into permanent source fixation.
+
+- `pointEquivalence.ts` derives transitive coincidence groups without merging
+  source IDs or losing dimension ownership. Fillet, tangency, constraints and
+  drag snapping use the same groups.
+- `curveContacts.ts` supplies finite primitive and rational-curve contacts in
+  model units. Both cutting validation and Trim use this service. Proven
+  circular overlap is distinguished from isolated intersections; an ambiguous
+  or overly complex trim leaves the source unchanged.
+- `curves.ts` owns curve evaluation, rational spans, adaptive tessellation and
+  shape-preserving insertion. Curve display, picking and CAM use this source.
+- `fillet.ts` performs an atomic batch of line-corner fillets. A shared radius
+  and equal constraints keep that batch editable. Virtual sharp construction
+  points preserve dimensions on the original line extensions.
+- `dimensionPlacement.ts` captures and resolves annotations in their measured
+  geometry's frame. Linear span fractions, radial ratios, and angular radius
+  and phase remain independent of camera scale and solver equations. Legacy
+  absolute labels normalize before point or value edits and solving. Rendering
+  uses the live geometry; history and portable documents retain the placement.
+  Outside-span labels retain a fixed overshoot. Radial labels use a bounded
+  radius gain plus a fixed outward gap, so distant placements remain continuous
+  as a radius changes. Gains up to four retain proportional placement; excess
+  placement becomes a fixed gap, bounding the label at two diameters plus that
+  gap. Remote angle intersections ease into a local centre;
+  labels and decorations share that continuous frame, including at parallel
+  lines. Placement normalization never replaces a valid ratio merely because
+  its current radius is small.
+
+`apps/camNC/src/cad` owns pointer and keyboard interaction, screen-space picking,
+inference previews, inline annotations, selection and command history. Drawing
+and drag snapping share inference rules. A drop creates a persistent relation
+only after a native-solved preview reaches the inferred target. Drag and
+creation-value entry each form a single undoable command. `drawingGesture.ts`
+owns the pure press/click/drag transition for primitives; dimension reference
+collection, value expressions, annotation geometry, inference and selection
+also live outside the React editor.
+
+`CadValueInput.tsx` shares unit-aware suffixes across value fields. The expression
+lexer identifies explicit units while typing. A shared core literal classifier
+also normalizes saved base-unit expressions. Content comparisons canonicalize
+these representation upgrades without advancing CAM revisions; optimistic save
+guards still compare the exact durable snapshot.
+
+`session.ts` retains up to 100 document snapshots across route changes and
+Finish. Acceptance advances Cancel's baseline without clearing Undo; explicit
+Cancel ends the session. The session keeps the exact durable draft it
+acknowledged separately from local work. A stale view cannot save against a
+newer draft; recovery explicitly saves a sketch copy or adopts the saved
+source. Drafts live in the job database; undo history remains session-local.
+
+Sketch shading and cutting validation have different jobs. `sketchRegions.ts`
+builds a display arrangement and shades every bounded face, including nested
+regions and closed areas beside open geometry. `evaluateCadPart` requires a
+valid closed cutting profile and classifies material holes. Gray shading alone
+does not enable Finish.
+
+`src/cam/cadDesign.ts` separates saved drafts from accepted CAM geometry.
+Accepting a solved design preserves CAM settings by permanent part ID, carries
+placements and tab anchors, and increments only affected part revisions.
+`nativeCadModel.ts` converts evaluated outlines into the existing flat-part
+CAM interface. A draft can therefore be incomplete without invalidating the
+last accepted manufacturing geometry.
+
+The initial scope is flat through-cuts. Fillet currently supports line-to-line
+corners; Trim targets lines, circles and arcs, with rational curves usable as
+boundaries. Pockets and 3D operations remain future work. Further changes should
+extend the source model and geometry services first, then add interaction
+commands. The main remaining structural improvement is extracting the editor's
+large pointer/tool state machine into explicit commands; avoid a second solver,
+parallel intersection implementations or compatibility layers for old sketches.
+
+### Manufacturing ownership
+
+Editable design, accepted CAM geometry and an execution are separate lifetimes.
+The job database owns durable drafts, accepted geometry and board history;
+React Query holds a projection of that data. A pending model is not an empty
+board list. A first action on newly derived stock persists that stock with the
+action, against the latest durable source.
+
+A logical board ID preserves layout and CAM references. `physicalSheetId`
+identifies the actual sheet occupying that board; Start over replaces this
+identity. `runId` identifies a pinned machining setup, while `executionId`
+identifies each controller dispatch, including resumes. These identities must
+not be inferred from identical geometry, program text or timestamps. Delayed
+completion and setup writes carry their originating identities and cannot
+modify replacement stock or a later execution.
+
+`manufacturingSnapshot.ts` captures the original queue, geometry and settings.
+`camMachine.ts` centralizes the protection shared by UI controls and direct
+commands. Physical activity, resumability, discovery and explicit run review
+are distinct states; an idle controller alone does not release the original
+sheet or authorize replacing its setup.
+
+`jobRecord.ts` owns conditional receipt/progress transactions. Preparation
+reserves a durable head without claiming that its uploaded program ran; only
+the prior eligible receipt is recoverable until activation. Each execution
+uploads to its own immutable SD filename. The caller captures controller,
+storage namespace, work offset and settings before awaits, then checks that
+context again immediately before dispatch. A controller result settles only
+the receipt observed running, using current file and work-offset evidence.
+
+Keep these services independent of the sketch editor. Further simplification
+should move asynchronous orchestration into an explicit execution state
+machine using these identities and storage commands, rather than adding
+separate locks in each screen or reconstructing history from the current CAM
+model. Do not combine the accepted design revision with physical sheet
+history: editing a sketch does not replace stock that has already been cut.
+
 ### Rendering
 
 `scene/PresentCanvas.tsx` sets up an orthographic react-three-fiber canvas in

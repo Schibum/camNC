@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { Box, Bug, Cctv, ChevronsLeft, Gauge, HardDriveDownload, Layers, Pin, Puzzle, Rocket, Scale3d, Wrench } from 'lucide-react';
+import { Box, Bug, Cctv, ChevronsLeft, Gauge, HardDriveDownload, Layers, Info, Pin, Puzzle, Rocket, Scale3d, Wrench } from 'lucide-react';
 import * as React from 'react';
 
 import { useLocation } from '@tanstack/react-router';
@@ -90,6 +90,7 @@ const toolRoutes: NavRoute[] = [
 ];
 
 const appRoutes: NavRoute[] = [
+  { title: 'About', to: '/about', icon: Info },
   {
     title: 'Backup & restore',
     to: '/settings/backup',

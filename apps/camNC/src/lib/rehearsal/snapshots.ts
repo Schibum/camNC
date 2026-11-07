@@ -1,4 +1,4 @@
-import type { BoardV1 } from '@/cam/boards';
+import { startOverBoard, type BoardV1 } from '@/cam/boards';
 import type { CuttingData } from '@/cam/cuttingData';
 import type { CamJobV1 } from '@/cam/jobDb';
 import type { StoredBit } from '@/cam/toolLibrary';
@@ -36,8 +36,7 @@ export function makeSnapshot(
     job: {
       ...job,
       boards: boards.map(board => {
-        const copy = { ...board };
-        delete copy.cut;
+        const copy = startOverBoard(board);
         delete copy.bed;
         return copy;
       }),

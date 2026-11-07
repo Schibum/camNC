@@ -15,6 +15,7 @@ node_modules
 # Testing
 coverage
 /output/playwright/
+.playwright-cli/
 
 # Turbo
 .turbo
@@ -47,3 +48,8 @@ yarn-error.log*
 __screenshots__
 *.tsbuildinfo
 .env*.local
+
+# Private reference archives live in the companion repository.
+/docs/CAD_PARITY.md
+/apps/camNC/e2e/cad/reports/
+/apps/camNC/e2e/cad/reference/

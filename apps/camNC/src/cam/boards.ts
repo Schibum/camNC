@@ -1,4 +1,4 @@
-import type { FlipRegistration, HoleChoice, HoldDown } from '@wbcnc/cam';
+import type { FlipRegistration, HoldDown } from '@wbcnc/cam';
 import { edgeDir, holdBox, kDefaultStickout, pathClearance, type HoldKind, type HoldPoint } from '@wbcnc/cam/holdPoints';
 import { nestRects, placedSize, type NestResult, type Placement, type Rect } from '@wbcnc/cam/nest';
 import {
@@ -24,6 +24,7 @@ import { autoNest, type NestObjective, type SheetPacker } from './autoNest';
 import type { BoardRequest, CamPartInfo } from './camTypes';
 import { kDefaultHardware, type HoldHardware } from './holdHardware';
 import type { MaterialKey } from './planSettings';
+import { holeChoicesForPart, type HoleChoices } from './holeChoices';
 
 export interface StockBoardV1 {
   id: string;
@@ -36,6 +37,8 @@ export interface StockBoardV1 {
 
 export interface BoardV1 {
   id: string;
+  /** Physical stock generation; the logical board id and all CAD references survive replacement. */
+  physicalSheetId?: string;
   /** A, B, C … in the order the boards were made, or a name the user gave it. */
   name: string;
   thickness: number;
@@ -68,6 +71,8 @@ export interface BoardV1 {
   dowelDiameter?: number;
   /** Per body (instance id): tabs the user dragged into place, part frame (as laid flat), mm. Unset: picked. */
   tabsAt?: Record<string, { x: number; y: number }[]>;
+  /** References retained after a CAD boundary disappears, until the user repairs the affected tabs. */
+  designIssues?: Record<string, string>;
   /** Bodies the user put on this board by hand: auto-fill leaves them here. */
   pinned?: string[];
   /**
@@ -110,16 +115,31 @@ export interface BedSpot {
 
 /** What of a board is cut. */
 export interface BoardCut {
+  /** Accepted source geometry used on this physical board. */
+  sourceKey?: string;
   /** When its first program was done, ms since the epoch. */
   at: number;
   /** The programs done (`QueueEntry.doneId`): planned again into another program, that one isn't cut. */
   keys: string[];
+  /** Programs whose execution was requested; their stock is physically committed even before completion/review. */
+  startedKeys?: string[];
+  /** Execution-owned preparation marks; only an unrequested preparation may release its own claim. */
+  startClaims?: Record<string, { doneId: string; priorStarted: boolean; priorAll?: true }>;
   /** Every program of the board ran. */
   all?: boolean;
 }
 
 /** The board has a program cut: its layout and holds stay as they are. */
-export const isCut = (board: Pick<BoardV1, 'cut'>) => !!board.cut?.keys.length;
+export const isCut = (board: Pick<BoardV1, 'cut'>) => !!(board.cut?.keys.length || board.cut?.startedKeys?.length);
+
+export const physicalSheetIdOf = (board: Pick<BoardV1, 'id' | 'physicalSheetId'>) => board.physicalSheetId ?? board.id;
+
+/** Start a replacement piece of stock without changing its layout, holding choices, or logical identity. */
+export function startOverBoard(board: BoardV1): BoardV1 {
+  const { cut, ...rest } = board;
+  void cut;
+  return { ...rest, physicalSheetId: crypto.randomUUID() };
+}
 
 /**
  * A cut board with a copy of this part, if any. A choice for all of a part's copies would change the program that was
@@ -162,6 +182,8 @@ export interface PartPosition {
 
 /** One body to cut: the k-th of a group of identical bodies. */
 export interface PartInstance {
+  /** Permanent native through-hole identities, in the same order as its source polygons. */
+  holeIds?: string[];
   /** Has features on its underside: needs the board turned over for a second side. */
   needsFlip?: boolean;
   id: string;
@@ -287,6 +309,7 @@ export function instancesOf(parts: CamPartInfo[], milled: (partId: string) => bo
           size: p.size,
           thickness: p.thickness,
           needsFlip: p.summary.needsFlip,
+          ...(p.holeIds && { holeIds: p.holeIds }),
           outline: outlineOf(p),
         }))
       )
@@ -342,19 +365,24 @@ const onlyFor = (at: Record<string, PartPosition>, ids: string[]) =>
 export const defaultMaterial = (thickness: number, material: MaterialKey): MaterialKey =>
   thickness <= 6 && material !== 'mdf' ? 'plywood' : material;
 
-export function reconcileBoards(boards: BoardV1[] | undefined, instances: PartInstance[], material: MaterialKey): BoardV1[] {
+export function reconcileBoards(
+  boards: BoardV1[] | undefined,
+  instances: PartInstance[],
+  material: MaterialKey,
+  { preserveReferences = false } = {}
+): BoardV1[] {
   const byId = new Map(instances.map(i => [i.id, i]));
   let out = (boards ?? []).map(b => {
-    const items = b.items.filter(id => byId.get(id)?.thickness !== undefined && thicknessKey(byId.get(id)!.thickness) === b.thickness);
+    const items = preserveReferences
+      ? [...b.items]
+      : b.items.filter(id => byId.get(id)?.thickness !== undefined && thicknessKey(byId.get(id)!.thickness) === b.thickness);
     // Saved before `retention`: tabs, which say so if they can't hold.
     const held = { ...b, retention: b.retention ?? ('tabs' as const), items };
     const pins = b.pinned ? { ...held, pinned: b.pinned.filter(id => items.includes(id)) } : held;
     const kept = b.setAside ? { ...pins, setAside: onlyFor(b.setAside, items) } : pins;
     // Saved before layouts were stored: its parts get new spots, so what was cut on it no longer applies.
     if (!b.layout) {
-      const fresh = { ...kept };
-      delete fresh.cut;
-      return fresh;
+      return kept.cut ? startOverBoard(kept) : kept;
     }
     return { ...kept, layout: { ...b.layout, at: onlyFor(b.layout.at, items) } };
   });
@@ -372,6 +400,8 @@ export function reconcileBoards(boards: BoardV1[] | undefined, instances: PartIn
 }
 
 export interface BoardNest extends NestResult {
+  /** The physical stock must fit, even when all its retained parts fit inside the work area. */
+  machineFits?: boolean;
   gap: number;
   margin: number;
   /** The job's bit, mm: what the fixtures' clearances go by. */
@@ -384,6 +414,8 @@ export interface BoardNest extends NestResult {
 }
 
 export interface NestOptions {
+  /** Native CAD edits keep placements. Uncut fitted boards may grow; fixed boards and geometric conflicts need repair. */
+  preserveLayout?: boolean;
   /** Only where the parts go, no hold points. */
   holds?: boolean;
   stickout?: number;
@@ -594,11 +626,17 @@ export function nestBoard(board: BoardV1, instances: PartInstance[], bit: number
   const margin = board.margin ?? defaultMargin(bit, board.retention);
   const hw = opts.hardware ?? kDefaultHardware;
   const nutAbove = nutAboveOf(board, opts.stickout);
-  const size = board.size.fit ? undefined : { w: board.size.w, h: board.size.h };
+  const size =
+    opts.preserveLayout && isCut(board) && board.layout
+      ? { w: board.layout.w, h: board.layout.h }
+      : board.size.fit
+        ? undefined
+        : { w: board.size.w, h: board.size.h };
   const machine = board.size.fit ? opts.machine : undefined;
   // A fitted layout bigger than the machine (stored before the machine was known): nested again, within it, around the
   // parts placed by hand that are on the machine.
-  const oversize = !!board.layout && !!machine && !isCut(board) && !fitsMachine(machine, board.layout.w, board.layout.h);
+  const oversize =
+    !opts.preserveLayout && !!board.layout && !!machine && !isCut(board) && !fitsMachine(machine, board.layout.w, board.layout.h);
   const stored = oversize ? { at: onlyFor(board.layout!.at, board.pinned ?? []) } : board.layout;
   // The size to place on: fixed, or as the layout left it. A fitted board may still grow.
   const on = size ?? (stored && !oversize ? { w: board.layout!.w, h: board.layout!.h } : undefined);
@@ -606,12 +644,19 @@ export function nestBoard(board: BoardV1, instances: PartInstance[], bit: number
 
   const fixed: Placement[] = [];
   const fixedRects: Rect[] = [];
+  const invalid = opts.preserveLayout
+    ? board.items.filter(id => !byId.has(id) || thicknessKey(byId.get(id)!.thickness) !== board.thickness || !!board.designIssues?.[id])
+    : [];
   for (const id of ids) {
     const pos = stored?.at[id];
     if (!pos) continue;
     const r = placedRect(pos, byId.get(id)!);
     // A cut board's parts are where they were cut, whatever the spacing says now.
-    if (!isCut(board) && (!insideMargin(r, margin, on) || !fixedRects.every(o => apart(r, o, gap)))) continue;
+    const limit = opts.preserveLayout && board.size.fit && !isCut(board) ? undefined : on;
+    if (!insideMargin(r, margin, limit) || !fixedRects.every(o => apart(r, o, gap))) {
+      if (opts.preserveLayout) invalid.push(id);
+      else if (!isCut(board)) continue;
+    }
     if (oversize && !insideMargin(r, margin, machine)) continue;
     fixed.push({ id, x: pos.x, y: pos.y, rotated: pos.rotated });
     fixedRects.push(r);
@@ -645,20 +690,37 @@ export function nestBoard(board: BoardV1, instances: PartInstance[], bit: number
 
   const order = new Map(ids.map((id, i) => [id, i]));
   const placements = [...fixed, ...n.placements].sort((a, b) => order.get(a.id)! - order.get(b.id)!);
-  const area = placements.reduce((a, p) => a + byId.get(p.id)!.size[0] * byId.get(p.id)!.size[1], 0);
   // A fitted board is cut from a sheet: whole mm, rounded up (570.4 × 738.9 -> 571 × 739), though not past the
   // machine. It never shrinks on its own.
   const fitted = {
     w: Math.max(n.board.w, placements.length && on ? on.w : 0),
     h: Math.max(n.board.h, placements.length && on ? on.h : 0),
   };
-  const out = size ?? wholeMm(fitted, machine);
+  const natural = size ?? wholeMm(fitted, machine);
+  // Keep edited parts at their stored spots, but don't grow fitted stock past the machine. A layout that fits
+  // turned is still valid; an already larger saved board is not silently shrunk to a different sheet.
+  const capacity =
+    machine && !fitsAsIs(machine, natural) && natural.w >= natural.h !== wideMachine(machine) ? { w: machine.h, h: machine.w } : machine;
+  const out =
+    !size && opts.preserveLayout && capacity && !fitsMachine(capacity, natural.w, natural.h)
+      ? { w: Math.min(natural.w, Math.max(on?.w ?? 0, capacity.w)), h: Math.min(natural.h, Math.max(on?.h ?? 0, capacity.h)) }
+      : natural;
+  if (opts.preserveLayout) {
+    for (const placement of placements) {
+      const r = placedRect(placement, byId.get(placement.id)!);
+      if (!insideMargin(r, margin, out) || (capacity && !insideMargin(r, 0, capacity))) invalid.push(placement.id);
+    }
+  }
+  const unplaced = [...new Set([...n.unplaced, ...invalid, ...aside])];
+  const rejected = new Set(unplaced);
+  const area = placements.reduce((a, p) => a + (rejected.has(p.id) ? 0 : byId.get(p.id)!.size[0] * byId.get(p.id)!.size[1]), 0);
   return {
     ...n,
-    unplaced: [...n.unplaced, ...aside],
+    unplaced,
     board: out,
+    ...(opts.machine && { machineFits: fitsMachine(opts.machine, out.w, out.h) }),
     placements,
-    yield: out.w * out.h > 0 ? area / (out.w * out.h) : 0,
+    yield: out.w * out.h > 0 ? Math.min(1, area / (out.w * out.h)) : 0,
     gap,
     margin,
     bit,
@@ -814,7 +876,7 @@ export function settleBoard(
  */
 export function keepFixturesClear(board: BoardV1, instances: PartInstance[], bit: number, opts: NestOptions = {}): BoardV1 {
   const fixtures = board.fixtures ?? [];
-  if (!board.size.fit || isCut(board) || !board.layout || !fixtures.length) return board;
+  if (opts.preserveLayout || !board.size.fit || isCut(board) || !board.layout || !fixtures.length) return board;
   const nest = nestBoard(board, instances, bit, { ...opts, holds: false });
   const { input, spots } = settleInputOf(board, nest, instances, bit, opts);
   if (fixtures.every(f => fixtureFree(input, spots, f))) return board;
@@ -1046,6 +1108,20 @@ export interface PartDrop {
   board: BoardV1;
 }
 
+/**
+ * The boards to save for an undo or redo: what is cut stays as it is now. A program can finish after the snapshot was taken,
+ * and restoring that snapshot would forget the cut and offer the same program again.
+ */
+export function restoreBoards(snapshot: BoardV1[], current: BoardV1[]): BoardV1[] {
+  const now = new Map(current.map(b => [b.id, b]));
+  const restored = snapshot.map(b => {
+    const latest = now.get(b.id);
+    return latest && isCut(latest) ? latest : b;
+  });
+  const kept = new Set(snapshot.map(b => b.id));
+  return [...restored, ...current.filter(b => isCut(b) && !kept.has(b.id))];
+}
+
 /** The board with this body no longer set aside: it's nested like the rest again. */
 export function notAside(board: BoardV1, item: string): BoardV1 {
   const out = { ...board };
@@ -1146,9 +1222,11 @@ export function boardRequest(
   board: BoardV1,
   nest: BoardNest,
   instances: PartInstance[],
-  hold: { skin?: number; holes?: Record<string, Record<number, HoleChoice>> } = {}
+  hold: { skin?: number; holes?: HoleChoices; leaveOut?: readonly string[] } = {}
 ): BoardRequest {
   const byId = new Map(instances.map(i => [i.id, i]));
+  // Invalid positions remain on the drawing for repair; they can never be executable placements.
+  const excluded = new Set([...(nest.unplaced ?? []), ...(hold.leaveOut ?? [])]);
   return {
     id: board.id,
     name: board.name,
@@ -1165,16 +1243,22 @@ export function boardRequest(
       flip: { registration: flipOf(board, instances) as FlipRegistration, dowelDiameter: board.dowelDiameter },
     }),
     ...(hold.skin !== undefined && { skin: hold.skin }),
-    parts: nest.placements.map(p => ({
-      id: p.id,
-      partId: byId.get(p.id)!.partId,
-      name: byId.get(p.id)!.name,
-      x: p.x,
-      y: p.y,
-      rotated: p.rotated,
-      ...(board.tabsAt?.[p.id]?.length && { tabsAt: board.tabsAt[p.id] }),
-      ...(hold.holes?.[byId.get(p.id)!.partId] && { holes: hold.holes[byId.get(p.id)!.partId] }),
-    })),
+    parts: nest.placements
+      .filter(p => nest.machineFits !== false && !excluded.has(p.id))
+      .map(p => {
+        const source = byId.get(p.id)!;
+        const holes = holeChoicesForPart(source, hold.holes?.[source.partId]);
+        return {
+          id: p.id,
+          partId: source.partId,
+          name: source.name,
+          x: p.x,
+          y: p.y,
+          rotated: p.rotated,
+          ...(board.tabsAt?.[p.id]?.length && { tabsAt: board.tabsAt[p.id] }),
+          ...(holes && { holes }),
+        };
+      }),
   };
 }
 

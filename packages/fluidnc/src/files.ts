@@ -65,6 +65,15 @@ export interface UploadOptions {
   /** Inject `fetch` for tests. */
   fetchImpl?: typeof fetch;
   verifyTimeoutMs?: number;
+  /** A new unique execution filename: no old object can be mistaken for this upload, so skip its replacement listing. */
+  fresh?: boolean;
+}
+
+function reportedBytes(text: string | undefined): number | undefined {
+  const match = text?.trim().match(/^(\d+(?:\.\d+)?)\s*([kmgt]?)(i?b)?$/i);
+  if (!match) return undefined;
+  const power = ['', 'k', 'm', 'g', 't'].indexOf(match[2]!.toLowerCase());
+  return Number(match[1]) * (match[3]?.toLowerCase() === 'ib' ? 1024 : 1000) ** power;
 }
 
 /** Find a file in a listing; FluidNC 3.9.9 reports names without the directory. */
@@ -89,7 +98,7 @@ export async function uploadSdFile(
   const bytes = typeof content === 'string' ? new TextEncoder().encode(content) : content;
   const filename = sdPath(name);
   // The upload result cannot be read, so a stale file of the same size would pass the check below. Remove it first.
-  if (findFile(await listSdFiles(protocol), filename)) {
+  if (!options.fresh && findFile(await listSdFiles(protocol), filename)) {
     await deleteSdFile(protocol, filename);
     if (findFile(await listSdFiles(protocol), filename)) throw new Error(`Upload failed: could not replace ${filename}`);
   }
@@ -123,6 +132,16 @@ export async function uploadSdFile(
     const file = listing && findFile(listing, filename);
     lastSize = listing ? file?.size : lastSize;
     if (file && file.size === bytes.length) return;
+    const total = reportedBytes(listing?.total),
+      used = reportedBytes(listing?.used);
+    if (
+      listing &&
+      ((listing.occupation !== undefined && listing.occupation >= 100) ||
+        (total !== undefined && used !== undefined && total - used < bytes.length - (file?.size ?? 0)))
+    )
+      throw new Error(
+        'Upload failed: the SD card is full or has too little free space for this program. Free space on the card and try again. The program was not started.'
+      );
     if (Date.now() > deadline) break;
     await new Promise(resolve => setTimeout(resolve, 300));
   }

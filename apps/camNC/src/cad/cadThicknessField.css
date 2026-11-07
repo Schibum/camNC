@@ -1,0 +1,18 @@
+.cad-thickness-field {
+  min-width: 0;
+}
+.cad-thickness-field .cad-thickness-hint,
+.cad-thickness-field .cad-thickness-error {
+  margin: 4px 0 0;
+  font-size: 0.6875rem;
+  line-height: 1.4;
+}
+.cad-thickness-field .cad-thickness-hint {
+  color: #52647d;
+}
+.cad-thickness-field .cad-thickness-error {
+  color: #ac2929;
+}
+.cad-thickness-field input[aria-invalid="true"] {
+  border-color: #ac2929;
+}

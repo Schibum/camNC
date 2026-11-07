@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectDemoContext } from './demo-context';
+import { detectDemoContext, isDemoChoiceUrl, shouldUseLocalPreviewDemo } from './demo-context';
 
 function tab() {
   const values = new Map<string, string>();
@@ -39,5 +39,39 @@ describe('demo bootstrap context', () => {
     expect(detectDemoContext(url(`/demo?rehearsal=${id}`), null)).toEqual({ demo: true, rehearsalId: id, noCamera: true });
     expect(detectDemoContext(url('/cam'), null).demo).toBe(false);
     expect(detectDemoContext(url('/demo?rehearsal=invalid'), tab()).rehearsalId).toBeNull();
+  });
+  it('starts a keyless local root in camera-free simulation before any normal settings can hydrate', () => {
+    const root = new URL('http://127.0.0.1:5181/'),
+      storage = tab();
+    const localPreview = shouldUseLocalPreviewDemo(root, { desktop: false, publishableKey: '' });
+    expect(localPreview).toBe(true);
+    expect(detectDemoContext(root, storage, { localPreview })).toEqual({ demo: true, rehearsalId: null, noCamera: true });
+    expect(detectDemoContext(new URL('/cam', root), storage, { localPreview })).toEqual({ demo: true, rehearsalId: null, noCamera: true });
+    expect(detectDemoContext(root, null, { localPreview })).toEqual({ demo: true, rehearsalId: null, noCamera: true });
+  });
+  it('preserves the local demo choice page and explicit camera choices', () => {
+    const root = new URL('http://localhost:5181'),
+      storage = tab(),
+      options = { localPreview: true };
+    const choice = new URL('/demo', root);
+    expect(isDemoChoiceUrl(choice)).toBe(true);
+    expect(detectDemoContext(choice, storage, options)).toEqual({ demo: true, rehearsalId: null, noCamera: true });
+    const on = new URL('/demo?machine=1&camera=on', root);
+    expect(isDemoChoiceUrl(on)).toBe(false);
+    expect(detectDemoContext(on, storage, options).noCamera).toBe(false);
+    const off = new URL('/demo?camera=off', root);
+    expect(isDemoChoiceUrl(off)).toBe(false);
+    expect(detectDemoContext(off, storage, options).noCamera).toBe(true);
+  });
+  it('never replaces configured web authentication or desktop settings with automatic demo mode', () => {
+    for (const host of ['http://localhost:5181', 'http://127.0.0.1:5181', 'http://[::1]:5181']) {
+      const root = new URL(host);
+      expect(shouldUseLocalPreviewDemo(root, { desktop: false })).toBe(true);
+      expect(shouldUseLocalPreviewDemo(root, { desktop: false, publishableKey: 'pk_test_configured' })).toBe(false);
+      expect(shouldUseLocalPreviewDemo(root, { desktop: true })).toBe(false);
+    }
+    for (const host of ['https://camnc.example', 'https://localhost.evil.example', 'https://127.0.0.1.evil.example'])
+      expect(shouldUseLocalPreviewDemo(new URL(host), { desktop: false })).toBe(false);
+    expect(detectDemoContext(url('/'), tab(), { localPreview: false })).toEqual({ demo: false, rehearsalId: null, noCamera: false });
   });
 });

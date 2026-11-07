@@ -1,3 +1,5 @@
+import { setAsidePart } from '@/cam/boards';
+import { useCamMachine } from '@/cam/machine/camMachine';
 import { createJob, getJob, saveJob, type CamJobV1 } from '@/cam/jobDb';
 // Pointer coordinates and fitted SVG dimensions must use the page's real layout, including the fixed-height status.
 import '@/style.css';
@@ -100,6 +102,94 @@ async function openKinderregal(client = new QueryClient()) {
 }
 
 describe('CAM boards step', () => {
+  it('refuses Start over while a machine job is protected', async () => {
+    const client = new QueryClient();
+    const job = await openKinderregal(client);
+    await waitFor(async () => expect((await getJob(job.id))!.boards!.length).toBeGreaterThan(0), { timeout: 20000 });
+    const original = (await getJob(job.id))!;
+    const board = original.boards![0];
+    const cut = await saveJob({
+      ...original,
+      boards: original.boards!.map(b => (b.id === board.id ? { ...b, cut: { at: 1, keys: ['original'] } } : b)),
+    });
+    act(() => client.setQueryData(['cam', 'job', job.id], cut));
+    const startOver = await screen.findByRole('button', { name: 'Start over' });
+    useCamMachine.setState({ preparingRun: true });
+    try {
+      fireEvent.click(startOver);
+      expect(await screen.findByText('Review or dismiss the machine job before starting over.')).toBeTruthy();
+    } finally {
+      useCamMachine.setState({ preparingRun: false });
+    }
+    const after = (await getJob(job.id))!.boards!.find(b => b.id === board.id)!;
+    expect(after.cut!.keys).toEqual(['original']);
+    expect(after.physicalSheetId).toBe(board.physicalSheetId);
+  }, 90000);
+
+  it('keeps the refusal message when Start over Undo targets a replacement sheet already used', async () => {
+    const client = new QueryClient();
+    const job = await openKinderregal(client);
+    await waitFor(async () => expect((await getJob(job.id))!.boards!.length).toBeGreaterThan(0), { timeout: 20000 });
+    const original = (await getJob(job.id))!;
+    const board = original.boards![0];
+    const cut = await saveJob({
+      ...original,
+      boards: original.boards!.map(b => (b.id === board.id ? { ...b, cut: { at: 1, keys: ['original'] } } : b)),
+    });
+    act(() => client.setQueryData(['cam', 'job', job.id], cut));
+    fireEvent.click(await screen.findByRole('button', { name: 'Start over' }));
+    await waitFor(async () => expect((await getJob(job.id))!.boards!.find(b => b.id === board.id)!.physicalSheetId).toBeTruthy());
+    const replacement = (await getJob(job.id))!;
+    const used = await saveJob({
+      ...replacement,
+      boards: replacement.boards!.map(b => (b.id === board.id ? { ...b, cut: { at: 2, keys: ['new-sheet-cut'] } } : b)),
+    });
+    act(() => client.setQueryData(['cam', 'job', job.id], used));
+    fireEvent.click(await screen.findByRole('button', { name: 'Undo that' }));
+    expect(await screen.findByText(/This replacement sheet has changed or been used/)).toBeTruthy();
+    expect(screen.queryByText('Undone.')).toBeNull();
+    expect((await getJob(job.id))!.boards!.find(b => b.id === board.id)!.cut!.keys).toEqual(['new-sheet-cut']);
+  }, 90000);
+
+  it('names set-aside parts brought back by auto-fill', async () => {
+    const client = new QueryClient();
+    const job = await openKinderregal(client);
+    await waitFor(async () => expect((await getJob(job.id))!.boards?.length).toBeGreaterThan(0));
+    const original = (await getJob(job.id))!,
+      board = original.boards![0],
+      id = board.items[0];
+    const edited = await saveJob({
+      ...original,
+      stock: [{ id: 'stock', thickness: board.thickness, w: 1220, h: 610 }],
+      boards: original.boards!.map(b => (b.id === board.id ? setAsidePart(b, id, { x: -1000, y: -1000, rotated: false }) : b)),
+    });
+    act(() => client.setQueryData(['cam', 'job', job.id], edited));
+    showAll();
+    fireEvent.click(await screen.findByRole('button', { name: 'Auto-fill from stock' }));
+    const note = await screen.findByText(/Set-aside parts brought back onto boards:/);
+    expect(note.textContent).toContain(original.parts.find(p => p.id === id.split('#')[0])?.name ?? id);
+  }, 90000);
+
+  it('does not claim to place a part skipped on an already-cut board', async () => {
+    const client = new QueryClient();
+    const job = await openKinderregal(client);
+    await waitFor(async () => expect((await getJob(job.id))!.boards?.length).toBeGreaterThan(0));
+    const original = (await getJob(job.id))!,
+      board = original.boards![0],
+      id = board.items[0];
+    const edited = await saveJob({
+      ...original,
+      boards: original.boards!.map(b =>
+        b.id === board.id ? setAsidePart({ ...b, cut: { at: 1, keys: ['cut'] } }, id, { x: -1000, y: -1000, rotated: false }) : b
+      ),
+    });
+    act(() => client.setQueryData(['cam', 'job', job.id], edited));
+    fireEvent.click(await screen.findByRole('button', { name: 'Place on boards' }));
+    expect(await screen.findByText(/Not placed: .*already-cut boards/)).toBeTruthy();
+    expect(screen.queryByText('Parts off the boards placed.')).toBeNull();
+    expect((await getJob(job.id))!.boards!.find(b => b.id === board.id)).toEqual(edited.boards!.find(b => b.id === board.id));
+  }, 90000);
+
   it('auto-fill keeps parts moved by hand, and Undo restores the boards exactly', async () => {
     const job = await openKinderregal();
 
@@ -189,6 +279,8 @@ describe('CAM boards step', () => {
     expect(within(drawing('C')).getByText(/^(Lands where you drop it|Snaps into the nest)$/)).toBeTruthy();
     expect(within(drawing('B')).getByText('Different thickness')).toBeTruthy();
     fireEvent.pointerUp(window, to);
+    // Native pointer release emits a click; the pan handler consumes it before the next board can be opened.
+    fireEvent.click(drawing('C'));
     await waitFor(() => expect(within(drawing('C')).getByText('left')).toBeTruthy(), { timeout: 10_000 });
 
     await waitFor(async () => {
@@ -455,8 +547,11 @@ describe('CAM boards step', () => {
     expect(screen.getByLabelText('Board A status').textContent).toMatch(
       /Part 1a, Part 1b, Part 2 move \d+ mm right\. Board size unchanged\./
     );
-    // ResizeObserver applies the fitted drawing scale after the new status has been laid out.
-    await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    // Flush the ResizeObserver's React update as well as the animation frames. Otherwise
+    // the next synthetic gesture can apply the new fitted scale after clientOf read the old one.
+    await act(async () => {
+      await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    });
     // Preview the same integer CSS pixels used by the click rather than assuming their inverse is exactly 380 mm
     // at every fitted drawing scale.
     const click = new MouseEvent('click', { ...clientOf('A', 1, 380), bubbles: true, cancelable: true });

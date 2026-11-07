@@ -34,6 +34,8 @@ describe('rehearsal handoff', () => {
     const { board, snapshot } = await fixture();
     expect(snapshot.job.boards![0].cut).toBeUndefined();
     expect(snapshot.job.boards![0].bed).toBeUndefined();
+    expect(snapshot.job.boards![0].physicalSheetId).toBeTruthy();
+    expect(snapshot.job.boards![0].physicalSheetId).not.toBe(board.id);
     expect(board.cut.all).toBe(true);
     expect(board.bed.a.x).toBe(99);
     expect(snapshot.expiresAt).toBeGreaterThan(Date.now() + kRehearsalLifetime - 1000);

@@ -1,0 +1,1328 @@
+[
+  {
+    "id": "sketch/dimension/line-length",
+    "title": "D, line, place, type: sets the length and D stays armed",
+    "evidence": "reference-docs Sketch/dimension.htm",
+    "steps": [
+      "line 20,40 120,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      {
+        "expect": {
+          "focus": "input"
+        }
+      },
+      "type 80",
+      "key Enter",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "value": 80
+            }
+          ],
+          "tool": "dimension",
+          "focus": "canvas"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/nested-point-line",
+    "title": "A nested rectangle's corner and the outer edge dimension as their normal distance",
+    "evidence": "manu 2026-11-06; reference-live 2026-11-06",
+    "steps": [
+      "rect 20,10 160,110",
+      "rect 60,40 120,80",
+      "key d",
+      "click 60,80",
+      {
+        "expect": {
+          "dimensions": []
+        }
+      },
+      "click 90,10",
+      "click 190,50",
+      "key Enter",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "kind": "gap",
+              "value": 70,
+              "tol": 1.5
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/point-line-diagonal",
+    "title": "A point and a diagonal line measure along the normal, not the finite minimum",
+    "evidence": "reference-live 2026-11-06, 15.15 dimension beside Min dist 16.822",
+    "steps": [
+      "line 40,20 140,80",
+      "line 30,30 30,90",
+      "key d",
+      "click 30,30",
+      "click 90,50",
+      {
+        "expect": {
+          "readout": "minimum distance"
+        }
+      },
+      "click 180,60",
+      "key Enter",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "kind": "gap",
+              "value": 13.7,
+              "tol": 1
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/point-line-annotation-follows",
+    "title": "The whole point-line annotation follows the cursor, not only its label",
+    "evidence": "manu 2026-11-06; reference-live 2026-11-06",
+    "steps": [
+      "line 40,20 140,80",
+      "line 30,50 30,90",
+      "key d",
+      "click 30,50",
+      "click 90,50",
+      "hover 170,10",
+      {
+        "expect": {
+          "annotation": {
+            "nearCursorPx": 40,
+            "onLinePx": 30
+          }
+        }
+      },
+      "hover 10,120",
+      {
+        "expect": {
+          "annotation": {
+            "nearCursorPx": 40,
+            "onLinePx": 30
+          }
+        }
+      },
+      "hover 200,70",
+      {
+        "expect": {
+          "annotation": {
+            "nearCursorPx": 40,
+            "onLinePx": 30
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/point-point-by-cursor",
+    "title": "Two points give horizontal or vertical distance depending on where you place it",
+    "evidence": "reference-report native-dimensions; reference-docs Sketch/dimension.htm",
+    "steps": [
+      "line 40,20 100,60",
+      "key d",
+      "click 40,20",
+      "click 100,60",
+      "click 70,100",
+      "key Enter",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "kind": "horizontal",
+              "value": 60,
+              "tol": 1.5
+            }
+          ]
+        }
+      },
+      "click 40,20",
+      "click 100,60",
+      "click 150,40",
+      "key Enter",
+      {
+        "expect": {
+          "dimensionsInclude": [
+            {
+              "kind": "horizontal",
+              "value": 60,
+              "tol": 1.5
+            },
+            {
+              "kind": "vertical",
+              "value": 40,
+              "tol": 1.5
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/parallel-lines",
+    "title": "Two parallel lines dimension as their separation, without a separate permanent parallel relation",
+    "evidence": "reference-report native-dimensions; Codex native check 2026-11-06: the distance itself holds them parallel and deleting it releases them",
+    "steps": [
+      "line 20,10 120,40",
+      "line 20,50 120,80",
+      "key d",
+      "click 70,25",
+      "click 70,65",
+      "click 170,40",
+      "key Enter",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "kind": "gap",
+              "value": 38.3,
+              "tol": 1.5
+            }
+          ],
+          "constraintsNone": [
+            "parallel"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/angle-two-lines",
+    "title": "Two non-parallel lines make an angle: the second click adds, it doesn't place",
+    "evidence": "manu 2026-11-06; reference-live 2026-11-06",
+    "steps": [
+      "line 40,20 140,20",
+      "line 40,40 140,80",
+      "key d",
+      "click 90,20",
+      "click 90,60",
+      {
+        "expect": {
+          "dimensions": [],
+          "readout": "angle"
+        }
+      },
+      "click 180,40",
+      {
+        "expect": {
+          "focus": "input"
+        }
+      },
+      "key Enter",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "kind": "angle"
+            }
+          ],
+          "labelText": "21\\.8"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/angle-by-quadrant",
+    "title": "Placing the label in another quadrant measures that angle",
+    "evidence": "reference-report native-dimensions; reference-docs Sketch/dimension.htm",
+    "steps": [
+      "line 40,20 140,20",
+      "line 40,40 140,80",
+      "key d",
+      "click 90,20",
+      "click 90,60",
+      "click 0,60",
+      "key Enter",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "kind": "angle"
+            }
+          ],
+          "labelText": "^158\\.[12]"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/angle-edit",
+    "title": "Editing an angle rotates the geometry to the new value",
+    "evidence": "reference-report native-dimensions",
+    "steps": [
+      "line 40,20 140,20",
+      "line 40,40 140,80",
+      "key d",
+      "click 90,20",
+      "click 90,60",
+      "click 180,40",
+      "type 45",
+      "key Enter",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "kind": "angle"
+            }
+          ],
+          "labelText": "^45"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/circle-diameter",
+    "title": "One click on a circle gives a diameter",
+    "evidence": "reference-report native-dimensions; reference-docs Sketch/dimension.htm",
+    "steps": [
+      "circle 80,50 20",
+      "key d",
+      "click 100,50",
+      "click 140,70",
+      "type 30",
+      "key Enter",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "kind": "diameter",
+              "value": 30
+            }
+          ],
+          "entities": [
+            {
+              "type": "circle",
+              "r": 15
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/arc-radius",
+    "title": "One click on an arc gives a radius",
+    "evidence": "reference-report native-dimensions; reference-docs Sketch/dimension.htm",
+    "steps": [
+      "arc 120,40 80,40 100,60",
+      "key d",
+      "click 100,60",
+      "click 150,90",
+      "type 25",
+      "key Enter",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "kind": "radius",
+              "value": 25
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/point-arc",
+    "title": "A point and an arc dimension as the near radial gap",
+    "evidence": "reference-report native-dimensions",
+    "steps": [
+      "arc 120,40 80,40 100,60",
+      "line 100,100 150,100",
+      "key d",
+      "click 100,100",
+      "click 100,60",
+      "click 40,90",
+      "key Enter",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "kind": "gap",
+              "value": 40,
+              "tol": 1.5
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/line-arc",
+    "title": "A line and an arc dimension as their gap",
+    "evidence": "reference-report native-dimensions",
+    "steps": [
+      "arc 120,40 80,40 100,60",
+      "line 60,100 140,100",
+      "key d",
+      "click 100,100",
+      "click 100,60",
+      "click 170,80",
+      "key Enter",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "kind": "gap",
+              "value": 40,
+              "tol": 1.5
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/arc-arc-facing",
+    "title": "Facing picks on two arcs dimension the gap between those sides",
+    "evidence": "reference-report native-dimensions",
+    "steps": [
+      "arc 60,60 60,20 80,40",
+      "arc 160,20 160,60 140,40",
+      "key d",
+      "click 74.14,54.14",
+      "click 145.86,54.14",
+      "click 110,90",
+      "type 70",
+      "key Enter",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "kind": "gap",
+              "value": 70
+            }
+          ],
+          "entityCount": 2
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/escape-keeps-measured",
+    "title": "Escape after placing keeps the dimension at its measured value",
+    "evidence": "reference-live via Codex transcript 2026-11-06",
+    "steps": [
+      "line 20,40 120,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "key Escape",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "value": 100,
+              "tol": 1.5
+            }
+          ],
+          "focus": "canvas"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/select-then-edit",
+    "title": "One click selects a dimension, a double click edits it, Delete removes it",
+    "evidence": "reference-docs Sketch/dimension.htm; reference-live via Codex transcript",
+    "steps": [
+      "line 20,40 120,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 90",
+      "key Enter",
+      "key Escape",
+      "key Escape",
+      "selectdim",
+      {
+        "expect": {
+          "focus": "canvas",
+          "status": "selected"
+        }
+      },
+      "editdim",
+      {
+        "expect": {
+          "focus": "input"
+        }
+      },
+      "type 70",
+      "key Enter",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "value": 70
+            }
+          ]
+        }
+      },
+      "selectdim",
+      "key Delete",
+      {
+        "expect": {
+          "dimensions": [],
+          "entityCount": 1
+        }
+      },
+      "key Control+z",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "value": 70
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/line-delete-removes-its-length",
+    "title": "Deleting a line removes its own length but keeps point-pair dimensions",
+    "evidence": "reference-report edit-shapes-native",
+    "steps": [
+      "line 20,40 120,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "key Enter",
+      "key Escape",
+      "key Escape",
+      "click 45,40",
+      "key Delete",
+      {
+        "expect": {
+          "dimensions": [],
+          "entityCount": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/label-follows-line-drag",
+    "title": "Dragging a dimensioned line carries its dimension along",
+    "evidence": "manu 2026-11-07, dimension stayed behind while the figure moved",
+    "steps": [
+      "line 20,40 120,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 100",
+      "key Enter",
+      "key Escape",
+      "key Escape",
+      {
+        "expect": {
+          "labelAt": {
+            "text": "^100$",
+            "at": [
+              70,
+              70
+            ]
+          }
+        }
+      },
+      "drag 70,40 70,90",
+      {
+        "expect": {
+          "labelAt": {
+            "text": "^100$",
+            "at": [
+              70,
+              120
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/label-follows-circle-drag",
+    "title": "Dragging a circle by its centre carries its diameter along",
+    "evidence": "manu 2026-11-07, dimension stayed behind while the figure moved",
+    "steps": [
+      "circle 100,70 15",
+      "key d",
+      "click 115,70",
+      "click 130,90",
+      "type 30",
+      "key Enter",
+      "key Escape",
+      "key Escape",
+      {
+        "expect": {
+          "labelAt": {
+            "text": "30$",
+            "at": [
+              130,
+              90
+            ]
+          }
+        }
+      },
+      "drag 100,70 100,110",
+      {
+        "expect": {
+          "labelAt": {
+            "text": "30$",
+            "at": [
+              130,
+              130
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/label-follow-undo-redo",
+    "title": "Undo and redo of a drag move the dimension with the line",
+    "evidence": "manu 2026-11-07, dimension stayed behind while the figure moved",
+    "steps": [
+      "line 20,40 120,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 100",
+      "key Enter",
+      "key Escape",
+      "key Escape",
+      "drag 70,40 70,90",
+      "key Control+z",
+      {
+        "expect": {
+          "labelAt": {
+            "text": "^100$",
+            "at": [
+              70,
+              70
+            ]
+          }
+        }
+      },
+      "key Control+y",
+      {
+        "expect": {
+          "labelAt": {
+            "text": "^100$",
+            "at": [
+              70,
+              120
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/label-follow-reload",
+    "title": "A followed dimension keeps its place after a reload",
+    "evidence": "manu 2026-11-07, dimension stayed behind while the figure moved",
+    "steps": [
+      "line 20,40 120,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 100",
+      "key Enter",
+      "key Escape",
+      "key Escape",
+      "drag 70,40 70,90",
+      "reload",
+      {
+        "expect": {
+          "labelAt": {
+            "text": "^100$",
+            "at": [
+              70,
+              120
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/label-follow-hand-placed",
+    "title": "A hand-placed label keeps its offset when the line is dragged",
+    "evidence": "reference-live 2026-11-07",
+    "steps": [
+      "line 20,40 120,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 100",
+      "key Enter",
+      "key Escape",
+      "key Escape",
+      "drag 70,70 40,100",
+      {
+        "expect": {
+          "labelAt": {
+            "text": "^100$",
+            "at": [
+              40,
+              100
+            ]
+          }
+        }
+      },
+      "drag 70,40 70,90",
+      {
+        "expect": {
+          "labelAt": {
+            "text": "^100$",
+            "at": [
+              40,
+              150
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/label-follow-live",
+    "title": "The dimension follows during the drag, not only on release",
+    "evidence": "manu 2026-11-07, dimension stayed behind while the figure moved",
+    "steps": [
+      "line 20,40 120,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 100",
+      "key Enter",
+      "key Escape",
+      "key Escape",
+      "down 70,40",
+      "move 70,90",
+      {
+        "expect": {
+          "labelAt": {
+            "text": "^100$",
+            "at": [
+              70,
+              120
+            ]
+          }
+        }
+      },
+      "up"
+    ]
+  },
+  {
+    "id": "sketch/dimension/no-double-unit-typing",
+    "title": "Typing 2mm in a value field never reads 2mm mm",
+    "evidence": "manu 2026-11-07",
+    "steps": [
+      "line 20,40 120,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 2mm",
+      {
+        "expect": {
+          "fieldTextNot": "(mm|cm|in|inch|inches|ft|m) +mm"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/no-double-unit-other",
+    "title": "Typing 2in in a value field never reads 2in mm",
+    "evidence": "manu 2026-11-07",
+    "steps": [
+      "line 20,40 120,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 2in",
+      {
+        "expect": {
+          "fieldTextNot": "(mm|cm|in|inch|inches|ft|m) +mm"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/no-double-unit-reopened",
+    "title": "Reopening a dimension typed as 2in never reads 2in mm",
+    "evidence": "manu 2026-11-07",
+    "steps": [
+      "line 20,40 120,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 2in",
+      "key Enter",
+      "key Escape",
+      "key Escape",
+      "editdim",
+      {
+        "expect": {
+          "fieldTextNot": "(mm|cm|in|inch|inches|ft|m) +mm"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/reopened-base-unit-is-plain",
+    "title": "Reopening a dimension typed as 2mm reads 2 with one unit",
+    "evidence": "manu 2026-11-07",
+    "steps": [
+      "line 20,40 120,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 2mm",
+      "key Enter",
+      "key Escape",
+      "key Escape",
+      "editdim",
+      {
+        "expect": {
+          "fieldTextNot": "(mm|cm|in|inch|inches|ft|m) +mm"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/expression",
+    "title": "Value fields accept arithmetic",
+    "evidence": "reference-live 2026-11-06, 20+30 applied as a 50 expression",
+    "steps": [
+      "line 20,40 120,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 20+30",
+      "key Enter",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "value": 50
+            }
+          ],
+          "labelText": "50"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/base-unit-is-plain",
+    "title": "2mm is the same value as 2 and is labelled the same",
+    "evidence": "manu 2026-11-07",
+    "steps": [
+      "line 20,40 120,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 2mm",
+      "key Enter",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "value": 2
+            }
+          ],
+          "labelText": "^2$"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/base-unit-spaced-is-plain",
+    "title": "2 mm with a space is also labelled as plain 2",
+    "evidence": "manu 2026-11-07",
+    "steps": [
+      "line 20,40 120,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 2 mm",
+      "key Enter",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "value": 2
+            }
+          ],
+          "labelText": "^2$"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/arithmetic-stays-marked",
+    "title": "Real arithmetic keeps its expression marker",
+    "evidence": "design arithmetic is worth remembering; a bare value in the base unit is not",
+    "steps": [
+      "line 20,40 120,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 20+30",
+      "key Enter",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "value": 50
+            }
+          ],
+          "labelText": "^ƒ 50$"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/units",
+    "title": "Value fields accept other units and fractions",
+    "evidence": "design requested from the reference CAD's value entry; unit forms not yet observed natively",
+    "steps": [
+      "line 20,40 130,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 10 cm",
+      "key Enter",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "value": 100
+            }
+          ]
+        }
+      },
+      "key Escape",
+      "key Escape",
+      "editdim",
+      "type 1/2 in",
+      "key Enter",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "value": 12.7
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/invalid-values-rejected",
+    "title": "Invalid values leave the geometry unchanged and the field open",
+    "evidence": "design a typo must never change geometry or lose the field",
+    "steps": [
+      "line 20,40 120,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type abc",
+      "key Enter",
+      {
+        "expect": {
+          "focus": "input",
+          "status": "enter a"
+        }
+      },
+      "key Escape",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "value": 100,
+              "tol": 1.5
+            }
+          ]
+        }
+      },
+      "key Escape",
+      "editdim",
+      "type 0",
+      "key Enter",
+      {
+        "expect": {
+          "focus": "input",
+          "dimensions": [
+            {
+              "value": 100,
+              "tol": 1.5
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/label-precision",
+    "title": "Labels show up to 3 decimals and never round a real length to zero",
+    "evidence": "reference-live 2026-11-06, label 44.247",
+    "steps": [
+      "line 20,40 120,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 44.247",
+      "key Enter",
+      {
+        "expect": {
+          "labelText": "44\\.247"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/overdefined-becomes-driven",
+    "title": "A dimension that over-defines a sketch becomes driven rather than breaking it",
+    "evidence": "reference-docs Sketch/dimension.htm",
+    "steps": [
+      "rect 40,20 100,60",
+      "key d",
+      "click 70,60",
+      "click 70,90",
+      "key Enter",
+      "click 70,20",
+      "click 70,-10",
+      "key Enter",
+      {
+        "expect": {
+          "dimensionsInclude": [
+            {
+              "driven": false
+            },
+            {
+              "driven": true
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/ambiguous-rejected-1",
+    "title": "The value 1,000 is rejected rather than misread (reads as 1)",
+    "evidence": "design a misread value would set a wrong real dimension; review finding S4/S6",
+    "steps": [
+      "line 20,40 120,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 1,000",
+      "key Enter",
+      {
+        "expect": {
+          "focus": "input",
+          "dimensions": [
+            {
+              "value": 100,
+              "tol": 1.5
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/ambiguous-rejected-2",
+    "title": "The value 10mm/2in is rejected rather than misread (a ratio isn't a length)",
+    "evidence": "design a misread value would set a wrong real dimension; review finding S4/S6",
+    "steps": [
+      "line 20,40 120,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 10mm/2in",
+      "key Enter",
+      {
+        "expect": {
+          "focus": "input",
+          "dimensions": [
+            {
+              "value": 100,
+              "tol": 1.5
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/ambiguous-rejected-3",
+    "title": "The value 1in/1mm is rejected rather than misread (a ratio isn't a length)",
+    "evidence": "design a misread value would set a wrong real dimension; review finding S4/S6",
+    "steps": [
+      "line 20,40 120,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 1in/1mm",
+      "key Enter",
+      {
+        "expect": {
+          "focus": "input",
+          "dimensions": [
+            {
+              "value": 100,
+              "tol": 1.5
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/ambiguous-rejected-4",
+    "title": "The value 1e150 is rejected rather than misread (beyond any real size)",
+    "evidence": "design a misread value would set a wrong real dimension; review finding S4/S6",
+    "steps": [
+      "line 20,40 120,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 1e150",
+      "key Enter",
+      {
+        "expect": {
+          "focus": "input",
+          "dimensions": [
+            {
+              "value": 100,
+              "tol": 1.5
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/fraction-keeps-unit",
+    "title": "A unit applies across a whole sum of fractions",
+    "evidence": "design review finding S4: 1/2+1/4in read the first fraction as mm; reference CAD not yet compared",
+    "steps": [
+      "line 20,40 120,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 1/2+1/4in",
+      "key Enter",
+      {
+        "expect": {
+          "focus": "input"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/accepted-form-1",
+    "title": "The value 3 1/2 in is accepted as 88.9 mm",
+    "evidence": "design clear, unambiguous length forms; some are a convenience beyond the reference CAD (Codex native check 2026-11-07)",
+    "steps": [
+      "line 20,40 150,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 3 1/2 in",
+      "key Enter",
+      {
+        "expect": {
+          "focus": "canvas",
+          "dimensions": [
+            {
+              "value": 88.9,
+              "tol": 0.01
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/accepted-form-2",
+    "title": "The value 10MM is accepted as 10 mm",
+    "evidence": "design clear, unambiguous length forms; some are a convenience beyond the reference CAD (Codex native check 2026-11-07)",
+    "steps": [
+      "line 20,40 150,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 10MM",
+      "key Enter",
+      {
+        "expect": {
+          "focus": "canvas",
+          "dimensions": [
+            {
+              "value": 10,
+              "tol": 0.01
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/accepted-form-3",
+    "title": "The value 1 IN is accepted as 25.4 mm",
+    "evidence": "design clear, unambiguous length forms; some are a convenience beyond the reference CAD (Codex native check 2026-11-07)",
+    "steps": [
+      "line 20,40 150,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 1 IN",
+      "key Enter",
+      {
+        "expect": {
+          "focus": "canvas",
+          "dimensions": [
+            {
+              "value": 25.4,
+              "tol": 0.01
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/accepted-form-4",
+    "title": "The value 2 inches is accepted as 50.8 mm",
+    "evidence": "design clear, unambiguous length forms; some are a convenience beyond the reference CAD (Codex native check 2026-11-07)",
+    "steps": [
+      "line 20,40 150,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 2 inches",
+      "key Enter",
+      {
+        "expect": {
+          "focus": "canvas",
+          "dimensions": [
+            {
+              "value": 50.8,
+              "tol": 0.01
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/accepted-form-5",
+    "title": "The value 1,5 is accepted as 1.5 mm",
+    "evidence": "design clear, unambiguous length forms; some are a convenience beyond the reference CAD (Codex native check 2026-11-07)",
+    "steps": [
+      "line 20,40 150,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 1,5",
+      "key Enter",
+      {
+        "expect": {
+          "focus": "canvas",
+          "dimensions": [
+            {
+              "value": 1.5,
+              "tol": 0.01
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/accepted-form-6",
+    "title": "The value 12.5 is accepted as 12.5 mm",
+    "evidence": "design clear, unambiguous length forms; some are a convenience beyond the reference CAD (Codex native check 2026-11-07)",
+    "steps": [
+      "line 20,40 150,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 12.5",
+      "key Enter",
+      {
+        "expect": {
+          "focus": "canvas",
+          "dimensions": [
+            {
+              "value": 12.5,
+              "tol": 0.01
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/accepted-form-7",
+    "title": "The value 1/2in is accepted as 12.7 mm",
+    "evidence": "design clear, unambiguous length forms; some are a convenience beyond the reference CAD (Codex native check 2026-11-07)",
+    "steps": [
+      "line 20,40 150,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 1/2in",
+      "key Enter",
+      {
+        "expect": {
+          "focus": "canvas",
+          "dimensions": [
+            {
+              "value": 12.7,
+              "tol": 0.01
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/dimension/mixed-units-without-unit-rejected",
+    "title": "A sum mixing a unit with a bare number is rejected",
+    "evidence": "design review finding: 1in+1 silently meant 26.4 mm",
+    "steps": [
+      "line 20,40 120,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type 1in+1",
+      "key Enter",
+      {
+        "expect": {
+          "focus": "input",
+          "dimensions": [
+            {
+              "value": 100,
+              "tol": 1.5
+            }
+          ]
+        }
+      }
+    ]
+  }
+]

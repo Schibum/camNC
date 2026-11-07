@@ -494,6 +494,9 @@ importers:
       '@vitest/browser':
         specifier: 'catalog:'
         version: 3.2.4(playwright@1.54.1)(vite@8.3.5(@types/node@24.0.15)(esbuild@0.25.8)(jiti@2.7.0)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.0))(vitest@3.2.4)
+      '@wbcnc/cad':
+        specifier: workspace:*
+        version: link:../../packages/cad
       '@wbcnc/cam':
         specifier: workspace:*
         version: link:../../packages/cam
@@ -776,7 +779,7 @@ importers:
         version: 3.2.1(react@19.1.0)
       '@preact/signals-react-transform':
         specifier: 'catalog:'
-        version: 0.5.2(@babel/core@7.28.0)(react@19.1.0)
+        version: 0.5.2(@babel/core@7.29.7)(react@19.1.0)
       '@tanstack/router-plugin':
         specifier: 'catalog:'
         version: 1.128.0(@tanstack/react-router@1.128.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(vite@8.3.5(@types/node@24.5.2)(esbuild@0.27.3)(jiti@2.7.0)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.1))
@@ -1042,6 +1045,22 @@ importers:
       rimraf:
         specifier: ^6.0.1
         version: 6.0.1
+
+  packages/cad:
+    dependencies:
+      '@salusoft89/planegcs':
+        specifier: 1.3.0
+        version: 1.3.0
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.0.15
+      '@wbcnc/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      vitest:
+        specifier: 'catalog:'
+        version: 3.2.4(@types/debug@4.1.12)(@types/node@24.0.15)(@vitest/browser@3.2.4)(@vitest/ui@3.2.4)(jiti@2.7.0)(jsdom@26.1.0)(lightningcss@1.33.0)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.1)
 
   packages/cam:
     dependencies:
@@ -5192,6 +5211,9 @@ packages:
 
   '@rtsao/scc@1.1.0':
     resolution: {integrity: sha512-zt6OdqaDoOnJ1ZYsCYGt9YmWzDXl4vQdKTyJev62gFhRGKdx7mcT54V9KIjg+d2wi9EXsPvAPKe7i7WjfVWB8g==}
+
+  '@salusoft89/planegcs@1.3.0':
+    resolution: {integrity: sha512-ugIkFCPnKRK1Yed+5297S/RmmfgEhIp5Xxx8PYhgfbcS+AxYV3chZ8LMGlEbEqrkbK6fwmNVLtEpLFq5KDl2lw==}
 
   '@shikijs/core@3.13.0':
     resolution: {integrity: sha512-3P8rGsg2Eh2qIHekwuQjzWhKI4jV97PhvYjYUzGqjvJfqdQPz+nMlfWahU24GZAyW1FxFI1sYjyhfh5CoLmIUA==}
@@ -14126,18 +14148,6 @@ snapshots:
 
   '@preact/signals-core@1.11.0': {}
 
-  '@preact/signals-react-transform@0.5.2(@babel/core@7.28.0)(react@19.1.0)':
-    dependencies:
-      '@babel/core': 7.28.0
-      '@babel/helper-module-imports': 7.27.1
-      '@babel/helper-plugin-utils': 7.27.1
-      '@preact/signals-react': 3.2.1(react@19.1.0)
-      debug: 4.4.1
-      react: 19.1.0
-      use-sync-external-store: 1.5.0(react@19.1.0)
-    transitivePeerDependencies:
-      - supports-color
-
   '@preact/signals-react-transform@0.5.2(@babel/core@7.29.7)(react@19.1.0)':
     dependencies:
       '@babel/core': 7.29.7
@@ -15678,6 +15688,8 @@ snapshots:
 
   '@rtsao/scc@1.1.0': {}
 
+  '@salusoft89/planegcs@1.3.0': {}
+
   '@shikijs/core@3.13.0':
     dependencies:
       '@shikijs/types': 3.13.0
@@ -16659,7 +16671,7 @@ snapshots:
       sirv: 3.0.1
       tinyglobby: 0.2.14
       tinyrainbow: 2.0.0
-      vitest: 3.2.4(@types/debug@4.1.12)(@types/node@24.5.2)(@vitest/browser@3.2.4)(@vitest/ui@3.2.4)(jiti@2.7.0)(jsdom@26.1.0)(lightningcss@1.33.0)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.1)
+      vitest: 3.2.4(@types/debug@4.1.12)(@types/node@24.0.15)(@vitest/browser@3.2.4)(@vitest/ui@3.2.4)(jiti@2.7.0)(jsdom@26.1.0)(lightningcss@1.33.0)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.1)
 
   '@vitest/utils@3.2.4':
     dependencies:
@@ -22790,7 +22802,7 @@ snapshots:
     optionalDependencies:
       '@types/debug': 4.1.12
       '@types/node': 24.5.2
-      '@vitest/browser': 3.2.4(playwright@1.54.1)(vite@7.0.5(@types/node@24.5.2)(jiti@2.7.0)(lightningcss@1.33.0)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.1))(vitest@3.2.4)
+      '@vitest/browser': 3.2.4(playwright@1.54.1)(vite@8.3.5(@types/node@24.5.2)(esbuild@0.27.3)(jiti@2.7.0)(terser@5.43.1)(tsx@4.20.3)(yaml@2.8.1))(vitest@3.2.4)
       '@vitest/ui': 3.2.4(vitest@3.2.4)
       jsdom: 26.1.0
     transitivePeerDependencies:

@@ -13,7 +13,9 @@ import { createJob } from './jobDb';
 import { useCamMachine } from './machine/camMachine';
 import { CamMachineHeader } from './machine/CamMachineHeader';
 
-vi.mock('./machine/useMachineQueue', () => ({ useMachineQueue: () => ({ queue: [], done: new Set(), patchBoards: () => undefined }) }));
+vi.mock('./machine/useMachineQueue', () => ({
+  useMachineQueue: () => ({ recordQueue: [], done: new Set(), patchBoards: () => undefined }),
+}));
 
 const job = { name: 'Standing shelf', fileName: 'Standing shelf.step' };
 const wide = <span style={{ display: 'inline-block', width: 300 }}>Something wide</span>;

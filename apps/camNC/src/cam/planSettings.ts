@@ -1,6 +1,7 @@
 import type { CamSettings, HoleChoice, LibraryTool } from '@wbcnc/cam';
 import { DEFAULT_TABS, MATERIALS } from '@wbcnc/cam/settings';
 import { savedCuttingFor, resolveCutting, type CuttingData } from './cuttingData';
+import type { HoleChoices } from './holeChoices';
 
 export type MaterialKey = keyof typeof MATERIALS;
 
@@ -18,16 +19,16 @@ export interface PlanSettingsV1 {
   tabs: boolean;
   /** Cutting data for the main bit in this job only, over what's saved for the bit + material. */
   cutting?: Partial<CuttingData>;
-  /** Parts that don't fit on their board, left out of the job on purpose (instance ids). */
+  /** Explicitly excluded instance IDs, until the user chooses Include again, even after geometry is repaired. */
   leaveOut?: string[];
   /** Bottom skin thickness, mm (default 1). */
   skin?: number;
-  /** What to do with the piece in the middle of a through hole, where the user chose: part id -> hole index -> choice. */
-  holes?: Record<string, Record<number, HoleChoice>>;
+  /** Part ID -> native loop ID (or imported hole index) -> choice for its middle. */
+  holes?: HoleChoices;
 }
 
 /** The plan with this hole's choice set, for every copy of the part; no choice: its size and time decide again. */
-export function withHoleChoice(p: PlanSettingsV1, partId: string, hole: number, choice: HoleChoice | undefined): PlanSettingsV1 {
+export function withHoleChoice(p: PlanSettingsV1, partId: string, hole: string | number, choice: HoleChoice | undefined): PlanSettingsV1 {
   const choices = { ...p.holes?.[partId] };
   if (choice) choices[hole] = choice;
   else delete choices[hole];

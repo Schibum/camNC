@@ -1,3 +1,4 @@
+import { physicalSheetIdOf } from '../boards';
 import { PageHeader } from '@/components/page-header';
 import { useEffect, type ReactNode } from 'react';
 import { CamJobBar } from '../CamJobBar';
@@ -40,13 +41,14 @@ function JobHeader({ jobId, tools, actions }: { jobId: string; tools: ReactNode;
  * What's cut, kept with the job: a program marked done here is recorded on its board (`BoardV1.cut`), so Boards and
  * Plan show it and keep the board as it was cut, also after leaving the job here.
  */
-function RecordCuts() {
-  const { queue, done, patchBoards } = useMachineQueue();
-  const cuts = cutsToRecord(queue, done);
-  const key = cuts && JSON.stringify(Object.entries(cuts).map(([id, c]) => [id, c.keys, c.all]));
+export function RecordCuts() {
+  const { job, recordQueue, done, patchBoards } = useMachineQueue();
+  const cuts = cutsToRecord(recordQueue, done);
+  const sheets = Object.fromEntries(recordQueue.map(entry => [entry.board.board.id, physicalSheetIdOf(entry.board.board)]));
+  const key = cuts && JSON.stringify(Object.entries(cuts).map(([id, c]) => [id, c.keys, c.all, sheets[id]]));
   useEffect(() => {
-    if (cuts) patchBoards(Object.fromEntries(Object.entries(cuts).map(([id, cut]) => [id, { cut }])));
+    if (job && cuts) patchBoards(Object.fromEntries(Object.entries(cuts).map(([id, cut]) => [id, { cut }])), sheets);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
+  }, [job?.id, key]);
   return null;
 }

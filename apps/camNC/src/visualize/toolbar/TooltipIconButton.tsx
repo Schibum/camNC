@@ -3,6 +3,7 @@ import { Button } from '@heroui/react';
 import { allowCmdOnMac, Kbd } from '@wbcnc/ui/components/kbd';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@wbcnc/ui/components/tooltip';
 import { useHotkeys } from 'react-hotkeys-hook';
+import { isCadEditorActive } from '@/cad/keyboardOwnership';
 
 export function TooltipIconButton({
   label,
@@ -17,7 +18,13 @@ export function TooltipIconButton({
   onClick: () => void;
 } & React.ComponentProps<typeof Button>) {
   shortcut = allowCmdOnMac(shortcut ?? '');
-  useHotkeys(shortcut, onClick, { preventDefault: true });
+  useHotkeys(
+    shortcut,
+    () => {
+      if (!isCadEditorActive()) onClick();
+    },
+    { preventDefault: true }
+  );
 
   return (
     <Tooltip>

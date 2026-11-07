@@ -6,6 +6,10 @@ export type Outline2D = [number, number][][];
 
 /** One part to make: a group of identical bodies, laid flat (Z up, Z0 = bottom face). */
 export interface CamPartInfo {
+  /** Permanent native loop identities, aligned with shape.holes and the CAM through-hole order. */
+  holeIds?: string[];
+  /** Original sketch bounding-box origin, before normalization for nesting (native CAD only). */
+  sourceOrigin?: [number, number];
   /** Stable for the same model file: `part-<n>` in import order. */
   id: string;
   /** The job's name for the part: the model's, unless the user renamed it (see `withPartNames`). */
@@ -90,6 +94,8 @@ export interface ReleaseProgram {
 }
 
 export interface PlanResult {
+  /** The accepted geometry this plan was generated from, independent of draft edits. */
+  sourceKey?: string;
   gcode: string;
   timeMin: number;
   warnings: string[];

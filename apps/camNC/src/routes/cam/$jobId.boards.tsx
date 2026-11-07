@@ -22,8 +22,11 @@ import {
   relayoutBoard,
   resizedBoard,
   respaceBoard,
+  restoreBoards,
   setAsidePart,
   stockTopOf,
+  physicalSheetIdOf,
+  startOverBoard,
   type BoardV1,
   type PartDrop,
   type PartInstance,
@@ -40,13 +43,16 @@ import type { JobBoard } from '@/cam/useJobBoards';
 import type { ModelImport, PlanResult } from '@/cam/camTypes';
 import { useHoldHardware } from '@/cam/holdHardware';
 import { BitChip } from '@/cam/plan/BitPicker';
+import { isManufacturingLocked } from '@/cam/machine/camMachine';
 import { camKeys, useBoardPlans, useCamJob, useCamModel, useSaveCamJob } from '@/cam/camQueries';
 import type { CamJobV1 } from '@/cam/jobDb';
 import { CamJobBar } from '@/cam/CamJobBar';
+import { clearDesignIssue } from '@/cam/designTabAnchors';
 import { forgetCut } from '@/cam/machine/camMachine';
 import { Hint } from '@/cam/Hint';
 import { bitKey } from '@/cam/cuttingData';
 import { kDefaultPlan, withHoleChoice } from '@/cam/planSettings';
+import { holeChoiceKey } from '@/cam/holeChoices';
 import { useToolLibrary } from '@/cam/toolLibrary';
 import { useJobBoards, useMachineArea } from '@/cam/useJobBoards';
 import { useQueryClient } from '@tanstack/react-query';
@@ -165,7 +171,7 @@ function BoardsEditor({
   parts: ModelImport['parts'];
   instances: PartInstance[];
   boards: JobBoard[];
-  plans: { data?: PlanResult; isFetching: boolean }[];
+  plans: { data?: PlanResult; isFetching: boolean; isPlaceholderData?: boolean }[];
   /** The board to show first, if any. */
   firstBoard?: string;
   save: (job: CamJobV1) => void;
@@ -180,9 +186,9 @@ function BoardsEditor({
   const machine = useMachineArea();
   // What just happened on the drawing, and the boards before each change, to go back to.
   // Everything this step has to say goes in its one status box, each message replacing the last.
-  const [notice, setNotice] = useState<{ text: string; undo?: () => void }>({ text: '' });
+  const [notice, setNotice] = useState<{ text: string; undo?: () => boolean | void }>({ text: '' });
   const note = notice.text;
-  const setNote = (text: string, undo?: () => void) => setNotice({ text, undo });
+  const setNote = (text: string, undo?: () => boolean | void) => setNotice({ text, undo });
   const history = useRef<BoardV1[][]>([]);
   const future = useRef<BoardV1[][]>([]);
   const plan = job.plan ?? kDefaultPlan;
@@ -202,17 +208,32 @@ function BoardsEditor({
     save({ ...job, boards: next });
     return true;
   };
-  const nestOptions = { stickout: plan.bit.stickout, hardware, machine };
+  const nestOptions = { stickout: plan.bit.stickout, hardware, machine, preserveLayout: !!job.design };
   const startOver = (board: BoardV1) => {
-    const { cut, ...rest } = board;
-    void cut;
+    if (isManufacturingLocked()) {
+      setNote('Review or dismiss the machine job before starting over.');
+      return;
+    }
+    const { cut } = board;
+    const rest = startOverBoard(board);
+    history.current = [];
+    future.current = [];
     save({ ...job, boards: boards.map(b => (b.board.id === board.id ? rest : b.board)) });
     forgetCut(job.id, board.id);
     setNote(
       `Board ${board.name} can be changed again. What was cut on it is forgotten: at the machine, all its programs are to cut again.`,
       () => {
         const latest = queryClient.getQueryData<CamJobV1>(camKeys.job(job.id)) ?? job;
-        save({ ...latest, boards: (latest.boards ?? []).map(b => (b.id === board.id ? { ...b, cut } : b)) });
+        const current = latest.boards?.find(b => b.id === board.id);
+        if (!current || physicalSheetIdOf(current) !== physicalSheetIdOf(rest) || isCut(current)) {
+          setNote('This replacement sheet has changed or been used. Its physical history cannot be undone.');
+          return false;
+        }
+        save({
+          ...latest,
+          boards: latest.boards!.map(b => (b.id === board.id ? { ...b, cut, physicalSheetId: physicalSheetIdOf(board) } : b)),
+        });
+        return true;
       }
     );
   };
@@ -283,7 +304,7 @@ function BoardsEditor({
         future.current = [...future.current, boards.map(b => b.board)];
         setNote('Undone.');
         const latest = queryClient.getQueryData<CamJobV1>(camKeys.job(job.id)) ?? job;
-        save({ ...latest, boards: before });
+        save({ ...latest, boards: restoreBoards(before, latest.boards ?? []) });
       }
     : undefined;
   const redo = future.current.length
@@ -293,7 +314,7 @@ function BoardsEditor({
         history.current = [...history.current, boards.map(b => b.board)];
         setNote('Redone.');
         const latest = queryClient.getQueryData<CamJobV1>(camKeys.job(job.id)) ?? job;
-        save({ ...latest, boards: after });
+        save({ ...latest, boards: restoreBoards(after, latest.boards ?? []) });
       }
     : undefined;
   const undoKeys = useRef({ undo, redo });
@@ -354,11 +375,13 @@ function BoardsEditor({
     const bit = plan.bit.diameter;
     const before = boards.map(b => b.board);
     let next = before;
+    const skipped = boards.filter(({ board }) => isCut(board)).flatMap(({ nest }) => nest.unplaced);
+    let placed = 0;
     // No spot it could take: the nest decides.
     const anywhere = { x: -1e6, y: -1e6, rotated: false };
     for (const { board, nest } of boards) {
       if (isCut(board)) continue;
-      for (const id of nest.unplaced) {
+      for (const id of nest.unplaced.filter(id => !hasRepair(board, id))) {
         const home = notAside(next.find(b => b.id === board.id)!, id);
         const others = next.filter(b => b.id !== board.id && !isCut(b) && b.thickness === board.thickness);
         const drop = [home, ...others].map(t => dropPart(t, instances, bit, id, anywhere, 0, nestOptions)).find(d => d.at);
@@ -369,9 +392,14 @@ function BoardsEditor({
         };
         const gone = next.map(b => (b.id === taker.id ? taker : without(b, id)));
         next = gone.some(b => b.id === taker.id) ? gone : [...gone, taker];
+        placed++;
       }
     }
-    if (saveBoards(next)) setNote('Parts off the boards placed.', undoTo(before));
+    const skippedNote = skipped.length
+      ? `Not placed: ${skipped.map(id => byId.get(id)?.name ?? id).join(', ')} ${skipped.length === 1 ? 'is' : 'are'} on already-cut boards. Start over on a new sheet first.`
+      : '';
+    if (!placed) return setNote(skippedNote || 'No parts could be placed.');
+    if (saveBoards(next)) setNote(`Parts off the boards placed. ${skippedNote}`.trim(), undoTo(before));
   };
 
   // One board per thickness to start with: a new board, with the body on it.
@@ -425,7 +453,7 @@ function BoardsEditor({
   // job (the stock list may have changed since).
   const undoTo = (before: BoardV1[]) => () => {
     const latest = queryClient.getQueryData<CamJobV1>(camKeys.job(job.id)) ?? job;
-    save({ ...latest, boards: before });
+    save({ ...latest, boards: restoreBoards(before, latest.boards ?? []) });
   };
   /** One board's parts nested afresh, around its fixtures: they stay on it, unpinned. */
   const relayout = (board: BoardV1) => {
@@ -462,13 +490,25 @@ function BoardsEditor({
     res.boards = [...kept, ...res.boards];
     saveBoards(res.boards);
     const names = (ids: string[]) => ids.map(id => byId.get(id)?.name ?? id).join(', ');
+    const returned = before
+      .flatMap(b => Object.keys(b.setAside ?? {}))
+      .filter(id =>
+        res.boards.some(
+          b =>
+            b.items.includes(id) &&
+            !b.setAside?.[id] &&
+            nestBoard(b, instances, plan.bit.diameter, nestOptions).placements.some(p => p.id === id)
+        )
+      );
+    const returnedNote = returned.length ? ` Set-aside parts brought back onto boards: ${names(returned)}.` : '';
     const problems = [
       res.tooBig.length && `${names(res.tooBig)}: too big for every stock board${machine ? ' and the machine' : ''}, even turned.`,
       res.short.length && `${names(res.short)}: not enough stock left, put on more boards of the stock's sizes.`,
     ].filter(Boolean);
     const stockBoards = res.boards.filter(b => !b.size.fit && stock.some(s => +s.thickness.toFixed(1) === b.thickness)).length;
     setNote(
-      problems.length ? problems.join(' ') : `Parts placed on ${stockBoards} ${stockBoards === 1 ? 'board' : 'boards'} from stock.`,
+      (problems.length ? problems.join(' ') : `Parts placed on ${stockBoards} ${stockBoards === 1 ? 'board' : 'boards'} from stock.`) +
+        returnedNote,
       undoTo(before)
     );
   };
@@ -500,7 +540,7 @@ function BoardsEditor({
         ? () => {
             const rest = { ...board.tabsAt };
             delete rest[id];
-            updateBoard({ ...board, tabsAt: Object.keys(rest).length ? rest : undefined });
+            updateBoard({ ...board, ...clearDesignIssue(board, id), tabsAt: Object.keys(rest).length ? rest : undefined });
           }
         : undefined,
     };
@@ -508,11 +548,57 @@ function BoardsEditor({
   // What needs attention: on any board for what's off them, else on the selected board.
   const sel = selected.board,
     selNest = selected.nest;
-  const unplacedNames = boards.flatMap(b => b.nest.unplaced.map(id => byId.get(id)?.name ?? id));
+  const missingReferences = job.design ? sel.items.filter(id => !byId.has(id)) : [];
+  const tabRepairs = Object.entries(sel.designIssues ?? {});
+  const changedThickness = job.design
+    ? sel.items.filter(id => {
+        const part = byId.get(id);
+        return part && +part.thickness.toFixed(1) !== sel.thickness;
+      })
+    : [];
+  // Removed parts, wrong thicknesses and broken tabs have their own repair messages.
+  const hasRepair = (board: BoardV1, id: string) =>
+    !!board.designIssues?.[id] || (!!job.design && (!byId.has(id) || +byId.get(id)!.thickness.toFixed(1) !== board.thickness));
+  const unplacedNames = boards.flatMap(b => b.nest.unplaced.filter(id => !hasRepair(b.board, id)).map(id => byId.get(id)?.name ?? id));
   const cantHold = sel.retention === 'tabs' ? (planOf(sel)?.holding ?? []).filter(h => h.how === 'unheld').map(h => h.name) : [];
   const verdict = holdVerdict(sel, selNest, hardware, instances);
   const alerts = (
     <>
+      {missingReferences.map(id => (
+        <p key={id} role="alert" className="flex flex-wrap items-center gap-2 text-xs text-destructive">
+          {job.parts.find(p => p.id === id.split('#')[0])?.name ?? 'A part'} was removed from Design. Its board settings are kept until
+          repaired.
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-6 px-2 text-xs"
+            disabled={isCut(sel)}
+            onClick={() => updateBoard(without(sel, id))}>
+            Remove reference
+          </Button>
+        </p>
+      ))}
+      {changedThickness.map(id => (
+        <p key={id} role="alert" className="flex flex-wrap items-center gap-2 text-xs text-destructive">
+          {byId.get(id)!.name} is now {byId.get(id)!.thickness} mm thick. This board is {sel.thickness} mm.
+          <Button size="sm" variant="outline" className="h-6 px-2 text-xs" disabled={isCut(sel)} onClick={() => toNewBoard(id)}>
+            Move to new board
+          </Button>
+        </p>
+      ))}
+      {tabRepairs.map(([id, issue]) => (
+        <p key={id} role="alert" className="flex flex-wrap items-center gap-2 text-xs text-destructive">
+          {byId.get(id)?.name ?? 'Part'}: {issue}
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-6 px-2 text-xs"
+            disabled={isCut(sel)}
+            onClick={() => partMenu(selected, id).onTabsReset?.()}>
+            Reset tabs
+          </Button>
+        </p>
+      ))}
       {unplacedNames.length > 0 && (
         <p role="alert" className="flex flex-wrap items-center gap-2 text-xs text-amber-700 dark:text-amber-400">
           {`${unplacedNames.join(', ')} ${unplacedNames.length === 1 ? 'is' : 'are'} off the boards and won’t be cut.`}
@@ -544,7 +630,14 @@ function BoardsEditor({
     </>
   );
 
-  const issue = verdict.tone === 'warn' || unplacedNames.length > 0 || selNest.nutAbove < 0 || cantHold.length > 0;
+  const issue =
+    verdict.tone === 'warn' ||
+    missingReferences.length > 0 ||
+    changedThickness.length > 0 ||
+    tabRepairs.length > 0 ||
+    unplacedNames.length > 0 ||
+    selNest.nutAbove < 0 ||
+    cantHold.length > 0;
 
   const status = (
     <div
@@ -565,8 +658,7 @@ function BoardsEditor({
                 variant="outline"
                 className="h-6 px-2 text-xs"
                 onClick={() => {
-                  notice.undo!();
-                  setNote('Undone.');
+                  if (notice.undo!() !== false) setNote('Undone.');
                 }}>
                 Undo that
               </Button>
@@ -641,16 +733,26 @@ function BoardsEditor({
           instances={instances}
           parts={parts}
           plans={plans.map(p => p.data)}
-          fetching={plans.map(p => p.isFetching)}
+          fetching={plans.map(p => p.isFetching || !!p.isPlaceholderData)}
           bit={plan.bit.diameter}
           onHoleChoice={(partId, hole, choice) => {
+            const pending = boards.some(
+              (b, index) =>
+                b.request.parts.some(part => part.partId === partId) && (plans[index].isFetching || plans[index].isPlaceholderData)
+            );
+            if (pending) return setNote('Wait for the current hole toolpaths before changing this setting.');
             const cut = cutBoardWith(
               boards.map(b => b.board),
               instances,
               partId
             );
             if (cut) setNote(`Not changed: a copy of this part is on ${boardLabel(cut)}, already cut. Start it over to change this hole.`);
-            else save({ ...job, plan: withHoleChoice(plan, partId, hole, choice) });
+            else {
+              const part = parts.find(part => part.id === partId);
+              const key = part && holeChoiceKey(part, hole);
+              if (key === undefined) return setNote('This hole changed. Wait for its current toolpaths before choosing a setting.');
+              save({ ...job, plan: withHoleChoice(plan, partId, key, choice) });
+            }
           }}
           selectedId={selected.board.id}
           onSelect={setSelectedId}
@@ -660,7 +762,7 @@ function BoardsEditor({
           onNudge={nudge}
           onTabsMove={(id, item, tabs) => {
             const b = boards.find(x => x.board.id === id);
-            if (b) updateBoard({ ...b.board, tabsAt: { ...b.board.tabsAt, [item]: tabs } });
+            if (b) updateBoard({ ...b.board, ...clearDesignIssue(b.board, item), tabsAt: { ...b.board.tabsAt, [item]: tabs } });
           }}
         />
       </main>

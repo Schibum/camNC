@@ -12,10 +12,23 @@ import { NumberInput } from '../NumberInput';
 import { clearMachineView, loadIntoMachineView } from '../showOnMachine';
 import { kStockAllowance, stockTopOf } from '../boards';
 import { Vector3 } from 'three';
-import { entryHolds, entryProgram, entryRotation, entrySide, entryTitle, nextEntry, useCamMachine, type QueueEntry } from './camMachine';
+import {
+  isManufacturingLocked,
+  entryHolds,
+  entryProgram,
+  entryRotation,
+  entrySide,
+  entryTitle,
+  nextEntry,
+  useCamMachine,
+  type QueueEntry,
+} from './camMachine';
 import { entryGhost } from './partGhost';
-import { useMachineBusy } from './useMachineBusy';
+import { useMachineBusy, useMachineSetupLocked } from './useMachineBusy';
 import { useMachineQueue } from './useMachineQueue';
+import { modelKey } from '../jobDb';
+import { acknowledgeRunReview, recoveryPending } from '@/lib/machine/jobRecovery';
+import { captureManufacturingSnapshot } from './manufacturingSnapshot';
 
 const fmt = (v: number) => `${+v.toFixed(2)}`;
 
@@ -30,38 +43,79 @@ const holdKindName = (e: QueueEntry) => (e.board.request?.holdPoints?.[0]?.kind 
  */
 export function CamQueueCard() {
   const [queueOpen, setQueueOpen] = useState(false);
-  const { jobId, active, setActive, markDone, rotation, leave, setOverlay, pauseEachTab, setPauseEachTab, setMidBoard } = useCamMachine();
+  const [reviewing, setReviewing] = useState(false);
+  const {
+    jobId,
+    active,
+    setActive,
+    markDone,
+    rotation,
+    leave,
+    setOverlay,
+    pauseEachTab,
+    setPauseEachTab,
+    runReview,
+    runPreparationError,
+    setMidBoard,
+  } = useCamMachine();
   const spindle = useStore(s => s.machinePrefs.spindleSwitch ?? 'hand');
-  const { job, queue, current, done, stale, loading, modelError, setStockThickness, parts } = useMachineQueue();
-  const gcodeOf = (e: QueueEntry) => (e.blocked || stale?.has(e.board.board.id) ? undefined : entryProgram(e)?.gcode);
+  const { job, queue, current, done, stale, loading, modelError, setStockThickness, parts, instances, nestBit, snapshot, designChanged } =
+    useMachineQueue();
+  const gcodeOf = (e: QueueEntry) =>
+    e.blocked ? undefined : snapshot?.active === e.key ? snapshot.gcode : stale?.has(e.board.board.id) ? undefined : entryProgram(e)?.gcode;
   /** The machine view for this entry. `force`: load it even if the same program seems to be there. */
   const show = (e: QueueEntry, force: boolean) => {
+    if (isManufacturingLocked()) return;
     const program = entryProgram(e);
     const gcode = gcodeOf(e);
     if (program && gcode) {
-      if (force || useStore.getState().toolpath?.gcode !== gcode)
+      if (force || useStore.getState().toolpath?.gcode !== gcode) {
+        // This branch can load the next ready entry automatically, without the Load button.
+        if (program.diameter !== useStore.getState().toolDiameter || (e.key !== active && program.diameter !== e.bitBefore))
+          getCncApi().zZeroedAt.value = null;
         loadIntoMachineView({ gcode, size: e.plan!.size, bits: [program.diameter] }, `${job?.name} ${entryTitle(e)}.gcode`);
+      }
     } else clearMachineView();
     // Where this board was placed on the bed before: its program goes there again.
     const spot = e.board.board.bed?.[entrySide(e)];
     const offset = useStore.getState().toolpathOffset;
     if (spot && (spot.x !== offset.x || spot.y !== offset.y)) useStore.getState().setToolpathOffset(new Vector3(spot.x, spot.y, offset.z));
     // The outline stays while there's no program: it shows where the board goes and at what angle.
-    setOverlay(
-      e.plan
-        ? {
-            w: e.plan.size[0],
-            h: e.plan.size[1],
-            rotationDeg: entryRotation(e, rotation),
-            ...(gcode && { tabs: e.release?.tabs, tabsPerPart: !!e.release?.perPart, freeParts: e.release?.parts }),
-            ...entryHolds(e),
-            ...entryGhost(e, parts, entryRotation(e, rotation)),
-          }
-        : null
-    );
+    const overlay = e.plan
+      ? {
+          w: e.plan.size[0],
+          h: e.plan.size[1],
+          rotationDeg: entryRotation(e, rotation),
+          ...(gcode && { tabs: e.release?.tabs, tabsPerPart: !!e.release?.perPart, freeParts: e.release?.parts }),
+          ...entryHolds(e),
+          ...entryGhost(e, parts, entryRotation(e, rotation)),
+        }
+      : null;
+    setOverlay(overlay);
+    if (job?.design && gcode) {
+      useCamMachine.getState().setLoadedSnapshot(
+        captureManufacturingSnapshot({
+          jobId: job.id,
+          sourceKey: snapshot?.sourceKey ?? modelKey(job),
+          designRevision: snapshot?.designRevision ?? job.design.acceptedRevision,
+          boardWasSaved: job.boards?.some(board => board.id === e.board.board.id) ?? false,
+          active: e.key,
+          doneId: e.doneId,
+          gcode,
+          queue: [e],
+          recordQueue: queue.filter(
+            entry => entry.board.board.id === e.board.board.id && entry.kind !== 'pending' && entry.kind !== 'error'
+          ),
+          parts: parts ?? [],
+          instances: instances ?? [],
+          nestBit: nestBit ?? program!.diameter,
+          overlay,
+        })
+      );
+    } else useCamMachine.getState().setLoadedSnapshot(null);
   };
   const load = (e: QueueEntry) => {
-    // Another bit means another length: a Z zero, measured or marked as done before, no longer holds.
+    if (isManufacturingLocked()) return;
     const bit = entryProgram(e)?.diameter;
     if (e.key !== active && bit !== undefined && bit !== e.bitBefore) getCncApi().zZeroedAt.value = null;
     setActive(e.key);
@@ -72,11 +126,13 @@ export function CamQueueCard() {
   const gcode = current ? gcodeOf(current) : undefined;
   const shownDeg = current ? entryRotation(current, rotation) : 0;
   const busy = useMachineBusy();
+  const setupLocked = useMachineSetupLocked();
   const loadedGcode = useStore(s => s.toolpath?.gcode);
+  const setupKey = current && JSON.stringify([current.board.board, current.board.request]);
   // Planned again (a hold moved, the board turned), blocked, gone: what's loaded follows the active entry. Never while a
   // program runs or is paused partway: it follows once that's done.
   useEffect(() => {
-    if (!jobId || !active || busy) return;
+    if (!jobId || !active || setupLocked) return;
     if (!current) {
       clearMachineView();
       setOverlay(null);
@@ -87,17 +143,34 @@ export function CamQueueCard() {
     if (current.key !== active && current.kind !== 'pending') setActive(current.key);
     show(current, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobId, active, current?.key, gcode, shownDeg, loading, busy, parts]);
+  }, [jobId, active, current?.key, current?.plan, current?.blocked, gcode, shownDeg, loading, setupLocked, parts, setupKey]);
   if (!jobId) return null;
-  const next = () => {
-    if (!current) return;
-    markDone(current.doneId);
-    const after = nextEntry(queue, current, done);
-    if (after) load(after);
-    else {
-      setActive(null);
+  const next = async () => {
+    if (!current || busy || reviewing || recoveryPending.value || (runReview && runReview !== 'finished')) return;
+    setReviewing(true);
+    try {
+      if (runReview && !(await acknowledgeRunReview())) return;
+      markDone(snapshot?.doneId ?? current.doneId);
+      const after = nextEntry(queue, current, done);
+      if (after) load(after);
+      else {
+        setActive(null);
+        clearMachineView();
+        setOverlay(null);
+      }
+    } finally {
+      setReviewing(false);
+    }
+  };
+  const closeSetup = async () => {
+    if (busy || reviewing) return;
+    setReviewing(true);
+    try {
+      if (!(await acknowledgeRunReview())) return;
+      useCamMachine.getState().releaseSnapshot();
       clearMachineView();
-      setOverlay(null);
+    } finally {
+      setReviewing(false);
     }
   };
   const board = current?.board.board;
@@ -143,7 +216,13 @@ export function CamQueueCard() {
               <h3 className="truncate text-sm font-semibold">{job ? job.name : 'CAM job'}</h3>
               <span className="grow" />
               <Hint text="Closes the queue here. Which boards are done is forgotten; the job itself stays.">
-                <Button size="icon" variant="ghost" className="size-6" aria-label="Leave the CAM job" onClick={leave}>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="size-6"
+                  aria-label="Leave the CAM job"
+                  disabled={setupLocked || reviewing}
+                  onClick={leave}>
                   <X className="size-3.5" />
                 </Button>
               </Hint>
@@ -155,7 +234,7 @@ export function CamQueueCard() {
                 return (
                   <li key={e.key}>
                     <button
-                      disabled={busy}
+                      disabled={setupLocked || reviewing}
                       onClick={() => {
                         load(e);
                         setQueueOpen(false);
@@ -196,7 +275,7 @@ export function CamQueueCard() {
           variant="ghost"
           className="size-7"
           aria-label="Previous board"
-          disabled={busy || at <= 0}
+          disabled={setupLocked || reviewing || at <= 0}
           onClick={() => load(queue[at - 1]!)}>
           <ChevronLeft />
         </Button>
@@ -205,7 +284,7 @@ export function CamQueueCard() {
           variant="ghost"
           className="size-7"
           aria-label="Next board"
-          disabled={busy || at < 0 || at >= queue.length - 1}
+          disabled={setupLocked || reviewing || at < 0 || at >= queue.length - 1}
           onClick={() => load(queue[at + 1]!)}>
           <ChevronRight />
         </Button>
@@ -216,7 +295,14 @@ export function CamQueueCard() {
               size="sm"
               className="shrink-0"
               variant={current.kind === 'flip' ? 'default' : 'outline'}
-              disabled={busy || !!current.blocked || !!stale?.has(current.board.board.id)}
+              disabled={
+                busy ||
+                reviewing ||
+                recoveryPending.value ||
+                (!!runReview && runReview !== 'finished') ||
+                !!current.blocked ||
+                !!stale?.has(current.board.board.id)
+              }
               onClick={next}>
               {current.kind === 'flip' ? 'Turned over, next' : 'Done, next'}
             </Button>
@@ -229,10 +315,43 @@ export function CamQueueCard() {
           {modelError}
         </p>
       )}
+      {recoveryPending.value && (
+        <p role="status" className="text-xs text-muted-foreground">
+          Checking the original machine setup…
+        </p>
+      )}
       {busy && <p className="text-xs text-muted-foreground">A program is running or paused: the queue goes on when it’s done.</p>}
+      {runPreparationError && (
+        <p role="alert" className="text-xs text-destructive">
+          {runPreparationError}
+        </p>
+      )}
+      {snapshot && (
+        <p role="status" className="text-xs text-muted-foreground">
+          {runPreparationError
+            ? 'Preparation needs review'
+            : busy
+              ? 'Running or resumable setup'
+              : runReview
+                ? `Run review: ${runReview === 'finished' ? 'finished' : runReview === 'stopped' ? 'stopped' : 'execution was requested'}`
+                : 'Protected setup'}{' '}
+          · design revision {snapshot.designRevision}.
+          {designChanged && ` Current design is revision ${job?.design?.acceptedRevision}. This setup keeps its original programs.`}
+        </p>
+      )}
+      {designChanged && (
+        <Button size="sm" variant="outline" disabled={busy || reviewing} onClick={closeSetup}>
+          Use current design with a new setup
+        </Button>
+      )}
+      {snapshot && !designChanged && !busy && (
+        <Button size="sm" variant="outline" disabled={reviewing} onClick={closeSetup}>
+          {runReview ? 'Close run review and use current setup' : 'Close this machining setup'}
+        </Button>
+      )}
 
       {current && board && (
-        <div className="flex flex-col gap-2 text-[13px]">
+        <fieldset disabled={setupLocked} className="flex flex-col gap-2 text-[13px]">
           {current.blocked && (
             <p
               role={current.kind === 'pending' ? 'status' : 'alert'}
@@ -376,12 +495,16 @@ export function CamQueueCard() {
           )}
           {current.plan && current.kind !== 'flip' && !loaded && (
             <Hint text="Puts this program in the machine view, ready to run.">
-              <Button size="sm" className="self-start" disabled={busy || !gcodeOf(current)} onClick={() => load(current)}>
+              <Button
+                size="sm"
+                className="self-start"
+                disabled={setupLocked || reviewing || !gcodeOf(current)}
+                onClick={() => load(current)}>
                 Load {current.kind === 'tabs' ? 'tab removal' : current.kind === 'free' ? 'parts freeing' : 'program'}
               </Button>
             </Hint>
           )}
-        </div>
+        </fieldset>
       )}
       {!current && queue.length > 0 && <p className="text-[13px]">All boards are cut.</p>}
     </section>

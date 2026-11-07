@@ -10,7 +10,7 @@ import { PartList } from '@/cam/model/PartList';
 import { pickModelFile, toastNotAModel } from '@/cam/openModelFile';
 import { kModelFile } from '@/cam/jobDb';
 import { useQueryClient } from '@tanstack/react-query';
-import { createFileRoute, Link, useNavigate, useParams } from '@tanstack/react-router';
+import { createFileRoute, Link, Navigate, useNavigate, useParams } from '@tanstack/react-router';
 import { Button } from '@wbcnc/ui/components/button';
 import { LoadingSpinner } from '@wbcnc/ui/components/loading-spinner';
 import { toast } from '@wbcnc/ui/components/sonner';
@@ -35,6 +35,7 @@ function ModelStep() {
 
   if (jobPending) return <Shell />;
   if (!job) return <Shell message="This job doesn't exist (any more)." />;
+  if (job.design) return <Navigate to="/cam/$jobId/design" params={{ jobId }} replace />;
 
   const replace = async () => {
     try {

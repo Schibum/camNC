@@ -53,14 +53,23 @@ export function useJobBoards(job: CamJobV1 | null | undefined, model: ModelImpor
     const milled = new Map(job.parts.map(p => [p.id, p.milled]));
     const instances = instancesOf(model.parts, id => milled.get(id) ?? true);
     const plan = job.plan ?? kDefaultPlan;
-    const opts = { stickout: plan.bit.stickout, hardware, machine };
-    const reconciledAll = keepWithinMachine(reconcileBoards(job.boards, instances, plan.material), instances, plan.bit.diameter, opts);
+    const opts = { stickout: plan.bit.stickout, hardware, machine, preserveLayout: !!job.design };
+    const reconciled = reconcileBoards(job.boards, instances, plan.material, { preserveReferences: !!job.design });
+    const reconciledAll = job.design ? reconciled : keepWithinMachine(reconciled, instances, plan.bit.diameter, opts);
     const boards = reconciledAll.map(reconciled => {
       const clear = keepFixturesClear(reconciled, instances, plan.bit.diameter, opts);
       const nest = nestBoard(clear, instances, plan.bit.diameter, opts);
       // Stored once nested: from then on its parts stay where they are.
-      const board = withLayout(clear, nest);
-      return { board, nest, request: boardRequest(board, nest, instances, { skin: plan.skin, holes: plan.holes }) };
+      const laidOut = withLayout(clear, nest);
+      const board =
+        job.design && clear.layout
+          ? { ...laidOut, layout: { ...clear.layout, ...laidOut.layout, at: { ...clear.layout.at, ...laidOut.layout?.at } } }
+          : laidOut;
+      return {
+        board,
+        nest,
+        request: boardRequest(board, nest, instances, { skin: plan.skin, holes: plan.holes, leaveOut: plan.leaveOut }),
+      };
     });
     const changed = JSON.stringify(boards.map(b => b.board)) !== JSON.stringify(job.boards ?? []);
     return { instances, changed, boards };

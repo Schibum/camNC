@@ -12,6 +12,9 @@ This repository is a pnpm/Turborepo workspace using TypeScript and React.
   - It reuses the repo `.prettierrc`/`.prettierignore`, so the result always matches CI's `pnpm run check-format`.
   - The hook installs itself via the `prepare` script on `pnpm install`.
 - Keep generated files such as `routeTree.gen.ts` read-only; avoid editing them manually.
+- Keep external application comparison reports, captures and private document links in the private companion repository. Public documentation and examples describe application behavior without product comparisons.
+- Public tests and scripts must work without private reference files.
+- During long-running branch work, commit and push meaningful milestones and at least every two hours as a backup.
 
 ## Dev Environment Tips
 

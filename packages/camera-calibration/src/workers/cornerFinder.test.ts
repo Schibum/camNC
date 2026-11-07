@@ -56,7 +56,7 @@ async function testWorkerWithImage(
 
   // eslint-disable-next-line no-async-promise-executor
   return new Promise<void>(async (resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error('Test timeout')), 10000);
+    const timeout = setTimeout(() => reject(new Error('Test timeout')), 45000);
 
     const onFrameProcessed = (data: FrameEvent) => {
       clearTimeout(timeout);

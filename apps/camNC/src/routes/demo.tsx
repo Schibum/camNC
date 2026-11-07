@@ -1,13 +1,15 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
 import { PageHeader } from '@/components/page-header';
 import { SampleProjectCard } from '@/cam/samples/SampleProjectCard';
-import { isDemoMode } from '@/lib/demo/demo-mode';
+import { isDemoMode, isLocalPreviewDemo } from '@/lib/demo/demo-mode';
+import { isDemoChoiceUrl } from '@/lib/demo/demo-context';
 import { Button } from '@wbcnc/ui/components/button';
 
 /** The demo's entry point. Demo mode itself is switched on in lib/demo/demo-mode.ts, before the app starts. */
 export const Route = createFileRoute('/demo')({
-  beforeLoad: () => {
-    if (isDemoMode()) throw redirect({ to: '/visualize/2DView', search: { view: 'top' }, replace: true });
+  beforeLoad: ({ location }) => {
+    const localChoice = isLocalPreviewDemo() && isDemoChoiceUrl(new URL(location.href, globalThis.location.origin));
+    if (isDemoMode() && !localChoice) throw redirect({ to: '/visualize/2DView', search: { view: 'top' }, replace: true });
   },
   component: DemoEntry,
 });

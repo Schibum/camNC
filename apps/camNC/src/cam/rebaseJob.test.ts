@@ -59,3 +59,25 @@ describe('saving on top of the job as it is now', () => {
     expect(rebaseJob(noBoards, next, now).boards![0].items).toEqual(['q']);
   });
 });
+
+it('N1 preserves concurrently recorded physical starts and completions when an older Done cut patch saves', () => {
+  const base = job([board('A', ['p'])]);
+  const current = job([board('A', ['p'], { cut: { at: 10, sourceKey: 'original', keys: ['first'], startedKeys: ['first', 'running'] } })]);
+  const staleDone = job([board('A', ['p'], { cut: { at: 20, sourceKey: 'original', keys: ['second'] } })]);
+  const cut = rebaseJob(base, staleDone, current).boards![0].cut!;
+  expect(cut.startedKeys).toEqual(['first', 'running']);
+  expect(cut.keys).toEqual(['first', 'second']);
+  expect(cut.at).toBe(10);
+});
+
+it('N1 still allows explicit Start over to clear physical history', () => {
+  const base = job([board('A', ['p'], { cut: { at: 10, keys: [], startedKeys: ['running'] } })]);
+  const current = job([board('A', ['p'], { cut: { at: 10, keys: ['running'], startedKeys: ['running'], all: true } })]);
+  expect(rebaseJob(base, job([board('A', ['p'])]), current).boards![0].cut).toBeUndefined();
+});
+
+it('N1 a stale completion cannot restore cut history after an explicit Start over', () => {
+  const base = job([board('A', ['p'], { cut: { at: 10, keys: ['first'], startedKeys: ['first'] } })]);
+  const staleDone = job([board('A', ['p'], { cut: { at: 10, keys: ['first', 'second'], startedKeys: ['first', 'second'], all: true } })]);
+  expect(rebaseJob(base, staleDone, job([board('A', ['p'])])).boards![0].cut).toBeUndefined();
+});

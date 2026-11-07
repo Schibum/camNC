@@ -1,6 +1,6 @@
 import { setDemoModeForTest } from '@/lib/demo/demo-mode';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { SidebarProvider } from '@wbcnc/ui/components/sidebar';
 import type { ReactNode } from 'react';
 // The app's styles: these tests measure real boxes.
@@ -9,10 +9,18 @@ import { page } from '@vitest/browser/context';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useCamMachine } from '@/cam/machine/camMachine';
 import { PageHeader } from '@/components/page-header';
+import { useStageNavigation } from './stageNavigation';
+import type { CamJobV1 } from '@/cam/jobDb';
 import { AppRail } from './AppRail';
 import { useAppRail } from './appRailStore';
 
-const route = vi.hoisted(() => ({ path: '/', board: undefined as string | undefined, navigate: vi.fn(), open: vi.fn() }));
+const route = vi.hoisted(() => ({
+  job: undefined as CamJobV1 | undefined,
+  path: '/',
+  board: undefined as string | undefined,
+  navigate: vi.fn(),
+  open: vi.fn(),
+}));
 vi.mock('@tanstack/react-router', () => ({
   useLocation: ({ select }: { select: (l: { pathname: string }) => string }) => select({ pathname: route.path }),
   useSearch: () => ({ board: route.board }),
@@ -24,18 +32,31 @@ vi.mock('@tanstack/react-router', () => ({
     params,
     search,
     className,
+    activeOptions,
+    activeProps,
+    preload,
+    ...props
   }: {
     children: ReactNode;
     to: string;
     params?: { jobId: string };
     search?: { board?: string };
     className?: string;
+    activeOptions?: unknown;
+    activeProps?: unknown;
+    preload?: unknown;
   }) => (
-    <a href={`${to.replace('$jobId', params?.jobId ?? '')}${search?.board ? `?board=${search.board}` : ''}`} className={className}>
+    <a
+      data-search={JSON.stringify(search)}
+      data-router-options={Boolean(activeOptions || activeProps || preload) || undefined}
+      {...props}
+      href={`${to.replace('$jobId', params?.jobId ?? '')}${search?.board ? `?board=${search.board}` : ''}`}
+      className={className}>
       {children}
     </a>
   ),
 }));
+vi.mock('@/cam/camQueries', () => ({ useCamJob: () => ({ data: route.job }) }));
 vi.mock('@/cam/machine/openAtMachine', () => ({ openAtMachine: route.open }));
 vi.mock('@/components/app-sidebar', () => ({ AppSidebar: () => <aside>The full panel</aside> }));
 
@@ -53,6 +74,8 @@ beforeAll(() => setDemoModeForTest(true));
 afterAll(() => setDemoModeForTest(false));
 beforeEach(async () => {
   await page.viewport(1100, 800);
+  route.job = undefined;
+  useStageNavigation.setState({ guard: null });
   route.path = '/cam/job/plan';
   route.board = undefined;
   useAppRail.setState({ rail: 'icons' });
@@ -151,4 +174,37 @@ describe('the left panel', () => {
       expect(right).toBeLessThanOrEqual(375);
     }
   });
+});
+
+it('uses Design and guards ordinary, modified and middle-click rail exits with the mounted editor', () => {
+  route.path = '/cam/job/design';
+  route.board = 'a';
+  route.job = { id: 'job', design: {} } as CamJobV1;
+  const navigate = vi.fn();
+  useStageNavigation.setState({ guard: { jobId: 'job', navigate, pending: false } });
+  show();
+  expect(panel().getByText('Design').getAttribute('aria-current')).toBe('step');
+  const boards = panel().getByRole('link', { name: 'Boards' });
+  expect(boards.getAttribute('href')).toBe('/cam/job/boards?board=a');
+  fireEvent.click(boards);
+  expect(navigate).toHaveBeenLastCalledWith({ stage: 'boards', board: 'a', newTab: false });
+  fireEvent.click(boards, { ctrlKey: true });
+  expect(navigate).toHaveBeenLastCalledWith({ stage: 'boards', board: 'a', newTab: true });
+  fireEvent(boards, new MouseEvent('auxclick', { button: 1, bubbles: true, cancelable: true }));
+  expect(navigate).toHaveBeenLastCalledWith({ stage: 'boards', board: 'a', newTab: true });
+  fireEvent.click(panel().getByRole('button', { name: 'At the machine' }));
+  expect(navigate).toHaveBeenLastCalledWith({ stage: 'machine', board: 'a', newTab: false });
+  act(() => useStageNavigation.setState({ guard: { jobId: 'job', navigate, pending: true } }));
+  fireEvent.click(panel().getByText('Plan'));
+  expect(navigate).toHaveBeenCalledTimes(4);
+});
+
+it('returns from the machine to the right design, board and part', () => {
+  route.path = '/visualize/2DView';
+  route.job = { id: 'job', design: {}, boards: [{ id: 'a', items: ['part#0'] }] } as CamJobV1;
+  useCamMachine.setState({ jobId: 'job', active: 'a:bit:0' });
+  show();
+  const edit = panel().getByRole('link', { name: 'Edit design' });
+  expect(edit.getAttribute('href')).toContain('/cam/job/design');
+  expect(JSON.parse(edit.getAttribute('data-search')!)).toEqual({ returnTo: 'machine', board: 'a', part: 'part' });
 });

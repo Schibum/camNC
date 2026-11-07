@@ -1,6 +1,8 @@
 import { instancesOf, reconcileBoards } from '@/cam/boards';
 import { camWorker, modelKey } from '@/cam/camQueries';
-import { createJob, getJob, saveJob } from '@/cam/jobDb';
+import { createDesignJob, createJob, getJob, saveJob } from '@/cam/jobDb';
+import { acceptDesign, saveDesignDraft } from '@/cam/cadDesign';
+import { addCircle, createPlateDocument } from '@wbcnc/cad';
 import * as Comlink from 'comlink';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -53,6 +55,27 @@ function plateStl() {
 afterEach(cleanup);
 
 describe('Plan step: a hole whose middle comes loose', () => {
+  it('saves a native hole choice under its source loop identity instead of its current display index', { timeout: 60_000 }, async () => {
+    const empty = await createDesignJob('Native plate');
+    const document = { ...createPlateDocument({ width: 180, height: 100, thickness: 18 }), id: empty.design!.draft.id };
+    const part = document.parts[0]!;
+    part.sketch = addCircle(part.sketch, { x: 90, y: 50, radius: 20 });
+    const circle = part.sketch.entities.at(-1)!;
+    const job = await acceptDesign(await saveDesignDraft(empty, document), document);
+    params.jobId = job.id;
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <PlanStep />
+      </QueryClientProvider>
+    );
+    await screen.findByText(/the 34 mm piece in a through hole comes loose/, {}, { timeout: 30_000 });
+    fireEvent.click(screen.getByRole('button', { name: /^Clear it, about \+\d/ }));
+    const holeId = `${part.id}:profile:${circle.id}`;
+    await waitFor(async () => expect((await getJob(job.id))?.plan?.holes).toEqual({ [part.id]: { [holeId]: 'clear' } }));
+    await screen.findByText(/Middle of a through hole/, {}, { timeout: 30_000 });
+    expect(screen.queryByText(/comes loose on the last pass/)).toBeNull();
+  });
+
   it('says so, and clears it from there', { timeout: 120_000 }, async () => {
     const job = await createJob(new File([plateStl()], 'plate.stl'), { name: 'Plate' });
     params.jobId = job.id;

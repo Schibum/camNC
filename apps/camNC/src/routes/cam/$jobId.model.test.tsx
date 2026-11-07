@@ -27,6 +27,7 @@ vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => () => undefined,
   useSearch: () => ({}),
   Link: ({ children }: { children: ReactNode }) => <a>{children}</a>,
+  Navigate: () => null,
 }));
 vi.mock('@/components/page-header', () => ({ PageHeader: () => null }));
 // WebGL is not what this test is about.

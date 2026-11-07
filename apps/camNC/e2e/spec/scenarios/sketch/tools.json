@@ -1,0 +1,434 @@
+[
+  {
+    "id": "sketch/offset/loop-inward-default",
+    "title": "O on a selected closed loop offsets all of it, inward by a positive value",
+    "evidence": "Codex native check 2026-11-06: default 5 mm",
+    "steps": [
+      "rect 40,30 140,90",
+      "drag 20,110 160,10",
+      "key o",
+      "type 10",
+      "key Enter",
+      {
+        "expect": {
+          "entityCount": 8,
+          "entitiesInclude": [
+            {
+              "type": "line",
+              "a": [
+                50,
+                40
+              ],
+              "b": [
+                130,
+                40
+              ]
+            },
+            {
+              "type": "line",
+              "a": [
+                50,
+                80
+              ],
+              "b": [
+                130,
+                80
+              ]
+            },
+            {
+              "type": "line",
+              "a": [
+                50,
+                40
+              ],
+              "b": [
+                50,
+                80
+              ]
+            },
+            {
+              "type": "line",
+              "a": [
+                130,
+                40
+              ],
+              "b": [
+                130,
+                80
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/offset/negative-reverses",
+    "title": "A negative offset reverses direction",
+    "evidence": "Codex native check 2026-11-06: -10 went outward",
+    "steps": [
+      "rect 40,30 140,90",
+      "drag 20,110 160,10",
+      "key o",
+      "type -10",
+      "key Enter",
+      {
+        "expect": {
+          "entityCount": 8,
+          "entitiesInclude": [
+            {
+              "type": "line",
+              "a": [
+                30,
+                20
+              ],
+              "b": [
+                150,
+                20
+              ]
+            },
+            {
+              "type": "line",
+              "a": [
+                30,
+                100
+              ],
+              "b": [
+                150,
+                100
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/mirror/circle-linked",
+    "title": "Mirror about a construction line makes a linked copy",
+    "evidence": "Codex native check 2026-11-06: editing the source diameter changed both",
+    "steps": [
+      "line 100,10 100,110",
+      "click 100,60",
+      "key q",
+      "key Space",
+      "circle 60,60 20",
+      "click 80,60",
+      "button Mirror",
+      "click 100,60",
+      "key Escape",
+      "key Escape",
+      {
+        "expect": {
+          "entitiesInclude": [
+            {
+              "type": "circle",
+              "c": [
+                60,
+                60
+              ],
+              "r": 20
+            },
+            {
+              "type": "circle",
+              "c": [
+                140,
+                60
+              ],
+              "r": 20
+            }
+          ]
+        }
+      },
+      "key d",
+      "click 80,60",
+      "click 40,100",
+      "type 25",
+      "key Enter",
+      {
+        "expect": {
+          "entitiesInclude": [
+            {
+              "type": "circle",
+              "c": [
+                60,
+                60
+              ],
+              "r": 12.5
+            },
+            {
+              "type": "circle",
+              "c": [
+                140,
+                60
+              ],
+              "r": 12.5
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/extend/line-to-edge",
+    "title": "X extends the clicked end of a line to the edge clicked next",
+    "evidence": "Codex native check 2026-11-06",
+    "steps": [
+      "line 20,40 80,40",
+      "line 120,10 120,90",
+      "key x",
+      "click 75,40",
+      "click 120,60",
+      "key Escape",
+      "key Escape",
+      {
+        "expect": {
+          "entitiesInclude": [
+            {
+              "type": "line",
+              "a": [
+                20,
+                40
+              ],
+              "b": [
+                120,
+                40
+              ]
+            }
+          ],
+          "entityCount": 2
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/extend/arc-keeps-center",
+    "title": "Extending an arc keeps its center and radius",
+    "evidence": "Codex native check 2026-11-06: semicircle to three quarters",
+    "steps": [
+      "arc 120,40 80,40 100,60",
+      "line 100,5 100,30",
+      "key x",
+      "click 83,50",
+      "click 100,25",
+      "key Escape",
+      "key Escape",
+      {
+        "expect": {
+          "entitiesInclude": [
+            {
+              "type": "arc",
+              "c": [
+                100,
+                40
+              ],
+              "r": 20,
+              "a": [
+                120,
+                40
+              ],
+              "b": [
+                100,
+                20
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/mirror/half-profile",
+    "title": "Mirroring a half-profile whose ends lie on the axis works",
+    "evidence": "design the main use of Mirror on flat parts; review finding O1",
+    "steps": [
+      "line 100,10 100,110",
+      "click 100,60",
+      "key q",
+      "key Space",
+      "key l",
+      "click 100,20",
+      "click 60,20",
+      "click 60,100",
+      "click 100,100",
+      "key Escape",
+      "key Escape",
+      "drag 40,105 104,15",
+      "button Mirror",
+      "click 100,60",
+      "key Escape",
+      "key Escape",
+      {
+        "expect": {
+          "entitiesInclude": [
+            {
+              "type": "line",
+              "a": [
+                100,
+                20
+              ],
+              "b": [
+                60,
+                20
+              ]
+            },
+            {
+              "type": "line",
+              "a": [
+                100,
+                20
+              ],
+              "b": [
+                140,
+                20
+              ]
+            },
+            {
+              "type": "line",
+              "a": [
+                140,
+                20
+              ],
+              "b": [
+                140,
+                100
+              ]
+            },
+            {
+              "type": "line",
+              "a": [
+                100,
+                100
+              ],
+              "b": [
+                140,
+                100
+              ]
+            }
+          ],
+          "status": "degrees? of freedom"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/offset/edit-leaves-source",
+    "title": "Editing an offset distance doesn't resize its undimensioned source",
+    "evidence": "design a copy's distance must not change its source; review finding O4",
+    "steps": [
+      "rect 40,30 140,90",
+      "drag 20,110 160,10",
+      "key o",
+      "type 10",
+      "key Enter",
+      "key Escape",
+      "key Escape",
+      "editdim",
+      "type 20",
+      "key Enter",
+      {
+        "expect": {
+          "entitiesInclude": [
+            {
+              "type": "line",
+              "a": [
+                40,
+                30
+              ],
+              "b": [
+                140,
+                30
+              ],
+              "tol": 0.05
+            },
+            {
+              "type": "line",
+              "a": [
+                40,
+                90
+              ],
+              "b": [
+                140,
+                90
+              ],
+              "tol": 0.05
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/offset/trim-circle-copy-solves",
+    "title": "Trimming an offset circle leaves a solvable sketch",
+    "evidence": "design trim must never invalidate a sketch; review finding O2",
+    "steps": [
+      "circle 80,60 30",
+      "line 20,60 140,60",
+      "click 101.21,81.21",
+      "key o",
+      "type 5",
+      "key Enter",
+      "key Escape",
+      "key Escape",
+      {
+        "expect": {
+          "entitiesInclude": [
+            {
+              "type": "circle",
+              "r": 30
+            },
+            {
+              "type": "circle",
+              "r": 25
+            }
+          ]
+        }
+      },
+      "key m",
+      "click 80,90",
+      "key Escape",
+      "key Escape",
+      {
+        "expect": {
+          "status": "degrees? of freedom"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/extend/skips-construction",
+    "title": "Extend passes through construction geometry to the real boundary",
+    "evidence": "reference-live: passes ordinary construction and white spline guides before the next finite ordinary boundary; review finding O6",
+    "steps": [
+      "line 20,40 60,40",
+      "line 80,10 80,90",
+      "click 80,50",
+      "key q",
+      "key Space",
+      "line 120,10 120,90",
+      "key x",
+      "click 55,40",
+      "click 120,50",
+      "key Escape",
+      "key Escape",
+      {
+        "expect": {
+          "entitiesInclude": [
+            {
+              "type": "line",
+              "a": [
+                20,
+                40
+              ],
+              "b": [
+                120,
+                40
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+]

@@ -3,6 +3,8 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     globals: false,
+    // OpenCV work is CPU-bound and shares CI's small runner with the other packages' suites.
+    testTimeout: 60_000,
     // environment: 'jsdom',
     // opencv tests don't seem to work with jsdom as setup right now.
     browser: {

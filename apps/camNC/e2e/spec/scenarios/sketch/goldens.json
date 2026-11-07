@@ -1,0 +1,109 @@
+[
+  {
+    "id": "sketch/golden/line-preview",
+    "title": "A line mid-draw: thin preview with its live length",
+    "evidence": "manu 2026-11-06 on preview weight; reference-live 2026-11-06 on the live length",
+    "steps": [
+      "line 20,100 80,100",
+      "key l",
+      "click 40,40",
+      "hover 110,70",
+      "frame mid-draw"
+    ]
+  },
+  {
+    "id": "sketch/golden/spline-preview",
+    "title": "A spline mid-draw at normal weight, the bug Manu spotted",
+    "evidence": "manu 2026-11-06",
+    "steps": [
+      "tool Spline",
+      "click 40,30",
+      "click 80,70",
+      "hover 130,40",
+      "frame mid-draw"
+    ]
+  },
+  {
+    "id": "sketch/golden/plate-dimensioned",
+    "title": "A dimensioned plate with a hole: shading and annotations",
+    "evidence": "reference-live 2026-11-06",
+    "steps": [
+      "rect 40,30 160,110",
+      "circle 100,70 15",
+      "key d",
+      "click 100,110",
+      "click 100,135",
+      "type 120",
+      "key Enter",
+      "key Escape",
+      "key Escape",
+      "key f",
+      "uncheck Show constraints",
+      "frame finished"
+    ]
+  },
+  {
+    "id": "sketch/golden/plate-constraints",
+    "title": "The same plate with constraints showing: every glyph keeps its place between runs",
+    "evidence": "design: glyph slots must not depend on random IDs; found reviewing goldens",
+    "steps": [
+      "rect 40,30 160,110",
+      "rect 60,50 80,70",
+      "rect 62,52 78,68",
+      "circle 100,70 15",
+      "key d",
+      "click 100,110",
+      "click 100,135",
+      "type 120",
+      "key Enter",
+      "key Escape",
+      "key Escape",
+      "key f",
+      "hover 15,15",
+      "frame finished"
+    ]
+  },
+  {
+    "id": "sketch/golden/angle-preview",
+    "title": "An angle being placed: arc preview following the cursor",
+    "evidence": "manu 2026-11-06; reference-live 2026-11-06",
+    "steps": [
+      "line 40,20 140,20",
+      "line 40,40 140,80",
+      "key d",
+      "click 90,20",
+      "click 90,60",
+      "hover 180,40",
+      "frame placing"
+    ]
+  },
+  {
+    "id": "sketch/golden/point-line-annotation",
+    "title": "A point-line dimension whose whole annotation follows the cursor",
+    "evidence": "manu 2026-11-06; reference-live 2026-11-06",
+    "steps": [
+      "line 40,20 140,80",
+      "line 30,50 30,90",
+      "key d",
+      "click 30,50",
+      "click 90,50",
+      "hover 170,10",
+      "frame placing"
+    ]
+  },
+  {
+    "id": "sketch/golden/spline-handles",
+    "title": "A finished spline with its fit points and tangent handles",
+    "evidence": "reference-report native-spline-constraints",
+    "steps": [
+      "tool Spline",
+      "click 40,30",
+      "click 80,70",
+      "click 120,30",
+      "key Escape",
+      "key Escape",
+      "hover 150,110",
+      "frame finished"
+    ]
+  }
+]

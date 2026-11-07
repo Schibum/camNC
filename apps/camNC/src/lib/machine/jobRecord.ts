@@ -1,10 +1,13 @@
 import { isDemoMode } from '../demo/demo-mode';
 import type { MachineStatus, Position } from '@wbcnc/fluidnc';
 import type { AlarmRecord } from './alarms';
+import type { ManufacturingSnapshot } from '@/cam/machine/manufacturingSnapshot';
 
 /** What camNC knew when it started a job, so that a reload during the job can show it again. */
 export interface JobRecord {
   host: string;
+  /** Unique controller dispatch, including each resume; independent of the program hash. */
+  executionId?: string;
   /** SD file the job runs from (`/sd/<name>` in the status). */
   sdFile: string;
   gcode: string;
@@ -17,11 +20,19 @@ export interface JobRecord {
   startedAt: number;
   homed: boolean;
   zZeroedAt: number | null;
+  /** Original CAD revision, board setup, queue and display geometry, independent of the editable project. */
+  camSnapshot?: ManufacturingSnapshot;
+  /** Native execution receipt retained until its original physical run is reviewed. */
+  execution?: 'prepared' | 'requested' | 'finished' | 'stopped';
+  /** A reserved upload is not execution evidence. Keep its prior recoverable receipt until dispatch is armed. */
+  previousRecord?: JobRecord | null;
 }
 
 /** Where a job was, saved every few seconds while it runs, to resume it after an interruption (see resume.ts). */
 export interface JobProgressLog {
   host: string;
+  /** Binds a sample to one dispatch, even when a later run uses the same SD filename. */
+  executionId?: string;
   /** The SD file of the status report, e.g. `/sd/camnc.gcode`. */
   file: string;
   /** SD percent and machine position from the same status report. */
@@ -65,11 +76,18 @@ export function recoveryAction(input: {
   progress?: JobProgressLog | null;
 }): RecoveryAction {
   const { record, status, currentGcode, lastAlarm, progress } = input;
-  if (!record) return { kind: 'none' };
+  if (!record || record.execution === 'prepared') return { kind: 'none' };
   const job = status.job;
   const running = !!job || status.state === 'Run' || status.state === 'Hold';
   if (!running) {
-    const ours = progress && progress.file.endsWith(record.sdFile) && progress.at >= record.startedAt;
+    const ours =
+      progress &&
+      progress.file.endsWith(record.sdFile) &&
+      progress.at >= record.startedAt &&
+      (!record.executionId || progress.executionId === record.executionId);
+    // A connected native completion/Stop is stronger evidence than an older periodic SD read sample.
+    if (record.camSnapshot && record.execution === 'finished') return { kind: 'ended' };
+    if (record.camSnapshot && record.execution === 'stopped' && ours) return { kind: 'interrupted', progress };
     return ours && progress.percent < kFinishedPercent ? { kind: 'interrupted', progress } : { kind: 'ended' };
   }
   if (!job) return { kind: 'none' };
@@ -110,6 +128,37 @@ const demoProgress = new Map<string, JobProgressLog>();
 const kDbName = 'camnc-jobs';
 const kStore = 'jobs';
 const kProgressStore = 'progress';
+const invalidatedRecovery = new Map<string, string>();
+const recoveryMarkerKey = (host: string, demo: boolean) =>
+  `camnc-job-recovery-invalid:${demo ? 'demo' : 'normal'}:${encodeURIComponent(host)}`;
+
+function recoveryMarker(key: string) {
+  const memory = invalidatedRecovery.get(key);
+  try {
+    return { memory, stored: localStorage.getItem(key), readable: true };
+  } catch {
+    // An unreadable marker cannot establish that an older program is safe to recover.
+    return { memory, stored: null, readable: false };
+  }
+}
+
+function recoveryInvalidated(key: string) {
+  const marker = recoveryMarker(key);
+  return !marker.readable || marker.memory !== undefined || marker.stored !== null;
+}
+
+function clearRecoveryMarker(key: string, observed: ReturnType<typeof recoveryMarker>) {
+  const current = recoveryMarker(key);
+  // A save already pending when another start failed cannot re-enable that older program.
+  if (!observed.readable || !current.readable || current.memory !== observed.memory || current.stored !== observed.stored) return;
+  if (current.memory === undefined && current.stored === null) return;
+  try {
+    localStorage.removeItem(key);
+    invalidatedRecovery.delete(key);
+  } catch {
+    // The new record is durable; keep recovery disabled until its marker can be cleared.
+  }
+}
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -128,9 +177,16 @@ async function withStore<T>(name: string, mode: IDBTransactionMode, fn: (store: 
   const db = await openDb();
   try {
     return await new Promise<T>((resolve, reject) => {
-      const request = fn(db.transaction(name, mode).objectStore(name));
-      request.onsuccess = () => resolve(request.result);
+      const transaction = db.transaction(name, mode);
+      const request = fn(transaction.objectStore(name));
+      let result: T;
+      request.onsuccess = () => {
+        result = request.result;
+      };
       request.onerror = () => reject(request.error);
+      transaction.oncomplete = () => resolve(result);
+      transaction.onabort = () => reject(transaction.error ?? new Error('The job record could not be saved.'));
+      transaction.onerror = () => reject(transaction.error);
     });
   } finally {
     db.close();
@@ -138,48 +194,203 @@ async function withStore<T>(name: string, mode: IDBTransactionMode, fn: (store: 
 }
 
 /** The last job started on `host`; a new one replaces it. */
-export function saveJobRecord(record: JobRecord) {
-  if (isDemoMode()) {
+export async function saveJobRecord(record: JobRecord, demo = isDemoMode()) {
+  const key = recoveryMarkerKey(record.host, demo);
+  const observed = recoveryMarker(key);
+  if (demo) {
     demoRecords.set(record.host, structuredClone(record));
-    return Promise.resolve();
-  }
-  return withStore(kStore, 'readwrite', store => store.put(record, record.host)).then(() => {});
+  } else await withStore(kStore, 'readwrite', store => store.put(record, record.host));
+  clearRecoveryMarker(key, observed);
 }
 
-export function loadJobRecord(host: string): Promise<JobRecord | null> {
-  if (isDemoMode()) return Promise.resolve(structuredClone(demoRecords.get(host) ?? null));
-  return withStore<JobRecord | undefined>(kStore, 'readonly', store => store.get(host)).then(record => record ?? null);
+export async function loadJobRecord(host: string, demo = isDemoMode()): Promise<JobRecord | null> {
+  const key = recoveryMarkerKey(host, demo);
+  if (recoveryInvalidated(key)) return null;
+  const record = demo
+    ? structuredClone(demoRecords.get(host) ?? null)
+    : await withStore<JobRecord | undefined>(kStore, 'readonly', store => store.get(host));
+  return recoveryInvalidated(key) ? null : eligibleRecord(record ?? null);
+}
+
+function eligibleRecord(record: JobRecord | null): JobRecord | null {
+  if (record?.execution !== 'prepared') return record;
+  // Preparations are one level deep. Refuse malformed/cyclic imported data rather than recovering an upload.
+  const previous = record.previousRecord;
+  return previous && previous.host === record.host && previous.execution !== 'prepared' ? previous : null;
+}
+
+/** The raw durable head plus its recovery fence, captured in one storage namespace. */
+export interface JobRecordHead {
+  readonly host: string;
+  readonly demo: boolean;
+  readonly stored: JobRecord | null;
+  readonly record: JobRecord | null;
+  readonly marker: ReturnType<typeof recoveryMarker>;
+}
+
+function sameMarker(a: ReturnType<typeof recoveryMarker>, b: ReturnType<typeof recoveryMarker>) {
+  return a.readable && b.readable && a.memory === b.memory && a.stored === b.stored;
+}
+
+export async function readJobRecordHead(host: string, demo = isDemoMode()): Promise<JobRecordHead> {
+  const key = recoveryMarkerKey(host, demo),
+    marker = recoveryMarker(key);
+  const stored = demo
+    ? structuredClone(demoRecords.get(host) ?? null)
+    : ((await withStore<JobRecord | undefined>(kStore, 'readonly', store => store.get(host))) ?? null);
+  if (!sameMarker(marker, recoveryMarker(key))) throw new Error('Job recovery changed while it was being read. Try again.');
+  return { host, demo, stored, record: marker.memory === undefined && marker.stored === null ? eligibleRecord(stored) : null, marker };
+}
+
+/** A new preparation must match both the receipt and its phase; a stale prepared reader cannot replace an active run. */
+export async function saveJobRecordAtHead(head: JobRecordHead, replacement: JobRecord | null): Promise<boolean> {
+  if (replacement && replacement.host !== head.host) throw new Error('A recovery receipt cannot change controllers.');
+  const key = recoveryMarkerKey(head.host, head.demo);
+  const matches = (current: JobRecord | null | undefined) =>
+    sameMarker(head.marker, recoveryMarker(key)) &&
+    (head.stored ? sameJobExecution(current, head.stored) && current?.execution === head.stored.execution : !current);
+  const changed = await mutateReceipt(head.host, head.demo, matches, replacement);
+  // A reservation must not re-enable a quarantined prior upload if preparation later rolls back.
+  if (changed && replacement?.execution !== 'prepared') clearRecoveryMarker(key, head.marker);
+  return changed;
+}
+
+/** Outcome updates must never overwrite a later execution of even the same program. */
+export function sameJobExecution(a: JobRecord | null | undefined, b: JobRecord): boolean {
+  if (!a || a.host !== b.host) return false;
+  if (a.executionId || b.executionId) return !!a.executionId && a.executionId === b.executionId;
+  return a.startedAt === b.startedAt && a.sdFile === b.sdFile && a.gcode === b.gcode;
+}
+
+/** Compare and replace/delete a receipt atomically; deleting its progress is part of the same transaction. */
+export async function compareAndSaveJobRecord(expected: JobRecord, replacement: JobRecord | null, demo = isDemoMode()): Promise<boolean> {
+  if (replacement && replacement.host !== expected.host) throw new Error('A recovery receipt cannot change controllers.');
+  const key = recoveryMarkerKey(expected.host, demo);
+  return mutateReceipt(expected.host, demo, current => !recoveryInvalidated(key) && sameJobExecution(current, expected), replacement);
+}
+
+async function mutateReceipt(
+  host: string,
+  demo: boolean,
+  matches: (current: JobRecord | null | undefined) => boolean,
+  replacement: JobRecord | null
+): Promise<boolean> {
+  if (demo) {
+    if (!matches(demoRecords.get(host))) return false;
+    if (replacement) demoRecords.set(host, structuredClone(replacement));
+    else {
+      demoRecords.delete(host);
+      demoProgress.delete(host);
+    }
+    return true;
+  }
+  const db = await openDb();
+  try {
+    return await new Promise<boolean>((resolve, reject) => {
+      const transaction = db.transaction([kStore, kProgressStore], 'readwrite');
+      const store = transaction.objectStore(kStore);
+      const reading = store.get(host) as IDBRequest<JobRecord | undefined>;
+      let changed = false;
+      reading.onsuccess = () => {
+        if (!matches(reading.result)) return;
+        if (replacement) store.put(replacement, host);
+        else {
+          store.delete(host);
+          transaction.objectStore(kProgressStore).delete(host);
+        }
+        changed = true;
+      };
+      reading.onerror = () => reject(reading.error);
+      transaction.oncomplete = () => resolve(changed);
+      transaction.onabort = () => reject(transaction.error ?? new Error('The recovery receipt could not be updated.'));
+      transaction.onerror = () => reject(transaction.error);
+    });
+  } finally {
+    db.close();
+  }
+}
+
+async function deleteRecordIn(host: string, demo: boolean) {
+  if (demo) demoRecords.delete(host);
+  else await withStore(kStore, 'readwrite', store => store.delete(host));
+}
+
+async function clearProgressIn(host: string, demo: boolean) {
+  if (demo) demoProgress.delete(host);
+  else await withStore(kProgressStore, 'readwrite', store => store.delete(host));
+}
+
+/** Invalidate an older optional record before executing a program whose history could not be saved. */
+export async function invalidateJobRecovery(host: string, demo = isDemoMode()) {
+  const key = recoveryMarkerKey(host, demo);
+  const token = crypto.randomUUID();
+  invalidatedRecovery.set(key, token);
+  try {
+    localStorage.setItem(key, token);
+  } catch {
+    try {
+      // If the marker cannot persist, deleting the old record is also safe after a reload.
+      await deleteRecordIn(host, demo);
+    } catch (cause) {
+      throw new Error('Cannot start: browser storage could not safely discard the previous program’s recovery record.', { cause });
+    }
+    await clearProgressIn(host, demo).catch(() => {});
+  }
 }
 
 /** Forget the job and where it was. */
-export async function clearJobRecord(host: string) {
-  if (isDemoMode()) {
-    demoRecords.delete(host);
-    demoProgress.delete(host);
-    return;
-  }
-  await withStore(kStore, 'readwrite', store => store.delete(host));
-  await clearJobProgress(host);
+export async function clearJobRecord(host: string, demo = isDemoMode()) {
+  await deleteRecordIn(host, demo);
+  await clearProgressIn(host, demo);
 }
 
 /** Kept apart from the record, so that the G-code is not written again every few seconds. */
-export function saveJobProgress(progress: JobProgressLog) {
-  if (isDemoMode()) {
+export function saveJobProgress(progress: JobProgressLog, demo = isDemoMode()) {
+  if (demo) {
     demoProgress.set(progress.host, structuredClone(progress));
     return Promise.resolve();
   }
   return withStore(kProgressStore, 'readwrite', store => store.put(progress, progress.host)).then(() => {});
 }
 
-export function loadJobProgress(host: string): Promise<JobProgressLog | null> {
-  if (isDemoMode()) return Promise.resolve(structuredClone(demoProgress.get(host) ?? null));
+/** Stale samples cannot replace a later execution's progress. Receipt and progress are checked in one transaction. */
+export async function saveJobProgressForRecord(progress: JobProgressLog, expected: JobRecord, demo = isDemoMode()): Promise<boolean> {
+  if (progress.host !== expected.host) throw new Error('Job progress cannot change controllers.');
+  const key = recoveryMarkerKey(expected.host, demo);
+  const matches = (current: JobRecord | undefined) =>
+    !recoveryInvalidated(key) && current?.execution !== 'prepared' && sameJobExecution(current, expected);
+  const sample = { ...progress, ...(expected.executionId && { executionId: expected.executionId }) };
+  if (demo) {
+    if (!matches(demoRecords.get(expected.host))) return false;
+    demoProgress.set(expected.host, structuredClone(sample));
+    return true;
+  }
+  const db = await openDb();
+  try {
+    return await new Promise<boolean>((resolve, reject) => {
+      const transaction = db.transaction([kStore, kProgressStore], 'readwrite');
+      const reading = transaction.objectStore(kStore).get(expected.host) as IDBRequest<JobRecord | undefined>;
+      let changed = false;
+      reading.onsuccess = () => {
+        if (!matches(reading.result)) return;
+        transaction.objectStore(kProgressStore).put(sample, expected.host);
+        changed = true;
+      };
+      reading.onerror = () => reject(reading.error);
+      transaction.oncomplete = () => resolve(changed);
+      transaction.onabort = () => reject(transaction.error ?? new Error('Job progress could not be saved.'));
+      transaction.onerror = () => reject(transaction.error);
+    });
+  } finally {
+    db.close();
+  }
+}
+
+export function loadJobProgress(host: string, demo = isDemoMode()): Promise<JobProgressLog | null> {
+  if (demo) return Promise.resolve(structuredClone(demoProgress.get(host) ?? null));
   return withStore<JobProgressLog | undefined>(kProgressStore, 'readonly', store => store.get(host)).then(p => p ?? null);
 }
 
-export function clearJobProgress(host: string) {
-  if (isDemoMode()) {
-    demoProgress.delete(host);
-    return Promise.resolve();
-  }
-  return withStore(kProgressStore, 'readwrite', store => store.delete(host)).then(() => {});
+export function clearJobProgress(host: string, demo = isDemoMode()) {
+  return clearProgressIn(host, demo);
 }

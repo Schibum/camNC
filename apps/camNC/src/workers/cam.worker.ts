@@ -49,6 +49,8 @@ import * as Comlink from 'comlink';
 // Lazy: this worker only starts when a model is opened, and occt only loads the wasm on the first STEP file.
 import occtWasmUrl from 'occt-import-js/dist/occt-import-js.wasm?url';
 import type { BoardRequest, BodyMesh, CamPartInfo, ModelImport, OpSummary, Outline2D, PlanResult, ReleaseProgram } from '../cam/camTypes';
+import type { CadDocument } from '@wbcnc/cad';
+import { nativeCadModel } from '../cam/nativeCadModel';
 
 /** Parts of the models imported in this worker, by model key, so generating G-code needs no re-import. */
 /** A loaded part: its features, and those of its underside once turned over (side B), by turn axis. */
@@ -69,6 +71,15 @@ async function readBodies(bytes: Uint8Array, fileName: string): Promise<{ bodies
 }
 
 const api = {
+  /** Native design -> exact solved profiles, without STEP serialization or mesh feature extraction. */
+  async importDesign(document: CadDocument, key: string): Promise<ModelImport> {
+    const { model, entries } = await nativeCadModel(document);
+    models.set(key, entries);
+    return Comlink.transfer(
+      model,
+      model.meshes.flatMap(m => [m.positions.buffer as ArrayBuffer, m.indices.buffer as ArrayBuffer])
+    );
+  },
   /** STEP or STL → flat parts, identical ones grouped, with feature summaries and display meshes. */
   async importModel(bytes: Uint8Array, fileName: string, key = fileName): Promise<ModelImport> {
     const { bodies, readMs } = await readBodies(bytes, fileName);

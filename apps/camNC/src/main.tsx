@@ -13,6 +13,7 @@ import './style.css';
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
 // Desktop and simulated sessions work locally without loading account services.
+// demo-mode resolves keyless loopback previews before any saved settings hydrate.
 if (!PUBLISHABLE_KEY && !isDesktopApp() && !isDemoMode()) {
   throw new Error('Add your Clerk Publishable Key to the .env file');
 }

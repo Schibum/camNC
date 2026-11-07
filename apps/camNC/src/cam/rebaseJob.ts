@@ -1,4 +1,5 @@
 import type { CamJobV1 } from './jobDb';
+import { physicalSheetIdOf } from './boards';
 
 const same = (a: unknown, b: unknown) => a === b || JSON.stringify(a) === JSON.stringify(b);
 
@@ -21,8 +22,32 @@ function rebaseBoards(base: Boards, next: Boards, current: Boards): Boards {
   const inNext = new Map(next.map(b => [b.id, b]));
   const kept = current.flatMap(b => {
     const [was, now] = [inBase.get(b.id), inNext.get(b.id)];
+    if (was && physicalSheetIdOf(was) !== physicalSheetIdOf(b)) return [b];
     if (was && !now) return [];
-    return [was && now ? rebaseFields(was, now, b) : b];
+    if (!was || !now) return [b];
+    const merged = rebaseFields(was, now, b);
+    if (now.cut?.sourceKey && b.cut?.sourceKey && now.cut.sourceKey !== b.cut.sourceKey) {
+      // Another source won the transaction: its physical history must not gain this program's markers.
+      merged.cut = b.cut;
+    } else if (was.cut && !b.cut && now.cut) {
+      // A stale Done save cannot undo an explicit Start over committed after its render.
+      delete merged.cut;
+    } else if (now.cut && b.cut && !same(was.cut, now.cut)) {
+      const keys = [...new Set([...b.cut.keys, ...now.cut.keys])];
+      const startedKeys = [...new Set([...(b.cut.startedKeys ?? []), ...(now.cut.startedKeys ?? [])])];
+      const startClaims = { ...b.cut.startClaims, ...now.cut.startClaims };
+      merged.cut = {
+        ...now.cut,
+        at: Math.min(b.cut.at, now.cut.at),
+        sourceKey: b.cut.sourceKey ?? now.cut.sourceKey,
+        keys,
+        ...(startedKeys.length && { startedKeys }),
+        ...(Object.keys(startClaims).length && { startClaims }),
+      };
+      if (!(b.cut.all || now.cut.all) || !startedKeys.every(key => keys.includes(key))) delete merged.cut.all;
+      else merged.cut.all = true;
+    }
+    return [merged];
   });
   const known = new Set(current.map(b => b.id));
   return [...kept, ...next.filter(b => !inBase.has(b.id) && !known.has(b.id))];

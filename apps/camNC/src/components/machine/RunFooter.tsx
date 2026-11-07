@@ -1,8 +1,8 @@
-import { useCamMachine } from '@/cam/machine/camMachine';
+import { isManufacturingLocked, useCamMachine } from '@/cam/machine/camMachine';
+import { useMachineLockReason } from '@/cam/machine/useMachineBusy';
 import { getCncApi } from '@/lib/fluidnc/machine';
 import {
   errorText,
-  kJobFileName,
   machineZeroPreview,
   moveTargetPreview,
   moveToolpathToMachineZero,
@@ -86,6 +86,8 @@ export function RunFooter() {
   const { probe, prefs } = useProbeZ();
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [locked, setLocked] = useState(false);
+  const [runError, setRunError] = useState<string | null>(null);
+  const lockReason = useMachineLockReason();
   const settle = useRef<ReturnType<typeof setTimeout>>(undefined);
   // The outline stays up while the dialog about running from there is open: the menu closing behind it mustn't hide it.
   const keepingZero = useRef(false);
@@ -132,6 +134,8 @@ export function RunFooter() {
   };
   const home = () => work(api.home(), 'Homing');
   const next = () => {
+    if (isManufacturingLocked()) return;
+    setRunError(null);
     if (step === 'home') home();
     else if (step === 'z') setDialog('probe');
     else setDialog('run');
@@ -157,8 +161,8 @@ export function RunFooter() {
     hideZeroPreview();
   };
   const runDescription = zeroMoves
-    ? `Sets XY zero where the job is drawn${movedBy === null ? '' : ` (${movedBy.toFixed(0)} mm from the old zero)`}, uploads the G-code to the SD card as ${kJobFileName} and starts it.`
-    : `Keeps the XY zero, which is already where the job is drawn. Uploads the G-code to the SD card as ${kJobFileName} and starts it.`;
+    ? `Sets XY zero where the job is drawn${movedBy === null ? '' : ` (${movedBy.toFixed(0)} mm from the old zero)`}, uploads the G-code to a unique execution file on the SD card and starts it.`
+    : `Keeps the XY zero, which is already where the job is drawn. Uploads the G-code to a unique execution file on the SD card and starts it.`;
 
   return (
     <section
@@ -187,7 +191,7 @@ export function RunFooter() {
         <Button
           size="sm"
           variant="outline"
-          disabled={!idle}
+          disabled={!!lockReason || !idle}
           title="Jog the axes outside the travel 0.5 mm into it"
           onClick={() => report(api.moveIntoTravel(), 'Moving into the travel')}>
           <MoveRight /> Move into the travel
@@ -201,10 +205,14 @@ export function RunFooter() {
         </p>
       )}
       <div className="flex flex-row flex-wrap items-center gap-x-3 gap-y-1">
-        <DoneMenu done={homed} label="Home" onChange={done => (api.homed.value = done)}>
+        <DoneMenu disabled={!!lockReason} done={homed} label="Home" onChange={done => (api.homed.value = done)}>
           <DoneMark done={homed} label="Home" />
         </DoneMenu>
-        <DoneMenu done={zOk} label="Z" disabled={zOk && !zZeroed} onChange={done => (api.zZeroedAt.value = done ? Date.now() : null)}>
+        <DoneMenu
+          done={zOk}
+          label="Z"
+          disabled={!!lockReason || (zOk && !zZeroed)}
+          onChange={done => (api.zZeroedAt.value = done ? Date.now() : null)}>
           <DoneMark done={zOk} label={zOk && !zZeroed ? 'Z set by the G-code' : 'Z'} />
         </DoneMenu>
         {hasToolpath && <DoneMark done={false} label="XY when you run" />}
@@ -213,7 +221,7 @@ export function RunFooter() {
         <Button
           size="lg"
           className="flex-1 rounded-r-none"
-          disabled={!idle || locked || (step === 'run' && (blocked || !hasToolpath))}
+          disabled={!!lockReason || !idle || locked || (step === 'run' && (blocked || !hasToolpath))}
           onClick={next}>
           {step === 'run' && <CirclePlay />} {kStepLabels[step]}
         </Button>
@@ -225,39 +233,39 @@ export function RunFooter() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" side="top" className="w-64">
             <DropdownMenuLabel className="text-xs text-muted-foreground">Setup</DropdownMenuLabel>
-            <DoneItem done={homed} disabled={!idle} onClick={home}>
+            <DoneItem done={homed} disabled={!!lockReason || !idle} onClick={home}>
               Home machine
             </DoneItem>
-            <DoneItem done={zOk} disabled={!idle} onClick={() => setDialog('probe')}>
+            <DoneItem done={zOk} disabled={!!lockReason || !idle} onClick={() => setDialog('probe')}>
               Probe Z
             </DoneItem>
-            <DropdownMenuItem disabled={!idle} onClick={() => report(api.zeroAxes(['z']), 'Zeroing')}>
+            <DropdownMenuItem disabled={!!lockReason || !idle} onClick={() => report(api.zeroAxes(['z']), 'Zeroing')}>
               Zero Z here
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuLabel className="text-xs text-muted-foreground">XY zero</DropdownMenuLabel>
-            <DoneItem done={xyOk} disabled={!idle || !hasToolpath} onClick={() => setXYZeroFromToolpath()}>
+            <DoneItem done={xyOk} disabled={!!lockReason || !idle || !hasToolpath} onClick={() => setXYZeroFromToolpath()}>
               Set XY zero
             </DoneItem>
             <DropdownMenuItem
-              disabled={!idle || !hasToolpath}
+              disabled={!!lockReason || !idle || !hasToolpath}
               {...movePreview(offset)}
               onClick={() => work(setXYZeroFromToolpath(true), 'Moving')}>
               Set XY zero and move there
             </DropdownMenuItem>
-            <DropdownMenuItem disabled={!idle} {...movePreview(zero)} onClick={() => work(api.goToXYZero(), 'Moving')}>
+            <DropdownMenuItem disabled={!!lockReason || !idle} {...movePreview(zero)} onClick={() => work(api.goToXYZero(), 'Moving')}>
               Move to XY zero
             </DropdownMenuItem>
-            <DropdownMenuItem disabled={!idle} onClick={() => zeroXYAtBit()}>
+            <DropdownMenuItem disabled={!!lockReason || !idle} onClick={() => zeroXYAtBit()}>
               Zero XY at the bit
             </DropdownMenuItem>
-            <DropdownMenuItem disabled={!idle || !hasToolpath} {...zeroPreview} onClick={() => moveToolpathToMachineZero()}>
+            <DropdownMenuItem disabled={!!lockReason || !idle || !hasToolpath} {...zeroPreview} onClick={() => moveToolpathToMachineZero()}>
               Move job to the machine&apos;s zero
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuLabel className="text-xs text-muted-foreground">Run</DropdownMenuLabel>
             <DropdownMenuItem
-              disabled={!idle || !hasToolpath || !!keepZero?.blocking}
+              disabled={!!lockReason || !idle || !hasToolpath || !!keepZero?.blocking}
               title={keepZero?.blocking ? keepZero.details?.join(' ') : undefined}
               {...zeroPreview}
               onClick={() => {
@@ -270,6 +278,12 @@ export function RunFooter() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      {lockReason && <p className="text-sm text-amber-700 dark:text-amber-400">{lockReason}</p>}
+      {runError && (
+        <p role="alert" className="text-sm text-red-700 dark:text-red-400">
+          {runError}
+        </p>
+      )}
       <AlertDialog open={dialog === 'probe'} onOpenChange={open => !open && closeDialog()}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -281,7 +295,9 @@ export function RunFooter() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => work(probe(), 'Probing')}>Probe</AlertDialogAction>
+            <AlertDialogAction disabled={locked || !!lockReason} onClick={() => !isManufacturingLocked() && work(probe(), 'Probing')}>
+              Probe
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -293,7 +309,7 @@ export function RunFooter() {
               <div className="flex flex-col gap-2">
                 <p>
                   {dialog === 'keep'
-                    ? `Keeps the XY zero on the machine and cuts at the yellow outline, not where the job is drawn. Uploads the G-code to the SD card as ${kJobFileName} and starts it.`
+                    ? `Keeps the XY zero on the machine and cuts at the yellow outline, not where the job is drawn. Uploads the G-code to a unique execution file on the SD card and starts it.`
                     : runDescription}
                 </p>
                 {dialog === 'run' && midBoard && zeroMoves && (
@@ -314,7 +330,26 @@ export function RunFooter() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => (dialog === 'keep' ? uploadAndRun() : zeroAndRun()).catch(err => console.error('upload and run failed', err))}>
+              disabled={locked || !!lockReason}
+              onClick={() => {
+                if (isManufacturingLocked()) return;
+                setRunError(null);
+                const run = async () => {
+                  // On confirmation the drawing and frozen board placement follow the physical zero too.
+                  if (dialog === 'keep') {
+                    if (!(await moveToolpathToMachineZero())) return;
+                    await uploadAndRun();
+                  } else await zeroAndRun();
+                };
+                work(
+                  run().catch(err => {
+                    const message = errorText(err);
+                    setRunError(message);
+                    toast.error('Run failed', { description: message });
+                  }),
+                  'Run'
+                );
+              }}>
               {warnings.length ? 'Run anyway' : 'Run'}
             </AlertDialogAction>
           </AlertDialogFooter>

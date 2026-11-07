@@ -4,10 +4,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node e2e/cad/check-distribution.mjs",
     "preview": "vite preview",
     "lint": "eslint . --max-warnings 0",
-    "test": "vitest run --config vitest.worker.config.ts && vitest",
+    "test": "node --test e2e/cad/licenses.node.mjs && vitest run --config vitest.worker.config.ts && vitest",
     "test:performance": "vitest run --config vitest.performance.config.ts",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
@@ -16,7 +16,10 @@
     "db:generate": "drizzle-kit generate",
     "deploy": "wrangler d1 migrations apply DB --remote && wrangler deploy",
     "deploy:preview": "wrangler d1 migrations apply DB --remote --env preview && wrangler versions upload --env preview",
-    "dev:api": "mkdir -p dist && wrangler d1 migrations apply DB --local && wrangler dev --port 8787"
+    "dev:api": "mkdir -p dist && wrangler d1 migrations apply DB --local && wrangler dev --port 8787",
+    "test:licenses": "node --test e2e/cad/licenses.node.mjs",
+    "smoke:cad": "node e2e/cad/run.mjs",
+    "spec:cad": "node e2e/spec/run.mjs"
   },
   "dependencies": {
     "@clerk/backend": "^2.33.8",
@@ -51,6 +54,7 @@
     "@use-gesture/react": "catalog:",
     "@vitest/browser": "catalog:",
     "@wbcnc/cam": "workspace:*",
+    "@wbcnc/cad": "workspace:*",
     "occt-import-js": "0.0.23",
     "@wbcnc/camera-calibration": "workspace:*",
     "@wbcnc/fluidnc": "workspace:*",

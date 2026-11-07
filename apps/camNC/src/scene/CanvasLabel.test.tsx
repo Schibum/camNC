@@ -66,8 +66,8 @@ describe('world-anchored canvas labels', () => {
   });
 
   it('wraps a warning with a long part name inside a narrow canvas', async () => {
-    render(
-      <div data-testid="canvas-area" style={{ width: 180, height: 200 }}>
+    const scene = (width: number) => (
+      <div data-testid="canvas-area" style={{ width, height: 200 }}>
         <Canvas orthographic camera={{ position: [0, 0, 100], zoom: 1 }}>
           <group rotation-z={Math.PI / 2} position={[80, -80, 0]}>
             <CanvasLabel position={[0, 0, 0]}>
@@ -79,9 +79,14 @@ describe('world-anchored canvas labels', () => {
         </Canvas>
       </div>
     );
+    const { rerender } = render(scene(320));
     await expectContained('warning', true);
-    const warning = screen.getByTestId('warning');
-    expect(warning.scrollWidth).toBeLessThanOrEqual(warning.clientWidth);
+    rerender(scene(180));
+    // Html owns a separate React root and can replace its label during canvas resize.
+    // Query and check both layout invariants in the same retried observation.
+    await expectContained('warning', true, warning => {
+      expect(warning.scrollWidth).toBeLessThanOrEqual(warning.clientWidth);
+    });
   });
 });
 
@@ -101,7 +106,7 @@ function Scene({ x, y, width, onClick }: { x: number; y: number; width: number; 
   );
 }
 
-async function expectContained(name: string, warning = false) {
+async function expectContained(name: string, warning = false, check?: (label: HTMLElement) => void) {
   await waitFor(
     () => {
       const label = warning ? screen.getByTestId(name) : screen.getByRole('toolbar', { name });
@@ -112,6 +117,7 @@ async function expectContained(name: string, warning = false) {
       expect(bounds.right).toBeLessThanOrEqual(canvas.right - 7);
       expect(bounds.top).toBeGreaterThanOrEqual(canvas.top + 7);
       expect(bounds.bottom).toBeLessThanOrEqual(canvas.bottom - 7);
+      check?.(label);
     },
     { timeout: 10_000 }
   );

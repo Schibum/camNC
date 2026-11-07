@@ -22,6 +22,12 @@ export default defineConfig({
       'react-hotkeys-hook',
       '@wbcnc/ui > @radix-ui/react-popover',
       '@wbcnc/ui > @radix-ui/react-dropdown-menu',
+      // Include lazy UI and renderer imports before browser test pages begin.
+      '@radix-ui/react-dialog',
+      '@wbcnc/ui > @radix-ui/react-select',
+      '@radix-ui/react-label',
+      '@react-three/fiber',
+      '@react-three/drei',
       'occt-import-js',
       'three/examples/jsm/utils/BufferGeometryUtils.js',
       // Only a dependency of @wbcnc/cam, so not resolvable from here by its bare name: unresolved, Vite discovers it
@@ -33,6 +39,9 @@ export default defineConfig({
     // Root tests run these CPU-sensitive gates afterwards, without competing suites or packages.
     testNamePattern: /^(?!.*\[performance\]).*$/,
     globals: false,
+    // CAD WASM workers and WebGL simulations share the GPU/process budget with each browser test page.
+    // Keep parallel coverage without flooding the renderer with one page per available CPU thread.
+    maxWorkers: 4,
     // Worker tests run in workerd, see vitest.worker.config.ts.
     exclude: ['**/node_modules/**', 'worker/**'],
     setupFiles: ['src/test/isolateIndexedDb.ts'],

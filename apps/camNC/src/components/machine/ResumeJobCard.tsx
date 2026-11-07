@@ -1,7 +1,7 @@
 import { getCncApi } from '@/lib/fluidnc/machine';
 import { workOffsetCommand } from '@/lib/fluidnc/work-offset';
 import { dismissInterruptedJob, interruptedJob } from '@/lib/machine/jobRecovery';
-import { errorText, kResumeFileName, prepareResume, runResume } from '@/lib/machine/jobs';
+import { errorText, prepareResume, runResume } from '@/lib/machine/jobs';
 import { findRestartLine, parseProgram, passContaining, passStarts, type PassStart } from '@/lib/machine/resume';
 import {
   AlertDialog,
@@ -60,6 +60,8 @@ export function ResumeJobCard() {
   const [skipHoming, setSkipHoming] = useState(false);
   const [line, setLine] = useState<number | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [resumeError, setResumeError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const program = useMemo(() => (job ? parseProgram(job.record.gcode) : null), [job]);
   const lastWorkPos = useMemo(() => {
@@ -92,7 +94,20 @@ export function ResumeJobCard() {
     }
   }, [job, line, confirmOpen]);
 
-  if (!job || !program || !lastWorkPos || !connected || api.host.value !== job.record.host || state === 'Alarm') return null;
+  if (!job || !program || !lastWorkPos) return null;
+  if (!connected || api.host.value !== job.record.host || state === 'Alarm')
+    return (
+      <div className="rounded-md border border-amber-400 p-3 text-sm flex flex-col gap-2" data-testid="resume-card">
+        <div className="flex items-center justify-between gap-2">
+          <b>Interrupted job on {job.record.host}</b>
+          <Button size="icon" variant="ghost" aria-label="Dismiss interrupted job" onClick={dismissInterruptedJob}>
+            <X />
+          </Button>
+        </div>
+        <p>Reconnect to {job.record.host} and clear any alarm to resume this job, or dismiss its recovery offer.</p>
+        <p>{job.reason}</p>
+      </div>
+    );
 
   const homedOk = api.homed.value || skipHoming;
   const wco = status?.wco;
@@ -136,6 +151,11 @@ export function ResumeJobCard() {
         </Button>
       </div>
 
+      {resumeError && (
+        <p role="alert" className="text-red-700 dark:text-red-400">
+          {resumeError}
+        </p>
+      )}
       <ol className="flex flex-col gap-3">
         <Step ok={homedOk} title={homedOk ? 'Homed' : 'Home the machine'}>
           {!homedOk && (
@@ -244,7 +264,12 @@ export function ResumeJobCard() {
         </Step>
       </ol>
 
-      <Button disabled={!ready} onClick={() => setConfirmOpen(true)}>
+      <Button
+        disabled={!ready || submitting}
+        onClick={() => {
+          setResumeError(null);
+          setConfirmOpen(true);
+        }}>
         <RotateCcw /> Preview and resume…
       </Button>
 
@@ -259,8 +284,8 @@ export function ResumeJobCard() {
                 {preview?.ok && (
                   <>
                     <p>
-                      Uploads <code>{kResumeFileName}</code> and starts it. It retracts Z, moves over the restart point and pauses: check
-                      the bit is clear, then press Resume to start the spindle, plunge and continue.
+                      Uploads a unique execution file to the SD card and starts it. It retracts Z, moves over the restart point and pauses:
+                      check the bit is clear, then press Resume to start the spindle, plunge and continue.
                     </p>
                     <pre className="text-xs bg-muted rounded p-2 whitespace-pre-wrap break-words overflow-y-auto max-h-48">
                       {preview.gcode
@@ -285,8 +310,19 @@ export function ResumeJobCard() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              disabled={!preview?.ok || !!preview.travel?.blocking}
-              onClick={() => line !== null && runResume(job, line).catch(err => console.error('resume failed', err))}>
+              disabled={!preview?.ok || !!preview.travel?.blocking || submitting}
+              onClick={() => {
+                if (line === null) return;
+                setResumeError(null);
+                setSubmitting(true);
+                void runResume(job, line)
+                  .catch(err => {
+                    const message = errorText(err);
+                    setResumeError(message);
+                    toast.error('Resume failed', { description: message });
+                  })
+                  .finally(() => setSubmitting(false));
+              }}>
               Resume job
             </AlertDialogAction>
           </AlertDialogFooter>

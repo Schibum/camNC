@@ -1,0 +1,523 @@
+[
+  {
+    "id": "sketch/view/zoom-about-cursor",
+    "title": "The point under the cursor stays put while zooming",
+    "evidence": "reference-live via Codex transcript 2026-11-06",
+    "steps": [
+      "rect 40,30 140,90",
+      "hover 40,30",
+      "wheel 40,30 -600",
+      "hover 40,30",
+      {
+        "expect": {
+          "cursor": [
+            40,
+            30
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/view/fit",
+    "title": "F brings everything back into view after zooming far out",
+    "evidence": "reference-docs keyboard shortcuts",
+    "steps": [
+      "rect 40,30 140,90",
+      "wheel 90,60 4000",
+      "key f",
+      "hover 40,30",
+      "click 40,30",
+      {
+        "expect": {
+          "status": "selected|degrees? of freedom"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/view/no-false-grid-claim",
+    "title": "The canvas doesn't claim a grid that isn't drawn",
+    "evidence": "design a label must describe what's on screen",
+    "steps": [
+      "rect 40,30 140,90",
+      "key f",
+      {
+        "expect": {
+          "noFalseGrid": true
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/keys/fields-own-typing",
+    "title": "Typing in a field never triggers drawing tools",
+    "evidence": "design keyboard ownership from the approved plan",
+    "steps": [
+      "line 20,40 120,40",
+      "key d",
+      "click 70,40",
+      "click 70,70",
+      "type lcg",
+      {
+        "expect": {
+          "tool": "dimension",
+          "focus": "input",
+          "entityCount": 1
+        }
+      },
+      "key Escape",
+      "key Escape",
+      "field Part name xlc",
+      "key l",
+      {
+        "expect": {
+          "tool": "line"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/keys/palette",
+    "title": "S opens the shortcut palette",
+    "evidence": "reference-live via Codex transcript 2026-11-06",
+    "steps": [
+      "key s",
+      {
+        "expect": {
+          "focus": "canvas"
+        }
+      },
+      "key Escape"
+    ]
+  },
+  {
+    "id": "sketch/part/thickness-invalid-explained",
+    "title": "An invalid thickness says why rather than silently reverting",
+    "evidence": "design a rejected value must be visible",
+    "steps": [
+      "rect 40,30 140,90",
+      "fieldkeep Thickness 0",
+      {
+        "expect": {
+          "pageText": "thickness|greater than zero|valid"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/part/parts-are-separate",
+    "title": "A second part starts empty and keeps the first part's geometry",
+    "evidence": "design one sketch per flat part, from the approved plan",
+    "steps": [
+      "rect 40,30 140,90",
+      {
+        "expect": {
+          "entityCount": 4
+        }
+      },
+      "addpart",
+      {
+        "expect": {
+          "part": 1,
+          "entityCount": 0
+        }
+      },
+      "circle 80,60 15",
+      {
+        "expect": {
+          "part": 1,
+          "entityCount": 1
+        }
+      },
+      {
+        "expect": {
+          "part": 0,
+          "entityCount": 4
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/finish/blocks-open-profile",
+    "title": "An open sketch can't be finished",
+    "evidence": "design only closed profiles can be cut",
+    "steps": [
+      "line 20,40 120,40",
+      {
+        "expect": {
+          "canFinish": false
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/finish/blocks-crossing-profile",
+    "title": "A self-crossing outline can't be finished and says why",
+    "evidence": "design only valid profiles can be cut",
+    "steps": [
+      "key l",
+      "click 40,20",
+      "click 120,90",
+      "click 120,20",
+      "click 40,90",
+      "click 40,20",
+      "key Escape",
+      "key Escape",
+      {
+        "expect": {
+          "canFinish": false,
+          "status": "attention"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/finish/blocks-two-outlines",
+    "title": "Two separate outlines in one part must be separate parts",
+    "evidence": "design one outer boundary per flat part, from the approved plan",
+    "steps": [
+      "rect 20,30 80,90",
+      "rect 120,30 180,90",
+      {
+        "expect": {
+          "canFinish": false,
+          "status": "attention"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/finish/hole-is-through-cut",
+    "title": "A plate with a hole finishes and reaches Boards",
+    "evidence": "manu 2026-11-06, the approved first workflow",
+    "steps": [
+      "rect 20,20 140,100",
+      "circle 80,60 15",
+      {
+        "expect": {
+          "canFinish": true
+        }
+      },
+      "finish",
+      {
+        "expect": {
+          "stage": "boards"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/finish/return-keeps-geometry",
+    "title": "Returning from Boards shows the same sketch",
+    "evidence": "manu 2026-11-06, the approved round trip",
+    "steps": [
+      "rect 20,20 140,100",
+      "finish",
+      "design",
+      {
+        "expect": {
+          "entityCount": 4,
+          "stage": "design"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/finish/undo-survives-boards",
+    "title": "Undo still works after visiting Boards and returning",
+    "evidence": "manu 2026-11-06, the approved plan's acceptance list",
+    "steps": [
+      "rect 20,20 140,100",
+      "circle 80,60 15",
+      "finish",
+      "design",
+      {
+        "expect": {
+          "canUndo": true
+        }
+      },
+      "key Control+z",
+      {
+        "expect": {
+          "entityCount": 4
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/finish/cancel-restores-entry",
+    "title": "Cancel restores the sketch from when editing started",
+    "evidence": "reference-live via Codex transcript 2026-11-06",
+    "steps": [
+      "rect 20,20 140,100",
+      "finish",
+      "design",
+      "circle 80,60 15",
+      {
+        "expect": {
+          "entityCount": 5
+        }
+      },
+      "cancel",
+      "design",
+      {
+        "expect": {
+          "entityCount": 4
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/finish/navigating-away-confirms",
+    "title": "Clicking Boards from Design confirms a valid sketch without Finish",
+    "evidence": "manu 2026-11-06",
+    "steps": [
+      "rect 20,20 140,100",
+      {
+        "expect": {
+          "acceptedEntityCount": 0
+        }
+      },
+      "goto Boards",
+      {
+        "expect": {
+          "stage": "boards",
+          "acceptedEntityCount": 4
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/finish/navigating-away-keeps-edits",
+    "title": "An edit made before clicking Boards reaches accepted geometry, not only the draft",
+    "evidence": "manu 2026-11-06",
+    "steps": [
+      "rect 20,20 140,100",
+      "finish",
+      "design",
+      "circle 80,60 15",
+      {
+        "expect": {
+          "acceptedEntityCount": 4
+        }
+      },
+      "goto Boards",
+      {
+        "expect": {
+          "stage": "boards",
+          "acceptedEntityCount": 5
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/finish/navigating-away-invalid-explains",
+    "title": "Leaving with an invalid sketch keeps it, keeps CAM on the last good geometry, and says why",
+    "evidence": "design a sketch that can't be accepted must stay recoverable and say why",
+    "steps": [
+      "rect 20,20 140,100",
+      "finish",
+      "design",
+      "line 160,20 200,60",
+      "goto Boards",
+      {
+        "expect": {
+          "stage": "design",
+          "acceptedEntityCount": 4,
+          "entityCount": 5,
+          "pageText": "Draft kept"
+        }
+      },
+      {
+        "expect": {
+          "pageTextOnce": "Close every cut contour"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/persist/reload-keeps-design",
+    "title": "Reloading the tab keeps the sketch and reopens it",
+    "evidence": "manu 2026-11-06",
+    "steps": [
+      "rect 20,20 140,100",
+      "circle 80,60 15",
+      "reload",
+      {
+        "expect": {
+          "entityCount": 5,
+          "stage": "design"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/persist/reload-keeps-accepted",
+    "title": "Reloading after Finish keeps both the accepted design and the job",
+    "evidence": "manu 2026-11-06",
+    "steps": [
+      "rect 20,20 140,100",
+      "finish",
+      "reload",
+      "design",
+      {
+        "expect": {
+          "entityCount": 4,
+          "acceptedEntityCount": 4
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/persist/last-edit-saved-immediately",
+    "title": "An edit made right before reloading isn't lost",
+    "evidence": "design autosave from the approved plan",
+    "steps": [
+      "rect 20,20 140,100",
+      "key c",
+      "click 80,60",
+      "click 95,60",
+      "reloadnow",
+      {
+        "expect": {
+          "entitiesInclude": [
+            {
+              "type": "circle",
+              "c": [
+                80,
+                60
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/machine/edit-after-cut-keeps-boards",
+    "title": "Editing a design after cutting keeps the boards, their layout and cut history",
+    "evidence": "design the approved plan's promise; review finding M1, reproduced by Codex 2026-11-06",
+    "steps": [
+      "rect 20,20 140,100",
+      "goto Boards",
+      "goto Plan",
+      "button Take the job to the machine",
+      "run simulated job",
+      "button Done, next",
+      {
+        "expect": {
+          "savedBoards": {
+            "count": 1,
+            "cut": 1,
+            "layout": 1
+          }
+        }
+      },
+      "edit design",
+      "circle 80,60 15",
+      "finish",
+      {
+        "expect": {
+          "savedBoards": {
+            "count": 1,
+            "cut": 1,
+            "layout": 1
+          },
+          "pageText": "is cut"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/finish/leaving-applies-open-value",
+    "title": "A value typed but not yet confirmed isn't lost when clicking Boards",
+    "evidence": "design a typed value must not silently vanish; reference docs: Enter commits",
+    "steps": [
+      "rect 20,60 120,110",
+      "key d",
+      "click 70,110",
+      "click 70,130",
+      "type 60",
+      "goto Boards",
+      "design",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "value": 60
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/finish/toolbar-finish-applies-open-value",
+    "title": "Finish applies a value still open in its field",
+    "evidence": "design a typed value must not silently vanish",
+    "steps": [
+      "rect 20,60 120,110",
+      "key d",
+      "click 70,110",
+      "click 70,130",
+      "type 60",
+      "finish",
+      "design",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "value": 60
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/machine/edit-during-run-is-not-applied-to-sheet",
+    "title": "A design edited during a run doesn't silently become the next program for that sheet",
+    "evidence": "design review finding N1: the sheet physically holds the design it was cut from",
+    "steps": [
+      "rect 20,20 140,100",
+      "goto Boards",
+      "goto Plan",
+      "button Take the job to the machine",
+      "start simulated job",
+      "edit design",
+      "circle 80,60 15",
+      "goto Boards",
+      "goto At the machine",
+      "wait for job end",
+      {
+        "expect": {
+          "savedBoards": {
+            "count": 1,
+            "cut": 1
+          }
+        }
+      },
+      {
+        "expect": {
+          "pageText": "Current design is revision 2",
+          "stage": "2DView"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/keys/shortcut-after-checkbox",
+    "title": "Tool shortcuts still work straight after toggling Show constraints",
+    "evidence": "design same rule as returning shortcuts after a field; found reviewing goldens",
+    "steps": [
+      "uncheck Show constraints",
+      "key l",
+      {
+        "expect": {
+          "tool": "line"
+        }
+      }
+    ]
+  }
+]

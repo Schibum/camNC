@@ -25,7 +25,7 @@ import {
   type BedSelection,
 } from './bedEdit';
 import { entryHolds, entryRotation, entrySide, rotationKey, useCamMachine } from './camMachine';
-import { useMachineBusy } from './useMachineBusy';
+import { useMachineLockReason, useMachineSetupLocked } from './useMachineBusy';
 import { useMachineQueue } from './useMachineQueue';
 
 interface Undo {
@@ -54,13 +54,15 @@ function Editor() {
   const setOverlay = useCamMachine(s => s.setOverlay);
   const { mode, setMode, setApply } = useBedEdit();
   const side = current ? entrySide(current) : 'a';
-  const busy = useMachineBusy();
+  const busy = useMachineSetupLocked();
+  const lockReason = useMachineLockReason();
   const undo = useRef<Undo[]>([]);
   const [, setUndoCount] = useState(0);
   const navigate = useNavigate();
   const board = current?.board.board;
 
   const save = (edit: BedEdit, silent = false) => {
+    if (useCamMachine.getState().preparingRun || busy) return;
     if (!current || current.board.board.id !== edit.boardId) return;
     const b = current.board.board;
     // A real sheet at the machine: a hold edited there leaves the board's size and the other parts as they are.
@@ -292,7 +294,7 @@ function Editor() {
   const clamp = (overlay.holdLike?.kind ?? overlay.holds?.[0]?.kind) === 'clamp';
   const name = clamp ? 'clamp' : 'screw';
   const note = busy
-    ? 'Locked while the program runs'
+    ? (lockReason ?? 'This setup is protected.')
     : locked
       ? `${locked}. Start over in Boards to change them.`
       : mode === 'add'

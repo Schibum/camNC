@@ -11,7 +11,9 @@ import { getJob, getModelBytes, listJobs, modelKey, saveJob, updateJobForModel, 
 import { modelReadError } from './openModelFile';
 import { carriedParts, matchReplacedParts, partPrint, remapBoards, replaceWarning } from './partMatch';
 import { withPartNames } from './partNames';
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+import { nativeRunHistoryChanged } from './machine/nativeRunHistory';
+import { boardGeometryKey } from './cadDesign';
 
 export { modelKey } from './jobDb';
 
@@ -34,7 +36,17 @@ export const useCamJobs = () => useQuery({ queryKey: camKeys.jobs, queryFn: list
 /** Per job id, the number of the newest save started (see useSaveCamJob and useCamModel). */
 const latestSave = new Map<string, number>();
 
-export const useCamJob = (id: string) => useQuery({ queryKey: camKeys.job(id), queryFn: () => getJob(id), staleTime: Infinity });
+export function useCamJob(id: string) {
+  const client = useQueryClient();
+  useEffect(() => {
+    const changed = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === id) void client.invalidateQueries({ queryKey: camKeys.job(id) });
+    };
+    window.addEventListener(nativeRunHistoryChanged, changed);
+    return () => window.removeEventListener(nativeRunHistoryChanged, changed);
+  }, [client, id]);
+  return useQuery({ queryKey: camKeys.job(id), queryFn: () => getJob(id), staleTime: Infinity });
+}
 
 /**
  * The imported model of a job (parts + display meshes). Recomputed from the stored file per session; on the first
@@ -58,6 +70,11 @@ export function useCamModel(job: CamJobV1 | null | undefined) {
     // A file that can't be read fails the same way again: say so now, not after three slow retries.
     retry: false,
     queryFn: async (): Promise<ModelImport> => {
+      if (job!.design) {
+        const document = job!.design.accepted;
+        if (!document) return { parts: [], meshes: [], readMs: 0, analyzeMs: 0 };
+        return camWorker().importDesign(document, modelKey(job!));
+      }
       // Importing can outlive a replacement or deletion. The storage transaction checks model identity and existence;
       // the save counter and cache check also protect edits started while that transaction is running.
       const write = async (update: (current: CamJobV1) => CamJobV1 | null) => {
@@ -167,14 +184,23 @@ export function useBoardPlans(
   const results = useQueries({
     queries: boards.map(({ request, material }) => {
       const settings = { ...toCamSettings(plan, material as typeof plan.material, saved), spindle };
+      const sourceKey = job
+        ? (boardGeometryKey(
+            job,
+            request.parts.map(p => p.partId)
+          ) ?? modelKey(job))
+        : '';
       // The guided tab removal is planned with the board: only boards that have one plan again when this changes.
       const perPart = request.holdDown === 'tabs-guided' && !pauseEachTab;
       return {
-        queryKey: ['cam', 'board-plan', job ? modelKey(job) : '', request, settings, perPart] as const,
+        queryKey: ['cam', 'board-plan', sourceKey, request, settings, perPart] as const,
         enabled: !!job && modelReady && request.parts.length > 0,
         staleTime: Infinity,
         gcTime: 60_000,
-        queryFn: (): Promise<PlanResult> => camWorker().generateBoard(modelKey(job!), request, settings, { perPart }),
+        queryFn: async (): Promise<PlanResult> => ({
+          ...(await camWorker().generateBoard(modelKey(job!), request, settings, { perPart })),
+          sourceKey,
+        }),
       };
     }),
   });
@@ -220,9 +246,23 @@ export function useSaveCamJob(rendered?: CamJobV1 | null) {
     // The transaction rebases too: an import may commit after this snapshot but before this save reaches IndexedDB.
     return { job: next, base: current ?? base.current ?? undefined };
   };
+  const editCurrent = (update: (current: CamJobV1) => CamJobV1 | null) => {
+    const cached = rendered && queryClient.getQueryData<CamJobV1 | null>(camKeys.job(rendered.id));
+    const current = cached === undefined ? base.current : cached;
+    if (!current) return null;
+    const next = update(current);
+    if (!next) return null;
+    queryClient.setQueryData(camKeys.job(next.id), next);
+    return { job: next, base: current };
+  };
   return {
     ...mutation,
     mutate: (job: CamJobV1) => mutation.mutate(edit(job)),
     mutateAsync: (job: CamJobV1) => mutation.mutateAsync(edit(job)),
+    /** Apply an action to the latest cached job, including boards just derived by an earlier action. */
+    mutateCurrent: (update: (current: CamJobV1) => CamJobV1 | null) => {
+      const next = editCurrent(update);
+      if (next) mutation.mutate(next);
+    },
   };
 }

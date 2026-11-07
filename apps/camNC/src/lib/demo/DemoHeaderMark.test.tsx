@@ -29,9 +29,10 @@ describe('DemoHeaderMark', () => {
     expect(render(<DemoHeaderMark />).container.textContent).toBe('');
   });
 
-  it('says nothing is saved in the demo, and leaves it', () => {
+  it('identifies local demo projects without claiming machine settings are saved, and leaves it', () => {
     render(<DemoHeaderMark />);
-    expect(screen.getByText(/Demo · not saved/)).toBeTruthy();
+    expect(screen.getByText('Demo · local projects')).toBeTruthy();
+    expect(screen.queryByText(/not saved/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Exit' }));
     expect(action.exitDemo).toHaveBeenCalledWith('/');
   });

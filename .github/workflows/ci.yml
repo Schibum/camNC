@@ -102,6 +102,9 @@ jobs:
           restore-keys: turbo-test-${{ matrix.suite }}-
       - name: Run tests
         run: node scripts/turbo-shared-cache.mjs run test ${{ matrix.filter }} -- run
+      - name: Run sketch behaviour specs
+        if: matrix.suite == 'app'
+        run: pnpm --filter @wbcnc/camNC spec:cad
       # Each gate gets an otherwise idle runner, just as in the root test script.
       - name: Performance gates
         if: matrix.performance != ''

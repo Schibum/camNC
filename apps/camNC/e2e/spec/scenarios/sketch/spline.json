@@ -1,0 +1,209 @@
+[
+  {
+    "id": "sketch/spline/handle-segment-horizontal",
+    "title": "H on a spline's tangent segment makes it horizontal",
+    "evidence": "reference-report native-spline-constraints",
+    "steps": [
+      "tool Spline",
+      "click 40,30",
+      "click 80,70",
+      "click 120,30",
+      "key Escape",
+      "key Escape",
+      "handle start segment",
+      "key h",
+      {
+        "expect": {
+          "constraintsAtLeast": {
+            "horizontal": 1
+          },
+          "status": "degrees? of freedom",
+          "entityCount": 1
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/spline/handle-segment-vertical",
+    "title": "V on a spline's tangent segment makes it vertical",
+    "evidence": "reference-report native-spline-constraints",
+    "steps": [
+      "tool Spline",
+      "click 40,30",
+      "click 80,70",
+      "click 120,30",
+      "key Escape",
+      "key Escape",
+      "handle end segment",
+      "key v",
+      {
+        "expect": {
+          "constraintsAtLeast": {
+            "vertical": 1
+          },
+          "status": "degrees? of freedom"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/spline/handle-segment-parallel-line",
+    "title": "A tangent segment and an ordinary line can be parallel",
+    "evidence": "reference-report native-spline-constraints",
+    "steps": [
+      "line 40,100 120,120",
+      "tool Spline",
+      "click 40,30",
+      "click 80,70",
+      "click 120,30",
+      "key Escape",
+      "key Escape",
+      "handle start segment",
+      "shiftclick 80,110",
+      "key b",
+      {
+        "expect": {
+          "constraintsAtLeast": {
+            "parallel": 1
+          },
+          "status": "degrees? of freedom"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/spline/handle-segment-tangent-circle",
+    "title": "A tangent segment and a circle can be tangent",
+    "evidence": "reference-report native-spline-constraints",
+    "steps": [
+      "circle 180,60 20",
+      "tool Spline",
+      "click 40,30",
+      "click 80,70",
+      "click 120,30",
+      "key Escape",
+      "key Escape",
+      "handle start segment",
+      "shiftclick 200,60",
+      "key t",
+      {
+        "expect": {
+          "constraintsAtLeast": {
+            "tangent": 1
+          },
+          "status": "degrees? of freedom"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/spline/handle-segment-equal-line",
+    "title": "A tangent segment and an ordinary line can be equal",
+    "evidence": "reference-report native-spline-constraints",
+    "steps": [
+      "line 40,100 120,120",
+      "tool Spline",
+      "click 40,30",
+      "click 80,70",
+      "click 120,30",
+      "key Escape",
+      "key Escape",
+      "handle start segment",
+      "shiftclick 80,110",
+      "key e",
+      {
+        "expect": {
+          "constraintsAtLeast": {
+            "equal": 1
+          },
+          "status": "degrees? of freedom"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/spline/handle-point-parallel-rejected",
+    "title": "A handle point plus a line is rejected for parallel, without becoming its segment",
+    "evidence": "reference-report native-spline-constraints",
+    "steps": [
+      "line 40,100 120,120",
+      "tool Spline",
+      "click 40,30",
+      "click 80,70",
+      "click 120,30",
+      "key Escape",
+      "key Escape",
+      "handle start point",
+      "shiftclick 80,110",
+      "key b",
+      {
+        "expect": {
+          "constraintsNone": [
+            "parallel"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/spline/handle-segment-length",
+    "title": "D on a tangent segment measures its length and is editable",
+    "evidence": "reference-report native-spline-constraints: segment Length 50 mm",
+    "steps": [
+      "tool Spline",
+      "click 40,30",
+      "click 80,70",
+      "click 120,30",
+      "key Escape",
+      "key Escape",
+      "key d",
+      "handle start segment",
+      "click 10,80",
+      "type 30",
+      "key Enter",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "value": 30
+            }
+          ],
+          "status": "degrees? of freedom"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/spline/handle-delete-protected",
+    "title": "Delete doesn't remove a spline's own tangent segment",
+    "evidence": "reference-report native-spline-constraints: protected deletion",
+    "steps": [
+      "tool Spline",
+      "click 40,30",
+      "click 80,70",
+      "click 120,30",
+      "key Escape",
+      "key Escape",
+      "handle start segment",
+      "key Delete",
+      {
+        "expect": {
+          "entityCount": 1,
+          "entitiesInclude": [
+            {
+              "type": "spline",
+              "a": [
+                40,
+                30
+              ],
+              "b": [
+                120,
+                30
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+]

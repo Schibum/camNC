@@ -1,6 +1,6 @@
 import { selectMachineBounds, useStore } from '@/store/store';
 import { clearMachineView } from '../showOnMachine';
-import { useCamMachine } from './camMachine';
+import { isManufacturingLocked, useCamMachine } from './camMachine';
 
 /** An active entry no entry has: the first one still to cut is loaded (see `currentEntry`). */
 export const kFirstToCut = ':';
@@ -10,6 +10,10 @@ export const kFirstToCut = ':';
  * keeps what's loaded and cut; another job starts afresh. Where to go next: the top view, or picking a bed first.
  */
 export function openAtMachine(jobId: string, boardId?: string): '/visualize/2DView' | '/start' {
+  if (isManufacturingLocked()) {
+    useStore.getState().setMachinePanelOpen(true);
+    return '/visualize/2DView';
+  }
   const machine = useCamMachine.getState();
   if (machine.jobId !== jobId) {
     machine.start(jobId);

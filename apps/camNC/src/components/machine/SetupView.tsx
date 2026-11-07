@@ -13,6 +13,7 @@ import { MacroButtons } from './macros';
 import { ResumeJobCard } from './ResumeJobCard';
 import { CamQueueCard } from '@/cam/machine/CamQueueCard';
 import { useCamMachine } from '@/cam/machine/camMachine';
+import { useMachineLockReason } from '@/cam/machine/useMachineBusy';
 import { RunFooter } from './RunFooter';
 import { SetupStep } from './SetupStep';
 
@@ -30,6 +31,7 @@ export function Section({ title, action, children }: { title: string; action?: R
 
 /** Without a CAM job: the G-code file and the stock it's cut from. */
 function JobStep() {
+  const locked = !!useMachineLockReason();
   const name = useStore(s => s.toolpathName);
   const hasToolpath = useStore(s => !!s.toolpath);
   const stockHeight = useStore(s => s.stockHeight);
@@ -42,7 +44,7 @@ function JobStep() {
       title={<span className="truncate">{hasToolpath ? (name ?? 'Program loaded') : 'Open a G-code file'}</span>}
       summary={hasToolpath && stockHeight > 0 ? `stock ${stockHeight} mm` : undefined}
       action={
-        <Button size="sm" variant="outline" onClick={openGcodeFile}>
+        <Button size="sm" variant="outline" disabled={locked} onClick={openGcodeFile}>
           <FolderOpen /> Open…
         </Button>
       }>
@@ -54,6 +56,7 @@ function JobStep() {
           min={0}
           className="h-7 w-20"
           aria-label="Stock height (mm)"
+          disabled={locked}
           value={stockHeight}
           onChange={e => {
             const value = Number(e.target.value);

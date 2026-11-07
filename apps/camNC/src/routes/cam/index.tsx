@@ -4,14 +4,14 @@ import { SampleProjectCard } from '@/cam/samples/SampleProjectCard';
 import { PageHeader } from '@/components/page-header';
 import { CamPage } from '@/cam/CamPage';
 import { camKeys, useCamJobs } from '@/cam/camQueries';
-import { deleteJob } from '@/cam/jobDb';
+import { createDesignJob, deleteJob } from '@/cam/jobDb';
 import { kModelFile } from '@/cam/jobDb';
 import { createJobFromFile, pickModelFile, toastNotAModel } from '@/cam/openModelFile';
 import { useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { Button } from '@wbcnc/ui/components/button';
 import { toast } from '@wbcnc/ui/components/sonner';
-import { Box, FileUp, Trash2, TriangleAlert } from 'lucide-react';
+import { Box, FileUp, PencilRuler, Trash2, TriangleAlert } from 'lucide-react';
 
 export const Route = createFileRoute('/cam/')({
   component: CamIndex,
@@ -47,11 +47,30 @@ function CamIndex() {
     void queryClient.invalidateQueries({ queryKey: camKeys.jobs });
     toast(`Deleted ${name}`);
   };
+  const design = async () => {
+    try {
+      const job = await createDesignJob();
+      queryClient.setQueryData(camKeys.job(job.id), job);
+      void queryClient.invalidateQueries({ queryKey: camKeys.jobs });
+      await navigate({ to: '/cam/$jobId/design', params: { jobId: job.id } });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   return (
     <CamPage className="h-app">
       <PageHeader title="CAM (beta)" />
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 overflow-y-auto p-6">
+        <button onClick={() => void design()} className="flex items-center gap-4 rounded-xl border p-6 text-left hover:bg-muted/50">
+          <PencilRuler className="size-9 shrink-0 text-primary" />
+          <span className="flex flex-col gap-1">
+            <span className="text-lg font-medium">New design</span>
+            <span className="text-sm text-muted-foreground">
+              Sketch and dimension a flat part, then prepare its cuts and machining here.
+            </span>
+          </span>
+        </button>
         <button
           onClick={open}
           className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed p-10 text-center hover:bg-muted/50">
@@ -81,7 +100,10 @@ function CamIndex() {
                 const parts = job.parts.reduce((n, p) => n + (p.milled ? p.quantity : 0), 0);
                 return (
                   <li key={job.id} className="flex items-center gap-3 px-4 py-3">
-                    <Link to="/cam/$jobId/model" params={{ jobId: job.id }} className="flex min-w-0 grow flex-col hover:underline">
+                    <Link
+                      to={job.design ? '/cam/$jobId/design' : '/cam/$jobId/model'}
+                      params={{ jobId: job.id }}
+                      className="flex min-w-0 grow flex-col hover:underline">
                       <span className="flex min-w-0 items-center gap-2">
                         <span className="truncate font-medium">{job.name}</span>
                         {job.readError && (
@@ -92,7 +114,7 @@ function CamIndex() {
                       </span>
                       <span className="truncate text-xs text-muted-foreground">
                         {job.origin?.kind === 'sample' && 'Sample project · '}
-                        {job.fileName}
+                        {job.design ? 'Native design' : job.fileName}
                         {job.parts.length > 0 && ` · ${parts} ${parts === 1 ? 'part' : 'parts'} to mill`} · {kWhen.format(job.updatedAt)}
                       </span>
                     </Link>

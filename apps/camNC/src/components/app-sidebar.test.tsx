@@ -48,6 +48,7 @@ describe('app sidebar theme', () => {
     const sidebar = container.querySelector<HTMLElement>('[data-slot="sidebar"]')!;
     expectDarkSidebar(sidebar);
     expect(getComputedStyle(sidebar).backgroundColor).toBe('oklch(0.21 0.006 285.885)');
+    expect(screen.getByRole('link', { name: 'About' }).getAttribute('href')).toBe('/about');
   });
 
   it('names each place once: the machine is a step of the job, not a second view', async () => {
