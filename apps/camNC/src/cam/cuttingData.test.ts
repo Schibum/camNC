@@ -64,6 +64,7 @@ describe('cutting data', () => {
       rpm: 18000,
       finalFeedFactor: 0.5,
       wallFinish: 0,
+      outlineFinish: 0.1,
     });
     expect(source).toEqual({
       feed: 'saved',
@@ -79,6 +80,7 @@ describe('cutting data', () => {
       rpm: 'library',
       finalFeedFactor: 'default',
       wallFinish: 'default',
+      outlineFinish: 'default',
     });
   });
 
@@ -278,6 +280,16 @@ describe('cutting data', () => {
   it('turns the wall finish on for pockets when set (off by default)', () => {
     expect(toCamSettings(kDefaultPlan).pocketWallAllowance).toBe(0);
     expect(toCamSettings({ ...kDefaultPlan, cutting: { wallFinish: 0.2 } }).pocketWallAllowance).toBe(0.2);
+  });
+
+  it('outlines keep a light skim by default, and finish in depth steps when asked for more', () => {
+    expect(toCamSettings(kDefaultPlan)).toMatchObject({ leaveStock: 0.1 });
+    expect(toCamSettings(kDefaultPlan).profileFinishStepdown).toBeUndefined();
+    expect(toCamSettings({ ...kDefaultPlan, cutting: { outlineFinish: 0.2 } }).profileFinishStepdown).toBeUndefined();
+    expect(toCamSettings({ ...kDefaultPlan, cutting: { outlineFinish: 1, stepdown: 4 } })).toMatchObject({
+      leaveStock: 1,
+      profileFinishStepdown: 4,
+    });
   });
 
   it('keeps an older job’s full-feed final pass as this job’s choice', () => {

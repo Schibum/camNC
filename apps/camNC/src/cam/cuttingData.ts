@@ -27,13 +27,15 @@ export interface CuttingData {
    * Pocket radial stock left by roughing and removed by depth-limited wall finishing.
    */
   wallFinish: number;
+  /** Outline and through-hole radial stock left by roughing and removed by the final lap. */
+  outlineFinish: number;
 }
 
 export type CuttingField = keyof CuttingData;
 /** Where a value comes from, most specific first. */
 export type CuttingSource = 'job' | 'saved' | 'library' | 'default';
 
-const baseFields = ['feed', 'plungeFeed', 'stepdown', 'stepover', 'rpm', 'finalFeedFactor', 'wallFinish'] as const;
+const baseFields = ['feed', 'plungeFeed', 'stepdown', 'stepover', 'rpm', 'finalFeedFactor', 'wallFinish', 'outlineFinish'] as const;
 const motionFields = ['rampFeed', 'leadFeed', 'leadOutFeed', 'finishFeed', 'reducedFeed', 'transitionFeed'] as const;
 export const kCuttingFields: CuttingField[] = [
   'feed',
@@ -44,6 +46,7 @@ export const kCuttingFields: CuttingField[] = [
   'rpm',
   'finalFeedFactor',
   'wallFinish',
+  'outlineFinish',
 ];
 
 export const kCuttingLabels: Record<CuttingField, { label: string; unit: string; step: number; min?: number }> = {
@@ -59,7 +62,8 @@ export const kCuttingLabels: Record<CuttingField, { label: string; unit: string;
   stepover: { label: 'Stepover', unit: 'mm', step: 0.1 },
   rpm: { label: 'Spindle speed', unit: 'rpm', step: 500 },
   finalFeedFactor: { label: 'Final pass feed', unit: '× feed', step: 0.1 },
-  wallFinish: { label: 'Wall finish', unit: 'mm radial stock · 0 = off', step: 0.05, min: 0 },
+  wallFinish: { label: 'Pocket wall finish', unit: 'mm radial stock · 0 = off', step: 0.05, min: 0 },
+  outlineFinish: { label: 'Outline wall finish', unit: 'mm radial stock · 0 = off', step: 0.05, min: 0 },
 };
 
 /** What each value does, for its tooltip: the consequence, not the mechanism. */
@@ -78,6 +82,8 @@ export const kCuttingHints: Record<CuttingField, string> = {
   finalFeedFactor: 'Default finishing speed as a share of cutting feed. A separate finishing-feed value takes precedence.',
   wallFinish:
     'Roughing stays this far off pocket walls, then finishing passes remove that radial stock in limited depth increments. 0 turns it off.',
+  outlineFinish:
+    'Roughing stays this far off outlines and through holes, then a final lap cuts them to size. Above 0.2 mm the walls are finished in stepdown increments, not in one lap. 0 turns it off.',
 };
 
 export const kSourceLabels: Record<CuttingSource, string> = {
@@ -148,6 +154,7 @@ export function defaultCutting(diameter: number, material: MaterialKey): Cutting
     rpm: 15000,
     finalFeedFactor: 0.5,
     wallFinish: 0,
+    outlineFinish: 0.1,
   };
 }
 

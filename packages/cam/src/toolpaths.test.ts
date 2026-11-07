@@ -698,6 +698,34 @@ describe('pocket wall pass', () => {
     }
   });
 
+  it.each([7.5, 6.5, 8])('a %s mm pocket with no room for a 1 mm allowance is still cut, on its walls', width => {
+    const f = mortiseBoard();
+    const slot = rect(100, 40, 160, 40 + width);
+    f.pockets = [
+      { floorZ: 3.8, region: [slot], strictRegion: [slot], above: difference([rect(0, 0, 200, 100)], [slot]), area: 60 * width },
+    ];
+    const tool: Tool = { number: 1, diameter: 6, name: 'flat', stepdown: 2.2 };
+    const [plain] = camPart(f, { tools: [tool], cutThrough: false, pocketWallAllowance: 0 }).operations;
+    const [pocket] = camPart(f, { tools: [tool], cutThrough: false, pocketWallAllowance: 1 }).operations;
+    expect(pocket.passes).toEqual(plain.passes);
+    const pts = pocket.passes.flatMap(p => p.pts);
+    expect(Math.min(...pts.map(q => q[2]))).toBeCloseTo(3.8, 6);
+    expect(Math.min(...pts.map(q => q[1]))).toBeCloseTo(43, 2);
+    expect(Math.max(...pts.map(q => q[1]))).toBeCloseTo(37 + width, 2);
+  });
+
+  it('a pocket with room keeps the allowance: roughing stays off the walls', () => {
+    const f = mortiseBoard();
+    const slot = rect(100, 40, 160, 49);
+    f.pockets = [{ floorZ: 3.8, region: [slot], strictRegion: [slot], above: difference([rect(0, 0, 200, 100)], [slot]), area: 540 }];
+    const tool: Tool = { number: 1, diameter: 6, name: 'flat', stepdown: 2.2 };
+    const [pocket] = camPart(f, { tools: [tool], cutThrough: false, pocketWallAllowance: 1 }).operations;
+    const rough = pocket.passes.filter(p => p.phase !== 'finish').flatMap(p => p.pts);
+    const finish = pocket.passes.filter(p => p.phase === 'finish');
+    expect(finish.length).toBeGreaterThan(0);
+    expect(Math.min(...rough.map(q => q[1]))).toBeGreaterThanOrEqual(44 - 1e-6);
+  });
+
   it('with a wall allowance: roughing stays off the walls and bounded finishing passes cut them to size', () => {
     const [pocket] = camPart(mortiseBoard(), { cutThrough: false, pocketWallAllowance: 0.2, pocketFinishFeedFactor: 0.5 }).operations;
     const finish = pocket.passes.at(-1)!;

@@ -59,6 +59,9 @@ export function jobCutting(p: PlanSettingsV1): Partial<CuttingData> {
   return { ...legacy, ...p.cutting };
 }
 
+/** The most radial stock one full-depth outline lap takes, mm. */
+const kMaxOutlineSkim = 0.2;
+
 /**
  * The CAM settings for one board's material. `saved`: the cutting data saved per bit + material (`useCuttingData`);
  * each bit cuts by its own. The settings' own feeds and speed are the main bit's: it cuts the outlines, and what follows
@@ -111,6 +114,9 @@ export function toCamSettings(
     stepoverFactor: main.stepover / p.bit.diameter,
     finalFeedFactor: main.finalFeedFactor,
     pocketWallAllowance: main.wallFinish,
+    leaveStock: main.outlineFinish,
+    // More than a skim is too much for one full-depth lap.
+    ...(main.outlineFinish > kMaxOutlineSkim && { profileFinishStepdown: main.stepdown }),
     spindleRpm: main.rpm,
     finalZ: -p.cutBelow,
     tabs: p.tabs ? DEFAULT_TABS : false,
