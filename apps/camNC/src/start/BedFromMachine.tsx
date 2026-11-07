@@ -17,7 +17,14 @@ const kReadableStates = ['Idle', 'Alarm'];
  * Once connected, reads the bed size from the controller's axis travel and lets the user confirm (or correct) it.
  * The values stay editable, and entering them by hand is always possible.
  */
-export function BedFromMachine({ onConfirmed }: { onConfirmed: () => void }) {
+export function BedFromMachine({
+  onConfirmed,
+  onRead,
+}: {
+  onConfirmed: () => void;
+  /** Called with the size read from the controller, before the user confirms it. Must be stable. */
+  onRead?: (bounds: MachineBoundsValues) => void;
+}) {
   'use no memo';
   const api = getCncApi();
   const connected = api.isConnected.value;
@@ -33,13 +40,17 @@ export function BedFromMachine({ onConfirmed }: { onConfirmed: () => void }) {
     setRead({ kind: 'reading' });
     api
       .readMachineBounds()
-      .then(({ xmin, xmax, ymin, ymax }) => !cancelled && setRead({ kind: 'read', bounds: { xmin, xmax, ymin, ymax } }))
+      .then(({ xmin, xmax, ymin, ymax }) => {
+        if (cancelled) return;
+        setRead({ kind: 'read', bounds: { xmin, xmax, ymin, ymax } });
+        onRead?.({ xmin, xmax, ymin, ymax });
+      })
       .catch((err: Error) => !cancelled && setRead({ kind: 'failed', message: err.message }));
     return () => {
       cancelled = true;
     };
     // Read once per connection (and on retry), not on every status change.
-  }, [api, readable, attempt]);
+  }, [api, readable, attempt, onRead]);
 
   if (!connected) return null;
   if (!read || read.kind === 'reading') {

@@ -14,6 +14,9 @@ export const kBedPresets: BedPreset[] = [
   { label: 'Full sheet (4 × 8 ft)', width: 1220, depth: 2440 },
 ];
 
+/** The largest preset, so that most programs fit: drawn until the user picks a size or a machine reports its own. */
+export const kDefaultBed: MachineBoundsValues = { xmin: 0, xmax: 1220, ymin: 0, ymax: 2440 };
+
 /** Bounds of a bed of the given size with its origin at machine zero. */
 export function boundsFromSize(width: number, depth: number): MachineBoundsValues {
   return { xmin: 0, xmax: width, ymin: 0, ymax: depth };
