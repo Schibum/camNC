@@ -3,6 +3,9 @@ export type { StepBody, FlatPart, LoadStepOptions } from './import';
 export { maxOf, minOf } from './geom';
 export { extractFeatures } from './features';
 export type { PartFeatures, PocketFeature, Level } from './features';
+export { featuresFromCuts } from './cutFeatures';
+export { union as unionPaths } from './geom';
+export type { FlatCut, FlatProfile, HoleSource } from './cutFeatures';
 export {
   camPart,
   pocketOperation,
