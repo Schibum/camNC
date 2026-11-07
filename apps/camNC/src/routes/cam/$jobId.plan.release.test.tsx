@@ -1,6 +1,7 @@
 import { instancesOf, reconcileBoards, type BoardV1 } from '@/cam/boards';
 import { camWorker, modelKey } from '@/cam/camQueries';
-import type { PlanResult } from '@/cam/camTypes';
+import type { BoardRequest, PlanResult, ReleaseProgram } from '@/cam/camTypes';
+import { withPartNames } from '@/cam/partNames';
 import { createJob, saveJob } from '@/cam/jobDb';
 import { useCamMachine } from '@/cam/machine/camMachine';
 import { usePlanLayout } from '@/cam/plan/planLayoutStore';
@@ -15,7 +16,12 @@ import { Route } from './$jobId.plan';
 
 const params = vi.hoisted(() => ({ jobId: '' }));
 /** Changes what the plans come back as, and keeps the last ones. */
-const plans = vi.hoisted(() => ({ tamper: (p: unknown) => p, last: [] as unknown[] }));
+const plans = vi.hoisted(() => ({
+  tamper: (p: unknown) => p,
+  last: [] as unknown[],
+  requests: [] as BoardRequest[],
+  fresh: [] as boolean[],
+}));
 
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (options: unknown) => ({ options }),
@@ -29,12 +35,15 @@ vi.mock('@/cam/camQueries', async importOriginal => {
   const real = await importOriginal<typeof import('@/cam/camQueries')>();
   return {
     ...real,
-    useBoardPlans: (...args: Parameters<typeof real.useBoardPlans>) =>
-      real.useBoardPlans(...args).map((r, i) => {
+    useBoardPlans: (...args: Parameters<typeof real.useBoardPlans>) => {
+      plans.requests = args[1].map(board => board.request);
+      return real.useBoardPlans(...args).map((r, i) => {
         const data = r.data && plans.tamper(r.data);
         plans.last[i] = data;
+        plans.fresh[i] = !!r.data && !r.isPlaceholderData && !r.isFetching;
         return { ...r, data };
-      }),
+      });
+    },
   };
 });
 
@@ -44,6 +53,8 @@ afterEach(() => {
   cleanup();
   plans.tamper = p => p;
   plans.last = [];
+  plans.requests = [];
+  plans.fresh = [];
   usePlanLayout.setState(usePlanLayout.getInitialState(), true);
   useCamMachine.setState(useCamMachine.getInitialState(), true);
   localStorage.removeItem('camnc-plan-layout');
@@ -56,11 +67,8 @@ async function open(url: string, fileName: string, change: (b: BoardV1) => Board
   const job = await createJob(new File([bytes], fileName));
   const copy = new Uint8Array(bytes.slice(0));
   const model = await camWorker().importModel(Comlink.transfer(copy, [copy.buffer]), job.fileName, modelKey(job));
-  const boards = reconcileBoards(
-    undefined,
-    instancesOf(model.parts, () => true),
-    'oak'
-  ).map(b => (b.name === 'A' ? change(b) : b));
+  const instances = instancesOf(withPartNames(model.parts, []), () => true);
+  const boards = reconcileBoards(undefined, instances, 'oak').map(b => (b.name === 'A' ? change(b) : b));
   await saveJob({ ...job, boards });
   params.jobId = job.id;
   render(
@@ -68,9 +76,33 @@ async function open(url: string, fileName: string, change: (b: BoardV1) => Board
       <PlanStep />
     </QueryClientProvider>
   );
+  return { boards, instances };
 }
 
-const opList = () => screen.findByRole('list', { name: 'Operations for board A' }, { timeout: 60_000 });
+/** Source board membership is independent of generated operation/pause counts. */
+function sourceParts(fixture: Awaited<ReturnType<typeof open>>, name: string) {
+  const board = fixture.boards.find(b => b.name === name)!;
+  const instances = new Map(fixture.instances.map(part => [part.id, part]));
+  const parts = board.items.map(id => instances.get(id)!);
+  const request = plans.requests.find(request => request.id === board.id)!;
+  expect(request.parts.map(part => part.id).sort()).toEqual(board.items.toSorted());
+  expect(request.parts.map(part => part.name).sort()).toEqual(parts.map(part => part.name).sort());
+  return parts;
+}
+
+function expectPartStops(program: ReleaseProgram, parts: { name: string }[]) {
+  const taken = [...program.gcode.matchAll(/^M0 \(MSG Take out ([^,]*),/gm)].map(match => match[1]!);
+  expect(taken.toSorted()).toEqual(parts.map(part => part.name).sort());
+  expect(new Set(taken).size).toBe(parts.length);
+  expect(program.pauses).toBe(parts.length);
+}
+
+const opList = async () => {
+  await screen.findByRole('list', { name: 'Operations for board A' }, { timeout: 60_000 });
+  // keepShown may display an earlier request; assert the result for the current board membership/settings.
+  await waitFor(() => expect(plans.fresh[0]).toBe(true), { timeout: 60_000 });
+  return screen.getByRole('list', { name: 'Operations for board A' });
+};
 const row = (list: HTMLElement, name: RegExp) =>
   within(list)
     .getAllByRole('listitem')
@@ -87,19 +119,20 @@ const fmtMin = (m: number) => {
 
 describe('CAM plan step, the guided programs after the cutting', () => {
   it('free parts: its own row after the cutting, pauses on the timeline, and the job time includes it', async () => {
-    await open(stepUrl, 'kinderregal-eiche.step', b => ({ ...b, retention: 'skin' as const }));
+    const fixture = await open(stepUrl, 'kinderregal-eiche.step', b => ({ ...b, retention: 'skin' as const }));
     const list = await opList();
+    const parts = sourceParts(fixture, 'A');
+    expect(parts).toHaveLength(5);
+    expect(parts.some(part => part.name === 'back')).toBe(false);
     const items = within(list).getAllByRole('listitem');
     // Last, one row for all the laps.
-    // Seen once under load with 6 pauses: if it comes back, say which parts it was.
-    const taken = (plans.last[0] as PlanResult).release?.[0]?.gcode.match(/^M0 \(MSG Take out [^,]*/gm);
-    expect(items.at(-1)!.textContent, JSON.stringify(taken)).toMatch(
-      /After the cutting.*Cut the parts free.*⌀3\.175 · \d+:\d\d sim.*5 pauses: take out each part/
+    expect(items.at(-1)!.textContent).toMatch(
+      new RegExp(`After the cutting.*Cut the parts free.*⌀3\\.175 · \\d+:\\d\\d sim.*${parts.length} pauses: take out each part`)
     );
     expect(items.filter(li => /free/i.test(li.textContent!))).toHaveLength(1);
 
     const view = screen.getByRole('region', { name: /^3D view of board/ });
-    expect(within(view).getAllByRole('img', { name: /^Pause: Take out / })).toHaveLength(5);
+    expect(within(view).getAllByRole('img', { name: /^Pause: Take out / })).toHaveLength(parts.length);
     // A band per lap, in the row's colour, and selecting the row frames them.
     fireEvent.click(within(items.at(-1)!).getAllByRole('button')[0]);
     expect(within(view).getByText(/^Cut the parts free: solid where it has cut/)).toBeTruthy();
@@ -109,10 +142,10 @@ describe('CAM plan step, the guided programs after the cutting', () => {
     const b = plans.last[1] as PlanResult;
     const [free] = a.release!;
     expect(free.kind).toBe('free');
-    expect(free.pauses).toBe(5);
+    expectPartStops(free, parts);
     expect(free.turned).toBe(false);
     expect(free.safety).toEqual([]);
-    expect(free.gcode.match(/^M0 \(MSG Take out /gm)).toHaveLength(5);
+    expect(free.parts!.map(part => part.name).sort()).toEqual(parts.map(part => part.name).sort());
     // Cut through: from the skin down to the through-cut depth.
     expect(free.ops[0].zBottom).toBeCloseTo(-0.3);
     await waitFor(() => expect(plans.last[1]).toBeTruthy(), { timeout: 60_000 });
@@ -124,10 +157,15 @@ describe('CAM plan step, the guided programs after the cutting', () => {
 
   it('tab removal follows "Pause before each tab": changing it plans again', async () => {
     useCamMachine.setState({ pauseEachTab: true });
-    await open(stepUrl, 'kinderregal-eiche.step', b => ({ ...b, guidedTabs: true }));
+    const fixture = await open(stepUrl, 'kinderregal-eiche.step', b => ({ ...b, guidedTabs: true }));
     const list = await opList();
     const tabs = () => row(screen.getByRole('list', { name: 'Operations for board A' }), /Remove the tabs/)!;
     const n = (plans.last[0] as PlanResult).release![0].tabs!.length;
+    const parts = sourceParts(fixture, 'A');
+    expect(parts).toHaveLength(5);
+    expect([...new Set((plans.last[0] as PlanResult).release![0].tabs!.map(tab => tab.part))].sort()).toEqual(
+      parts.map(part => part.name).sort()
+    );
     expect(tabs().textContent).toContain(`${n} pauses: hold the part at each tab`);
     expect(within(screen.getByRole('region', { name: /^3D view of board/ })).getAllByRole('img', { name: /^Pause: Tab \d/ })).toHaveLength(
       n
@@ -136,10 +174,13 @@ describe('CAM plan step, the guided programs after the cutting', () => {
     fireEvent.click(within(tabs()).getAllByRole('button')[0]);
     fireEvent.click(within(tabs()).getByRole('checkbox', { name: 'Pause before each tab' }));
     expect(useCamMachine.getState().pauseEachTab).toBe(false);
-    await waitFor(() => expect(tabs().textContent).toContain('5 pauses: take out each part'), { timeout: 30_000 });
+    // keepShown deliberately retains the per-tab program until its replacement is ready.
+    await waitFor(() => expect((plans.last[0] as PlanResult).release![0].perPart).toBe(true), { timeout: 60_000 });
+    expect(tabs().textContent).toContain(`${parts.length} pauses: take out each part`);
     const planned = (plans.last[0] as PlanResult).release![0];
     expect(planned.perPart).toBe(true);
-    expect(planned.gcode.match(/^M0 \(MSG Take out /gm)).toHaveLength(5);
+    expect(sourceParts(fixture, 'A').map(part => part.id)).toEqual(parts.map(part => part.id));
+    expectPartStops(planned, parts);
     expect(planned.gcode).not.toMatch(/^M0 \(MSG Tab /m);
   }, 120_000);
 

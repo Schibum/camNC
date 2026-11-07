@@ -1,0 +1,171 @@
+{
+  "version": 1,
+  "id": "capsule-stability",
+  "name": "Untitled design",
+  "revision": 8,
+  "parts": [
+    {
+      "id": "capsule-part",
+      "name": "Capsule top replaced by inward notch",
+      "thickness": 18,
+      "sketch": {
+        "id": "capsule-sketch",
+        "entities": [
+          {
+            "id": "capsule-sketch:origin",
+            "type": "point",
+            "x": 0,
+            "y": 0,
+            "fixed": true,
+            "construction": true
+          },
+          {
+            "id": "point-2",
+            "type": "point",
+            "x": 21,
+            "y": 0,
+            "construction": false
+          },
+          {
+            "id": "point-3",
+            "type": "point",
+            "x": 94,
+            "y": 0,
+            "construction": false
+          },
+          {
+            "id": "line-1",
+            "type": "line",
+            "startId": "point-2",
+            "endId": "point-3",
+            "construction": false
+          },
+          {
+            "id": "point-4",
+            "type": "point",
+            "x": 94,
+            "y": 21,
+            "construction": false
+          },
+          {
+            "id": "point-5",
+            "type": "point",
+            "x": 94,
+            "y": 42,
+            "construction": false
+          },
+          {
+            "id": "arc-1",
+            "type": "arc",
+            "centerId": "point-4",
+            "startId": "point-3",
+            "endId": "point-5",
+            "radius": 21,
+            "startAngle": -1.5707963267948966,
+            "endAngle": 1.5707963267948966,
+            "construction": false
+          },
+          {
+            "id": "point-6",
+            "type": "point",
+            "x": 21,
+            "y": 42,
+            "construction": false
+          },
+          {
+            "id": "line-2",
+            "type": "line",
+            "startId": "point-5",
+            "endId": "point-6",
+            "construction": false
+          },
+          {
+            "id": "point-7",
+            "type": "point",
+            "x": 21,
+            "y": 21,
+            "construction": false
+          },
+          {
+            "id": "arc-2",
+            "type": "arc",
+            "centerId": "point-7",
+            "startId": "point-6",
+            "endId": "point-2",
+            "radius": 21,
+            "startAngle": 1.5707963267948966,
+            "endAngle": -1.5707963267948966,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "type": "horizontal",
+            "entityId": "line-1",
+            "id": "constraint-1"
+          },
+          {
+            "type": "horizontalPoints",
+            "pointAId": "capsule-sketch:origin",
+            "pointBId": "point-2",
+            "id": "constraint-2"
+          },
+          {
+            "type": "horizontalPoints",
+            "pointAId": "capsule-sketch:origin",
+            "pointBId": "point-3",
+            "id": "constraint-3"
+          },
+          {
+            "type": "tangent",
+            "entityAId": "line-1",
+            "entityBId": "arc-1",
+            "id": "constraint-4"
+          },
+          {
+            "type": "verticalPoints",
+            "pointAId": "point-3",
+            "pointBId": "point-5",
+            "id": "constraint-5"
+          },
+          {
+            "type": "tangent",
+            "entityAId": "arc-1",
+            "entityBId": "line-2",
+            "id": "constraint-6"
+          },
+          {
+            "type": "horizontal",
+            "entityId": "line-2",
+            "id": "constraint-7"
+          },
+          {
+            "type": "verticalPoints",
+            "pointAId": "point-2",
+            "pointBId": "point-6",
+            "id": "constraint-8"
+          },
+          {
+            "type": "tangent",
+            "entityAId": "line-2",
+            "entityBId": "arc-2",
+            "id": "constraint-9"
+          },
+          {
+            "type": "distance",
+            "pointAId": "point-5",
+            "pointBId": "point-6",
+            "sourceEntityId": "line-2",
+            "value": 73,
+            "label": "Length",
+            "id": "constraint-10",
+            "labelPosition": {
+              "x": 59.9999899115445,
+              "y": 64.99999495577217
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

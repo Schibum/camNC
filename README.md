@@ -47,6 +47,18 @@ got. Feed and spindle overrides, macros and a console are one click away.
 
 <img alt="A job running at 52 %, with progress drawn on the toolpath and the machine panel open" src="docs/images/readme/fluidnc-job.jpg" />
 
+## Sketch flat parts and keep their machining setup
+
+Choose **New design** in CAM to draw flat parts with lines, rectangles, circles and arcs. Add driving dimensions and
+geometric constraints, then finish the sketch to arrange boards and generate through-cuts. Keyboard shortcuts include `L`, `G`/`R`, `C`, `A`, `D`, `M` and `Q`.
+
+Return to **Design** from Boards, Plan or the machine view to edit the same parts. Tool choices, cutting data, stock,
+placements and holding settings stay with the project. Geometry changes regenerate affected plans; references that no
+longer resolve remain visible for repair. Running and resumable programs keep their original design and setup snapshot.
+Sketch drafts are autosaved separately from the geometry accepted for CAM. Trim supports line, circle and arc segments;
+rational curves can act as boundaries. CAD currently creates through-cuts; pocket features come later. See
+[CAD status](docs/CAD_STATUS.md) for supported tools and current limits.
+
 ## Preview the cut in 3D
 
 The 3D, front and side views simulate the stock being cut with flat, ball and V-bits. Scrub through the job on the

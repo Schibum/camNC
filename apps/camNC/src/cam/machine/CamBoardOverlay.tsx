@@ -1,5 +1,5 @@
 import { getCncApi } from '@/lib/fluidnc/machine';
-import { isCamncJobFile } from '@/lib/machine/jobs';
+import { isJobOfToolpath } from '@/lib/machine/jobs';
 import { useStore } from '@/store/store';
 import { Line } from '@react-three/drei';
 import { CanvasLabel } from '@/scene/CanvasLabel';
@@ -8,6 +8,7 @@ import { CamBedLayer } from './CamBedLayer';
 import { CamHolds } from './CamHolds';
 import { CamPartGhost } from './CamPartGhost';
 import { currentTab, takeOutAt, useCamMachine } from './camMachine';
+import { useMachineBusy } from './useMachineBusy';
 
 const kOutline = '#a78bfa';
 const kTab = '#f59e0b';
@@ -47,6 +48,7 @@ export function CamBoardOverlay() {
   const offset = useStore(s => s.toolpathOffset);
   const gcode = useStore(s => s.toolpath?.gcode);
   const job = getCncApi().jobProgress.value;
+  const locked = useMachineBusy();
   const outline = useMemo(() => {
     if (!overlay) return null;
     const a = (overlay.rotationDeg * Math.PI) / 180;
@@ -67,16 +69,17 @@ export function CamBoardOverlay() {
   }, [overlay]);
   if (!overlay || !outline) return null;
   // The tab the program stops at next (1-based): from the job's progress, or the first before it runs.
-  const running = !!gcode && !!job && isCamncJobFile(job.file);
+  const running = !!gcode && !!job && isJobOfToolpath(job.file, gcode);
   // Programs that pause per part (freeing skins, tabs per part): the part being cut, or paused to be taken out.
+  const showGuidance = !job || running;
   const perPart = running ? takeOutAt(gcode!, job!.percent) : { part: 0, paused: false };
   const tabParts = [...new Set(overlay.tabs?.map(t => t.part))];
-  const cutting = overlay.tabsPerPart ? tabParts[perPart.part] : undefined;
-  const at = overlay.tabs && !overlay.tabsPerPart ? Math.max(1, running ? currentTab(gcode!, job!.percent) : 1) : 0;
+  const cutting = showGuidance && overlay.tabsPerPart ? tabParts[perPart.part] : undefined;
+  const at = showGuidance && overlay.tabs && !overlay.tabsPerPart ? Math.max(1, running ? currentTab(gcode!, job!.percent) : 1) : 0;
   const next = overlay.tabs?.find(t => t.index === at);
   const current = (t: { index: number; part: string }) => (overlay.tabsPerPart ? t.part === cutting : t.index === at);
   const past = (t: { index: number; part: string }) => (overlay.tabsPerPart ? tabParts.indexOf(t.part) < perPart.part : t.index < at);
-  const freeing = overlay.freeParts?.[perPart.part];
+  const freeing = showGuidance ? overlay.freeParts?.[perPart.part] : undefined;
   const firstOfPart = overlay.tabs?.find(t => t.part === cutting);
   // At a take-out pause: the part cut loose right after Resume, to hold down before pressing it.
   const nextFree = perPart.paused ? overlay.freeParts?.[perPart.part + 1] : undefined;
@@ -87,7 +90,7 @@ export function CamBoardOverlay() {
       <group position={[offset.x, offset.y, 0]}>
         <CamPartGhost overlay={overlay} running={running} />
         <Line points={outline} color={kOutline} lineWidth={2} dashed dashSize={6} gapSize={4} />
-        <CamBedLayer overlay={overlay} offset={offset} running={running} />
+        <CamBedLayer overlay={overlay} offset={offset} running={locked} />
         <CamHolds overlay={overlay} />
         {overlay.tabs?.map(t => (
           <mesh key={t.index} position={[t.at.x, t.at.y, 0.3]}>

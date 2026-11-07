@@ -13,8 +13,8 @@ export function TryDemoCard() {
       <CardHeader>
         <CardTitle>Explore a demo machine</CardTitle>
         <CardDescription>
-          Practice machine controls with a simulated FluidNC and a recorded camera example. Bring your own G-code if you like. Demo changes
-          are discarded.
+          Practice machine controls with a simulated FluidNC and a recorded camera example. Bring your own G-code if you like. Machine
+          settings are discarded; demo projects save locally in this browser.
         </CardDescription>
       </CardHeader>
       <CardContent>

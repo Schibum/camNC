@@ -1,0 +1,31 @@
+{
+  "package": "@salusoft89/planegcs",
+  "version": "1.3.0",
+  "npmGitHead": "9d26baef0b240fe0eef4186d4e5e5e66ec3620b7",
+  "freecadCommit": "5f8eac49f31626354ee69bf40616bac801ca5560",
+  "npmTarball": "https://registry.npmjs.org/@salusoft89/planegcs/-/planegcs-1.3.0.tgz",
+  "upstreamSource": "https://github.com/Salusoft89/planegcs/tree/9d26baef0b240fe0eef4186d4e5e5e66ec3620b7",
+  "sourceArchive": "planegcs-1.3.0-source.tgz",
+  "sourceArchiveSha256": "9b027806da541f74fd094fad0fd6011df9300f1e4362344d957383434068e853",
+  "wasmSha256": "af9d1874fc895726bd267703a698a86c82d35b7415a02fe5184ebf65ddbc04af",
+  "files": {
+    "Boost-1.0.txt": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566",
+    "Eigen-MPL-2.0.txt": "fab3dd6bdab226f1c08630b1dd917e11fcb4ec5e1e020e2c16f83a0a13863e85",
+    "Emscripten-LICENSE.txt": "620a78084fc7ca97c0b5dea9abf891f3ffcadfdbf305276f099c9c4e12fc1d86",
+    "FreeCAD-LGPL-2.0.txt": "cc535c21133c895b56b374c8a1dc1eb948d99003ed2b47372069456b62f42b24",
+    "PlaneGCS-LGPL-2.1.txt": "20c17d8b8c48a600800dfd14f95d5cb9ff47066a9641ddeab48dc54aec96e331",
+    "planegcs-1.3.0-source.tgz": "9b027806da541f74fd094fad0fd6011df9300f1e4362344d957383434068e853"
+  },
+  "buildDependencies": {
+    "emscripten": "6.0.10 (upstream Dockerfile)",
+    "Eigen": "3.x; precise package version not recorded by upstream",
+    "Boost": "precise package version not recorded by upstream"
+  },
+  "licenseSources": {
+    "PlaneGCS-LGPL-2.1.txt": "Installed @salusoft89/planegcs@1.3.0/LICENSE (byte-identical)",
+    "FreeCAD-LGPL-2.0.txt": "https://www.gnu.org/licenses/old-licenses/lgpl-2.0.txt",
+    "Boost-1.0.txt": "https://www.boost.org/LICENSE_1_0.txt",
+    "Eigen-MPL-2.0.txt": "https://raw.githubusercontent.com/eigenteam/eigen-git-mirror/master/COPYING.MPL2",
+    "Emscripten-LICENSE.txt": "https://raw.githubusercontent.com/emscripten-core/emscripten/6.0.10/LICENSE"
+  }
+}

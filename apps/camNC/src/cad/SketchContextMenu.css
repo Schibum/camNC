@@ -1,0 +1,48 @@
+.cad-context-anchor {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.cad-context-menu {
+  z-index: 70;
+  min-width: 210px;
+  max-width: calc(100vw - 16px);
+  padding: 4px;
+  background: white;
+  color: #273444;
+  border: 1px solid #ccd5df;
+  border-radius: 5px;
+  box-shadow: 0 6px 22px #172b4d24;
+}
+.cad-context-menu .cad-context-item {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.cad-context-menu .cad-context-item > svg {
+  width: 20px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.cad-context-menu [role='menuitemcheckbox'] {
+  padding-left: 36px;
+}
+.cad-context-menu [data-highlighted] {
+  background: #e8f1fb;
+  color: #143f70;
+}
+.cad-context-menu [data-disabled] {
+  opacity: 0.45;
+}
+.cad-context-menu [data-slot='dropdown-menu-shortcut'] {
+  margin-left: auto;
+  padding-left: 16px;
+  color: #788698;
+  font-size: 11px;
+}

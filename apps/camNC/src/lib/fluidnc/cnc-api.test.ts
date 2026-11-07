@@ -92,6 +92,16 @@ describe('CncApi', () => {
     expect(fake.received.at(-1)).toBe('G90');
   });
 
+  it('does not claim a new current zero when G10 is rejected', async () => {
+    const fake = new FakeFluidnc('v4');
+    const api = await connected(fake);
+    const before = { ...(await api.getCurrentZero()) };
+    fake.respond = line => (line.startsWith('G21 G10 L2') ? ['error:20'] : undefined);
+    await expect(api.setWorkspaceXYZero(412, 533)).rejects.toThrow();
+    expect(api.currentZero.value).toEqual(before);
+    expect(fake.wco).toEqual({ x: before.x, y: before.y, z: before.z });
+  });
+
   it('jogs to a clicked point at the XY max rate', async () => {
     const fake = new FakeFluidnc('v4');
     fake.respond = line =>

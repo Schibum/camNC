@@ -1,0 +1,596 @@
+[
+  {
+    "id": "sketch/draw/drag-line",
+    "title": "Press, drag and release draws one line and the tool stays armed",
+    "evidence": "reference-live 2026-11-06; reference-docs Sketch/line.htm",
+    "steps": [
+      "key l",
+      "drag 20,40 80,40",
+      {
+        "expect": {
+          "entities": [
+            {
+              "type": "line",
+              "a": [
+                20,
+                40
+              ],
+              "b": [
+                80,
+                40
+              ]
+            }
+          ],
+          "tool": "line",
+          "focus": "canvas"
+        }
+      },
+      "drag 20,70 80,70",
+      {
+        "expect": {
+          "entityCount": 2
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/draw/drag-rectangle",
+    "title": "Press, drag and release draws a closed corner rectangle",
+    "evidence": "reference-live 2026-11-06; reference-docs Sketch/corner_rectangle.htm",
+    "steps": [
+      "key g",
+      "drag 20,20 80,60",
+      {
+        "expect": {
+          "entityCount": 4,
+          "regions": 1,
+          "tool": "corner rectangle"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/draw/drag-circle",
+    "title": "Press, drag and release draws a circle and leaves no stuck preview",
+    "evidence": "reference-live 2026-11-06",
+    "steps": [
+      "key c",
+      "drag 60,60 90,60",
+      {
+        "expect": {
+          "entities": [
+            {
+              "type": "circle",
+              "c": [
+                60,
+                60
+              ],
+              "r": 30
+            }
+          ],
+          "regions": 1,
+          "tool": "circle",
+          "previewCount": 0
+        }
+      },
+      "key Escape",
+      "key Escape",
+      {
+        "expect": {
+          "tool": "select"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/draw/click-chain",
+    "title": "Click-click lines chain from the last endpoint until Escape",
+    "evidence": "reference-docs Sketch/line.htm",
+    "steps": [
+      "key l",
+      "click 20,20",
+      "click 80,20",
+      "click 80,60",
+      "key Escape",
+      "key Escape",
+      {
+        "expect": {
+          "entities": [
+            {
+              "type": "line",
+              "a": [
+                20,
+                20
+              ],
+              "b": [
+                80,
+                20
+              ]
+            },
+            {
+              "type": "line",
+              "a": [
+                80,
+                20
+              ],
+              "b": [
+                80,
+                60
+              ]
+            }
+          ],
+          "tool": "select"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/draw/close-triangle",
+    "title": "Closing a chain shades the bounded region straight away",
+    "evidence": "reference-report edit-shapes-native",
+    "steps": [
+      "key l",
+      "click 20,20",
+      "click 100,20",
+      "click 60,70",
+      "click 20,20",
+      "key Escape",
+      "key Escape",
+      {
+        "expect": {
+          "entityCount": 3,
+          "regions": 1
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/draw/center-rectangle",
+    "title": "A center rectangle is placed from its center and a corner",
+    "evidence": "reference-docs keyboard shortcuts; reference-live via Codex transcript",
+    "steps": [
+      "key r",
+      "click 80,60",
+      "click 110,80",
+      "key Escape",
+      "key Escape",
+      {
+        "expect": {
+          "regions": 1,
+          "entitiesInclude": [
+            {
+              "type": "line",
+              "a": [
+                50,
+                40
+              ],
+              "b": [
+                110,
+                40
+              ]
+            },
+            {
+              "type": "line",
+              "a": [
+                50,
+                80
+              ],
+              "b": [
+                110,
+                80
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/draw/three-point-arc",
+    "title": "A goes start, end, then a point on the arc",
+    "evidence": "reference-report via Codex transcript 2026-11-06",
+    "steps": [
+      "arc 120,40 80,40 100,60",
+      {
+        "expect": {
+          "entities": [
+            {
+              "type": "arc",
+              "c": [
+                100,
+                40
+              ],
+              "r": 20,
+              "a": [
+                120,
+                40
+              ],
+              "b": [
+                80,
+                40
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/draw/line-a-line",
+    "title": "L, click, A continues directly from the line's end",
+    "evidence": "manu 2026-11-06; reference-live via Codex transcript",
+    "steps": [
+      "key l",
+      "click 20,20",
+      "click 60,20",
+      "key a",
+      "click 60,60",
+      "click 80,40",
+      "key Escape",
+      "key Escape",
+      {
+        "expect": {
+          "entitiesInclude": [
+            {
+              "type": "line",
+              "a": [
+                20,
+                20
+              ],
+              "b": [
+                60,
+                20
+              ]
+            },
+            {
+              "type": "arc",
+              "a": [
+                60,
+                20
+              ],
+              "b": [
+                60,
+                60
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/draw/tangent-continuation",
+    "title": "Shift+A while drawing a line makes a tangent arc and returns to Line",
+    "evidence": "reference-docs Sketch/line.htm",
+    "steps": [
+      "key l",
+      "click 20,20",
+      "click 60,20",
+      "key Shift+a",
+      "click 60,60",
+      {
+        "expect": {
+          "tool": "line",
+          "constraintsAtLeast": {
+            "tangent": 1
+          },
+          "entitiesInclude": [
+            {
+              "type": "arc",
+              "a": [
+                60,
+                20
+              ],
+              "b": [
+                60,
+                60
+              ],
+              "r": 20
+            }
+          ]
+        }
+      },
+      "click 20,60",
+      "key Escape",
+      "key Escape",
+      {
+        "expect": {
+          "entitiesInclude": [
+            {
+              "type": "line",
+              "a": [
+                60,
+                60
+              ],
+              "b": [
+                20,
+                60
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/draw/hover-inference-persists",
+    "title": "Snapping a line's end to a hovered endpoint's alignment saves a relation",
+    "evidence": "manu 2026-11-06; reference-docs Sketch/automatic_inferencing.htm",
+    "steps": [
+      "line 40,20 40,80",
+      "key l",
+      "click 80,50",
+      "hover 40,80",
+      "hover 90,80",
+      "click 90,80",
+      "key Escape",
+      "key Escape",
+      {
+        "expect": {
+          "constraintsAtLeast": {
+            "horizontalPoints": 1
+          },
+          "entityCount": 2
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/draw/shift-suppresses-inference",
+    "title": "Holding Shift while drawing keeps a nearly horizontal line free",
+    "evidence": "reference-docs keyboard shortcuts",
+    "steps": [
+      "line 20,40 120,41",
+      {
+        "expect": {
+          "constraintsAtLeast": {
+            "horizontal": 1
+          }
+        }
+      },
+      "key Control+z",
+      "key l",
+      "hold Shift",
+      "click 20,60",
+      "click 120,62",
+      "release Shift",
+      "key Escape",
+      "key Escape",
+      {
+        "expect": {
+          "constraintsNone": [
+            "horizontal"
+          ],
+          "entitiesInclude": [
+            {
+              "type": "line",
+              "a": [
+                20,
+                60
+              ],
+              "b": [
+                120,
+                62
+              ],
+              "tol": 0.8
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/draw/degenerate-ignored",
+    "title": "Zero-size shapes create nothing and explain why",
+    "evidence": "design a sketch must never hold zero-size geometry",
+    "steps": [
+      "key g",
+      "click 40,40",
+      "click 40,40",
+      {
+        "expect": {
+          "entityCount": 0,
+          "status": "greater than zero"
+        }
+      },
+      "key Escape",
+      "key Escape",
+      "key c",
+      "click 40,40",
+      "click 40,40",
+      {
+        "expect": {
+          "entityCount": 0,
+          "status": "greater than zero"
+        }
+      },
+      "key Escape",
+      "key Escape",
+      "key a",
+      "click 20,40",
+      "click 80,40",
+      "click 50,40",
+      {
+        "expect": {
+          "entityCount": 0,
+          "status": "straight line"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/draw/value-after-line",
+    "title": "Typing right after drawing a line makes a driving length without stealing focus first",
+    "evidence": "reference-report native-drawing-values",
+    "steps": [
+      "key l",
+      "drag 20,40 80,40",
+      {
+        "expect": {
+          "focus": "canvas"
+        }
+      },
+      "type 50",
+      "key Enter",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "value": 50
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/draw/value-after-rectangle",
+    "title": "Width then height can be typed right after drawing a rectangle",
+    "evidence": "reference-report native-drawing-values",
+    "steps": [
+      "key g",
+      "drag 20,20 80,60",
+      "type 60",
+      "key Enter",
+      "type 30",
+      "key Enter",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "value": 60
+            },
+            {
+              "value": 30
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/draw/value-after-circle",
+    "title": "Typing right after drawing a circle sets a driving diameter",
+    "evidence": "reference-report native-drawing-values",
+    "steps": [
+      "key c",
+      "drag 60,60 80,60",
+      "type 40",
+      "key Enter",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "kind": "diameter",
+              "value": 40
+            }
+          ],
+          "entitiesInclude": [
+            {
+              "type": "circle",
+              "r": 20
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/draw/passive-value-keeps-shortcuts",
+    "title": "The passive value after drawing doesn't block the next tool shortcut",
+    "evidence": "reference-report native-drawing-values",
+    "steps": [
+      "key l",
+      "drag 20,40 80,40",
+      "key g",
+      {
+        "expect": {
+          "tool": "corner rectangle",
+          "dimensions": []
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/draw/spline-escape-keeps-points",
+    "title": "Escape after placing spline points keeps the spline",
+    "evidence": "reference-live 2026-11-06; Codex native check: Escape keeps the points and leaves the tool armed, a second Escape exits",
+    "steps": [
+      "tool Spline",
+      "click 40,30",
+      "click 80,70",
+      "click 120,30",
+      "key Escape",
+      {
+        "expect": {
+          "entities": [
+            {
+              "type": "spline",
+              "a": [
+                40,
+                30
+              ],
+              "b": [
+                120,
+                30
+              ]
+            }
+          ],
+          "tool": "spline"
+        }
+      },
+      "key Escape",
+      {
+        "expect": {
+          "tool": "select"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/draw/bezier-escape-keeps-points",
+    "title": "Escape after placing Bezier points keeps the curve and the tool",
+    "evidence": "Codex native check 2026-11-06",
+    "steps": [
+      "tool Bezier",
+      "click 40,30",
+      "click 80,70",
+      "click 120,30",
+      "key Escape",
+      {
+        "expect": {
+          "entities": [
+            {
+              "type": "bezier",
+              "a": [
+                40,
+                30
+              ],
+              "b": [
+                120,
+                30
+              ]
+            }
+          ],
+          "tool": "bezier"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/draw/arc-escape-cancels-incomplete",
+    "title": "Escape on a two-click arc cancels it",
+    "evidence": "Codex native check 2026-11-06",
+    "steps": [
+      "key a",
+      "click 40,30",
+      "click 120,30",
+      "key Escape",
+      {
+        "expect": {
+          "entityCount": 0
+        }
+      }
+    ]
+  }
+]

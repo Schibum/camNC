@@ -8,6 +8,7 @@ export interface BlockContext {
   bit: number;
   /** Parts that don't fit their board and aren't left out on purpose, of all boards. */
   missing: MissingPart[];
+  sourceKey?: string;
 }
 
 /** Broken safety rules of the guided programs after the board's cutting. */
@@ -25,11 +26,21 @@ export function unstable(plan: PlanResult | undefined) {
 }
 
 /** What's wrong with the board's layout, whatever its programs are. */
-export function layoutBlock(b: Pick<JobBoard, 'board' | 'nest'>, { bit, missing }: BlockContext): string | null {
+export function layoutBlock(b: Pick<JobBoard, 'board' | 'nest'>, { bit, missing, sourceKey }: BlockContext): string | null {
+  if (b.board.cut?.sourceKey && sourceKey && b.board.cut.sourceKey !== sourceKey)
+    return 'This board was cut from an earlier design. Start over on Boards with a new physical sheet before using this design.';
+  const sizeProblem = boardSizeProblem(b);
+  if (sizeProblem) return sizeProblem;
   const own = missing.filter(m => m.board === b.board.name);
   if (own.length)
     return `${own.map(m => m.name).join(', ')} ${own.length === 1 ? 'doesn’t' : 'don’t'} fit on board ${b.board.name} and would not be cut.`;
   return spacingProblem(b.board, b.nest, bit);
+}
+
+export function boardSizeProblem(b: Pick<JobBoard, 'board' | 'nest'>): string | null {
+  return b.nest.machineFits === false
+    ? `Board ${b.board.name} is larger than the machine work area. Resize the board or use a larger machine before cutting.`
+    : null;
 }
 
 /** What's wrong with the board's programs: side A, side B and the guided ones after them. */
@@ -49,5 +60,5 @@ export function planBlock(plan: PlanResult): string | null {
 
 /** Why the board can't be cut, or null. `plan`: its programs, when it has any. */
 export function boardBlock(b: Pick<JobBoard, 'board' | 'nest'>, plan: PlanResult | undefined, context: BlockContext): string | null {
-  return layoutBlock(b, context) ?? (plan ? planBlock(plan) : null);
+  return layoutBlock(b, { ...context, sourceKey: context.sourceKey ?? plan?.sourceKey }) ?? (plan ? planBlock(plan) : null);
 }

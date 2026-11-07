@@ -7,7 +7,8 @@ import { useBoardPlans, useCamJob, useCamModel, useSaveCamJob } from '@/cam/camQ
 import type { BoardRequest, CamPartInfo, OpSummary, PlanResult, ReleaseProgram } from '@/cam/camTypes';
 import type { FlipRegistration } from '@wbcnc/cam';
 import { missingParts, useJobBoards, type MissingPart } from '@/cam/useJobBoards';
-import { layoutBlock, loose, planBlock, releaseProblems, unstable } from '@/cam/boardBlock';
+import { boardSizeProblem, layoutBlock, loose, planBlock, releaseProblems, unstable } from '@/cam/boardBlock';
+import { boardGeometryKey } from '@/cam/cadDesign';
 import { cutBoardWith, edgeNote, freezeSpacing, isCut, spacingProblem } from '@/cam/boards';
 import { CutBadge } from '@/cam/boards/CutBadge';
 import { orderBoardQueue } from '@wbcnc/cam/board';
@@ -21,9 +22,10 @@ import { PlanView3D } from '@/cam/plan3d/PlanView3D';
 import { usePlanPlayback } from '@/cam/plan3d/planPlayback';
 import { formatDuration } from '@/visualize/stockSim/jobTimeline';
 import { jobCutting, kDefaultPlan, withHoleChoice, type PlanSettingsV1 } from '@/cam/planSettings';
+import { holeChoiceKey } from '@/cam/holeChoices';
 import { BitChip } from '@/cam/plan/BitPicker';
 import { clearMachineView, loadIntoMachineView } from '@/cam/showOnMachine';
-import { useCamMachine } from '@/cam/machine/camMachine';
+import { isManufacturingLocked, useCamMachine } from '@/cam/machine/camMachine';
 import { selectMachineBounds, useStore } from '@/store/store';
 import { createFileRoute, Link, useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { zodValidator } from '@tanstack/zod-adapter';
@@ -59,7 +61,9 @@ function PlanStep() {
   const [side, setSide] = useState<'a' | 'b'>('a');
   const save = useSaveCamJob(job);
   const { boards, instances } = useJobBoards(job, model.data);
-  const active = boards.filter(b => b.request.parts.length);
+  const executable = boards.filter(b => b.request.parts.length);
+  // Keep repair/include actions reachable when no part is currently executable.
+  const active = executable.length ? executable : boards.filter(b => b.board.items.length);
   const plans = useBoardPlans(
     job,
     active.map(b => ({ request: b.request, material: b.board.material })),
@@ -87,9 +91,22 @@ function PlanStep() {
   // Parts that don't fit their board are not cut: the job is blocked until they fit or are left out on purpose.
   const missing = missingParts(boards, instances);
   const unresolved = missing.filter(m => !settings.leaveOut?.includes(m.id));
-  const tight = boards.flatMap(b => spacingProblem(b.board, b.nest, settings.bit.diameter) ?? []);
+  const tight = boards.flatMap(b =>
+    [spacingProblem(b.board, b.nest, settings.bit.diameter), boardSizeProblem(b)].filter((s): s is string => !!s)
+  );
   const edges = boards.flatMap(b => edgeNote(b.board, b.nest, settings.bit.diameter) ?? []);
-  const blocked = boards.some(b => layoutBlock(b, { bit: settings.bit.diameter, missing: unresolved }));
+  const layoutProblems = boards.flatMap(
+    b =>
+      layoutBlock(b, {
+        bit: settings.bit.diameter,
+        missing: unresolved,
+        sourceKey: boardGeometryKey(
+          job,
+          b.request.parts.map(p => p.partId)
+        ),
+      }) ?? []
+  );
+  const blocked = layoutProblems.length > 0;
   // The last programs stay shown while settings change, but only fresh ones go to the machine or a file.
   const ready = plans.every(p => p.data && !p.isPlaceholderData);
   // Queue: start with the main bit, then boards that start with the bit the last one ended with.
@@ -141,7 +158,10 @@ function PlanStep() {
       }),
     });
   const showOnMachine = () => {
+    if (isManufacturingLocked()) return;
     if (!result || !safe) return;
+    useCamMachine.getState().start(job.id);
+    useCamMachine.getState().setActive(`${current.board.id}${onSideB ? ':b' : ''}:bit:0`);
     const first = result.programs[0];
     loadIntoMachineView({ ...result, gcode: first.gcode, bits: [first.diameter] }, programName(first));
     toMachineView(current.board.id);
@@ -196,6 +216,11 @@ function PlanStep() {
   const cut = queue.filter(e => isCut(e.board));
   return (
     <Shell bar={bar}>
+      {layoutProblems.some(problem => problem.includes('earlier design')) && (
+        <p role="alert" className="border-b border-destructive/40 bg-destructive/5 px-4 py-2 text-sm text-destructive">
+          A board was cut from an earlier design. Start over on Boards with a new physical sheet before using the changed design.
+        </p>
+      )}
       {rehearsed && (
         <p role="status" className="border-b bg-primary/5 px-4 py-2 text-sm">
           Back in your saved project. Rehearsal progress was discarded; your cut history is unchanged.
@@ -305,7 +330,9 @@ function PlanStep() {
               missing={unresolved}
               tight={tight}
               edges={edges}
-              onLeaveOut={() => save.mutate({ ...job, plan: { ...settings, leaveOut: missing.map(m => m.id) } })}
+              onLeaveOut={() =>
+                savePlan({ ...settings, leaveOut: [...new Set([...(settings.leaveOut ?? []), ...unresolved.map(m => m.id)])] })
+              }
             />
           </>
         }
@@ -314,6 +341,10 @@ function PlanStep() {
             <p role="alert" className="flex gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3.5 text-[13px]">
               <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
               Board {current.board.name} couldn’t be planned: {current.error.message}
+            </p>
+          ) : !current.request.parts.length ? (
+            <p role="status" className="rounded-lg border bg-muted/30 p-4 text-sm">
+              No executable parts on this board. Include excluded parts again or repair their placement on Boards.
             </p>
           ) : !result ? (
             <div className="flex flex-1 items-center justify-center gap-2 text-muted-foreground">
@@ -340,13 +371,20 @@ function PlanStep() {
                 releaseSafety={releaseSafety}
                 partOf={instance => current.request.parts.find(p => p.id === instance)}
                 canClearHole={partId =>
+                  !current.stale &&
+                  !current.fetching &&
                   !cutBoardWith(
                     boards.map(b => b.board),
                     instances,
                     partId
                   )
                 }
-                onClearHole={(partId, hole) => savePlan(withHoleChoice(settings, partId, hole, 'clear'))}
+                onClearHole={(partId, hole) => {
+                  if (current.stale || current.fetching) return;
+                  const part = model.data.parts.find(part => part.id === partId);
+                  const key = part && holeChoiceKey(part, hole);
+                  if (key !== undefined) savePlan(withHoleChoice(settings, partId, key, 'clear'));
+                }}
               />
               <p className="text-xs text-muted-foreground">
                 {result.programs.length > 1
@@ -593,7 +631,7 @@ function MissingBanner({
         {fix}
         {missing.length > 0 && !tight.length && (
           <Hint
-            text={`The job goes ahead without ${missing.length === 1 ? 'this part' : 'these parts'}: ${missing.length === 1 ? 'it isn’t' : 'they aren’t'} cut. Fit ${missing.length === 1 ? 'it' : 'them'} on Boards to cut ${missing.length === 1 ? 'it' : 'them'} after all.`}>
+            text={`The job goes ahead without ${missing.length === 1 ? 'this part' : 'these parts'}: ${missing.length === 1 ? 'it isn’t' : 'they aren’t'} cut. The exclusion stays until you choose Include again, even after fitting ${missing.length === 1 ? 'it' : 'them'} on Boards.`}>
             <Button size="sm" variant="ghost" onClick={onLeaveOut}>
               Leave {missing.length === 1 ? 'it' : 'them'} out
             </Button>

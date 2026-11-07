@@ -1,6 +1,8 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { getCncApi } from '@/lib/fluidnc/machine';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { runResume, prepareResume } from '@/lib/machine/jobs';
+import { dismissInterruptedJob } from '@/lib/machine/jobRecovery';
 import { ResumeJobCard } from './ResumeJobCard';
 
 const kCamJob = [
@@ -54,7 +56,7 @@ vi.mock('@/lib/machine/jobs', () => ({
   runResume: vi.fn(),
 }));
 vi.mock('@/lib/machine/jobRecovery', () => ({
-  dismissInterruptedJob: () => {},
+  dismissInterruptedJob: vi.fn(),
   interruptedJob: {
     get value() {
       return state.job;
@@ -66,6 +68,7 @@ afterEach(() => {
   cleanup();
   vi.clearAllMocks();
   const api = getCncApi();
+  api.host.value = 'cnc.local';
   api.status.value = { wco: zero } as typeof api.status.value;
 });
 
@@ -112,4 +115,32 @@ describe('ResumeJobCard', () => {
     // Line 12 without the three marker lines.
     expect(restartLine()).toBe('9');
   });
+});
+
+it('P2 retains Dismiss for an interruption on another controller without offering machine actions', () => {
+  state.job = jobFor(kCamJob);
+  getCncApi().host.value = 'other.local';
+  render(<ResumeJobCard />);
+  fireEvent.click(screen.getByRole('button', { name: 'Dismiss interrupted job' }));
+  expect(dismissInterruptedJob).toHaveBeenCalledOnce();
+  expect(screen.getByText(/^Interrupted job on cnc.local$/)).toBeTruthy();
+  expect(screen.queryByRole('button', { name: /Preview and resume/ })).toBeNull();
+  expect(screen.queryByRole('button', { name: /Restore XY/ })).toBeNull();
+});
+it('P1/P9 shows a refused resume and describes its unique execution file', async () => {
+  state.job = jobFor(kCamJob);
+  vi.mocked(prepareResume).mockReturnValue({
+    gcode: kCamJob,
+    preambleLines: 1,
+    start: { x: 0, y: 0, z: 0 },
+    warnings: [],
+    travel: null,
+  } as ReturnType<typeof prepareResume>);
+  vi.mocked(runResume).mockRejectedValue(new Error('The interrupted execution receipt was replaced.'));
+  render(<ResumeJobCard />);
+  fireEvent.click(screen.getByRole('button', { name: /Preview and resume/ }));
+  const dialog = screen.getByRole('alertdialog');
+  expect(dialog.textContent).not.toContain('camnc-resume.gcode');
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Resume job' }));
+  await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('receipt was replaced'));
 });

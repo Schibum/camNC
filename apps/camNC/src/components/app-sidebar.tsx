@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { Box, Bug, Cctv, Grid2x2, Gauge, HardDriveDownload, Layers, Puzzle, Rocket, Scale3d, Wrench } from 'lucide-react';
+import { Box, Bug, Cctv, Grid2x2, Gauge, HardDriveDownload, Info, Layers, Puzzle, Rocket, Scale3d, Wrench } from 'lucide-react';
 import * as React from 'react';
 
 import { useLocation } from '@tanstack/react-router';
@@ -100,6 +100,8 @@ const settingsRoutes: NavRoute[] = [
   },
 ];
 
+const helpRoutes: NavRoute[] = [{ title: 'About', to: '/about', icon: Info }];
+
 function NavRoutes({ routes, label }: { routes: NavRoute[]; label: string }) {
   return (
     <SidebarGroup>
@@ -158,6 +160,7 @@ export function AppSidebar({ className, ...props }: AppSidebarProps) {
         <NavRoutes routes={machineRoutes} label="Machine" />
         <NavRoutes routes={cameraRoutes} label="Camera (optional)" />
         <NavRoutes routes={settingsRoutes} label="Settings" />
+        <NavRoutes routes={helpRoutes} label="Help" />
       </SidebarContent>
       <SidebarAuthStatus />
     </Sidebar>

@@ -163,7 +163,7 @@ export function BoardOverlay({
       if ((next.w > shown.w || next.h > shown.h) && !fits(next)) return;
       setDraft(next);
       onResizing(
-        `${next.w} × ${next.h} mm · ${((next.w * next.h) / 1e6).toFixed(2)} m² · ${Math.round((100 * parts) / (next.w * next.h))} % yield`
+        `${next.w} × ${next.h} mm · ${((next.w * next.h) / 1e6).toFixed(2)} m² · ${Math.min(100, Math.round((100 * parts) / (next.w * next.h)))} % yield`
       );
     },
     onPointerUp: (e: React.PointerEvent) => {

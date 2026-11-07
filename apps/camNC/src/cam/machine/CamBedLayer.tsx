@@ -24,7 +24,7 @@ import {
   type Axis,
   type BedNote,
 } from './bedEdit';
-import { useCamMachine, type BoardOverlay } from './camMachine';
+import { isManufacturingLocked, useCamMachine, type BoardOverlay } from './camMachine';
 
 type P2 = { x: number; y: number };
 type Controls = { enabled: boolean } | null;
@@ -71,6 +71,7 @@ function useWindowDrag() {
   const el = useThree(s => s.gl.domElement);
   const controls = useThree(s => s.controls) as Controls;
   return (e: ThreeEvent<PointerEvent>, h: DragHandlers) => {
+    if (isManufacturingLocked()) return;
     e.stopPropagation();
     const from = bedAt(e.nativeEvent.clientX, e.nativeEvent.clientY, camera, el);
     if (!from) return;
@@ -79,6 +80,7 @@ function useWindowDrag() {
     let last: P2 | null = from;
     if (controls) controls.enabled = false;
     const onMove = (ev: PointerEvent) => {
+      if (isManufacturingLocked()) return;
       if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) < kTapPx) return;
       moved = true;
       last = bedAt(ev.clientX, ev.clientY, camera, el) ?? last;
@@ -90,6 +92,10 @@ function useWindowDrag() {
       window.removeEventListener('pointercancel', done);
       window.removeEventListener('blur', done);
       if (controls) controls.enabled = true;
+      if (isManufacturingLocked()) {
+        useStore.getState().setIsToolpathDragging(false);
+        return;
+      }
       h.end(moved, last);
     };
     window.addEventListener('pointermove', onMove);

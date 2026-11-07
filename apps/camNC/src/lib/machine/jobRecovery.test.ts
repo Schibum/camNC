@@ -1,5 +1,6 @@
 import { FakeFluidnc } from '@wbcnc/fluidnc/testing';
 import { afterEach, describe, expect, it } from 'vitest';
+import { isManufacturingLocked, useCamMachine } from '@/cam/machine/camMachine';
 import { CncApi } from '../fluidnc/cnc-api';
 import { clearJobRecord, loadJobProgress, loadJobRecord, saveJobRecord } from './jobRecord';
 import { interruptedJob, noteJobStopRequested, watchJobRecovery } from './jobRecovery';
@@ -86,3 +87,33 @@ describe('watchJobRecovery', () => {
     await until(async () => (await loadJobRecord(fake.host)) === null);
   });
 });
+
+it('N3 restores and reserves a native interrupted setup from its durable record before offering Resume after reload', async () => {
+  const { fake, api } = await runningJob();
+  const record = (await loadJobRecord(fake.host))!;
+  const snapshot = {
+    jobId: 'reload-native',
+    sourceKey: 'reload-native:cad:1',
+    designRevision: 1,
+    active: 'old-board:bit:0',
+    doneId: 'old-program',
+    gcode: record.gcode,
+    queue: [],
+    parts: [],
+    instances: [],
+    nestBit: 3,
+    overlay: { w: 100, h: 80, rotationDeg: 12, boardId: 'old-board' },
+  };
+  await saveJobRecord({ ...record, camSnapshot: snapshot });
+  // Reload intentionally omits large in-memory snapshots while the IndexedDB record survives.
+  useCamMachine.setState({ jobId: snapshot.jobId, active: snapshot.active, runSnapshot: null, loadedSnapshot: null });
+  fake.kill();
+  fake.job = null;
+  fake.state = 'Alarm';
+  await until(() => api.connection.value !== 'connected');
+  fake.pushStatus();
+  await until(() => interruptedJob.value !== null, 10_000);
+  expect(useCamMachine.getState().runSnapshot).toEqual(snapshot);
+  expect(useCamMachine.getState().overlay).toEqual(snapshot.overlay);
+  expect(isManufacturingLocked()).toBe(true);
+}, 15_000);

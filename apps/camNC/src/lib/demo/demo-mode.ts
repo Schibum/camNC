@@ -6,7 +6,21 @@
  * Demo mode must never touch a real user's settings. The settings storage, the sync gate and the
  * settings API all check {@link isDemoMode}.
  */
-import { detectDemoContext, kDemoFlag, kNoCameraFlag, kRehearsalFlag } from './demo-context';
+import { detectDemoContext, shouldUseLocalPreviewDemo, kDemoFlag, kNoCameraFlag, kRehearsalFlag } from './demo-context';
+import { isDesktopApp } from '../desktop/is-desktop';
+
+// This must be decided before store imports hydrate settings or auth consumers mount.
+// Browser unit tests explicitly control their demo context through setDemoModeForTest.
+const localPreview =
+  typeof location !== 'undefined' &&
+  // MODE is supplied by Vite from the command mode, not a process environment input.
+  // eslint-disable-next-line turbo/no-undeclared-env-vars
+  import.meta.env.MODE !== 'test' &&
+  shouldUseLocalPreviewDemo(new URL(location.href), {
+    publishableKey: import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
+    desktop: isDesktopApp(),
+  });
+export const isLocalPreviewDemo = () => localPreview;
 
 const context =
   typeof location === 'undefined'
@@ -19,7 +33,8 @@ const context =
           } catch {
             return null;
           }
-        })()
+        })(),
+        { localPreview }
       );
 let demoMode = context.demo;
 export const getRehearsalId = () => context.rehearsalId;

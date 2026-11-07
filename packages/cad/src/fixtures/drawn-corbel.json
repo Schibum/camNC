@@ -1,0 +1,283 @@
+{
+  "version": 1,
+  "id": "drawn-corbel",
+  "name": "Untitled design",
+  "revision": 17,
+  "parts": [
+    {
+      "id": "corbel-part",
+      "name": "Corbel A \u00b7 curved-03",
+      "thickness": 18,
+      "sketch": {
+        "id": "corbel-sketch",
+        "entities": [
+          {
+            "id": "corbel-sketch:origin",
+            "type": "point",
+            "x": 0,
+            "y": 0,
+            "fixed": true,
+            "construction": true
+          },
+          {
+            "id": "point-2",
+            "type": "point",
+            "x": 22,
+            "y": 0,
+            "construction": false
+          },
+          {
+            "id": "point-3",
+            "type": "point",
+            "x": 88,
+            "y": 0,
+            "construction": false
+          },
+          {
+            "id": "line-1",
+            "type": "line",
+            "startId": "point-2",
+            "endId": "point-3",
+            "construction": false
+          },
+          {
+            "id": "point-4",
+            "type": "point",
+            "x": 88,
+            "y": 22.000000000000004,
+            "construction": false
+          },
+          {
+            "id": "point-5",
+            "type": "point",
+            "x": 110,
+            "y": 22,
+            "construction": false
+          },
+          {
+            "id": "arc-1",
+            "type": "arc",
+            "centerId": "point-4",
+            "startId": "point-3",
+            "endId": "point-5",
+            "radius": 22.000000000000004,
+            "startAngle": -1.5707963267948966,
+            "endAngle": -1.6148698540002277e-16,
+            "construction": false
+          },
+          {
+            "id": "point-6",
+            "type": "point",
+            "x": 110.00000000000001,
+            "y": 77.9999989911544,
+            "construction": false
+          },
+          {
+            "id": "line-2",
+            "type": "line",
+            "startId": "point-5",
+            "endId": "point-6",
+            "construction": false
+          },
+          {
+            "id": "point-7",
+            "type": "point",
+            "x": 87.9999989911544,
+            "y": 77.9999989911544,
+            "construction": false
+          },
+          {
+            "id": "point-8",
+            "type": "point",
+            "x": 88,
+            "y": 100,
+            "construction": false
+          },
+          {
+            "id": "arc-2",
+            "type": "arc",
+            "centerId": "point-7",
+            "startId": "point-6",
+            "endId": "point-8",
+            "radius": 22.000001008845615,
+            "startAngle": 0,
+            "endAngle": 1.5707962809382805,
+            "construction": false
+          },
+          {
+            "id": "point-9",
+            "type": "point",
+            "x": 22.00000605307352,
+            "y": 100.00000302653639,
+            "construction": false
+          },
+          {
+            "id": "line-3",
+            "type": "line",
+            "startId": "point-8",
+            "endId": "point-9",
+            "construction": false
+          },
+          {
+            "id": "point-10",
+            "type": "point",
+            "x": 22.000005044227734,
+            "y": 77.99999798230866,
+            "construction": false
+          },
+          {
+            "id": "point-11",
+            "type": "point",
+            "x": 0,
+            "y": 77.9999989911544,
+            "construction": false
+          },
+          {
+            "id": "arc-3",
+            "type": "arc",
+            "centerId": "point-10",
+            "startId": "point-9",
+            "endId": "point-11",
+            "radius": 22.000005044227755,
+            "startAngle": 1.5707962809382805,
+            "endAngle": 3.141592607733179,
+            "construction": false
+          },
+          {
+            "id": "point-12",
+            "type": "point",
+            "x": -2.567970069413186e-06,
+            "y": 22.000006053072973,
+            "construction": false
+          },
+          {
+            "id": "line-4",
+            "type": "line",
+            "startId": "point-11",
+            "endId": "point-12",
+            "construction": false
+          },
+          {
+            "id": "point-13",
+            "type": "point",
+            "x": 22.000002476257276,
+            "y": 22.00000504422723,
+            "construction": false
+          },
+          {
+            "id": "arc-4",
+            "type": "arc",
+            "centerId": "point-13",
+            "startId": "point-12",
+            "endId": "point-2",
+            "radius": 22.000005044227365,
+            "startAngle": 3.141592607733179,
+            "endAngle": -1.5707964393520197,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "type": "horizontal",
+            "entityId": "line-1",
+            "id": "constraint-1"
+          },
+          {
+            "type": "horizontalPoints",
+            "pointAId": "corbel-sketch:origin",
+            "pointBId": "point-2",
+            "id": "constraint-2"
+          },
+          {
+            "type": "horizontalPoints",
+            "pointAId": "corbel-sketch:origin",
+            "pointBId": "point-3",
+            "id": "constraint-3"
+          },
+          {
+            "type": "tangent",
+            "entityAId": "line-1",
+            "entityBId": "arc-1",
+            "id": "constraint-4"
+          },
+          {
+            "type": "tangent",
+            "entityAId": "arc-1",
+            "entityBId": "line-2",
+            "id": "constraint-5"
+          },
+          {
+            "type": "tangent",
+            "entityAId": "line-2",
+            "entityBId": "arc-2",
+            "id": "constraint-6"
+          },
+          {
+            "type": "verticalPoints",
+            "pointAId": "point-4",
+            "pointBId": "point-8",
+            "id": "constraint-7"
+          },
+          {
+            "type": "tangent",
+            "entityAId": "arc-2",
+            "entityBId": "line-3",
+            "id": "constraint-8"
+          },
+          {
+            "type": "tangent",
+            "entityAId": "line-3",
+            "entityBId": "arc-3",
+            "id": "constraint-9"
+          },
+          {
+            "type": "horizontalPoints",
+            "pointAId": "point-7",
+            "pointBId": "point-11",
+            "id": "constraint-10"
+          },
+          {
+            "type": "verticalPoints",
+            "pointAId": "corbel-sketch:origin",
+            "pointBId": "point-11",
+            "id": "constraint-11"
+          },
+          {
+            "type": "tangent",
+            "entityAId": "arc-3",
+            "entityBId": "line-4",
+            "id": "constraint-12"
+          },
+          {
+            "type": "tangent",
+            "entityAId": "line-4",
+            "entityBId": "arc-4",
+            "id": "constraint-13"
+          },
+          {
+            "type": "distance",
+            "pointAId": "point-2",
+            "pointBId": "point-3",
+            "value": 66,
+            "label": "Length",
+            "id": "constraint-14",
+            "labelPosition": {
+              "x": 59.9999899115445,
+              "y": -15.00001008845561
+            }
+          },
+          {
+            "type": "radius",
+            "entityId": "arc-1",
+            "value": 22.000000000000004,
+            "id": "constraint-15",
+            "labelPosition": {
+              "x": 145.00000000000006,
+              "y": 69.99999999999997
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

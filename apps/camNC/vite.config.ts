@@ -55,6 +55,9 @@ export default defineConfig(({ command }) => {
     },
     plugins,
     optimizeDeps: {
+      // These plugin-injected/lazy imports escape the initial crawl. Discovering
+      // them during a sketch forces a reload and invalidates in-flight previews.
+      include: ['vite-plugin-node-polyfills/shims/global', '@preact/signals-react/runtime', 'occt-import-js'],
       // Without it, framer-motion's circular imports (via HeroUI) run out of order in dev
       // ("Class extends value undefined").
       rolldownOptions: { output: { strictExecutionOrder: true } },

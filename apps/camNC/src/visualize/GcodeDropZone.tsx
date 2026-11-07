@@ -1,3 +1,4 @@
+import { isManufacturingLocked } from '@/cam/machine/camMachine';
 import { useStore } from '@/store/store';
 import { toast } from '@wbcnc/ui/components/sonner';
 import { useEffect } from 'react';
@@ -26,6 +27,10 @@ export function GcodeDropZone() {
     const onDrop = async (e: DragEvent) => {
       if (!hasFiles(e)) return;
       e.preventDefault();
+      if (isManufacturingLocked()) {
+        toast.info('Review or dismiss the original machine job before loading another file.');
+        return;
+      }
       const file = e.dataTransfer?.files[0];
       if (!file) return;
       if (kModelFile.test(file.name)) {
@@ -38,7 +43,9 @@ export function GcodeDropZone() {
         toast.error(wrongFileMessage(window.location.pathname));
         return;
       }
-      useStore.getState().updateToolpath(await file.text(), file.name);
+      const gcode = await file.text();
+      if (isManufacturingLocked()) return;
+      useStore.getState().updateToolpath(gcode, file.name);
       toast.success(isDemoMode() ? `Loaded ${file.name}. It stays in your browser.` : `Loaded ${file.name}`);
     };
     window.addEventListener('dragover', onDragOver);

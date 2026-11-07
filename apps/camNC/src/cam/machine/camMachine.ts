@@ -5,11 +5,15 @@ import { combine, createJSONStorage, persist, type StateStorage } from 'zustand/
 import type { TabStop } from '@wbcnc/cam';
 import type { HoldPoint } from '@wbcnc/cam/holdPoints';
 import { boardBlock, type BlockContext } from '../boardBlock';
-import type { BoardCut } from '../boards';
+import { isCut, type BoardCut } from '../boards';
 import { useHoldHardware } from '../holdHardware';
 import type { PlanResult, ReleaseProgram } from '../camTypes';
 import type { JobBoard } from '../useJobBoards';
 import type { GhostPart, ShowInTopView } from './partGhost';
+import { captureManufacturingSnapshot, matchesResumableSetup, type ManufacturingSnapshot } from './manufacturingSnapshot';
+import { getExistingCncApi } from '@/lib/fluidnc/machine';
+import { useStore } from '@/store/store';
+import { interruptedJob, recoveryPending } from '@/lib/machine/jobRecovery';
 
 export interface BoardOverlay {
   w: number;
@@ -75,19 +79,60 @@ export const useCamMachine = create(
         pauseEachTab: false,
         /** What the top view shows besides the loaded program: the whole parts (default), or every program too. */
         showInTopView: 'parts' as ShowInTopView,
-        /** The loaded program isn't the board's first: moving XY zero now puts it out of line with the cuts already made. */
+        /** Warn before moving the zero of a sheet with preceding programs. */
         midBoard: false,
+        /** Candidate setup, refreshed only while idle. Full snapshots are stored with the run in IndexedDB. */
+        loadedSnapshot: null as ManufacturingSnapshot | null,
+        runSnapshot: null as ManufacturingSnapshot | null,
+        preparingRun: false,
+        preparingExecutionId: null as string | null,
+        /** The original physical run awaits review, separately from a currently executing/resumable controller job. */
+        runPreparationError: null as string | null,
+        runReview: null as 'requested' | 'finished' | 'stopped' | null,
+        runRecord: null as { host: string; startedAt: number; executionId?: string } | null,
       },
       set => ({
         /** Nothing is loaded for the job yet, also when taking the same job again. What's cut stays, while it's the same program. */
         start: (jobId: string) =>
-          set(s => (s.jobId === jobId ? { active: null, overlay: null } : { jobId, done: [], active: null, rotation: {}, overlay: null })),
-        leave: () => set({ jobId: null, done: [], active: null, rotation: {}, overlay: null, midBoard: false }),
-        setActive: (active: string | null) => set({ active }),
+          set(s =>
+            isManufacturingLocked()
+              ? s
+              : s.jobId === jobId
+                ? { active: null, overlay: null, midBoard: false, loadedSnapshot: null, runSnapshot: null }
+                : { jobId, done: [], active: null, rotation: {}, overlay: null, midBoard: false, loadedSnapshot: null, runSnapshot: null }
+          ),
+        leave: () => {
+          if (!isManufacturingLocked())
+            set({
+              jobId: null,
+              done: [],
+              active: null,
+              rotation: {},
+              overlay: null,
+              midBoard: false,
+              loadedSnapshot: null,
+              runSnapshot: null,
+            });
+        },
+        setLoadedSnapshot: (loadedSnapshot: ManufacturingSnapshot | null) => {
+          if (!isManufacturingLocked()) set({ loadedSnapshot });
+        },
+        releaseSnapshot: () => {
+          if (!isManufacturingLocked()) set({ loadedSnapshot: null, runSnapshot: null, active: null, overlay: null });
+        },
+        setActive: (active: string | null) => {
+          if (!isManufacturingLocked()) set({ active });
+        },
         markDone: (doneId: string) => set(s => ({ done: s.done.includes(doneId) ? s.done : [...s.done, doneId] })),
-        setRotation: (key: string, deg: number) => set(s => ({ rotation: { ...s.rotation, [key]: deg } })),
-        setOverlay: (overlay: BoardOverlay | null) => set({ overlay }),
-        setPauseEachTab: (pauseEachTab: boolean) => set({ pauseEachTab }),
+        setRotation: (key: string, deg: number) => {
+          if (!isManufacturingLocked()) set(s => ({ rotation: { ...s.rotation, [key]: deg } }));
+        },
+        setOverlay: (overlay: BoardOverlay | null) => {
+          if (!isManufacturingLocked()) set({ overlay });
+        },
+        setPauseEachTab: (pauseEachTab: boolean) => {
+          if (!isManufacturingLocked()) set({ pauseEachTab });
+        },
         setShowInTopView: (showInTopView: ShowInTopView) => set({ showInTopView }),
         setMidBoard: (midBoard: boolean) => set({ midBoard }),
       })
@@ -102,12 +147,24 @@ export const useCamMachine = create(
       migrate: (saved, version) => (version < 1 ? { ...(saved as object), pauseEachTab: false } : saved) as never,
       storage: createJSONStorage(() => forgivingLocalStorage),
       // The path and parts are megabytes, and made again from the job when the entry is shown after a reload.
-      partialize: state => ({ ...state, overlay: state.overlay && { ...state.overlay, path: undefined, parts: undefined } }),
+      partialize: state => ({
+        ...state,
+        loadedSnapshot: null,
+        runSnapshot: null,
+        preparingRun: false,
+        preparingExecutionId: null,
+        runReview: null,
+        runPreparationError: null,
+        runRecord: null,
+        overlay: state.overlay && { ...state.overlay, path: undefined, parts: undefined },
+      }),
     }
   )
 );
 
 interface QueueEntryBase {
+  /** Geometry of this physical board; recorded with cut history. */
+  sourceKey?: string;
   /** `${boardId}:bit:${index}`, `${boardId}:flip`, `${boardId}:b:bit:${index}`, `${boardId}:tabs`, `${boardId}:error`… */
   key: string;
   /** `key` and the entry's program: marked done, a changed program is not done. */
@@ -196,7 +253,7 @@ export function machineQueue(boards: JobBoard[], plans: (PlanResult | undefined)
     if (error) return none('error', `Couldn’t be planned: ${error}`);
     if (!plan) return blocked ? none('error', blocked) : none('pending', 'Making its programs…');
     if (!plan.programs.length) return none('error', blocked ?? 'Nothing to cut.');
-    const common = { board, plan, blocked };
+    const common = { board, plan, blocked, sourceKey: plan.sourceKey };
     return [
       ...plan.programs.map(
         (p, program): ProgramEntry => ({
@@ -320,11 +377,63 @@ export function cutsToRecord(queue: QueueEntry[], done: string[], now = Date.now
     const programs = mine.filter(e => e.kind !== 'error' && e.kind !== 'pending');
     const keys = [...new Set([...(board.cut?.keys ?? []), ...programs.filter(e => done.includes(e.doneId)).map(e => e.doneId)])];
     if (!keys.length) continue;
-    const all = programs.length > 0 && programs.every(e => keys.includes(e.doneId));
+    const all =
+      programs.length > 0 &&
+      programs.every(e => keys.includes(e.doneId)) &&
+      (board.cut?.startedKeys ?? []).every(key => keys.includes(key));
     if (board.cut && board.cut.keys.length === keys.length && !!board.cut.all === all) continue;
-    out[id] = { at: board.cut?.keys.length ? board.cut.at : now, keys, ...(all && { all }) };
+    out[id] = {
+      at: isCut(board) ? board.cut!.at : now,
+      keys,
+      ...(board.cut?.startedKeys && { startedKeys: board.cut.startedKeys }),
+      ...(board.cut?.startClaims && { startClaims: board.cut.startClaims }),
+      ...(all && { all }),
+      ...(board.cut?.sourceKey || mine[0].sourceKey ? { sourceKey: board.cut?.sourceKey ?? mine[0].sourceKey } : {}),
+    };
   }
   return Object.keys(out).length ? out : null;
+}
+
+/** Pin before uploading, so editing the design while the upload awaits the controller cannot change the setup. */
+export function pinManufacturingRun(gcode: string): ManufacturingSnapshot | undefined {
+  const state = useCamMachine.getState();
+  const loaded = state.loadedSnapshot;
+  if (!loaded || loaded.jobId !== state.jobId || loaded.gcode !== gcode) return undefined;
+  const runSnapshot = captureManufacturingSnapshot({ ...loaded, active: state.active ?? loaded.active, runId: crypto.randomUUID() });
+  if (state.overlay) runSnapshot.overlay = structuredClone(state.overlay);
+  const activeEntry = runSnapshot.queue.find(e => e.key === runSnapshot.active);
+  if (activeEntry) {
+    const side = entrySide(activeEntry);
+    const { x, y } = useStore.getState().toolpathOffset;
+    const id = activeEntry.board.board.id;
+    // Camera placement may have changed after this program was shown. Freeze the placement actually being run.
+    for (const entry of runSnapshot.queue.filter(e => e.board.board.id === id)) {
+      entry.board.board.bed = {
+        ...entry.board.board.bed,
+        [side]: {
+          ...entry.board.board.bed?.[side],
+          x,
+          y,
+          deg: state.overlay?.rotationDeg ?? entryRotation(activeEntry, state.rotation),
+        },
+      };
+    }
+  }
+  useCamMachine.setState({ runSnapshot, preparingRun: true });
+  return runSnapshot;
+}
+
+/** Commands that replace a setup must also be guarded outside the disabled UI buttons. */
+export function isManufacturingLocked(): boolean {
+  const api = getExistingCncApi();
+  const state = useCamMachine.getState();
+  return (
+    state.preparingRun ||
+    recoveryPending.value ||
+    (!!state.runReview && !!state.runSnapshot) ||
+    (!!api && (api.jobProgress.value !== null || api.jobStartedAt.value !== null)) ||
+    matchesResumableSetup(state, interruptedJob.value?.record.camSnapshot)
+  );
 }
 
 /**

@@ -1,6 +1,7 @@
 import { useStore } from '@/store/store';
 import { useDepthView } from '@/visualize/depthViewStore';
 import type { PlanResult } from './camTypes';
+import { isManufacturingLocked } from './machine/camMachine';
 
 /**
  * Hand a generated program to the top view, simulation and job checklist with its setup, instead of letting them
@@ -8,6 +9,7 @@ import type { PlanResult } from './camTypes';
  * The simulation uses one bit; with several, it shows the first.
  */
 export function loadIntoMachineView(plan: Pick<PlanResult, 'gcode' | 'size' | 'bits'>, name: string) {
+  if (isManufacturingLocked()) return;
   const store = useStore.getState();
   store.updateToolpath(plan.gcode, name);
   store.setStockHeight(plan.size[2]);
@@ -19,6 +21,7 @@ export function loadIntoMachineView(plan: Pick<PlanResult, 'gcode' | 'size' | 'b
 
 /** Nothing to show or run: what's loaded is not what the current step is about. */
 export function clearMachineView() {
+  if (isManufacturingLocked()) return;
   useStore.setState(state => {
     state.toolpath = null;
     state.toolpathName = null;

@@ -471,7 +471,7 @@ export function BoardDrawings({
     return () => window.removeEventListener('keydown', key);
   }, []);
   // The menu of a through hole's middle, from a click on it.
-  const [holeMenu, setHoleMenu] = useState<{ middle: HoleMiddle; at: { x: number; y: number } } | null>(null);
+  const [holeMenu, setHoleMenu] = useState<{ middle: HoleMiddle; at: { x: number; y: number }; plan: PlanResult | undefined } | null>(null);
   // A fixture's menu, from a right-click on it.
   const [holdMenu, setHoldMenu] = useState<number | null>(null);
 
@@ -793,7 +793,9 @@ export function BoardDrawings({
                           ? (item, tabs) => onTabsMove(board.id, item, tabs)
                           : undefined
                       }
-                      onHole={here && onHoleChoice ? (middle, at) => setHoleMenu({ middle, at }) : undefined}
+                      onHole={
+                        here && onHoleChoice && !fetching[i] ? (middle, at) => setHoleMenu({ middle, at, plan: plans[i] }) : undefined
+                      }
                     />
                     {here && !tool && !dragging && !editing && (
                       <BoardOverlay
@@ -930,13 +932,14 @@ export function BoardDrawings({
                           />
                         );
                       })()}
-                    {here && holeMenu && onHoleChoice && (
+                    {here && holeMenu && onHoleChoice && !fetching[i] && holeMenu.plan === plans[i] && (
                       <HoleMenu
                         {...holeMenu}
                         left={holeMenu.at.x * pxPerMm + padPx}
                         top={(nest.board.h - holeMenu.at.y) * pxPerMm + padPx}
                         onClose={() => setHoleMenu(null)}
                         onChoose={choice => {
+                          if (fetching[i] || holeMenu.plan !== plans[i]) return;
                           const partId = instances.find(i => i.id === holeMenu.middle.part)?.partId;
                           if (partId) onHoleChoice(partId, holeMenu.middle.hole, choice);
                         }}

@@ -1,8 +1,8 @@
-import { cutLabel, type BoardV1 } from '../boards';
+import { cutLabel, isCut, type BoardV1 } from '../boards';
 
 /** "Cut" or "Partly cut": the board's programs ran at the machine, its layout and holds are kept. */
 export function CutBadge({ board }: { board: Pick<BoardV1, 'cut'> }) {
-  if (!board.cut?.keys.length) return null;
+  if (!isCut(board)) return null;
   return (
     <span
       title="Programs of this board ran at the machine: its parts and holds stay as they were cut."

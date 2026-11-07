@@ -1110,6 +1110,17 @@ describe('keepFixturesClear', () => {
     expect(free(clear, big)).toBe(true);
   });
 
+  it('preserves a design layout and absent-part spots when a clamp changes', () => {
+    const b = placed();
+    b.items.push('absent');
+    b.layout!.at.absent = { x: 140, y: 190, rotated: false };
+    const before = structuredClone(b);
+    const clear = keepFixturesClear(b, [part], 3.175, { hardware: big, preserveLayout: true });
+    expect(clear).toEqual(before);
+    expect(clear.layout!.at.absent).toEqual(before.layout!.at.absent);
+    expect(free(clear, big)).toBe(false);
+  });
+
   it('leaves a board alone that is clear or a fixed size', () => {
     const b = placed();
     expect(keepFixturesClear(b, [part], 3.175, { hardware: small })).toBe(b);

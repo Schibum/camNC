@@ -1,0 +1,546 @@
+[
+  {
+    "id": "sketch/constraint/equal-preselected",
+    "title": "Select two lines, press E: they become equal",
+    "evidence": "reference-docs keyboard shortcuts",
+    "steps": [
+      "line 20,20 120,20",
+      "line 20,60 80,60",
+      "click 70,20",
+      "shiftclick 50,60",
+      "key e",
+      {
+        "expect": {
+          "constraintsAtLeast": {
+            "equal": 1
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/constraint/parallel-preselected",
+    "title": "Select two lines, press B: they become parallel",
+    "evidence": "reference-docs keyboard shortcuts",
+    "steps": [
+      "line 20,20 120,40",
+      "line 20,60 120,100",
+      "click 70,30",
+      "shiftclick 70,80",
+      "key b",
+      {
+        "expect": {
+          "constraintsAtLeast": {
+            "parallel": 1
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/constraint/perpendicular-preselected",
+    "title": "Select two lines, press Shift+L: they become perpendicular",
+    "evidence": "reference-docs keyboard shortcuts",
+    "steps": [
+      "line 20,20 120,30",
+      "line 60,60 70,120",
+      "click 70,25",
+      "shiftclick 65,90",
+      "key Shift+l",
+      {
+        "expect": {
+          "constraintsAtLeast": {
+            "perpendicular": 1
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/constraint/horizontal-preselected",
+    "title": "Select a line, press H: it becomes horizontal",
+    "evidence": "reference-docs keyboard shortcuts",
+    "steps": [
+      "line 20,20 120,60",
+      "click 70,40",
+      "key h",
+      {
+        "expect": {
+          "constraintsAtLeast": {
+            "horizontal": 1
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/constraint/vertical-tool-first",
+    "title": "Press V, then click a line: it becomes vertical",
+    "evidence": "reference-report via Codex transcript 2026-11-06",
+    "steps": [
+      "line 20,20 60,100",
+      "key v",
+      "click 40,60",
+      {
+        "expect": {
+          "constraintsAtLeast": {
+            "vertical": 1
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/constraint/coincident-points",
+    "title": "Select two points, press I: they join and stay joined",
+    "evidence": "reference-docs keyboard shortcuts",
+    "steps": [
+      "line 20,20 80,20",
+      "line 100,60 160,60",
+      "click 80,20",
+      "shiftclick 100,60",
+      "key i",
+      {
+        "expect": {
+          "constraintsAtLeast": {
+            "coincident": 1
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/constraint/tangent",
+    "title": "Select a line and a circle, press T: they become tangent",
+    "evidence": "reference-docs keyboard shortcuts",
+    "steps": [
+      "line 20,20 160,30",
+      "circle 90,70 20",
+      "click 90,25",
+      "shiftclick 110,70",
+      "key t",
+      {
+        "expect": {
+          "constraintsAtLeast": {
+            "tangent": 1
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/constraint/midpoint",
+    "title": "Select a point and a line, press Shift+M: the point moves to the midpoint",
+    "evidence": "reference-docs keyboard shortcuts",
+    "steps": [
+      "line 20,20 120,20",
+      "line 40,60 40,100",
+      "click 40,60",
+      "shiftclick 70,20",
+      "key Shift+m",
+      {
+        "expect": {
+          "constraintsAtLeast": {
+            "midpoint": 1
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/constraint/conflict-recoverable",
+    "title": "A contradictory constraint is reported and Undo restores a solved sketch",
+    "evidence": "reference-live via Codex transcript 2026-11-06",
+    "steps": [
+      "line 20,20 120,60",
+      "click 70,40",
+      "key h",
+      "click 70,20",
+      "key v",
+      {
+        "expect": {
+          "status": "attention|conflict|could not"
+        }
+      },
+      "key Control+z",
+      {
+        "expect": {
+          "status": "degrees? of freedom",
+          "constraintsAtLeast": {
+            "horizontal": 1
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/select/window-encloses",
+    "title": "A left-to-right box selects only what is fully inside",
+    "evidence": "reference-report via Codex transcript 2026-11-06",
+    "steps": [
+      "rect 40,30 100,90",
+      "circle 180,60 15",
+      "drag 20,100 120,20",
+      "key Delete",
+      {
+        "expect": {
+          "entities": [
+            {
+              "type": "circle",
+              "c": [
+                180,
+                60
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/select/crossing-touches",
+    "title": "A right-to-left box selects anything it crosses",
+    "evidence": "reference-report via Codex transcript 2026-11-06",
+    "steps": [
+      "rect 40,30 100,90",
+      "drag 120,70 80,50",
+      "key Delete",
+      {
+        "expect": {
+          "entityCount": 3
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/select/shift-adds-space-clears",
+    "title": "Shift adds to the selection and Space clears it",
+    "evidence": "reference-docs keyboard shortcuts",
+    "steps": [
+      "line 20,20 120,20",
+      "line 20,60 120,60",
+      "line 20,100 120,100",
+      "click 70,20",
+      "shiftclick 70,60",
+      "key Space",
+      "key Delete",
+      {
+        "expect": {
+          "entityCount": 3
+        }
+      },
+      "click 70,20",
+      "shiftclick 70,60",
+      "key Delete",
+      {
+        "expect": {
+          "entities": [
+            {
+              "type": "line",
+              "a": [
+                20,
+                100
+              ],
+              "b": [
+                120,
+                100
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/select/backspace-deletes",
+    "title": "Backspace deletes like Delete",
+    "evidence": "reference-docs keyboard shortcuts",
+    "steps": [
+      "line 20,20 120,20",
+      "click 70,20",
+      "key Backspace",
+      {
+        "expect": {
+          "entityCount": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/history/undo-redo-keys",
+    "title": "Undo and both redo chords work",
+    "evidence": "reference-live 2026-11-06, Ctrl+Y redo",
+    "steps": [
+      "line 20,20 120,20",
+      "key Control+z",
+      {
+        "expect": {
+          "entityCount": 0,
+          "canRedo": true
+        }
+      },
+      "key Control+Shift+z",
+      {
+        "expect": {
+          "entityCount": 1
+        }
+      },
+      "key Control+z",
+      "key Control+y",
+      {
+        "expect": {
+          "entityCount": 1
+        }
+      },
+      "key Meta+z",
+      "key Meta+y",
+      {
+        "expect": {
+          "entityCount": 1
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/history/drag-is-one-undo",
+    "title": "A whole drag is a single undo step",
+    "evidence": "reference-report via Codex transcript 2026-11-06",
+    "steps": [
+      "line 20,20 120,70",
+      "drag 120,70 160,100",
+      {
+        "expect": {
+          "entities": [
+            {
+              "type": "line",
+              "a": [
+                20,
+                20
+              ],
+              "b": [
+                160,
+                100
+              ]
+            }
+          ]
+        }
+      },
+      "key Control+z",
+      {
+        "expect": {
+          "entities": [
+            {
+              "type": "line",
+              "a": [
+                20,
+                20
+              ],
+              "b": [
+                120,
+                70
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/modify/drag-joins-endpoints",
+    "title": "Dragging one endpoint onto another joins them for later drags",
+    "evidence": "manu 2026-11-06; reference-live via Codex transcript",
+    "steps": [
+      "line 20,20 80,50",
+      "line 120,60 180,100",
+      "drag 80,50 120,60",
+      {
+        "expect": {
+          "constraintsAtLeast": {
+            "coincident": 1
+          }
+        }
+      },
+      "drag 120,60 120,110",
+      {
+        "expect": {
+          "entitiesInclude": [
+            {
+              "type": "line",
+              "a": [
+                20,
+                20
+              ],
+              "b": [
+                120,
+                110
+              ]
+            },
+            {
+              "type": "line",
+              "a": [
+                120,
+                110
+              ],
+              "b": [
+                180,
+                100
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/modify/dimension-limits-drag",
+    "title": "Dragging a dimensioned line's end keeps its length",
+    "evidence": "reference-report via Codex transcript 2026-11-06",
+    "steps": [
+      "line 40,40 140,40",
+      "key d",
+      "click 90,40",
+      "click 90,70",
+      "key Enter",
+      "key Escape",
+      "key Escape",
+      "drag 140,40 110,110",
+      {
+        "expect": {
+          "dimensions": [
+            {
+              "value": 100,
+              "tol": 1.5
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/modify/trim-crossing",
+    "title": "M trims the clicked span of a line back to where it crosses another",
+    "evidence": "reference-docs keyboard shortcuts; reference-report edit-shapes-native",
+    "steps": [
+      "line 20,40 120,40",
+      "line 70,10 70,90",
+      "key m",
+      "click 100,40",
+      "key Escape",
+      "key Escape",
+      {
+        "expect": {
+          "entitiesInclude": [
+            {
+              "type": "line",
+              "a": [
+                20,
+                40
+              ],
+              "b": [
+                70,
+                40
+              ]
+            }
+          ],
+          "entityCount": 2
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/modify/trim-stops-at-point",
+    "title": "Trimming a line with a point on it removes only that side",
+    "evidence": "manu 2026-11-06; reference-live via Codex transcript",
+    "steps": [
+      "line 20,40 120,40",
+      "key Shift+s",
+      "click 70,40",
+      "key Escape",
+      "key Escape",
+      "key m",
+      "click 100,40",
+      "key Escape",
+      "key Escape",
+      {
+        "expect": {
+          "entitiesInclude": [
+            {
+              "type": "line",
+              "a": [
+                20,
+                40
+              ],
+              "b": [
+                70,
+                40
+              ]
+            },
+            {
+              "type": "point",
+              "at": [
+                70,
+                40
+              ]
+            }
+          ],
+          "entityCount": 2
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/modify/fillet-two-corners",
+    "title": "Selected corners share one fillet radius",
+    "evidence": "manu 2026-11-06",
+    "steps": [
+      "rect 40,30 140,90",
+      "click 40,30",
+      "shiftclick 140,30",
+      "key Shift+f",
+      "field Fillet radius 10",
+      "key Escape",
+      "key Escape",
+      {
+        "expect": {
+          "entitiesInclude": [
+            {
+              "type": "arc",
+              "r": 10
+            },
+            {
+              "type": "arc",
+              "r": 10
+            }
+          ],
+          "entityCount": 6
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/modify/construction-toggle",
+    "title": "Q turns selected geometry into construction, which doesn't count as a profile",
+    "evidence": "reference-docs keyboard shortcuts",
+    "steps": [
+      "circle 80,50 20",
+      {
+        "expect": {
+          "regions": 1
+        }
+      },
+      "click 100,50",
+      "key q",
+      {
+        "expect": {
+          "entities": [
+            {
+              "type": "circle",
+              "construction": true
+            }
+          ],
+          "regions": 0
+        }
+      }
+    ]
+  }
+]

@@ -29,6 +29,7 @@ import {
   Square,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { isCadEditorActive } from '@/cad/keyboardOwnership';
 
 function report(promise: Promise<unknown>, what: string) {
   return promise.catch(err => {
@@ -124,7 +125,7 @@ function useKeyboardJog(enabled: boolean, axes: ScreenAxes) {
       e.target instanceof HTMLElement && e.target.closest('input, textarea, select, [contenteditable]');
     const onDown = (e: KeyboardEvent) => {
       const dir = keys[e.key];
-      if (!dir || isTyping(e)) return;
+      if (!dir || isTyping(e) || isCadEditorActive()) return;
       e.preventDefault();
       if (e.repeat || active || !api.canJog.value) return;
       const prefs = useStore.getState().machinePrefs;

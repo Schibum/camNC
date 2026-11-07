@@ -141,6 +141,30 @@ describe.each(['v3-81', 'v4'] as const)('FluidncProtocol on %s', variant => {
     await until(() => protocol.status?.job === undefined && protocol.status?.state === 'Idle');
   });
 
+  it('verifies a fresh execution upload without a redundant pre-upload directory listing', async () => {
+    const fake = new FakeFluidnc(variant);
+    const protocol = await connect(fake);
+    const gcode = 'G21\nG1 X10 F300\nM30';
+    await uploadSdFile(protocol, fake.host, 'camnc-fresh.gcode', gcode, { fresh: true, fetchImpl: fake.fetch });
+    expect(fake.received.filter(line => line === '$SD/ListJSON')).toHaveLength(1);
+    expect(fake.received.some(line => line.startsWith('$SD/Delete='))).toBe(false);
+    expect(new TextDecoder().decode(fake.files.get('camnc-fresh.gcode'))).toBe(gcode);
+  });
+
+  it('explains a full SD card when an uploaded program cannot be verified', async () => {
+    const fake = new FakeFluidnc(variant);
+    const protocol = await connect(fake);
+    fake.respond = line =>
+      line === '$SD/ListJSON' ? ['{"files":[],"path":"/","total":"1.00 KB","used":"1.00 KB","occupation":"100"}', 'ok'] : undefined;
+    await expect(
+      uploadSdFile(protocol, fake.host, 'camnc-full.gcode', 'G21\nM30', {
+        fresh: true,
+        fetchImpl: async () => new Response('', { status: 200 }),
+        verifyTimeoutMs: 20,
+      })
+    ).rejects.toThrow(/SD card.*full/i);
+  });
+
   it.each(['complete', 'split'] as const)('keeps the %s command response after a coalesced final XMODEM ACK', async response => {
     const fake = new FakeFluidnc(variant);
     const protocol = await connect(fake);

@@ -21,6 +21,8 @@ import {
   movedBottomEdge,
   respaceBoard,
   stockTopOf,
+  physicalSheetIdOf,
+  startOverBoard,
   type BoardV1,
   type PartDrop,
   type PartInstance,
@@ -41,10 +43,12 @@ import { BitChip } from '@/cam/plan/BitPicker';
 import { camKeys, useBoardPlans, useCamJob, useCamModel, useSaveCamJob } from '@/cam/camQueries';
 import type { CamJobV1 } from '@/cam/jobDb';
 import { CamJobBar } from '@/cam/model/CamJobBar';
+import { clearDesignIssue } from '@/cam/designTabAnchors';
 import { forgetCut } from '@/cam/machine/camMachine';
 import { Hint } from '@/cam/Hint';
 import { bitKey } from '@/cam/cuttingData';
 import { kDefaultPlan, withHoleChoice } from '@/cam/planSettings';
+import { holeChoiceKey } from '@/cam/holeChoices';
 import { useToolLibrary } from '@/cam/toolLibrary';
 import { useJobBoards, useMachineArea } from '@/cam/useJobBoards';
 import { useQueryClient } from '@tanstack/react-query';
@@ -167,7 +171,7 @@ function BoardsEditor({
   parts: ModelImport['parts'];
   instances: PartInstance[];
   boards: JobBoard[];
-  plans: { data?: PlanResult; isFetching: boolean }[];
+  plans: { data?: PlanResult; isFetching: boolean; isPlaceholderData?: boolean }[];
   /** The board to show first, if any. */
   firstBoard?: string;
   save: (job: CamJobV1) => void;
@@ -185,9 +189,9 @@ function BoardsEditor({
   const machine = useMachineArea();
   // What just happened on the drawing, and the boards before each change, to go back to.
   // Everything this step has to say goes in its one status box, each message replacing the last.
-  const [notice, setNotice] = useState<{ text: string; undo?: () => void }>({ text: '' });
+  const [notice, setNotice] = useState<{ text: string; undo?: () => boolean | void }>({ text: '' });
   const note = notice.text;
-  const setNote = (text: string, undo?: () => void) => setNotice({ text, undo });
+  const setNote = (text: string, undo?: () => boolean | void) => setNotice({ text, undo });
   const history = useRef<BoardV1[][]>([]);
   const future = useRef<BoardV1[][]>([]);
   const plan = job.plan ?? kDefaultPlan;
@@ -207,17 +211,28 @@ function BoardsEditor({
     save({ ...job, boards: next });
     return true;
   };
-  const nestOptions = { stickout: plan.bit.stickout, hardware, machine };
+  const nestOptions = { stickout: plan.bit.stickout, hardware, machine, preserveLayout: !!job.design };
   const startOver = (board: BoardV1) => {
-    const { cut, ...rest } = board;
-    void cut;
+    const { cut } = board;
+    const rest = startOverBoard(board);
+    history.current = [];
+    future.current = [];
     save({ ...job, boards: boards.map(b => (b.board.id === board.id ? rest : b.board)) });
     forgetCut(job.id, board.id);
     setNote(
       `Board ${board.name} can be changed again. What was cut on it is forgotten: at the machine, all its programs are to cut again.`,
       () => {
         const latest = queryClient.getQueryData<CamJobV1>(camKeys.job(job.id)) ?? job;
-        save({ ...latest, boards: (latest.boards ?? []).map(b => (b.id === board.id ? { ...b, cut } : b)) });
+        const current = latest.boards?.find(b => b.id === board.id);
+        if (!current || physicalSheetIdOf(current) !== physicalSheetIdOf(rest) || isCut(current)) {
+          setNote('This replacement sheet has changed or been used. Its physical history cannot be undone.');
+          return false;
+        }
+        save({
+          ...latest,
+          boards: latest.boards!.map(b => (b.id === board.id ? { ...b, cut, physicalSheetId: physicalSheetIdOf(board) } : b)),
+        });
+        return true;
       }
     );
   };
@@ -452,7 +467,7 @@ function BoardsEditor({
         ? () => {
             const rest = { ...board.tabsAt };
             delete rest[id];
-            updateBoard({ ...board, tabsAt: Object.keys(rest).length ? rest : undefined });
+            updateBoard({ ...board, ...clearDesignIssue(board, id), tabsAt: Object.keys(rest).length ? rest : undefined });
           }
         : undefined,
     };
@@ -460,11 +475,56 @@ function BoardsEditor({
   // What needs attention on the selected board: over its drawing, whose heading says which board has some.
   const sel = selected.board,
     selNest = selected.nest;
-  const unplacedNames = selNest.unplaced.map(id => byId.get(id)?.name ?? id);
+  const missingReferences = job.design ? sel.items.filter(id => !byId.has(id)) : [];
+  const tabRepairs = Object.entries(sel.designIssues ?? {});
+  const changedThickness = job.design
+    ? sel.items.filter(id => {
+        const part = byId.get(id);
+        return part && +part.thickness.toFixed(1) !== sel.thickness;
+      })
+    : [];
+  const unplacedNames = selNest.unplaced
+    .filter(id => !missingReferences.includes(id) && !changedThickness.includes(id) && !sel.designIssues?.[id])
+    .map(id => byId.get(id)?.name ?? id);
   const cantHold = sel.retention === 'tabs' ? (planOf(sel)?.holding ?? []).filter(h => h.how === 'unheld').map(h => h.name) : [];
   const verdict = holdVerdict(sel, selNest, hardware, instances);
   const alerts = (
     <>
+      {missingReferences.map(id => (
+        <p key={id} role="alert" className="flex flex-wrap items-center gap-2 text-xs text-destructive">
+          {job.parts.find(p => p.id === id.split('#')[0])?.name ?? 'A part'} was removed from Design. Its board settings are kept until
+          repaired.
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-6 px-2 text-xs"
+            disabled={isCut(sel)}
+            onClick={() => updateBoard(without(sel, id))}>
+            Remove reference
+          </Button>
+        </p>
+      ))}
+      {changedThickness.map(id => (
+        <p key={id} role="alert" className="flex flex-wrap items-center gap-2 text-xs text-destructive">
+          {byId.get(id)!.name} is now {byId.get(id)!.thickness} mm thick. This board is {sel.thickness} mm.
+          <Button size="sm" variant="outline" className="h-6 px-2 text-xs" disabled={isCut(sel)} onClick={() => toNewBoard(id)}>
+            Move to new board
+          </Button>
+        </p>
+      ))}
+      {tabRepairs.map(([id, issue]) => (
+        <p key={id} role="alert" className="flex flex-wrap items-center gap-2 text-xs text-destructive">
+          {byId.get(id)?.name ?? 'Part'}: {issue}
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-6 px-2 text-xs"
+            disabled={isCut(sel)}
+            onClick={() => partMenu(selected, id).onTabsReset?.()}>
+            Reset tabs
+          </Button>
+        </p>
+      ))}
       {unplacedNames.length > 0 && (
         <p role="alert" className="text-xs text-destructive">
           {`${unplacedNames.join(', ')} ${unplacedNames.length === 1 ? 'doesn’t' : 'don’t'} fit on this board. Drag ${
@@ -495,7 +555,15 @@ function BoardsEditor({
     </>
   );
 
-  const issue = view === 'board' && (verdict.tone === 'warn' || unplacedNames.length > 0 || selNest.nutAbove < 0 || cantHold.length > 0);
+  const issue =
+    view === 'board' &&
+    (verdict.tone === 'warn' ||
+      missingReferences.length > 0 ||
+      changedThickness.length > 0 ||
+      tabRepairs.length > 0 ||
+      unplacedNames.length > 0 ||
+      selNest.nutAbove < 0 ||
+      cantHold.length > 0);
 
   const status = (
     <div
@@ -516,8 +584,7 @@ function BoardsEditor({
                 variant="outline"
                 className="h-6 px-2 text-xs"
                 onClick={() => {
-                  notice.undo!();
-                  setNote('Undone.');
+                  if (notice.undo!() !== false) setNote('Undone.');
                 }}>
                 Undo that
               </Button>
@@ -604,16 +671,26 @@ function BoardsEditor({
           instances={instances}
           parts={parts}
           plans={plans.map(p => p.data)}
-          fetching={plans.map(p => p.isFetching)}
+          fetching={plans.map(p => p.isFetching || !!p.isPlaceholderData)}
           bit={plan.bit.diameter}
           onHoleChoice={(partId, hole, choice) => {
+            const pending = boards.some(
+              (b, index) =>
+                b.request.parts.some(part => part.partId === partId) && (plans[index].isFetching || plans[index].isPlaceholderData)
+            );
+            if (pending) return setNote('Wait for the current hole toolpaths before changing this setting.');
             const cut = cutBoardWith(
               boards.map(b => b.board),
               instances,
               partId
             );
             if (cut) setNote(`Not changed: a copy of this part is on ${boardLabel(cut)}, already cut. Start it over to change this hole.`);
-            else save({ ...job, plan: withHoleChoice(plan, partId, hole, choice) });
+            else {
+              const part = parts.find(part => part.id === partId);
+              const key = part && holeChoiceKey(part, hole);
+              if (key === undefined) return setNote('This hole changed. Wait for its current toolpaths before choosing a setting.');
+              save({ ...job, plan: withHoleChoice(plan, partId, key, choice) });
+            }
           }}
           selectedId={selected.board.id}
           onSelect={setSelectedId}
@@ -623,7 +700,7 @@ function BoardsEditor({
           onNudge={nudge}
           onTabsMove={(id, item, tabs) => {
             const b = boards.find(x => x.board.id === id);
-            if (b) updateBoard({ ...b.board, tabsAt: { ...b.board.tabsAt, [item]: tabs } });
+            if (b) updateBoard({ ...b.board, ...clearDesignIssue(b.board, item), tabsAt: { ...b.board.tabsAt, [item]: tabs } });
           }}
         />
       </main>

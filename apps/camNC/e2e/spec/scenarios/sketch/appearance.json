@@ -1,0 +1,275 @@
+[
+  {
+    "id": "sketch/appearance/preview-line-weight",
+    "title": "Line, rectangle and circle previews draw at the committed weight",
+    "evidence": "manu 2026-11-06; reference-live via Codex transcript",
+    "steps": [
+      "line 20,100 80,100",
+      "key l",
+      "click 20,40",
+      "hover 80,60",
+      {
+        "expect": {
+          "strokePx": [
+            0.5,
+            3
+          ],
+          "previewCount": 1
+        }
+      },
+      "key Escape",
+      "key Escape",
+      "key g",
+      "click 120,40",
+      "hover 170,70",
+      {
+        "expect": {
+          "strokePx": [
+            0.5,
+            3
+          ]
+        }
+      },
+      "key Escape",
+      "key Escape",
+      "key c",
+      "click 200,60",
+      "hover 220,60",
+      {
+        "expect": {
+          "strokePx": [
+            0.5,
+            3
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/appearance/preview-arc-weight",
+    "title": "An arc preview draws at the committed weight in every stage",
+    "evidence": "manu 2026-11-06",
+    "steps": [
+      "key a",
+      "click 60,40",
+      "hover 120,40",
+      {
+        "expect": {
+          "strokePx": [
+            0.5,
+            3
+          ]
+        }
+      },
+      "click 120,40",
+      "hover 90,70",
+      {
+        "expect": {
+          "strokePx": [
+            0.5,
+            3
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/appearance/preview-spline-weight",
+    "title": "A spline preview isn't thicker than the finished curve",
+    "evidence": "manu 2026-11-06",
+    "steps": [
+      "tool Spline",
+      "click 40,30",
+      "click 80,70",
+      "hover 130,40",
+      {
+        "expect": {
+          "strokePx": [
+            0.5,
+            3
+          ]
+        }
+      },
+      "wheel 80,50 -400",
+      "hover 100,50",
+      {
+        "expect": {
+          "strokePx": [
+            0.5,
+            3
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/appearance/preview-bezier-weight",
+    "title": "A Bezier preview and its control polygon aren't thick",
+    "evidence": "manu 2026-11-06, same preview path as splines",
+    "steps": [
+      "tool Bezier",
+      "click 40,30",
+      "click 80,70",
+      "hover 130,40",
+      {
+        "expect": {
+          "strokePx": [
+            0.5,
+            3
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/appearance/preview-conic-weight",
+    "title": "A conic preview and its control polygon aren't thick",
+    "evidence": "manu 2026-11-06, same preview path as splines",
+    "steps": [
+      "tool Conic",
+      "click 40,30",
+      "click 120,30",
+      "hover 80,70",
+      {
+        "expect": {
+          "strokePx": [
+            0.5,
+            3
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/appearance/weights-hold-through-zoom",
+    "title": "Finished geometry keeps its on-screen weight when zoomed in or out",
+    "evidence": "manu 2026-11-06; reference-live via Codex transcript",
+    "steps": [
+      "rect 40,30 120,80",
+      "circle 180,60 20",
+      {
+        "expect": {
+          "strokePx": [
+            0.5,
+            3
+          ]
+        }
+      },
+      "wheel 80,50 -800",
+      {
+        "expect": {
+          "strokePx": [
+            0.5,
+            3
+          ]
+        }
+      },
+      "wheel 80,50 2400",
+      {
+        "expect": {
+          "strokePx": [
+            0.5,
+            3
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/appearance/constraint-colours",
+    "title": "Fully constrained geometry is dark and the rest stays blue, per entity",
+    "evidence": "reference-live 2026-11-06, fully defined plate black beside free blue geometry in the test document",
+    "steps": [
+      "line 0,0 60,0",
+      "line 20,50 80,70",
+      "key d",
+      "click 30,0",
+      "click 30,-15",
+      "key Enter",
+      "key Escape",
+      "key Escape",
+      {
+        "expect": {
+          "colors": {
+            "dark": 1,
+            "blue": 1
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/appearance/live-length-while-drawing",
+    "title": "A line shows its live length while being drawn",
+    "evidence": "reference-live 2026-11-06, 43.836 on the preview before the second click",
+    "steps": [
+      "key l",
+      "click 40,40",
+      "hover 100,40",
+      {
+        "expect": {
+          "labelText": "\\d",
+          "previewCount": 1
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/appearance/live-size-rectangle",
+    "title": "A rectangle preview shows its live width and height",
+    "evidence": "Codex native check 2026-11-06",
+    "steps": [
+      "key g",
+      "click 40,30",
+      "hover 120,80",
+      {
+        "expect": {
+          "labelText": "80",
+          "previewCount": 1
+        }
+      },
+      {
+        "expect": {
+          "labelText": "50"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/appearance/live-size-circle",
+    "title": "A circle preview shows its live diameter",
+    "evidence": "Codex native check 2026-11-06",
+    "steps": [
+      "key c",
+      "click 80,60",
+      "hover 100,60",
+      {
+        "expect": {
+          "labelText": "40"
+        }
+      }
+    ]
+  },
+  {
+    "id": "sketch/appearance/live-size-arc",
+    "title": "An arc preview shows its radius after the endpoint, not before",
+    "evidence": "Codex native check 2026-11-06",
+    "steps": [
+      "key a",
+      "click 60,40",
+      "hover 120,40",
+      {
+        "expect": {
+          "previewCount": 1
+        }
+      },
+      "click 120,40",
+      "hover 90,70",
+      {
+        "expect": {
+          "labelText": "30"
+        }
+      }
+    ]
+  }
+]

@@ -1,0 +1,31 @@
+.cad-selection-readout {
+  margin-inline-start: auto;
+  min-width: 0;
+  max-width: 100%;
+  color: #334155;
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  text-align: end;
+}
+.cad-selection-readout dl {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.15rem 0.75rem;
+  margin: 0;
+}
+.cad-selection-readout dl > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  column-gap: 0.35rem;
+}
+.cad-selection-readout dt {
+  font-weight: 400;
+}
+.cad-selection-readout dd {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

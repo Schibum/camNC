@@ -1,3 +1,4 @@
+import { useMachineSetupLocked } from '@/cam/machine/useMachineBusy';
 import { getCncApi } from '@/lib/fluidnc/machine';
 import { machineSupport } from '@/lib/fluidnc/machine-support';
 import { workOffsetCommand } from '@/lib/fluidnc/work-offset';
@@ -41,7 +42,8 @@ export function FluidncButton() {
   const cncApi = getCncApi();
   const hasToolpath = useHasToolpath();
   const isIdle = cncApi.isConnected.value && cncApi.state.value === 'Idle';
-  const isFluidAvailable = hasToolpath && isIdle;
+  const setupLocked = useMachineSetupLocked();
+  const isFluidAvailable = hasToolpath && isIdle && !setupLocked;
   const status =
     '(' +
     [cncApi.isConnected.value ? (cncApi.state.value ?? 'connected') : 'not connected', ...(hasToolpath ? [] : ['no toolpath loaded'])].join(
@@ -75,7 +77,7 @@ export function FluidncButton() {
             <DropdownMenuShortcut>J</DropdownMenuShortcut>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem disabled={!cncApi.isConnected.value} onClick={moveToolpathToMachineZero}>
+          <DropdownMenuItem disabled={!cncApi.isConnected.value || setupLocked} onClick={moveToolpathToMachineZero}>
             <Download /> Read machine zero → move toolpath
           </DropdownMenuItem>
           <DropdownMenuSeparator />

@@ -87,6 +87,8 @@ jobs:
         run: pnpm exec playwright install-deps chromium
       - name: Run tests
         run: pnpm run test
+      - name: Run sketch behaviour specs
+        run: pnpm --filter @wbcnc/camNC spec:cad
       - name: Build
         run: pnpm run build
 

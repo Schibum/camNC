@@ -480,8 +480,9 @@ export class CncApi {
 
   /** Set the workspace XY zero point to given machine coordinates. */
   async setWorkspaceXYZero(x: number, y: number) {
+    const result = await this.api.send(workOffsetCommand({ x, y }));
     this.currentZero.value = { x, y, z: this.currentZero.value?.z ?? 0 };
-    return this.api.send(workOffsetCommand({ x, y }));
+    return result;
   }
 
   async setWorkspaceXYZeroAndMove(x: number, y: number) {

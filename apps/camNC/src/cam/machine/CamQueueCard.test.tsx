@@ -273,6 +273,19 @@ describe('the machine queue card', () => {
     expect(useStore.getState().toolDiameter).toBe(6);
   });
 
+  it('clears Z when a different bit is automatically loaded, and retains it when the same entry redraws', () => {
+    useStore.getState().setToolDiameter(3.175);
+    getCncApi().zZeroedAt.value = 123;
+    useCamMachine.setState({ active: 'A:bit:1' });
+    setQueue([board('A')], [plan([3.175, 6])]);
+    const { rerender } = render(view());
+    expect(useStore.getState().toolDiameter).toBe(6);
+    expect(getCncApi().zZeroedAt.value).toBeNull();
+    getCncApi().zZeroedAt.value = 456;
+    rerender(view());
+    expect(getCncApi().zZeroedAt.value).toBe(456);
+  });
+
   it('marks the program done, not just its place in the queue', () => {
     const a = plan([3.175], 'a');
     const queue = setQueue([board('A')], [a]);
