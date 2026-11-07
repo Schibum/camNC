@@ -1,36 +1,20 @@
 import { getCncApi } from '@/lib/fluidnc/machine';
-import { errorText, kJobFileName, setXYZeroFromToolpath, uploadAndRun, useJobChecklist } from '@/lib/machine/jobs';
 import { useStore } from '@/store/store';
 import { openGcodeFile } from '@/visualize/openGcodeFile';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@wbcnc/ui/components/alert-dialog';
 import { Button } from '@wbcnc/ui/components/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@wbcnc/ui/components/collapsible';
 import { Input } from '@wbcnc/ui/components/input';
-import { toast } from '@wbcnc/ui/components/sonner';
 import { cn } from '@wbcnc/ui/lib/utils';
-import { AlertTriangle, Check, ChevronRight, CirclePlay, FolderOpen, MoveRight, Pencil, Wrench } from 'lucide-react';
+import { ChevronRight, FolderOpen, Wrench } from 'lucide-react';
 import { useState } from 'react';
 import { AlarmCard } from './AlarmCard';
 import { JogFeeds, JogPanel, ProbeSettings } from './controls';
-import { useProbeZ } from './useProbeZ';
 import { MacroButtons } from './macros';
 import { ResumeJobCard } from './ResumeJobCard';
 import { CamQueueCard } from '@/cam/machine/CamQueueCard';
 import { useCamMachine } from '@/cam/machine/camMachine';
+import { RunFooter } from './RunFooter';
 import { SetupStep } from './SetupStep';
-
-function report(promise: Promise<unknown>, what: string) {
-  return promise.catch(err => toast.error(`${what} failed`, { description: errorText(err) }));
-}
 
 export function Section({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -87,198 +71,29 @@ function JobStep() {
   );
 }
 
-function ZeroRow({ ok, label, children }: { ok: boolean; label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-row flex-wrap items-center gap-1.5 min-h-8">
-      {ok ? <Check className="size-4 shrink-0 text-green-600" /> : <AlertTriangle className="size-4 shrink-0 text-amber-500" />}
-      <span className="flex-1 whitespace-nowrap">{label}</span>
-      {children}
-    </div>
-  );
-}
-
-/** XY from where the toolpath sits on the camera view, Z by probing; done when both match the job. */
-function ZeroStep() {
-  'use no memo';
-  const api = getCncApi();
-  const idle = api.isConnected.value && api.state.value === 'Idle';
-  const hasToolpath = useStore(s => !!s.toolpath);
-  const checklist = useJobChecklist();
-  const { probe, disabled, prefs } = useProbeZ();
-  const xy = checklist.find(i => i.id === 'xy-zero');
-  const z = checklist.find(i => i.id === 'z-zero');
-  const zOk = z?.ok ?? api.zZeroedAt.value !== null;
-  return (
-    <SetupStep
-      label="Zero"
-      state={xy?.ok && zOk ? 'done' : 'todo'}
-      title="Zero"
-      summary={xy?.ok && zOk ? 'XY = toolpath · Z set' : `Probe plate ${prefs.probePlateThickness} mm, travel ${prefs.probeMaxTravel} mm`}>
-      <ZeroRow ok={!!xy?.ok} label={xy ? (xy.ok ? 'XY = toolpath' : 'XY not at the toolpath') : 'XY: load a job first'}>
-        <Button
-          size="sm"
-          variant={xy?.ok ? 'ghost' : 'default'}
-          disabled={!idle || !hasToolpath}
-          onClick={() => setXYZeroFromToolpath()}
-          title="G10 L2 at the toolpath position">
-          Set XY zero
-        </Button>
-      </ZeroRow>
-      <ZeroRow ok={zOk} label={zOk ? (z?.label ?? 'Z zeroed') : 'Z not set'}>
-        <Button size="sm" variant={zOk ? 'ghost' : 'default'} disabled={disabled} onClick={probe}>
-          Probe Z
-        </Button>
-        <Button size="sm" variant="outline" disabled={!idle} onClick={() => report(api.zeroAxes(['z']), 'Zeroing')}>
-          Zero Z here
-        </Button>
-      </ZeroRow>
-    </SetupStep>
-  );
-}
-
-/** Checklist items the steps above already show, by a short name. */
-const kShownInSteps = new Map([
-  ['homed', 'Home'],
-  ['xy-zero', 'XY zero'],
-  ['z-zero', 'Z zero'],
-]);
-
-/** Pinned under the steps: what still blocks or warns, and Run. */
-function RunFooter() {
-  'use no memo';
-  const api = getCncApi();
-  const checklist = useJobChecklist();
-  const hasToolpath = useStore(s => !!s.toolpath);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const idle = api.isConnected.value && api.state.value === 'Idle';
-  const warnings = checklist.filter(item => !item.ok);
-  const blocked = checklist.some(item => item.blocking);
-  const isAlarm = (item: (typeof checklist)[number]) => item.blocking && !item.zeroFirst;
-  const outside = checklist.some(item => item.id === 'position' && !item.ok);
-  if (!hasToolpath) return null;
-  const others = warnings.filter(w => !kShownInSteps.has(w.id));
-  const open = warnings.filter(w => kShownInSteps.has(w.id));
-  return (
-    <section
-      aria-label="Run"
-      className="sticky bottom-0 z-10 -mx-3 -mb-3 mt-auto flex flex-col gap-2 border-t bg-background px-3 py-3 shadow-[0_-4px_12px_-8px_rgba(0,0,0,0.25)]">
-      {others.length > 0 && (
-        <ul className="flex flex-col gap-0.5" data-testid="job-checklist">
-          {others.map(item => (
-            <li key={item.id} className="flex flex-row gap-2 items-start text-sm">
-              <AlertTriangle className={cn('mt-0.5 size-4 shrink-0', isAlarm(item) ? 'text-red-600' : 'text-amber-500')} />
-              <span className={cn('text-amber-700 dark:text-amber-400', isAlarm(item) && 'text-red-700 dark:text-red-400')}>
-                {item.label}
-                {item.details && (
-                  <ul className="list-disc pl-4 text-xs">
-                    {item.details.map((detail, i) => (
-                      <li key={i}>{detail}</li>
-                    ))}
-                  </ul>
-                )}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-      {open.length > 0 && (
-        <p className="text-xs text-muted-foreground">Not done yet: {open.map(w => kShownInSteps.get(w.id)).join(' · ')}</p>
-      )}
-      <Button size="lg" disabled={!idle || blocked} onClick={() => setConfirmOpen(true)}>
-        <CirclePlay /> Run job
-      </Button>
-      {outside && (
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={!idle}
-          title="Jog the axes outside the travel 0.5 mm into it"
-          onClick={() => report(api.moveIntoTravel(), 'Moving into the travel')}>
-          <MoveRight /> Move into the travel
-        </Button>
-      )}
-      {checklist.some(isAlarm) && (
-        <p className="text-xs text-red-700 dark:text-red-400">
-          {outside
-            ? 'Move the machine into its travel first: FluidNC 3.9 stops any move from outside it, even a Z lift.'
-            : 'Fix the travel problem above first: with soft limits on, the controller would stop this job with an alarm.'}
-        </p>
-      )}
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Run job?</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="flex flex-col gap-2">
-                <p>
-                  Uploads the G-code to the SD card as <code>{kJobFileName}</code> and starts it from the current work zero.
-                </p>
-                {warnings.length > 0 && (
-                  <ul className="list-disc pl-5 text-amber-700 dark:text-amber-400">
-                    {warnings.map(w => (
-                      <li key={w.id}>{w.label}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => uploadAndRun().catch(err => console.error('upload and run failed', err))}>
-              {warnings.length ? 'Run anyway' : 'Run'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </section>
-  );
-}
-
 /** Always in view while preparing: moving the bit is part of placing the board and zeroing. */
-function JogStep() {
+function JogStep({ onEditMacros }: { onEditMacros: () => void }) {
   return (
-    <section aria-label="Jog" className="rounded-lg border px-3 py-2">
+    <section aria-label="Jog" className="flex flex-col gap-2 rounded-lg border px-3 py-2">
       <JogPanel />
+      <MacroButtons onEdit={onEditMacros} />
     </section>
   );
 }
 
-/** Manual tools, out of the way of the job: macros, zeroing at the bit, jog feeds. */
-function ToolsDrawer({ onEditMacros, defaultOpen }: { onEditMacros: () => void; defaultOpen: boolean }) {
-  'use no memo';
-  const api = getCncApi();
-  const idle = api.isConnected.value && api.state.value === 'Idle';
-  const [open, setOpen] = useState(defaultOpen);
+/** Rarely changed settings, out of the way of the job. */
+function ToolsDrawer() {
+  const [open, setOpen] = useState(false);
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="flex flex-col gap-3">
       <CollapsibleTrigger asChild>
         <Button variant="ghost" size="sm" className="-ml-1 self-start px-1 text-muted-foreground">
-          <ChevronRight className={cn('transition-transform', open && 'rotate-90')} /> <Wrench /> Tools: macros, zero here, feeds, probe
+          <ChevronRight className={cn('transition-transform', open && 'rotate-90')} /> <Wrench /> Tools: feeds, probe
         </Button>
       </CollapsibleTrigger>
       <CollapsibleContent className="flex flex-col gap-4">
         {open && (
           <>
-            <Section
-              title="Macros"
-              action={
-                <Button size="icon" variant="ghost" className="size-6" title="Edit macros" onClick={onEditMacros}>
-                  <Pencil className="size-3.5" />
-                </Button>
-              }>
-              <MacroButtons />
-            </Section>
-            <Section title="Zero here">
-              <div className="flex flex-row flex-wrap gap-1">
-                <Button size="sm" variant="outline" disabled={!idle} onClick={() => report(api.zeroAxes(['x', 'y']), 'Zeroing')}>
-                  Zero XY here
-                </Button>
-                <Button size="sm" variant="outline" disabled={!idle} onClick={() => report(api.send('G90 G0 X0 Y0'), 'Move')}>
-                  Go to XY zero
-                </Button>
-              </div>
-            </Section>
             <Section title="Jog feed">
               <JogFeeds />
             </Section>
@@ -293,14 +108,13 @@ function ToolsDrawer({ onEditMacros, defaultOpen }: { onEditMacros: () => void; 
 }
 
 /**
- * Everything before a job, as steps: the job (a CAM job's queue and board, or a G-code file), zero, jog, run. Homing is
- * in the panel header. Run stays pinned at the bottom; manual tools are folded away.
+ * Everything before a job, as steps: the job (a CAM job's queue and board, or a G-code file), jog with the macros, and
+ * the footer pinned at the bottom with what's next. Rarely changed settings are folded away.
  */
 export function SetupView({ onEditMacros, onShowConsole }: { onEditMacros: () => void; onShowConsole?: () => void }) {
   'use no memo';
   const connected = getCncApi().isConnected.value;
   const camJob = !!useCamMachine(s => s.jobId);
-  const hasToolpath = useStore(s => !!s.toolpath);
   return (
     <div className="flex min-h-full flex-col gap-3">
       <AlarmCard onShowConsole={onShowConsole} />
@@ -308,9 +122,8 @@ export function SetupView({ onEditMacros, onShowConsole }: { onEditMacros: () =>
       {camJob ? <CamQueueCard /> : <JobStep />}
       {connected && (
         <>
-          <ZeroStep />
-          <JogStep />
-          <ToolsDrawer onEditMacros={onEditMacros} defaultOpen={!hasToolpath && !camJob} />
+          <JogStep onEditMacros={onEditMacros} />
+          <ToolsDrawer />
           <RunFooter />
         </>
       )}

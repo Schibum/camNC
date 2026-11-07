@@ -18,7 +18,7 @@ export interface ChecklistItem {
   details?: string[];
   /** The job cannot run like this (the controller would stop it with an alarm). */
   blocking?: boolean;
-  /** The problem is the zero still on the controller: it goes away with the open zero steps. */
+  /** The problem is the Z zero still on the controller: it goes away once Z is zeroed. */
   zeroFirst?: boolean;
 }
 
@@ -111,9 +111,9 @@ export function checkTravel(input: {
 }
 
 /**
- * {@link checkTravel} for a job whose zero steps may still be open. A run starts from the zero on the controller, so
- * that decides whether it can start. But an old zero says nothing about the job: judge it by where it is placed (XY,
- * and Z only once zeroed), and report a problem that the zero steps will solve as just that.
+ * {@link checkTravel} for a job about to run. Run sets XY zero to where the job is placed, so XY is judged from there.
+ * Z runs from the zero on the controller, which decides whether it can start. But an old Z zero says nothing about the
+ * job: report a problem that zeroing Z will solve as just that.
  */
 function checkJobTravel(input: {
   toolpathBounds: Box3Like;
@@ -121,25 +121,28 @@ function checkJobTravel(input: {
   travel: MachineTravel;
   gcode: string;
   toolpathOffset: { x: number; y: number };
-  xyPending: boolean;
   zPending: boolean;
 }): ChecklistItem {
-  const { toolpathOffset, xyPending, zPending, ...current } = input;
-  const now = checkTravel(current);
-  if (now.ok || (!xyPending && !zPending)) return now;
-  const placed = checkTravel({
-    ...current,
-    workOffset: xyPending ? { ...current.workOffset, x: toolpathOffset.x, y: toolpathOffset.y } : current.workOffset,
-    travel: zPending ? { ...current.travel, z: null } : current.travel,
-  });
+  const { toolpathOffset, zPending, ...current } = input;
+  const atPlace = { ...current, workOffset: { ...current.workOffset, x: toolpathOffset.x, y: toolpathOffset.y } };
+  const now = checkTravel(atPlace);
+  if (now.ok || !zPending) return now;
+  const placed = checkTravel({ ...atPlace, travel: { ...current.travel, z: null } });
   if (placed.blocking) return placed;
   return {
     id: 'travel',
     ok: false,
     blocking: now.blocking,
     zeroFirst: true,
-    label: 'Set the zero first: the old zero would leave the machine travel',
+    label: 'Set Z first: the old Z zero would leave the machine travel',
   };
+}
+
+export type RunStep = 'home' | 'z' | 'run';
+
+/** What the main button does next: nothing gets started before these are done or marked as done before. */
+export function nextRunStep({ homed, zOk }: { homed: boolean; zOk: boolean }): RunStep {
+  return !homed ? 'home' : !zOk ? 'z' : 'run';
 }
 
 /** An axis the machine already sits outside of, and the jog (mm, relative) that brings it back inside. */
@@ -291,7 +294,6 @@ export function getJobChecklist(input: ChecklistInput): ChecklistItem[] {
         travel: input.travel,
         gcode,
         toolpathOffset,
-        xyPending: !zeroMatches,
         // G-code that sets Z itself has no zero step left to do: the Z offset it starts from is what counts.
         zPending: !input.zZeroed && !hasProbeOrZeroCommand(gcode),
       })

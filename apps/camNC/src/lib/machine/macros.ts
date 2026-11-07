@@ -16,7 +16,6 @@ export interface Macro {
 export const kDefaultMacros: Macro[] = [
   { id: 'lift-z', name: 'Lift Z 10 mm', kind: 'gcode', content: 'G91\nG0 Z10\nG90' },
   { id: 'retract-xy0', name: 'Retract & go to XY zero', kind: 'gcode', content: 'G53 G0 Z-5\nG90 G0 X0 Y0' },
-  { id: 'z0', name: 'Go to Z zero', kind: 'gcode', content: 'G90 G0 Z0' },
   { id: 'park-front', name: 'Park (retract, front left)', kind: 'gcode', content: 'G53 G0 Z-5\nG53 G0 X10 Y10' },
 ];
 
@@ -72,4 +71,19 @@ export function parseWebUiMacros(json: string): Macro[] {
     }
   }
   return macros;
+}
+
+/** How many characters of macro names fit in the row beside More. */
+const kMacroRowChars = 36;
+
+/** The macros that get a button of their own, in list order, and the rest. The first always does: names shorten to fit. */
+export function splitMacros(macros: Macro[], chars = kMacroRowChars) {
+  let used = 0;
+  let count = 0;
+  for (const macro of macros) {
+    used += macro.name.length;
+    if (count > 0 && used > chars) break;
+    count++;
+  }
+  return { row: macros.slice(0, count), more: macros.slice(count) };
 }

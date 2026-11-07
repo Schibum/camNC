@@ -1,4 +1,5 @@
 import { getCncApi } from '@/lib/fluidnc/machine';
+import { machineZeroPreview, moveTargetPreview } from '@/lib/machine/jobs';
 import { zeroGhost } from '@/lib/machine/workflow';
 import { CanvasLabel } from '@/scene/CanvasLabel';
 import { useMachineBusy } from '@/cam/machine/useMachineBusy';
@@ -7,9 +8,34 @@ import { Line } from '@react-three/drei';
 
 const kColor = '#f59e0b';
 const kPastColor = '#ef4444';
+const kMoveColor = '#f87171';
 const noRaycast = () => null;
 
-/** Dashed outline of where the program would really run from the zero on the controller, when that isn't where it's placed. */
+/** Dashed line from the bit to where a move would take it, while the user points at that move. */
+export function MoveTargetLine() {
+  'use no memo';
+  const target = moveTargetPreview.value;
+  const mpos = getCncApi().status.value?.mpos;
+  if (!target || !mpos) return null;
+  return (
+    <Line
+      raycast={noRaycast}
+      depthTest={false}
+      renderOrder={1001}
+      points={[
+        [mpos.x, mpos.y, 0],
+        [target.x, target.y, 0],
+      ]}
+      color={kMoveColor}
+      lineWidth={2}
+      dashed
+      dashSize={8}
+      gapSize={6}
+    />
+  );
+}
+
+/** Dashed outline of where the program would really run from the zero on the controller, while the user considers running from there. */
 export function ZeroGhost() {
   'use no memo';
   const api = getCncApi();
@@ -17,7 +43,7 @@ export function ZeroGhost() {
   const toolpathOffset = useStore(s => s.toolpathOffset);
   const busy = useMachineBusy();
   const workOffset = api.status.value?.wco;
-  if (!toolpath || !workOffset || !api.isConnected.value || busy) return null;
+  if (!machineZeroPreview.value || !toolpath || !workOffset || !api.isConnected.value || busy) return null;
   const ghost = zeroGhost({ toolpathBounds: toolpath.getBounds(), workOffset, toolpathOffset, travel: api.travel.value });
   if (!ghost) return null;
   const { min, max, past, label } = ghost;

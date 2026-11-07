@@ -7,6 +7,11 @@ describe('parseListJson', () => {
     expect(parseListJson(lines)).toMatchObject({ files: [], occupation: 92 });
   });
 
+  it('skips report lines that arrive during the listing', () => {
+    const lines = ['[G54:236.660,391.200,0.000]', '[MSG:INFO: busy]', '{"files":[{"name":"a.nc","size":"12"}],"path":"/"}'];
+    expect(parseListJson(lines).files).toHaveLength(1);
+  });
+
   it('joins [JSON:…] chunks and marks directories', () => {
     const lines = ['[JSON:{"files":[{"name":"a.nc","size":"12"},]', '[JSON:{"name":"dir","size":"-1"}],"path":"/"}]'];
     expect(parseListJson(lines).files).toEqual([
