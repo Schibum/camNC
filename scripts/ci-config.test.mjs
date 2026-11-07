@@ -10,8 +10,8 @@ const read = file => readFileSync(new URL(file, root), 'utf8');
 const lock = parse(read('pnpm-lock.yaml'));
 const require = createRequire(import.meta.url);
 
-for (const [workflow, job] of [['ci.yml', 'test'], ['setup-smoke.yml', 'setup-smoke']]) {
-  test(`${workflow}: preinstalled browsers match the locked and installed Playwright versions`, () => {
+for (const [workflow, job] of [['ci.yml', 'test'], ['ci.yml', 'specs'], ['setup-smoke.yml', 'setup-smoke']]) {
+  test(`${workflow} ${job}: preinstalled browsers match the locked and installed Playwright versions`, () => {
     const { container } = parse(read(`.github/workflows/${workflow}`)).jobs[job];
     const version = lock.importers['.'].devDependencies.playwright.version;
     assert.equal(container.image, `mcr.microsoft.com/playwright:v${version}-noble`);
@@ -21,6 +21,16 @@ for (const [workflow, job] of [['ci.yml', 'test'], ['setup-smoke.yml', 'setup-sm
     assert.equal(appRequire('playwright/package.json').version, version);
   });
 }
+
+test('browser test steps are bounded and the turbo cache action saves the directory turbo writes', () => {
+  const { jobs } = parse(read('.github/workflows/ci.yml'));
+  const step = (job, name) => jobs[job].steps.find(s => s.name === name);
+  const tests = step('test', 'Run tests');
+  assert(tests['timeout-minutes'] > 0);
+  assert(step('specs', 'Run sketch behaviour specs')['timeout-minutes'] > 0);
+  assert.match(tests.run, /--log-order=stream/);
+  assert.equal(step('test', 'Cache Turborepo').with.path, tests.env.TURBO_CACHE_DIR);
+});
 
 test('the required Run tests check waits for every validation job and cannot hide failures', () => {
   const { jobs } = parse(read('.github/workflows/ci.yml'));
@@ -61,4 +71,18 @@ test('the CI suites cover every package test exactly once and retain every perfo
   assert.deepEqual(assigned.sort(), selected([]).sort(), 'no test task may be omitted or duplicated across runners');
   const scripts = JSON.parse(read('package.json')).scripts;
   assert.deepEqual(suites.map(suite => suite.performance).filter(Boolean).sort(), scripts['test:performance'].split(' && ').sort());
+});
+
+
+test('merge queue runs all validation and isolates concurrent candidate builds', () => {
+  const workflow = parse(read('.github/workflows/ci.yml'));
+  assert.deepEqual(workflow.on.merge_group.types, ['checks_requested']);
+  assert(workflow.on.pull_request, 'ordinary PR checks must still run');
+  assert(workflow.on.push, 'main checks must still run');
+  assert.equal(workflow.concurrency.group, 'ci-${{ github.event.pull_request.number || github.run_id }}');
+  assert.equal(workflow.concurrency['cancel-in-progress'], "${{ github.event_name == 'pull_request' }}");
+  for (const [id, job] of Object.entries(workflow.jobs)) {
+    assert.equal(job.if, id === 'results' ? 'always()' : undefined,
+      `${id} must not skip validation on merge_group events`);
+  }
 });
